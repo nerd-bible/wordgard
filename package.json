@@ -1,0 +1,22 @@
+{
+  "name": "willow",
+  "version": "0.0.1",
+  "description": "A rich text editor",
+  "type": "module",
+  "main": "dist/index.js",
+  "exports": {
+    "import": "./dist/index.js",
+    "require": "./dist/index.cjs"
+  },
+  "scripts": {
+    "test": "mocha test/test-*.js",
+    "prepare": "node bin/build.js",
+    "watch": "node bin/build.js --watch"
+  },
+  "author": "Marijn Haverbeke <marijn@haverbeke.berlin>",
+  "license": "MIT",
+  "dependencies": {
+    "@marijn/buildtool": "^1.0.0",
+    "@marijn/testtool": "^0.1.2"
+  }
+}
