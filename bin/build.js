@@ -5,7 +5,10 @@ import {packages} from "./packages.js"
 let root = resolve(import.meta.dirname, "..")
 let mains = packages.map(p => join(root, p, "src", "index.ts"))
 let options = {
-  pureTopCalls: true
+  pureTopCalls: true,
+  tsOptions: {
+    lib: ["es2020", "scripthost", "dom"],
+  }
 }
 
 if (process.argv.includes("--watch")) {
