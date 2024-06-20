@@ -4,9 +4,13 @@ const enum NodeFlag {
   InlineContent = 2, // FIXME determine, somehow
   Text = 4,
   Leaf = 8,
+  Doc = 16,
 }
 
 const none: readonly any[] = []
+const noAttrs: {[name: string]: any} = Object.create(null)
+
+// FIXME find another word for 'Attr'?
 
 export type NodeSpec<Attrs extends {}> = {
   attrs?: {[name in keyof Attrs]: AttrSpec<Attrs[name]>}
@@ -16,6 +20,8 @@ export type NodeSpec<Attrs extends {}> = {
 }
 
 type ChildSpec = Node | string | readonly ChildSpec[]
+
+const docTypes = new Map<string, NodeType<{}>>()
 
 export class NodeType<Attrs extends {} = {}> {
   attrs: readonly Attribute<any>[]
@@ -58,6 +64,14 @@ export class NodeType<Attrs extends {} = {}> {
     return new NodeType<Attrs>(name, NodeFlag.Inline, spec)
   }
 
+  static doc(content: string) {
+    let cached = docTypes.get(content)
+    if (cached) return cached
+    let type = new NodeType("doc", NodeFlag.Doc, {content, tag: ""})
+    docTypes.set(content, type)
+    return type
+  }
+
   create(attrs: Partial<Attrs>, ...children: ChildSpec[]): Node
   create(...children: ChildSpec[]): Node
   create(attrsOrChild?: Partial<Attrs> | ChildSpec, ...children: ChildSpec[]): Node {
@@ -78,12 +92,15 @@ export class NodeType<Attrs extends {} = {}> {
   }
 
   canBeChild(parent: NodeType) {
-    return parent.contentGroups.some(g => this.isInGroup(g))
+    return this.flags & NodeFlag.Doc ? false : parent.contentGroups.some(g => this.isInGroup(g))
   }
 
   checkChildren(children: readonly Node[]) {
     for (let child of children)
-      if (child.type.canBeChild(this)) throw new Error(`${child.name} is not a valid child of ${this.name}`)
+      if (!child.type.canBeChild(this)) {
+        console.log(this.contentGroups, child.type.groups, this.contentGroups.some(g => child.type.isInGroup(g)))
+        throw new Error(`${child.name} is not a valid child of ${this.name}`)
+      }
     return children
   }
 
@@ -100,7 +117,7 @@ export class NodeType<Attrs extends {} = {}> {
 }
 
 function checkReserved(name: string) {
-  if (name == "inline" || name == "block" || name == "text")
+  if (name == "inline" || name == "block" || name == "text" || name == "doc")
     throw new Error(`Node name ${name} is reserved`)
 }
 
@@ -123,21 +140,41 @@ function fillAttrs<Attrs extends {}>(attrs: readonly Attribute<any>[], input: Pa
 }
 
 export class Node {
+  contentLength: number
+
   constructor(
     readonly type: NodeType,
     readonly attrs: {[name: string]: any},
     readonly marks: readonly Mark[],
     readonly children: readonly Node[],
-  ) {}
+  ) {
+    this.contentLength = children.reduce((s, c) => s + c.length, 0)
+  }
 
   get name() { return this.type.name }
+
+  get length() { return this.type.isLeaf ? 1 : 2 + this.contentLength }
 
   mark(marks: readonly Mark[]) {
     return new Node(this.type, this.attrs, marks, this.children)
   }
 
+  sameMarkup(other: Node) {
+    return this.type == other.type &&
+      compareAttrs(this.type.attrs, this.attrs, other.attrs) &&
+      eqArray(this.marks, other.marks)
+  }
+
+  eq(other: Node): boolean {
+    return this.sameMarkup(other) && eqArray(this.children, other.children)
+  }
+
   copy(children: readonly Node[]) {
     return new Node(this.type, this.attrs, this.marks, this.type.checkChildren(children))
+  }
+
+  isText(): this is TextNode { // FIXME interface consistency
+    return this.type.isText
   }
 
   toString() {
@@ -145,9 +182,28 @@ export class Node {
   }
 }
 
+export class DocNode extends Node {
+  constructor(type: NodeType, children: readonly Node[]) {
+    super(type, noAttrs, none, children)
+  }
+
+  get length() { return this.contentLength }
+}
+
 export class TextNode extends Node {
   constructor(readonly text: string, marks: readonly Mark[] = none) {
-    super(Text, none, marks, none)
+    super(Text, noAttrs, marks, none)
+    if (!text.length) throw new Error("Text nodes must not be empty")
+  }
+
+  get length() { return this.text.length }
+
+  withText(text: string) {
+    return new TextNode(text, this.marks)
+  }
+
+  slice(from: number, to = this.length) {
+    return new TextNode(this.text.slice(from, to), this.marks)
   }
 
   toString() { return JSON.stringify(this.text) }
@@ -155,19 +211,30 @@ export class TextNode extends Node {
 
 export type AttrSpec<T> = {
   default?: T
-  parse?: (input: string) => T,
-  serialize?: (value: T) => string,
-  attribute?: string
+  compare?: (a: T, b: T) => boolean
 }
 
 class Attribute<T = any> {
   hasDefault: boolean
   default: T
+  compare: (a: T, b: T) => boolean
 
   constructor(readonly name: string, readonly spec: AttrSpec<T>) {
     this.hasDefault = "default" in spec
     this.default = spec.default!
+    this.compare = spec.compare || ((a, b) => a === b)
   }
+}
+
+function compareAttrs(attrs: readonly Attribute[], a: {[name: string]: any}, b: {[name: string]: any}) {
+  for (let attr of attrs) if (!attr.compare(a[attr.name], b[attr.name])) return false
+  return true
+}
+
+function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], b: readonly T[]) {
+  if (a.length != b.length) return false
+  for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
+  return true
 }
 
 export type MarkSpec<Attrs extends {}> = {
@@ -222,6 +289,10 @@ export class Mark {
 
   get name() {
     return this.type.name
+  }
+
+  eq(other: Mark) {
+    return this.type == other.type && compareAttrs(this.type.attrs, this.attrs, other.attrs)
   }
 }
 
@@ -293,4 +364,4 @@ export const schema = Schema.define([
   Image,
 ])
 
-console.log(Paragraph.create("one") + "")
+export const Doc = NodeType.doc("block")
