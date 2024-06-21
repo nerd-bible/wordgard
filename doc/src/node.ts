@@ -23,6 +23,21 @@ type ChildSpec = Node | string | readonly ChildSpec[]
 
 const docTypes = new Map<string, NodeType<{}>>()
 
+function splitGroups(groups: string) {
+  let result = []
+  for (let pos = 0; pos < groups.length;) {
+    let space = groups.indexOf(" ", pos)
+    if (space < 0) space = groups.length
+    if (space > pos) result.push(groups.slice(pos, space))
+    pos = space + 1
+  }
+  return result
+}
+
+function remove<T>(arr: readonly T[], index: number) {
+  return arr.length == 1 ? none : arr.filter((_, i) => i != index)
+}
+
 export class NodeType<Attrs extends {} = {}> {
   attrs: readonly Attribute<any>[]
   private groups: readonly string[]
@@ -49,9 +64,9 @@ export class NodeType<Attrs extends {} = {}> {
       }
     }
     this.defaultAttrs = defaultAttrs
-    let groups = this.groups = [name, flags & NodeFlag.Inline ? "inline" : "block"]
-    if (spec.group) for (let g of spec.group.split(" ")) groups.push(g)
-    this.contentGroups = spec.content ? spec.content.split(" ") : none
+    let groups = this.groups = [name, flags & NodeFlag.Inline ? "Inline" : "Block"]
+    if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
+    this.contentGroups = spec.content ? splitGroups(spec.content) : none
   }
 
   static block<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
@@ -75,6 +90,7 @@ export class NodeType<Attrs extends {} = {}> {
   create(attrs: Partial<Attrs>, ...children: ChildSpec[]): Node
   create(...children: ChildSpec[]): Node
   create(attrsOrChild?: Partial<Attrs> | ChildSpec, ...children: ChildSpec[]): Node {
+    if (this.isText) throw new Error("Text nodes cannot be created with .create()")
     let attrs = this.defaultAttrs, childList: Node[] = []
     if (attrsOrChild) {
       if (Array.isArray(attrsOrChild) || typeof attrsOrChild == "string" || attrsOrChild instanceof Node)
@@ -104,6 +120,12 @@ export class NodeType<Attrs extends {} = {}> {
     return children
   }
 
+  checkMarks(marks: readonly Mark[]) {
+    for (let mark of marks) if (!mark.type.canTarget(this))
+      throw new Error(`Mark ${mark.name} cannot be applied to node ${this.name}`)
+    return marks
+  }
+
   get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
   get isText() { return (this.flags & NodeFlag.Text) > 0 }
   get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
@@ -117,12 +139,12 @@ export class NodeType<Attrs extends {} = {}> {
 }
 
 function checkReserved(name: string) {
-  if (name == "inline" || name == "block" || name == "text" || name == "doc")
+  if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
     throw new Error(`Node name ${name} is reserved`)
 }
 
 function createChildren(children: ChildSpec, result: Node[] = []) {
-  if (typeof children == "string") result.push(new TextNode(children))
+  if (typeof children == "string") result.push(Node.text(children))
   else if (Array.isArray(children)) for (let child of children) createChildren(child, result)
   else result.push(children as Node)
   return result
@@ -156,7 +178,7 @@ export class Node {
   get length() { return this.type.isLeaf ? 1 : 2 + this.contentLength }
 
   mark(marks: readonly Mark[]) {
-    return new Node(this.type, this.attrs, marks, this.children)
+    return new Node(this.type, this.attrs, this.type.checkMarks(marks), this.children)
   }
 
   sameMarkup(other: Node) {
@@ -189,6 +211,10 @@ export class Node {
     if (this.children.length) result.children = this.children.map(c => c.toJSON())
     return result
   }
+
+  static text(text: string, marks: readonly Mark[] = none) {
+    return new TextNode(text, marks)
+  }
 }
 
 export type NodeJSON = {
@@ -213,8 +239,9 @@ export class DocNode extends Node {
 }
 
 export class TextNode extends Node {
-  constructor(readonly text: string, marks: readonly Mark[] = none) {
+  constructor(readonly text: string, marks: readonly Mark[]) {
     super(Text, noAttrs, marks, none)
+    this.type.checkMarks(marks)
     if (!text.length) throw new Error("Text nodes must not be empty")
   }
 
@@ -261,16 +288,28 @@ function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], b: read
 
 export type MarkSpec<Attrs extends {}> = {
   attrs?: {[name in keyof Attrs]: AttrSpec<Attrs[name]>}
+  group?: string
+  nodes?: string
+  excludes?: string
+  rank: number
 }
 
 export class MarkType<Attrs extends {} = {}> {
   attrs: readonly Attribute<any>[]
   defaultInstance: Mark | null
+  groups: readonly string[]
+  targetGroups: readonly string[]
+  excludedGroups: readonly string[]
+  rank: number
 
   private constructor(
     readonly name: string,
     readonly spec: MarkSpec<Attrs>
   ) {
+    this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name)
+    this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
+    this.excludedGroups = spec.excludes == null ? [name] : splitGroups(spec.excludes)
+    this.rank = spec.rank
     let attrs: Attribute<any>[] = this.attrs = []
     this.attrs = Object.create(null)
     let defaultAttrs: Attrs | null = Object.create(null)
@@ -293,9 +332,35 @@ export class MarkType<Attrs extends {} = {}> {
     return new Mark(this, fillAttrs(this.attrs, attrs))
   }
 
+  isInGroup(group: string) {
+    return this.groups.includes(group)
+  }
+
+  canTarget(node: NodeType) {
+    return this.targetGroups.some(g => node.isInGroup(g))
+  }
+
+  excludes(other: MarkType) {
+    return this.excludedGroups.some(g => other.isInGroup(g))
+  }
+
   getAttr<Name extends keyof Attrs>(attr: Name, mark: Mark): Attrs[Name] {
     if (mark.type != this) throw new Error(`Accessing attr on the wrong type of mark`)
     return mark.attrs[attr as any]
+  }
+
+  compareRank(other: MarkType) {
+    return this.rank - other.rank || (other.name < this.name ? 1 : -1)
+  }
+
+  removeFromSet(set: readonly Mark[]): readonly Mark[] {
+    for (var i = 0; i < set.length; i++) if (set[i].type == this) set = remove(set, i--)
+    return set
+  }
+
+  isInSet(set: readonly Mark[]): Mark | undefined {
+    for (let i = 0; i < set.length; i++)
+      if (set[i].type == this) return set[i]
   }
 
   static define<Attrs extends {}>(name: string, spec: MarkSpec<Attrs>) {
@@ -321,6 +386,29 @@ export class Mark {
     let result: MarkJSON = {type: this.name}
     if (this != this.type.defaultInstance) result.attrs = this.attrs
     return result
+  }
+
+  addToSet(set: readonly Mark[]) {
+    let placed = null, copy: Mark[] = []
+    for (let i = 0; i < set.length; i++) {
+      let other = set[i]
+      if (this.eq(other)) return set
+      if (this.type.excludes(other.type)) {
+        // Skip
+      } else if (other.type.excludes(this.type)) {
+        return set
+      } else {
+        if (!placed && this.type.compareRank(other.type) < 0) copy.push(placed = this)
+        copy.push(other)
+      }
+    }
+    if (!placed) copy.push(this)
+    return copy
+  }
+
+  removeFromSet(set: readonly Mark[]): readonly Mark[] {
+    for (var i = 0; i < set.length; i++) if (set[i].eq(this)) return remove(set, i)
+    return set
   }
 }
 
@@ -406,7 +494,7 @@ export class Schema {
     if (json.marks && Array.isArray(json.marks))
       marks = json.marks.map(m => this.markFromJSON(m))
     if (type.isText && typeof json.text == "string")
-      return new TextNode(json.text, marks)
+      return Node.text(json.text, marks)
     if (!attrs || json.attrs && typeof json.attrs == "object")
       attrs = json.attrs || {}
     if (json.children && Array.isArray(json.children))
@@ -426,12 +514,12 @@ export class Schema {
 export const Text = new NodeType("Text", NodeFlag.Text | NodeFlag.Inline, {tag: ""})
 
 export const Paragraph = NodeType.block("Paragraph", {
-  content: "inline",
+  content: "Inline",
   tag: "p"
 })
 
 export const Blockquote = NodeType.block("Blockquote", {
-  content: "block",
+  content: "Block",
   tag: "blockquote"
 })
 
@@ -449,4 +537,4 @@ export const schema = Schema.define([
   Image,
 ])
 
-export const Doc = NodeType.doc("block")
+export const Doc = NodeType.doc("Block")

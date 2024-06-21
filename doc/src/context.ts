@@ -58,7 +58,7 @@ class Context extends ContextLevel {
     let {parent, index} = this
     if (index == parent.children.length) return null
     let after = parent.children[index]
-    return this.textOffset ? new TextNode((after as TextNode).text.slice(this.textOffset), after.marks) : after
+    return this.textOffset ? Node.text((after as TextNode).text.slice(this.textOffset), after.marks) : after
   }
 
   /// Get the node directly before the position, if any. If the
@@ -68,7 +68,7 @@ class Context extends ContextLevel {
     let {parent, index, textOffset} = this
     if (textOffset) {
       let node = parent.children[index] as TextNode
-      return new TextNode(node.text.slice(0, this.textOffset), node.marks)
+      return node.withText(node.text.slice(0, this.textOffset))
     } else if (!index) {
       return null
     } else {
