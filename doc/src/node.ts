@@ -180,6 +180,28 @@ export class Node {
   toString() {
     return this.name + (this.type.isLeaf ? `` : `(${this.children.join()})`)
   }
+
+  toJSON(): NodeJSON {
+    let result: NodeJSON = {type: this.name}
+    if (this.marks.length) result.marks = this.marks.map(m => m.toJSON())
+    if (this.attrs != this.type.defaultAttrs) result.attrs = this.attrs
+    if (this.isText()) result.text = this.text
+    if (this.children.length) result.children = this.children.map(c => c.toJSON())
+    return result
+  }
+}
+
+export type NodeJSON = {
+  type: string,
+  marks?: readonly MarkJSON[],
+  attrs?: any,
+  text?: string,
+  children?: readonly NodeJSON[]
+}
+
+export type MarkJSON = {
+  type: string,
+  attrs?: any
 }
 
 export class DocNode extends Node {
@@ -243,7 +265,7 @@ export type MarkSpec<Attrs extends {}> = {
 
 export class MarkType<Attrs extends {} = {}> {
   attrs: readonly Attribute<any>[]
-  private defaultInstance: Mark | null
+  defaultInstance: Mark | null
 
   private constructor(
     readonly name: string,
@@ -294,6 +316,12 @@ export class Mark {
   eq(other: Mark) {
     return this.type == other.type && compareAttrs(this.type.attrs, this.attrs, other.attrs)
   }
+
+  toJSON(): MarkJSON {
+    let result: MarkJSON = {type: this.name}
+    if (this != this.type.defaultInstance) result.attrs = this.attrs
+    return result
+  }
 }
 
 export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]
@@ -301,6 +329,8 @@ export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElem
 export class Schema {
   private nodeSet: Set<NodeType>
   private markSet: Set<MarkType>
+  private nodesByName: {[name: string]: NodeType} = Object.create(null)
+  private marksByName: {[name: string]: MarkType} = Object.create(null)
 
   private constructor(
     readonly nodes: readonly NodeType[],
@@ -309,6 +339,8 @@ export class Schema {
   ) {
     this.nodeSet = new Set(nodes)
     this.markSet = new Set(marks)
+    for (let node of nodes) this.nodesByName[node.name] = node
+    for (let mark of marks) this.marksByName[mark.name] = mark
   }
 
   validate(node: Node) {
@@ -336,7 +368,7 @@ export class Schema {
   }
 
   static define(spec: SchemaElement) {
-    let nodes: NodeType[] = [], marks: MarkType[] = []
+    let nodes: NodeType[] = [Text], marks: MarkType[] = []
     let names: Set<string> = new Set
     let inlineContent: Set<NodeType> = new Set
     function scan(spec: SchemaElement) {
@@ -364,6 +396,30 @@ export class Schema {
       else if (!sawDefaultable) throw new Error(`Node ${node.name} has block content, but all possible children require non-default attributes`)
     }
     return new Schema(nodes, marks, inlineContent)
+  }
+
+  nodeFromJSON(json: NodeJSON) {
+    if (!json || typeof json != "object" || !(json.type in this.nodesByName))
+      throw new Error("Invalid node JSON")
+    let type = this.nodesByName[json.type]
+    let marks = none, attrs = type.defaultAttrs, children = none
+    if (json.marks && Array.isArray(json.marks))
+      marks = json.marks.map(m => this.markFromJSON(m))
+    if (type.isText && typeof json.text == "string")
+      return new TextNode(json.text, marks)
+    if (!attrs || json.attrs && typeof json.attrs == "object")
+      attrs = json.attrs || {}
+    if (json.children && Array.isArray(json.children))
+      children = json.children.map(c => this.nodeFromJSON(c))
+    return type.create(attrs!, children).mark(marks)
+  }
+
+  markFromJSON(json: MarkJSON) {
+    if (!json || typeof json != "object" || !(json.type in this.marksByName))
+      throw new Error("Invalid mark JSON")
+    let type = this.marksByName[json.type]
+    if (!json.attrs && type.defaultInstance) return type.defaultInstance
+    return type.create(json.attrs || {})
   }
 }
 
