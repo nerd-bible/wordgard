@@ -27,7 +27,7 @@ export class NodeType<Attrs extends {} = {}> {
   attrs: readonly Attribute<any>[]
   private groups: readonly string[]
   private contentGroups: readonly string[]
-  private defaultAttrs: Attrs | null
+  defaultAttrs: Attrs | null
   schemaElement: NodeType
   flags: NodeFlag
 
@@ -303,8 +303,9 @@ export class Schema {
   private markSet: Set<MarkType>
 
   private constructor(
-    nodes: readonly NodeType[],
-    marks: readonly MarkType[]
+    readonly nodes: readonly NodeType[],
+    readonly marks: readonly MarkType[],
+    private inlineContent: Set<NodeType>,
   ) {
     this.nodeSet = new Set(nodes)
     this.markSet = new Set(marks)
@@ -318,9 +319,26 @@ export class Schema {
     for (let ch of node.children) this.validate(ch)
   }
 
+  hasInlineContent(type: NodeType) {
+    return this.inlineContent.has(type)
+  }
+
+  defaultContentType(parent: NodeType) {
+    for (let node of this.nodes) if (node.canBeChild(parent) && node.defaultAttrs) return node
+    return null
+  }
+
+  createDefault(parent: NodeType): Node {
+    let child = this.defaultContentType(parent)
+    if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
+    if (child.isLeaf || this.hasInlineContent(child)) return child.create()
+    return child.create(this.createDefault(child))
+  }
+
   static define(spec: SchemaElement) {
     let nodes: NodeType[] = [], marks: MarkType[] = []
     let names: Set<string> = new Set
+    let inlineContent: Set<NodeType> = new Set
     function scan(spec: SchemaElement) {
       if (Array.isArray(spec)) {
         spec.forEach(scan)
@@ -334,7 +352,18 @@ export class Schema {
       }
     }
     scan(spec)
-    return new Schema(nodes, marks)
+    for (let node of nodes) if (!node.isLeaf) {
+      let inline: boolean | null = null, sawDefaultable = false
+      for (let child of nodes) if (child.canBeChild(node)) {
+        if (child.defaultAttrs) sawDefaultable = true
+        let childInline = child.isInline
+        if (inline == null) inline = childInline
+        else if (inline != childInline) throw new Error(`Node type ${node.name} allows both inline and block children`)
+      }
+      if (inline) inlineContent.add(node)
+      else if (!sawDefaultable) throw new Error(`Node ${node.name} has block content, but all possible children require non-default attributes`)
+    }
+    return new Schema(nodes, marks, inlineContent)
   }
 }
 

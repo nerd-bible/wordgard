@@ -67,6 +67,14 @@ function runSlice(slice: Slice, track: Tracker) {
   }
 }
 
+function validateSlice(schema: Schema, slice: Slice) {
+  for (let elt of slice) {
+    if (elt instanceof OpenToken) schema.validate(elt.node)
+    else if (elt instanceof Node) schema.validate(elt)
+  }
+  return slice
+}
+
 class BuildContext {
   children: Node[] = []
   constructor(readonly node: Node) {}
@@ -75,7 +83,7 @@ class BuildContext {
 class Builder implements Tracker {
   stack: BuildContext[]
 
-  constructor(doc: Node) {
+  constructor(readonly schema: Schema, doc: Node) {
     this.stack = [new BuildContext(doc)]
   }
 
@@ -96,8 +104,9 @@ class Builder implements Tracker {
   }
 
   leave(type: NodeType) {
-    // FIXME check/finish current top
     let top = this.stack.pop()!
+    if (!top.children.length && !top.node.type.isLeaf && !this.schema.hasInlineContent(top.node.type))
+      throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.node.copy(top.children))
   }
 
@@ -121,7 +130,7 @@ export class ChangeSet {
   ) {}
 
   apply(schema: Schema, doc: Node) {
-    let builder = new Builder(doc)
+    let builder = new Builder(schema, doc)
     let cursor = new Pos(doc, 0, null)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
       let lenA = this.sections[iS++], lenB = this.sections[iS++]
@@ -129,7 +138,7 @@ export class ChangeSet {
         cursor = cursor.advance(lenA, builder)
       } else {
         cursor = cursor.advance(lenA)
-        runSlice(this.data[i] as Slice, builder)
+        runSlice(validateSlice(schema, this.data[i] as Slice), builder)
       }
     }
     if (cursor.parent || cursor.index != (cursor.node.isText() ? cursor.node.text.length : cursor.node.children.length))
