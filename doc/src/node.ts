@@ -43,7 +43,6 @@ export class NodeType<Attrs extends {} = {}> {
   private groups: readonly string[]
   private contentGroups: readonly string[]
   defaultAttrs: Attrs | null
-  schemaElement: NodeType
   flags: NodeFlag
 
   constructor(
@@ -51,7 +50,6 @@ export class NodeType<Attrs extends {} = {}> {
     flags: NodeFlag,
     readonly spec: NodeSpec<Attrs>
   ) {
-    this.schemaElement = this
     this.flags = flags | (spec.content ? NodeFlag.None : NodeFlag.Leaf)
     let attrs: Attribute<any>[] = this.attrs = []
     let defaultAttrs: Attrs | null = Object.create(null)
@@ -86,6 +84,8 @@ export class NodeType<Attrs extends {} = {}> {
     docTypes.set(content, type)
     return type
   }
+
+  get schemaElement(): SchemaElement { return this }
 
   create(attrs: Partial<Attrs>, ...children: ChildSpec[]): Node
   create(...children: ChildSpec[]): Node
@@ -178,7 +178,7 @@ export class Node {
   get length() { return this.type.isLeaf ? 1 : 2 + this.contentLength }
 
   mark(marks: readonly Mark[]) {
-    return new Node(this.type, this.attrs, this.type.checkMarks(marks), this.children)
+    return marks == this.marks ? this : new Node(this.type, this.attrs, this.type.checkMarks(marks), this.children)
   }
 
   sameMarkup(other: Node) {
@@ -200,7 +200,7 @@ export class Node {
   }
 
   toString() {
-    return this.name + (this.type.isLeaf ? `` : `(${this.children.join()})`)
+    return marksToString(this.marks, this.name + (this.type.isLeaf ? `` : `(${this.children.join()})`))
   }
 
   toJSON(): NodeJSON {
@@ -248,22 +248,33 @@ export class TextNode extends Node {
   get length() { return this.text.length }
 
   withText(text: string) {
-    return new TextNode(text, this.marks)
+    return text == this.text ? this : new TextNode(text, this.marks)
+  }
+
+  mark(marks: readonly Mark[]) {
+    return marks == this.marks ? this : new TextNode(this.text, marks)
   }
 
   slice(from: number, to = this.length) {
-    return new TextNode(this.text.slice(from, to), this.marks)
+    return !from && to == this.length ? this : new TextNode(this.text.slice(from, to), this.marks)
   }
 
-  toString() { return JSON.stringify(this.text) }
+  toString() { return marksToString(this.marks, JSON.stringify(this.text)) }
+}
+
+function marksToString(marks: readonly Mark[], inner: string) {
+  for (let i = marks.length - 1; i >= 0; i--)
+    inner = marks[i].name + "(" + inner + ")"
+  return inner
 }
 
 export type AttrSpec<T> = {
   default?: T
   compare?: (a: T, b: T) => boolean
+  attribute: string
 }
 
-class Attribute<T = any> {
+export class Attribute<T = any> {
   hasDefault: boolean
   default: T
   compare: (a: T, b: T) => boolean
@@ -280,7 +291,7 @@ function compareAttrs(attrs: readonly Attribute[], a: {[name: string]: any}, b: 
   return true
 }
 
-function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], b: readonly T[]) {
+export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], b: readonly T[]) {
   if (a.length != b.length) return false
   for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
   return true
@@ -292,6 +303,7 @@ export type MarkSpec<Attrs extends {}> = {
   nodes?: string
   excludes?: string
   rank: number
+  tag: string
 }
 
 export class MarkType<Attrs extends {} = {}> {
@@ -323,6 +335,8 @@ export class MarkType<Attrs extends {} = {}> {
     }
     this.defaultInstance = defaultAttrs ? new Mark(this, defaultAttrs) : null
   }
+
+  get schemaElement(): SchemaElement { return this }
 
   create(attrs?: Partial<Attrs>) {
     if (!attrs) {
@@ -526,15 +540,42 @@ export const Blockquote = NodeType.block("Blockquote", {
 export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
   tag: "img",
   attrs: {
-    src: {},
-    alt: {default: ""}
+    src: {attribute: "src"},
+    alt: {default: "", attribute: "alt"}
   }
+})
+
+export const Emphasis = MarkType.define("Emphasis", {
+  rank: 40,
+  tag: "em"
+})
+
+export const Strong = MarkType.define("Strong", {
+  rank: 60,
+  tag: "strong",
+})
+
+export const Link = MarkType.define("Link", {
+  rank: 20,
+  tag: "a",
+  attrs: {
+    href: {attribute: "href"}
+  }   
+})
+
+export const Code = MarkType.define("Code", {
+  rank: 80,
+  tag: "code"
 })
 
 export const schema = Schema.define([
   Paragraph,
   Blockquote,
   Image,
+  Emphasis,
+  Strong,
+  Link,
+  Code
 ])
 
 export const Doc = NodeType.doc("Block")
