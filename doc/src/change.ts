@@ -1,55 +1,7 @@
-import {Node, TextNode, Mark, Schema, eqArray, MarkJSON, NodeJSON} from "./node"
+import {Node, TextNode, Mark, Schema, MarkJSON} from "./node"
+import {Slice, SliceJSON} from "./slice"
 
-export class OpenToken {
-  constructor(readonly node: Node) {}
-}
-
-export const CloseToken = {
-  closeToken: true
-}
-
-export class Slice {
-  readonly length: number
-
-  constructor(readonly content: readonly (Node | OpenToken | typeof CloseToken)[]) {
-    this.length = content.reduce((l, e) => l + (e instanceof Node ? e.length : 1), 0)
-  }
-
-  toJSON(): SliceJSON {
-    return this.content.map(e => e instanceof Node ? {node: e.toJSON()}
-      : e instanceof OpenToken ? {open: e.node.toJSON()} : {close: true})
-  }
-
-  static fromJSON(schema: Schema, json: SliceJSON) {
-    if (!Array.isArray(json)) throw new Error("Invalid slice JSON")
-    return new Slice(json.map(value => {
-      if (value.open) return new OpenToken(schema.nodeFromJSON(value.open))
-      if (value.close) return CloseToken
-      if (value.node) return schema.nodeFromJSON(value.node)
-      throw new Error("Invalid slice JSON")
-    }))
-  }
-
-  run(track: Tracker) {
-    for (let elt of this.content) {
-      if (elt instanceof OpenToken) track.enter(elt.node)
-      else if (elt instanceof Node) track.skip(elt)
-      else track.leave()
-    }
-  }
-
-  validate(schema: Schema) {
-    for (let elt of this.content) {
-      if (elt instanceof OpenToken) schema.validate(elt.node)
-      else if (elt instanceof Node) schema.validate(elt)
-    }
-    return this
-  }
-}
-
-type SliceJSON = readonly ({node: NodeJSON} | {open: NodeJSON} | {close: true})[]
-
-interface Tracker {
+export interface Tracker {
   skip(node: Node): void
   enter(node: Node): void
   leave(): void
@@ -59,7 +11,7 @@ function resolvePos(distance: number, node: Node, index: number, parent: Pos | n
   for (;;) {
     if (!distance) return new Pos(node, index, parent)
     if (node.isText()) {
-      if (track) track.skip(node.slice(index, Math.min(node.length, index + distance)))
+      if (track) track.skip(node.cut(index, Math.min(node.length, index + distance)))
       if (node.length > index + distance)
         return new Pos(node, index + distance, parent)
       distance -= node.length - index
@@ -191,6 +143,7 @@ function modificationFromJSON(schema: Schema, json: ModificationJSON): Modificat
 }
 
 function compareModifications(a: readonly Modification[], b: readonly Modification[]) {
+  if (a == b) return true
   if (a.length != b.length) return false
   for (let i = 0; i < a.length; i++) if (!compareModification(a[i], b[i])) return false
   return true
@@ -230,13 +183,30 @@ export class ChangeSet {
     return builder.finish()
   }
 
+  get length() {
+    let result = 0
+    for (let i = 0; i < this.sections.length; i += 2) result += this.sections[i]
+    return result
+  }
+
+  get newLength() {
+    let result = 0
+    for (let i = 0; i < this.sections.length; i += 2) {
+      let ins = this.sections[i + 1]
+      result += ins < 0 ? this.sections[i] : ins
+    }
+    return result
+  }
+
+  get empty() { return this.sections.length == 0 || this.sections.length == 2 && this.sections[1] < 0 }
+
   eq(other: ChangeSet) {
     if (other.data.length != this.data.length) return false
     for (let i = 0; i < this.sections.length; i++)
       if (this.sections[i] != other.sections[i]) return false
     for (let i = 0; i < this.data.length; i++) {
       let a = this.data[i] as any, b = other.data[i] as any
-      if (a && !(this.sections[(i << 1) + 1] < 0 ? compareModifications(a, b) : eqArray(a, b))) return false
+      if (a && !(this.sections[(i << 1) + 1] < 0 ? compareModifications(a, b) : a.eq(b))) return false
     }
   }
 
@@ -291,6 +261,66 @@ export class ChangeSet {
     if (pos > posA) throw new RangeError(`Position ${pos} is out of range for changeset of length ${posA}`)
     return posB
   }
+
+  map(other: ChangeSet, before: boolean): ChangeSet {
+    // Produce a copy of setA that applies to the document after setB
+    // has been applied. Assumes both start at the same document.
+    let sections: number[] = [], data: (Slice | readonly Modification[] | null)[] = []
+    let a = new SectionIter(this), b = new SectionIter(other)
+    // Iterate over both sets in parallel. inserted tracks, for changes
+    // in A that have to be processed piece-by-piece, whether their
+    // content has been inserted already, and refers to the section
+    // index.
+    for (let inserted = -1;;) {
+      if (a.ins == -1 && b.ins == -1) {
+        // Move across ranges skipped by both sets.
+        let len = Math.min(a.len, b.len)
+        addSection(sections, data, len, -1, a.mods)
+        a.forward(len)
+        b.forward(len)
+      } else if (b.ins >= 0 && (a.ins < 0 || inserted == a.i || a.off == 0 && (b.len < a.len || b.len == a.len && !before))) {
+        // If there's a change in B that comes before the next change in
+        // A (ordered by start pos, then len, then before flag), skip
+        // that (and process any changes in A it covers).
+        let len = b.len
+        addSection(sections, data, b.ins, -1, null)
+        while (len) {
+          let piece = Math.min(a.len, len)
+          if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
+            addSection(sections, data, 0, a.ins, a.slice)
+            inserted = a.i
+          }
+          a.forward(piece)
+          len -= piece
+        }
+        b.next()
+      } else if (a.ins >= 0) {
+        // Process the part of a change in A up to the start of the next
+        // non-deletion change in B (if overlapping).
+        let len = 0, left = a.len
+        while (left) {
+          if (b.ins == -1) {
+            let piece = Math.min(left, b.len)
+            len += piece
+            left -= piece
+            b.forward(piece)
+          } else if (b.ins == 0 && b.len < left) {
+            left -= b.len
+            b.next()
+          } else {
+            break
+          }
+        }
+        addSection(sections, data, len, inserted < a.i ? a.ins : 0, inserted < a.i ? a.slice : Slice.empty)
+        inserted = a.i
+        a.forward(a.len - left)
+      } else if (a.done && b.done) {
+        return new ChangeSet(sections, data)
+      } else {
+        throw new Error("Mismatched change set lengths")
+      }
+    }
+  }
 }
 
 export type ChangeSetJSON = readonly {
@@ -309,4 +339,80 @@ export enum MapMode {
   TrackBefore,
   /// Return null if the character _after_ the position is deleted.
   TrackAfter
+}
+
+class SectionIter {
+  i = 0
+  len!: number
+  off!: number
+  ins!: number
+
+  constructor(readonly set: ChangeSet) {
+    this.next()
+  }
+
+  next() {
+    let {sections} = this.set
+    if (this.i < sections.length) {
+      this.len = sections[this.i++]
+      this.ins = sections[this.i++]
+    } else {
+      this.len = 0; this.ins = -2
+    }
+    this.off = 0
+  }
+
+  get done() { return this.ins == -2 }
+
+  get len2() { return this.ins < 0 ? this.len : this.ins }
+
+  get mods() {
+    return this.set.data[(this.i - 2) >> 1] as readonly Modification[] | null
+  }
+
+  get slice() {
+    return this.set.data[(this.i - 2) >> 1] as Slice
+  }
+
+  slicePart(len?: number) {
+    return this.slice.slice(this.off, len == null ? undefined : this.off + len)
+  }
+
+  forward(len: number) {
+    if (len == this.len) this.next()
+    else { this.len -= len; this.off += len }
+  }
+
+  forward2(len: number) {
+    if (this.ins == -1) this.forward(len)
+    else if (len == this.ins) this.next()
+    else { this.ins -= len; this.off += len }
+  }
+}
+
+function addSection(sections: number[], data: (Slice | readonly Modification[] | null)[],
+                    len: number, ins: number, value: Slice | readonly Modification[] | null,
+                    forceJoin = false) {
+  if (len == 0 && ins <= 0) return
+  let last = sections.length - 2
+  if (last >= 0 && ins <= 0 && ins == sections[last + 1]) {
+    // Deletion or preserved section that matches the last element in `sections`
+    let lastValue = data[data.length - 1]
+    let match = ins == 0 ? true
+      : value ? lastValue && compareModifications(lastValue as readonly Modification[], value as readonly Modification[])
+      : !lastValue
+    if (match) {
+      sections[last] += len
+      return
+    }
+  }
+  if (forceJoin || last >= 0 && len == 0 && sections[last] == 0) {
+    // Insertion or replacement joinable to another insertion
+    sections[last] += len
+    sections[last + 1] += ins
+    data[data.length - 1] = (data[data.length - 1] as Slice).concat(value as Slice)
+  } else {
+    sections.push(len, ins)
+    data.push(value)
+  }
 }

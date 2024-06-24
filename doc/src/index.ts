@@ -1,9 +1,11 @@
 export * from "./node"
 export * from "./change"
 export * from "./context"
+export * from "./slice"
 
 import {Doc, Paragraph, Emphasis, Node, schema} from "./node"
-import {CloseToken, OpenToken, ChangeSet, Slice} from "./change"
+import {CloseToken, OpenToken, Slice} from "./slice"
+import {ChangeSet} from "./change"
 
 let doc = Doc.create(Paragraph.create("one"), Paragraph.create("two"))
 

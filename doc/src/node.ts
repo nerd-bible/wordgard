@@ -1,3 +1,7 @@
+import {Slice, OpenToken, Token, CloseToken} from "./slice"
+
+export const enum TokenType { Open, Close, Node }
+
 const enum NodeFlag {
   None = 0,
   Inline = 1,
@@ -195,6 +199,25 @@ export class Node {
     return new Node(this.type, this.attrs, this.marks, this.type.checkChildren(children))
   }
 
+  slice(from: number, to = this.length) {
+    if (from == to) return Slice.empty
+    let content: Token[] = []
+    this.sliceNode(content, from, to)
+    return new Slice(content)
+  }
+
+  sliceNode(content: Token[], from: number, to: number) {
+    if (from == 0) {
+      if (to == this.length) {
+        content.push(this)
+        return
+      }
+      content.push(new OpenToken(this.copy(none)))
+    }
+    sliceContent(content, this.children, from + 1, to - 1)
+    if (to == this.length) content.push(CloseToken)
+  }
+
   isText(): this is TextNode { // FIXME interface consistency
     return this.type.isText
   }
@@ -211,6 +234,8 @@ export class Node {
     if (this.children.length) result.children = this.children.map(c => c.toJSON())
     return result
   }
+
+  get tokenType(): TokenType.Node { return TokenType.Node }
 
   static text(text: string, marks: readonly Mark[] = none) {
     return new TextNode(text, marks)
@@ -236,6 +261,21 @@ export class DocNode extends Node {
   }
 
   get length() { return this.contentLength }
+
+  sliceNode(content: Token[], from: number, to: number) {
+    sliceContent(content, this.children, from, to)
+  }
+}
+
+function sliceContent(content: Token[], nodes: readonly Node[], from: number, to: number) {
+  let off = 0
+  for (let child of nodes) {
+    if (off >= to) break
+    let start = off
+    off += child.length
+    if (off <= from) continue
+    child.sliceNode(content, Math.max(0, from - start), Math.min(child.length, to - start))
+  }
 }
 
 export class TextNode extends Node {
@@ -255,7 +295,11 @@ export class TextNode extends Node {
     return marks == this.marks ? this : new TextNode(this.text, marks)
   }
 
-  slice(from: number, to = this.length) {
+  sliceNode(content: Token[], from: number, to: number) {
+    content.push(this.cut(from, to))
+  }
+
+  cut(from: number, to = this.length) {
     return !from && to == this.length ? this : new TextNode(this.text.slice(from, to), this.marks)
   }
 
@@ -292,6 +336,7 @@ function compareAttrs(attrs: readonly Attribute[], a: {[name: string]: any}, b: 
 }
 
 export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], b: readonly T[]) {
+  if (a == b) return true
   if (a.length != b.length) return false
   for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
   return true
