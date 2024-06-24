@@ -10,7 +10,7 @@ const enum NodeFlag {
 const none: readonly any[] = []
 const noAttrs: {[name: string]: any} = Object.create(null)
 
-// FIXME find another word for 'Attr'?
+// FIXME find another word for 'Attr'? Param?
 
 export type NodeSpec<Attrs extends {}> = {
   attrs?: {[name in keyof Attrs]: AttrSpec<Attrs[name]>}

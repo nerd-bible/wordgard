@@ -1,19 +1,58 @@
-import {Node, TextNode, NodeType, Mark, Attribute, Schema, eqArray} from "./node"
+import {Node, TextNode, Mark, Schema, eqArray, MarkJSON, NodeJSON} from "./node"
 
 export class OpenToken {
   constructor(readonly node: Node) {}
 }
 
-export class CloseToken {
-  constructor(readonly type: NodeType) {}
+export const CloseToken = {
+  closeToken: true
 }
 
-type Slice = readonly (Node | OpenToken | CloseToken)[]
+export class Slice {
+  readonly length: number
+
+  constructor(readonly content: readonly (Node | OpenToken | typeof CloseToken)[]) {
+    this.length = content.reduce((l, e) => l + (e instanceof Node ? e.length : 1), 0)
+  }
+
+  toJSON(): SliceJSON {
+    return this.content.map(e => e instanceof Node ? {node: e.toJSON()}
+      : e instanceof OpenToken ? {open: e.node.toJSON()} : {close: true})
+  }
+
+  static fromJSON(schema: Schema, json: SliceJSON) {
+    if (!Array.isArray(json)) throw new Error("Invalid slice JSON")
+    return new Slice(json.map(value => {
+      if (value.open) return new OpenToken(schema.nodeFromJSON(value.open))
+      if (value.close) return CloseToken
+      if (value.node) return schema.nodeFromJSON(value.node)
+      throw new Error("Invalid slice JSON")
+    }))
+  }
+
+  run(track: Tracker) {
+    for (let elt of this.content) {
+      if (elt instanceof OpenToken) track.enter(elt.node)
+      else if (elt instanceof Node) track.skip(elt)
+      else track.leave()
+    }
+  }
+
+  validate(schema: Schema) {
+    for (let elt of this.content) {
+      if (elt instanceof OpenToken) schema.validate(elt.node)
+      else if (elt instanceof Node) schema.validate(elt)
+    }
+    return this
+  }
+}
+
+type SliceJSON = readonly ({node: NodeJSON} | {open: NodeJSON} | {close: true})[]
 
 interface Tracker {
   skip(node: Node): void
   enter(node: Node): void
-  leave(type: NodeType): void
+  leave(): void
 }
 
 function resolvePos(distance: number, node: Node, index: number, parent: Pos | null, track?: Tracker) {
@@ -27,7 +66,7 @@ function resolvePos(distance: number, node: Node, index: number, parent: Pos | n
       ;({node, index, parent} = parent!)
     } else if (index == node.children.length) {
       if (!parent) throw new Error("Moving past end of document")
-      if (track) track.leave(node.type)
+      if (track) track.leave()
       ;({node, index, parent} = parent)
       distance--
     } else {
@@ -57,22 +96,6 @@ class Pos {
   static resolve(doc: Node, pos: number) {
     return resolvePos(pos, doc, 0, null)
   }
-}
-
-function runSlice(slice: Slice, track: Tracker) {
-  for (let elt of slice) {
-    if (elt instanceof OpenToken) track.enter(elt.node)
-    else if (elt instanceof CloseToken) track.leave(elt.type)
-    else track.skip(elt)
-  }
-}
-
-function validateSlice(schema: Schema, slice: Slice) {
-  for (let elt of slice) {
-    if (elt instanceof OpenToken) schema.validate(elt.node)
-    else if (elt instanceof Node) schema.validate(elt)
-  }
-  return slice
 }
 
 class BuildContext {
@@ -109,7 +132,7 @@ class Builder implements Tracker {
     this.stack.push(new BuildContext(node))
   }
 
-  leave(type: NodeType) {
+  leave() {
     if (this.modifications) throw new Error("Invalid modification on close token")
     let top = this.stack.pop()!
     if (!top.children.length && !top.node.type.isLeaf && !this.schema.hasInlineContent(top.node.type))
@@ -130,10 +153,10 @@ class Builder implements Tracker {
 type Modification =
   {type: "addMark", mark: Mark} |
   {type: "removeMark", mark: Mark} |
-  {type: "setAttr", attr: Attribute<any>, value: any}
+  {type: "setAttr", attr: string, value: any}
 
 function applyModifications(modifications: readonly Modification[], node: Node) {
-  for (let m of modifications) {
+  for (const m of modifications) {
     if (m.type == "addMark") {
       if (!m.mark.type.canTarget(node.type))
         throw new Error(`Trying to add mark ${m.mark.name} to a node of type ${node.name}`)
@@ -141,12 +164,30 @@ function applyModifications(modifications: readonly Modification[], node: Node) 
     } else if (m.type == "removeMark") {
       node = node.mark(m.mark.removeFromSet(node.marks))
     } else {
-      if (!node.type.attrs.includes(m.attr))
-        throw new Error(`Setting non-existant attribute ${m.attr.name} on node ${node.name}`)
-      node = new Node(node.type, {...node.attrs, [m.attr.name]: m.value}, node.marks, node.children)
+      if (!node.type.attrs.some(a => a.name == m.attr))
+        throw new Error(`Setting non-existant attribute ${m.attr} on node ${node.name}`)
+      node = new Node(node.type, {...node.attrs, [m.attr]: m.value}, node.marks, node.children)
     }
   }
   return node
+}
+
+export type ModificationJSON = {
+  type: "addMark" | "removeMark" | "setAttr"
+  mark?: MarkJSON
+  attr?: string
+  value?: any
+}
+
+function modificationToJSON(m: Modification): ModificationJSON {
+  if (m.type == "setAttr") return {type: m.type, attr: m.attr, value: m.value}
+  return {type: m.type, mark: m.mark.toJSON()}
+}
+
+function modificationFromJSON(schema: Schema, json: ModificationJSON): Modification {
+  if (json.type == "addMark" || json.type == "removeMark") return {type: json.type, mark: schema.markFromJSON(json.mark!)}
+  if (json.type == "setAttr" && typeof json.attr == "string") return json as any
+  throw new Error("Invalid modification JSON")
 }
 
 function compareModifications(a: readonly Modification[], b: readonly Modification[]) {
@@ -157,7 +198,7 @@ function compareModifications(a: readonly Modification[], b: readonly Modificati
 
 function compareModification(a: Modification, b: Modification) {
   if (a.type != b.type) return false
-  if (a.type == "setAttr") return a.attr == (b as typeof a).attr && a.attr.compare(a.value, (b as typeof a).value)
+  if (a.type == "setAttr") return a.attr == (b as typeof a).attr && a.value == (b as typeof a).value
   return a.mark.eq((b as typeof a).mark)
 }
 
@@ -181,7 +222,7 @@ export class ChangeSet {
         builder.modifications = null
       } else {
         cursor = cursor.advance(lenA)
-        runSlice(validateSlice(schema, this.data[i] as Slice), builder)
+        ;(this.data[i] as Slice).validate(schema).run(builder)
       }
     }
     if (cursor.parent || cursor.index != (cursor.node.isText() ? cursor.node.text.length : cursor.node.children.length))
@@ -198,4 +239,38 @@ export class ChangeSet {
       if (a && !(this.sections[(i << 1) + 1] < 0 ? compareModifications(a, b) : eqArray(a, b))) return false
     }
   }
+
+  toJSON(): ChangeSetJSON {
+    return this.data.map((data, i) => {
+      let length = this.sections[i << 1], type = this.sections[(i << 1) + 1]
+      return type >= 0 ? {length, replacement: (data as Slice).toJSON()}
+        : data ? {length, modifications: (data as readonly Modification []).map(modificationToJSON)}
+        : {length}
+    })
+  }
+
+  static fromJSON(schema: Schema, json: ChangeSetJSON) {
+    if (!Array.isArray(json)) throw new Error("Invalid ChangeSet JSON")
+    let sections: number[] = [], data: (null | Slice | readonly Modification[])[] = []
+    for (let elt of json) {
+      let {length} = elt
+      if (typeof length != "number") throw new Error("Invalid ChangeSet JSON")
+      if (elt.replacement) {
+        let slice = Slice.fromJSON(schema, elt.replacement)
+        sections.push(length, slice.length)
+        data.push(slice)
+      } else {
+        sections.push(length, -1)
+        data.push(!Array.isArray(elt.modification) ? null :
+          elt.modification.map((m: ModificationJSON) => modificationFromJSON(schema, m)))
+      }
+    }
+    return new ChangeSet(sections, data)
+  }
 }
+
+export type ChangeSetJSON = readonly {
+  length: number
+  modifications?: readonly ModificationJSON[]
+  replacement?: SliceJSON
+}[]
