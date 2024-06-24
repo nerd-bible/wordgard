@@ -267,6 +267,30 @@ export class ChangeSet {
     }
     return new ChangeSet(sections, data)
   }
+
+  mapPos(pos: number, assoc?: number): number
+  mapPos(pos: number, assoc: number, mode: MapMode): number | null
+  mapPos(pos: number, assoc = -1, mode: MapMode = MapMode.Simple) {
+    let posA = 0, posB = 0
+    for (let i = 0; i < this.sections.length;) {
+      let len = this.sections[i++], type = this.sections[i++], endA = posA + len
+      if (type < 0) {
+        if (endA > pos) return posB + (pos - posA)
+        posB += len
+      } else {
+        if (mode != MapMode.Simple && endA >= pos &&
+            (mode == MapMode.TrackDel && posA < pos && endA > pos ||
+             mode == MapMode.TrackBefore && posA < pos ||
+             mode == MapMode.TrackAfter && endA > pos)) return null
+        if (endA > pos || endA == pos && assoc < 0 && !len)
+          return pos == posA || assoc < 0 ? posB : posB + type
+        posB += type
+      }
+      posA = endA
+    }
+    if (pos > posA) throw new RangeError(`Position ${pos} is out of range for changeset of length ${posA}`)
+    return posB
+  }
 }
 
 export type ChangeSetJSON = readonly {
@@ -274,3 +298,15 @@ export type ChangeSetJSON = readonly {
   modifications?: readonly ModificationJSON[]
   replacement?: SliceJSON
 }[]
+
+export enum MapMode {
+  /// Map a position to a valid new position, even when its context
+  /// was deleted.
+  Simple,
+  /// Return null if deletion happens across the position.
+  TrackDel,
+  /// Return null if the character _before_ the position is deleted.
+  TrackBefore,
+  /// Return null if the character _after_ the position is deleted.
+  TrackAfter
+}
