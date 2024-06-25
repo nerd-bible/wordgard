@@ -370,7 +370,6 @@ export class ChangeSet {
     let sections: number[] = [], data: SectionData[] = [], pos = 0
     let accum: ChangeSet | null = null
     let section = (from: number, to: number, ins: number, value: SectionData) => {
-      console.log("add section", from, to, ins)
       if (from < pos) flush()
       if (from > pos) addSection(sections, data, from - pos, -1, null)
       addSection(sections, data, to - from, ins, value)

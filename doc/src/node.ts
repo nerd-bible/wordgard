@@ -23,8 +23,6 @@ export type NodeSpec<Attrs extends {}> = {
   tag: string
 }
 
-type ChildSpec = Node | string | readonly ChildSpec[]
-
 const docTypes = new Map<string, NodeType<{}>>()
 
 function splitGroups(groups: string) {
@@ -91,23 +89,20 @@ export class NodeType<Attrs extends {} = {}> {
 
   get schemaElement(): SchemaElement { return this }
 
-  create(attrs: Partial<Attrs>, ...children: ChildSpec[]): Node
-  create(...children: ChildSpec[]): Node
-  create(attrsOrChild?: Partial<Attrs> | ChildSpec, ...children: ChildSpec[]): Node {
+  create(attrs: Partial<Attrs>, children?: readonly Node[]): Node
+  create(children?: readonly Node[]): Node
+  create(attrsOrChildren?: Partial<Attrs> | readonly Node[], children?: readonly Node[]): Node {
     if (this.isText) throw new Error("Text nodes cannot be created with .create()")
-    let attrs = this.defaultAttrs, childList: Node[] = []
-    if (attrsOrChild) {
-      if (Array.isArray(attrsOrChild) || typeof attrsOrChild == "string" || attrsOrChild instanceof Node)
-        createChildren(attrsOrChild, childList)
-      else
-        attrs = fillAttrs(this.attrs, attrsOrChild as Partial<Attrs>)
+    let attrs = this.defaultAttrs
+    if (attrsOrChildren) {
+      if (Array.isArray(attrsOrChildren)) children = attrsOrChildren
+      else attrs = fillAttrs(this.attrs, attrsOrChildren as Partial<Attrs>)
     }
-    createChildren(children, childList)
     if (!attrs) throw new Error(`Must specify attrs when creating a node with some attributes that have no default value`)
     if (this.flags & NodeFlag.Doc)
-      return new DocNode(this, this.checkChildren(childList))
+      return new DocNode(this, this.checkChildren(children || none))
     else
-      return new Node(this, attrs, none, this.checkChildren(childList))
+      return new Node(this, attrs, none, this.checkChildren(children || none))
   }
 
   isInGroup(group: string) {
@@ -148,13 +143,6 @@ export class NodeType<Attrs extends {} = {}> {
 function checkReserved(name: string) {
   if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
     throw new Error(`Node name ${name} is reserved`)
-}
-
-function createChildren(children: ChildSpec, result: Node[] = []) {
-  if (typeof children == "string") result.push(Node.text(children))
-  else if (Array.isArray(children)) for (let child of children) createChildren(child, result)
-  else result.push(children as Node)
-  return result
 }
 
 function fillAttrs<Attrs extends {}>(attrs: readonly Attribute<any>[], input: Partial<Attrs>): Attrs {
@@ -396,7 +384,6 @@ export class MarkType<Attrs extends {} = {}> {
     this.excludedGroups = spec.excludes == null ? [name] : splitGroups(spec.excludes)
     this.rank = spec.rank
     let attrs: Attribute<any>[] = this.attrs = []
-    this.attrs = Object.create(null)
     let defaultAttrs: Attrs | null = Object.create(null)
     if (spec.attrs) for (let name in spec.attrs) {
       let attr = new Attribute(name, spec.attrs[name])
