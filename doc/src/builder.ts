@@ -1,4 +1,6 @@
-import {Node, NodeType, Mark, MarkType} from "./node"
+import {Node, TextNode, NodeType, Mark, MarkType,
+        Doc, Paragraph, Blockquote, Image, OrderedList, BulletList, ListItem, HorizontalRule,
+        Emphasis, Strong, Code, Link} from "./node"
 
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
@@ -7,8 +9,10 @@ export type NodeBuilder<Attrs> = {
   (...children: ContentSpec[]): Node
 }
 
+export type BuilderAttrs<T> = T extends NodeType<infer Attrs> | MarkType<infer Attrs> ? Attrs : {}
+
 export function builder<T extends {[name: string]: NodeType | Node | Mark | MarkType}>(spec: T): {
-  [name in keyof T]: NodeBuilder<T[name] extends NodeType<infer Attrs> | MarkType<infer Attrs> ? Attrs : {}>
+  [name in keyof T]: NodeBuilder<BuilderAttrs<T[name]>>
 } {
   let result = Object.create(null)
   for (let name in spec) {
@@ -62,14 +66,14 @@ function collectChildren(spec: ContentSpec, mark?: Mark, list: Node[] = []) {
   if (Array.isArray(spec)) {
     for (let elt of spec) collectChildren(elt, mark, list)
   } else if (typeof spec == "string") {
-    list.push(addMark(Node.text(spec), mark))
+    addChild(list, addMark(Node.text(spec), mark))
   } else if (spec instanceof Node) {
     if (spec.type == Fragment) {
       copyTags(spec.children, list, 0)
-      for (let ch of spec.children) collectChildren(ch, undefined, list)
+      for (let ch of spec.children) collectChildren(ch, mark, list)
     } else {
       copyTags(spec.children, list, 1)
-      list.push(addMark(spec, mark))
+      addChild(list, addMark(spec, mark))
     }
   } else if (typeof spec == "number") {
     let tags = tagMap.get(list)
@@ -77,6 +81,17 @@ function collectChildren(spec: ContentSpec, mark?: Mark, list: Node[] = []) {
     tags![spec] = contentLength(list)
   }
   return list
+}
+
+function addChild(list: Node[], node: Node) {
+  if (node.isText() && list.length) {
+    let last = list[list.length - 1]
+    if (last.sameMarkup(node)) {
+      list[list.length - 1] = node.withText((last as TextNode).text + node.text)
+      return
+    }
+  }
+  list.push(node)
 }
 
 function copyTags(source: readonly Node[], dest: readonly Node[], extraOffset: number) {
@@ -92,3 +107,31 @@ function copyTags(source: readonly Node[], dest: readonly Node[], extraOffset: n
 function contentLength(nodes: readonly Node[]) {
   return nodes.reduce((l, n) => l + n.length, 0)
 }
+
+export function maybeTag(node: Node, id: number): number | undefined {
+  let tags = tagMap.get(node.children)
+  return tags && tags[id]
+}
+
+export function tag(node: Node, id: number): number {
+  let value = maybeTag(node, id)
+  if (value == null) throw new Error(`Undefined tag ${id}`)
+  return value
+}
+
+export const basicBuilder = builder({
+  doc: Doc,
+  p: Paragraph,
+  img: Image,
+  $img: Image.create({src: "test.png"}),
+  blockquote: Blockquote,
+  ol: OrderedList,
+  ul: BulletList,
+  li: ListItem,
+  hr: HorizontalRule,
+  em: Emphasis,
+  strong: Strong,
+  code: Code,
+  a: Link,
+  $a: Link.create({href: "/"})
+})

@@ -25,5 +25,8 @@
   },
   "devDependencies": {
     "@marijn/buildtool": "^1.0.0"
+  },
+  "scripts": {
+    "test": "testtool"
   }
 }

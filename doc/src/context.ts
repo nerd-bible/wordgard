@@ -85,6 +85,6 @@ class Context extends ContextLevel {
 
 function resolveInner(node: Node, pos: number, start: number, next: ContextLevel | null) {
   let {index, remainder} = findIndex(node.children, pos - start)
-  if (!remainder || node.children[index].type.isText) return new Context(pos, remainder, node, start, index, next)
+  if (!remainder || node.children[index].isText()) return new Context(pos, remainder, node, start, index, next)
   return resolveInner(node.children[index], pos, pos - remainder, new ContextLevel(node, start, index, next))
 }

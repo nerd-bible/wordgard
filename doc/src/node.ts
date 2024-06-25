@@ -5,7 +5,7 @@ export const enum TokenType { Open, Close, Node }
 const enum NodeFlag {
   None = 0,
   Inline = 1,
-  InlineContent = 2, // FIXME determine, somehow
+  InlineContent = 2,
   Text = 4,
   Leaf = 8,
   Doc = 16,
@@ -21,9 +21,8 @@ export type NodeSpec<Attrs extends {}> = {
   content?: string
   group?: string
   tag: string
+  toText?: (node: Node) => string
 }
-
-const docTypes = new Map<string, NodeType<{}>>()
 
 function splitGroups(groups: string) {
   let result = []
@@ -74,17 +73,23 @@ export class NodeType<Attrs extends {} = {}> {
     return new NodeType<Attrs>(name, NodeFlag.None, spec)
   }
 
+  static textblock<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
+    checkReserved(name)
+    return new NodeType<Attrs>(name, NodeFlag.InlineContent, spec)
+  }
+
   static inline<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
+    checkReserved(name)
+    return new NodeType<Attrs>(name, NodeFlag.Inline | (spec.content ? NodeFlag.InlineContent : NodeFlag.None), spec)
+  }
+
+  static inlineblock<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
     checkReserved(name)
     return new NodeType<Attrs>(name, NodeFlag.Inline, spec)
   }
 
-  static doc(content: string) {
-    let cached = docTypes.get(content)
-    if (cached) return cached
-    let type = new NodeType("doc", NodeFlag.Doc, {content, tag: ""})
-    docTypes.set(content, type)
-    return type
+  static doc(content: string, inlineContent = false) {
+    return new NodeType("Doc", NodeFlag.Doc | (inlineContent ? NodeFlag.InlineContent : NodeFlag.None), {content, tag: ""})
   }
 
   get schemaElement(): SchemaElement { return this }
@@ -92,7 +97,7 @@ export class NodeType<Attrs extends {} = {}> {
   create(attrs: Partial<Attrs>, children?: readonly Node[]): Node
   create(children?: readonly Node[]): Node
   create(attrsOrChildren?: Partial<Attrs> | readonly Node[], children?: readonly Node[]): Node {
-    if (this.isText) throw new Error("Text nodes cannot be created with .create()")
+    if (this.isText()) throw new Error("Text nodes cannot be created with .create()")
     let attrs = this.defaultAttrs
     if (attrsOrChildren) {
       if (Array.isArray(attrsOrChildren)) children = attrsOrChildren
@@ -115,10 +120,8 @@ export class NodeType<Attrs extends {} = {}> {
 
   checkChildren(children: readonly Node[]) {
     for (let child of children)
-      if (!child.type.canBeChild(this)) {
-        console.log(this.contentGroups, child.type.groups, this.contentGroups.some(g => child.type.isInGroup(g)))
+      if (!child.type.canBeChild(this))
         throw new Error(`${child.name} is not a valid child of ${this.name}`)
-      }
     return children
   }
 
@@ -128,11 +131,13 @@ export class NodeType<Attrs extends {} = {}> {
     return marks
   }
 
-  get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
-  get isText() { return (this.flags & NodeFlag.Text) > 0 }
-  get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
-  get inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }
-  get isLeaf() { return (this.flags & NodeFlag.Leaf) > 0 }
+  isInline() { return (this.flags & NodeFlag.Inline) > 0 }
+  isText() { return (this.flags & NodeFlag.Text) > 0 }
+  isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
+  inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }
+  isTextblock() { return this.isBlock() && this.inlineContent() }
+  isLeaf() { return (this.flags & NodeFlag.Leaf) > 0 }
+  isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
 
   getAttr<Name extends keyof Attrs>(attr: Name, node: Node): Attrs[Name] {
     if (node.type != this) throw new Error(`Accessing attr on the wrong type of node`)
@@ -170,7 +175,7 @@ export class Node {
 
   get name() { return this.type.name }
 
-  get length() { return this.type.isLeaf ? 1 : 2 + this.contentLength }
+  get length() { return this.isLeaf() ? 1 : 2 + this.contentLength }
 
   mark(marks: readonly Mark[]) {
     return marks == this.marks ? this : new Node(this.type, this.attrs, this.type.checkMarks(marks), this.children)
@@ -209,9 +214,13 @@ export class Node {
     if (to == this.length) content.push(CloseToken)
   }
 
-  isText(): this is TextNode { // FIXME interface consistency
-    return this.type.isText
-  }
+  isInline() { return this.type.isInline() }
+  isText(): this is TextNode { return this.type.isText() }
+  isBlock() { return this.type.isBlock() }
+  inlineContent() { return this.type.inlineContent() }
+  isTextblock() { return this.type.isTextblock() }
+  isLeaf() { return this.type.isLeaf() }
+  isDoc() { return this.type.isDoc() }
 
   iterate(from: number, to: number, f: (node: Node, pos: number) => boolean | void) {
     if (f(this, 0) !== false)
@@ -239,7 +248,7 @@ export class Node {
   }
 
   toString() {
-    return marksToString(this.marks, this.name + (this.type.isLeaf ? `` : `(${this.children.join()})`))
+    return marksToString(this.marks, this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
   }
 
   toJSON(): NodeJSON {
@@ -249,6 +258,28 @@ export class Node {
     if (this.isText()) result.text = this.text
     if (this.children.length) result.children = this.children.map(c => c.toJSON())
     return result
+  }
+
+  textContent(options: {
+    from?: number, to?: number,
+    blockSeparator?: string,
+    leafText?: string | ((node: Node) => string)
+  } = {}) {
+    let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
+    let text = "", first = true
+    this.iterate(from, to, (node, pos) => {
+      let nodeText = node.isText() ? node.text.slice(Math.max(0, from - pos), Math.min(node.length, to - pos))
+        : !node.isLeaf() ? ""
+        : leafText ? (typeof leafText === "function" ? leafText(node) : leafText)
+        : node.type.spec.toText ? node.type.spec.toText(node)
+        : ""
+      if (node.isBlock() && (node.isLeaf() && nodeText || node.isTextblock())) {
+        if (first) first = false
+        else text += blockSeparator
+      }
+      text += nodeText
+    })
+    return text
   }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
@@ -500,8 +531,7 @@ export class Schema {
 
   private constructor(
     readonly nodes: readonly NodeType[],
-    readonly marks: readonly MarkType[],
-    private inlineContent: Set<NodeType>,
+    readonly marks: readonly MarkType[]
   ) {
     this.nodeSet = new Set(nodes)
     this.markSet = new Set(marks)
@@ -517,10 +547,6 @@ export class Schema {
     for (let ch of node.children) this.validate(ch)
   }
 
-  hasInlineContent(type: NodeType) {
-    return this.inlineContent.has(type)
-  }
-
   defaultContentType(parent: NodeType) {
     for (let node of this.nodes) if (node.canBeChild(parent) && node.defaultAttrs) return node
     return null
@@ -529,14 +555,13 @@ export class Schema {
   createDefault(parent: NodeType): Node {
     let child = this.defaultContentType(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
-    if (child.isLeaf || this.hasInlineContent(child)) return child.create()
+    if (child.isLeaf() || child.inlineContent()) return child.create()
     return child.create(this.createDefault(child))
   }
 
   static define(spec: SchemaElement) {
     let nodes: NodeType[] = [Text], marks: MarkType[] = []
     let names: Set<string> = new Set
-    let inlineContent: Set<NodeType> = new Set
     function scan(spec: SchemaElement) {
       if (Array.isArray(spec)) {
         spec.forEach(scan)
@@ -545,23 +570,25 @@ export class Schema {
           throw new Error(`Duplicate use of node/mark name ${spec.name} in schema`)
         names.add(spec.name)
         ;(spec instanceof NodeType ? nodes : marks).push(spec as any)
+      } else if ((spec as any).schemaElement == spec) {
+        throw new Error("Unexpected schema element type. You may have multiple versions of @willow/doc loaded")
       } else {
         scan((spec as any).schemaElement)
       }
     }
     scan(spec)
     for (let node of nodes) if (!node.isLeaf) {
-      let inline: boolean | null = null, sawDefaultable = false
+      let sawDefaultable = false
       for (let child of nodes) if (child.canBeChild(node)) {
         if (child.defaultAttrs) sawDefaultable = true
-        let childInline = child.isInline
-        if (inline == null) inline = childInline
-        else if (inline != childInline) throw new Error(`Node type ${node.name} allows both inline and block children`)
+        if (child.isInline() != node.inlineContent())
+          throw new Error(`Node type ${node.name} has ${node.inlineContent() ? "block" : "inline"
+                            } content, but allows ${child.name} as a child`)
       }
-      if (inline) inlineContent.add(node)
-      else if (!sawDefaultable) throw new Error(`Node ${node.name} has block content, but all possible children require non-default attributes`)
+      if (!node.inlineContent() && !sawDefaultable)
+        throw new Error(`Node ${node.name} has block content, but all possible children require non-default attributes`)
     }
-    return new Schema(nodes, marks, inlineContent)
+    return new Schema(nodes, marks)
   }
 
   nodeFromJSON(json: NodeJSON) {
@@ -571,7 +598,7 @@ export class Schema {
     let marks = none, attrs = type.defaultAttrs, children = none
     if (json.marks && Array.isArray(json.marks))
       marks = json.marks.map(m => this.markFromJSON(m))
-    if (type.isText && typeof json.text == "string")
+    if (type.isText() && typeof json.text == "string")
       return Node.text(json.text, marks)
     if (!attrs || json.attrs && typeof json.attrs == "object")
       attrs = json.attrs || {}
@@ -591,7 +618,7 @@ export class Schema {
 
 export const Text = new NodeType("Text", NodeFlag.Text | NodeFlag.Inline, {tag: ""})
 
-export const Paragraph = NodeType.block("Paragraph", {
+export const Paragraph = NodeType.textblock("Paragraph", {
   content: "Inline",
   tag: "p"
 })
@@ -599,6 +626,29 @@ export const Paragraph = NodeType.block("Paragraph", {
 export const Blockquote = NodeType.block("Blockquote", {
   content: "Block",
   tag: "blockquote"
+})
+
+export const OrderedList = NodeType.block("OrderedList", {
+  content: "ListItem",
+  tag: "ol",
+  attrs: {
+    start: {default: 1, attribute: "start"}
+  }
+})
+
+export const BulletList = NodeType.block("BulletList", {
+  content: "ListItem",
+  tag: "ul"
+})
+
+export const ListItem = NodeType.block("ListItem", {
+  content: "Block",
+  tag: "li"
+})
+
+export const HorizontalRule = NodeType.block("HorizontalRule", {
+  tag: "hr",
+  toText: () => "---"
 })
 
 export const Image = NodeType.inline<{src: string, alt: string}>("Image", {

@@ -1,0 +1,71 @@
+import ist from "ist"
+import {Node, NodeType, basicBuilder, tag} from "@willow/doc"
+const {doc, blockquote, p, li, ul, hr, em, strong, code, $img} = basicBuilder
+
+describe("Node", () => {
+  describe("toString", () => {
+    it("nests", () => {
+      ist(doc(ul(li(p("hey"), p()), li(p("foo")))).toString(),
+          'Doc(BulletList(ListItem(Paragraph("hey"),Paragraph()),ListItem(Paragraph("foo"))))')
+    })
+
+    it("shows inline children", () => {
+      ist(doc(p("foo", $img(), "bar")).toString(),
+          'Doc(Paragraph("foo",Image,"bar"))')
+    })
+
+    it("shows marks", () => {
+      ist(doc(p("foo", em("bar", strong("quux")), code("baz"))).toString(),
+          'Doc(Paragraph("foo",Emphasis("bar"),Emphasis(Strong("quux")),Code("baz")))')
+    })
+  })
+
+  describe("iterate", () => {
+    function iterate(doc: Node, ...nodes: string[]) {
+      let i = 0
+      doc.iterate(tag(doc, 1), tag(doc, 2), (node, pos) => {
+        if (i == nodes.length)
+          throw new Error("More nodes iterated than listed (" + node.type.name + ")")
+        let compare = node.isText() ? node.text : node.type.name
+        if (compare != nodes[i++])
+          throw new Error("Expected " + JSON.stringify(nodes[i - 1]) + ", got " + JSON.stringify(compare))
+        if (!node.isText && doc.nodeAt(pos) != node)
+          throw new Error("Pos " + pos + " does not point at node " + node + " " + doc.nodeAt(pos))
+      })
+    }
+
+    it("iterates over text", () =>
+       iterate(doc(p("foo", 1, "bar", 2, "baz")),
+               "Doc", "Paragraph", "foobarbaz"))
+
+    it("descends multiple levels", () =>
+       iterate(doc(blockquote(ul(li(p("f", 1, "oo"))), p("b"), 2), p("c")),
+               "Doc", "Blockquote", "BulletList", "ListItem", "Paragraph", "foo", "Paragraph", "b"))
+
+    it("iterates over inline nodes", () =>
+       iterate(doc(p(em("x"), "f", 1, "oo", em("bar", $img(), strong("baz")), "quux", code("xy", 2, "z"))),
+               "Doc", "Paragraph", "foo", "bar", "Image", "baz", "quux", "xyz"))
+  })
+
+  describe("textBetween", () => {
+    it("works with leafText", () => {
+      const d = doc(p("foo", $img()))
+      ist(d.textContent({leafText: "[LEAF]"}), 'foo[LEAF]')
+      ist(d.textContent({leafText: (node) => "[LEAF]"}), 'foo[LEAF]')
+    })
+
+    it("adds block separator around empty paragraphs", () => {
+      ist(doc(p("one"), p(), p("two")).textContent({blockSeparator: "\n\n"}), "one\n\n\n\ntwo")
+    })
+
+    it("adds block separator around leaf nodes", () => {
+      ist(doc(p("one"), hr(), hr(), p("two")).textContent(), "one\n---\n---\ntwo")
+    })
+
+    let BlockLeaf = NodeType.block("BlockLeaf", {tag: "div"})
+
+    it("doesn't add block separator around non-rendered leaf nodes", () => {
+      ist(doc(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
+    })
+  })
+})

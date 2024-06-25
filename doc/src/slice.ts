@@ -5,13 +5,18 @@ export class OpenToken {
   constructor(readonly node: Node) {}
 
   get tokenType(): TokenType.Open { return TokenType.Open }
+
+  /// @internal
+  toString() { return `OPEN(${this.node.name})` }
 }
 
 export const CloseToken = {
-  tokenType: TokenType.Close as TokenType.Close
+  tokenType: TokenType.Close as TokenType.Close,
+  /// @internal
+  toString() { return "CLOSE" }
 }
 
-export type Token = Node | OpenToken | typeof CloseToken
+export type Token = Node | OpenToken | {tokenType: TokenType.Close}
 
 export class Slice {
   readonly length: number
@@ -89,6 +94,10 @@ export class Slice {
   }
 
   static empty = new Slice([])
+
+  toString() {
+    return `<${this.content.join()}>`
+  }
 }
 
 export type SliceJSON = readonly ({node: NodeJSON} | {open: NodeJSON} | {close: true})[]

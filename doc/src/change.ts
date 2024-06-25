@@ -59,7 +59,7 @@ class Builder implements Tracker {
   stack: BuildContext[]
   modifications: readonly Modification[] | null = null
 
-  constructor(readonly schema: Schema, doc: Node) {
+  constructor(doc: Node) {
     this.stack = [new BuildContext(doc)]
   }
 
@@ -87,7 +87,7 @@ class Builder implements Tracker {
   leave() {
     if (this.modifications) throw new Error("Invalid modification on close token")
     let top = this.stack.pop()!
-    if (!top.children.length && !top.node.type.isLeaf && !this.schema.hasInlineContent(top.node.type))
+    if (!top.children.length && !top.node.type.isLeaf && !top.node.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.node.copy(top.children))
   }
@@ -176,7 +176,7 @@ export class ChangeSet {
   ) {}
 
   apply(schema: Schema, doc: Node) {
-    let builder = new Builder(schema, doc)
+    let builder = new Builder(doc)
     let cursor = new Pos(doc, 0, null)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
       let lenA = this.sections[iS++], lenB = this.sections[iS++]
