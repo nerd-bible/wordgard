@@ -116,7 +116,7 @@ export class NodeType<Attrs extends {} = {}> {
   }
 
   canBeChild(parent: NodeType) {
-    return this.flags & NodeFlag.Doc ? false : parent.contentGroups.some(g => this.isInGroup(g))
+    return (this.flags & NodeFlag.Doc) ? false : parent.contentGroups.some(g => this.isInGroup(g))
   }
 
   checkChildren(children: readonly Node[]) {

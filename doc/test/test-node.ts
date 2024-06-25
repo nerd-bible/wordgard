@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Node, NodeType, basicBuilder, tag} from "@willow/doc"
-const {doc, blockquote, p, li, ul, hr, em, strong, code, $img} = basicBuilder
+import {Node, NodeType, basicBuilder, tag, Paragraph, Image, basicSchema as schema} from "@willow/doc"
+const {doc, blockquote, p, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
 
 describe("Node", () => {
   describe("toString", () => {
@@ -47,7 +47,7 @@ describe("Node", () => {
                "Doc", "Paragraph", "foo", "bar", "Image", "baz", "quux", "xyz"))
   })
 
-  describe("textBetween", () => {
+  describe("textContent", () => {
     it("works with leafText", () => {
       const d = doc(p("foo", $img()))
       ist(d.textContent({leafText: "[LEAF]"}), 'foo[LEAF]')
@@ -67,5 +67,55 @@ describe("Node", () => {
     it("doesn't add block separator around non-rendered leaf nodes", () => {
       ist(doc(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
     })
+
+    it("can take partial content", () => {
+      ist(doc(p("one"), p("two")).textContent({from: 2, to: 8}), "ne\ntw")
+    })
+
+    it("doesn't get confused by leading wrapper blocks", () => {
+      ist(doc(blockquote(p("a"))).textContent(), "a")
+    })
+  })
+
+  describe("create", () => {
+    it("fills attributes", () => {
+      let i = Image.create({src: "x.jpg"})
+      ist(Image.getAttr("src", i), "x.jpg")
+      ist(Image.getAttr("alt", i), "")
+    })
+
+    it("complains about missing attributes", () => {
+      ist.throws(() => Image.create({}), /Must provide/)
+    })
+
+    it("allows child nodes", () => {
+      ist(Paragraph.create([Node.text("a")]), p("a"), eq)
+    })
+
+    it("disallows incorrect child nodes", () => {
+      ist.throws(() => Paragraph.create([Paragraph.create()]), /not a valid child/)
+    })
+  })
+
+  describe("toJSON", () => {
+    function roundTrip(doc: Node) {
+      ist(schema.nodeFromJSON(doc.toJSON()), doc, eq)
+    }
+
+    it("can serialize a simple node", () => roundTrip(doc(p("foo"))))
+
+    it("can serialize marks", () =>
+       roundTrip(doc(p("foo", em("bar", strong("baz")), " ", $a("x")))))
+
+    it("can serialize inline leaf nodes", () =>
+       roundTrip(doc(p("foo", em($img(), "bar")))))
+
+    it("can serialize block leaf nodes", () =>
+       roundTrip(doc(p("a"), hr(), p("b"), p())))
+
+    it("can serialize nested nodes", () =>
+       roundTrip(doc(blockquote(ul(li(p("a"), p("b")), li(p($img()))), p("c")), p("d"))))
   })
 })
+
+function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }

@@ -18,6 +18,8 @@ export class Schema {
     for (let mark of marks) this.marksByName[mark.name] = mark
   }
 
+  get schemaElement() { return this }
+
   validate(node: Node) {
     if (!this.nodeSet.has(node.type))
       throw new Error(`Node type ${node.name} not in schema`)
@@ -45,10 +47,15 @@ export class Schema {
       if (Array.isArray(spec)) {
         spec.forEach(scan)
       } else if (spec instanceof NodeType || spec instanceof MarkType) {
+        let array = spec instanceof NodeType ? nodes : marks
+        if (array.includes(spec as any)) return
         if (names.has(spec.name))
           throw new Error(`Duplicate use of node/mark name ${spec.name} in schema`)
         names.add(spec.name)
-        ;(spec instanceof NodeType ? nodes : marks).push(spec as any)
+        array.push(spec as any)
+      } else if (spec instanceof Schema) {
+        scan(spec.nodes)
+        scan(spec.marks)
       } else if ((spec as any).schemaElement == spec) {
         throw new Error("Unexpected schema element type. You may have multiple versions of @willow/doc loaded")
       } else {
@@ -159,14 +166,19 @@ export const Code = MarkType.define("Code", {
   tag: "code"
 })
 
-export const schema = Schema.define([
+export const Doc = NodeType.doc("Block")
+
+export const basicSchema = Schema.define([
+  Doc,
   Paragraph,
   Blockquote,
   Image,
+  HorizontalRule,
+  BulletList,
+  OrderedList,
+  ListItem,
   Emphasis,
   Strong,
   Link,
   Code
 ])
-
-export const Doc = NodeType.doc("Block")
