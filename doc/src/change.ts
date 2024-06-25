@@ -1,4 +1,5 @@
-import {Node, TextNode, Mark, Schema, MarkJSON} from "./node"
+import {Node, TextNode, Mark, MarkJSON} from "./node"
+import {Schema} from "./schema"
 import {Slice, SliceJSON} from "./slice"
 
 export interface Tracker {
@@ -38,6 +39,7 @@ function resolvePos(distance: number, node: Node, index: number, parent: Pos | n
     }
   }
 }
+
 class Pos { // FIXME merge with Context, somehow
   constructor(readonly node: Node, readonly index: number, readonly parent: Pos | null) {}
 

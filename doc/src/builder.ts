@@ -1,6 +1,6 @@
-import {Node, TextNode, NodeType, Mark, MarkType,
-        Doc, Paragraph, Blockquote, Image, OrderedList, BulletList, ListItem, HorizontalRule,
-        Emphasis, Strong, Code, Link} from "./node"
+import {Node, TextNode, NodeType, Mark, MarkType} from "./node"
+import {Doc, Paragraph, Blockquote, Image, OrderedList, BulletList, ListItem, HorizontalRule,
+        Emphasis, Strong, Code, Link} from "./schema"
 
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 

@@ -1,4 +1,5 @@
 export * from "./node"
+export * from "./schema"
 export * from "./change"
 export * from "./context"
 export * from "./slice"

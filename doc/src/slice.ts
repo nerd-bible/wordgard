@@ -1,4 +1,5 @@
-import {TokenType, Node, Schema, NodeJSON} from "./node"
+import {TokenType, Node, NodeJSON} from "./node"
+import {Schema} from "./schema"
 import {Tracker} from "./change"
 
 export class OpenToken {
