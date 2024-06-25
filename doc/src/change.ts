@@ -38,7 +38,7 @@ function resolvePos(distance: number, node: Node, index: number, parent: Pos | n
     }
   }
 }
-class Pos {
+class Pos { // FIXME merge with Context, somehow
   constructor(readonly node: Node, readonly index: number, readonly parent: Pos | null) {}
 
   advance(distance: number, track?: Tracker) {
@@ -155,6 +155,15 @@ function compareModification(a: Modification, b: Modification) {
   return a.mark.eq((b as typeof a).mark)
 }
 
+export type ChangeSpec = {
+  from: number
+  to?: number
+  insert?: Slice
+  addMark?: Mark
+  removeMark?: Mark
+  setAttr?: {[name: string]: any}
+} | ChangeSet | ChangeSpec[]
+
 export class ChangeSet {
   constructor(
     // Pairs of integers, first one representing the length of the
@@ -262,7 +271,7 @@ export class ChangeSet {
     return posB
   }
 
-  map(other: ChangeSet, before: boolean): ChangeSet {
+  map(other: ChangeSet, before: boolean = false): ChangeSet {
     // Produce a copy of setA that applies to the document after setB
     // has been applied. Assumes both start at the same document.
     let sections: number[] = [], data: (Slice | readonly Modification[] | null)[] = []
@@ -272,7 +281,9 @@ export class ChangeSet {
     // content has been inserted already, and refers to the section
     // index.
     for (let inserted = -1;;) {
-      if (a.ins == -1 && b.ins == -1) {
+      if (a.done && b.len || b.done && a.len) {
+        throw new Error("Mismatched change set lengths")
+      } else if (a.ins == -1 && b.ins == -1) {
         // Move across ranges skipped by both sets.
         let len = Math.min(a.len, b.len)
         addSection(sections, data, len, -1, a.mods)
@@ -321,6 +332,118 @@ export class ChangeSet {
       }
     }
   }
+
+  compose(other: ChangeSet): ChangeSet {
+    let sections: number[] = [], data: (Slice | readonly Modification[] | null)[] = []
+    let a = new SectionIter(this), b = new SectionIter(other)
+    for (let open = false;;) {
+      if (a.done && b.done) {
+        return new ChangeSet(sections, data)
+      } else if (a.ins == 0) { // Deletion in A
+        addSection(sections, data, a.len, 0, a.slice, open)
+        a.next()
+      } else if (b.len == 0 && !b.done) { // Insertion in B
+        addSection(sections, data, 0, b.ins, b.slice, open)
+        b.next()
+      } else if (a.done || b.done) {
+        throw new Error("Mismatched change set lengths")
+      } else {
+        let len = Math.min(a.len2, b.len), sectionLen = sections.length
+        if (a.ins == -1) {
+          let insB = b.ins == -1 ? -1 : b.off ? 0 : b.ins
+          addSection(sections, data, len, insB, b.slice, open)
+        } else if (b.ins == -1) {
+          addSection(sections, data, a.off ? 0 : a.len, len, a.slicePart(len), open)
+        } else {
+          addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.slice, open)
+        }
+        open = (a.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen)
+        a.forward2(len)
+        b.forward(len)
+      }
+    }
+  }
+
+  static addMark(doc: Node, from: number, to: number, mark: Mark) {
+    return createMarkSet(doc, from, to, [{type: "addMark", mark}],
+                         n => mark.type.canTarget(n.type) && !mark.isInSet(n.marks))
+  }
+
+  static removeMark(doc: Node, from: number, to: number, mark: Mark) {
+    return createMarkSet(doc, from, to, [{type: "removeMark", mark}], n => mark.isInSet(n.marks))
+  }
+
+  static setAttrs(doc: Node, pos: number, attrs: {[name: string]: any}) {
+    let mods: Modification[] = [], node = doc.nodeAt(pos)
+    if (!node) throw new Error("No node at position given to ChangeSet.setAttrs")
+    for (let attr in attrs) {
+      if (!node.type.attrs.some(a => a.name == attr))
+        throw new Error(`Nodes of type ${node.name} don't support an attribute ${attr}`)
+      mods.push({type: "setAttr", attr, value: attrs[attr]})
+    }
+    let sections: number[] = [], data: (readonly Modification[] | null)[] = []
+    if (pos) { sections.push(pos, -1); data.push(null) }
+    sections.push(1, -1); data.push(mods)
+    if (pos + 1 < doc.length) { sections.push(doc.length - pos - 1, -1); data.push(null) }
+    return new ChangeSet(sections, data)
+  }
+
+  static create(doc: Node, spec: ChangeSpec): ChangeSet {
+    if (Array.isArray(spec)) {
+      let change: ChangeSet | null = null
+      for (let elt of spec) {
+        let set = ChangeSet.create(doc, elt)
+        change = change ? change.compose(set.map(change)) : set
+      }
+      return change || ChangeSet.empty(doc.length)
+    } else if (spec instanceof ChangeSet) {
+      if (spec.length != doc.length) throw new Error("Mismatched change set length")
+      return spec
+    } else {
+      let {from} = spec
+      let modifies = spec.addMark || spec.removeMark || spec.setAttr
+      if (modifies && !spec.insert) {
+        let to = spec.to ?? spec.from + 1
+        let pieces: ChangeSet[] = []
+        if (spec.removeMark) pieces.push(ChangeSet.removeMark(doc, from, to, spec.removeMark))
+        if (spec.addMark) pieces.push(ChangeSet.addMark(doc, from, to, spec.addMark))
+        if (spec.setAttr) {
+          if (to - from != 1) throw new Error("Attribute changes must apply to a single position")
+          pieces.push(ChangeSet.setAttrs(doc, from, spec.setAttr))
+        }
+        return pieces.length > 1 ? ChangeSet.create(doc, pieces) : pieces[0]
+      } else if (spec.to == null && !spec.insert) {
+        return ChangeSet.empty(doc.length)
+      } else {
+        let to = spec.to ?? spec.from, sections: number[] = [], data: (Slice | null)[] = []
+        if (from > 0) { sections.push(from, -1); data.push(null) }
+        sections.push(to - from, spec.insert ? spec.insert.length : 0); data.push(spec.insert || Slice.empty)
+        if (to < doc.length) { sections.push(doc.length - to, -1); data.push(null) }
+        return new ChangeSet(sections, data)
+      }
+    }
+  }
+
+  static empty(length: number) {
+    return length ? new ChangeSet([length, -1], [null]) : new ChangeSet([], [])
+  }
+}
+
+function createMarkSet(doc: Node, from: number, to: number, mods: readonly Modification[], test: (n: Node) => boolean) {
+  let sections: number[] = [], data: (readonly Modification[] | null)[] = []
+  let upto = 0
+  doc.iterate(from, to, (node, pos) => {
+    if (((pos >= from && pos + node.length <= to) || node.isText()) && test(node)) {
+      let [start, end] = node.isText() ? [Math.max(pos, from), Math.min(pos + node.length, to)] : [pos, pos + 1]
+      if (start > upto) { sections.push(start - upto, -1); data.push(null) }
+      sections.push(end - start, -1)
+      data.push(mods)
+      upto = end
+      return false
+    }
+  })
+  if (upto < doc.length) { sections.push(doc.length - upto, -1); data.push(null) }
+  return new ChangeSet(sections, data)
 }
 
 export type ChangeSetJSON = readonly {

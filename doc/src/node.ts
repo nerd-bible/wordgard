@@ -104,7 +104,10 @@ export class NodeType<Attrs extends {} = {}> {
     }
     createChildren(children, childList)
     if (!attrs) throw new Error(`Must specify attrs when creating a node with some attributes that have no default value`)
-    return new Node(this, attrs, none, this.checkChildren(childList))
+    if (this.flags & NodeFlag.Doc)
+      return new DocNode(this, this.checkChildren(childList))
+    else
+      return new Node(this, attrs, none, this.checkChildren(childList))
   }
 
   isInGroup(group: string) {
@@ -220,6 +223,31 @@ export class Node {
 
   isText(): this is TextNode { // FIXME interface consistency
     return this.type.isText
+  }
+
+  iterate(from: number, to: number, f: (node: Node, pos: number) => boolean | void) {
+    if (f(this, 0) !== false)
+      this.iterInner(0, from, to, f)
+  }
+
+  nodeAt(pos: number): Node | null {
+    for (let child of this.children) {
+      if (pos == 0) return child
+      if (pos < child.length) return child.nodeAt(pos - 1)
+      pos -= child.length
+    }
+    return null
+  }
+
+  /// @internal
+  iterInner(contentStart: number, from: number, to: number, f: (node: Node, pos: number) => boolean | void) {
+    for (let pos = contentStart, i = 0; i < this.children.length; i++) {
+      if (pos >= to) break
+      let child = this.children[i], start = pos
+      pos += child.length
+      if (pos <= from) continue
+      if (f(child, start) !== false) child.iterInner(start + 1, from, to, f)
+    }
   }
 
   toString() {
@@ -468,6 +496,10 @@ export class Mark {
   removeFromSet(set: readonly Mark[]): readonly Mark[] {
     for (var i = 0; i < set.length; i++) if (set[i].eq(this)) return remove(set, i)
     return set
+  }
+
+  isInSet(set: readonly Mark[]) {
+    return set.some(m => m.eq(this))
   }
 }
 
