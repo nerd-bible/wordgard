@@ -64,7 +64,7 @@ export class NodeType<Attrs extends {} = {}> {
       }
     }
     this.defaultAttrs = defaultAttrs
-    let groups = this.groups = [name, flags & NodeFlag.Inline ? "Inline" : "Block"]
+    let groups = this.groups = [name, flags & NodeFlag.Inline ? "Inline" : "Block", "_"]
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
     this.contentGroups = spec.content ? splitGroups(spec.content) : none
   }
@@ -189,7 +189,7 @@ export class Node {
   }
 
   eq(other: Node): boolean {
-    return this.sameMarkup(other) && eqArray(this.children, other.children)
+    return this == other || this.sameMarkup(other) && eqArray(this.children, other.children)
   }
 
   copy(children: readonly Node[]) {
@@ -413,7 +413,7 @@ export class MarkType<Attrs extends {} = {}> {
     readonly name: string,
     readonly spec: MarkSpec<Attrs>
   ) {
-    this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name)
+    this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name, "_")
     this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
     this.excludedGroups = spec.excludes == null ? [name] : splitGroups(spec.excludes)
     this.rank = spec.rank
@@ -522,5 +522,8 @@ export class Mark {
   isInSet(set: readonly Mark[]) {
     return set.some(m => m.eq(this))
   }
-}
 
+  static sameSet(a: readonly Mark[], b: readonly Mark[]) {
+    return eqArray(a, b)
+  }
+}
