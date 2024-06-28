@@ -64,14 +64,6 @@ export class Slice {
     }
   }
 
-  validate(schema: Schema) {
-    for (let elt of this.content) {
-      if (elt.tokenType == TokenType.Open) schema.validate(elt.node)
-      else if (elt.tokenType == TokenType.Node) schema.validate(elt)
-    }
-    return this
-  }
-
   slice(from: number, to = this.length) {
     if (from == to) return Slice.empty
     let result: Token[] = [], off = 0

@@ -21,12 +21,13 @@ export class Schema {
   }
 
   doc(children: readonly Node[]) {
-    for (let ch of children) this.validate(ch)
     return new DocNode(this.docType, this.docType.checkChildren(children), this)
   }
 
   get schemaElement() { return this }
 
+  // FIXME probably don't want to integrate this in document
+  // construction, but rather in the editor state.
   validate(node: Node) {
     if (!this.nodeSet.has(node.type))
       throw new Error(`Node type ${node.name} not in schema`)

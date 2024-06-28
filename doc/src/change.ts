@@ -188,7 +188,7 @@ export class ChangeSet {
         builder.modifications = null
       } else {
         cursor = cursor.advance(lenA)
-        ;(this.data[i] as Slice).validate(doc.schema).run(builder)
+        ;(this.data[i] as Slice).run(builder)
       }
     }
     if (cursor.parent || cursor.index != (cursor.node.isText() ? cursor.node.text.length : cursor.node.children.length))
