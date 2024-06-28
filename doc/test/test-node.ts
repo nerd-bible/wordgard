@@ -65,7 +65,7 @@ describe("Node", () => {
     let BlockLeaf = NodeType.block("BlockLeaf", {tag: "div"})
 
     it("doesn't add block separator around non-rendered leaf nodes", () => {
-      ist(doc(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
+      ist(blockquote(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
     })
 
     it("can take partial content", () => {

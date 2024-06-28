@@ -1,5 +1,6 @@
-import {Node, TextNode, NodeType, Mark, MarkType} from "./node"
-import {Doc, Paragraph, Blockquote, Image, OrderedList, BulletList, ListItem, HorizontalRule,
+import {Node, TextNode, DocNode, NodeType, Mark, MarkType} from "./node"
+import {Schema, basicSchema} from "./schema"
+import {Paragraph, Blockquote, Image, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"
 
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
@@ -11,9 +12,9 @@ export type NodeBuilder<Attrs> = {
 
 export type BuilderAttrs<T> = T extends NodeType<infer Attrs> | MarkType<infer Attrs> ? Attrs : {}
 
-export function builder<T extends {[name: string]: NodeType | Node | Mark | MarkType}>(spec: T): {
+export function builder<T extends {[name: string]: NodeType | Node | Mark | MarkType}>(spec: T, schema?: Schema): {
   [name in keyof T]: NodeBuilder<BuilderAttrs<T[name]>>
-} {
+} & {doc(...children: ContentSpec[]): DocNode} {
   let result = Object.create(null)
   for (let name in spec) {
     let val = spec[name]
@@ -21,6 +22,10 @@ export function builder<T extends {[name: string]: NodeType | Node | Mark | Mark
       : val instanceof MarkType ? markBuilder(val, {})
       : val instanceof Node ? nodeBuilder(val.type, val.attrs)
       : nodeBuilder(val, {})
+  }
+  result.doc = (...children: ContentSpec[]) => {
+    if (!schema) throw new Error("This builder does not have a schema")
+    return schema.doc(collectChildren(children))
   }
   return result
 }
@@ -120,7 +125,6 @@ export function tag(node: Node, id: number): number {
 }
 
 export const basicBuilder = builder({
-  doc: Doc,
   p: Paragraph,
   img: Image,
   $img: Image.create({src: "test.png"}),
@@ -134,4 +138,4 @@ export const basicBuilder = builder({
   code: Code,
   a: Link,
   $a: Link.create({href: "/"})
-})
+}, basicSchema)

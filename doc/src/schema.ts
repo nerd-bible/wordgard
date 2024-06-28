@@ -1,4 +1,4 @@
-import {Node, NodeType, MarkType, NodeJSON, MarkJSON, Text, none} from "./node"
+import {Node, NodeType, MarkType, NodeJSON, MarkJSON, Text, DocNode, none} from "./node"
 
 export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]
 
@@ -11,12 +11,18 @@ export class Schema {
 
   private constructor(
     readonly nodes: readonly NodeType[],
-    readonly marks: readonly MarkType[]
+    readonly marks: readonly MarkType[],
+    readonly docType: NodeType
   ) {
     this.nodeSet = new Set(nodes)
     this.markSet = new Set(marks)
     for (let node of nodes) this.nodesByName[node.name] = node
     for (let mark of marks) this.marksByName[mark.name] = mark
+  }
+
+  doc(children: readonly Node[]) {
+    for (let ch of children) this.validate(ch)
+    return new DocNode(this.docType, this.docType.checkChildren(children), this)
   }
 
   get schemaElement() { return this }
@@ -85,18 +91,23 @@ export class Schema {
       }
     }
     scan(spec)
-    for (let node of nodes) if (!node.isLeaf) {
-      let sawDefaultable = false
-      for (let child of nodes) if (child.canBeChild(node)) {
-        if (child.defaultAttrs) sawDefaultable = true
-        if (child.isInline() != node.inlineContent())
-          throw new Error(`Node type ${node.name} has ${node.inlineContent() ? "block" : "inline"
-                            } content, but allows ${child.name} as a child`)
+    let docType: NodeType | null = null
+    for (let node of nodes) {
+      if (node.isDoc()) docType = node
+      if (!node.isLeaf()) {
+        let sawDefaultable = false
+        for (let child of nodes) if (child.canBeChild(node)) {
+          if (child.defaultAttrs) sawDefaultable = true
+          if (child.isInline() != node.inlineContent())
+            throw new Error(`Node type ${node.name} has ${node.inlineContent() ? "block" : "inline"
+                              } content, but allows ${child.name} as a child`)
+        }
+        if (!node.inlineContent() && !sawDefaultable)
+          throw new Error(`Node ${node.name} has block content, but all possible children require non-default attributes`)
       }
-      if (!node.inlineContent() && !sawDefaultable)
-        throw new Error(`Node ${node.name} has block content, but all possible children require non-default attributes`)
     }
-    return new Schema(nodes, marks)
+    if (!docType) throw new Error("A schema must define a document node type (Node.doc)")
+    return new Schema(nodes, marks, docType)
   }
 
   nodeFromJSON(json: NodeJSON) {
@@ -108,10 +119,11 @@ export class Schema {
       marks = json.marks.map(m => this.markFromJSON(m))
     if (type.isText() && typeof json.text == "string")
       return Node.text(json.text, marks)
-    if (!attrs || json.attrs && typeof json.attrs == "object")
-      attrs = json.attrs || {}
     if (json.children && Array.isArray(json.children))
       children = json.children.map(c => this.nodeFromJSON(c))
+    if (type.isDoc()) return this.doc(children)
+    if (!attrs || json.attrs && typeof json.attrs == "object")
+      attrs = json.attrs || {}
     return type.create(attrs!, children).mark(marks)
   }
 

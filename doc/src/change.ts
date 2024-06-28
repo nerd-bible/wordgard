@@ -1,4 +1,4 @@
-import {Node, NodeType, TextNode, Mark, MarkJSON} from "./node"
+import {Node, DocNode, NodeType, TextNode, Mark, MarkJSON} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 
@@ -47,7 +47,7 @@ class Pos { // FIXME merge with Context, somehow
     return resolvePos(distance, this.node, this.index, this.parent, track)
   }
 
-  static resolve(doc: Node, pos: number) {
+  static resolve(doc: DocNode, pos: number) {
     return resolvePos(pos, doc, 0, null)
   }
 }
@@ -61,7 +61,7 @@ class Builder implements Tracker {
   stack: BuildContext[]
   modifications: readonly Modification[] | null = null
 
-  constructor(doc: Node) {
+  constructor(doc: DocNode) {
     this.stack = [new BuildContext(doc)]
   }
 
@@ -177,7 +177,7 @@ export class ChangeSet {
     readonly data: readonly SectionData[]
   ) {}
 
-  apply(schema: Schema, doc: Node) {
+  apply(doc: DocNode) {
     let builder = new Builder(doc)
     let cursor = new Pos(doc, 0, null)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
@@ -188,7 +188,7 @@ export class ChangeSet {
         builder.modifications = null
       } else {
         cursor = cursor.advance(lenA)
-        ;(this.data[i] as Slice).validate(schema).run(builder)
+        ;(this.data[i] as Slice).validate(doc.schema).run(builder)
       }
     }
     if (cursor.parent || cursor.index != (cursor.node.isText() ? cursor.node.text.length : cursor.node.children.length))
@@ -275,11 +275,11 @@ export class ChangeSet {
     return posB
   }
 
-  map(other: ChangeSet, doc: Node, schema: Schema, before: boolean = false): ChangeSet {
+  map(other: ChangeSet, doc: DocNode, before: boolean = false): ChangeSet {
     // Produce a copy of setA that applies to the document after setB
     // has been applied. Assumes both start at the same document.
     let sections: number[] = [], data: SectionData[] = []
-    let fix = new FixGenerator(schema, doc)
+    let fix = new FixGenerator(doc)
     let pos = new Pos(doc, 0, null)
     let a = new SectionIter(this), b = new SectionIter(other)
     // Iterate over both sets in parallel. inserted tracks, for changes
@@ -379,7 +379,7 @@ export class ChangeSet {
     }
   }
 
-  static create(doc: Node, schema: Schema, spec: ChangeSpec): ChangeSet {
+  static create(doc: DocNode, spec: ChangeSpec): ChangeSet {
     let sections: number[] = [], data: SectionData[] = [], pos = 0
     let accum: ChangeSet | null = null
     let section = (from: number, to: number, ins: number, value: SectionData) => {
@@ -396,7 +396,7 @@ export class ChangeSet {
       }
     }
     let add = (set: ChangeSet) => {
-      accum = accum ? accum.compose(set.map(accum, doc, schema)) : set
+      accum = accum ? accum.compose(set.map(accum, doc)) : set
     }
     let explore = (spec: ChangeSpec) => {
       if (Array.isArray(spec)) {
@@ -450,9 +450,9 @@ export class ChangeSet {
     return accum || ChangeSet.empty(doc.length)
   }
 
-  static createChecked(doc: Node, schema: Schema, spec: ChangeSpec): ChangeSet {
-    let base = ChangeSet.create(doc, schema, spec)
-    let fix = new FixGenerator(schema, doc), pos = new Pos(doc, 0, null)
+  static createChecked(doc: DocNode, spec: ChangeSpec): ChangeSet {
+    let base = ChangeSet.create(doc, spec)
+    let fix = new FixGenerator(doc), pos = new Pos(doc, 0, null)
     for (let i = 0, iS = 0; i < base.data.length; i++) {
       let len = base.sections[iS++], ins = base.sections[iS++]
       if (ins < 0) {
@@ -509,15 +509,15 @@ class FixGenerator implements Tracker {
   pos = 0
   patches: {from: number, to: number, slice: Slice}[] = []
 
-  constructor(readonly schema: Schema, readonly top: Node) {
-    this.stack = new FixLevel(top.type, 0, null)
+  constructor(readonly doc: DocNode) {
+    this.stack = new FixLevel(doc.type, 0, null)
   }
 
   fit(type: NodeType) {
     if (type.canBeChild(this.stack.type)) return true
     let candidates: {leave: number, enter: readonly Node[], cost: number}[] = []
     for (let level: FixLevel | null = this.stack, leave = 0; level; level = level.next, leave++) {
-      let enter = this.schema.findWrapping(level.type, type)
+      let enter = this.doc.schema.findWrapping(level.type, type)
       if (enter) candidates.push({leave, enter, cost: leave + enter.length + (enter.length ? 0.5 : 0)})
     }
     if (!candidates.length) return false
@@ -572,7 +572,7 @@ class FixGenerator implements Tracker {
       addSection(sections, data, to - from, slice.length, slice)
       pos = to
     }
-    addSection(sections, data, this.top.length - pos, -1, null)
+    addSection(sections, data, this.doc.length - pos, -1, null)
     return new ChangeSet(sections, data)
   }
 }

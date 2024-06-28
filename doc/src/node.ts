@@ -1,5 +1,5 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
-import {SchemaElement} from "./schema"
+import {Schema, SchemaElement} from "./schema"
 
 export const enum TokenType { Open, Close, Node }
 
@@ -99,17 +99,15 @@ export class NodeType<Attrs extends {} = {}> {
   create(attrs: Partial<Attrs>, children?: readonly Node[]): Node
   create(children?: readonly Node[]): Node
   create(attrsOrChildren?: Partial<Attrs> | readonly Node[], children?: readonly Node[]): Node {
-    if (this.isText()) throw new Error("Text nodes cannot be created with .create()")
+    if (this.isDoc()) throw new Error("Document nodes must be created with schema.doc()")
+    if (this.isText()) throw new Error("Text nodes must be created with Node.text()")
     let attrs = this.defaultAttrs
     if (attrsOrChildren) {
       if (Array.isArray(attrsOrChildren)) children = attrsOrChildren
       else attrs = fillAttrs(this.attrs, attrsOrChildren as Partial<Attrs>)
     }
     if (!attrs) throw new Error(`Must specify attrs when creating a node with some attributes that have no default value`)
-    if (this.flags & NodeFlag.Doc)
-      return new DocNode(this, this.checkChildren(children || none))
-    else
-      return new Node(this, attrs, none, this.checkChildren(children || none))
+    return new Node(this, attrs, none, this.checkChildren(children || none))
   }
 
   isInGroup(group: string) {
@@ -310,11 +308,20 @@ export type MarkJSON = {
 }
 
 export class DocNode extends Node {
-  constructor(type: NodeType, children: readonly Node[]) {
+  constructor(type: NodeType, children: readonly Node[], readonly schema: Schema) {
     super(type, noAttrs, none, children)
   }
 
   get length() { return this.contentLength }
+
+  copy(children: readonly Node[]) {
+    return new DocNode(this.type, this.type.checkChildren(children), this.schema)
+  }
+
+  mark(marks: readonly Mark[]) {
+    if (marks.length) throw new Error("Document nodes cannot have marks")
+    return this
+  }
 
   sliceNode(content: Token[], from: number, to: number) {
     sliceContent(content, this.children, from, to)

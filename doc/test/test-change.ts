@@ -1,6 +1,7 @@
 import ist from "ist"
-import {Node, ChangeSet, ChangeSpec, Mark,
-        basicSchema, basicBuilder, tag, maybeTag,
+import {Node, DocNode, Mark,
+        ChangeSet, ChangeSpec,
+        basicBuilder, tag, maybeTag,
         Slice, Token, OpenToken, CloseToken} from "@willow/doc"
 const {p, doc} = basicBuilder
 
@@ -11,8 +12,8 @@ const c = CloseToken
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
-function mk(doc: Node, changes: readonly ChangeData[]) {
-  return ChangeSet.create(doc, basicSchema, changes.map((ch, i): ChangeSpec => {
+function mk(doc: DocNode, changes: readonly ChangeData[]) {
+  return ChangeSet.create(doc, changes.map((ch, i): ChangeSpec => {
     let from = tag(doc, i * 2)
     if (from == null) throw new Error(`No start position defined for change ${i}`)
     let to = maybeTag(doc, i * 2 + 1) ?? from
@@ -28,8 +29,8 @@ function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }
 
 describe("ChangeSet", () => {
   describe("apply", () => {
-    function testApply(doc: Node, changes: ChangeData[], expect: Node) {
-      ist(mk(doc, changes).apply(basicSchema, doc), expect, eq)
+    function testApply(doc: DocNode, changes: ChangeData[], expect: Node) {
+      ist(mk(doc, changes).apply(doc), expect, eq)
     }
 
     it("can apply inline insertions", () => {
