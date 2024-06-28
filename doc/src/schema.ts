@@ -7,6 +7,7 @@ export class Schema {
   private markSet: Set<MarkType>
   private nodesByName: {[name: string]: NodeType} = Object.create(null)
   private marksByName: {[name: string]: MarkType} = Object.create(null)
+  private wrappingCache: {[key: string]: readonly Node[] | null} = Object.create(null)
 
   private constructor(
     readonly nodes: readonly NodeType[],
@@ -38,6 +39,27 @@ export class Schema {
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     if (child.isLeaf() || child.inlineContent()) return child.create()
     return child.create(this.createDefault(child))
+  }
+
+  findWrapping(parent: NodeType, child: NodeType): readonly Node[] | null {
+    let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
+    if (cached !== undefined) return cached
+    return this.wrappingCache[key] = this.findWrappingInner(parent, child)
+  }
+
+  private findWrappingInner(parent: NodeType, child: NodeType): readonly Node[] | null {
+    let seen: Set<NodeType> = new Set, work: Node[][] = [[]]
+    for (let i = 0; i < work.length; i++) {
+      let path = work[i], at = path.length ? path[path.length - 1].type : parent
+      for (let node of this.nodes) if (node.canBeChild(at)) {
+        if (node == child) return path
+        if (!seen.has(node)) {
+          seen.add(node)
+          work.push(path.concat(node.create()))
+        }
+      }
+    }
+    return null
   }
 
   static define(spec: SchemaElement) {

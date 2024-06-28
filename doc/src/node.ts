@@ -44,6 +44,7 @@ export class NodeType<Attrs extends {} = {}> {
   attrs: readonly Attribute<any>[]
   private groups: readonly string[]
   private contentGroups: readonly string[]
+  private parentCache: Map<NodeType, boolean> = new Map
   defaultAttrs: Attrs | null
   flags: NodeFlag
 
@@ -116,7 +117,12 @@ export class NodeType<Attrs extends {} = {}> {
   }
 
   canBeChild(parent: NodeType) {
-    return (this.flags & NodeFlag.Doc) ? false : parent.contentGroups.some(g => this.isInGroup(g))
+    let result = this.parentCache.get(parent)
+    if (result == null) {
+      result = (this.flags & NodeFlag.Doc) ? false : parent.contentGroups.some(g => this.isInGroup(g))
+      this.parentCache.set(parent, result)
+    }
+    return result
   }
 
   checkChildren(children: readonly Node[]) {
@@ -351,6 +357,10 @@ export class TextNode extends Node {
 
   cut(from: number, to = this.length) {
     return !from && to == this.length ? this : new TextNode(this.text.slice(from, to), this.marks)
+  }
+
+  eq(other: Node) {
+    return super.eq(other) && this.text == (other as TextNode).text
   }
 
   toString() { return marksToString(this.marks, JSON.stringify(this.text)) }

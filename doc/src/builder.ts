@@ -28,7 +28,7 @@ export function builder<T extends {[name: string]: NodeType | Node | Mark | Mark
 function nodeBuilder<Attrs extends {}>(type: NodeType<Attrs>, given: Partial<Attrs>): NodeBuilder<Attrs> {
   return (attrsOrChild?: ContentSpec | Partial<Attrs>, ...children: ContentSpec[]) => {
     let attrs = given
-    if (attrsOrChild) {
+    if (attrsOrChild != null) {
       if (Array.isArray(attrsOrChild) || typeof attrsOrChild != "object" || attrsOrChild instanceof Node)
         children.unshift(attrsOrChild)
       else

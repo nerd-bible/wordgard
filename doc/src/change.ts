@@ -1,6 +1,6 @@
-import {Node, TextNode, Mark, MarkJSON} from "./node"
+import {Node, NodeType, TextNode, Mark, MarkJSON} from "./node"
 import {Schema} from "./schema"
-import {Slice, SliceJSON} from "./slice"
+import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 
 export interface Tracker {
   skip(node: Node): void
@@ -28,7 +28,7 @@ function resolvePos(distance: number, node: Node, index: number, parent: Pos | n
         distance -= next.length
         if (track) track.skip(next)
       } else {
-        if (!next.type.isText) {
+        if (!next.isText()) {
           distance--
           if (track) track.enter(next)
         }
@@ -275,10 +275,12 @@ export class ChangeSet {
     return posB
   }
 
-  map(other: ChangeSet, before: boolean = false): ChangeSet {
+  map(other: ChangeSet, doc: Node, schema: Schema, before: boolean = false): ChangeSet {
     // Produce a copy of setA that applies to the document after setB
     // has been applied. Assumes both start at the same document.
     let sections: number[] = [], data: SectionData[] = []
+    let fix = new FixGenerator(schema, doc)
+    let pos = new Pos(doc, 0, null)
     let a = new SectionIter(this), b = new SectionIter(other)
     // Iterate over both sets in parallel. inserted tracks, for changes
     // in A that have to be processed piece-by-piece, whether their
@@ -293,21 +295,25 @@ export class ChangeSet {
         addSection(sections, data, len, -1, a.mods)
         a.forward(len)
         b.forward(len)
+        pos = pos.advance(len, fix)
       } else if (b.ins >= 0 && (a.ins < 0 || inserted == a.i || a.off == 0 && (b.len < a.len || b.len == a.len && !before))) {
         // If there's a change in B that comes before the next change in
         // A (ordered by start pos, then len, then before flag), skip
         // that (and process any changes in A it covers).
         let len = b.len
         addSection(sections, data, b.ins, -1, null)
+        b.slice.run(fix)
         while (len) {
           let piece = Math.min(a.len, len)
           if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
             addSection(sections, data, 0, a.ins, a.slice)
+            a.slice.run(fix)
             inserted = a.i
           }
           a.forward(piece)
           len -= piece
         }
+        pos = pos.advance(b.len)
         b.next()
       } else if (a.ins >= 0) {
         // Process the part of a change in A up to the start of the next
@@ -318,19 +324,24 @@ export class ChangeSet {
             let piece = Math.min(left, b.len)
             len += piece
             left -= piece
+            pos = pos.advance(piece)
             b.forward(piece)
           } else if (b.ins == 0 && b.len < left) {
+            b.slice.run(fix)
             left -= b.len
+            pos = pos.advance(b.len)
             b.next()
           } else {
             break
           }
         }
         addSection(sections, data, len, inserted < a.i ? a.ins : 0, inserted < a.i ? a.slice : Slice.empty)
+        if (inserted < a.i) a.slice.run(fix)
         inserted = a.i
         a.forward(a.len - left)
       } else if (a.done && b.done) {
-        return new ChangeSet(sections, data)
+        let fixup = fix.finish(), base = new ChangeSet(sections, data)
+        return fixup ? base.compose(fixup) : base
       } else {
         throw new Error("Mismatched change set lengths")
       }
@@ -368,7 +379,7 @@ export class ChangeSet {
     }
   }
 
-  static create(doc: Node, spec: ChangeSpec): ChangeSet {
+  static create(doc: Node, schema: Schema, spec: ChangeSpec): ChangeSet {
     let sections: number[] = [], data: SectionData[] = [], pos = 0
     let accum: ChangeSet | null = null
     let section = (from: number, to: number, ins: number, value: SectionData) => {
@@ -385,7 +396,7 @@ export class ChangeSet {
       }
     }
     let add = (set: ChangeSet) => {
-      accum = accum ? accum.compose(set.map(accum)) : set
+      accum = accum ? accum.compose(set.map(accum, doc, schema)) : set
     }
     let explore = (spec: ChangeSpec) => {
       if (Array.isArray(spec)) {
@@ -439,8 +450,130 @@ export class ChangeSet {
     return accum || ChangeSet.empty(doc.length)
   }
 
+  static createChecked(doc: Node, schema: Schema, spec: ChangeSpec): ChangeSet {
+    let base = ChangeSet.create(doc, schema, spec)
+    let fix = new FixGenerator(schema, doc), pos = new Pos(doc, 0, null)
+    for (let i = 0, iS = 0; i < base.data.length; i++) {
+      let len = base.sections[iS++], ins = base.sections[iS++]
+      if (ins < 0) {
+        pos = pos.advance(len, fix)
+      } else {
+        pos = pos.advance(len)
+        ;(base.data[i] as Slice).run(fix)
+      }
+    }
+    let fixup = fix.finish()
+    return fixup ? base.compose(fixup) : base
+  }
+
   static empty(length: number) {
     return length ? new ChangeSet([length, -1], [null]) : new ChangeSet([], [])
+  }
+
+  /// @internal
+  toString() {
+    let result = ""
+    for (let i = 0, iS = 0, pos = 0; i < this.data.length; i++) {
+      let len = this.sections[iS++], ins = this.sections[iS++], data = this.data[i]
+      let text = ""
+      if (ins < 0) {
+        text += data
+      } else if (data) {
+        text += `[${(data as readonly Modification[]).map(mod => {
+          if (mod.type == "addMark") return `+${mod.mark.name}`
+          if (mod.type == "removeMark") return `-${mod.mark.name}`
+          return `${mod.attr}=${String(mod.value).slice(0, 20)}`
+        })}]`
+      }
+      if (text) result += `${result ? "," : ""}${pos}-${pos + len}${text}`
+      pos += len
+    }
+    return result
+  }
+}
+
+class FixLevel {
+  public mayEnd: boolean
+  constructor(
+    readonly type: NodeType,
+    public adjusted: number,
+    readonly next: FixLevel | null
+  ) {
+    this.mayEnd = type.inlineContent()
+  }
+}
+
+// FIXME make this smarter about keeping fixes local
+class FixGenerator implements Tracker {
+  stack: FixLevel
+  pos = 0
+  patches: {from: number, to: number, slice: Slice}[] = []
+
+  constructor(readonly schema: Schema, readonly top: Node) {
+    this.stack = new FixLevel(top.type, 0, null)
+  }
+
+  fit(type: NodeType) {
+    if (type.canBeChild(this.stack.type)) return true
+    let candidates: {leave: number, enter: readonly Node[], cost: number}[] = []
+    for (let level: FixLevel | null = this.stack, leave = 0; level; level = level.next, leave++) {
+      let enter = this.schema.findWrapping(level.type, type)
+      if (enter) candidates.push({leave, enter, cost: leave + enter.length + (enter.length ? 0.5 : 0)})
+    }
+    if (!candidates.length) return false
+    candidates.sort((a, b) => a.cost - b.cost)
+    let fix = candidates[0]
+    let slice: Token[] = []
+    for (let i = 0; i < fix.leave; i++) {
+      slice.push(CloseToken)
+      this.stack = this.stack.next!
+    }
+    for (let wrapper of fix.enter) {
+      slice.push(new OpenToken(wrapper))
+      this.stack = new FixLevel(wrapper.type, 0, this.stack)
+    }
+    this.patches.push({from: this.pos, to: this.pos, slice: new Slice(slice)})
+    return true
+  }
+
+  drop(length: number) {
+    this.patches.push({from: this.pos, to: this.pos + length, slice: Slice.empty})
+  }
+
+  skip(node: Node) {
+    if (this.fit(node.type))
+      this.stack.mayEnd = true
+    else
+      this.drop(node.length)
+    this.pos += node.length
+  }
+
+  enter(node: Node) {
+    if (this.fit(node.type))
+      this.stack = new FixLevel(node.type, 0, this.stack)
+    else
+      this.drop(1)
+    this.pos++
+  }
+
+  leave() {
+    if (this.stack.next)
+      this.stack = this.stack.next
+    else
+      this.drop(1)
+    this.pos++
+  }
+
+  finish(): ChangeSet | null {
+    if (!this.patches.length) return null
+    let sections: number[] = [], data: SectionData[] = [], pos = 0
+    for (let {from, to, slice} of this.patches) {
+      addSection(sections, data, from - pos, -1, null)
+      addSection(sections, data, to - from, slice.length, slice)
+      pos = to
+    }
+    addSection(sections, data, this.top.length - pos, -1, null)
+    return new ChangeSet(sections, data)
   }
 }
 
