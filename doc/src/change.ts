@@ -364,9 +364,10 @@ export class ChangeSet {
         throw new Error("Mismatched change set lengths")
       } else {
         let len = Math.min(a.len2, b.len), sectionLen = sections.length
-        if (a.ins == -1) {
-          let insB = b.ins == -1 ? -1 : b.off ? 0 : b.ins
-          addSection(sections, data, len, insB, b.slice, open)
+        if (a.ins == -1 && b.ins == -1) {
+          addSection(sections, data, len, -1, combineMods(a.mods, b.mods), open)
+        } else if (a.ins == -1) {
+          addSection(sections, data, len, b.off ? 0 : b.ins, b.slice, open)
         } else if (b.ins == -1) {
           addSection(sections, data, a.off ? 0 : a.len, len, a.slicePart(len), open)
         } else {
@@ -428,7 +429,7 @@ export class ChangeSet {
           }
           if (setAttr) {
             if (to - from != 1) throw new Error("Attribute changes must apply to a single position")
-            let mods: Modification[] = [], node = doc.nodeAt(pos)
+            let mods: Modification[] = [], node = doc.nodeAt(from)
             if (!node) throw new Error("No node at position given to ChangeSet.setAttrs")
             for (let attr in setAttr) {
               if (!node.type.attrs.some(a => a.name == attr))
@@ -490,6 +491,10 @@ export class ChangeSet {
     }
     return result
   }
+}
+
+function combineMods(a: null | readonly Modification[], b: null | readonly Modification[]): null | readonly Modification[] {
+  return !a ? b : !b ? a : a.concat(b)
 }
 
 class FixLevel {

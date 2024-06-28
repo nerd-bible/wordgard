@@ -2,13 +2,15 @@ import ist from "ist"
 import {Node, DocNode, Mark,
         ChangeSet, ChangeSpec,
         basicBuilder, tag, maybeTag,
-        Slice, Token, OpenToken, CloseToken} from "@willow/doc"
-const {p, doc} = basicBuilder
+        Slice, Token, OpenToken, CloseToken,
+        Emphasis, Strong} from "@willow/doc"
+const {doc, p, img, em, strong, blockquote} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
 
 function o(node: Node) { return new OpenToken(node) }
 const c = CloseToken
+const mEm = Emphasis.create(), mStrong = Strong.create()
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
@@ -55,6 +57,43 @@ describe("ChangeSet", () => {
 
     it("can split a node", () => {
       testApply(doc(p("one", 0, "two")), [[c, o(p())]], doc(p("one"), p("two")))
+    })
+
+    it("can join a node", () => {
+      testApply(doc(p("one", 0), p(1, "two")), [[]], doc(p("onetwo")))
+    })
+
+    it("can wrap a node", () => {
+      testApply(doc(0, p("one"), 2), [[o(blockquote())], [c]], doc(blockquote(p("one"))))
+    })
+
+    it("can unwrap a node", () => {
+      testApply(doc(p("a"), 0, blockquote(1, p("b"), 2), 3), [[], []], doc(p("a"), p("b")))
+    })
+
+    it("can add marks", () => {
+      testApply(doc(p("one ", 0, "two", 1, " three")), [{add: mEm}], doc(p("one ", em("two"), " three")))
+    })
+
+    it("can remove marks", () => {
+      testApply(doc(p(em("one ", 0, "two", 1, " three"))), [{remove: mEm}], doc(p(em("one "), "two", em(" three"))))
+    })
+
+    it("can add multiple marks", () => {
+      testApply(doc(p("one ", 0, 2, "two", 1, " three", 3)), [{add: mEm}, {add: mStrong}],
+                doc(p("one ", strong(em("two"), " three"))))
+    })
+
+    it("can remove multiple marks", () => {
+      testApply(doc(p(0, 2, em(strong("x")), 1, 3)), [{remove: mEm}, {remove: mStrong}], doc(p("x")))
+    })
+
+    it("only adds marks where appropriate", () => {
+      testApply(doc(0, p("one"), 1), [{add: mStrong}], doc(p(strong("one"))))
+    })
+
+    it("can change attributes", () => {
+      testApply(doc(p(0, img({src: "a.png"}), 1)), [{setAttr: "src", value: "b.jpg"}], doc(p(img({src: "b.jpg"}))))
     })
   })
 })
