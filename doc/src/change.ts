@@ -557,10 +557,15 @@ class FixGenerator implements Tracker {
   }
 
   leave() {
-    if (this.stack.next)
+    if (this.stack.next) {
+      if (!this.stack.mayEnd) this.patches.push({
+        from: this.pos, to: this.pos,
+        slice: new Slice([this.doc.schema.defaultContentType(this.stack.type)!.create()])
+      })
       this.stack = this.stack.next
-    else
+    } else {
       this.drop(1)
+    }
     this.pos++
   }
 
