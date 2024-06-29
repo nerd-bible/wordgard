@@ -1,7 +1,7 @@
 import {Node, DocNode, TextNode, Mark,
         Slice, Token, OpenToken, CloseToken,
         basicBuilder, ChangeSpec,
-        Paragraph, Emphasis, Strong, Code, Link} from "@willow/doc"
+        Paragraph, Blockquote, Emphasis, Strong, Code, Link} from "@willow/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
 
 export function open(node: Node) { return new OpenToken(node) }
@@ -26,10 +26,11 @@ const mEm = Emphasis.create(), mStrong = Strong.create(), mCode = Code.create()
 
 export function r(n: number) { return Math.floor(Math.random() * n) }
 
-function rWord() {
-  let len = 2 + r(5), word = ""
-  for (let i = 0; i < len; i++)
-    word += String.fromCharCode(97 + r(26))
+function rLetter() { return String.fromCharCode(97 + r(26)) }
+
+function rWord(len = 2 + r(5)) {
+  let word = ""
+  for (let i = 0; i < len; i++) word += rLetter()
   return word
 }
 
@@ -87,17 +88,76 @@ export function rDoc(minLength: number) {
 }
 
 export function rChangeSpec(doc: DocNode) {
-  for (;;) {
+  for (let i = 0; i < 100; i++) {
     let change = generators[r(generators.length)](doc)
     if (change) return change
   }
+  throw new Error("Failed to generate a change for document " + doc)
 }
 
 const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
-  // Insert a character
+  // Insert a few characters
   doc => {
-    // let pos = doc.resolve(r(doc.length))
-    // return pos.node.inlineContent() ? {from: pos.pos, insert: 
-    return null
-  }
+    let pos = doc.resolve(r(doc.length))
+    return pos.node.inlineContent() ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
+  },
+  // Delete some inline content
+  doc => {
+    let pos = r(doc.length), cx = doc.resolve(pos)
+    if (!cx.node.inlineContent() || cx.start == cx.end) return null
+    let from = pos > cx.start ? pos - 1 : pos
+    return {from, to: pos < cx.end && (from == pos || r(2)) ? pos + 1 : pos}
+  },
+  // Join two adjacent blocks
+  doc => scanBlocks(doc, (node, pos, parent, index) => {
+    if (index && parent.children[index - 1].type.sharesContent(node.type))
+      return {from: pos - 1, to: pos + 1}
+  }),
+  // Lift a block's content out to its parent
+  doc => scanBlocks(doc, (node, pos, parent) => {
+    if (parent.type.sharesContent(node.type))
+      return [{from: pos, to: pos + 1}, {from: pos + node.length - 1, to: pos + node.length}]
+  }),
+  // Wrap a block in a blockquote
+  doc => scanBlocks(doc, (node, pos, parent) => {
+    if (parent.type.canContain(Blockquote) && Blockquote.canContain(node.type))
+      return [{from: pos, insert: slice(open(blockquote()))}, {from: pos + node.length, insert: slice(close)}]
+  }),
+  // Delete an entire node
+  doc => scanBlocks(doc, (node, pos, parent) => {
+    if (parent.children.length > 1) return {from: pos, to: pos + node.length}
+  }),
+  // Mark some inline content
+  doc => {
+    let len = 2 + r(6), from = r(doc.length - len)
+    return {from, to: from + len, addMark: !r(3) ? mEm : r(2) ? mStrong : Link.create({href: "/" + rWord()})}
+  },
+  // Remove a mark from some textblock
+  doc => scanBlocks(doc, (node, pos) => {
+    if (node.isTextblock()) for (let i = 0; i < node.children.length; i++) {
+      let marks = node.children[i].marks
+      if (marks.length) return {from: pos, to: pos + node.length, removeMark: marks[r(marks.length)]}
+    }
+  }),
+  // Change an attribute on some list or code block
+  doc => scanBlocks(doc, (node, pos) => {
+    if (node.type.name == "OrderedList")
+      return {from: pos, setAttr: {start: node.attrs.start + 1}}
+    if (node.type.name == "CodeBlock")
+      return {from: pos, setAttr: {language: rWord()}}
+  })
 ]
+
+function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, index: number) => T | null | undefined): T | null {
+  let found: T[] = []
+  function explore(node: Node, off: number) {
+    for (let i = 0, pos = off; i < node.children.length; i++) {
+      let child = node.children[i], val = f(child, pos, node, i)
+      if (val != null) found.push(val)
+      if (!child.inlineContent()) explore(child, pos + 1)
+      pos += child.length
+    }
+  }
+  explore(doc, 0)
+  return found.length ? found[r(found.length)] : null
+}
