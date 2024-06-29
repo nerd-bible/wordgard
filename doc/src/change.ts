@@ -520,14 +520,16 @@ class FixGenerator implements Tracker {
 
   fit(type: NodeType) {
     if (type.canBeChild(this.stack.type)) return true
-    let candidates: {leave: number, enter: readonly Node[], cost: number}[] = []
+    let fix: {leave: number, enter: readonly Node[], cost: number} | null = null
     for (let level: FixLevel | null = this.stack, leave = 0; level; level = level.next, leave++) {
+      if (fix && leave > fix.cost) break
       let enter = this.doc.schema.findWrapping(level.type, type)
-      if (enter) candidates.push({leave, enter, cost: leave + enter.length + (enter.length ? 0.5 : 0)})
+      if (enter) {
+        let cost = leave + enter.length + (enter.length ? 0.5 : 0)
+        if (!fix || fix.cost > cost) fix = {leave, enter, cost}
+      }
     }
-    if (!candidates.length) return false
-    candidates.sort((a, b) => a.cost - b.cost)
-    let fix = candidates[0]
+    if (!fix) return false
     let slice: Token[] = []
     for (let i = 0; i < fix.leave; i++) {
       slice.push(CloseToken)
@@ -535,6 +537,7 @@ class FixGenerator implements Tracker {
     }
     for (let wrapper of fix.enter) {
       slice.push(new OpenToken(wrapper))
+      this.stack.mayEnd = true
       this.stack = new FixLevel(wrapper.type, 0, this.stack)
     }
     this.patches.push({from: this.pos, to: this.pos, slice: new Slice(slice)})
@@ -554,10 +557,12 @@ class FixGenerator implements Tracker {
   }
 
   enter(node: Node) {
-    if (this.fit(node.type))
+    if (this.fit(node.type)) {
+      this.stack.mayEnd = true
       this.stack = new FixLevel(node.type, 0, this.stack)
-    else
+    } else {
       this.drop(1)
+    }
     this.pos++
   }
 
@@ -565,7 +570,7 @@ class FixGenerator implements Tracker {
     if (this.stack.next) {
       if (!this.stack.mayEnd) this.patches.push({
         from: this.pos, to: this.pos,
-        slice: new Slice([this.doc.schema.defaultContentType(this.stack.type)!.create()])
+        slice: new Slice([this.doc.schema.createDefault(this.stack.type)])
       })
       this.stack = this.stack.next
     } else {
@@ -582,7 +587,7 @@ class FixGenerator implements Tracker {
       addSection(sections, data, to - from, slice.length, slice)
       pos = to
     }
-    addSection(sections, data, this.doc.length - pos, -1, null)
+    addSection(sections, data, this.pos - pos, -1, null)
     return new ChangeSet(sections, data)
   }
 }

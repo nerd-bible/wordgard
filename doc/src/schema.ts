@@ -45,7 +45,7 @@ export class Schema {
     let child = this.defaultContentType(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     if (child.isLeaf() || child.inlineContent()) return child.create()
-    return child.create(this.createDefault(child))
+    return child.create([this.createDefault(child)])
   }
 
   findWrapping(parent: NodeType, child: NodeType): readonly Node[] | null {
@@ -60,7 +60,7 @@ export class Schema {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
       for (let node of this.nodes) if (node.canBeChild(at)) {
         if (node == child) return path
-        if (!seen.has(node)) {
+        if (!seen.has(node) && !node.isLeaf()) {
           seen.add(node)
           work.push(path.concat(node.create()))
         }
@@ -142,6 +142,22 @@ export const Paragraph = NodeType.textblock("Paragraph", {
   tag: "p"
 })
 
+export const Heading = NodeType.textblock("Heading", {
+  attrs: {
+    level: {default: 1, attribute: "level"}
+  },
+  content: "Inline",
+  tag: "h1" // FIXME
+})
+
+export const CodeBlock = NodeType.textblock("CodeBlock", {
+  attrs: {
+    language: {default: "", attribute: "data-language"}
+  },
+  content: "Inline",
+  tag: "pre"
+})
+
 export const Blockquote = NodeType.block("Blockquote", {
   content: "Block",
   tag: "blockquote"
@@ -178,6 +194,10 @@ export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
   }
 })
 
+export const LineBreak = NodeType.inline("LineBreak", {
+  tag: "br"
+})
+
 export const Emphasis = MarkType.define("Emphasis", {
   rank: 40,
   tag: "em"
@@ -206,6 +226,8 @@ export const Doc = NodeType.doc("Block")
 export const basicSchema = Schema.define([
   Doc,
   Paragraph,
+  Heading,
+  CodeBlock,
   Blockquote,
   Image,
   HorizontalRule,

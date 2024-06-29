@@ -1,6 +1,7 @@
 import {Node, TextNode, DocNode, NodeType, Mark, MarkType} from "./node"
 import {Schema, basicSchema} from "./schema"
-import {Paragraph, Blockquote, Image, OrderedList, BulletList, ListItem, HorizontalRule,
+import {Paragraph, Heading, CodeBlock, Image, LineBreak,
+        Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"
 
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
@@ -126,8 +127,14 @@ export function tag(node: Node, id: number): number {
 
 export const basicBuilder = builder({
   p: Paragraph,
+  h1: Heading.create({level: 1}),
+  h2: Heading.create({level: 2}),
+  h3: Heading.create({level: 3}),
+  h4: Heading.create({level: 4}),
+  pre: CodeBlock,
   img: Image,
   $img: Image.create({src: "test.png"}),
+  br: LineBreak,
   blockquote: Blockquote,
   ol: OrderedList,
   ul: BulletList,
