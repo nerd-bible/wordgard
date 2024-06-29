@@ -37,7 +37,7 @@ export class Schema {
   }
 
   defaultContentType(parent: NodeType) {
-    for (let node of this.nodes) if (node.canBeChild(parent) && node.defaultAttrs) return node
+    for (let node of this.nodes) if (parent.canContain(node) && node.defaultAttrs) return node
     return null
   }
 
@@ -58,7 +58,7 @@ export class Schema {
     let seen: Set<NodeType> = new Set, work: Node[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
-      for (let node of this.nodes) if (node.canBeChild(at)) {
+      for (let node of this.nodes) if (at.canContain(node)) {
         if (node == child) return path
         if (!seen.has(node) && !node.isLeaf()) {
           seen.add(node)
@@ -97,7 +97,7 @@ export class Schema {
       if (node.isDoc()) docType = node
       if (!node.isLeaf()) {
         let sawDefaultable = false
-        for (let child of nodes) if (child.canBeChild(node)) {
+        for (let child of nodes) if (node.canContain(child)) {
           if (child.defaultAttrs) sawDefaultable = true
           if (child.isInline() != node.inlineContent())
             throw new Error(`Node type ${node.name} has ${node.inlineContent() ? "block" : "inline"

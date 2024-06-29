@@ -10,6 +10,9 @@
     "module": "es2020",
     "newLine": "lf",
     "moduleResolution": "node",
+    "paths": {
+      "@willow/doc": ["./doc/src/index.ts"],
+    }
   },
   "include": ["*/src/*.ts", "*/test/*.ts"],
 }

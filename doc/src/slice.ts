@@ -1,6 +1,6 @@
 import {TokenType, Node, NodeJSON} from "./node"
 import {Schema} from "./schema"
-import {Tracker} from "./change"
+import {Walker} from "./context"
 
 export class OpenToken {
   constructor(readonly node: Node) {}
@@ -11,13 +11,15 @@ export class OpenToken {
   toString() { return `OPEN(${this.node.name})` }
 }
 
+export type CloseToken = {tokenType: TokenType.Close}
+
 export const CloseToken = {
   tokenType: TokenType.Close as TokenType.Close,
   /// @internal
   toString() { return "CLOSE" }
-}
+} as CloseToken
 
-export type Token = Node | OpenToken | {tokenType: TokenType.Close}
+export type Token = Node | OpenToken | CloseToken
 
 export class Slice {
   readonly length: number
@@ -56,7 +58,7 @@ export class Slice {
     return true
   }
 
-  run(track: Tracker) {
+  run(track: Walker) {
     for (let elt of this.content) {
       if (elt.tokenType == TokenType.Open) track.enter(elt.node)
       else if (elt.tokenType == TokenType.Node) track.skip(elt)

@@ -1,63 +1,14 @@
 import {Node, DocNode, NodeType, TextNode, Mark, MarkJSON} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
-
-export interface Tracker {
-  skip(node: Node): void
-  enter(node: Node): void
-  leave(): void
-}
-
-function resolvePos(distance: number, node: Node, index: number, parent: Pos | null, track?: Tracker) {
-  for (;;) {
-    if (!distance) return new Pos(node, index, parent)
-    if (node.isText()) {
-      if (track) track.skip(node.cut(index, Math.min(node.length, index + distance)))
-      if (node.length > index + distance)
-        return new Pos(node, index + distance, parent)
-      distance -= node.length - index
-      ;({node, index, parent} = parent!)
-    } else if (index == node.children.length) {
-      if (!parent) throw new Error("Moving past end of document")
-      if (track) track.leave()
-      ;({node, index, parent} = parent)
-      distance--
-    } else {
-      let next = node.children[index++]
-      if (next.length <= distance) {
-        distance -= next.length
-        if (track) track.skip(next)
-      } else {
-        if (!next.isText()) {
-          distance--
-          if (track) track.enter(next)
-        }
-        parent = new Pos(node, index, parent)
-        node = next
-        index = 0
-      }
-    }
-  }
-}
-
-class Pos { // FIXME merge with Context, somehow
-  constructor(readonly node: Node, readonly index: number, readonly parent: Pos | null) {}
-
-  advance(distance: number, track?: Tracker) {
-    return resolvePos(distance, this.node, this.index, this.parent, track)
-  }
-
-  static resolve(doc: DocNode, pos: number) {
-    return resolvePos(pos, doc, 0, null)
-  }
-}
+import {Context, Walker} from "./context"
 
 class BuildContext {
   children: Node[] = []
   constructor(readonly node: Node) {}
 }
 
-class Builder implements Tracker {
+class Builder implements Walker {
   stack: BuildContext[]
   modifications: readonly Modification[] | null = null
 
@@ -179,7 +130,7 @@ export class ChangeSet {
 
   apply(doc: DocNode) {
     let builder = new Builder(doc)
-    let cursor = new Pos(doc, 0, null)
+    let cursor = Context.atStart(doc)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
       let lenA = this.sections[iS++], lenB = this.sections[iS++]
       if (lenB < 0) {
@@ -280,7 +231,7 @@ export class ChangeSet {
     // has been applied. Assumes both start at the same document.
     let sections: number[] = [], data: SectionData[] = []
     let fix = new FixGenerator(doc)
-    let pos = new Pos(doc, 0, null)
+    let pos = Context.atStart(doc)
     let a = new SectionIter(this), b = new SectionIter(other)
     // Iterate over both sets in parallel. inserted tracks, for changes
     // in A that have to be processed piece-by-piece, whether their
@@ -453,7 +404,7 @@ export class ChangeSet {
 
   static createChecked(doc: DocNode, spec: ChangeSpec): ChangeSet {
     let base = ChangeSet.create(doc, spec)
-    let fix = new FixGenerator(doc), pos = new Pos(doc, 0, null)
+    let fix = new FixGenerator(doc), pos = Context.atStart(doc)
     for (let i = 0, iS = 0; i < base.data.length; i++) {
       let len = base.sections[iS++], ins = base.sections[iS++]
       if (ins < 0) {
@@ -509,7 +460,7 @@ class FixLevel {
 }
 
 // FIXME make this smarter about keeping fixes local
-class FixGenerator implements Tracker {
+class FixGenerator implements Walker {
   stack: FixLevel
   pos = 0
   patches: {from: number, to: number, slice: Slice}[] = []
@@ -519,7 +470,7 @@ class FixGenerator implements Tracker {
   }
 
   fit(type: NodeType) {
-    if (type.canBeChild(this.stack.type)) return true
+    if (this.stack.type.canContain(type)) return true
     let fix: {leave: number, enter: readonly Node[], cost: number} | null = null
     for (let level: FixLevel | null = this.stack, leave = 0; level; level = level.next, leave++) {
       if (fix && leave > fix.cost) break

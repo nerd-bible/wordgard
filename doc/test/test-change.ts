@@ -2,15 +2,13 @@ import ist from "ist"
 import {Node, DocNode, Mark,
         ChangeSet, ChangeSpec,
         basicBuilder, tag, maybeTag,
-        Slice, Token, OpenToken, CloseToken,
+        Token,
         Emphasis, Strong} from "@willow/doc"
-import {permute} from "./generate.js"
+import {permute, open, close, slice} from "./generate.js"
 const {doc, p, blockquote, ol, li, img, $img, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
 
-function o(node: Node) { return new OpenToken(node) }
-const c = CloseToken
 const mEm = Emphasis.create(), mStrong = Strong.create()
 
 // Construct a change set starting from the given document, using
@@ -26,10 +24,6 @@ function mk(doc: DocNode, changes: readonly ChangeData[]) {
     if (remove) return {from, to, removeMark: remove}
     return {from, to, setAttr: {[setAttr!]: value!}}
   }))
-}
-
-function slice(...tokens: (Token | string)[]) {
-  return new Slice(tokens.map(t => typeof t == "string" ? Node.text(t) : t))
 }
 
 function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }
@@ -61,7 +55,7 @@ describe("ChangeSet", () => {
     })
 
     it("can split a node", () => {
-      testApply(doc(p("one", 0, "two")), [[c, o(p())]], doc(p("one"), p("two")))
+      testApply(doc(p("one", 0, "two")), [[close, open(p())]], doc(p("one"), p("two")))
     })
 
     it("can join a node", () => {
@@ -69,7 +63,7 @@ describe("ChangeSet", () => {
     })
 
     it("can wrap a node", () => {
-      testApply(doc(0, p("one"), 2), [[o(blockquote())], [c]], doc(blockquote(p("one"))))
+      testApply(doc(0, p("one"), 2), [[open(blockquote())], [close]], doc(blockquote(p("one"))))
     })
 
     it("can unwrap a node", () => {
@@ -105,16 +99,16 @@ describe("ChangeSet", () => {
   describe("map/compose", () => {
     let d = doc(p("one ", em("two")), p("three"))
     let changes = {
-      ins1: ChangeSet.create(d, {from: 1, insert: slice("zero ")}),
+      ins: ChangeSet.create(d, {from: 1, insert: slice("zero ")}),
       ins2: ChangeSet.create(d, {from: 5, insert: slice($img())}),
-      del1: ChangeSet.create(d, {from: 1, to: 4}),
+      del: ChangeSet.create(d, {from: 1, to: 4}),
       del2: ChangeSet.create(d, {from: 6, to: 7}),
       delP: ChangeSet.create(d, {from: 0, to: 9}),
       mark: ChangeSet.create(d, {from: 5, to: 15, addMark: mStrong}),
       unmark: ChangeSet.create(d, {from: 5, to: 8, removeMark: mEm}),
       join: ChangeSet.create(d, {from: 8, to: 10}),
-      split: ChangeSet.create(d, {from: 4, to: 5, insert: slice(c, o(p()))}),
-      wrap: ChangeSet.create(d, [{from: 0, insert: slice(o(ol()), o(li()))}, {from: 16, insert: slice(c, c)}])
+      split: ChangeSet.create(d, {from: 4, to: 5, insert: slice(close, open(p()))}),
+      wrap: ChangeSet.create(d, [{from: 0, insert: slice(open(ol()), open(li()))}, {from: 16, insert: slice(close, close)}])
     }
 
     function testCompose(set: (keyof typeof changes)[], expect: DocNode) {
@@ -127,20 +121,20 @@ describe("ChangeSet", () => {
       }
     }
 
-    testCompose(["ins1", "ins2"], doc(p("zero one ", $img(), em("two")), p("three")))
-    testCompose(["del1", "ins1"], doc(p("zero  ", em("two")), p("three")))
-    testCompose(["del1", "del2"], doc(p(" ", em("to")), p("three")))
-    testCompose(["del1", "delP"], doc(p("three")))
-    testCompose(["ins1", "delP"], doc(p("zero "), p("three")))
-    testCompose(["ins1", "mark"], doc(p("zero one ", strong(em("two"))), p(strong("three"))))
-    testCompose(["del1", "mark"], doc(p(" ", strong(em("two"))), p(strong("three"))))
+    testCompose(["ins", "ins2"], doc(p("zero one ", $img(), em("two")), p("three")))
+    testCompose(["del", "ins"], doc(p("zero  ", em("two")), p("three")))
+    testCompose(["del", "del2"], doc(p(" ", em("to")), p("three")))
+    testCompose(["del", "delP"], doc(p("three")))
+    testCompose(["ins", "delP"], doc(p("zero "), p("three")))
+    testCompose(["ins", "mark"], doc(p("zero one ", strong(em("two"))), p(strong("three"))))
+    testCompose(["del", "mark"], doc(p(" ", strong(em("two"))), p(strong("three"))))
     testCompose(["delP", "mark"], doc(p(strong("three"))))
-    testCompose(["ins1", "join"], doc(p("zero one ", em("two"), "three")))
+    testCompose(["ins", "join"], doc(p("zero one ", em("two"), "three")))
     testCompose(["mark", "join"], doc(p("one ", strong(em("two"), "three"))))
     testCompose(["mark", "unmark"], doc(p("one ", strong("two")), p(strong("three"))))
     testCompose(["split", "join"], doc(p("one"), p(em("two"), "three")))
-    testCompose(["ins1", "split"], doc(p("zero one"), p(em("two")), p("three")))
-    testCompose(["ins1", "wrap"], doc(ol(li(p("zero one ", em("two")), p("three")))))
+    testCompose(["ins", "split"], doc(p("zero one"), p(em("two")), p("three")))
+    testCompose(["ins", "wrap"], doc(ol(li(p("zero one ", em("two")), p("three")))))
     testCompose(["join", "wrap"], doc(ol(li(p("one ", em("two"), "three")))))
     testCompose(["delP", "join"], doc(p("three")))
     testCompose(["join", "split", "wrap"], doc(ol(li(p("one"), p(em("two"), "three")))))

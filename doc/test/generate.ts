@@ -1,7 +1,15 @@
-import {Node, TextNode, Mark,
-        basicBuilder,
+import {Node, DocNode, TextNode, Mark,
+        Slice, Token, OpenToken, CloseToken,
+        basicBuilder, ChangeSpec,
         Paragraph, Emphasis, Strong, Code, Link} from "@willow/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
+
+export function open(node: Node) { return new OpenToken(node) }
+export const close = CloseToken
+
+export function slice(...tokens: (Token | string)[]) {
+  return new Slice(tokens.map(t => typeof t == "string" ? Node.text(t) : t))
+}
 
 export function permute<T>(array: readonly T[]): readonly (readonly T[])[] {
   if (array.length < 2) return [array]
@@ -45,7 +53,7 @@ export function rDoc(minLength: number) {
   }
   function close() {
     closeOne()
-    while (stack.length > 1 && (!Paragraph.canBeChild(stack[stack.length - 1].type.type) || r(3))) closeOne()
+    while (stack.length > 1 && (!stack[stack.length - 1].type.type.canContain(Paragraph) || r(3))) closeOne()
   }
   do {
     open()
@@ -77,3 +85,19 @@ export function rDoc(minLength: number) {
   while (stack.length > 1) closeOne()
   return doc(stack[0].children)
 }
+
+export function rChangeSpec(doc: DocNode) {
+  for (;;) {
+    let change = generators[r(generators.length)](doc)
+    if (change) return change
+  }
+}
+
+const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
+  // Insert a character
+  doc => {
+    // let pos = doc.resolve(r(doc.length))
+    // return pos.node.inlineContent() ? {from: pos.pos, insert: 
+    return null
+  }
+]

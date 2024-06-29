@@ -1,5 +1,6 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
 import {Schema, SchemaElement} from "./schema"
+import {Context} from "./context"
 
 export const enum TokenType { Open, Close, Node }
 
@@ -44,7 +45,7 @@ export class NodeType<Attrs extends {} = {}> {
   attrs: readonly Attribute<any>[]
   private groups: readonly string[]
   private contentGroups: readonly string[]
-  private parentCache: Map<NodeType, boolean> = new Map
+  private childCache: Map<NodeType, boolean> = new Map
   defaultAttrs: Attrs | null
   flags: NodeFlag
 
@@ -114,18 +115,22 @@ export class NodeType<Attrs extends {} = {}> {
     return this.groups.includes(group)
   }
 
-  canBeChild(parent: NodeType) {
-    let result = this.parentCache.get(parent)
+  canContain(child: NodeType) {
+    let result = this.childCache.get(child)
     if (result == null) {
-      result = (this.flags & NodeFlag.Doc) ? false : parent.contentGroups.some(g => this.isInGroup(g))
-      this.parentCache.set(parent, result)
+      result = (child.flags & NodeFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
+      this.childCache.set(child, result)
     }
     return result
   }
 
+  sharesContent(other: NodeType) {
+    return other.contentGroups.some(g => this.contentGroups.includes(g))
+  }
+
   checkChildren(children: readonly Node[]) {
     for (let child of children)
-      if (!child.type.canBeChild(this))
+      if (!this.canContain(child.type))
         throw new Error(`${child.name} is not a valid child of ${this.name}`)
     return children
   }
@@ -325,6 +330,10 @@ export class DocNode extends Node {
 
   sliceNode(content: Token[], from: number, to: number) {
     sliceContent(content, this.children, from, to)
+  }
+
+  resolve(pos: number) {
+    return Context.resolve(this, pos)
   }
 }
 
