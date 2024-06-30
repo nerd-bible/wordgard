@@ -554,3 +554,11 @@ export class Mark {
     return eqArray(a, b)
   }
 }
+
+export function pushNode(nodes: Node[], node: Node) {
+  let last = nodes.length - 1
+  if (node.isText() && last >= 0 && nodes[last].sameMarkup(node))
+    nodes[last] = node.withText((nodes[last] as TextNode).text + node.text)
+  else
+    nodes.push(node)
+}

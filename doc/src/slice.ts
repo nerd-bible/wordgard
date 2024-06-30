@@ -1,4 +1,4 @@
-import {TokenType, Node, NodeJSON} from "./node"
+import {TokenType, Node, NodeJSON, pushNode} from "./node"
 import {Schema} from "./schema"
 import {Walker} from "./context"
 
@@ -85,7 +85,15 @@ export class Slice {
   }
 
   concat(other: Slice) {
-    return new Slice(this.content.concat(other.content))
+    let content = this.content.slice()
+    let i = 0
+    if (content.length && other.content.length && other.content[0].tokenType == TokenType.Node &&
+        content[content.length - 1].tokenType == TokenType.Node) {
+      pushNode(content as Node[], other.content[0])
+      i = 1
+    }
+    for (; i < other.content.length; i++) content.push(other.content[i])
+    return new Slice(content)
   }
 
   static empty = new Slice([])

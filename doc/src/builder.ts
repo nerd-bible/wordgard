@@ -1,4 +1,4 @@
-import {Node, TextNode, DocNode, NodeType, Mark, MarkType} from "./node"
+import {Node, DocNode, NodeType, Mark, MarkType, pushNode} from "./node"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, Image, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
@@ -72,14 +72,14 @@ function collectChildren(spec: ContentSpec, mark?: Mark, list: Node[] = []) {
   if (Array.isArray(spec)) {
     for (let elt of spec) collectChildren(elt, mark, list)
   } else if (typeof spec == "string") {
-    addChild(list, addMark(Node.text(spec), mark))
+    pushNode(list, addMark(Node.text(spec), mark))
   } else if (spec instanceof Node) {
     if (spec.type == Fragment) {
       copyTags(spec.children, list, 0)
       for (let ch of spec.children) collectChildren(ch, mark, list)
     } else {
       copyTags(spec.children, list, 1)
-      addChild(list, addMark(spec, mark))
+      pushNode(list, addMark(spec, mark))
     }
   } else if (typeof spec == "number") {
     let tags = tagMap.get(list)
@@ -87,17 +87,6 @@ function collectChildren(spec: ContentSpec, mark?: Mark, list: Node[] = []) {
     tags![spec] = contentLength(list)
   }
   return list
-}
-
-function addChild(list: Node[], node: Node) {
-  if (node.isText() && list.length) {
-    let last = list[list.length - 1]
-    if (last.sameMarkup(node)) {
-      list[list.length - 1] = node.withText((last as TextNode).text + node.text)
-      return
-    }
-  }
-  list.push(node)
 }
 
 function copyTags(source: readonly Node[], dest: readonly Node[], extraOffset: number) {

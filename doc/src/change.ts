@@ -1,4 +1,4 @@
-import {Node, DocNode, NodeType, TextNode, Mark, MarkJSON} from "./node"
+import {Node, DocNode, NodeType, TextNode, Mark, MarkJSON, pushNode} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 import {Context, Walker} from "./context"
@@ -21,15 +21,7 @@ class Builder implements Walker {
       if (!node.type.isLeaf()) throw new Error("Invalid modification on non-leaf node")
       node = applyModifications(this.modifications, node)
     }
-    let top = this.stack[this.stack.length - 1]
-    if (node.isText()) {
-      let last = top.children.length - 1
-      if (last >= 0 && top.children[last].sameMarkup(node)) {
-        top.children[last] = node.withText((top.children[last] as TextNode).text + node.text)
-        return
-      }
-    }
-    top.children.push(node)
+    pushNode(this.stack[this.stack.length - 1].children, node)
   }    
 
   enter(node: Node) {
@@ -54,7 +46,7 @@ class Builder implements Walker {
     let {node, children} = this.stack[0]
     if (!children.length && !node.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
-    return node.copy(children)
+    return node.copy(children) as DocNode
   }
 }
 
@@ -431,7 +423,7 @@ export class ChangeSet {
     for (let i = 0, iS = 0, pos = 0; i < this.data.length; i++) {
       let len = this.sections[iS++], ins = this.sections[iS++], data = this.data[i]
       let text = ""
-      if (ins < 0) {
+      if (ins >= 0) {
         text += data
       } else if (data) {
         text += `[${(data as readonly Modification[]).map(mod => {
