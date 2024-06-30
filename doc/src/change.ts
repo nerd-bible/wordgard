@@ -1,4 +1,4 @@
-import {Node, DocNode, NodeType, TextNode, Mark, MarkJSON, pushNode} from "./node"
+import {Node, DocNode, NodeType, Mark, MarkJSON, pushNode, TokenType} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 import {Context, Walker} from "./context"
@@ -315,7 +315,7 @@ export class ChangeSet {
         } else if (a.ins == -1) {
           addSection(sections, data, len, b.off ? 0 : b.ins, b.slice, open)
         } else if (b.ins == -1) {
-          addSection(sections, data, a.off ? 0 : a.len, len, a.slicePart(len), open)
+          addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
         } else {
           addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.slice, open)
         }
@@ -441,6 +441,25 @@ export class ChangeSet {
 
 function combineMods(a: null | readonly Modification[], b: null | readonly Modification[]): null | readonly Modification[] {
   return !a ? b : !b ? a : a.concat(b)
+}
+
+function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
+  if (!mods) return slice
+  let content: Token[] = []
+  for (let tok of slice.content) {
+    if (tok.tokenType == TokenType.Open) {
+      content.push(new OpenToken(applyModifications(mods, tok.node)))
+    } else if (tok.tokenType == TokenType.Node) {
+      let node = applyModifications(mods, tok)
+      if (content.length && content[content.length - 1].tokenType == TokenType.Node)
+        pushNode(content as Node[], node)
+      else
+        content.push(node)
+    } else {
+      content.push(tok)
+    }
+  }
+  return new Slice(content)
 }
 
 class FixLevel {
