@@ -235,7 +235,7 @@ export class ChangeSet {
     // in A that have to be processed piece-by-piece, whether their
     // content has been inserted already, and refers to the section
     // index.
-    for (let inserted = -1, totalLen = 0;;) {
+    for (let inserted = -1;;) {
       if (a.ins == -1 && b.ins == -1) {
         // Move across ranges skipped by both sets.
         let len = Math.min(a.len, b.len)
@@ -313,11 +313,11 @@ export class ChangeSet {
         if (a.ins == -1 && b.ins == -1) {
           addSection(sections, data, len, -1, combineMods(a.mods, b.mods), open)
         } else if (a.ins == -1) {
-          addSection(sections, data, len, b.off ? 0 : b.ins, b.slice, open)
+          addSection(sections, data, len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
         } else if (b.ins == -1) {
           addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
         } else {
-          addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.slice, open)
+          addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
         }
         open = (a.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen)
         a.forward2(len)

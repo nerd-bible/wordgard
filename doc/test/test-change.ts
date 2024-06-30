@@ -212,6 +212,23 @@ describe("ChangeSet", () => {
       let d2 = ch1.apply(d), ch2 = ChangeSet.create(d2, [{from: 3, insert: slice("b")}])
       ist(ch1.compose(ch2).apply(d), ch2.apply(d2), eq)
     })
+
+    it("is associative", () => {
+      for (let i = 0; i < 250; i++) {
+        let d0 = rDoc(20), c1 = rChange(d0, 3)
+        let d1 = c1.apply(d0), c2 = rChange(d1, 3)
+        let d2 = c2.apply(d1), c3 = rChange(d2, 3)
+        let d3 = c3.apply(d2)
+        try {
+          ist(c1.compose(c2).compose(c3).apply(d0), d3, eq)
+          ist(c1.compose(c2.compose(c3)).apply(d0), d3, eq)
+        } catch(e) {
+          console.log(`Failed random associativity test:\n  start doc: ${d0}\n  changes:\n    ${
+                       [c1, c2, c3].join("\n    ")}`)
+          throw e
+        }
+      }
+    })
   })
 
   describe("map", () => {
