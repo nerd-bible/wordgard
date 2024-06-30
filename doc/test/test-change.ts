@@ -217,7 +217,7 @@ describe("ChangeSet", () => {
   describe("map", () => {
     it("converges when mapping pairs of changes", () => {
       for (let i = 0; i < 250; i++) {
-        let doc = rDoc(10), a = rChange(doc, 2), b = rChange(doc, 1)
+        let doc = rDoc(20), a = rChange(doc, 2), b = rChange(doc, 2)
         let docAB = b.map(a, doc).apply(a.apply(doc))
         let docBA = a.map(b, doc, true).apply(b.apply(doc))
         try {
@@ -225,6 +225,36 @@ describe("ChangeSet", () => {
         } catch(e) {
           console.log(`Failed random convergence test:\n  start doc: ${doc}\n  change a: ${a}\n  change b: ${b}`)
           throw e
+        }
+      }
+    })
+
+    it("converges when mapping triplets of changes", () => {
+      for (let i = 0; i < 250; i++) {
+        let doc = rDoc(20)
+        let clients: {doc: DocNode, unconf: ChangeSet | null, syncedDoc: DocNode}[] = []
+        for (let i = 0; i < 3; i++) {
+          let change = rChange(doc, 2)
+          clients.push({doc: change.apply(doc), unconf: change, syncedDoc: doc})
+        }
+        for (let sender of clients) {
+          let change = sender.unconf!
+          for (let receiver of clients) {
+            if (receiver == sender) {
+              receiver.unconf = null
+            } else if (receiver.unconf) {
+              let {doc, unconf, syncedDoc} = receiver
+              receiver.unconf = unconf.map(change, syncedDoc)
+              receiver.doc = change.map(unconf, syncedDoc, true).apply(doc)
+            } else {
+              receiver.doc = change.apply(receiver.doc)
+            }
+            receiver.syncedDoc = change.apply(receiver.syncedDoc)
+          }
+        }
+        for (let i = 0; i < 3; i++) {
+          ist(clients[i].doc, clients[0].doc, eq)
+          ist(clients[i].syncedDoc, clients[0].doc, eq)
         }
       }
     })
