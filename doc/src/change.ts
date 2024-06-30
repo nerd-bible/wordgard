@@ -432,7 +432,7 @@ export class ChangeSet {
           return `${mod.attr}=${String(mod.value).slice(0, 20)}`
         })}]`
       }
-      if (text) result += `${result ? "," : ""}${pos}-${pos + len}${text}`
+      if (text) result += `${result ? "," : ""}${pos}${len ? `-${pos + len}` : ""}${text}`
       pos += len
     }
     return result
@@ -545,6 +545,19 @@ class FixGenerator implements Walker {
   }
 
   finish(): ChangeSet | null {
+    if (this.stack.next || !this.stack.mayEnd) {
+      let tokens: Token[] = []
+      while (this.stack.next || !this.stack.mayEnd) {
+        if (!this.stack.mayEnd) {
+          tokens.push(this.doc.schema.createDefault(this.stack.type))
+          this.stack.mayEnd = true
+        } else {
+          tokens.push(CloseToken)
+          this.stack = this.stack.next!
+        }
+      }
+      this.patches.push({from: this.pos, to: this.pos, slice: new Slice(tokens)})
+    }
     if (!this.patches.length) return null
     let sections: number[] = [], data: SectionData[] = [], pos = 0
     for (let {from, to, slice} of this.patches) {

@@ -165,5 +165,6 @@ function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, 
 export function rChange(doc: DocNode, parts = 1) {
   let specs: ChangeSpec[] = []
   for (let i = 0; i < parts; i++) specs.push(rChangeSpec(doc))
-  return ChangeSet.create(doc, specs)
+  console.log("going to create", specs)
+  return ChangeSet.createChecked(doc, specs)
 }

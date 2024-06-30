@@ -1,8 +1,7 @@
 import ist from "ist"
 import {Node, DocNode, Mark,
-        ChangeSet, ChangeSpec,
+        ChangeSet, ChangeSpec, Token,
         basicBuilder, tag, maybeTag,
-        Token,
         Emphasis, Strong} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, blockquote, ol, li, img, $img, em, strong} = basicBuilder
@@ -122,6 +121,18 @@ describe("ChangeSet", () => {
     })
   })
 
+  describe("createChecked", () => {
+    it("can handle overlapping conflicting changes", () => {
+      let d = doc(p("abc"), p("def"))
+      let ch = ChangeSet.createChecked(d, [
+        {from: 0, insert: slice(open(blockquote()))},
+        {from: 5, insert: slice(close)},
+        {from: 4, to: 6}
+      ])
+      ist(ch.apply(d), doc(blockquote(p("abc"), p("def"))), eq)
+    })
+  })
+
   describe("compose", () => {
     let d = doc(p("one ", em("two")), p("three"))
     let changes = {
@@ -173,11 +184,21 @@ describe("ChangeSet", () => {
         let doc = rDoc(25), startDoc = doc, changes: ChangeSet[] = []
         for (let j = 0; j < 5; j++) {
           let ch = rChange(doc, 2)
-          doc = ch.apply(doc)
+          try {
+            doc = ch.apply(doc)
+          } catch (e) {
+            console.log(`generated bad change ${ch} for ${doc}`)
+            throw e
+          }
           changes.push(ch)
         }
         let composed = changes.reduce((a, b) => a.compose(b))
-        ist(composed.apply(startDoc), doc, eq)
+        try {
+          ist(composed.apply(startDoc), doc, eq)
+        } catch (e) {
+          console.log(`Failed random test:\n  start doc ${startDoc}\n  changes: ${changes}\n  composed: ${composed}`)
+          throw e
+        }
       }
     })
 
