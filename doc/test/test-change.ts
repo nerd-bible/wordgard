@@ -4,7 +4,7 @@ import {Node, DocNode, Mark,
         basicBuilder, tag, maybeTag,
         Token,
         Emphasis, Strong} from "@willow/doc"
-import {permute, open, close, slice} from "./generate.js"
+import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, blockquote, ol, li, img, $img, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
@@ -122,7 +122,7 @@ describe("ChangeSet", () => {
     })
   })
 
-  describe("map/compose", () => {
+  describe("compose", () => {
     let d = doc(p("one ", em("two")), p("three"))
     let changes = {
       ins: ChangeSet.create(d, {from: 1, insert: slice("zero ")}),
@@ -167,5 +167,27 @@ describe("ChangeSet", () => {
     testCompose(["join", "wrap"], doc(ol(li(p("one ", em("two"), "three")))))
     testCompose(["delP", "wrap"], doc(ol(li(p("three")))))
     testCompose(["join", "delP", "wrap"], doc(ol(li(p("three")))))
+
+    it("keeps the effect of changes stable when composed", () => {
+      for (let i = 0; i < 100; i++) {
+        let doc = rDoc(25), startDoc = doc, changes: ChangeSet[] = []
+        for (let j = 0; j < 5; j++) {
+          let ch = rChange(doc, 2)
+          doc = ch.apply(doc)
+          changes.push(ch)
+        }
+        let composed = changes.reduce((a, b) => a.compose(b))
+        ist(composed.apply(startDoc), doc, eq)
+      }
+    })
+
+    it("can apply modifications to content inserted by earlier patches", () => {
+      let d = doc(p("abcde"))
+      let ch1 = ChangeSet.create(d, {from: 1, insert: slice("XY")})
+      let d2 = ch1.apply(d)
+      let ch2 = ChangeSet.create(d2, {from: 2, to: 5, addMark: mEm})
+      let composed = ch1.compose(ch2)
+      ist(ch2.apply(d2), composed.apply(d), eq)
+    })
   })
 })

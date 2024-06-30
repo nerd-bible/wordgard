@@ -1,5 +1,5 @@
 import {Node, DocNode, TextNode, Mark,
-        Slice, Token, OpenToken, CloseToken,
+        Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
         Paragraph, Blockquote, Emphasis, Strong, Code, Link} from "@willow/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
@@ -160,4 +160,10 @@ function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, 
   }
   explore(doc, 0)
   return found.length ? found[r(found.length)] : null
+}
+
+export function rChange(doc: DocNode, parts = 1) {
+  let specs: ChangeSpec[] = []
+  for (let i = 0; i < parts; i++) specs.push(rChangeSpec(doc))
+  return ChangeSet.create(doc, specs)
 }
