@@ -223,8 +223,10 @@ export class ChangeSet {
   }
 
   map(other: ChangeSet, doc: DocNode, before: boolean = false): ChangeSet {
+    if (this.length != doc.length || other.length != doc.length)
+      throw new Error("Mapping a change that doesn't match the start document")
     // Produce a copy of setA that applies to the document after setB
-    // has been applied. Assumes both start at the same document.
+    // has been applied. Assumes both start at the same document (`doc`).
     let sections: number[] = [], data: SectionData[] = []
     let fix = new FixGenerator(doc)
     let pos = Context.atStart(doc)
@@ -233,10 +235,8 @@ export class ChangeSet {
     // in A that have to be processed piece-by-piece, whether their
     // content has been inserted already, and refers to the section
     // index.
-    for (let inserted = -1;;) {
-      if (a.done && b.len || b.done && a.len) {
-        throw new Error("Mismatched change set lengths")
-      } else if (a.ins == -1 && b.ins == -1) {
+    for (let inserted = -1, totalLen = 0;;) {
+      if (a.ins == -1 && b.ins == -1) {
         // Move across ranges skipped by both sets.
         let len = Math.min(a.len, b.len)
         addSection(sections, data, len, -1, before ? a.mods : filterMods(a.mods, b.mods))
@@ -286,11 +286,10 @@ export class ChangeSet {
         if (inserted < a.i) a.slice.run(fix)
         inserted = a.i
         a.forward(a.len - left)
-      } else if (a.done && b.done) {
+      } else {
+        if (!a.done || !b.done) throw new Error("Mismatched change set lengths")
         let fixup = fix.finish(), base = new ChangeSet(sections, data)
         return fixup ? base.compose(fixup) : base
-      } else {
-        throw new Error("Mismatched change set lengths")
       }
     }
   }
