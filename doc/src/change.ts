@@ -238,7 +238,7 @@ export class ChangeSet {
       } else if (a.ins == -1 && b.ins == -1) {
         // Move across ranges skipped by both sets.
         let len = Math.min(a.len, b.len)
-        addSection(sections, data, len, -1, a.mods)
+        addSection(sections, data, len, -1, before ? a.mods : filterMods(a.mods, b.mods))
         a.forward(len)
         b.forward(len)
         pos = pos.advance(len, fix)
@@ -441,6 +441,22 @@ export class ChangeSet {
 
 function combineMods(a: null | readonly Modification[], b: null | readonly Modification[]): null | readonly Modification[] {
   return !a ? b : !b ? a : a.concat(b)
+}
+
+function filterMods(mods: null | readonly Modification[], against: null | readonly Modification[]) {
+  if (!mods || !against) return mods
+  return mods.filter(m => !against!.some(a => modCancels(a, m)))
+}
+
+function modCancels(mod: Modification, other: Modification) {
+  if (other.type == "setAttr") {
+    return mod.type == "setAttr" && mod.attr == other.attr
+  } else if (other.type == "addMark") {
+    return mod.type == "addMark" ? mod.mark.type.excludes(other.mark.type)
+      : mod.type == "removeMark" ? mod.mark.eq(other.mark) : false
+  } else {
+    return mod.type == "addMark" && mod.mark.eq(other.mark)
+  }
 }
 
 function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {

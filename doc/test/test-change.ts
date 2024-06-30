@@ -2,7 +2,7 @@ import ist from "ist"
 import {Node, DocNode, Mark,
         ChangeSet, ChangeSpec, Token,
         basicBuilder, tag, maybeTag,
-        Emphasis, Strong} from "@willow/doc"
+        Emphasis, Strong, Link} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, blockquote, ol, li, pre, img, $img, em, strong} = basicBuilder
 
@@ -191,7 +191,7 @@ describe("ChangeSet", () => {
         try {
           ist(composed.apply(startDoc), doc, eq)
         } catch (e) {
-          console.log(`Failed random test:\n  start doc ${startDoc}\n  changes:\n    ${
+          console.log(`Failed random compose test:\n  start doc: ${startDoc}\n  changes:\n    ${
                        changes.join("\n    ")}\n  composed: ${composed}`)
           throw e
         }
@@ -211,6 +211,38 @@ describe("ChangeSet", () => {
       let d = doc(ol(0, li(p("a")), 1)), ch1 = mk(d, [[li(p())]])
       let d2 = ch1.apply(d), ch2 = ChangeSet.create(d2, [{from: 3, insert: slice("b")}])
       ist(ch1.compose(ch2).apply(d), ch2.apply(d2), eq)
+    })
+  })
+
+  describe("map", () => {
+    it("converges when mapping pairs of changes", () => {
+      for (let i = 0; i < 250; i++) {
+        let doc = rDoc(10), a = rChange(doc, 2), b = rChange(doc, 1)
+        let docAB = b.map(a, doc).apply(a.apply(doc))
+        let docBA = a.map(b, doc, true).apply(b.apply(doc))
+        try {
+          ist(docAB, docBA, eq)
+        } catch(e) {
+          console.log(`Failed random convergence test:\n  start doc: ${doc}\n  change a: ${a}\n  change b: ${b}`)
+          throw e
+        }
+      }
+    })
+
+    it("orders attr modifications correctly", () => {
+      let d = doc(0, pre(1, "a"))
+      let a = mk(d, [{setAttr: "language", value: "x"}]), b = mk(d, [{setAttr: "language", value: "y"}])
+      let docAB = b.map(a, d).apply(a.apply(d))
+      let docBA = a.map(b, d, true).apply(b.apply(d))
+      ist(docAB, docBA, eq)
+    })
+
+    it("orders mark-adding modifications correctly", () => {
+      let d = doc(p(0, "a", 1))
+      let a = mk(d, [{add: Link.create({href: "x"})}]), b = mk(d, [{add: Link.create({href: "y"})}])
+      let docAB = b.map(a, d).apply(a.apply(d))
+      let docBA = a.map(b, d, true).apply(b.apply(d))
+      ist(docAB, docBA, eq)
     })
   })
 })
