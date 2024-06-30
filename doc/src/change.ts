@@ -18,7 +18,7 @@ class Builder implements Walker {
 
   add(node: Node) {
     if (this.modifications) {
-      if (!node.type.isLeaf) throw new Error("Invalid modification on non-leaf node")
+      if (!node.type.isLeaf()) throw new Error("Invalid modification on non-leaf node")
       node = applyModifications(this.modifications, node)
     }
     let top = this.stack[this.stack.length - 1]
@@ -40,7 +40,7 @@ class Builder implements Walker {
   leave() {
     if (this.modifications) throw new Error("Invalid modification on close token")
     let top = this.stack.pop()!
-    if (!top.children.length && !top.node.type.isLeaf && !top.node.inlineContent())
+    if (!top.children.length && !top.node.type.isLeaf() && !top.node.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.node.copy(top.children))
   }
@@ -51,7 +51,10 @@ class Builder implements Walker {
 
   finish() {
     if (this.stack.length != 1) throw new Error("Invalid change")
-    return this.stack[0].node.copy(this.stack[0].children)
+    let {node, children} = this.stack[0]
+    if (!children.length && !node.inlineContent())
+      throw new Error(`Invalid change creating an empty block-child node`)
+    return node.copy(children)
   }
 }
 

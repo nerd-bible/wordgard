@@ -97,6 +97,7 @@ export class NodeType<Attrs extends {} = {}> {
 
   get schemaElement(): SchemaElement { return this }
 
+  // FIXME should this join text nodes?
   create(attrs: Partial<Attrs>, children?: readonly Node[]): Node
   create(children?: readonly Node[]): Node
   create(attrsOrChildren?: Partial<Attrs> | readonly Node[], children?: readonly Node[]): Node {

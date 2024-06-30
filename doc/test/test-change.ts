@@ -94,6 +94,32 @@ describe("ChangeSet", () => {
     it("can change attributes", () => {
       testApply(doc(p(0, img({src: "a.png"}), 1)), [{setAttr: "src", value: "b.jpg"}], doc(p(img({src: "b.jpg"}))))
     })
+
+    it("complains on a mismatched length", () => {
+      ist.throws(() => {
+        mk(doc(p("12", 0, "34")), [["-"]]).apply(doc(p("123")))
+      }, /past end/)
+      ist.throws(() => {
+        mk(doc(p("12", 0, "3")), [["-"]]).apply(doc(p("1234")))
+      }, /doesn't cover/)
+    })
+
+    it("won't create empty block-child nodes", () => {
+      ist.throws(() => {
+        let d = doc(blockquote(0, p("a"), 1))
+        mk(d, [[]]).apply(d)
+      }, /Invalid change/)
+      ist.throws(() => {
+        mk(doc(0, p("a"), 1), [[]]).apply(doc(p("a")))
+      }, /Invalid change/)
+    })
+
+    it("won't add children in invalid positions", () => {
+      ist.throws(() => {
+        let d = doc(blockquote(0, p("x")))
+        mk(d, [[$img()]]).apply(d)
+      }, /not a valid child/)
+    })
   })
 
   describe("map/compose", () => {
