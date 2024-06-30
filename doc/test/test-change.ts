@@ -4,7 +4,7 @@ import {Node, DocNode, Mark,
         basicBuilder, tag, maybeTag,
         Emphasis, Strong} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
-const {doc, p, blockquote, ol, li, img, $img, em, strong} = basicBuilder
+const {doc, p, blockquote, ol, li, pre, img, $img, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
 
@@ -180,23 +180,19 @@ describe("ChangeSet", () => {
     testCompose(["join", "delP", "wrap"], doc(ol(li(p("three")))))
 
     it("keeps the effect of changes stable when composed", () => {
-      for (let i = 0; i < 100; i++) {
-        let doc = rDoc(25), startDoc = doc, changes: ChangeSet[] = []
+      for (let i = 0; i < 250; i++) {
+        let doc = rDoc(20), startDoc = doc, changes: ChangeSet[] = []
         for (let j = 0; j < 5; j++) {
           let ch = rChange(doc, 2)
-          try {
-            doc = ch.apply(doc)
-          } catch (e) {
-            console.log(`generated bad change ${ch} for ${doc}`)
-            throw e
-          }
+          doc = ch.apply(doc)
           changes.push(ch)
         }
         let composed = changes.reduce((a, b) => a.compose(b))
         try {
           ist(composed.apply(startDoc), doc, eq)
         } catch (e) {
-          console.log(`Failed random test:\n  start doc ${startDoc}\n  changes: ${changes}\n  composed: ${composed}`)
+          console.log(`Failed random test:\n  start doc ${startDoc}\n  changes:\n    ${
+                       changes.join("\n    ")}\n  composed: ${composed}`)
           throw e
         }
       }
@@ -209,6 +205,12 @@ describe("ChangeSet", () => {
       let ch2 = ChangeSet.create(d2, {from: 2, to: 5, addMark: mEm})
       let composed = ch1.compose(ch2)
       ist(ch2.apply(d2), composed.apply(d), eq)
+    })
+
+    it("can handle insertions in replaced content", () => {
+      let d = doc(ol(0, li(p("a")), 1)), ch1 = mk(d, [[li(p())]])
+      let d2 = ch1.apply(d), ch2 = ChangeSet.create(d2, [{from: 3, insert: slice("b")}])
+      ist(ch1.compose(ch2).apply(d), ch2.apply(d2), eq)
     })
   })
 })

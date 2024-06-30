@@ -214,15 +214,15 @@ export class Node {
   }
 
   sliceNode(content: Token[], from: number, to: number) {
-    if (from == 0) {
-      if (to == this.length) {
+    if (from <= 0) {
+      if (to >= this.length) {
         content.push(this)
         return
       }
       content.push(new OpenToken(this.copy(none)))
     }
-    sliceContent(content, this.children, from + 1, to - 1)
-    if (to == this.length) content.push(CloseToken)
+    sliceContent(content, this.children, from - 1, to - 1)
+    if (to >= this.length) content.push(CloseToken)
   }
 
   isInline() { return this.type.isInline() }
@@ -345,7 +345,7 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
     let start = off
     off += child.length
     if (off <= from) continue
-    child.sliceNode(content, Math.max(0, from - start), Math.min(child.length, to - start))
+    child.sliceNode(content, from - start, to - start)
   }
 }
 
@@ -373,7 +373,7 @@ export class TextNode extends Node {
   }
 
   cut(from: number, to = this.length) {
-    return !from && to == this.length ? this : new TextNode(this.text.slice(from, to), this.marks)
+    return !from && to == this.length ? this : new TextNode(this.text.slice(Math.max(from, 0), Math.max(0, to)), this.marks)
   }
 
   eq(other: Node) {
