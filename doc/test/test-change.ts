@@ -322,13 +322,13 @@ describe("ChangeSet", () => {
     it("doesn't leak surplus opening nodes", () => {
       let d = doc(0, blockquote(1, p("x")), p("y")), ch = mk(d, [[open(blockquote())]])
       let ch2 = ch.map(ch, d) // Both delete the same opening token. Deletion collapsed, insertion preserved.
-      ist(ch2.apply(ch.apply(d)), doc(blockquote(blockquote(p("x"))), p("y")))
+      ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x")), p("y")), eq)
     })
 
     it("doesn't leak surplus closing nodes", () => {
       let d = doc(blockquote(p("x", 0), 1, p("y"))), ch = mk(d, [[close]])
       let ch2 = ch.map(ch, d) // Both delete the same closing token
-      ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x"), p("y"))))
+      ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x"), p("y"))), eq)
     })
   })
 })

@@ -228,7 +228,7 @@ export class ChangeSet {
     // Produce a copy of setA that applies to the document after setB
     // has been applied. Assumes both start at the same document (`doc`).
     let sections: number[] = [], data: SectionData[] = []
-    let fix = new ChangeFitter(doc)
+    let fitter = new ChangeFitter(doc)
     let pos = Context.atStart(doc)
     let a = new SectionIter(this), b = new SectionIter(other)
     // Iterate over both sets in parallel. inserted tracks, for changes
@@ -242,23 +242,27 @@ export class ChangeSet {
         addSection(sections, data, len, -1, before ? a.mods : filterMods(a.mods, b.mods))
         a.forward(len)
         b.forward(len)
-        pos = pos.advance(len, fix)
+        fitter.original = true
+        pos = pos.advance(len, fitter)
+        fitter.original = false
       } else if (b.ins >= 0 && (a.ins < 0 || inserted == a.i || a.off == 0 && (b.len < a.len || b.len == a.len && !before))) {
         // If there's a change in B that comes before the next change in
         // A (ordered by start pos, then len, then before flag), skip
         // that (and process any changes in A it covers).
-        let len = b.len
+        let len = b.len, at = pos.pos
         addSection(sections, data, b.ins, -1, null)
-        b.slice.run(fix)
+        b.slice.run(fitter)
         while (len) {
           let piece = Math.min(a.len, len)
+          if (a.ins >= 0) fitter.doubleDeletion(doc.slice(at, at + piece))
           if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
             addSection(sections, data, 0, a.ins, a.slice)
-            a.slice.run(fix)
+            a.slice.run(fitter)
             inserted = a.i
           }
           a.forward(piece)
           len -= piece
+          at += piece
         }
         pos = pos.advance(b.len)
         b.next()
@@ -274,7 +278,7 @@ export class ChangeSet {
             pos = pos.advance(piece)
             b.forward(piece)
           } else if (b.ins == 0 && b.len < left) {
-            b.slice.run(fix)
+            b.slice.run(fitter)
             left -= b.len
             pos = pos.advance(b.len)
             b.next()
@@ -283,12 +287,12 @@ export class ChangeSet {
           }
         }
         addSection(sections, data, len, inserted < a.i ? a.ins : 0, inserted < a.i ? a.slice : Slice.empty)
-        if (inserted < a.i) a.slice.run(fix)
+        if (inserted < a.i) a.slice.run(fitter)
         inserted = a.i
         a.forward(a.len - left)
       } else {
         if (!a.done || !b.done) throw new Error("Mismatched change set lengths")
-        let fixup = fix.finish(), base = new ChangeSet(sections, data)
+        let fixup = fitter.finish(), base = new ChangeSet(sections, data)
         return fixup ? base.compose(fixup) : base
       }
     }
@@ -494,6 +498,8 @@ class ChangeFitter implements Walker {
   stack: FixLevel
   pos = 0
   patches: {from: number, to: number, insert: Token[]}[] = []
+  doubleDelAdjust = 0
+  original = false
 
   constructor(readonly doc: DocNode) {
     this.stack = new FixLevel(doc.type, null)
@@ -535,6 +541,7 @@ class ChangeFitter implements Walker {
   }
 
   skip(node: Node) {
+    if (this.original) this.doubleDelAdjust = 0
     if (this.stack.synthetic) {
       for (let parent = this.stack.next!, depth = 1;; depth++) {
         if (parent.type.canContain(node.type)) {
@@ -554,7 +561,11 @@ class ChangeFitter implements Walker {
   }
 
   enter(node: Node) {
-    if (this.fit(node.type)) {
+    if (this.original) this.doubleDelAdjust = 0
+    if (this.doubleDelAdjust > 0) {
+      this.doubleDelAdjust--
+      this.patch(1)
+    } else if (this.fit(node.type)) {
       this.stack.mayEnd = true
       this.stack = new FixLevel(node.type, this.stack)
     } else {
@@ -564,13 +575,24 @@ class ChangeFitter implements Walker {
   }
 
   leave() {
-    if (this.stack.next) {
+    if (this.original) this.doubleDelAdjust = 0
+    if (this.doubleDelAdjust < 0) {
+      this.doubleDelAdjust++
+      this.patch(1)
+    } else if (this.stack.next) {
       if (!this.stack.mayEnd) this.patch(0, this.doc.schema.createDefault(this.stack.type))
       this.stack = this.stack.next
     } else {
       this.patch(1)
     }
     this.pos++
+  }
+
+  doubleDeletion(slice: Slice) {
+    for (let token of slice.content) {
+      if (token.tokenType == TokenType.Open) this.doubleDelAdjust++
+      else if (token.tokenType == TokenType.Close) this.doubleDelAdjust--
+    }
   }
 
   finish(): ChangeSet | null {
