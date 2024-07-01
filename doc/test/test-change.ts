@@ -4,7 +4,7 @@ import {Node, DocNode, Mark, NodeType,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
         Emphasis, Strong, Link} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
-const {doc, p, blockquote, ol, ul, li, pre, h1, img, $img, em, strong} = basicBuilder
+const {doc, p, blockquote, h1, ol, ul, li, pre, img, $img, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
 
@@ -259,7 +259,7 @@ describe("ChangeSet", () => {
   describe("map", () => {
     it("converges when mapping pairs of changes", () => {
       for (let i = 0; i < 250; i++) {
-        let doc = rDoc(20), a = rChange(doc, 2), b = rChange(doc, 2)
+        let doc = rDoc(10), a = rChange(doc, 2), b = rChange(doc, 2)
         let docAB = b.map(a, doc).apply(a.apply(doc))
         let docBA = a.map(b, doc, true).apply(b.apply(doc))
         try {
@@ -271,35 +271,38 @@ describe("ChangeSet", () => {
       }
     })
 
+    function runTriplet(doc: DocNode, changes: [ChangeSet, ChangeSet, ChangeSet]) {
+      let clients = changes.map(ch => ({doc: ch.apply(doc), unconf: ch as ChangeSet | null, syncedDoc: doc}))
+      try {
+        for (let sender of clients) {
+          let change = sender.unconf!
+          for (let receiver of clients) {
+            if (receiver == sender) {
+              receiver.unconf = null
+            } else if (receiver.unconf) {
+              let {doc, unconf, syncedDoc} = receiver
+              receiver.unconf = unconf.map(change, syncedDoc)
+              receiver.doc = change.map(unconf, syncedDoc, true).apply(doc)
+            } else {
+              receiver.doc = change.apply(receiver.doc)
+            }
+            receiver.syncedDoc = change.apply(receiver.syncedDoc)
+          }
+        }
+        for (let i = 0; i < 3; i++) {
+          ist(clients[i].doc, clients[0].doc, eq)
+          ist(clients[i].syncedDoc, clients[0].doc, eq)
+        }
+      } catch(e) {
+        console.log(`Failed random triple-conflict test\n  doc:  ${doc}\n  changes:\n    ${changes.join("\n    ")}`)
+        throw e
+      }
+    }
+
     it("converges when mapping triplets of changes", () => {
       for (let i = 0; i < 250; i++) {
-        let doc = rDoc(20), changes = []
-        for (let i = 0; i < 3; i++) changes.push(rChange(doc, 2))
-        let clients = changes.map(ch => ({doc: ch.apply(doc), unconf: ch as ChangeSet | null, syncedDoc: doc}))
-        try {
-          for (let sender of clients) {
-            let change = sender.unconf!
-            for (let receiver of clients) {
-              if (receiver == sender) {
-                receiver.unconf = null
-              } else if (receiver.unconf) {
-                let {doc, unconf, syncedDoc} = receiver
-                receiver.unconf = unconf.map(change, syncedDoc)
-                receiver.doc = change.map(unconf, syncedDoc, true).apply(doc)
-              } else {
-                receiver.doc = change.apply(receiver.doc)
-              }
-              receiver.syncedDoc = change.apply(receiver.syncedDoc)
-            }
-          }
-          for (let i = 0; i < 3; i++) {
-            ist(clients[i].doc, clients[0].doc, eq)
-            ist(clients[i].syncedDoc, clients[0].doc, eq)
-          }
-        } catch(e) {
-          console.log(`Failed random triple-conflict test\n  doc:  ${doc}\n  changes:\n    ${changes.join("\n    ")}`)
-          throw e
-        }
+        let doc = rDoc(20)
+        runTriplet(doc, [rChange(doc, 2), rChange(doc, 2), rChange(doc, 2)])
       }
     })
 

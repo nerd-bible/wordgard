@@ -249,12 +249,12 @@ export class ChangeSet {
         // If there's a change in B that comes before the next change in
         // A (ordered by start pos, then len, then before flag), skip
         // that (and process any changes in A it covers).
-        let len = b.len, at = pos.pos
+        let len = b.len
         addSection(sections, data, b.ins, -1, null)
         b.slice.run(fitter)
         while (len) {
           let piece = Math.min(a.len, len)
-          if (a.ins >= 0) fitter.doubleDeletion(doc.slice(at, at + piece))
+          if (a.ins >= 0) fitter.doubleDeletion(pos, piece)
           if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
             addSection(sections, data, 0, a.ins, a.slice)
             a.slice.run(fitter)
@@ -262,9 +262,8 @@ export class ChangeSet {
           }
           a.forward(piece)
           len -= piece
-          at += piece
+          pos = pos.advance(piece)
         }
-        pos = pos.advance(b.len)
         b.next()
       } else if (a.ins >= 0) {
         // Process the part of a change in A up to the start of the next
@@ -278,6 +277,7 @@ export class ChangeSet {
             pos = pos.advance(piece)
             b.forward(piece)
           } else if (b.ins == 0 && b.len < left) {
+            fitter.doubleDeletion(pos, b.len)
             b.slice.run(fitter)
             left -= b.len
             pos = pos.advance(b.len)
@@ -543,13 +543,15 @@ class ChangeFitter implements Walker {
   skip(node: Node) {
     if (this.original) this.doubleDelAdjust = 0
     if (this.stack.synthetic) {
+      let closeDepth = 0
       for (let parent = this.stack.next!, depth = 1;; depth++) {
-        if (parent.type.canContain(node.type)) {
-          this.patch(0, CloseToken)
-          this.stack = parent
-        }
+        if (parent.type.canContain(node.type)) closeDepth = depth
         if (!parent.synthetic) break
         parent = parent.next!
+      }
+      for (let i = 0; i < closeDepth; i++) {
+        this.patch(0, CloseToken)
+        this.stack = this.stack.next!
       }
     }
 
@@ -588,11 +590,12 @@ class ChangeFitter implements Walker {
     this.pos++
   }
 
-  doubleDeletion(slice: Slice) {
-    for (let token of slice.content) {
-      if (token.tokenType == TokenType.Open) this.doubleDelAdjust++
-      else if (token.tokenType == TokenType.Close) this.doubleDelAdjust--
-    }
+  doubleDeletion(pos: Context, len: number) {
+    pos.advance(len, {
+      enter: () => this.doubleDelAdjust++,
+      leave: () => this.doubleDelAdjust--,
+      skip: () => {}
+    })
   }
 
   finish(): ChangeSet | null {
