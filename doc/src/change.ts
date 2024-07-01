@@ -493,7 +493,7 @@ class FixLevel {
 class ChangeFitter implements Walker {
   stack: FixLevel
   pos = 0
-  patches: {from: number, to: number, slice: Slice}[] = []
+  patches: {from: number, to: number, insert: Token[]}[] = []
 
   constructor(readonly doc: DocNode) {
     this.stack = new FixLevel(doc.type, null)
@@ -511,43 +511,45 @@ class ChangeFitter implements Walker {
       }
     }
     if (!fix) return false
-    let slice: Token[] = []
     for (let i = 0; i < fix.leave; i++) {
-      if (!this.stack.mayEnd) slice.push(this.doc.schema.createDefault(this.stack.type))
-      slice.push(CloseToken)
+      if (!this.stack.mayEnd) this.patch(0, this.doc.schema.createDefault(this.stack.type), CloseToken)
+      else this.patch(0, CloseToken)
       this.stack = this.stack.next!
     }
     for (let wrapper of fix.enter) {
-      slice.push(new OpenToken(wrapper))
+      this.patch(0, new OpenToken(wrapper))
       this.stack.mayEnd = true
       this.stack = new FixLevel(wrapper.type, this.stack, true)
     }
-    this.patches.push({from: this.pos, to: this.pos, slice: new Slice(slice)})
     return true
   }
 
-  drop(length: number) {
-    this.patches.push({from: this.pos, to: this.pos + length, slice: Slice.empty})
+  patch(length: number, ...insert: Token[]) {
+    let prev = this.patches.length ? this.patches[this.patches.length - 1] : null
+    if (prev && prev.to == this.pos) {
+      prev.to += length
+      for (let tok of insert) prev.insert.push(tok)
+    } else {
+      this.patches.push({from: this.pos, to: this.pos + length, insert})
+    }
   }
 
   skip(node: Node) {
     if (this.stack.synthetic) {
-      let closed: Token[] = []
       for (let parent = this.stack.next!, depth = 1;; depth++) {
         if (parent.type.canContain(node.type)) {
-          closed.push(CloseToken)
+          this.patch(0, CloseToken)
           this.stack = parent
         }
         if (!parent.synthetic) break
         parent = parent.next!
       }
-      if (closed.length) this.patches.push({from: this.pos, to: this.pos, slice: new Slice(closed)})
     }
 
     if (this.fit(node.type))
       this.stack.mayEnd = true
     else
-      this.drop(node.length)
+      this.patch(node.length)
     this.pos += node.length
   }
 
@@ -556,42 +558,38 @@ class ChangeFitter implements Walker {
       this.stack.mayEnd = true
       this.stack = new FixLevel(node.type, this.stack)
     } else {
-      this.drop(1)
+      this.patch(1)
     }
     this.pos++
   }
 
   leave() {
     if (this.stack.next) {
-      if (!this.stack.mayEnd) this.patches.push({
-        from: this.pos, to: this.pos,
-        slice: new Slice([this.doc.schema.createDefault(this.stack.type)])
-      })
+      if (!this.stack.mayEnd) this.patch(0, this.doc.schema.createDefault(this.stack.type))
       this.stack = this.stack.next
     } else {
-      this.drop(1)
+      this.patch(1)
     }
     this.pos++
   }
 
   finish(): ChangeSet | null {
     if (this.stack.next || !this.stack.mayEnd) {
-      let tokens: Token[] = []
       while (this.stack.next || !this.stack.mayEnd) {
         if (!this.stack.mayEnd) {
-          tokens.push(this.doc.schema.createDefault(this.stack.type))
+          this.patch(0, this.doc.schema.createDefault(this.stack.type))
           this.stack.mayEnd = true
         } else {
-          tokens.push(CloseToken)
+          this.patch(0, CloseToken)
           this.stack = this.stack.next!
         }
       }
-      this.patches.push({from: this.pos, to: this.pos, slice: new Slice(tokens)})
     }
     if (!this.patches.length) return null
     let sections: number[] = [], data: SectionData[] = [], pos = 0
-    for (let {from, to, slice} of this.patches) {
+    for (let {from, to, insert} of this.patches) {
       addSection(sections, data, from - pos, -1, null)
+      let slice = new Slice(insert)
       addSection(sections, data, to - from, slice.length, slice)
       pos = to
     }
