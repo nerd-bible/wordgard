@@ -9,7 +9,7 @@
     "require": "./dist/index.cjs"
   },
   "scripts": {
-    "test": "mocha test/test-*.js",
+    "test": "testtool doc",
     "prepare": "node bin/build.js",
     "watch": "node bin/build.js --watch"
   },

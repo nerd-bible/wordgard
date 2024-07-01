@@ -66,7 +66,8 @@ export class NodeType<Attrs extends {} = {}> {
       }
     }
     this.defaultAttrs = defaultAttrs
-    let groups = this.groups = [name, flags & NodeFlag.Inline ? "Inline" : "Block", "_"]
+    let groups = this.groups = [name]
+    if (flags & NodeFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
     this.contentGroups = spec.content ? splitGroups(spec.content) : none
   }
@@ -106,6 +107,7 @@ export class NodeType<Attrs extends {} = {}> {
     let attrs = this.defaultAttrs
     if (attrsOrChildren) {
       if (Array.isArray(attrsOrChildren)) children = attrsOrChildren
+      else if (attrsOrChildren instanceof Node) children = [attrsOrChildren]
       else attrs = fillAttrs(this.attrs, attrsOrChildren as Partial<Attrs>)
     }
     if (!attrs) throw new Error(`Must specify attrs when creating a node with some attributes that have no default value`)
@@ -113,7 +115,7 @@ export class NodeType<Attrs extends {} = {}> {
   }
 
   isInGroup(group: string) {
-    return this.groups.includes(group)
+    return group == "_" || this.groups.includes(group)
   }
 
   canContain(child: NodeType) {

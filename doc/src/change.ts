@@ -228,7 +228,7 @@ export class ChangeSet {
     // Produce a copy of setA that applies to the document after setB
     // has been applied. Assumes both start at the same document (`doc`).
     let sections: number[] = [], data: SectionData[] = []
-    let fix = new FixGenerator(doc)
+    let fix = new ChangeFitter(doc)
     let pos = Context.atStart(doc)
     let a = new SectionIter(this), b = new SectionIter(other)
     // Iterate over both sets in parallel. inserted tracks, for changes
@@ -399,7 +399,7 @@ export class ChangeSet {
 
   static createChecked(doc: DocNode, spec: ChangeSpec): ChangeSet {
     let base = ChangeSet.create(doc, spec)
-    let fix = new FixGenerator(doc), pos = Context.atStart(doc)
+    let fix = new ChangeFitter(doc), pos = Context.atStart(doc)
     for (let i = 0, iS = 0; i < base.data.length; i++) {
       let len = base.sections[iS++], ins = base.sections[iS++]
       if (ins < 0) {
@@ -482,21 +482,21 @@ class FixLevel {
   public mayEnd: boolean
   constructor(
     readonly type: NodeType,
-    public adjusted: number,
-    readonly next: FixLevel | null
+    readonly next: FixLevel | null,
+    readonly synthetic: boolean = false,
   ) {
     this.mayEnd = type.inlineContent()
   }
 }
 
 // FIXME make this smarter about keeping fixes local
-class FixGenerator implements Walker {
+class ChangeFitter implements Walker {
   stack: FixLevel
   pos = 0
   patches: {from: number, to: number, slice: Slice}[] = []
 
   constructor(readonly doc: DocNode) {
-    this.stack = new FixLevel(doc.type, 0, null)
+    this.stack = new FixLevel(doc.type, null)
   }
 
   fit(type: NodeType) {
@@ -513,13 +513,14 @@ class FixGenerator implements Walker {
     if (!fix) return false
     let slice: Token[] = []
     for (let i = 0; i < fix.leave; i++) {
+      if (!this.stack.mayEnd) slice.push(this.doc.schema.createDefault(this.stack.type))
       slice.push(CloseToken)
       this.stack = this.stack.next!
     }
     for (let wrapper of fix.enter) {
       slice.push(new OpenToken(wrapper))
       this.stack.mayEnd = true
-      this.stack = new FixLevel(wrapper.type, 0, this.stack)
+      this.stack = new FixLevel(wrapper.type, this.stack, true)
     }
     this.patches.push({from: this.pos, to: this.pos, slice: new Slice(slice)})
     return true
@@ -530,6 +531,19 @@ class FixGenerator implements Walker {
   }
 
   skip(node: Node) {
+    if (this.stack.synthetic) {
+      let closed: Token[] = []
+      for (let parent = this.stack.next!, depth = 1;; depth++) {
+        if (parent.type.canContain(node.type)) {
+          closed.push(CloseToken)
+          this.stack = parent
+        }
+        if (!parent.synthetic) break
+        parent = parent.next!
+      }
+      if (closed.length) this.patches.push({from: this.pos, to: this.pos, slice: new Slice(closed)})
+    }
+
     if (this.fit(node.type))
       this.stack.mayEnd = true
     else
@@ -540,7 +554,7 @@ class FixGenerator implements Walker {
   enter(node: Node) {
     if (this.fit(node.type)) {
       this.stack.mayEnd = true
-      this.stack = new FixLevel(node.type, 0, this.stack)
+      this.stack = new FixLevel(node.type, this.stack)
     } else {
       this.drop(1)
     }

@@ -1,10 +1,10 @@
 import ist from "ist"
-import {Node, DocNode, Mark,
+import {Node, DocNode, Mark, NodeType,
         ChangeSet, ChangeSpec, Token,
-        basicBuilder, tag, maybeTag,
+        Schema, basicSchema, basicBuilder, tag, maybeTag,
         Emphasis, Strong, Link} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
-const {doc, p, blockquote, ol, li, pre, img, $img, em, strong} = basicBuilder
+const {doc, p, blockquote, ol, ul, li, pre, h1, img, $img, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
 
@@ -131,6 +131,31 @@ describe("ChangeSet", () => {
       ])
       ist(ch.apply(d), doc(blockquote(p("abc"), p("def"))), eq)
     })
+
+    it("inserts required nodes", () => {
+      let d = doc(blockquote(pre("x")))
+      ist(ChangeSet.createChecked(d, {from: 1, to: 4}).apply(d), doc(blockquote(p())), eq)
+      ist(ChangeSet.createChecked(d, {from: 0, to: 5}).apply(d), doc(p()), eq)
+    })
+
+    it("adds wrapper nodes", () => {
+      let d = doc(p())
+      ist(ChangeSet.createChecked(d, {from: 0, insert: slice(li(p("a")))}).apply(d),
+          doc(ul(li(p("a"))), p()), eq)
+    })
+
+    it("exits wrapper nodes when possible", () => {
+      let Wrapper = NodeType.block("Wrapper", {content: "Inner Block", group: "Block", tag: "wrapper"})
+      let Inner = NodeType.block("Inner", {tag: "inner"})
+      let schema = Schema.define([basicSchema.nodes, Wrapper, Inner])
+      let doc = schema.doc([p()]), ch = ChangeSet.createChecked(doc, {from: 0, insert: slice(Inner.create())})
+      ist(ch.apply(doc), schema.doc([Wrapper.create([Inner.create()]), p()]), eq)
+    })
+
+    it("discards extra close tokens", () => {
+      let d = doc(blockquote(p("a")))
+      ist(ChangeSet.createChecked(d, {from: 4, insert: slice(close, close, close)}).apply(d), d, eq)
+    })
   })
 
   describe("compose", () => {
@@ -248,30 +273,32 @@ describe("ChangeSet", () => {
 
     it("converges when mapping triplets of changes", () => {
       for (let i = 0; i < 250; i++) {
-        let doc = rDoc(20)
-        let clients: {doc: DocNode, unconf: ChangeSet | null, syncedDoc: DocNode}[] = []
-        for (let i = 0; i < 3; i++) {
-          let change = rChange(doc, 2)
-          clients.push({doc: change.apply(doc), unconf: change, syncedDoc: doc})
-        }
-        for (let sender of clients) {
-          let change = sender.unconf!
-          for (let receiver of clients) {
-            if (receiver == sender) {
-              receiver.unconf = null
-            } else if (receiver.unconf) {
-              let {doc, unconf, syncedDoc} = receiver
-              receiver.unconf = unconf.map(change, syncedDoc)
-              receiver.doc = change.map(unconf, syncedDoc, true).apply(doc)
-            } else {
-              receiver.doc = change.apply(receiver.doc)
+        let doc = rDoc(20), changes = []
+        for (let i = 0; i < 3; i++) changes.push(rChange(doc, 2))
+        let clients = changes.map(ch => ({doc: ch.apply(doc), unconf: ch as ChangeSet | null, syncedDoc: doc}))
+        try {
+          for (let sender of clients) {
+            let change = sender.unconf!
+            for (let receiver of clients) {
+              if (receiver == sender) {
+                receiver.unconf = null
+              } else if (receiver.unconf) {
+                let {doc, unconf, syncedDoc} = receiver
+                receiver.unconf = unconf.map(change, syncedDoc)
+                receiver.doc = change.map(unconf, syncedDoc, true).apply(doc)
+              } else {
+                receiver.doc = change.apply(receiver.doc)
+              }
+              receiver.syncedDoc = change.apply(receiver.syncedDoc)
             }
-            receiver.syncedDoc = change.apply(receiver.syncedDoc)
           }
-        }
-        for (let i = 0; i < 3; i++) {
-          ist(clients[i].doc, clients[0].doc, eq)
-          ist(clients[i].syncedDoc, clients[0].doc, eq)
+          for (let i = 0; i < 3; i++) {
+            ist(clients[i].doc, clients[0].doc, eq)
+            ist(clients[i].syncedDoc, clients[0].doc, eq)
+          }
+        } catch(e) {
+          console.log(`Failed random triple-conflict test\n  doc:  ${doc}\n  changes:\n    ${changes.join("\n    ")}`)
+          throw e
         }
       }
     })
@@ -290,6 +317,18 @@ describe("ChangeSet", () => {
       let docAB = b.map(a, d).apply(a.apply(d))
       let docBA = a.map(b, d, true).apply(b.apply(d))
       ist(docAB, docBA, eq)
+    })
+
+    it("doesn't leak surplus opening nodes", () => {
+      let d = doc(0, blockquote(1, p("x")), p("y")), ch = mk(d, [[open(blockquote())]])
+      let ch2 = ch.map(ch, d) // Both delete the same opening token. Deletion collapsed, insertion preserved.
+      ist(ch2.apply(ch.apply(d)), doc(blockquote(blockquote(p("x"))), p("y")))
+    })
+
+    it("doesn't leak surplus closing nodes", () => {
+      let d = doc(blockquote(p("x", 0), 1, p("y"))), ch = mk(d, [[close]])
+      let ch2 = ch.map(ch, d) // Both delete the same closing token
+      ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x"), p("y"))))
     })
   })
 })

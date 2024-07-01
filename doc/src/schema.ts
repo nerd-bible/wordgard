@@ -139,6 +139,7 @@ export class Schema {
 
 export const Paragraph = NodeType.textblock("Paragraph", {
   content: "Inline",
+  group: "Block",
   tag: "p"
 })
 
@@ -147,6 +148,7 @@ export const Heading = NodeType.textblock("Heading", {
     level: {default: 1, attribute: "level"}
   },
   content: "Inline",
+  group: "Block",
   tag: "h1" // FIXME
 })
 
@@ -155,16 +157,19 @@ export const CodeBlock = NodeType.textblock("CodeBlock", {
     language: {default: "", attribute: "data-language"}
   },
   content: "Inline",
+  group: "Block",
   tag: "pre"
 })
 
 export const Blockquote = NodeType.block("Blockquote", {
   content: "Block",
+  group: "Block",
   tag: "blockquote"
 })
 
 export const OrderedList = NodeType.block("OrderedList", {
   content: "ListItem",
+  group: "Block",
   tag: "ol",
   attrs: {
     start: {default: 1, attribute: "start"}
@@ -173,6 +178,7 @@ export const OrderedList = NodeType.block("OrderedList", {
 
 export const BulletList = NodeType.block("BulletList", {
   content: "ListItem",
+  group: "Block",
   tag: "ul"
 })
 
@@ -182,6 +188,7 @@ export const ListItem = NodeType.block("ListItem", {
 })
 
 export const HorizontalRule = NodeType.block("HorizontalRule", {
+  group: "Block",
   tag: "hr",
   toText: () => "---"
 })

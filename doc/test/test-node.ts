@@ -62,7 +62,7 @@ describe("Node", () => {
       ist(doc(p("one"), hr(), hr(), p("two")).textContent(), "one\n---\n---\ntwo")
     })
 
-    let BlockLeaf = NodeType.block("BlockLeaf", {tag: "div"})
+    let BlockLeaf = NodeType.block("BlockLeaf", {group: "Block", tag: "div"})
 
     it("doesn't add block separator around non-rendered leaf nodes", () => {
       ist(blockquote(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
