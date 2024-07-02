@@ -277,6 +277,7 @@ describe("ChangeSet", () => {
         for (let sender of clients) {
           let change = sender.unconf!
           for (let receiver of clients) {
+            let id = clients.indexOf(receiver)
             if (receiver == sender) {
               receiver.unconf = null
             } else if (receiver.unconf) {
