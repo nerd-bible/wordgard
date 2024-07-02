@@ -387,7 +387,7 @@ export class TextNode extends Node {
 
 function marksToString(marks: readonly Mark[], inner: string) {
   for (let i = marks.length - 1; i >= 0; i--)
-    inner = marks[i].name + "(" + inner + ")"
+    inner = marks[i].name + JSON.stringify(marks[i].attrs) + "(" + inner + ")"
   return inner
 }
 

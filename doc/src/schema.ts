@@ -215,7 +215,7 @@ export const Strong = MarkType.define("Strong", {
   tag: "strong",
 })
 
-export const Link = MarkType.define("Link", {
+export const Link = MarkType.define<{href: string}>("Link", {
   rank: 20,
   tag: "a",
   attrs: {

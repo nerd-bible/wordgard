@@ -327,6 +327,22 @@ export class ChangeSet {
     }
   }
 
+  invert(doc: DocNode) {
+    let sections = this.sections.slice(), data: SectionData[] = []
+    for (let i = 0, iS = 0, pos = 0; iS < sections.length; iS += 2, i++) {
+      let len = sections[iS], ins = sections[iS + 1]
+      if (ins >= 0) {
+        sections[iS] = ins; sections[iS + 1] = len
+        data.push(doc.slice(pos, pos + len))
+      } else {
+        let mods = this.data[i] as readonly Modification[] | null
+        data.push(mods ? invertMods(mods, doc, pos) : null)
+      }
+      pos += len
+    }
+    return new ChangeSet(sections, data)
+  }
+
   static create(doc: DocNode, spec: ChangeSpec): ChangeSet {
     let sections: number[] = [], data: SectionData[] = [], pos = 0
     let accum: ChangeSet | null = null
@@ -362,14 +378,21 @@ export class ChangeSet {
             let mods: Modification[] = [{type: "addMark", mark: addMark}]
             markableSections(doc, from, to, (node, from, to) => {
               if (!addMark.type.canTarget(node.type) || addMark.isInSet(node.marks)) return false
-              section(from, to, -1, mods)
+              let added = addMark.addToSet(node.marks), modsHere = mods
+              // The mark replaces one or more marks
+              if (added.length != node.marks.length + 1)
+                modsHere = node.marks
+                  .filter(m => !added.includes(m))
+                  .map(mark => ({type: "removeMark", mark} as Modification))
+                  .concat(mods)
+              section(from, to, -1, modsHere)
               return true
             })
           }
           if (removeMark) {
             let mods: Modification[] = [{type: "removeMark", mark: removeMark}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!removeMark.type.isInSet(node.marks)) return false
+              if (!removeMark.isInSet(node.marks)) return false
               section(from, to, -1, mods)
               return true
             })
@@ -458,6 +481,16 @@ function modCancels(mod: Modification, other: Modification) {
   } else {
     return mod.type == "addMark" && mod.mark.eq(other.mark)
   }
+}
+
+function invertMods(mods: readonly Modification[], doc: DocNode, pos: number): readonly Modification[] {
+  let resolved: Node | undefined
+  return mods.map(mod => {
+    if (mod.type == "addMark") return {type: "removeMark", mark: mod.mark}
+    if (mod.type == "removeMark") return {type: "addMark", mark: mod.mark}
+    if (!resolved) resolved = doc.nodeAt(pos)!
+    return {type: "setAttr", attr: mod.attr, value: resolved.attrs[mod.attr]}
+  })
 }
 
 function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {

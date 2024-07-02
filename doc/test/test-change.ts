@@ -4,7 +4,7 @@ import {Node, DocNode, Mark, NodeType,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
         Emphasis, Strong, Link} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
-const {doc, p, blockquote, h1, ol, ul, li, pre, img, $img, em, strong} = basicBuilder
+const {doc, p, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
 
@@ -71,6 +71,10 @@ describe("ChangeSet", () => {
 
     it("can add marks", () => {
       testApply(doc(p("one ", 0, "two", 1, " three")), [{add: mEm}], doc(p("one ", em("two"), " three")))
+    })
+
+    it("joins marked text when appropriate", () => {
+      testApply(doc(p(em("one"), 0, "two", 1)), [{add: mEm}], doc(p(em("onetwo"))))
     })
 
     it("can remove marks", () => {
@@ -333,6 +337,59 @@ describe("ChangeSet", () => {
       let d = doc(blockquote(p("x", 0), 1, p("y"))), ch = mk(d, [[close]])
       let ch2 = ch.map(ch, d) // Both delete the same closing token
       ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x"), p("y"))), eq)
+    })
+  })
+
+  describe("invert", () => {
+    function testInv(doc: DocNode, changes: ChangeData[]) {
+      let ch = mk(doc, changes)
+      let changed = ch.apply(doc), reverted = ch.invert(doc).apply(changed)
+      ist(reverted, doc, eq)
+    }
+
+    it("can invert insertions", () => {
+      testInv(doc(p("a", 0, "b"), 2, p("c")), [["x"], [p("y")]])
+    })
+
+    it("can invert deletions", () => {
+      testInv(doc(p("a", 0, "x", 1, "b"), 2, p("y"), 3, p("c")), [[], []])
+    })
+
+    it("can invert replacements", () => {
+      testInv(doc(p("a", 0), p(1, "b")), [["x"]])
+    })
+
+    it("can invert adding a mark", () => {
+      testInv(doc(p(0, "abc", 1, " ", 2, "def", 3)), [{add: mEm}, {add: Link.create({href: "/"})}])
+    })
+
+    it("can invert removing a mark", () => {
+      testInv(doc(p(0, em("abc"), 1)), [{remove: mEm}])
+    })
+
+    it("can invert replacing a mark with another version", () => {
+      testInv(doc(p(0, a({href: "1"}, "abc"), 1)), [{add: Link.create({href: "2"})}])
+    })
+
+    it("can invert changing an attribute", () => {
+      testInv(doc(0, ol(1, li(p("-")))), [{setAttr: "start", value: 5}])
+    })
+
+    it("can invert sequences of random changes", () => {
+      for (let i = 0; i < 250; i++) {
+        let startDoc = rDoc(25)
+        let doc = startDoc, changes: ChangeSet[] = [], inverted: ChangeSet[] = []
+        for (let i = 0; i < 10; i++) {
+          let change = rChange(doc, 2)
+          changes.push(change)
+          inverted.push(change.invert(doc))
+          doc = change.apply(doc)
+        }
+        for (let i = inverted.length - 1; i >= 0; i--) {
+          doc = inverted[i].apply(doc)
+        }
+        ist(doc, startDoc, eq)
+      }
     })
   })
 })
