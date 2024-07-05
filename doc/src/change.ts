@@ -248,7 +248,7 @@ export class ChangeSet {
         // that (and process any changes in A it covers).
         let end = pos + b.len
         addSection(sections, data, b.ins, -1, null)
-        fitter.replaced(b.slice, pos - b.off, end)
+        fitter.replaced(b.slice, pos, end, true)
         while (pos < end) {
           let piece = Math.min(a.len, end - pos)
           if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
@@ -271,7 +271,7 @@ export class ChangeSet {
             len += piece
             b.forward(piece)
           } else if (b.ins == 0 && pos + b.len < end) {
-            fitter.replaced(b.slice, pos - b.off, pos += b.len)
+            fitter.replaced(b.slice, pos, pos += b.len, true)
             b.next()
           } else {
             break
@@ -523,13 +523,23 @@ class FixLevel {
   }
 }
 
+const counter = {
+  count: 0,
+  skip() {},
+  enter() { this.count++ },
+  leave() { this.count-- },
+  countDelta(pos: Context, distance: number) {
+    this.count = 0
+    return pos.advance(distance, this)
+  }
+}
+
 class ChangeFitter implements Walker {
   stack: FixLevel
   inputPos: Context
   delInputPos: Context
   pos = 0
   patches: {from: number, to: number, insert: Token[]}[] = []
-  deleteWalker: Walker
   stackDelta = 0
   inputDelta = 0
   inserting = false
@@ -537,11 +547,6 @@ class ChangeFitter implements Walker {
   constructor(readonly doc: DocNode) {
     this.stack = new FixLevel(doc.type, null)
     this.inputPos = this.delInputPos = Context.atStart(doc)
-    this.deleteWalker = {
-      skip: () => {},
-      enter: () => this.inputDelta--,
-      leave: () => this.inputDelta++
-    }
   }
 
   getPos(at: number) {
@@ -554,30 +559,34 @@ class ChangeFitter implements Walker {
   preserved(from: number, to: number) {
     let inputPos = this.getPos(from)
     if (!this.inputDelta && this.stackDelta) {
-      let levels = [], depth = inputPos.depth
-      for (let l = this.stack as FixLevel | null; l; l = l.next) levels.push(l)
-      levels.reverse()
-      while (levels.length > depth + 1) { this.insertClose(); levels.pop() }
-      for (let d = 1; d <= Math.min(depth, levels.length - 1); d++) {
-        let cx = inputPos.atDepth(d)
-        if (!cx.node.type.sharesContent(levels[d].type)) {
-          while (levels.length > d) { this.insertClose(); levels.pop() }
-          break
-        }
-      }
-      for (let i = levels.length; i < depth + 1; i++) {
-        let cx = inputPos.atDepth(i)
-        this.stack = new FixLevel(cx.node.type, this.stack)
-        this.patch(0, new OpenToken(cx.node))
-      }
+      this.syncToContext(inputPos)
       this.stackDelta = 0
     }
 
     this.inputPos = inputPos.advance(to - from, this)
   }
 
-  replaced(slice: Slice, from: number, to: number) {
-    if (from != to) this.delInputPos = this.getPos(from).advance(to - from, this.deleteWalker)
+  lastCoverFrom = -1
+  lastCoverTo = -1
+  doubleDeleteDelta = 0
+
+  replaced(slice: Slice, from: number, to: number, covering = false) {
+    this.doubleDeleteDelta = 0
+    if (covering) {
+      this.lastCoverFrom = from
+      this.lastCoverTo = to
+    } else if (slice.length) {
+      let overlapFrom = Math.max(from, this.lastCoverFrom)
+      let overlapTo = Math.min(to, this.lastCoverTo)
+      if (overlapFrom < overlapTo) {
+        counter.countDelta(this.getPos(overlapFrom), overlapTo - overlapFrom)
+        this.doubleDeleteDelta = counter.count
+      }
+    }
+    if (from != to) {
+      this.delInputPos = counter.countDelta(this.getPos(from), to - from)
+      this.inputDelta -= counter.count
+    }
     this.inserting = true
     slice.run(this)
     this.inserting = false
@@ -586,13 +595,15 @@ class ChangeFitter implements Walker {
   fit(type: NodeType) {
     if (this.stack.type.canContain(type)) return true
     let fix: {leave: number, enter: readonly Node[], cost: number} | null = null
-    for (let level: FixLevel | null = this.stack, leave = 0; level; level = level.next, leave++) {
-      if (fix && leave > fix.cost) break
+    let dDelta = this.stackDelta - this.inputDelta
+    for (let level: FixLevel | null = this.stack, leave = 0, leaveCost = 0; level; level = level.next, leave++) {
+      if (fix && leaveCost > fix.cost) break
       let enter = this.doc.schema.findWrapping(level.type, type)
       if (enter) {
-        let cost = leave + enter.length + (enter.length ? 0.5 : 0)
+        let cost = leaveCost + enter.length * 2 - Math.max(0, Math.min(-dDelta, enter.length))
         if (!fix || fix.cost > cost) fix = {leave, enter, cost}
       }
+      leaveCost += level.flags & FixFlag.Synthetic ? 0 : dDelta > leave ? 1 : 2
     }
     if (!fix) return false
     for (let i = 0; i < fix.leave; i++) {
@@ -607,6 +618,26 @@ class ChangeFitter implements Walker {
       this.stackDelta++
     }
     return true
+  }
+
+  syncToContext(context: Context) {
+    // FIXME make this elegant somehow
+    let levels = [], depth = context.depth
+    for (let l = this.stack as FixLevel | null; l; l = l.next) levels.push(l)
+    levels.reverse()
+    while (levels.length > depth + 1) { this.insertClose(); levels.pop() }
+    for (let d = 1; d <= Math.min(depth, levels.length - 1); d++) {
+      let cx = context.atDepth(d)
+      if (!cx.node.type.sharesContent(levels[d].type)) {
+        while (levels.length > d) { this.insertClose(); levels.pop() }
+        break
+      }
+    }
+    for (let i = levels.length; i < depth + 1; i++) {
+      let cx = context.atDepth(i)
+      this.stack = new FixLevel(cx.node.type, this.stack)
+      this.patch(0, new OpenToken(cx.node))
+    }
   }
 
   insertClose() {
@@ -626,19 +657,6 @@ class ChangeFitter implements Walker {
   }
 
   skip(node: Node) {
-/*    if (this.stack.flags & FixFlag.Synthetic) {
-      let closeDepth = 0
-      for (let parent = this.stack.next!, depth = 1;; depth++) {
-        if (parent.type.canContain(node.type)) closeDepth = depth
-        if (!(parent.flags & FixFlag.Synthetic)) break
-        parent = parent.next!
-      }
-      for (let i = 0; i < closeDepth; i++) {
-        this.patch(0, CloseToken)
-        this.stack = this.stack.next!
-      }
-    }*/
-
     if (this.fit(node.type))
       this.stack.flags &= ~FixFlag.NeedsChild
     else
@@ -648,7 +666,10 @@ class ChangeFitter implements Walker {
 
   enter(node: Node) {
     if (this.inserting) this.inputDelta++
-    if (this.fit(node.type)) {
+    if (this.doubleDeleteDelta > 0) {
+      this.doubleDeleteDelta--
+      this.patch(1)
+    } else if (this.fit(node.type)) {
       this.stack.flags &= ~FixFlag.NeedsChild
       this.stack = new FixLevel(node.type, this.stack)
       if (this.inserting) this.stackDelta++
@@ -660,7 +681,10 @@ class ChangeFitter implements Walker {
 
   leave() {
     if (this.inserting) this.inputDelta--
-    if (this.stack.next) {
+    if (this.doubleDeleteDelta < 0) {
+      this.doubleDeleteDelta++
+      this.patch(1)
+    } else if (this.stack.next) {
       if (this.stack.flags & FixFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.type))
       this.stack = this.stack.next
       if (this.inserting) this.stackDelta++

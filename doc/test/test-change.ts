@@ -4,7 +4,7 @@ import {Node, DocNode, Mark, NodeType,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
         Emphasis, Strong, Link} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
-const {doc, p, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
+const {doc, p, h1, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
 
@@ -324,6 +324,13 @@ describe("ChangeSet", () => {
       let docAB = b.map(a, d).apply(a.apply(d))
       let docBA = a.map(b, d, true).apply(b.apply(d))
       ist(docAB, docBA, eq)
+    })
+
+    it("handles overwritten open tokens", () => {
+      let d = doc(p("x"), p("y"))
+      let ch1 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(h1()))})
+      let ch2 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(pre()))}).map(ch1, d)
+      ist(ch2.apply(ch1.apply(d)), doc(h1("x"), p("y")), eq)
     })
 
     it("doesn't leak surplus opening nodes", () => {
