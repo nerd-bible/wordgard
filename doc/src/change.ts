@@ -229,7 +229,7 @@ export class ChangeSet {
     // has been applied. Assumes both start at the same document (`doc`).
     let sections: number[] = [], data: SectionData[] = []
     let fitter = new ChangeFitter(doc)
-    let a = new SectionIter(this), b = new SectionIter(other)
+    let a = new SectionIter(this), b = new SectionIter(other), pos = 0
     // Iterate over both sets in parallel. inserted tracks, for changes
     // in A that have to be processed piece-by-piece, whether their
     // content has been inserted already, and refers to the section
@@ -241,39 +241,37 @@ export class ChangeSet {
         addSection(sections, data, len, -1, before ? a.mods : filterMods(a.mods, b.mods))
         a.forward(len)
         b.forward(len)
-        fitter.preserved(len)
+        fitter.preserved(pos, pos += len)
       } else if (b.ins >= 0 && (a.ins < 0 || inserted == a.i || a.off == 0 && (b.len < a.len || b.len == a.len && !before))) {
         // If there's a change in B that comes before the next change in
         // A (ordered by start pos, then len, then before flag), skip
         // that (and process any changes in A it covers).
-        let len = b.len
+        let end = pos + b.len
         addSection(sections, data, b.ins, -1, null)
-        fitter.replaced(b.slice, len)
-        while (len) {
-          let piece = Math.min(a.len, len)
+        fitter.replaced(b.slice, pos - b.off, end)
+        while (pos < end) {
+          let piece = Math.min(a.len, end - pos)
           if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
             addSection(sections, data, 0, a.ins, a.slice)
-            fitter.replaced(a.slice, a.ins)
+            fitter.replaced(a.slice, pos - a.off, pos + a.len)
             inserted = a.i
           }
           a.forward(piece)
-          len -= piece
+          pos += piece
         }
-        fitter.skipped(b.len)
         b.next()
       } else if (a.ins >= 0) {
         // Process the part of a change in A up to the start of the next
         // non-deletion change in B (if overlapping).
-        let len = 0, left = a.len
-        while (left) {
+        let start = pos, end = pos + a.len, len = 0
+        while (pos < end) {
           if (b.ins == -1) {
-            let piece = Math.min(left, b.len)
+            let piece = Math.min(end - pos, b.len)
+            pos += piece
             len += piece
-            left -= piece
             b.forward(piece)
-          } else if (b.ins == 0 && b.len < left) {
-            fitter.replaced(b.slice, b.len)
-            left -= b.len
+          } else if (b.ins == 0 && pos + b.len < end) {
+            fitter.replaced(b.slice, pos - b.off, pos += b.len)
             b.next()
           } else {
             break
@@ -281,13 +279,12 @@ export class ChangeSet {
         }
         if (inserted < a.i) {
           addSection(sections, data, len, a.ins, a.slice)
-          fitter.replaced(a.slice, a.len)
+          fitter.replaced(a.slice, start - a.off, start + a.len)
           inserted = a.i
         } else {
           addSection(sections, data, len, 0, Slice.empty)
         }
-        fitter.skipped(a.len - left)
-        a.forward(a.len - left)
+        a.forward(pos - start)
       } else {
         if (!a.done || !b.done) throw new Error("Mismatched change set lengths")
         let fixup = fitter.finish(), base = new ChangeSet(sections, data)
@@ -424,17 +421,13 @@ export class ChangeSet {
 
   static createChecked(doc: DocNode, spec: ChangeSpec): ChangeSet {
     let base = ChangeSet.create(doc, spec)
-    let fix = new ChangeFitter(doc), pos = Context.atStart(doc)
-    for (let i = 0, iS = 0; i < base.data.length; i++) {
+    let fitter = new ChangeFitter(doc)
+    for (let i = 0, iS = 0, pos = 0; i < base.data.length; i++) {
       let len = base.sections[iS++], ins = base.sections[iS++]
-      if (ins < 0) {
-        pos = pos.advance(len, fix)
-      } else {
-        pos = pos.advance(len)
-        ;(base.data[i] as Slice).run(fix)
-      }
+      if (ins < 0) fitter.preserved(pos, pos += len)
+      else fitter.replaced(base.data[i] as Slice, pos, pos += len)
     }
-    let fixup = fix.finish()
+    let fixup = fitter.finish()
     return fixup ? base.compose(fixup) : base
   }
 
@@ -533,8 +526,8 @@ class FixLevel {
 class ChangeFitter implements Walker {
   stack: FixLevel
   inputPos: Context
+  delInputPos: Context
   pos = 0
-  maybeNextPos: Context | null = null
   patches: {from: number, to: number, insert: Token[]}[] = []
   deleteWalker: Walker
   stackDelta = 0
@@ -543,7 +536,7 @@ class ChangeFitter implements Walker {
 
   constructor(readonly doc: DocNode) {
     this.stack = new FixLevel(doc.type, null)
-    this.inputPos = Context.atStart(doc)
+    this.inputPos = this.delInputPos = Context.atStart(doc)
     this.deleteWalker = {
       skip: () => {},
       enter: () => this.inputDelta--,
@@ -551,19 +544,40 @@ class ChangeFitter implements Walker {
     }
   }
 
-  preserved(length: number) {
-    this.inputPos = this.inputPos.advance(length, this)
+  getPos(at: number) {
+    let {inputPos, delInputPos} = this
+    if (inputPos.pos == at) return inputPos
+    if (delInputPos.pos == at) return delInputPos
+    return inputPos.advance(at - inputPos.pos)
   }
 
-  skipped(length: number) {
-    if (this.maybeNextPos && this.maybeNextPos.pos == this.inputPos.pos + length)
-      this.inputPos = this.maybeNextPos
-    else
-      this.inputPos = this.inputPos.advance(length)
+  preserved(from: number, to: number) {
+    let inputPos = this.getPos(from)
+    if (!this.inputDelta && this.stackDelta) {
+      let levels = [], depth = inputPos.depth
+      for (let l = this.stack as FixLevel | null; l; l = l.next) levels.push(l)
+      levels.reverse()
+      while (levels.length > depth + 1) { this.insertClose(); levels.pop() }
+      for (let d = 1; d <= Math.min(depth, levels.length - 1); d++) {
+        let cx = inputPos.atDepth(d)
+        if (!cx.node.type.sharesContent(levels[d].type)) {
+          while (levels.length > d) { this.insertClose(); levels.pop() }
+          break
+        }
+      }
+      for (let i = levels.length; i < depth + 1; i++) {
+        let cx = inputPos.atDepth(i)
+        this.stack = new FixLevel(cx.node.type, this.stack)
+        this.patch(0, new OpenToken(cx.node))
+      }
+      this.stackDelta = 0
+    }
+
+    this.inputPos = inputPos.advance(to - from, this)
   }
 
-  replaced(slice: Slice, length: number) {
-    this.maybeNextPos = this.inputPos.advance(length, this.deleteWalker)
+  replaced(slice: Slice, from: number, to: number) {
+    if (from != to) this.delInputPos = this.getPos(from).advance(to - from, this.deleteWalker)
     this.inserting = true
     slice.run(this)
     this.inserting = false
@@ -582,9 +596,7 @@ class ChangeFitter implements Walker {
     }
     if (!fix) return false
     for (let i = 0; i < fix.leave; i++) {
-      if (this.stack.flags & FixFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.type), CloseToken)
-      else this.patch(0, CloseToken)
-      this.stack = this.stack.next!
+      this.insertClose()
       this.stackDelta--
     }
     for (let wrapper of fix.enter) {
@@ -595,6 +607,12 @@ class ChangeFitter implements Walker {
       this.stackDelta++
     }
     return true
+  }
+
+  insertClose() {
+    if (this.stack.flags & FixFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.type), CloseToken)
+    else this.patch(0, CloseToken)
+    this.stack = this.stack.next!
   }
 
   patch(length: number, ...insert: Token[]) {
@@ -608,7 +626,7 @@ class ChangeFitter implements Walker {
   }
 
   skip(node: Node) {
-    if (this.stack.flags & FixFlag.Synthetic) {
+/*    if (this.stack.flags & FixFlag.Synthetic) {
       let closeDepth = 0
       for (let parent = this.stack.next!, depth = 1;; depth++) {
         if (parent.type.canContain(node.type)) closeDepth = depth
@@ -619,7 +637,7 @@ class ChangeFitter implements Walker {
         this.patch(0, CloseToken)
         this.stack = this.stack.next!
       }
-    }
+    }*/
 
     if (this.fit(node.type))
       this.stack.flags &= ~FixFlag.NeedsChild
@@ -629,6 +647,7 @@ class ChangeFitter implements Walker {
   }
 
   enter(node: Node) {
+    if (this.inserting) this.inputDelta++
     if (this.fit(node.type)) {
       this.stack.flags &= ~FixFlag.NeedsChild
       this.stack = new FixLevel(node.type, this.stack)
@@ -640,6 +659,7 @@ class ChangeFitter implements Walker {
   }
 
   leave() {
+    if (this.inserting) this.inputDelta--
     if (this.stack.next) {
       if (this.stack.flags & FixFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.type))
       this.stack = this.stack.next

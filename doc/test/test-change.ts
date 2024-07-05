@@ -133,7 +133,7 @@ describe("ChangeSet", () => {
         {from: 5, insert: slice(close)},
         {from: 4, to: 6}
       ])
-      ist(ch.apply(d), doc(blockquote(p("abc"), p("def"))), eq)
+      ist(ch.apply(d), doc(blockquote(p("abc")), p("def")), eq)
     })
 
     it("inserts required nodes", () => {
@@ -264,9 +264,9 @@ describe("ChangeSet", () => {
     it("converges when mapping pairs of changes", () => {
       for (let i = 0; i < 250; i++) {
         let doc = rDoc(10), a = rChange(doc, 2), b = rChange(doc, 2)
-        let docAB = b.map(a, doc).apply(a.apply(doc))
-        let docBA = a.map(b, doc, true).apply(b.apply(doc))
         try {
+          let docAB = b.map(a, doc).apply(a.apply(doc))
+          let docBA = a.map(b, doc, true).apply(b.apply(doc))
           ist(docAB, docBA, eq)
         } catch(e) {
           console.log(`Failed random convergence test:\n  start doc: ${doc}\n  change a: ${a}\n  change b: ${b}`)
@@ -281,7 +281,6 @@ describe("ChangeSet", () => {
         for (let sender of clients) {
           let change = sender.unconf!
           for (let receiver of clients) {
-            let id = clients.indexOf(receiver)
             if (receiver == sender) {
               receiver.unconf = null
             } else if (receiver.unconf) {

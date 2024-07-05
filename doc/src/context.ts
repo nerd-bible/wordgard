@@ -43,6 +43,12 @@ export class Context {
     return d
   }
 
+  atDepth(depth: number) {
+    let c = this as Context
+    for (let off = this.depth - depth; off > 0; off--) c = c.parent!
+    return c
+  }
+
   static atStart(doc: DocNode) {
     return new Context(doc, 0, 0, 0, null)
   }
