@@ -54,11 +54,17 @@ export class Context {
   }
 
   static resolve(doc: DocNode, pos: number) {
-    let cache = contextCache.get(doc)
-    if (!cache) contextCache.set(doc, cache = [])
-    else for (let i = 0; i < cache.length; i++) if (cache[i].pos == pos) return cache[i]
-    return cache[cache.length < cacheSize ? cache.length : cachePos = (cachePos + 1) % cacheSize] =
-      advanceContext(pos, doc, 0, 0, 0, null)
+    let cache = contextCache.get(doc), nearest: Context | undefined
+    if (!cache) {
+      contextCache.set(doc, cache = [])
+    } else {
+      for (let elt of cache) {
+        if (elt.pos == pos) return elt
+        else if (elt.pos < pos && (!nearest || nearest.pos < elt.pos)) nearest = elt
+      }
+    }
+    let result = nearest ? nearest.advance(pos - nearest.pos) : advanceContext(pos, doc, 0, 0, 0, null)
+    return cache[cache.length < cacheSize ? cache.length : cachePos = (cachePos + 1) % cacheSize] = result
   }
 }
 
