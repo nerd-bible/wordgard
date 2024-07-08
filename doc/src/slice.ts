@@ -1,4 +1,4 @@
-import {TokenType, Node, NodeJSON, pushNode} from "./node"
+import {TokenType, Node, NodeJSON, TextNode} from "./node"
 import {Schema} from "./schema"
 import {Walker} from "./context"
 
@@ -104,3 +104,11 @@ export class Slice {
 }
 
 export type SliceJSON = readonly ({node: NodeJSON} | {open: NodeJSON} | {close: true})[]
+
+export function pushNode(nodes: Node[], node: Node) {
+  let last = nodes.length - 1
+  if (node.isText() && last >= 0 && nodes[last].sameMarkup(node))
+    nodes[last] = node.withText((nodes[last] as TextNode).text + node.text)
+  else
+    nodes.push(node)
+}

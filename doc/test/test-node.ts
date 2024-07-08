@@ -78,13 +78,13 @@ describe("Node", () => {
   })
 
   describe("create", () => {
-    it("fills attributes", () => {
+    it("fills params", () => {
       let i = Image.create({src: "x.jpg"})
-      ist(Image.getAttr("src", i), "x.jpg")
-      ist(Image.getAttr("alt", i), "")
+      ist(Image.getParam("src", i), "x.jpg")
+      ist(Image.getParam("alt", i), "")
     })
 
-    it("complains about missing attributes", () => {
+    it("complains about missing params", () => {
       ist.throws(() => Image.create({}), /Must provide/)
     })
 

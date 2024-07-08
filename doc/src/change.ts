@@ -1,6 +1,6 @@
-import {Node, DocNode, NodeType, Mark, MarkJSON, pushNode, TokenType} from "./node"
+import {Node, DocNode, NodeType, Mark, MarkJSON, TokenType} from "./node"
 import {Schema} from "./schema"
-import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
+import {Slice, Token, CloseToken, OpenToken, SliceJSON, pushNode} from "./slice"
 import {Context, Walker} from "./context"
 
 class BuildContext {
@@ -54,7 +54,7 @@ class Builder implements Walker {
 type Modification =
   {type: "addMark", mark: Mark} |
   {type: "removeMark", mark: Mark} |
-  {type: "setAttr", attr: string, value: any}
+  {type: "setParam", param: string, value: any}
 
 function applyModifications(modifications: readonly Modification[], node: Node) {
   for (const m of modifications) {
@@ -65,29 +65,29 @@ function applyModifications(modifications: readonly Modification[], node: Node) 
     } else if (m.type == "removeMark") {
       node = node.mark(m.mark.removeFromSet(node.marks))
     } else {
-      if (!node.type.attrs.some(a => a.name == m.attr))
-        throw new Error(`Setting non-existant attribute ${m.attr} on node ${node.name}`)
-      node = new Node(node.type, {...node.attrs, [m.attr]: m.value}, node.marks, node.children)
+      if (!node.type.params.some(a => a.name == m.param))
+        throw new Error(`Setting non-existant param ${m.param} on node ${node.name}`)
+      node = new Node(node.type, {...node.params, [m.param]: m.value}, node.marks, node.children)
     }
   }
   return node
 }
 
 export type ModificationJSON = {
-  type: "addMark" | "removeMark" | "setAttr"
+  type: "addMark" | "removeMark" | "setParam"
   mark?: MarkJSON
-  attr?: string
+  param?: string
   value?: any
 }
 
 function modificationToJSON(m: Modification): ModificationJSON {
-  if (m.type == "setAttr") return {type: m.type, attr: m.attr, value: m.value}
+  if (m.type == "setParam") return {type: m.type, param: m.param, value: m.value}
   return {type: m.type, mark: m.mark.toJSON()}
 }
 
 function modificationFromJSON(schema: Schema, json: ModificationJSON): Modification {
   if (json.type == "addMark" || json.type == "removeMark") return {type: json.type, mark: schema.markFromJSON(json.mark!)}
-  if (json.type == "setAttr" && typeof json.attr == "string") return json as any
+  if (json.type == "setParam" && typeof json.param == "string") return json as any
   throw new Error("Invalid modification JSON")
 }
 
@@ -100,7 +100,7 @@ function compareModifications(a: readonly Modification[], b: readonly Modificati
 
 function compareModification(a: Modification, b: Modification) {
   if (a.type != b.type) return false
-  if (a.type == "setAttr") return a.attr == (b as typeof a).attr && a.value == (b as typeof a).value
+  if (a.type == "setParam") return a.param == (b as typeof a).param && a.value == (b as typeof a).value
   return a.mark.eq((b as typeof a).mark)
 }
 
@@ -110,7 +110,7 @@ export type ChangeSpec = {
   insert?: Slice
   addMark?: Mark
   removeMark?: Mark
-  setAttr?: {[name: string]: any}
+  setParam?: {[name: string]: any}
 } | ChangeSet | ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
@@ -368,8 +368,8 @@ export class ChangeSet {
         flush()
         add(spec)
       } else {
-        const {from, addMark, removeMark, setAttr, insert} = spec
-        let modifies = addMark || removeMark || setAttr
+        const {from, addMark, removeMark, setParam, insert} = spec
+        let modifies = addMark || removeMark || setParam
         if (modifies && !insert) {
           let to = spec.to ?? spec.from + 1
           if (addMark) {
@@ -395,14 +395,14 @@ export class ChangeSet {
               return true
             })
           }
-          if (setAttr) {
-            if (to - from != 1) throw new Error("Attribute changes must apply to a single position")
+          if (setParam) {
+            if (to - from != 1) throw new Error("Param changes must apply to a single position")
             let mods: Modification[] = [], node = doc.nodeAt(from)
-            if (!node) throw new Error("No node at position given to ChangeSet.setAttrs")
-            for (let attr in setAttr) {
-              if (!node.type.attrs.some(a => a.name == attr))
-                throw new Error(`Nodes of type ${node.name} don't support an attribute ${attr}`)
-              mods.push({type: "setAttr", attr, value: setAttr[attr]})
+            if (!node) throw new Error("No node at position given for a param change")
+            for (let param in setParam) {
+              if (!node.type.params.some(a => a.name == param))
+                throw new Error(`Nodes of type ${node.name} don't support an param ${param}`)
+              mods.push({type: "setParam", param, value: setParam[param]})
             }
             section(from, to, -1, mods)
           }
@@ -447,7 +447,7 @@ export class ChangeSet {
         text += `[${(data as readonly Modification[]).map(mod => {
           if (mod.type == "addMark") return `+${mod.mark.name}`
           if (mod.type == "removeMark") return `-${mod.mark.name}`
-          return `${mod.attr}=${String(mod.value).slice(0, 20)}`
+          return `${mod.param}=${String(mod.value).slice(0, 20)}`
         })}]`
       }
       if (text) result += `${result ? "," : ""}${pos}${len ? `-${pos + len}` : ""}${text}`
@@ -467,8 +467,8 @@ function filterMods(mods: null | readonly Modification[], against: null | readon
 }
 
 function modCancels(mod: Modification, other: Modification) {
-  if (other.type == "setAttr") {
-    return mod.type == "setAttr" && mod.attr == other.attr
+  if (other.type == "setParam") {
+    return mod.type == "setParam" && mod.param == other.param
   } else if (other.type == "addMark") {
     return mod.type == "addMark" ? mod.mark.type.excludes(other.mark.type)
       : mod.type == "removeMark" ? mod.mark.eq(other.mark) : false
@@ -483,7 +483,7 @@ function invertMods(mods: readonly Modification[], doc: DocNode, pos: number): r
     if (mod.type == "addMark") return {type: "removeMark", mark: mod.mark}
     if (mod.type == "removeMark") return {type: "addMark", mark: mod.mark}
     if (!resolved) resolved = doc.nodeAt(pos)!
-    return {type: "setAttr", attr: mod.attr, value: resolved.attrs[mod.attr]}
+    return {type: "setParam", param: mod.param, value: resolved.params[mod.param]}
   })
 }
 

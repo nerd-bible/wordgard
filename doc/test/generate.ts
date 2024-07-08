@@ -139,12 +139,12 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
       if (marks.length) return {from: pos, to: pos + node.length, removeMark: marks[r(marks.length)]}
     }
   }),
-  // Change an attribute on some list or code block
+  // Change a param on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
     if (node.type.name == "OrderedList")
-      return {from: pos, setAttr: {start: node.attrs.start + 1}}
+      return {from: pos, setParam: {start: node.params.start + 1}}
     if (node.type.name == "CodeBlock")
-      return {from: pos, setAttr: {language: rWord()}}
+      return {from: pos, setParam: {language: rWord()}}
   })
 ]
 

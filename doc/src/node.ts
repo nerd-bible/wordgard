@@ -14,12 +14,10 @@ const enum NodeFlag {
 }
 
 export const none: readonly any[] = []
-const noAttrs: {[name: string]: any} = Object.create(null)
+const noParams: {[name: string]: any} = Object.create(null)
 
-// FIXME find another word for 'Attr'? Param?
-
-export type NodeSpec<Attrs extends {}> = {
-  attrs?: {[name in keyof Attrs]: AttrSpec<Attrs[name]>}
+export type NodeSpec<Params extends {}> = {
+  params?: {[name in keyof Params]: ParamSpec<Params[name]>}
   content?: string
   group?: string
   tag: string
@@ -41,55 +39,55 @@ function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)
 }
 
-export class NodeType<Attrs extends {} = {}> {
-  attrs: readonly Attribute<any>[]
+export class NodeType<Params extends {} = {}> {
+  params: readonly Param<any>[]
   private groups: readonly string[]
   private contentGroups: readonly string[]
   private childCache: Map<NodeType, boolean> = new Map
-  defaultAttrs: Attrs | null
+  defaultParams: Params | null
   flags: NodeFlag
 
   constructor(
     readonly name: string,
     flags: NodeFlag,
-    readonly spec: NodeSpec<Attrs>
+    readonly spec: NodeSpec<Params>
   ) {
     this.flags = flags | (spec.content ? NodeFlag.None : NodeFlag.Leaf)
-    let attrs: Attribute<any>[] = this.attrs = []
-    let defaultAttrs: Attrs | null = Object.create(null)
-    if (spec.attrs) for (let name in spec.attrs) {
-      let attr = new Attribute(name, spec.attrs[name])
-      attrs.push(attr)
-      if (defaultAttrs) {
-        if (attr.hasDefault) defaultAttrs[name] = attr.default as any
-        else defaultAttrs = null
+    let params: Param<any>[] = this.params = []
+    let defaultParams: Params | null = Object.create(null)
+    if (spec.params) for (let name in spec.params) {
+      let param = new Param(name, spec.params[name])
+      params.push(param)
+      if (defaultParams) {
+        if (param.hasDefault) defaultParams[name] = param.default as any
+        else defaultParams = null
       }
     }
-    this.defaultAttrs = defaultAttrs
+    this.defaultParams = defaultParams
     let groups = this.groups = [name]
     if (flags & NodeFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
     this.contentGroups = spec.content ? splitGroups(spec.content) : none
   }
 
-  static block<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
+  static block<Params extends {}>(name: string, spec: NodeSpec<Params>) {
     checkReserved(name)
-    return new NodeType<Attrs>(name, NodeFlag.None, spec)
+    return new NodeType<Params>(name, NodeFlag.None, spec)
   }
 
-  static textblock<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
+  static textblock<Params extends {}>(name: string, spec: NodeSpec<Params>) {
     checkReserved(name)
-    return new NodeType<Attrs>(name, NodeFlag.InlineContent, spec)
+    return new NodeType<Params>(name, NodeFlag.InlineContent, spec)
   }
 
-  static inline<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
+  static inline<Params extends {}>(name: string, spec: NodeSpec<Params>) {
     checkReserved(name)
-    return new NodeType<Attrs>(name, NodeFlag.Inline | (spec.content ? NodeFlag.InlineContent : NodeFlag.None), spec)
+    return new NodeType<Params>(name, NodeFlag.Inline | (spec.content ? NodeFlag.InlineContent : NodeFlag.None), spec)
   }
 
-  static inlineblock<Attrs extends {}>(name: string, spec: NodeSpec<Attrs>) {
+  static inlineblock<Params extends {}>(name: string, spec: NodeSpec<Params>) {
     checkReserved(name)
-    return new NodeType<Attrs>(name, NodeFlag.Inline, spec)
+    return new NodeType<Params>(name, NodeFlag.Inline, spec)
   }
 
   static doc(content: string, inlineContent = false) {
@@ -99,19 +97,19 @@ export class NodeType<Attrs extends {} = {}> {
   get schemaElement(): SchemaElement { return this }
 
   // FIXME should this join text nodes?
-  create(attrs: Partial<Attrs>, children?: readonly Node[]): Node
+  create(params: Partial<Params>, children?: readonly Node[]): Node
   create(children?: readonly Node[]): Node
-  create(attrsOrChildren?: Partial<Attrs> | readonly Node[], children?: readonly Node[]): Node {
+  create(paramsOrChildren?: Partial<Params> | readonly Node[], children?: readonly Node[]): Node {
     if (this.isDoc()) throw new Error("Document nodes must be created with schema.doc()")
     if (this.isText()) throw new Error("Text nodes must be created with Node.text()")
-    let attrs = this.defaultAttrs
-    if (attrsOrChildren) {
-      if (Array.isArray(attrsOrChildren)) children = attrsOrChildren
-      else if (attrsOrChildren instanceof Node) children = [attrsOrChildren]
-      else attrs = fillAttrs(this.attrs, attrsOrChildren as Partial<Attrs>)
+    let params = this.defaultParams
+    if (paramsOrChildren) {
+      if (Array.isArray(paramsOrChildren)) children = paramsOrChildren
+      else if (paramsOrChildren instanceof Node) children = [paramsOrChildren]
+      else params = fillParams(this.params, paramsOrChildren as Partial<Params>)
     }
-    if (!attrs) throw new Error(`Must specify attrs when creating a node with some attributes that have no default value`)
-    return new Node(this, attrs, none, this.checkChildren(children || none))
+    if (!params) throw new Error(`Must specify params when creating a node with some params that have no default value`)
+    return new Node(this, params, none, this.checkChildren(children || none))
   }
 
   isInGroup(group: string) {
@@ -152,9 +150,9 @@ export class NodeType<Attrs extends {} = {}> {
   isLeaf() { return (this.flags & NodeFlag.Leaf) > 0 }
   isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
 
-  getAttr<Name extends keyof Attrs>(attr: Name, node: Node): Attrs[Name] {
-    if (node.type != this) throw new Error(`Accessing attr on the wrong type of node`)
-    return node.attrs[attr as any]
+  getParam<Name extends keyof Params>(param: Name, node: Node): Params[Name] {
+    if (node.type != this) throw new Error(`Accessing param on the wrong type of node`)
+    return node.params[param as any]
   }
 }
 
@@ -163,13 +161,13 @@ function checkReserved(name: string) {
     throw new Error(`Node name ${name} is reserved`)
 }
 
-function fillAttrs<Attrs extends {}>(attrs: readonly Attribute<any>[], input: Partial<Attrs>): Attrs {
-  let result: Attrs = Object.create(null)
-  for (let attr of attrs) {
-    let name = attr.name as keyof Attrs
-    if (attr.name in input) result[name] = input[name]!
-    else if (attr.hasDefault) result[name] = attr.default
-    else throw new Error(`Must provide attribute ${attr.name}, which has no default value`)
+function fillParams<Params extends {}>(params: readonly Param<any>[], input: Partial<Params>): Params {
+  let result: Params = Object.create(null)
+  for (let param of params) {
+    let name = param.name as keyof Params
+    if (param.name in input) result[name] = input[name]!
+    else if (param.hasDefault) result[name] = param.default
+    else throw new Error(`Must provide param ${param.name}, which has no default value`)
   }
   return result
 }
@@ -179,7 +177,7 @@ export class Node {
 
   constructor(
     readonly type: NodeType,
-    readonly attrs: {[name: string]: any},
+    readonly params: {[name: string]: any},
     readonly marks: readonly Mark[],
     readonly children: readonly Node[],
   ) {
@@ -191,12 +189,12 @@ export class Node {
   get length() { return this.isLeaf() ? 1 : 2 + this.contentLength }
 
   mark(marks: readonly Mark[]) {
-    return marks == this.marks ? this : new Node(this.type, this.attrs, this.type.checkMarks(marks), this.children)
+    return marks == this.marks ? this : new Node(this.type, this.params, this.type.checkMarks(marks), this.children)
   }
 
   sameMarkup(other: Node) {
     return this.type == other.type &&
-      compareAttrs(this.type.attrs, this.attrs, other.attrs) &&
+      compareParams(this.type.params, this.params, other.params) &&
       eqArray(this.marks, other.marks)
   }
 
@@ -205,7 +203,7 @@ export class Node {
   }
 
   copy(children: readonly Node[]) {
-    return new Node(this.type, this.attrs, this.marks, this.type.checkChildren(children))
+    return new Node(this.type, this.params, this.marks, this.type.checkChildren(children))
   }
 
   slice(from: number, to = this.length) {
@@ -267,7 +265,7 @@ export class Node {
   toJSON(): NodeJSON {
     let result: NodeJSON = {type: this.name}
     if (this.marks.length) result.marks = this.marks.map(m => m.toJSON())
-    if (this.attrs != this.type.defaultAttrs) result.attrs = this.attrs
+    if (this.params != this.type.defaultParams) result.params = this.params
     if (this.isText()) result.text = this.text
     if (this.children.length) result.children = this.children.map(c => c.toJSON())
     return result
@@ -305,19 +303,19 @@ export class Node {
 export type NodeJSON = {
   type: string,
   marks?: readonly MarkJSON[],
-  attrs?: any,
+  params?: any,
   text?: string,
   children?: readonly NodeJSON[]
 }
 
 export type MarkJSON = {
   type: string,
-  attrs?: any
+  params?: any
 }
 
 export class DocNode extends Node {
   constructor(type: NodeType, children: readonly Node[], readonly schema: Schema) {
-    super(type, noAttrs, none, children)
+    super(type, noParams, none, children)
   }
 
   get length() { return this.contentLength }
@@ -355,7 +353,7 @@ export const Text = new NodeType("Text", NodeFlag.Text | NodeFlag.Inline, {tag: 
 
 export class TextNode extends Node {
   constructor(readonly text: string, marks: readonly Mark[]) {
-    super(Text, noAttrs, marks, none)
+    super(Text, noParams, marks, none)
     this.type.checkMarks(marks)
     if (!text.length) throw new Error("Text nodes must not be empty")
   }
@@ -391,26 +389,39 @@ function marksToString(marks: readonly Mark[], inner: string) {
   return inner
 }
 
-export type AttrSpec<T> = {
+export type ParamSpec<T> = {
   default?: T
   compare?: (a: T, b: T) => boolean
   attribute: string
 }
 
-export class Attribute<T = any> {
+export class Param<T = any> {
   hasDefault: boolean
   default: T
-  compare: (a: T, b: T) => boolean
 
-  constructor(readonly name: string, readonly spec: AttrSpec<T>) {
+  constructor(readonly name: string, readonly spec: ParamSpec<T>) {
     this.hasDefault = "default" in spec
     this.default = spec.default!
-    this.compare = spec.compare || ((a, b) => a === b)
   }
 }
 
-function compareAttrs(attrs: readonly Attribute[], a: {[name: string]: any}, b: {[name: string]: any}) {
-  for (let attr of attrs) if (!attr.compare(a[attr.name], b[attr.name])) return false
+function compareParamValue(a: any, b: any) {
+  if (a === b) return true
+  if (!a || !b || typeof a != "object" || typeof b != "object") return false
+  let array = Array.isArray(a)
+  if (Array.isArray(b) != array) return false
+  if (array) {
+    if (a.length != b.length) return false
+    for (let i = 0; i < a.length; i++) if (!compareParamValue(a[i], b[i])) return false
+  } else {
+    for (let p in a) if (!(p in b) || !compareParamValue(a[p], b[p])) return false
+    for (let p in b) if (!(p in a)) return false
+  }
+  return true
+}
+
+function compareParams(params: readonly Param[], a: {[name: string]: any}, b: {[name: string]: any}) {
+  for (let param of params) if (!compareParamValue(a[param.name], b[param.name])) return false
   return true
 }
 
@@ -421,8 +432,8 @@ export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], 
   return true
 }
 
-export type MarkSpec<Attrs extends {}> = {
-  attrs?: {[name in keyof Attrs]: AttrSpec<Attrs[name]>}
+export type MarkSpec<Params extends {}> = {
+  params?: {[name in keyof Params]: ParamSpec<Params[name]>}
   group?: string
   nodes?: string
   excludes?: string
@@ -430,8 +441,8 @@ export type MarkSpec<Attrs extends {}> = {
   tag: string
 }
 
-export class MarkType<Attrs extends {} = {}> {
-  attrs: readonly Attribute<any>[]
+export class MarkType<Params extends {} = {}> {
+  params: readonly Param<any>[]
   defaultInstance: Mark | null
   groups: readonly string[]
   targetGroups: readonly string[]
@@ -440,33 +451,33 @@ export class MarkType<Attrs extends {} = {}> {
 
   private constructor(
     readonly name: string,
-    readonly spec: MarkSpec<Attrs>
+    readonly spec: MarkSpec<Params>
   ) {
     this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name, "_")
     this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
     this.excludedGroups = spec.excludes == null ? [name] : splitGroups(spec.excludes)
     this.rank = spec.rank
-    let attrs: Attribute<any>[] = this.attrs = []
-    let defaultAttrs: Attrs | null = Object.create(null)
-    if (spec.attrs) for (let name in spec.attrs) {
-      let attr = new Attribute(name, spec.attrs[name])
-      attrs.push(attr)
-      if (defaultAttrs) {
-        if (attr.hasDefault) defaultAttrs[name] = attr.default as any
-        else defaultAttrs = null
+    let params: Param<any>[] = this.params = []
+    let defaultParams: Params | null = Object.create(null)
+    if (spec.params) for (let name in spec.params) {
+      let param = new Param(name, spec.params[name])
+      params.push(param)
+      if (defaultParams) {
+        if (param.hasDefault) defaultParams[name] = param.default as any
+        else defaultParams = null
       }
     }
-    this.defaultInstance = defaultAttrs ? new Mark(this, defaultAttrs) : null
+    this.defaultInstance = defaultParams ? new Mark(this, defaultParams) : null
   }
 
   get schemaElement(): SchemaElement { return this }
 
-  create(attrs?: Partial<Attrs>) {
-    if (!attrs) {
+  create(params?: Partial<Params>) {
+    if (!params) {
       if (this.defaultInstance) return this.defaultInstance
-      attrs = {}
+      params = {}
     }
-    return new Mark(this, fillAttrs(this.attrs, attrs))
+    return new Mark(this, fillParams(this.params, params))
   }
 
   isInGroup(group: string) {
@@ -481,9 +492,9 @@ export class MarkType<Attrs extends {} = {}> {
     return this.excludedGroups.some(g => other.isInGroup(g))
   }
 
-  getAttr<Name extends keyof Attrs>(attr: Name, mark: Mark): Attrs[Name] {
-    if (mark.type != this) throw new Error(`Accessing attr on the wrong type of mark`)
-    return mark.attrs[attr as any]
+  getParam<Name extends keyof Params>(param: Name, mark: Mark): Params[Name] {
+    if (mark.type != this) throw new Error(`Accessing param on the wrong type of mark`)
+    return mark.params[param as any]
   }
 
   compareRank(other: MarkType) {
@@ -500,15 +511,15 @@ export class MarkType<Attrs extends {} = {}> {
       if (set[i].type == this) return set[i]
   }
 
-  static define<Attrs extends {}>(name: string, spec: MarkSpec<Attrs>) {
-    return new MarkType<Attrs>(name, spec)
+  static define<Params extends {}>(name: string, spec: MarkSpec<Params>) {
+    return new MarkType<Params>(name, spec)
   }
 }
 
 export class Mark {
   constructor(
     readonly type: MarkType,
-    readonly attrs: {[name: string]: any}
+    readonly params: {[name: string]: any}
   ) {}
 
   get name() {
@@ -516,12 +527,12 @@ export class Mark {
   }
 
   eq(other: Mark) {
-    return this.type == other.type && compareAttrs(this.type.attrs, this.attrs, other.attrs)
+    return this.type == other.type && compareParams(this.type.params, this.params, other.params)
   }
 
   toJSON(): MarkJSON {
     let result: MarkJSON = {type: this.name}
-    if (this != this.type.defaultInstance) result.attrs = this.attrs
+    if (this != this.type.defaultInstance) result.params = this.params
     return result
   }
 
@@ -555,12 +566,4 @@ export class Mark {
   static sameSet(a: readonly Mark[], b: readonly Mark[]) {
     return eqArray(a, b)
   }
-}
-
-export function pushNode(nodes: Node[], node: Node) {
-  let last = nodes.length - 1
-  if (node.isText() && last >= 0 && nodes[last].sameMarkup(node))
-    nodes[last] = node.withText((nodes[last] as TextNode).text + node.text)
-  else
-    nodes.push(node)
 }

@@ -1,4 +1,5 @@
-import {Node, DocNode, NodeType, Mark, MarkType, pushNode} from "./node"
+import {Node, DocNode, NodeType, Mark, MarkType} from "./node"
+import {pushNode} from "./slice"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, Image, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
@@ -19,9 +20,9 @@ export function builder<T extends {[name: string]: NodeType | Node | Mark | Mark
   let result = Object.create(null)
   for (let name in spec) {
     let val = spec[name]
-    result[name] = val instanceof Mark ? markBuilder(val.type, val.attrs)
+    result[name] = val instanceof Mark ? markBuilder(val.type, val.params)
       : val instanceof MarkType ? markBuilder(val, {})
-      : val instanceof Node ? nodeBuilder(val.type, val.attrs)
+      : val instanceof Node ? nodeBuilder(val.type, val.params)
       : nodeBuilder(val, {})
   }
   result.doc = (...children: ContentSpec[]) => {
@@ -31,16 +32,16 @@ export function builder<T extends {[name: string]: NodeType | Node | Mark | Mark
   return result
 }
 
-function nodeBuilder<Attrs extends {}>(type: NodeType<Attrs>, given: Partial<Attrs>): NodeBuilder<Attrs> {
-  return (attrsOrChild?: ContentSpec | Partial<Attrs>, ...children: ContentSpec[]) => {
-    let attrs = given
-    if (attrsOrChild != null) {
-      if (Array.isArray(attrsOrChild) || typeof attrsOrChild != "object" || attrsOrChild instanceof Node)
-        children.unshift(attrsOrChild)
+function nodeBuilder<Params extends {}>(type: NodeType<Params>, given: Partial<Params>): NodeBuilder<Params> {
+  return (paramsOrChild?: ContentSpec | Partial<Params>, ...children: ContentSpec[]) => {
+    let params = given
+    if (paramsOrChild != null) {
+      if (Array.isArray(paramsOrChild) || typeof paramsOrChild != "object" || paramsOrChild instanceof Node)
+        children.unshift(paramsOrChild)
       else
-        attrs = {...attrs, ...attrsOrChild as Partial<Attrs>}
+        params = {...params, ...paramsOrChild as Partial<Params>}
     }
-    return type.create(attrs, collectChildren(children))
+    return type.create(params, collectChildren(children))
   }
 }
 
@@ -49,16 +50,16 @@ const Fragment = NodeType.inline("Fragment", {
   content: "Inline"
 })
 
-function markBuilder<Attrs extends {}>(type: MarkType, given: Partial<Attrs>): NodeBuilder<Attrs> {
-  return (attrsOrChild?: ContentSpec | Partial<Attrs>, ...children: ContentSpec[]) => {
-    let attrs = given
-    if (attrsOrChild) {
-      if (Array.isArray(attrsOrChild) || typeof attrsOrChild != "object" || attrsOrChild instanceof Node)
-        children.unshift(attrsOrChild as ContentSpec)
+function markBuilder<Params extends {}>(type: MarkType, given: Partial<Params>): NodeBuilder<Params> {
+  return (paramsOrChild?: ContentSpec | Partial<Params>, ...children: ContentSpec[]) => {
+    let params = given
+    if (paramsOrChild) {
+      if (Array.isArray(paramsOrChild) || typeof paramsOrChild != "object" || paramsOrChild instanceof Node)
+        children.unshift(paramsOrChild as ContentSpec)
       else
-        attrs = {...attrs, ...attrsOrChild as Partial<Attrs>}
+        params = {...params, ...paramsOrChild as Partial<Params>}
     }
-    return Fragment.create(collectChildren(children, type.create(attrs)))
+    return Fragment.create(collectChildren(children, type.create(params)))
   }
 }
 

@@ -6,7 +6,7 @@ import {Node, DocNode, Mark, NodeType,
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, h1, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
 
-type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setAttr: string, value: any}
+type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setParam: string, value: any}
 
 const mEm = Emphasis.create(), mStrong = Strong.create()
 
@@ -18,10 +18,10 @@ function mk(doc: DocNode, changes: readonly ChangeData[]) {
     if (from == null) throw new Error(`No start position defined for change ${i}`)
     let to = maybeTag(doc, i * 2 + 1) ?? from
     if (Array.isArray(ch)) return {from, to, insert: slice(...ch)}
-    let {add, remove, setAttr, value} = ch as {add?: Mark, remove?: Mark, setAttr?: string, value?: any}
+    let {add, remove, setParam, value} = ch as {add?: Mark, remove?: Mark, setParam?: string, value?: any}
     if (add) return {from, to, addMark: add}
     if (remove) return {from, to, removeMark: remove}
-    return {from, to, setAttr: {[setAttr!]: value!}}
+    return {from, to, setParam: {[setParam!]: value!}}
   }))
 }
 
@@ -94,8 +94,8 @@ describe("ChangeSet", () => {
       testApply(doc(0, p("one"), 1), [{add: mStrong}], doc(p(strong("one"))))
     })
 
-    it("can change attributes", () => {
-      testApply(doc(p(0, img({src: "a.png"}), 1)), [{setAttr: "src", value: "b.jpg"}], doc(p(img({src: "b.jpg"}))))
+    it("can change params", () => {
+      testApply(doc(p(0, img({src: "a.png"}), 1)), [{setParam: "src", value: "b.jpg"}], doc(p(img({src: "b.jpg"}))))
     })
 
     it("complains on a mismatched length", () => {
@@ -310,9 +310,9 @@ describe("ChangeSet", () => {
       }
     })
 
-    it("orders attr modifications correctly", () => {
+    it("orders param modifications correctly", () => {
       let d = doc(0, pre(1, "a"))
-      let a = mk(d, [{setAttr: "language", value: "x"}]), b = mk(d, [{setAttr: "language", value: "y"}])
+      let a = mk(d, [{setParam: "language", value: "x"}]), b = mk(d, [{setParam: "language", value: "y"}])
       let docAB = b.map(a, d).apply(a.apply(d))
       let docBA = a.map(b, d, true).apply(b.apply(d))
       ist(docAB, docBA, eq)
@@ -377,8 +377,8 @@ describe("ChangeSet", () => {
       testInv(doc(p(0, a({href: "1"}, "abc"), 1)), [{add: Link.create({href: "2"})}])
     })
 
-    it("can invert changing an attribute", () => {
-      testInv(doc(0, ol(1, li(p("-")))), [{setAttr: "start", value: 5}])
+    it("can invert changing a param", () => {
+      testInv(doc(0, ol(1, li(p("-")))), [{setParam: "start", value: 5}])
     })
 
     it("can invert sequences of random changes", () => {

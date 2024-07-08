@@ -8,7 +8,7 @@ const code = Code.create()
 
 let Tag = MarkType.define<{id: number}>("Tag", {
   rank: 10,
-  attrs: {
+  params: {
     id: {attribute: "id"}
   },
   tag: "span",
@@ -17,7 +17,7 @@ let Tag = MarkType.define<{id: number}>("Tag", {
 const tag1 = Tag.create({id: 1}), tag2 = Tag.create({id: 2})
 
 let Exclusive = MarkType.define("Exclusive", {
-  attrs: {at: {default: 3, attribute: "at"}},
+  params: {at: {default: 3, attribute: "at"}},
   rank: 20,
   tag: "var",
   excludes: "_"
@@ -65,7 +65,7 @@ describe("Mark", () => {
     it("adds marks with higher rank after others", () =>
        ist(strong.addToSet([em]), [em, strong], Mark.sameSet))
 
-    it("replaces different marks with new attributes", () =>
+    it("replaces different marks with new params", () =>
        ist(link("http://bar").addToSet([link("http://foo"), em]),
            [link("http://bar"), em], Mark.sameSet))
 
@@ -106,10 +106,10 @@ describe("Mark", () => {
     it("is a no-op when the mark isn't in the set", () =>
        ist(Mark.sameSet(strong.removeFromSet([em]), [em])))
 
-    it("can remove a mark with attributes", () =>
+    it("can remove a mark with params", () =>
        ist(Mark.sameSet(link("http://foo").removeFromSet([link("http://foo")]), [])))
 
-    it("doesn't remove a mark when its attrs differ", () =>
+    it("doesn't remove a mark when its params differ", () =>
        ist(link("http://foo").removeFromSet([link("http://bar")]),
            [link("http://bar")], Mark.sameSet))
   })

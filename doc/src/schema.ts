@@ -37,7 +37,7 @@ export class Schema {
   }
 
   defaultContentType(parent: NodeType) {
-    for (let node of this.nodes) if (parent.canContain(node) && node.defaultAttrs) return node
+    for (let node of this.nodes) if (parent.canContain(node) && node.defaultParams) return node
     return null
   }
 
@@ -98,13 +98,13 @@ export class Schema {
       if (!node.isLeaf()) {
         let sawDefaultable = false
         for (let child of nodes) if (node.canContain(child)) {
-          if (child.defaultAttrs) sawDefaultable = true
+          if (child.defaultParams) sawDefaultable = true
           if (child.isInline() != node.inlineContent())
             throw new Error(`Node type ${node.name} has ${node.inlineContent() ? "block" : "inline"
                               } content, but allows ${child.name} as a child`)
         }
         if (!node.inlineContent() && !sawDefaultable)
-          throw new Error(`Node ${node.name} has block content, but all possible children require non-default attributes`)
+          throw new Error(`Node ${node.name} has block content, but all possible children require non-default params`)
       }
     }
     if (!docType) throw new Error("A schema must define a document node type (Node.doc)")
@@ -115,7 +115,7 @@ export class Schema {
     if (!json || typeof json != "object" || !(json.type in this.nodesByName))
       throw new Error("Invalid node JSON")
     let type = this.nodesByName[json.type]
-    let marks = none, attrs = type.defaultAttrs, children = none
+    let marks = none, params = type.defaultParams, children = none
     if (json.marks && Array.isArray(json.marks))
       marks = json.marks.map(m => this.markFromJSON(m))
     if (type.isText() && typeof json.text == "string")
@@ -123,17 +123,17 @@ export class Schema {
     if (json.children && Array.isArray(json.children))
       children = json.children.map(c => this.nodeFromJSON(c))
     if (type.isDoc()) return this.doc(children)
-    if (!attrs || json.attrs && typeof json.attrs == "object")
-      attrs = json.attrs || {}
-    return type.create(attrs!, children).mark(marks)
+    if (!params || json.params && typeof json.params == "object")
+      params = json.params || {}
+    return type.create(params!, children).mark(marks)
   }
 
   markFromJSON(json: MarkJSON) {
     if (!json || typeof json != "object" || !(json.type in this.marksByName))
       throw new Error("Invalid mark JSON")
     let type = this.marksByName[json.type]
-    if (!json.attrs && type.defaultInstance) return type.defaultInstance
-    return type.create(json.attrs || {})
+    if (!json.params && type.defaultInstance) return type.defaultInstance
+    return type.create(json.params || {})
   }
 }
 
@@ -144,7 +144,7 @@ export const Paragraph = NodeType.textblock("Paragraph", {
 })
 
 export const Heading = NodeType.textblock("Heading", {
-  attrs: {
+  params: {
     level: {default: 1, attribute: "level"}
   },
   content: "Inline",
@@ -153,7 +153,7 @@ export const Heading = NodeType.textblock("Heading", {
 })
 
 export const CodeBlock = NodeType.textblock("CodeBlock", {
-  attrs: {
+  params: {
     language: {default: "", attribute: "data-language"}
   },
   content: "Inline",
@@ -171,7 +171,7 @@ export const OrderedList = NodeType.block("OrderedList", {
   content: "ListItem",
   group: "Block",
   tag: "ol",
-  attrs: {
+  params: {
     start: {default: 1, attribute: "start"}
   }
 })
@@ -195,7 +195,7 @@ export const HorizontalRule = NodeType.block("HorizontalRule", {
 
 export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
   tag: "img",
-  attrs: {
+  params: {
     src: {attribute: "src"},
     alt: {default: "", attribute: "alt"}
   }
@@ -218,7 +218,7 @@ export const Strong = MarkType.define("Strong", {
 export const Link = MarkType.define<{href: string}>("Link", {
   rank: 20,
   tag: "a",
-  attrs: {
+  params: {
     href: {attribute: "href"}
   }   
 })
