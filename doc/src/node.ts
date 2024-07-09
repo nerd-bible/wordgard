@@ -1,8 +1,11 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
 import {Schema, SchemaElement} from "./schema"
 import {Context} from "./context"
+import {ElementRepresentation, AttributeRepresentation, StyleRepresentation} from "./to_dom"
 
 export const enum TokenType { Open, Close, Node }
+
+export type Params = {[name: string]: any}
 
 const enum NodeFlag {
   None = 0,
@@ -14,14 +17,14 @@ const enum NodeFlag {
 }
 
 export const none: readonly any[] = []
-const noParams: {[name: string]: any} = Object.create(null)
+const noParams: Params = Object.create(null)
 
 export type NodeSpec<Params extends {}> = {
   params?: {[name in keyof Params]: ParamSpec<Params[name]>}
   content?: string
   group?: string
-  tag: string
   toText?: (node: Node) => string
+  dom: ElementRepresentation<Params>
 }
 
 function splitGroups(groups: string) {
@@ -177,7 +180,7 @@ export class Node {
 
   constructor(
     readonly type: NodeType,
-    readonly params: {[name: string]: any},
+    readonly params: Params,
     readonly marks: readonly Mark[],
     readonly children: readonly Node[],
   ) {
@@ -392,7 +395,7 @@ function marksToString(marks: readonly Mark[], inner: string) {
 export type ParamSpec<T> = {
   default?: T
   compare?: (a: T, b: T) => boolean
-  attribute: string
+  attribute?: string
 }
 
 export class Param<T = any> {
@@ -420,7 +423,7 @@ function compareParamValue(a: any, b: any) {
   return true
 }
 
-function compareParams(params: readonly Param[], a: {[name: string]: any}, b: {[name: string]: any}) {
+function compareParams(params: readonly Param[], a: Params, b: Params) {
   for (let param of params) if (!compareParamValue(a[param.name], b[param.name])) return false
   return true
 }
@@ -438,7 +441,8 @@ export type MarkSpec<Params extends {}> = {
   nodes?: string
   excludes?: string
   rank: number
-  tag: string
+  spanning?: boolean
+  dom: ElementRepresentation<Params> | AttributeRepresentation<Params> | StyleRepresentation<Params>
 }
 
 export class MarkType<Params extends {} = {}> {
@@ -519,7 +523,7 @@ export class MarkType<Params extends {} = {}> {
 export class Mark {
   constructor(
     readonly type: MarkType,
-    readonly params: {[name: string]: any}
+    readonly params: Params
   ) {}
 
   get name() {

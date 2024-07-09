@@ -1,4 +1,5 @@
 import {Node, NodeType, MarkType, NodeJSON, MarkJSON, Text, DocNode, none} from "./node"
+import {isElementRepresentation} from "./to_dom"
 
 export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]
 
@@ -94,6 +95,8 @@ export class Schema {
     scan(spec)
     let docType: NodeType | null = null
     for (let node of nodes) {
+      if ((!node.spec.dom.attrs || !node.spec.dom.params) && node.params.some(p => !p.spec.attribute))
+        throw new Error("Must specify an attribute for every param when not providing dom.attrs/dom.params")
       if (node.isDoc()) docType = node
       if (!node.isLeaf()) {
         let sawDefaultable = false
@@ -106,6 +109,12 @@ export class Schema {
         if (!node.inlineContent() && !sawDefaultable)
           throw new Error(`Node ${node.name} has block content, but all possible children require non-default params`)
       }
+    }
+    for (let mark of marks) {
+      if (isElementRepresentation(mark.spec.dom) &&
+          (!mark.spec.dom.attrs || !mark.spec.dom.params) &&
+          mark.params.some(p => !p.spec.attribute))
+        throw new Error("Must specify an attribute for every param when not providing dom.attrs/dom.params")
     }
     if (!docType) throw new Error("A schema must define a document node type (Node.doc)")
     return new Schema(nodes, marks, docType)
@@ -140,7 +149,7 @@ export class Schema {
 export const Paragraph = NodeType.textblock("Paragraph", {
   content: "Inline",
   group: "Block",
-  tag: "p"
+  dom: {tag: "p"}
 })
 
 export const Heading = NodeType.textblock("Heading", {
@@ -149,7 +158,7 @@ export const Heading = NodeType.textblock("Heading", {
   },
   content: "Inline",
   group: "Block",
-  tag: "h1" // FIXME
+  dom: {tag: "h1"} // FIXME
 })
 
 export const CodeBlock = NodeType.textblock("CodeBlock", {
@@ -158,19 +167,19 @@ export const CodeBlock = NodeType.textblock("CodeBlock", {
   },
   content: "Inline",
   group: "Block",
-  tag: "pre"
+  dom: {tag: "pre"}
 })
 
 export const Blockquote = NodeType.block("Blockquote", {
   content: "Block",
   group: "Block",
-  tag: "blockquote"
+  dom: {tag: "blockquote"}
 })
 
 export const OrderedList = NodeType.block("OrderedList", {
   content: "ListItem",
   group: "Block",
-  tag: "ol",
+  dom: {tag: "ol"},
   params: {
     start: {default: 1, attribute: "start"}
   }
@@ -179,22 +188,22 @@ export const OrderedList = NodeType.block("OrderedList", {
 export const BulletList = NodeType.block("BulletList", {
   content: "ListItem",
   group: "Block",
-  tag: "ul"
+  dom: {tag: "ul"}
 })
 
 export const ListItem = NodeType.block("ListItem", {
   content: "Block",
-  tag: "li"
+  dom: {tag: "li"}
 })
 
 export const HorizontalRule = NodeType.block("HorizontalRule", {
   group: "Block",
-  tag: "hr",
+  dom: {tag: "hr"},
   toText: () => "---"
 })
 
 export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
-  tag: "img",
+  dom: {tag: "img"},
   params: {
     src: {attribute: "src"},
     alt: {default: "", attribute: "alt"}
@@ -202,22 +211,22 @@ export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
 })
 
 export const LineBreak = NodeType.inline("LineBreak", {
-  tag: "br"
+  dom: {tag: "br"}
 })
 
 export const Emphasis = MarkType.define("Emphasis", {
   rank: 40,
-  tag: "em"
+  dom: {tag: "em"}
 })
 
 export const Strong = MarkType.define("Strong", {
   rank: 60,
-  tag: "strong",
+  dom: {tag: "strong"},
 })
 
 export const Link = MarkType.define<{href: string}>("Link", {
   rank: 20,
-  tag: "a",
+  dom: {tag: "a"},
   params: {
     href: {attribute: "href"}
   }   
@@ -225,7 +234,7 @@ export const Link = MarkType.define<{href: string}>("Link", {
 
 export const Code = MarkType.define("Code", {
   rank: 80,
-  tag: "code"
+  dom: {tag: "code"}
 })
 
 export const Doc = NodeType.doc("Block")
