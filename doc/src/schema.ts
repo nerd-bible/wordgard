@@ -1,24 +1,23 @@
-import {Node, NodeType, MarkType, NodeJSON, MarkJSON, Text, DocNode, none} from "./node"
-import {isElementRepresentation} from "./to_dom"
+import {Node, NodeType, Prop, PropSet, NodeJSON, Text, DocNode, none} from "./node"
 
 export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]
 
 export class Schema {
   private nodeSet: Set<NodeType>
-  private markSet: Set<MarkType>
+  private propSet: Set<Prop<any>>
   private nodesByName: {[name: string]: NodeType} = Object.create(null)
-  private marksByName: {[name: string]: MarkType} = Object.create(null)
+  private propsByName: {[name: string]: Prop<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Node[] | null} = Object.create(null)
 
   private constructor(
     readonly nodes: readonly NodeType[],
-    readonly marks: readonly MarkType[],
+    readonly props: readonly Prop<any>[],
     readonly docType: NodeType
   ) {
     this.nodeSet = new Set(nodes)
-    this.markSet = new Set(marks)
+    this.propSet = new Set(props)
     for (let node of nodes) this.nodesByName[node.name] = node
-    for (let mark of marks) this.marksByName[mark.name] = mark
+    for (let prop of props) this.propsByName[prop.name] = prop
   }
 
   doc(children: readonly Node[]) {
@@ -27,18 +26,21 @@ export class Schema {
 
   get schemaElement() { return this }
 
+  // FIXME minus() method that returns a schema elt with some of the props/nodes gone?
+
   // FIXME probably don't want to integrate this in document
   // construction, but rather in the editor state.
   validate(node: Node) {
     if (!this.nodeSet.has(node.type))
       throw new Error(`Node type ${node.name} not in schema`)
-    for (let mark of node.marks) if (!this.markSet.has(mark.type))
-      throw new Error(`Mark type ${mark.name} not in schema`)
+    for (let prop of node.props.set) if (!this.propSet.has(prop.prop))
+      throw new Error(`Prop type ${prop.name} not in schema`)
     for (let ch of node.children) this.validate(ch)
   }
 
   defaultContentType(parent: NodeType) {
-    for (let node of this.nodes) if (parent.canContain(node) && node.defaultParams) return node
+    // FIXME provide less obscure control over order
+    for (let node of this.nodes) if (parent.canContain(node) && !node.requiredProps.length) return node
     return null
   }
 
@@ -71,21 +73,24 @@ export class Schema {
   }
 
   static define(spec: SchemaElement) {
-    let nodes: NodeType[] = [Text], marks: MarkType[] = []
-    let names: Set<string> = new Set
+    let nodes: NodeType[] = [Text], props: Prop<any>[] = []
+    let nodeNames: Set<string> = new Set, propNames: Set<string> = new Set
     function scan(spec: SchemaElement) {
       if (Array.isArray(spec)) {
         spec.forEach(scan)
-      } else if (spec instanceof NodeType || spec instanceof MarkType) {
-        let array = spec instanceof NodeType ? nodes : marks
-        if (array.includes(spec as any)) return
-        if (names.has(spec.name))
-          throw new Error(`Duplicate use of node/mark name ${spec.name} in schema`)
-        names.add(spec.name)
-        array.push(spec as any)
+      } else if (spec instanceof NodeType) {
+        if (nodes.includes(spec)) return
+        if (nodeNames.has(spec.name)) throw new Error(`Duplicate use of node name ${spec.name} in schema`)
+        nodeNames.add(spec.name)
+        nodes.push(spec)
+      } else if (spec instanceof Prop) {
+        if (props.includes(spec)) return
+        if (propNames.has(spec.name)) throw new Error(`Duplicate use of prop name ${spec.name} in schema`)
+        propNames.add(spec.name)
+        props.push(spec as any)
       } else if (spec instanceof Schema) {
         scan(spec.nodes)
-        scan(spec.marks)
+        scan(spec.props)
       } else if ((spec as any).schemaElement == spec) {
         throw new Error("Unexpected schema element type. You may have multiple versions of @willow/doc loaded")
       } else {
@@ -95,13 +100,11 @@ export class Schema {
     scan(spec)
     let docType: NodeType | null = null
     for (let node of nodes) {
-      if ((!node.spec.dom.attrs || !node.spec.dom.params) && node.params.some(p => !p.spec.attribute))
-        throw new Error("Must specify an attribute for every param when not providing dom.attrs/dom.params")
       if (node.isDoc()) docType = node
       if (!node.isLeaf()) {
         let sawDefaultable = false
         for (let child of nodes) if (node.canContain(child)) {
-          if (child.defaultParams) sawDefaultable = true
+          if (!child.requiredProps.length) sawDefaultable = true
           if (child.isInline() != node.inlineContent())
             throw new Error(`Node type ${node.name} has ${node.inlineContent() ? "block" : "inline"
                               } content, but allows ${child.name} as a child`)
@@ -109,40 +112,31 @@ export class Schema {
         if (!node.inlineContent() && !sawDefaultable)
           throw new Error(`Node ${node.name} has block content, but all possible children require non-default params`)
       }
-    }
-    for (let mark of marks) {
-      if (isElementRepresentation(mark.spec.dom) &&
-          (!mark.spec.dom.attrs || !mark.spec.dom.params) &&
-          mark.params.some(p => !p.spec.attribute))
-        throw new Error("Must specify an attribute for every param when not providing dom.attrs/dom.params")
+      for (let name in node.localProps) {
+        if (propNames.has(name)) throw new Error(`Local prop ${name} in ${node.name} clashes with a global prop name`)
+      }
     }
     if (!docType) throw new Error("A schema must define a document node type (Node.doc)")
-    return new Schema(nodes, marks, docType)
+    return new Schema(nodes, props, docType)
   }
 
   nodeFromJSON(json: NodeJSON) {
     if (!json || typeof json != "object" || !(json.type in this.nodesByName))
       throw new Error("Invalid node JSON")
     let type = this.nodesByName[json.type]
-    let marks = none, params = type.defaultParams, children = none
-    if (json.marks && Array.isArray(json.marks))
-      marks = json.marks.map(m => this.markFromJSON(m))
+    let props = PropSet.empty, children = none
+    if (json.props && typeof json.props == "object") {
+      for (let name in json.props) {
+        let prop = (type.localProps as any)[name] || this.propsByName[name]
+        if (prop) props = props.add(prop.of(json.props[name]))
+      }
+    }
     if (type.isText() && typeof json.text == "string")
-      return Node.text(json.text, marks)
+      return Node.text(json.text, props)
     if (json.children && Array.isArray(json.children))
       children = json.children.map(c => this.nodeFromJSON(c))
     if (type.isDoc()) return this.doc(children)
-    if (!params || json.params && typeof json.params == "object")
-      params = json.params || {}
-    return type.create(params!, children).mark(marks)
-  }
-
-  markFromJSON(json: MarkJSON) {
-    if (!json || typeof json != "object" || !(json.type in this.marksByName))
-      throw new Error("Invalid mark JSON")
-    let type = this.marksByName[json.type]
-    if (!json.params && type.defaultInstance) return type.defaultInstance
-    return type.create(json.params || {})
+    return type.create(props, children)
   }
 }
 
@@ -152,18 +146,18 @@ export const Paragraph = NodeType.textblock("Paragraph", {
   dom: {tag: "p"}
 })
 
-export const Heading = NodeType.textblock("Heading", {
-  params: {
-    level: {default: 1, attribute: "level"}
+export const Heading = NodeType.textblock<{level: number}>("Heading", {
+  props: {
+    level: {required: true, dom: {attribute: "level"}} // FIXME
   },
   content: "Inline",
   group: "Block",
   dom: {tag: "h1"} // FIXME
 })
 
-export const CodeBlock = NodeType.textblock("CodeBlock", {
-  params: {
-    language: {default: "", attribute: "data-language"}
+export const CodeBlock = NodeType.textblock<{language: string}>("CodeBlock", {
+  props: {
+    language: {dom: {attribute: "data-language"}}
   },
   content: "Inline",
   group: "Block",
@@ -176,12 +170,12 @@ export const Blockquote = NodeType.block("Blockquote", {
   dom: {tag: "blockquote"}
 })
 
-export const OrderedList = NodeType.block("OrderedList", {
+export const OrderedList = NodeType.block<{start: number}>("OrderedList", {
   content: "ListItem",
   group: "Block",
   dom: {tag: "ol"},
-  params: {
-    start: {default: 1, attribute: "start"}
+  props: {
+    start: {dom: {attribute: "start"}}
   }
 })
 
@@ -204,9 +198,9 @@ export const HorizontalRule = NodeType.block("HorizontalRule", {
 
 export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
   dom: {tag: "img"},
-  params: {
-    src: {attribute: "src"},
-    alt: {default: "", attribute: "alt"}
+  props: {
+    src: {required: true, dom: {attribute: "src"}},
+    alt: {dom: {attribute: "alt"}}
   }
 })
 
@@ -214,25 +208,22 @@ export const LineBreak = NodeType.inline("LineBreak", {
   dom: {tag: "br"}
 })
 
-export const Emphasis = MarkType.define("Emphasis", {
+export const Emphasis = Prop.flag("Emphasis", {
   rank: 40,
   dom: {tag: "em"}
 })
 
-export const Strong = MarkType.define("Strong", {
+export const Strong = Prop.flag("Strong", {
   rank: 60,
   dom: {tag: "strong"},
 })
 
-export const Link = MarkType.define<{href: string}>("Link", {
+export const Link = Prop.define<{href: string}>("Link", {
   rank: 20,
-  dom: {tag: "a"},
-  params: {
-    href: {attribute: "href"}
-  }   
+  dom: {tag: "a", selector: "a[href]", attrs: href => ({href}), value: dom => dom.href},
 })
 
-export const Code = MarkType.define("Code", {
+export const Code = Prop.flag("Code", {
   rank: 80,
   dom: {tag: "code"}
 })

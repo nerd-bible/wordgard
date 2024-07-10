@@ -5,8 +5,6 @@ import {ElementRepresentation, AttributeRepresentation, StyleRepresentation} fro
 
 export const enum TokenType { Open, Close, Node }
 
-export type Params = {[name: string]: any}
-
 const enum NodeFlag {
   None = 0,
   Inline = 1,
@@ -17,14 +15,13 @@ const enum NodeFlag {
 }
 
 export const none: readonly any[] = []
-const noParams: Params = Object.create(null)
 
-export type NodeSpec<Params extends {}> = {
-  params?: {[name in keyof Params]: ParamSpec<Params[name]>}
+export type NodeSpec<Props extends {}> = {
+  props?: {[name in keyof Props]: PropSpec<Props[name]>}
   content?: string
   group?: string
   toText?: (node: Node) => string
-  dom: ElementRepresentation<Params>
+  dom: ElementRepresentation
 }
 
 function splitGroups(groups: string) {
@@ -42,77 +39,71 @@ function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)
 }
 
-export class NodeType<Params extends {} = {}> {
-  params: readonly Param<any>[]
+export class NodeType<Props extends {} = {}> {
+  localProps: {[name in keyof Props]: Prop<Props[name]>}
   private groups: readonly string[]
   private contentGroups: readonly string[]
   private childCache: Map<NodeType, boolean> = new Map
-  defaultParams: Params | null
+  readonly requiredProps: Prop<any>[] = []
   flags: NodeFlag
 
   constructor(
     readonly name: string,
     flags: NodeFlag,
-    readonly spec: NodeSpec<Params>
+    readonly spec: NodeSpec<Props>
   ) {
     this.flags = flags | (spec.content ? NodeFlag.None : NodeFlag.Leaf)
-    let params: Param<any>[] = this.params = []
-    let defaultParams: Params | null = Object.create(null)
-    if (spec.params) for (let name in spec.params) {
-      let param = new Param(name, spec.params[name])
-      params.push(param)
-      if (defaultParams) {
-        if (param.hasDefault) defaultParams[name] = param.default as any
-        else defaultParams = null
-      }
+    this.localProps = Object.create(null)
+    if (spec.props) for (let name in spec.props) {
+      let prop = new Prop(name, spec.props[name], false, true)
+      this.localProps[name] = prop as any
+      if (prop.isRequired()) this.requiredProps.push(prop)
     }
-    this.defaultParams = defaultParams
     let groups = this.groups = [name]
     if (flags & NodeFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
     this.contentGroups = spec.content ? splitGroups(spec.content) : none
   }
 
-  static block<Params extends {}>(name: string, spec: NodeSpec<Params>) {
+  static block<Props extends {}>(name: string, spec: NodeSpec<Props>) {
     checkReserved(name)
-    return new NodeType<Params>(name, NodeFlag.None, spec)
+    return new NodeType<Props>(name, NodeFlag.None, spec)
   }
 
-  static textblock<Params extends {}>(name: string, spec: NodeSpec<Params>) {
+  static textblock<Props extends {}>(name: string, spec: NodeSpec<Props>) {
     checkReserved(name)
-    return new NodeType<Params>(name, NodeFlag.InlineContent, spec)
+    return new NodeType<Props>(name, NodeFlag.InlineContent, spec)
   }
 
-  static inline<Params extends {}>(name: string, spec: NodeSpec<Params>) {
+  static inline<Props extends {}>(name: string, spec: NodeSpec<Props>) {
     checkReserved(name)
-    return new NodeType<Params>(name, NodeFlag.Inline | (spec.content ? NodeFlag.InlineContent : NodeFlag.None), spec)
+    return new NodeType<Props>(name, NodeFlag.Inline | (spec.content ? NodeFlag.InlineContent : NodeFlag.None), spec)
   }
 
-  static inlineblock<Params extends {}>(name: string, spec: NodeSpec<Params>) {
+  static inlineblock<Props extends {}>(name: string, spec: NodeSpec<Props>) {
     checkReserved(name)
-    return new NodeType<Params>(name, NodeFlag.Inline, spec)
+    return new NodeType<Props>(name, NodeFlag.Inline, spec)
   }
 
   static doc(content: string, inlineContent = false) {
-    return new NodeType("Doc", NodeFlag.Doc | (inlineContent ? NodeFlag.InlineContent : NodeFlag.None), {content, tag: ""})
+    return new NodeType("Doc", NodeFlag.Doc | (inlineContent ? NodeFlag.InlineContent : NodeFlag.None), {content} as any as NodeSpec<{}>)
   }
 
   get schemaElement(): SchemaElement { return this }
 
   // FIXME should this join text nodes?
-  create(params: Partial<Params>, children?: readonly Node[]): Node
+  create(props: PropSet, children?: readonly Node[]): Node
   create(children?: readonly Node[]): Node
-  create(paramsOrChildren?: Partial<Params> | readonly Node[], children?: readonly Node[]): Node {
+  create(propsOrChildren?: PropSet | readonly Node[], children?: readonly Node[]): Node {
     if (this.isDoc()) throw new Error("Document nodes must be created with schema.doc()")
     if (this.isText()) throw new Error("Text nodes must be created with Node.text()")
-    let params = this.defaultParams
-    if (paramsOrChildren) {
-      if (Array.isArray(paramsOrChildren)) children = paramsOrChildren
-      else if (paramsOrChildren instanceof Node) children = [paramsOrChildren]
-      else params = fillParams(this.params, paramsOrChildren as Partial<Params>)
+    let props = PropSet.empty
+    if (propsOrChildren) {
+      if (Array.isArray(propsOrChildren)) children = propsOrChildren
+      else if (propsOrChildren instanceof Node) children = [propsOrChildren]
+      else props = propsOrChildren as PropSet
     }
-    if (!params) throw new Error(`Must specify params when creating a node with some params that have no default value`)
-    return new Node(this, params, none, this.checkChildren(children || none))
+    return new Node(this, this.checkProps(props), this.checkChildren(children || none))
   }
 
   isInGroup(group: string) {
@@ -139,10 +130,12 @@ export class NodeType<Params extends {} = {}> {
     return children
   }
 
-  checkMarks(marks: readonly Mark[]) {
-    for (let mark of marks) if (!mark.type.canTarget(this))
-      throw new Error(`Mark ${mark.name} cannot be applied to node ${this.name}`)
-    return marks
+  checkProps(props: PropSet) {
+    for (let prop of props.set) if (!prop.prop.canTarget(this))
+      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
+    for (let prop of this.requiredProps) if (!props.has(prop))
+      throw new Error(`Required prop ${prop.name} missing`)
+    return props
   }
 
   isInline() { return (this.flags & NodeFlag.Inline) > 0 }
@@ -152,11 +145,6 @@ export class NodeType<Params extends {} = {}> {
   isTextblock() { return this.isBlock() && this.inlineContent() }
   isLeaf() { return (this.flags & NodeFlag.Leaf) > 0 }
   isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
-
-  getParam<Name extends keyof Params>(param: Name, node: Node): Params[Name] {
-    if (node.type != this) throw new Error(`Accessing param on the wrong type of node`)
-    return node.params[param as any]
-  }
 }
 
 function checkReserved(name: string) {
@@ -164,24 +152,12 @@ function checkReserved(name: string) {
     throw new Error(`Node name ${name} is reserved`)
 }
 
-function fillParams<Params extends {}>(params: readonly Param<any>[], input: Partial<Params>): Params {
-  let result: Params = Object.create(null)
-  for (let param of params) {
-    let name = param.name as keyof Params
-    if (param.name in input) result[name] = input[name]!
-    else if (param.hasDefault) result[name] = param.default
-    else throw new Error(`Must provide param ${param.name}, which has no default value`)
-  }
-  return result
-}
-
 export class Node {
   contentLength: number
 
   constructor(
     readonly type: NodeType,
-    readonly params: Params,
-    readonly marks: readonly Mark[],
+    readonly props: PropSet,
     readonly children: readonly Node[],
   ) {
     this.contentLength = children.reduce((s, c) => s + c.length, 0)
@@ -191,14 +167,12 @@ export class Node {
 
   get length() { return this.isLeaf() ? 1 : 2 + this.contentLength }
 
-  mark(marks: readonly Mark[]) {
-    return marks == this.marks ? this : new Node(this.type, this.params, this.type.checkMarks(marks), this.children)
+  setProps(props: PropSet) {
+    return props.eq(this.props) ? this : new Node(this.type, this.type.checkProps(props), this.children)
   }
 
   sameMarkup(other: Node) {
-    return this.type == other.type &&
-      compareParams(this.type.params, this.params, other.params) &&
-      eqArray(this.marks, other.marks)
+    return this.type == other.type && this.props.eq(other.props)
   }
 
   eq(other: Node): boolean {
@@ -206,7 +180,7 @@ export class Node {
   }
 
   copy(children: readonly Node[]) {
-    return new Node(this.type, this.params, this.marks, this.type.checkChildren(children))
+    return new Node(this.type, this.props, this.type.checkChildren(children))
   }
 
   slice(from: number, to = this.length) {
@@ -216,6 +190,7 @@ export class Node {
     return new Slice(content)
   }
 
+  /// @internal
   sliceNode(content: Token[], from: number, to: number) {
     if (from <= 0) {
       if (to >= this.length) {
@@ -261,14 +236,17 @@ export class Node {
     }
   }
 
+  /// @internal
   toString() {
-    return marksToString(this.marks, this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
+    return propsToString(this.props, this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
   }
 
   toJSON(): NodeJSON {
     let result: NodeJSON = {type: this.name}
-    if (this.marks.length) result.marks = this.marks.map(m => m.toJSON())
-    if (this.params != this.type.defaultParams) result.params = this.params
+    if (!this.props.empty) {
+      result.props = Object.create(null)
+      for (let {name, value} of this.props.set) result.props![name] = value
+    }
     if (this.isText()) result.text = this.text
     if (this.children.length) result.children = this.children.map(c => c.toJSON())
     return result
@@ -296,17 +274,22 @@ export class Node {
     return text
   }
 
+  prop<Value>(prop: Prop<Value>, required: true): Value
+  prop<Value>(prop: Prop<Value>): Value | undefined
+  prop<Value>(prop: Prop<Value>, required = false): Value | undefined {
+    return (this.props.get as any)(prop, required)
+  }
+
   get tokenType(): TokenType.Node { return TokenType.Node }
 
-  static text(text: string, marks: readonly Mark[] = none) {
-    return new TextNode(text, marks)
+  static text(text: string, props: PropSet = PropSet.empty) {
+    return new TextNode(text, Text.checkProps(props))
   }
 }
 
 export type NodeJSON = {
   type: string,
-  marks?: readonly MarkJSON[],
-  params?: any,
+  props?: {[name: string]: any}
   text?: string,
   children?: readonly NodeJSON[]
 }
@@ -318,7 +301,7 @@ export type MarkJSON = {
 
 export class DocNode extends Node {
   constructor(type: NodeType, children: readonly Node[], readonly schema: Schema) {
-    super(type, noParams, none, children)
+    super(type, PropSet.empty, children)
   }
 
   get length() { return this.contentLength }
@@ -327,8 +310,8 @@ export class DocNode extends Node {
     return new DocNode(this.type, this.type.checkChildren(children), this.schema)
   }
 
-  mark(marks: readonly Mark[]) {
-    if (marks.length) throw new Error("Document nodes cannot have marks")
+  setProps(props: PropSet) {
+    if (props.empty) throw new Error("Document nodes cannot have props")
     return this
   }
 
@@ -352,23 +335,22 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
   }
 }
 
-export const Text = new NodeType("Text", NodeFlag.Text | NodeFlag.Inline, {tag: ""})
+export const Text = new NodeType("Text", NodeFlag.Text | NodeFlag.Inline, {dom: {tag: ""}})
 
 export class TextNode extends Node {
-  constructor(readonly text: string, marks: readonly Mark[]) {
-    super(Text, noParams, marks, none)
-    this.type.checkMarks(marks)
+  constructor(readonly text: string, props: PropSet) {
     if (!text.length) throw new Error("Text nodes must not be empty")
+    super(Text, props, none)
   }
 
   get length() { return this.text.length }
 
   withText(text: string) {
-    return text == this.text ? this : new TextNode(text, this.marks)
+    return text == this.text ? this : new TextNode(text, this.props)
   }
 
-  mark(marks: readonly Mark[]) {
-    return marks == this.marks ? this : new TextNode(this.text, marks)
+  setProps(props: PropSet) {
+    return props.eq(this.props) ? this : new TextNode(this.text, props)
   }
 
   sliceNode(content: Token[], from: number, to: number) {
@@ -376,55 +358,36 @@ export class TextNode extends Node {
   }
 
   cut(from: number, to = this.length) {
-    return !from && to == this.length ? this : new TextNode(this.text.slice(Math.max(from, 0), Math.max(0, to)), this.marks)
+    return !from && to == this.length ? this : new TextNode(this.text.slice(Math.max(from, 0), Math.max(0, to)), this.props)
   }
 
   eq(other: Node) {
-    return super.eq(other) && this.text == (other as TextNode).text
+    return this.sameMarkup(other) && this.text == (other as TextNode).text
   }
 
-  toString() { return marksToString(this.marks, JSON.stringify(this.text)) }
+  /// @internal
+  toString() { return propsToString(this.props, JSON.stringify(this.text)) }
 }
 
-function marksToString(marks: readonly Mark[], inner: string) {
-  for (let i = marks.length - 1; i >= 0; i--)
-    inner = marks[i].name + "(" + inner + ")"
+// FIXME show values? display differently?
+function propsToString(props: PropSet, inner: string) {
+  for (let i = props.set.length - 1; i >= 0; i--)
+    inner = props.set[i].name + "(" + inner + ")"
   return inner
 }
 
-export type ParamSpec<T> = {
-  default?: T
-  compare?: (a: T, b: T) => boolean
-  attribute?: string
-}
-
-export class Param<T = any> {
-  hasDefault: boolean
-  default: T
-
-  constructor(readonly name: string, readonly spec: ParamSpec<T>) {
-    this.hasDefault = "default" in spec
-    this.default = spec.default!
-  }
-}
-
-function compareParamValue(a: any, b: any) {
+function compareDeep(a: any, b: any) {
   if (a === b) return true
   if (!a || !b || typeof a != "object" || typeof b != "object") return false
   let array = Array.isArray(a)
   if (Array.isArray(b) != array) return false
   if (array) {
     if (a.length != b.length) return false
-    for (let i = 0; i < a.length; i++) if (!compareParamValue(a[i], b[i])) return false
+    for (let i = 0; i < a.length; i++) if (!compareDeep(a[i], b[i])) return false
   } else {
-    for (let p in a) if (!(p in b) || !compareParamValue(a[p], b[p])) return false
+    for (let p in a) if (!(p in b) || !compareDeep(a[p], b[p])) return false
     for (let p in b) if (!(p in a)) return false
   }
-  return true
-}
-
-function compareParams(params: readonly Param[], a: Params, b: Params) {
-  for (let param of params) if (!compareParamValue(a[param.name], b[param.name])) return false
   return true
 }
 
@@ -435,54 +398,39 @@ export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], 
   return true
 }
 
-export type MarkSpec<Params extends {}> = {
-  params?: {[name in keyof Params]: ParamSpec<Params[name]>}
+export type PropSpec<Value> = {
   group?: string
   nodes?: string
-  excludes?: string
-  rank: number
+  rank?: number
   spanning?: boolean
-  dom: ElementRepresentation<Params> | AttributeRepresentation<Params> | StyleRepresentation<Params>
+  required?: boolean
+  dom: ElementRepresentation<Value> | AttributeRepresentation<Value> | StyleRepresentation<Value>
 }
 
-export class MarkType<Params extends {} = {}> {
-  params: readonly Param<any>[]
-  defaultInstance: Mark | null
-  groups: readonly string[]
-  targetGroups: readonly string[]
-  excludedGroups: readonly string[]
-  rank: number
+export class Prop<Value> {
+  readonly groups: readonly string[]
+  readonly targetGroups: readonly string[]
+  readonly rank: number
+  readonly flag: PropValue<Value> | null
 
-  private constructor(
+  constructor(
     readonly name: string,
-    readonly spec: MarkSpec<Params>
+    readonly spec: PropSpec<Value>,
+    isFlag: boolean,
+    readonly local: boolean
   ) {
     this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name, "_")
     this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
-    this.excludedGroups = spec.excludes == null ? [name] : splitGroups(spec.excludes)
     this.rank = spec.rank
-    let params: Param<any>[] = this.params = []
-    let defaultParams: Params | null = Object.create(null)
-    if (spec.params) for (let name in spec.params) {
-      let param = new Param(name, spec.params[name])
-      params.push(param)
-      if (defaultParams) {
-        if (param.hasDefault) defaultParams[name] = param.default as any
-        else defaultParams = null
-      }
-    }
-    this.defaultInstance = defaultParams ? new Mark(this, defaultParams) : null
+    this.flag = isFlag ? new PropValue(this, null as Value) : null
+    if (spec.required && !local) throw new Error("Only local props can be required")
   }
+
+  of(value: Value) { return new PropValue(this, value) }
 
   get schemaElement(): SchemaElement { return this }
 
-  create(params?: Partial<Params>) {
-    if (!params) {
-      if (this.defaultInstance) return this.defaultInstance
-      params = {}
-    }
-    return new Mark(this, fillParams(this.params, params))
-  }
+  isRequired() { return !!this.spec.required }
 
   isInGroup(group: string) {
     return this.groups.includes(group)
@@ -492,82 +440,74 @@ export class MarkType<Params extends {} = {}> {
     return this.targetGroups.some(g => node.isInGroup(g))
   }
 
-  excludes(other: MarkType) {
-    return this.excludedGroups.some(g => other.isInGroup(g))
-  }
-
-  getParam<Name extends keyof Params>(param: Name, mark: Mark): Params[Name] {
-    if (mark.type != this) throw new Error(`Accessing param on the wrong type of mark`)
-    return mark.params[param as any]
-  }
-
-  compareRank(other: MarkType) {
+  compareRank(other: Prop<any>) {
     return this.rank - other.rank || (other.name < this.name ? 1 : -1)
   }
 
-  removeFromSet(set: readonly Mark[]): readonly Mark[] {
-    for (var i = 0; i < set.length; i++) if (set[i].type == this) set = remove(set, i--)
-    return set
+  static define<Value>(name: string, spec: PropSpec<Value>) {
+    return new Prop<Value>(name, spec, false, false)
   }
 
-  isInSet(set: readonly Mark[]): Mark | undefined {
-    for (let i = 0; i < set.length; i++)
-      if (set[i].type == this) return set[i]
-  }
-
-  static define<Params extends {}>(name: string, spec: MarkSpec<Params>) {
-    return new MarkType<Params>(name, spec)
+  static flag(name: string, spec: PropSpec<null>) {
+    return new Prop<null>(name, spec, true, false)
   }
 }
 
-export class Mark {
-  constructor(
-    readonly type: MarkType,
-    readonly params: Params
-  ) {}
+export class PropValue<Value = any> {
+  constructor(readonly prop: Prop<Value>, readonly value: Value) {}
 
-  get name() {
-    return this.type.name
+  eq(other: PropValue) {
+    return this.prop == other.prop && compareDeep(this.value, other.value)
   }
 
-  eq(other: Mark) {
-    return this.type == other.type && compareParams(this.type.params, this.params, other.params)
+  get name() { return this.prop.name }
+}
+
+export class PropSet {
+  constructor(readonly set: readonly PropValue[]) {}
+
+  eq(other: PropSet) {
+    return this == other || eqArray(this.set, other.set)
   }
 
-  toJSON(): MarkJSON {
-    let result: MarkJSON = {type: this.name}
-    if (this != this.type.defaultInstance) result.params = this.params
-    return result
-  }
-
-  addToSet(set: readonly Mark[]) {
-    let placed = null, copy: Mark[] = []
-    for (let i = 0; i < set.length; i++) {
-      let other = set[i]
-      if (this.eq(other)) return set
-      if (this.type.excludes(other.type)) {
-        // Skip
-      } else if (other.type.excludes(this.type)) {
-        return set
-      } else {
-        if (!placed && this.type.compareRank(other.type) < 0) copy.push(placed = this)
+  add(prop: Prop<any> | PropValue) {
+    if (prop instanceof Prop) {
+      if (!prop.flag) throw new Error("Can only add flag props by type")
+      prop = prop.flag
+    }
+    let placed = null, copy: PropValue[] = []
+    for (let i = 0; i < this.set.length; i++) {
+      let other = this.set[i]
+      if (prop.eq(other)) return this
+      if (other.prop != prop.prop) {
+        if (!placed && prop.prop.compareRank(other.prop) < 0) copy.push(placed = prop)
         copy.push(other)
       }
     }
-    if (!placed) copy.push(this)
-    return copy
+    if (!placed) copy.push(prop)
+    return new PropSet(copy)
   }
 
-  removeFromSet(set: readonly Mark[]): readonly Mark[] {
-    for (var i = 0; i < set.length; i++) if (set[i].eq(this)) return remove(set, i)
-    return set
+  remove(prop: Prop<any>): PropSet {
+    for (var i = 0; i < this.set.length; i++)
+      if (this.set[i].prop == prop) return new PropSet(remove(this.set, i))
+    return this
   }
 
-  isInSet(set: readonly Mark[]) {
-    return set.some(m => m.eq(this))
+  has(prop: Prop<any> | PropValue): PropValue | null {
+    for (let v of this.set) if (v.prop == prop) return v
+    return null
   }
 
-  static sameSet(a: readonly Mark[], b: readonly Mark[]) {
-    return eqArray(a, b)
+  get<Value>(prop: Prop<Value>, required: true): Value
+  get<Value>(prop: Prop<Value>): Value | undefined
+  get<Value>(prop: Prop<Value>, required = false): Value | undefined {
+    for (let v of this.set) if (v.prop == prop) return v.value
+    if (required) throw new Error(`Missing required prop ${prop.name}`)
+    return undefined
   }
+  
+  get empty() { return this.set.length == 0 }
+
+  static empty = new PropSet(none)
 }
