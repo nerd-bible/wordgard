@@ -40,7 +40,7 @@ function remove<T>(arr: readonly T[], index: number) {
 }
 
 export class NodeType<Props extends {} = {}> {
-  localProps: {[name in keyof Props]: Prop<Props[name]>}
+  props: {[name in keyof Props]: Prop<Props[name]>}
   private groups: readonly string[]
   private contentGroups: readonly string[]
   private childCache: Map<NodeType, boolean> = new Map
@@ -53,10 +53,10 @@ export class NodeType<Props extends {} = {}> {
     readonly spec: NodeSpec<Props>
   ) {
     this.flags = flags | (spec.content ? NodeFlag.None : NodeFlag.Leaf)
-    this.localProps = Object.create(null)
-    if (spec.props) for (let name in spec.props) {
-      let prop = new Prop(name, spec.props[name], false, true)
-      this.localProps[name] = prop as any
+    this.props = Object.create(null)
+    if (spec.props) for (let propName in spec.props) {
+      let prop = new Prop(name + "/" + propName, {...spec.props[propName], nodes: name}, false, true)
+      this.props[propName] = prop as any
       if (prop.isRequired()) this.requiredProps.push(prop)
     }
     let groups = this.groups = [name]
@@ -104,6 +104,15 @@ export class NodeType<Props extends {} = {}> {
       else props = propsOrChildren as PropSet
     }
     return new Node(this, this.checkProps(props), this.checkChildren(children || none))
+  }
+
+  createWith(props: Partial<Props>, children: readonly Node[] = none): Node {
+    let set = PropSet.empty
+    for (let name in props) {
+      let prop = this.props[name]
+      set = set.add(prop.of(props[name]!))
+    }
+    return this.create(set, children)
   }
 
   isInGroup(group: string) {
@@ -167,7 +176,7 @@ export class Node {
 
   get length() { return this.isLeaf() ? 1 : 2 + this.contentLength }
 
-  setProps(props: PropSet) {
+  withProps(props: PropSet) {
     return props.eq(this.props) ? this : new Node(this.type, this.type.checkProps(props), this.children)
   }
 
@@ -310,7 +319,7 @@ export class DocNode extends Node {
     return new DocNode(this.type, this.type.checkChildren(children), this.schema)
   }
 
-  setProps(props: PropSet) {
+  withProps(props: PropSet) {
     if (props.empty) throw new Error("Document nodes cannot have props")
     return this
   }
@@ -349,7 +358,7 @@ export class TextNode extends Node {
     return text == this.text ? this : new TextNode(text, this.props)
   }
 
-  setProps(props: PropSet) {
+  withProps(props: PropSet) {
     return props.eq(this.props) ? this : new TextNode(this.text, props)
   }
 
@@ -371,8 +380,10 @@ export class TextNode extends Node {
 
 // FIXME show values? display differently?
 function propsToString(props: PropSet, inner: string) {
-  for (let i = props.set.length - 1; i >= 0; i--)
-    inner = props.set[i].name + "(" + inner + ")"
+  for (let i = props.set.length - 1; i >= 0; i--) {
+    let {name} = props.set[i]
+    if (name.indexOf("/") < 0) inner = name + "(" + inner + ")"
+  }
   return inner
 }
 
@@ -404,14 +415,49 @@ export type PropSpec<Value> = {
   rank?: number
   spanning?: boolean
   required?: boolean
+  multi?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
   dom: ElementRepresentation<Value> | AttributeRepresentation<Value> | StyleRepresentation<Value>
+}
+
+export function addMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
+  let result: T[] = []
+  for (let i = 0, j = 0;;) {
+    if (i == a.length) {
+      if (j == b.length) return result
+      result.push(b[j++])
+    } else if (j == b.length) {
+      result.push(a[i++])
+    } else {
+      let cmp = compare(a[i], b[j])
+      if (cmp == 0) i++
+      else if (cmp < 0) result.push(a[i++])
+      else result.push(b[j++])
+    }
+  }
+}
+
+export function subMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
+  let result: T[] = []
+  for (let i = 0, j = 0;;) {
+    if (i == a.length) return result
+    if (j == b.length) {
+      result.push(a[i++])
+    } else {
+      let cmp = compare(a[i], b[j])
+      if (cmp == 0) i++
+      else if (cmp < 0) result.push(a[i++])
+      else j++
+    }
+  }
 }
 
 export class Prop<Value> {
   readonly groups: readonly string[]
   readonly targetGroups: readonly string[]
   readonly rank: number
+  // FIXME find a way to track presence of this in types
   readonly flag: PropValue<Value> | null
+  readonly multi: null | ((a: any, b: any) => number)
 
   constructor(
     readonly name: string,
@@ -421,8 +467,9 @@ export class Prop<Value> {
   ) {
     this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name, "_")
     this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
-    this.rank = spec.rank
+    this.rank = spec.rank ?? 100
     this.flag = isFlag ? new PropValue(this, null as Value) : null
+    this.multi = spec.multi ? spec.multi.compare : null
     if (spec.required && !local) throw new Error("Only local props can be required")
   }
 
@@ -461,6 +508,8 @@ export class PropValue<Value = any> {
   }
 
   get name() { return this.prop.name }
+
+  toString() { return `${this.name}=${JSON.stringify(this.value)}` }
 }
 
 export class PropSet {
@@ -482,20 +531,47 @@ export class PropSet {
       if (other.prop != prop.prop) {
         if (!placed && prop.prop.compareRank(other.prop) < 0) copy.push(placed = prop)
         copy.push(other)
+      } else if (prop.prop.multi) {
+        copy.push(placed = new PropValue(prop.prop, addMulti(other.value, prop.value, prop.prop.multi)))
       }
     }
     if (!placed) copy.push(prop)
     return new PropSet(copy)
   }
 
-  remove(prop: Prop<any>): PropSet {
-    for (var i = 0; i < this.set.length; i++)
-      if (this.set[i].prop == prop) return new PropSet(remove(this.set, i))
+  remove(prop: Prop<any> | PropValue): PropSet {
+    if (prop instanceof Prop) {
+      for (var i = 0; i < this.set.length; i++) if (this.set[i].prop == prop)
+        return this.set.length > 1 ? new PropSet(remove(this.set, i)) : PropSet.empty
+    } else {
+      let type = prop.prop
+      for (var i = 0; i < this.set.length; i++) if (this.set[i].prop == type) {
+        let val = this.set[i], set: readonly PropValue[]
+        if (type.multi) {
+          let rest = subMulti(val.value, prop.value, type.multi)
+          if (!rest.length) {
+            set = remove(this.set, i)
+          } else {
+            set = this.set.slice()
+            ;(set as PropValue[])[i] = new PropValue(type, rest)
+          }
+        } else if (!val.eq(prop)) {
+          continue
+        } else {
+          set = remove(this.set, i)
+        }
+        return set.length ? new PropSet(set) : PropSet.empty
+      }
+    }
     return this
   }
 
   has(prop: Prop<any> | PropValue): PropValue | null {
-    for (let v of this.set) if (v.prop == prop) return v
+    if (prop instanceof Prop) {
+      for (let v of this.set) if (v.prop == prop) return v
+    } else {
+      for (let v of this.set) if (v.eq(prop)) return v
+    }
     return null
   }
 
@@ -510,4 +586,10 @@ export class PropSet {
   get empty() { return this.set.length == 0 }
 
   static empty = new PropSet(none)
+
+  static of(props: readonly PropValue[]) {
+    let result = PropSet.empty
+    for (let prop of props) result = result.add(prop)
+    return result
+  }
 }

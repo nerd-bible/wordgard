@@ -1,4 +1,4 @@
-import {Node, DocNode, NodeType, Mark, MarkJSON, TokenType} from "./node"
+import {Node, DocNode, NodeType, PropValue, subMulti, TokenType} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON, pushNode} from "./slice"
 import {Context, Walker} from "./context"
@@ -52,42 +52,38 @@ class Builder implements Walker {
 }
 
 type Modification =
-  {type: "addMark", mark: Mark} |
-  {type: "removeMark", mark: Mark} |
-  {type: "setParam", param: string, value: any}
+  {type: "addProp", prop: PropValue} |
+  {type: "removeProp", prop: PropValue}
 
 function applyModifications(modifications: readonly Modification[], node: Node) {
   for (const m of modifications) {
-    if (m.type == "addMark") {
-      if (!m.mark.type.canTarget(node.type))
-        throw new Error(`Trying to add mark ${m.mark.name} to a node of type ${node.name}`)
-      node = node.mark(m.mark.addToSet(node.marks))
-    } else if (m.type == "removeMark") {
-      node = node.mark(m.mark.removeFromSet(node.marks))
+    if (m.type == "addProp") {
+      if (!m.prop.prop.canTarget(node.type))
+        throw new Error(`Trying to add prop ${m.prop.name} to a node of type ${node.name}`)
+      node = node.withProps(node.props.add(m.prop))
     } else {
-      if (!node.type.params.some(a => a.name == m.param))
-        throw new Error(`Setting non-existant param ${m.param} on node ${node.name}`)
-      node = new Node(node.type, {...node.params, [m.param]: m.value}, node.marks, node.children)
+      node = node.withProps(node.props.remove(m.prop))
     }
   }
   return node
 }
 
 export type ModificationJSON = {
-  type: "addMark" | "removeMark" | "setParam"
-  mark?: MarkJSON
-  param?: string
-  value?: any
+  type: "addProp" | "removeProp"
+  prop: string
+  value: any
 }
 
 function modificationToJSON(m: Modification): ModificationJSON {
-  if (m.type == "setParam") return {type: m.type, param: m.param, value: m.value}
-  return {type: m.type, mark: m.mark.toJSON()}
+  return {type: m.type, prop: m.prop.name, value: m.prop.value}
 }
 
 function modificationFromJSON(schema: Schema, json: ModificationJSON): Modification {
-  if (json.type == "addMark" || json.type == "removeMark") return {type: json.type, mark: schema.markFromJSON(json.mark!)}
-  if (json.type == "setParam" && typeof json.param == "string") return json as any
+  if ((json.type == "addProp" || json.type == "removeProp") &&
+      typeof json.prop == "string") {
+    let prop = schema.getProp(json.prop)
+    if (prop) return {type: json.type, prop: prop.of(json.value)}
+  }
   throw new Error("Invalid modification JSON")
 }
 
@@ -99,18 +95,15 @@ function compareModifications(a: readonly Modification[], b: readonly Modificati
 }
 
 function compareModification(a: Modification, b: Modification) {
-  if (a.type != b.type) return false
-  if (a.type == "setParam") return a.param == (b as typeof a).param && a.value == (b as typeof a).value
-  return a.mark.eq((b as typeof a).mark)
+  return a.type == b.type && a.prop.eq(b.prop)
 }
 
 export type ChangeSpec = {
   from: number
   to?: number
   insert?: Slice
-  addMark?: Mark
-  removeMark?: Mark
-  setParam?: {[name: string]: any}
+  addProp?: PropValue
+  removeProp?: PropValue
 } | ChangeSet | ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
@@ -368,43 +361,36 @@ export class ChangeSet {
         flush()
         add(spec)
       } else {
-        const {from, addMark, removeMark, setParam, insert} = spec
-        let modifies = addMark || removeMark || setParam
+        const {from, addProp, removeProp, insert} = spec
+        let modifies = addProp || removeProp
         if (modifies && !insert) {
           let to = spec.to ?? spec.from + 1
-          if (addMark) {
-            let mods: Modification[] = [{type: "addMark", mark: addMark}]
+          if (addProp) {
+            let mods: Modification[] = [{type: "addProp", prop: addProp}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!addMark.type.canTarget(node.type) || addMark.isInSet(node.marks)) return false
-              let added = addMark.addToSet(node.marks), modsHere = mods
-              // The mark replaces one or more marks
-              if (added.length != node.marks.length + 1)
-                modsHere = node.marks
-                  .filter(m => !added.includes(m))
-                  .map(mark => ({type: "removeMark", mark} as Modification))
-                  .concat(mods)
-              section(from, to, -1, modsHere)
+              if (!addProp.prop.canTarget(node.type)) return false
+              let has = node.props.has(addProp.prop)
+              if (addProp.prop.multi) {
+                let modsHere = mods
+                if (has) {
+                  let left = subMulti(addProp.value, has.value, addProp.prop.multi)
+                  if (!left.length) return false
+                  modsHere = [{type: "addProp", prop: addProp.prop.of(left)}]
+                }
+                section(from, to, -1, modsHere)
+              } else if (!has || !has.eq(addProp)) {
+                section(from, to, -1, mods)
+              }
               return true
             })
           }
-          if (removeMark) {
-            let mods: Modification[] = [{type: "removeMark", mark: removeMark}]
+          if (removeProp) {
+            let mods: Modification[] = [{type: "removeProp", prop: removeProp}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!removeMark.isInSet(node.marks)) return false
+              if (!removeProp.prop.multi && !node.props.has(removeProp)) return false
               section(from, to, -1, mods)
               return true
             })
-          }
-          if (setParam) {
-            if (to - from != 1) throw new Error("Param changes must apply to a single position")
-            let mods: Modification[] = [], node = doc.nodeAt(from)
-            if (!node) throw new Error("No node at position given for a param change")
-            for (let param in setParam) {
-              if (!node.type.params.some(a => a.name == param))
-                throw new Error(`Nodes of type ${node.name} don't support an param ${param}`)
-              mods.push({type: "setParam", param, value: setParam[param]})
-            }
-            section(from, to, -1, mods)
           }
         } else {
           let to = spec.to ?? spec.from
@@ -445,9 +431,7 @@ export class ChangeSet {
         text += data
       } else if (data) {
         text += `[${(data as readonly Modification[]).map(mod => {
-          if (mod.type == "addMark") return `+${mod.mark.name}`
-          if (mod.type == "removeMark") return `-${mod.mark.name}`
-          return `${mod.param}=${String(mod.value).slice(0, 20)}`
+          return `${mod.type == "addProp" ? "+" : "-"}${mod.prop.prop.name}`
         })}]`
       }
       if (text) result += `${result ? "," : ""}${pos}${len ? `-${pos + len}` : ""}${text}`
@@ -467,23 +451,27 @@ function filterMods(mods: null | readonly Modification[], against: null | readon
 }
 
 function modCancels(mod: Modification, other: Modification) {
-  if (other.type == "setParam") {
-    return mod.type == "setParam" && mod.param == other.param
-  } else if (other.type == "addMark") {
-    return mod.type == "addMark" ? mod.mark.type.excludes(other.mark.type)
-      : mod.type == "removeMark" ? mod.mark.eq(other.mark) : false
+  if (other.type == "addProp") {
+    return mod.type == "addProp" ? mod.prop.prop == other.prop.prop && !mod.prop.prop.multi
+      : mod.type == "removeProp" ? mod.prop.eq(other.prop) : false
   } else {
-    return mod.type == "addMark" && mod.mark.eq(other.mark)
+    return mod.type == "addProp" && mod.prop.eq(other.prop)
   }
 }
 
 function invertMods(mods: readonly Modification[], doc: DocNode, pos: number): readonly Modification[] {
-  let resolved: Node | undefined
+  let resolved: Context | null = null
   return mods.map(mod => {
-    if (mod.type == "addMark") return {type: "removeMark", mark: mod.mark}
-    if (mod.type == "removeMark") return {type: "addMark", mark: mod.mark}
-    if (!resolved) resolved = doc.nodeAt(pos)!
-    return {type: "setParam", param: mod.param, value: resolved.params[mod.param]}
+    if (mod.type == "addProp") {
+      if (!mod.prop.prop.multi) {
+        if (!resolved) resolved = doc.resolve(pos)
+        let node = resolved.nodeAfter!
+        let existed = node.props.has(mod.prop.prop)
+        if (existed) return {type: "addProp", prop: existed}
+      }
+      return {type: "removeProp", prop: mod.prop}
+    }
+    return {type: "addProp", prop: mod.prop}
   })
 }
 

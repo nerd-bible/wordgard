@@ -1,4 +1,4 @@
-import {Node, DocNode, NodeType, Mark, MarkType} from "./node"
+import {Node, DocNode, NodeType, Prop, PropValue, PropSet} from "./node"
 import {pushNode} from "./slice"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, Image, LineBreak,
@@ -7,23 +7,24 @@ import {Paragraph, Heading, CodeBlock, Image, LineBreak,
 
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
-export type NodeBuilder<Attrs> = {
-  (attrs: Partial<Attrs>, ...children: ContentSpec[]): Node
-  (...children: ContentSpec[]): Node
-}
+export type NodeBuilder<Source> =
+  Source extends Node | PropValue ? (...children: ContentSpec[]) => Node :
+  Source extends Prop<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
+  Source extends NodeType<infer Props> ? {
+    (props: Partial<Props>, ...children: ContentSpec[]): Node
+    (...children: ContentSpec[]): Node
+  } : never
 
-export type BuilderAttrs<T> = T extends NodeType<infer Attrs> | MarkType<infer Attrs> ? Attrs : {}
-
-export function builder<T extends {[name: string]: NodeType | Node | Mark | MarkType}>(spec: T, schema?: Schema): {
-  [name in keyof T]: NodeBuilder<BuilderAttrs<T[name]>>
+export function builder<T extends {[name: string]: NodeType | Node | Prop<any> | PropValue}>(spec: T, schema?: Schema): {
+  [name in keyof T]: NodeBuilder<T[name]>
 } & {doc(...children: ContentSpec[]): DocNode} {
   let result = Object.create(null)
   for (let name in spec) {
     let val = spec[name]
-    result[name] = val instanceof Mark ? markBuilder(val.type, val.params)
-      : val instanceof MarkType ? markBuilder(val, {})
-      : val instanceof Node ? nodeBuilder(val.type, val.params)
-      : nodeBuilder(val, {})
+    result[name] = val instanceof PropValue ? propInstanceBuilder(val)
+      : val instanceof Prop ? propBuilder(val)
+      : val instanceof Node ? nodeBuilder(val.type, val.props)
+      : nodeBuilder(val, PropSet.empty)
   }
   result.doc = (...children: ContentSpec[]) => {
     if (!schema) throw new Error("This builder does not have a schema")
@@ -32,55 +33,53 @@ export function builder<T extends {[name: string]: NodeType | Node | Mark | Mark
   return result
 }
 
-function nodeBuilder<Params extends {}>(type: NodeType<Params>, given: Partial<Params>): NodeBuilder<Params> {
-  return (paramsOrChild?: ContentSpec | Partial<Params>, ...children: ContentSpec[]) => {
-    let params = given
-    if (paramsOrChild != null) {
-      if (Array.isArray(paramsOrChild) || typeof paramsOrChild != "object" || paramsOrChild instanceof Node)
-        children.unshift(paramsOrChild)
-      else
-        params = {...params, ...paramsOrChild as Partial<Params>}
+function nodeBuilder<Props extends {}>(type: NodeType<Props>, given: PropSet): NodeBuilder<NodeType<Props>> {
+  return (propsOrChild?: ContentSpec | Partial<Props>, ...children: ContentSpec[]) => {
+    let props = given
+    if (propsOrChild != null) {
+      if (Array.isArray(propsOrChild) || typeof propsOrChild != "object" || propsOrChild instanceof Node) {
+        children.unshift(propsOrChild)
+      } else {
+        for (let name in propsOrChild)
+          props = props.add(type.props[name as keyof Props].of((propsOrChild as Partial<Props>)[name as keyof Props]!))
+      }
     }
-    return type.create(params, collectChildren(children))
+    return type.create(props, collectChildren(children))
   }
 }
 
 const Fragment = NodeType.inline("Fragment", {
-  tag: "span",
+  tag: "span", // FIXME
   content: "Inline"
 })
 
-function markBuilder<Params extends {}>(type: MarkType, given: Partial<Params>): NodeBuilder<Params> {
-  return (paramsOrChild?: ContentSpec | Partial<Params>, ...children: ContentSpec[]) => {
-    let params = given
-    if (paramsOrChild) {
-      if (Array.isArray(paramsOrChild) || typeof paramsOrChild != "object" || paramsOrChild instanceof Node)
-        children.unshift(paramsOrChild as ContentSpec)
-      else
-        params = {...params, ...paramsOrChild as Partial<Params>}
-    }
-    return Fragment.create(collectChildren(children, type.create(params)))
-  }
+function propBuilder<Value>(type: Prop<Value>): NodeBuilder<Prop<Value>> {
+  return (value: Value, ...children: ContentSpec[]) =>
+    Fragment.create(collectChildren(children, type.of(value)))
+}
+
+function propInstanceBuilder(prop: PropValue): NodeBuilder<PropValue> {
+  return (...children: ContentSpec[]) => Fragment.create(collectChildren(children, prop))
 }
 
 const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()
 
-function addMark(node: Node, mark?: Mark) {
-  return mark ? node.mark(mark.addToSet(node.marks)) : node
+function addProp(node: Node, prop?: PropValue) {
+  return prop ? node.withProps(node.props.add(prop)) : node
 }
 
-function collectChildren(spec: ContentSpec, mark?: Mark, list: Node[] = []) {
+function collectChildren(spec: ContentSpec, prop?: PropValue, list: Node[] = []) {
   if (Array.isArray(spec)) {
-    for (let elt of spec) collectChildren(elt, mark, list)
+    for (let elt of spec) collectChildren(elt, prop, list)
   } else if (typeof spec == "string") {
-    pushNode(list, addMark(Node.text(spec), mark))
+    pushNode(list, addProp(Node.text(spec), prop))
   } else if (spec instanceof Node) {
     if (spec.type == Fragment) {
       copyTags(spec.children, list, 0)
-      for (let ch of spec.children) collectChildren(ch, mark, list)
+      for (let ch of spec.children) collectChildren(ch, prop, list)
     } else {
       copyTags(spec.children, list, 1)
-      pushNode(list, addMark(spec, mark))
+      pushNode(list, addProp(spec, prop))
     }
   } else if (typeof spec == "number") {
     let tags = tagMap.get(list)
@@ -117,22 +116,22 @@ export function tag(node: Node, id: number): number {
 
 export const basicBuilder = builder({
   p: Paragraph,
-  h1: Heading.create({level: 1}),
-  h2: Heading.create({level: 2}),
-  h3: Heading.create({level: 3}),
-  h4: Heading.create({level: 4}),
+  h1: Heading.createWith({level: 1}),
+  h2: Heading.createWith({level: 2}),
+  h3: Heading.createWith({level: 3}),
+  h4: Heading.createWith({level: 4}),
   pre: CodeBlock,
   img: Image,
-  $img: Image.create({src: "test.png"}),
+  $img: Image.createWith({src: "test.png"}),
   br: LineBreak,
   blockquote: Blockquote,
   ol: OrderedList,
   ul: BulletList,
   li: ListItem,
   hr: HorizontalRule,
-  em: Emphasis,
-  strong: Strong,
-  code: Code,
+  em: Emphasis.flag!,
+  strong: Strong.flag!,
+  code: Code.flag!,
   a: Link,
-  $a: Link.create({href: "/"})
+  $a: Link.of({href: "/"})
 }, basicSchema)

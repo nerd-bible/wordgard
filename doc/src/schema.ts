@@ -57,6 +57,10 @@ export class Schema {
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
+  getProp(name: string): Prop<any> | undefined { return this.propsByName[name] }
+
+  getNode(name: string): NodeType<any> | undefined { return this.nodesByName[name] }
+
   private findWrappingInner(parent: NodeType, child: NodeType): readonly Node[] | null {
     let seen: Set<NodeType> = new Set, work: Node[][] = [[]]
     for (let i = 0; i < work.length; i++) {
@@ -83,6 +87,7 @@ export class Schema {
         if (nodeNames.has(spec.name)) throw new Error(`Duplicate use of node name ${spec.name} in schema`)
         nodeNames.add(spec.name)
         nodes.push(spec)
+        for (let prop in spec.props) scan(spec.props[prop])
       } else if (spec instanceof Prop) {
         if (props.includes(spec)) return
         if (propNames.has(spec.name)) throw new Error(`Duplicate use of prop name ${spec.name} in schema`)
@@ -112,7 +117,7 @@ export class Schema {
         if (!node.inlineContent() && !sawDefaultable)
           throw new Error(`Node ${node.name} has block content, but all possible children require non-default params`)
       }
-      for (let name in node.localProps) {
+      for (let name in node.props) {
         if (propNames.has(name)) throw new Error(`Local prop ${name} in ${node.name} clashes with a global prop name`)
       }
     }
@@ -127,7 +132,7 @@ export class Schema {
     let props = PropSet.empty, children = none
     if (json.props && typeof json.props == "object") {
       for (let name in json.props) {
-        let prop = (type.localProps as any)[name] || this.propsByName[name]
+        let prop = (type.props as any)[name] || this.propsByName[name]
         if (prop) props = props.add(prop.of(json.props[name]))
       }
     }

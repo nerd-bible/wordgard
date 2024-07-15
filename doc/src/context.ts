@@ -37,6 +37,17 @@ export class Context {
     return this.parent.pos + this.node.length
   }
 
+  get nodeAfter() {
+    if (this.index == this.node.children.length) return null
+    let node = this.node.children[this.index]
+    return this.inText ? (node as TextNode).cut(this.inText) : node
+  }
+
+  get nodeBefore() {
+    if (this.inText) return (this.node.children[this.index] as TextNode).cut(0, this.inText)
+    return this.index ? this.node.children[this.index - 1] : null
+  }
+
   get depth() {
     let d = 0
     for (let c = this.parent; c; c = c.parent) d++

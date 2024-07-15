@@ -79,13 +79,13 @@ describe("Node", () => {
 
   describe("create", () => {
     it("fills params", () => {
-      let i = Image.create({src: "x.jpg"})
-      ist(Image.getParam("src", i), "x.jpg")
-      ist(Image.getParam("alt", i), "")
+      let i = Image.createWith({src: "x.jpg"})
+      ist(i.prop(Image.props.src), "x.jpg")
+      ist(i.prop(Image.props.alt), undefined)
     })
 
     it("complains about missing params", () => {
-      ist.throws(() => Image.create({}), /Must provide/)
+      ist.throws(() => Image.createWith({}), /Required prop/)
     })
 
     it("allows child nodes", () => {
