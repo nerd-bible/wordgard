@@ -1,7 +1,8 @@
-import {Node, DocNode, TextNode, Mark,
+import {Node, DocNode, TextNode, PropSet,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
-        Paragraph, Blockquote, Emphasis, Strong, Code, Link} from "@willow/doc"
+        Paragraph, Blockquote, OrderedList, CodeBlock,
+        Emphasis, Strong, Code, Link} from "@willow/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
 
 export function open(node: Node) { return new OpenToken(node) }
@@ -21,8 +22,6 @@ export function permute<T>(array: readonly T[]): readonly (readonly T[])[] {
   }
   return result
 }
-
-const mEm = Emphasis.create(), mStrong = Strong.create(), mCode = Code.create()
 
 export function r(n: number) { return Math.floor(Math.random() * n) }
 
@@ -58,21 +57,20 @@ export function rDoc(minLength: number) {
   }
   do {
     open()
-    let marks: readonly Mark[] = []
+    let props = PropSet.empty
     for (let i = 0, elements = r(7); i < elements * 2 - 1; i++) {
       let node: Node
       if (i % 2) {
-        if (marks.length && !r(3)) {
-          let cut = r(marks.length)
-          marks = marks.filter((_, i) => i != cut)
-        }
-        node = Node.text(" ").mark(marks)
+        if (props.set.length && !r(3))
+          props = props.remove(props.set[r(props.set.length)])
+        node = Node.text(" ", props)
       } else {
         if (!r(5)) {
-          let mark = r(2) ? (r(2) ? mEm : mStrong) : (r(2) ? mCode : Link.create({href: "/" + rWord()}))
-          marks = mark.addToSet(marks)
+          let prop = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of({href: "/" + rWord()}))
+          props = props.add(prop)
         }
-        node = (r(5) ? Node.text(rWord()) : r(2) ? br() : img({src: rWord() + ".svg"})).mark(marks)
+        node = r(5) ? Node.text(rWord()) : r(2) ? br() : img({src: rWord() + ".svg"})
+        node = node.withProps(node.props.join(props))
       }
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
@@ -130,21 +128,24 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Mark some inline content
   doc => {
     let len = 2 + r(6), from = r(doc.length - len)
-    return {from, to: from + len, addMark: !r(3) ? mEm : r(2) ? mStrong : Link.create({href: "/" + rWord()})}
+    return {from, to: from + len, addProp: !r(3) ? Emphasis : r(2) ? Strong : Link.of({href: "/" + rWord()})}
   },
   // Remove a mark from some textblock
   doc => scanBlocks(doc, (node, pos) => {
     if (node.isTextblock()) for (let i = 0; i < node.children.length; i++) {
-      let marks = node.children[i].marks
-      if (marks.length) return {from: pos, to: pos + node.length, removeMark: marks[r(marks.length)]}
+      let props = node.children[i].props
+      if (props.set.some(v => !v.prop.isRequired)) {
+        let notReq = props.set.filter(v => !v.prop.isRequired)
+        return {from: pos, to: pos + node.length, removeProp: notReq[r(notReq.length)]}
+      }
     }
   }),
-  // Change a param on some list or code block
+  // Change a prop on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
-    if (node.type.name == "OrderedList")
-      return {from: pos, setParam: {start: node.params.start + 1}}
-    if (node.type.name == "CodeBlock")
-      return {from: pos, setParam: {language: rWord()}}
+    if (node.type == OrderedList)
+      return {from: pos, addProp: OrderedList.props.start.of(node.prop(OrderedList.props.start, true) + 1)}
+    if (node.type == CodeBlock)
+      return {from: pos, setProp: CodeBlock.props.language.of(rWord())}
   })
 ]
 

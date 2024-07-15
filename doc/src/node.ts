@@ -55,7 +55,7 @@ export class NodeType<Props extends {} = {}> {
     this.flags = flags | (spec.content ? NodeFlag.None : NodeFlag.Leaf)
     this.props = Object.create(null)
     if (spec.props) for (let propName in spec.props) {
-      let prop = new Prop(name + "/" + propName, {...spec.props[propName], nodes: name}, false, true)
+      let prop = new Prop(name + "/" + propName, {...spec.props[propName], nodes: name}, true)
       this.props[propName] = prop as any
       if (prop.isRequired()) this.requiredProps.push(prop)
     }
@@ -455,20 +455,16 @@ export class Prop<Value> {
   readonly groups: readonly string[]
   readonly targetGroups: readonly string[]
   readonly rank: number
-  // FIXME find a way to track presence of this in types
-  readonly flag: PropValue<Value> | null
   readonly multi: null | ((a: any, b: any) => number)
 
   constructor(
     readonly name: string,
     readonly spec: PropSpec<Value>,
-    isFlag: boolean,
     readonly local: boolean
   ) {
     this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name, "_")
     this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
     this.rank = spec.rank ?? 100
-    this.flag = isFlag ? new PropValue(this, null as Value) : null
     this.multi = spec.multi ? spec.multi.compare : null
     if (spec.required && !local) throw new Error("Only local props can be required")
   }
@@ -492,11 +488,11 @@ export class Prop<Value> {
   }
 
   static define<Value>(name: string, spec: PropSpec<Value>) {
-    return new Prop<Value>(name, spec, false, false)
+    return new Prop<Value>(name, spec, false)
   }
 
-  static flag(name: string, spec: PropSpec<null>) {
-    return new Prop<null>(name, spec, true, false)
+  static flag(name: string, spec: PropSpec<null>): PropValue {
+    return new Prop<null>(name, spec, false).of(null)
   }
 }
 
@@ -509,7 +505,7 @@ export class PropValue<Value = any> {
 
   get name() { return this.prop.name }
 
-  toString() { return `${this.name}=${JSON.stringify(this.value)}` }
+  toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 }
 
 export class PropSet {
@@ -519,11 +515,7 @@ export class PropSet {
     return this == other || eqArray(this.set, other.set)
   }
 
-  add(prop: Prop<any> | PropValue) {
-    if (prop instanceof Prop) {
-      if (!prop.flag) throw new Error("Can only add flag props by type")
-      prop = prop.flag
-    }
+  add(prop: PropValue) {
     let placed = null, copy: PropValue[] = []
     for (let i = 0; i < this.set.length; i++) {
       let other = this.set[i]
@@ -537,6 +529,12 @@ export class PropSet {
     }
     if (!placed) copy.push(prop)
     return new PropSet(copy)
+  }
+
+  join(other: PropSet) {
+    let result = this as PropSet
+    for (let val of other.set) result = result.add(val)
+    return result
   }
 
   remove(prop: Prop<any> | PropValue): PropSet {
@@ -584,6 +582,8 @@ export class PropSet {
   }
   
   get empty() { return this.set.length == 0 }
+
+  toString() { return "{" + this.set.join(",") + "}" }
 
   static empty = new PropSet(none)
 

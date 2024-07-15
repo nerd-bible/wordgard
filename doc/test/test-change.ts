@@ -1,14 +1,12 @@
 import ist from "ist"
-import {Node, DocNode, Mark, NodeType,
+import {Node, DocNode, NodeType, PropValue,
         ChangeSet, ChangeSpec, Token,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
-        Emphasis, Strong, Link} from "@willow/doc"
+        Image, CodeBlock, OrderedList, Emphasis, Strong, Link} from "@willow/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, h1, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
 
-type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark} | {setParam: string, value: any}
-
-const mEm = Emphasis.create(), mStrong = Strong.create()
+type ChangeData = (Token | string)[] | {add: PropValue} | {remove: PropValue}
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
@@ -18,10 +16,8 @@ function mk(doc: DocNode, changes: readonly ChangeData[]) {
     if (from == null) throw new Error(`No start position defined for change ${i}`)
     let to = maybeTag(doc, i * 2 + 1) ?? from
     if (Array.isArray(ch)) return {from, to, insert: slice(...ch)}
-    let {add, remove, setParam, value} = ch as {add?: Mark, remove?: Mark, setParam?: string, value?: any}
-    if (add) return {from, to, addMark: add}
-    if (remove) return {from, to, removeMark: remove}
-    return {from, to, setParam: {[setParam!]: value!}}
+    let {add, remove} = ch as {add?: PropValue, remove?: PropValue}
+    return add ? {from, to, addProp: add} : {from, to, removeProp: remove}
   }))
 }
 
@@ -69,33 +65,33 @@ describe("ChangeSet", () => {
       testApply(doc(p("a"), 0, blockquote(1, p("b"), 2), 3), [[], []], doc(p("a"), p("b")))
     })
 
-    it("can add marks", () => {
-      testApply(doc(p("one ", 0, "two", 1, " three")), [{add: mEm}], doc(p("one ", em("two"), " three")))
+    it("can add props", () => {
+      testApply(doc(p("one ", 0, "two", 1, " three")), [{add: Emphasis}], doc(p("one ", em("two"), " three")))
     })
 
     it("joins marked text when appropriate", () => {
-      testApply(doc(p(em("one"), 0, "two", 1)), [{add: mEm}], doc(p(em("onetwo"))))
+      testApply(doc(p(em("one"), 0, "two", 1)), [{add: Emphasis}], doc(p(em("onetwo"))))
     })
 
-    it("can remove marks", () => {
-      testApply(doc(p(em("one ", 0, "two", 1, " three"))), [{remove: mEm}], doc(p(em("one "), "two", em(" three"))))
+    it("can remove props", () => {
+      testApply(doc(p(em("one ", 0, "two", 1, " three"))), [{remove: Emphasis}], doc(p(em("one "), "two", em(" three"))))
     })
 
-    it("can add multiple marks", () => {
-      testApply(doc(p("one ", 0, 2, "two", 1, " three", 3)), [{add: mEm}, {add: mStrong}],
+    it("can add multiple props", () => {
+      testApply(doc(p("one ", 0, 2, "two", 1, " three", 3)), [{add: Emphasis}, {add: Strong}],
                 doc(p("one ", strong(em("two"), " three"))))
     })
 
-    it("can remove multiple marks", () => {
-      testApply(doc(p(0, 2, em(strong("x")), 1, 3)), [{remove: mEm}, {remove: mStrong}], doc(p("x")))
+    it("can remove multiple props", () => {
+      testApply(doc(p(0, 2, em(strong("x")), 1, 3)), [{remove: Emphasis}, {remove: Strong}], doc(p("x")))
     })
 
-    it("only adds marks where appropriate", () => {
-      testApply(doc(0, p("one"), 1), [{add: mStrong}], doc(p(strong("one"))))
+    it("only adds props where appropriate", () => {
+      testApply(doc(0, p("one"), 1), [{add: Strong}], doc(p(strong("one"))))
     })
 
-    it("can change params", () => {
-      testApply(doc(p(0, img({src: "a.png"}), 1)), [{setParam: "src", value: "b.jpg"}], doc(p(img({src: "b.jpg"}))))
+    it("can change node props", () => {
+      testApply(doc(p(0, img({src: "a.png"}), 1)), [{add: Image.props.src.of("b.jpg")}], doc(p(img({src: "b.jpg"}))))
     })
 
     it("complains on a mismatched length", () => {
@@ -170,8 +166,8 @@ describe("ChangeSet", () => {
       del: ChangeSet.create(d, {from: 1, to: 4}),
       del2: ChangeSet.create(d, {from: 6, to: 7}),
       delP: ChangeSet.create(d, {from: 0, to: 9}),
-      mark: ChangeSet.create(d, {from: 5, to: 15, addMark: mStrong}),
-      unmark: ChangeSet.create(d, {from: 5, to: 8, removeMark: mEm}),
+      mark: ChangeSet.create(d, {from: 5, to: 15, addProp: Strong}),
+      unmark: ChangeSet.create(d, {from: 5, to: 8, removeProp: Emphasis}),
       join: ChangeSet.create(d, {from: 8, to: 10}),
       split: ChangeSet.create(d, {from: 4, to: 5, insert: slice(close, open(p()))}),
       wrap: ChangeSet.create(d, [{from: 0, insert: slice(open(ol()), open(li()))}, {from: 16, insert: slice(close, close)}])
@@ -231,7 +227,7 @@ describe("ChangeSet", () => {
       let d = doc(p("abcde"))
       let ch1 = ChangeSet.create(d, {from: 1, insert: slice("XY")})
       let d2 = ch1.apply(d)
-      let ch2 = ChangeSet.create(d2, {from: 2, to: 5, addMark: mEm})
+      let ch2 = ChangeSet.create(d2, {from: 2, to: 5, addProp: Emphasis})
       let composed = ch1.compose(ch2)
       ist(ch2.apply(d2), composed.apply(d), eq)
     })
@@ -310,17 +306,18 @@ describe("ChangeSet", () => {
       }
     })
 
-    it("orders param modifications correctly", () => {
+    it("orders local prop modifications correctly", () => {
       let d = doc(0, pre(1, "a"))
-      let a = mk(d, [{setParam: "language", value: "x"}]), b = mk(d, [{setParam: "language", value: "y"}])
+      let a = mk(d, [{add: CodeBlock.props.language.of("x")}])
+      let b = mk(d, [{add: CodeBlock.props.language.of("y")}])
       let docAB = b.map(a, d).apply(a.apply(d))
       let docBA = a.map(b, d, true).apply(b.apply(d))
       ist(docAB, docBA, eq)
     })
 
-    it("orders mark-adding modifications correctly", () => {
+    it("orders prop-adding modifications correctly", () => {
       let d = doc(p(0, "a", 1))
-      let a = mk(d, [{add: Link.create({href: "x"})}]), b = mk(d, [{add: Link.create({href: "y"})}])
+      let a = mk(d, [{add: Link.of({href: "x"})}]), b = mk(d, [{add: Link.of({href: "y"})}])
       let docAB = b.map(a, d).apply(a.apply(d))
       let docBA = a.map(b, d, true).apply(b.apply(d))
       ist(docAB, docBA, eq)
@@ -365,20 +362,20 @@ describe("ChangeSet", () => {
       testInv(doc(p("a", 0), p(1, "b")), [["x"]])
     })
 
-    it("can invert adding a mark", () => {
-      testInv(doc(p(0, "abc", 1, " ", 2, "def", 3)), [{add: mEm}, {add: Link.create({href: "/"})}])
+    it("can invert adding a prop", () => {
+      testInv(doc(p(0, "abc", 1, " ", 2, "def", 3)), [{add: Emphasis}, {add: Link.of({href: "/"})}])
     })
 
-    it("can invert removing a mark", () => {
-      testInv(doc(p(0, em("abc"), 1)), [{remove: mEm}])
+    it("can invert removing a prop", () => {
+      testInv(doc(p(0, em("abc"), 1)), [{remove: Emphasis}])
     })
 
-    it("can invert replacing a mark with another version", () => {
-      testInv(doc(p(0, a({href: "1"}, "abc"), 1)), [{add: Link.create({href: "2"})}])
+    it("can invert replacing a prop with another version", () => {
+      testInv(doc(p(0, a({href: "1"}, "abc"), 1)), [{add: Link.of({href: "2"})}])
     })
 
-    it("can invert changing a param", () => {
-      testInv(doc(0, ol(1, li(p("-")))), [{setParam: "start", value: 5}])
+    it("can invert changing a prop", () => {
+      testInv(doc(0, ol(1, li(p("-")))), [{add: OrderedList.props.start.of(5)}])
     })
 
     it("can invert sequences of random changes", () => {
@@ -391,10 +388,15 @@ describe("ChangeSet", () => {
           inverted.push(change.invert(doc))
           doc = change.apply(doc)
         }
-        for (let i = inverted.length - 1; i >= 0; i--) {
-          doc = inverted[i].apply(doc)
+        try {
+          for (let i = inverted.length - 1; i >= 0; i--)
+            doc = inverted[i].apply(doc)
+          ist(doc, startDoc, eq)
+        } catch(e) {
+          console.log(`Failed random invert test:\n  start doc: ${startDoc}\n  changes:\n    ${
+                       changes.join("\n    ")}\n  inverted:\n    ${inverted.join("\n    ")}`)
+          throw e
         }
-        ist(doc, startDoc, eq)
       }
     })
   })

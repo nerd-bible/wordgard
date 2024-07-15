@@ -57,17 +57,13 @@ export class Schema {
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  getProp(name: string): Prop<any> | undefined { return this.propsByName[name] }
-
-  getNode(name: string): NodeType<any> | undefined { return this.nodesByName[name] }
-
   private findWrappingInner(parent: NodeType, child: NodeType): readonly Node[] | null {
     let seen: Set<NodeType> = new Set, work: Node[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
       for (let node of this.nodes) if (at.canContain(node)) {
         if (node == child) return path
-        if (!seen.has(node) && !node.isLeaf()) {
+        if (!seen.has(node) && !node.isLeaf() && !node.requiredProps.length) {
           seen.add(node)
           work.push(path.concat(node.create()))
         }
@@ -75,6 +71,10 @@ export class Schema {
     }
     return null
   }
+
+  getProp(name: string): Prop<any> | undefined { return this.propsByName[name] }
+
+  getNode(name: string): NodeType<any> | undefined { return this.nodesByName[name] }
 
   static define(spec: SchemaElement) {
     let nodes: NodeType[] = [Text], props: Prop<any>[] = []
@@ -246,8 +246,8 @@ export const basicSchema = Schema.define([
   BulletList,
   OrderedList,
   ListItem,
-  Emphasis,
-  Strong,
+  Emphasis.prop,
+  Strong.prop,
   Link,
-  Code
+  Code.prop
 ])

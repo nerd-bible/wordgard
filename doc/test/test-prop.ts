@@ -1,10 +1,10 @@
 import {Prop, PropValue, PropSet, Emphasis, Strong, Link, Code} from "@willow/doc"
 import ist from "ist"
 
-const em = Emphasis.flag!
-const strong = Strong.flag!
+const em = Emphasis
+const strong = Strong
 const link = (href: string) => Link.of({href})
-const code = Code.flag!
+const code = Code
 
 let Tag = Prop.define<readonly number[]>("Tag", {
   rank: 10,

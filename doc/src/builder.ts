@@ -125,13 +125,13 @@ export const basicBuilder = builder({
   $img: Image.createWith({src: "test.png"}),
   br: LineBreak,
   blockquote: Blockquote,
-  ol: OrderedList,
+  ol: OrderedList.createWith({start: 1}),
   ul: BulletList,
   li: ListItem,
   hr: HorizontalRule,
-  em: Emphasis.flag!,
-  strong: Strong.flag!,
-  code: Code.flag!,
+  em: Emphasis,
+  strong: Strong,
+  code: Code,
   a: Link,
   $a: Link.of({href: "/"})
 }, basicSchema)

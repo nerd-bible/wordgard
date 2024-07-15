@@ -431,7 +431,7 @@ export class ChangeSet {
         text += data
       } else if (data) {
         text += `[${(data as readonly Modification[]).map(mod => {
-          return `${mod.type == "addProp" ? "+" : "-"}${mod.prop.prop.name}`
+          return `${mod.type == "addProp" ? "+" : "-"}${mod.prop}`
         })}]`
       }
       if (text) result += `${result ? "," : ""}${pos}${len ? `-${pos + len}` : ""}${text}`
