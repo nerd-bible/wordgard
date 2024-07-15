@@ -2,7 +2,7 @@ import {Node, DocNode, TextNode, PropSet,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
         Paragraph, Blockquote, OrderedList, CodeBlock,
-        Emphasis, Strong, Code, Link} from "@willow/doc"
+        Emphasis, Strong, Code, Link} from "@willows/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
 
 export function open(node: Node) { return new OpenToken(node) }

@@ -2,7 +2,7 @@ import ist from "ist"
 import {Node, DocNode, NodeType, PropValue,
         ChangeSet, ChangeSpec, Token,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
-        Image, CodeBlock, OrderedList, Emphasis, Strong, Link} from "@willow/doc"
+        Image, CodeBlock, OrderedList, Emphasis, Strong, Link} from "@willows/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, h1, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
 

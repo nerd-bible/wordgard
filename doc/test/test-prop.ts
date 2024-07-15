@@ -1,4 +1,4 @@
-import {Prop, PropValue, PropSet, Emphasis, Strong, Link, Code} from "@willow/doc"
+import {Prop, PropValue, PropSet, Emphasis, Strong, Link, Code} from "@willows/doc"
 import ist from "ist"
 
 const em = Emphasis

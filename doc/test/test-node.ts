@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Node, NodeType, basicBuilder, tag, Paragraph, Image, basicSchema as schema} from "@willow/doc"
+import {Node, NodeType, basicBuilder, tag, Paragraph, Image, basicSchema as schema} from "@willows/doc"
 const {doc, blockquote, p, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
 
 describe("Node", () => {

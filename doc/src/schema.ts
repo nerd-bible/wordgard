@@ -97,7 +97,7 @@ export class Schema {
         scan(spec.nodes)
         scan(spec.props)
       } else if ((spec as any).schemaElement == spec) {
-        throw new Error("Unexpected schema element type. You may have multiple versions of @willow/doc loaded")
+        throw new Error("Unexpected schema element type. You may have multiple versions of @willows/doc loaded")
       } else {
         scan((spec as any).schemaElement)
       }
