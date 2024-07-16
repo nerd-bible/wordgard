@@ -319,15 +319,23 @@ export class ChangeSet {
   }
 
   invert(doc: DocNode) {
-    let sections = this.sections.slice(), data: SectionData[] = []
-    for (let i = 0, iS = 0, pos = 0; iS < sections.length; iS += 2, i++) {
-      let len = sections[iS], ins = sections[iS + 1]
+    let sections: number[] = [], data: SectionData[] = []
+    for (let i = 0, iS = 0, pos = 0; iS < this.sections.length; iS += 2, i++) {
+      let len = this.sections[iS], ins = this.sections[iS + 1]
       if (ins >= 0) {
-        sections[iS] = ins; sections[iS + 1] = len
-        data.push(doc.slice(pos, pos + len))
+        addSection(sections, data, ins, len, doc.slice(pos, pos + len))
       } else {
         let mods = this.data[i] as readonly Modification[] | null
-        data.push(mods ? invertMods(mods, doc, pos) : null)
+        let at = pos, end = pos + len
+        if (mods) doc.iterate(pos, end, (node, nodePos) => {
+          if (node.isLeaf() || nodePos >= pos && nodePos < end) {
+            let [from, to] = node.isText() ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)] : [nodePos, nodePos + 1]
+            if (at < from) addSection(sections, data, from - at, -1, null)
+            addSection(sections, data, to - from, -1, invertMods(mods, node))
+            at = to
+          }
+        })
+        if (at < end) addSection(sections, data, end - at, -1, null)
       }
       pos += len
     }
@@ -459,14 +467,11 @@ function modCancels(mod: Modification, other: Modification) {
   }
 }
 
-function invertMods(mods: readonly Modification[], doc: DocNode, pos: number): readonly Modification[] {
-  let resolved: Context | null = null
+function invertMods(mods: readonly Modification[], target: Node): readonly Modification[] {
   return mods.map(mod => {
     if (mod.type == "addProp") {
       if (!mod.prop.prop.multi) {
-        if (!resolved) resolved = doc.resolve(pos)
-        let node = resolved.nodeAfter!
-        let existed = node.props.has(mod.prop.prop)
+        let existed = target.props.has(mod.prop.prop)
         if (existed) return {type: "addProp", prop: existed}
       }
       return {type: "removeProp", prop: mod.prop}

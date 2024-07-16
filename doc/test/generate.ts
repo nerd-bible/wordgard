@@ -1,9 +1,14 @@
-import {Node, DocNode, TextNode, PropSet,
+import {Node, DocNode, TextNode, PropSet, Prop,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
         Paragraph, Blockquote, OrderedList, CodeBlock,
         Emphasis, Strong, Code, Link} from "@willows/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
+
+const Comment = Prop.define<readonly number[]>("Comment", {
+  nodes: "Inline",
+  multi: {compare: (a, b) => a - b}
+})
 
 export function open(node: Node) { return new OpenToken(node) }
 export const close = CloseToken
@@ -128,9 +133,9 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Mark some inline content
   doc => {
     let len = 2 + r(6), from = r(doc.length - len)
-    return {from, to: from + len, addProp: !r(3) ? Emphasis : r(2) ? Strong : Link.of({href: "/" + rWord()})}
+    return {from, to: from + len, addProp: !r(4) ? Comment.of([r(100)]) : !r(3) ? Emphasis : r(2) ? Strong : Link.of({href: "/" + rWord()})}
   },
-  // Remove a mark from some textblock
+  // Remove a prop from some textblock
   doc => scanBlocks(doc, (node, pos) => {
     if (node.isTextblock()) for (let i = 0; i < node.children.length; i++) {
       let props = node.children[i].props

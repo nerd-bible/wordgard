@@ -410,7 +410,6 @@ export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], 
 }
 
 export type PropSpec<Value> = {
-  group?: string
   nodes?: string
   rank?: number
   spanning?: boolean
@@ -452,7 +451,6 @@ export function subMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b:
 }
 
 export class Prop<Value> {
-  readonly groups: readonly string[]
   readonly targetGroups: readonly string[]
   readonly rank: number
   readonly multi: null | ((a: any, b: any) => number)
@@ -462,7 +460,6 @@ export class Prop<Value> {
     readonly spec: PropSpec<Value>,
     readonly local: boolean
   ) {
-    this.groups = (spec.group ? splitGroups(spec.group) : none).concat(name, "_")
     this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
     this.rank = spec.rank ?? 100
     this.multi = spec.multi ? spec.multi.compare : null
@@ -474,10 +471,6 @@ export class Prop<Value> {
   get schemaElement(): SchemaElement { return this }
 
   isRequired() { return !!this.spec.required }
-
-  isInGroup(group: string) {
-    return this.groups.includes(group)
-  }
 
   canTarget(node: NodeType) {
     return this.targetGroups.some(g => node.isInGroup(g))
