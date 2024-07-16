@@ -133,7 +133,7 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Mark some inline content
   doc => {
     let len = 2 + r(6), from = r(doc.length - len)
-    return {from, to: from + len, addProp: !r(4) ? Comment.of([r(100)]) : !r(3) ? Emphasis : r(2) ? Strong : Link.of({href: "/" + rWord()})}
+    return {from, to: from + len, add: !r(4) ? Comment.of([r(100)]) : !r(3) ? Emphasis : r(2) ? Strong : Link.of({href: "/" + rWord()})}
   },
   // Remove a prop from some textblock
   doc => scanBlocks(doc, (node, pos) => {
@@ -141,16 +141,16 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
       let props = node.children[i].props
       if (props.set.some(v => !v.prop.isRequired)) {
         let notReq = props.set.filter(v => !v.prop.isRequired)
-        return {from: pos, to: pos + node.length, removeProp: notReq[r(notReq.length)]}
+        return {from: pos, to: pos + node.length, remove: notReq[r(notReq.length)]}
       }
     }
   }),
   // Change a prop on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
     if (node.type == OrderedList)
-      return {from: pos, addProp: OrderedList.props.start.of(node.prop(OrderedList.props.start, true) + 1)}
+      return {from: pos, add: OrderedList.props.start.of(node.prop(OrderedList.props.start, true) + 1)}
     if (node.type == CodeBlock)
-      return {from: pos, setProp: CodeBlock.props.language.of(rWord())}
+      return {from: pos, add: CodeBlock.props.language.of(rWord())}
   })
 ]
 

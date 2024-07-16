@@ -51,38 +51,37 @@ class Builder implements Walker {
   }
 }
 
-type Modification =
-  {type: "addProp", prop: PropValue} |
-  {type: "removeProp", prop: PropValue}
+type Modification = {add: PropValue} | {remove: PropValue}
+
+function isAdd(m: Modification): m is {add: PropValue} { return !!(m as any).add }
+function isRemove(m: Modification): m is {remove: PropValue} { return !!(m as any).remove }
 
 function applyModifications(modifications: readonly Modification[], node: Node) {
   for (const m of modifications) {
-    if (m.type == "addProp") {
-      if (!m.prop.prop.canTarget(node.type))
-        throw new Error(`Trying to add prop ${m.prop.name} to a node of type ${node.name}`)
-      node = node.withProps(node.props.add(m.prop))
+    if (isAdd(m)) {
+      if (!m.add.prop.canTarget(node.type))
+        throw new Error(`Trying to add prop ${m.add.name} to a node of type ${node.name}`)
+      node = node.withProps(node.props.add(m.add))
     } else {
-      node = node.withProps(node.props.remove(m.prop))
+      node = node.withProps(node.props.remove(m.remove))
     }
   }
   return node
 }
 
-export type ModificationJSON = {
-  type: "addProp" | "removeProp"
-  prop: string
-  value: any
-}
+export type ModificationJSON = {add: string, value: any} | {remove: string, value: any}
 
 function modificationToJSON(m: Modification): ModificationJSON {
-  return {type: m.type, prop: m.prop.name, value: m.prop.value}
+  return isAdd(m) ? {add: m.add.name, value: m.add.value} : {remove: m.remove.name, value: m.remove.value}
 }
 
 function modificationFromJSON(schema: Schema, json: ModificationJSON): Modification {
-  if ((json.type == "addProp" || json.type == "removeProp") &&
-      typeof json.prop == "string") {
-    let prop = schema.getProp(json.prop)
-    if (prop) return {type: json.type, prop: prop.of(json.value)}
+  let {add, remove} = json as {add?: string, remove?: string}
+  if (typeof add == "string" || typeof remove == "string") {
+    let prop = schema.getProp((add || remove)!)
+    if (!prop) throw new Error(`Unknown prop ${add || remove}`)
+    let value = prop.of(json.value) // FIXME validate
+    if (prop) return add ? {add: value} : {remove: value}
   }
   throw new Error("Invalid modification JSON")
 }
@@ -95,15 +94,15 @@ function compareModifications(a: readonly Modification[], b: readonly Modificati
 }
 
 function compareModification(a: Modification, b: Modification) {
-  return a.type == b.type && a.prop.eq(b.prop)
+  return isAdd(a) ? isAdd(b) && a.add.eq(b.add) : isRemove(b) && a.remove.eq(b.remove)
 }
 
 export type ChangeSpec = {
   from: number
   to?: number
   insert?: Slice
-  addProp?: PropValue
-  removeProp?: PropValue
+  add?: PropValue
+  remove?: PropValue
 } | ChangeSet | ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
@@ -369,33 +368,33 @@ export class ChangeSet {
         flush()
         add(spec)
       } else {
-        const {from, addProp, removeProp, insert} = spec
-        let modifies = addProp || removeProp
+        const {from, add, remove, insert} = spec
+        let modifies = add || remove
         if (modifies && !insert) {
           let to = spec.to ?? spec.from + 1
-          if (addProp) {
-            let mods: Modification[] = [{type: "addProp", prop: addProp}]
+          if (add) {
+            let mods: Modification[] = [{add: add}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!addProp.prop.canTarget(node.type)) return false
-              let has = node.props.has(addProp.prop)
-              if (addProp.prop.multi) {
+              if (!add.prop.canTarget(node.type)) return false
+              let has = node.props.has(add.prop)
+              if (add.prop.multi) {
                 let modsHere = mods
                 if (has) {
-                  let left = subMulti(addProp.value, has.value, addProp.prop.multi)
+                  let left = subMulti(add.value, has.value, add.prop.multi)
                   if (!left.length) return false
-                  modsHere = [{type: "addProp", prop: addProp.prop.of(left)}]
+                  modsHere = [{add: add.prop.of(left)}]
                 }
                 section(from, to, -1, modsHere)
-              } else if (!has || !has.eq(addProp)) {
+              } else if (!has || !has.eq(add)) {
                 section(from, to, -1, mods)
               }
               return true
             })
           }
-          if (removeProp) {
-            let mods: Modification[] = [{type: "removeProp", prop: removeProp}]
+          if (remove) {
+            let mods: Modification[] = [{remove: remove}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!removeProp.prop.multi && !node.props.has(removeProp)) return false
+              if (!remove.prop.multi && !node.props.has(remove)) return false
               section(from, to, -1, mods)
               return true
             })
@@ -439,7 +438,7 @@ export class ChangeSet {
         text += data
       } else if (data) {
         text += `[${(data as readonly Modification[]).map(mod => {
-          return `${mod.type == "addProp" ? "+" : "-"}${mod.prop}`
+          return `${isAdd(mod) ? "+" + mod.add : "-" + mod.remove}`
         })}]`
       }
       if (text) result += `${result ? "," : ""}${pos}${len ? `-${pos + len}` : ""}${text}`
@@ -459,24 +458,21 @@ function filterMods(mods: null | readonly Modification[], against: null | readon
 }
 
 function modCancels(mod: Modification, other: Modification) {
-  if (other.type == "addProp") {
-    return mod.type == "addProp" ? mod.prop.prop == other.prop.prop && !mod.prop.prop.multi
-      : mod.type == "removeProp" ? mod.prop.eq(other.prop) : false
+  if (isAdd(other)) {
+    return isAdd(mod) ? mod.add.prop == other.add.prop && !mod.add.prop.multi : mod.remove.eq(other.add)
   } else {
-    return mod.type == "addProp" && mod.prop.eq(other.prop)
+    return isAdd(mod) && mod.add.eq(isAdd(other) ? other.add : other.remove)
   }
 }
 
 function invertMods(mods: readonly Modification[], target: Node): readonly Modification[] {
   return mods.map(mod => {
-    if (mod.type == "addProp") {
-      if (!mod.prop.prop.multi) {
-        let existed = target.props.has(mod.prop.prop)
-        if (existed) return {type: "addProp", prop: existed}
-      }
-      return {type: "removeProp", prop: mod.prop}
+    if (isRemove(mod)) return {add: mod.remove}
+    if (!mod.add.prop.multi) {
+      let existed = target.props.has(mod.add.prop)
+      if (existed) return {add: existed}
     }
-    return {type: "addProp", prop: mod.prop}
+    return {remove: mod.add}
   })
 }
 

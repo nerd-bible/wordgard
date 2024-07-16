@@ -17,7 +17,7 @@ function mk(doc: DocNode, changes: readonly ChangeData[]) {
     let to = maybeTag(doc, i * 2 + 1) ?? from
     if (Array.isArray(ch)) return {from, to, insert: slice(...ch)}
     let {add, remove} = ch as {add?: PropValue, remove?: PropValue}
-    return add ? {from, to, addProp: add} : {from, to, removeProp: remove}
+    return add ? {from, to, add: add} : {from, to, remove: remove}
   }))
 }
 
@@ -166,8 +166,8 @@ describe("ChangeSet", () => {
       del: ChangeSet.create(d, {from: 1, to: 4}),
       del2: ChangeSet.create(d, {from: 6, to: 7}),
       delP: ChangeSet.create(d, {from: 0, to: 9}),
-      mark: ChangeSet.create(d, {from: 5, to: 15, addProp: Strong}),
-      unmark: ChangeSet.create(d, {from: 5, to: 8, removeProp: Emphasis}),
+      mark: ChangeSet.create(d, {from: 5, to: 15, add: Strong}),
+      unmark: ChangeSet.create(d, {from: 5, to: 8, remove: Emphasis}),
       join: ChangeSet.create(d, {from: 8, to: 10}),
       split: ChangeSet.create(d, {from: 4, to: 5, insert: slice(close, open(p()))}),
       wrap: ChangeSet.create(d, [{from: 0, insert: slice(open(ol()), open(li()))}, {from: 16, insert: slice(close, close)}])
@@ -227,7 +227,7 @@ describe("ChangeSet", () => {
       let d = doc(p("abcde"))
       let ch1 = ChangeSet.create(d, {from: 1, insert: slice("XY")})
       let d2 = ch1.apply(d)
-      let ch2 = ChangeSet.create(d2, {from: 2, to: 5, addProp: Emphasis})
+      let ch2 = ChangeSet.create(d2, {from: 2, to: 5, add: Emphasis})
       let composed = ch1.compose(ch2)
       ist(ch2.apply(d2), composed.apply(d), eq)
     })
