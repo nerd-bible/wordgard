@@ -145,8 +145,8 @@ describe("ChangeSet", () => {
     })
 
     it("exits wrapper nodes when possible", () => {
-      let Wrapper = NodeType.block("Wrapper", {content: "Inner Block", group: "Block", tag: "wrapper"})
-      let Inner = NodeType.block("Inner", {tag: "inner"})
+      let Wrapper = NodeType.block("Wrapper", {content: "Inner Block", group: "Block", dom: {tag: "wrapper"}})
+      let Inner = NodeType.block("Inner", {dom: {tag: "inner"}})
       let schema = Schema.define([basicSchema.nodes, Wrapper, Inner])
       let doc = schema.doc([p()]), ch = ChangeSet.createChecked(doc, {from: 0, insert: slice(Inner.create())})
       ist(ch.apply(doc), schema.doc([Wrapper.create([Inner.create()]), p()]), eq)

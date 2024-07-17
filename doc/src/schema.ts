@@ -153,7 +153,7 @@ export const Paragraph = NodeType.textblock("Paragraph", {
 
 export const Heading = NodeType.textblock<{level: number}>("Heading", {
   props: {
-    level: {required: true, dom: {attribute: "level"}} // FIXME
+    level: {required: true, dom: {attribute: "level", read: Number}}
   },
   content: "Inline",
   group: "Block",
@@ -162,7 +162,7 @@ export const Heading = NodeType.textblock<{level: number}>("Heading", {
 
 export const CodeBlock = NodeType.textblock<{language: string}>("CodeBlock", {
   props: {
-    language: {dom: {attribute: "data-language"}}
+    language: {dom: {attribute: "data-language", read: (x: string) => x}}
   },
   content: "Inline",
   group: "Block",
@@ -180,7 +180,7 @@ export const OrderedList = NodeType.block<{start: number}>("OrderedList", {
   group: "Block",
   dom: {tag: "ol"},
   props: {
-    start: {dom: {attribute: "start"}}
+    start: {dom: {attribute: "start", read: Number}}
   }
 })
 
@@ -204,8 +204,8 @@ export const HorizontalRule = NodeType.block("HorizontalRule", {
 export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
   dom: {tag: "img"},
   props: {
-    src: {required: true, dom: {attribute: "src"}},
-    alt: {dom: {attribute: "alt"}}
+    src: {required: true, dom: {attribute: "src", read: (x: string) => x}},
+    alt: {dom: {attribute: "alt", read: (x: string) => x}}
   }
 })
 
@@ -225,7 +225,12 @@ export const Strong = Prop.flag("Strong", {
 
 export const Link = Prop.define<{href: string}>("Link", {
   rank: 20,
-  dom: {tag: "a", selector: "a[href]", attrs: href => ({href}), value: dom => dom.href},
+  dom: {
+    tag: "a",
+    selector: "a[href]",
+    attrs: attrs => attrs,
+    read: (dom: HTMLElement) => ({href: (dom as HTMLLinkElement).href})
+  },
 })
 
 export const Code = Prop.flag("Code", {

@@ -1,7 +1,7 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
 import {Schema, SchemaElement} from "./schema"
 import {Context} from "./context"
-import {ElementRepresentation, AttributeRepresentation, StyleRepresentation} from "./to_dom"
+import {ElementRepresentation, DynamicElementRepresentation, AttributeRepresentation, StyleRepresentation} from "./to_dom"
 
 export const enum TokenType { Open, Close, Node }
 
@@ -21,7 +21,7 @@ export type NodeSpec<Props extends {}> = {
   content?: string
   group?: string
   toText?: (node: Node) => string
-  dom: ElementRepresentation
+  dom: ElementRepresentation<Props> | DynamicElementRepresentation<Props>
 }
 
 function splitGroups(groups: string) {
@@ -165,7 +165,7 @@ export class Node {
   contentLength: number
 
   constructor(
-    readonly type: NodeType,
+    readonly type: NodeType<any>,
     readonly props: PropSet,
     readonly children: readonly Node[],
   ) {
@@ -415,7 +415,7 @@ export type PropSpec<Value> = {
   spanning?: boolean
   required?: boolean
   multi?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
-  dom: ElementRepresentation<Value> | AttributeRepresentation<Value> | StyleRepresentation<Value>
+  dom?: ElementRepresentation<Value> | AttributeRepresentation<Value> | StyleRepresentation<Value>
 }
 
 export function addMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
@@ -472,7 +472,7 @@ export class Prop<Value> {
 
   isRequired() { return !!this.spec.required }
 
-  canTarget(node: NodeType) {
+  canTarget(node: NodeType<any>) {
     return this.targetGroups.some(g => node.isInGroup(g))
   }
 

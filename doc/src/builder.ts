@@ -15,7 +15,7 @@ export type NodeBuilder<Source> =
     (...children: ContentSpec[]): Node
   } : never
 
-export function builder<T extends {[name: string]: NodeType | Node | Prop<any> | PropValue}>(spec: T, schema?: Schema): {
+export function builder<T extends {[name: string]: NodeType<any> | Node | Prop<any> | PropValue}>(spec: T, schema?: Schema): {
   [name in keyof T]: NodeBuilder<T[name]>
 } & {doc(...children: ContentSpec[]): DocNode} {
   let result = Object.create(null)
@@ -49,7 +49,7 @@ function nodeBuilder<Props extends {}>(type: NodeType<Props>, given: PropSet): N
 }
 
 const Fragment = NodeType.inline("Fragment", {
-  tag: "span", // FIXME
+  dom: {tag: "span"},
   content: "Inline"
 })
 

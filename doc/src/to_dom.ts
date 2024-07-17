@@ -1,42 +1,49 @@
-import {DocNode, Node, Mark, Params, Param} from "./node"
+import {DocNode, Node, PropValue} from "./node"
 
 export type Attrs = {[name: string]: string | number | undefined}
 
-export type ElementRepresentation<Params extends {} = {}> = {
+export const Reject = {[Symbol()]: "reject"}
+
+// FIXME typing of optional local props in node representations
+
+export type Representation<Param> = ElementRepresentation<Param>
+  | AttributeRepresentation<Param>
+  | StyleRepresentation<Param>
+  | DynamicElementRepresentation<Param>
+
+export type ElementRepresentation<Param> = {
   tag: string // FIXME allow a function?
   selector?: string
-  attrs?: Attrs | ((params: Params) => Attrs)
-  params?: Params | ((elt: HTMLElement) => Params | boolean)
+  attrs?: Attrs | ((param: Param) => Attrs)
+  read?: Param | ((elt: HTMLElement) => Param | typeof Reject)
 }
 
-export function isElementRepresentation(
-  repr: ElementRepresentation | AttributeRepresentation | StyleRepresentation
-): repr is ElementRepresentation {
-  return (repr as ElementRepresentation).tag != null
+export type DynamicElementRepresentation<Param> = {
+  create: (param: Param) => HTMLElement
 }
 
-export type AttributeRepresentation<Params extends {} = {}> = {
+export function isElementRepresentation(repr: Representation<any>): repr is ElementRepresentation<any> {
+  return (repr as ElementRepresentation<any>).tag != null
+}
+
+export type AttributeRepresentation<Param> = {
   attribute: string
-  value: (params: Params) => string
-  params: (value: string) => Params | boolean
+  value?: (param: Param) => string | null
+  read: (value: string) => Param | typeof Reject
 }
 
-export function isAttributeRepresentation(
-  repr: ElementRepresentation | AttributeRepresentation | StyleRepresentation
-): repr is AttributeRepresentation {
-  return (repr as AttributeRepresentation).attribute != null
+export function isAttributeRepresentation(repr: Representation<any>): repr is AttributeRepresentation<any> {
+  return (repr as AttributeRepresentation<any>).attribute != null
 }
 
-export type StyleRepresentation<Params extends {} = {}> = {
+export type StyleRepresentation<Param> = {
   style: string
-  value: (params: Params) => string
-  params: (value: string) => Params | boolean
+  value?: (param: Param) => string | null
+  read: (value: string) => Param | typeof Reject
 }
 
-export function isStyleRepresentation(
-  repr: ElementRepresentation | AttributeRepresentation | StyleRepresentation
-): repr is StyleRepresentation {
-  return (repr as StyleRepresentation).style != null
+export function isStyleRepresentation(repr: Representation<any>): repr is StyleRepresentation<any> {
+  return (repr as StyleRepresentation<any>).style != null
 }
 
 export type SerializeOptions = {
@@ -54,29 +61,71 @@ export function serialize(doc: DocNode, options?: SerializeOptions) {
   return result
 }
 
-export function serializeNode(node: Node, options?: SerializeOptions) {
-  return serializeNodeInner(node, fillOptions(options))
+export function serializeNode(node: Node, options?: SerializeOptions): HTMLElement | Text {
+  let opts = fillOptions(options)
+  let frag = opts.document.createDocumentFragment()
+  serializeChildren([node], frag, opts, node.type.isInline())
+  return frag.firstChild as (HTMLElement | Text)
 }
 
-function createElement(repr: ElementRepresentation<Params>, params: readonly Param[], values: Params, doc: Document) {
+function createElement<Param>(repr: ElementRepresentation<Param>, param: Param, doc: Document) {
   let dom = doc.createElement(repr.tag)
   if (repr.attrs) {
-    let attrs = typeof repr.attrs == "function" ? repr.attrs(values) : repr.attrs
-    for (let attr in attrs) dom.setAttribute(attr, values[attr])
-  } else {
-    for (let param of params) {
-      let attr = param.spec.attribute!, value = values[attr]
-      if (value != null) dom.setAttribute(attr, value)
+    let attrs = typeof repr.attrs == "function" ? repr.attrs(param) : repr.attrs
+    for (let attr in attrs) {
+      let value = attrs[attr]
+      if (value != null) dom.setAttribute(attr, String(value))
     }
   }
   return dom
 }
 
+function localProps(node: Node): {[name: string]: any} {
+  let {props} = node.type, result: {[name: string]: any} = Object.create(null)
+  for (let name in props) result[name] = node.prop(props[name])
+  return result
+}
+
+function applyAttributes(attrs: Attrs, elt: Element) {
+  for (let name in attrs) {
+    let value = attrs[name]
+    if (value != null) elt.setAttribute(name, String(value))
+  }
+}
+
+function applyAttribute(repr: AttributeRepresentation<any>, elt: Element, input: any) {
+  let value = repr.value ? repr.value(input) : String(input)
+  if (value != null) elt.setAttribute(repr.attribute, value)
+}
+
+function applyStyle(repr: StyleRepresentation<any>, elt: HTMLElement, input: any) {
+  let value = repr.value ? repr.value(input) : String(input)
+  if (value != null) elt.style.setProperty(repr.style, value)
+}
+
 function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
   if (node.isText()) return options.document.createTextNode(node.text)
-  let dom = createElement(node.type.spec.dom, node.type.params, node.params, options.document)
-  serializeChildren(node.children, dom, options, node.inlineContent())
-  return dom
+  let {dom} = node.type.spec, elt: HTMLElement
+  if (isElementRepresentation(dom)) {
+    elt = options.document.createElement(dom.tag)
+    if (dom.attrs)
+      applyAttributes(typeof dom.attrs == "function" ? dom.attrs(localProps(node)) : dom.attrs, elt)
+  } else {
+    elt = dom.create(localProps(node))
+  }
+  for (let {prop, value} of node.props.set) {
+    let propDOM = prop.spec.dom
+    if (propDOM) {
+      if (isElementRepresentation(propDOM)) {
+        if (prop.local) throw new Error("Local properties DOM representation must be an attribute or a style")
+      } else if (isAttributeRepresentation(propDOM)) {
+        applyAttribute(propDOM, elt, value)
+      } else if (isStyleRepresentation(propDOM)) {
+        applyStyle(propDOM, elt, value)
+      }
+    }
+  }
+  return elt
 }
 
 function serializeChildren(
@@ -85,43 +134,28 @@ function serializeChildren(
   options: Required<SerializeOptions>,
   inline: boolean
 ) {
-  let top = target, active: Mark[] = []
+  let top = target, active: PropValue[] = []
   for (let child of children) {
     let childDOM = serializeNodeInner(child, options)
-    if (active.length || child.marks.length) {
-      let keep = 0, rendered = 0, eltMarks = []
-      for (let mark of child.marks) {
-        let {dom} = mark.type.spec
-        if (isElementRepresentation(dom)) {
-          eltMarks.push(mark)
-        } else {
-          if (childDOM.nodeType != 1) {
-            let wrap = options.document.createElement("span")
-            wrap.appendChild(childDOM)
-            childDOM = wrap
-          }
-          let value = typeof dom.value == "function" ? dom.value(mark.params) : dom.value
-          if (value != null) {
-            if (isAttributeRepresentation(dom))
-              (childDOM as HTMLElement).setAttribute(dom.attribute, value)
-            else
-              (childDOM as HTMLElement).style.setProperty(dom.style, value)
-          }
-        }
+    if (active.length || child.props.set.some(p => !p.prop.local)) {
+      let keep = 0, rendered = 0, eltProps = []
+      for (let val of child.props.set) {
+        let {dom} = val.prop.spec
+        if (dom && isElementRepresentation(dom)) eltProps.push(val)
       }
-      while (keep < active.length && rendered < eltMarks.length) {
-        let next = eltMarks[rendered]
-        if (!next.eq(active[keep]) || !(next.type.spec.spanning ?? inline)) break
+      while (keep < active.length && rendered < eltProps.length) {
+        let next = eltProps[rendered]
+        if (!next.eq(active[keep]) || !(next.prop.spec.spanning ?? inline)) break
         keep++; rendered++
       }
       while (keep < active.length) {
         top = top.parentNode as (Element | DocumentFragment)
         active.pop()
       }
-      while (rendered < eltMarks.length) {
-        let add = eltMarks[rendered++]
-        let markDOM = createElement(add.type.spec.dom as ElementRepresentation,
-                                    add.type.params, add.params, options.document)
+      while (rendered < eltProps.length) {
+        let add = eltProps[rendered++]
+        let markDOM = createElement(add.prop.spec.dom as ElementRepresentation<any>,
+                                    add.value, options.document)
         active.push(add)
         top.appendChild(markDOM)
         top = markDOM

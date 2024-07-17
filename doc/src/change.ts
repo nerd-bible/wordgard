@@ -330,7 +330,7 @@ export class ChangeSet {
           if (node.isLeaf() || nodePos >= pos && nodePos < end) {
             let [from, to] = node.isText() ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)] : [nodePos, nodePos + 1]
             if (at < from) addSection(sections, data, from - at, -1, null)
-            addSection(sections, data, to - from, -1, invertMods(mods, node))
+            addSection(sections, data, to - from, -1, invertMods(mods!, node))
             at = to
           }
         })
