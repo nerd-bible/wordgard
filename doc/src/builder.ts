@@ -50,7 +50,7 @@ function nodeBuilder<Props extends {}>(type: NodeType<Props>, given: PropSet): N
 
 const Fragment = NodeType.inline("Fragment", {
   dom: {tag: "span"},
-  content: "Inline"
+  content: "_"
 })
 
 function propBuilder<Value>(type: Prop<Value>): NodeBuilder<Prop<Value>> {

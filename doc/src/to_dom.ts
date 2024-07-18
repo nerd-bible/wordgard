@@ -104,9 +104,10 @@ function applyStyle(repr: StyleRepresentation<any>, elt: HTMLElement, input: any
 }
 
 function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
-  if (node.isText()) return options.document.createTextNode(node.text)
-  let {dom} = node.type.spec, elt: HTMLElement
-  if (isElementRepresentation(dom)) {
+  let {dom} = node.type.spec, elt: HTMLElement | undefined, text: Text | undefined
+  if (node.isText()) {
+    text = options.document.createTextNode(node.text)
+  } else if (isElementRepresentation(dom)) {
     elt = options.document.createElement(dom.tag)
     if (dom.attrs)
       applyAttributes(typeof dom.attrs == "function" ? dom.attrs(localProps(node)) : dom.attrs, elt)
@@ -118,14 +119,18 @@ function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
     if (propDOM) {
       if (isElementRepresentation(propDOM)) {
         if (prop.local) throw new Error("Local properties DOM representation must be an attribute or a style")
-      } else if (isAttributeRepresentation(propDOM)) {
-        applyAttribute(propDOM, elt, value)
-      } else if (isStyleRepresentation(propDOM)) {
-        applyStyle(propDOM, elt, value)
+      } else {
+        if (!elt) {
+          elt = document.createElement("span")
+          elt.appendChild(text!)
+        }
+        if (isAttributeRepresentation(propDOM)) applyAttribute(propDOM, elt, value)
+        else applyStyle(propDOM, elt, value)
       }
     }
   }
-  return elt
+  if (!text) serializeChildren(node.children, elt!, options, node.type.inlineContent())
+  return elt || text!
 }
 
 function serializeChildren(
