@@ -2,7 +2,8 @@ import {DocNode, Node, PropValue} from "./node"
 
 export type Attrs = {[name: string]: string | number | undefined}
 
-export const Reject = {[Symbol()]: "reject"}
+export const Reject: unique symbol = Symbol("reject")
+export type Reject = typeof Reject
 
 // FIXME typing of optional local props in node representations
 
@@ -15,7 +16,7 @@ export type ElementRepresentation<Param> = {
   tag: string // FIXME allow a function?
   selector?: string
   attrs?: Attrs | ((param: Param) => Attrs)
-  read?: Param | ((elt: HTMLElement) => Param | typeof Reject)
+  read?: Param | ((elt: HTMLElement) => Param | Reject)
 }
 
 export type DynamicElementRepresentation<Param> = {
