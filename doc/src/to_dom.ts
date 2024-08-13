@@ -1,51 +1,6 @@
 import {DocNode, Node, PropValue} from "./node"
-
-export type Attrs = {[name: string]: string | number | undefined}
-
-export const Reject: unique symbol = Symbol("reject")
-export type Reject = typeof Reject
-
-// FIXME typing of optional local props in node representations
-
-export type Representation<Param> = ElementRepresentation<Param>
-  | AttributeRepresentation<Param>
-  | StyleRepresentation<Param>
-  | DynamicElementRepresentation<Param>
-
-export type ElementRepresentation<Param> = {
-  tag: string // FIXME allow a function?
-  selector?: string
-  attrs?: Attrs | ((param: Param) => Attrs)
-  read?: Param | ((elt: HTMLElement) => Param | Reject)
-}
-
-export type DynamicElementRepresentation<Param> = {
-  create: (param: Param) => HTMLElement
-}
-
-export function isElementRepresentation(repr: Representation<any>): repr is ElementRepresentation<any> {
-  return (repr as ElementRepresentation<any>).tag != null
-}
-
-export type AttributeRepresentation<Param> = {
-  attribute: string
-  value?: (param: Param) => string | null
-  read: (value: string) => Param | typeof Reject
-}
-
-export function isAttributeRepresentation(repr: Representation<any>): repr is AttributeRepresentation<any> {
-  return (repr as AttributeRepresentation<any>).attribute != null
-}
-
-export type StyleRepresentation<Param> = {
-  style: string
-  value?: (param: Param) => string | null
-  read: (value: string) => Param | typeof Reject
-}
-
-export function isStyleRepresentation(repr: Representation<any>): repr is StyleRepresentation<any> {
-  return (repr as StyleRepresentation<any>).style != null
-}
+import {Attrs, ElementRepresentation, StyleRepresentation, AttributeRepresentation,
+        isElementRepresentation, isAttributeRepresentation} from "./repr"
 
 export type SerializeOptions = {
   document?: Document
