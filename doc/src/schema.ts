@@ -115,7 +115,7 @@ export class Schema {
                               } content, but allows ${child.name} as a child`)
         }
         if (!node.inlineContent() && !sawDefaultable)
-          throw new Error(`Node ${node.name} has block content, but all possible children require non-default params`)
+          throw new Error(`Node ${node.name} has block content, but all possible children require non-default props`)
       }
       for (let name in node.props) {
         if (propNames.has(name)) throw new Error(`Local prop ${name} in ${node.name} clashes with a global prop name`)
@@ -153,7 +153,7 @@ export const Paragraph = NodeType.textblock("Paragraph", {
 
 export const Heading = NodeType.textblock<{level: number}>("Heading", {
   props: {
-    level: {required: true, dom: {attribute: "level", read: Number}}
+    level: {required: true, dom: {attribute: "level", readAttribute: Number}}
   },
   content: "Inline",
   group: "Block",
@@ -162,7 +162,7 @@ export const Heading = NodeType.textblock<{level: number}>("Heading", {
 
 export const CodeBlock = NodeType.textblock<{language: string}>("CodeBlock", {
   props: {
-    language: {dom: {attribute: "data-language", read: (x: string) => x}}
+    language: {dom: {attribute: "data-language", readAttribute: x => x}}
   },
   content: "Inline",
   group: "Block",
@@ -180,7 +180,7 @@ export const OrderedList = NodeType.block<{start: number}>("OrderedList", {
   group: "Block",
   dom: {tag: "ol"},
   props: {
-    start: {dom: {attribute: "start", read: Number}}
+    start: {dom: {attribute: "start", readAttribute: Number}}
   }
 })
 
@@ -204,8 +204,8 @@ export const HorizontalRule = NodeType.block("HorizontalRule", {
 export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
   dom: {tag: "img"},
   props: {
-    src: {required: true, dom: {attribute: "src", read: (x: string) => x}},
-    alt: {dom: {attribute: "alt", read: (x: string) => x}}
+    src: {required: true, dom: {attribute: "src", readAttribute: x => x}},
+    alt: {dom: {attribute: "alt", readAttribute: x => x}}
   }
 })
 
@@ -228,8 +228,8 @@ export const Link = Prop.define<{href: string}>("Link", {
   dom: {
     tag: "a",
     selector: "a[href]",
-    attrs: attrs => attrs,
-    read: (dom: HTMLElement) => ({href: (dom as HTMLLinkElement).href})
+    attributes: attrs => attrs,
+    readElement: dom => ({href: (dom as HTMLLinkElement).href})
   },
 })
 

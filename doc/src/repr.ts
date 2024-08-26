@@ -1,7 +1,3 @@
-export type Attrs = {[name: string]: string | number | undefined}
-
-export const Reject: unique symbol = Symbol("reject")
-export type Reject = typeof Reject
 
 // FIXME typing of optional local props in node representations
 
@@ -13,8 +9,8 @@ export type Representation<Param> = ElementRepresentation<Param>
 export type ElementRepresentation<Param> = {
   tag: string
   selector?: string
-  attrs?: Attrs | ((param: Param) => Attrs)
-  read?: Param | ((elt: HTMLElement) => Param | Reject)
+  toAttributes?: Attrs | ((param: Param) => Attrs)
+  fromAttributes?: Param | ((elt: HTMLElement) => Param | Reject)
 }
 
 export type DynamicElementRepresentation<Param> = {
@@ -27,8 +23,8 @@ export function isElementRepresentation(repr: Representation<any>): repr is Elem
 
 export type AttributeRepresentation<Param> = {
   attribute: string
-  value?: (param: Param) => string | null
-  read: (value: string) => Param | typeof Reject
+  toAttribute?: (param: Param) => string | null
+  fromAttribute: (value: string) => Param | typeof Reject
 }
 
 export function isAttributeRepresentation(repr: Representation<any>): repr is AttributeRepresentation<any> {
@@ -37,8 +33,8 @@ export function isAttributeRepresentation(repr: Representation<any>): repr is At
 
 export type StyleRepresentation<Param> = {
   style: string
-  value?: (param: Param) => string | null
-  read: (value: string) => Param | typeof Reject
+  toStyle?: (param: Param) => string | null
+  fromStyle: (value: string) => Param | typeof Reject
 }
 
 export function isStyleRepresentation(repr: Representation<any>): repr is StyleRepresentation<any> {

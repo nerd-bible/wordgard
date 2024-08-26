@@ -1,7 +1,7 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
+import {NodeSpec, PropSpec, LocalPropSpec} from "./spec"
 import {Schema, SchemaElement} from "./schema"
 import {Context} from "./context"
-import {ElementRepresentation, DynamicElementRepresentation, AttributeRepresentation, StyleRepresentation} from "./to_dom"
 
 export const enum TokenType { Open, Close, Node }
 
@@ -15,14 +15,6 @@ const enum NodeFlag {
 }
 
 export const none: readonly any[] = []
-
-export type NodeSpec<Props extends {}> = {
-  props?: {[name in keyof Props]: PropSpec<Props[name]>}
-  content?: string
-  group?: string
-  toText?: (node: Node) => string
-  dom: ElementRepresentation<Props> | DynamicElementRepresentation<Props>
-}
 
 function splitGroups(groups: string) {
   let result = []
@@ -45,6 +37,7 @@ export class NodeType<Props extends {} = {}> {
   private contentGroups: readonly string[]
   private childCache: Map<NodeType, boolean> = new Map
   readonly requiredProps: Prop<any>[] = []
+  readonly preserveWhitespace: boolean
   flags: NodeFlag
 
   constructor(
@@ -57,12 +50,13 @@ export class NodeType<Props extends {} = {}> {
     if (spec.props) for (let propName in spec.props) {
       let prop = new Prop(name + "/" + propName, {...spec.props[propName], nodes: name}, true)
       this.props[propName] = prop as any
-      if (prop.isRequired()) this.requiredProps.push(prop)
+      if (prop.required) this.requiredProps.push(prop)
     }
     let groups = this.groups = [name]
     if (flags & NodeFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
     this.contentGroups = spec.content ? splitGroups(spec.content) : none
+    this.preserveWhitespace = !!spec.preserveWhitespace
   }
 
   static block<Props extends {}>(name: string, spec: NodeSpec<Props>) {
@@ -409,15 +403,6 @@ export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], 
   return true
 }
 
-export type PropSpec<Value> = {
-  nodes?: string
-  rank?: number
-  spanning?: boolean
-  required?: boolean
-  multi?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
-  dom?: ElementRepresentation<Value> | AttributeRepresentation<Value> | StyleRepresentation<Value>
-}
-
 export function addMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
   let result: T[] = []
   for (let i = 0, j = 0;;) {
@@ -454,23 +439,23 @@ export class Prop<Value> {
   readonly targetGroups: readonly string[]
   readonly rank: number
   readonly multi: null | ((a: any, b: any) => number)
+  readonly required: boolean
 
   constructor(
     readonly name: string,
-    readonly spec: PropSpec<Value>,
+    readonly spec: PropSpec<Value> | LocalPropSpec<Value>,
     readonly local: boolean
   ) {
-    this.targetGroups = spec.nodes == null ? ["Inline"] : splitGroups(spec.nodes)
-    this.rank = spec.rank ?? 100
-    this.multi = spec.multi ? spec.multi.compare : null
-    if (spec.required && !local) throw new Error("Only local props can be required")
+    let s = spec as any
+    this.targetGroups = s.nodes == null ? ["Inline"] : splitGroups(s.nodes)
+    this.rank = s.rank ?? 100
+    this.multi = !local && s.multi ? s.multi.compare : null
+    this.required = local && !!s.required
   }
 
   of(value: Value) { return new PropValue(this, value) }
 
   get schemaElement(): SchemaElement { return this }
-
-  isRequired() { return !!this.spec.required }
 
   canTarget(node: NodeType<any>) {
     return this.targetGroups.some(g => node.isInGroup(g))

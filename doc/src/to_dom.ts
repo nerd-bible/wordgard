@@ -1,6 +1,5 @@
 import {DocNode, Node, PropValue} from "./node"
-import {Attrs, ElementRepresentation, StyleRepresentation, AttributeRepresentation,
-        isElementRepresentation, isAttributeRepresentation} from "./repr"
+import {Attrs, ElementRepresentation, AttributeRepresentation, isElementRepresentation} from "./spec"
 
 export type SerializeOptions = {
   document?: Document
@@ -26,8 +25,8 @@ export function serializeNode(node: Node, options?: SerializeOptions): HTMLEleme
 
 function createElement<Param>(repr: ElementRepresentation<Param>, param: Param, doc: Document) {
   let dom = doc.createElement(repr.tag)
-  if (repr.attrs) {
-    let attrs = typeof repr.attrs == "function" ? repr.attrs(param) : repr.attrs
+  if (repr.attributes) {
+    let attrs = typeof repr.attributes == "function" ? repr.attributes(param) : repr.attributes
     for (let attr in attrs) {
       let value = attrs[attr]
       if (value != null) dom.setAttribute(attr, String(value))
@@ -49,26 +48,24 @@ function applyAttributes(attrs: Attrs, elt: Element) {
   }
 }
 
-function applyAttribute(repr: AttributeRepresentation<any>, elt: Element, input: any) {
-  let value = repr.value ? repr.value(input) : String(input)
-  if (value != null) elt.setAttribute(repr.attribute, value)
-}
-
-function applyStyle(repr: StyleRepresentation<any>, elt: HTMLElement, input: any) {
-  let value = repr.value ? repr.value(input) : String(input)
-  if (value != null) elt.style.setProperty(repr.style, value)
+function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, input: any) {
+  let value = repr.value == null ? String(input) : typeof repr.value == "string" ? repr.value : repr.value(input)
+  if (value != null) {
+    if (/^style\//.test(repr.attribute)) elt.style.setProperty(repr.attribute.slice(6), value)
+    else elt.setAttribute(repr.attribute, value)
+  }
 }
 
 function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
   let {dom} = node.type.spec, elt: HTMLElement | undefined, text: Text | undefined
   if (node.isText()) {
     text = options.document.createTextNode(node.text)
-  } else if (isElementRepresentation(dom)) {
-    elt = options.document.createElement(dom.tag)
-    if (dom.attrs)
-      applyAttributes(typeof dom.attrs == "function" ? dom.attrs(localProps(node)) : dom.attrs, elt)
+  } else if (typeof dom == "function") {
+    elt = dom(localProps(node)) // FIXME include dangling parents
   } else {
-    elt = dom.create(localProps(node))
+    elt = options.document.createElement(dom.tag)
+    if (dom.attributes)
+      applyAttributes(typeof dom.attributes == "function" ? dom.attributes(localProps(node)) : dom.attributes, elt)
   }
   for (let {prop, value} of node.props.set) {
     let propDOM = prop.spec.dom
@@ -80,8 +77,7 @@ function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
           elt = document.createElement("span")
           elt.appendChild(text!)
         }
-        if (isAttributeRepresentation(propDOM)) applyAttribute(propDOM, elt, value)
-        else applyStyle(propDOM, elt, value)
+        applyAttribute(propDOM, elt, value)
       }
     }
   }
