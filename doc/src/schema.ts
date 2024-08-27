@@ -143,6 +143,8 @@ export class Schema {
   }
 }
 
+// FIXME definition format still needs work
+
 export const Paragraph = Tag.define("Paragraph", {
   kind: "block",
   inlineContent: "Inline",
@@ -230,13 +232,13 @@ export const Strong = Prop.define("Strong", {
   dom: {tag: "strong"},
 })
 
-export const Link = PropType.define<{href: string}>("Link", {
+export const Link = PropType.define<string>("Link", {
   rank: 20,
   dom: {
     tag: "a",
     selector: "a[href]",
-    attributes: attrs => attrs,
-    readElement: dom => ({href: (dom as HTMLLinkElement).href})
+    attributes: href => ({href}),
+    readElement: dom => (dom as HTMLLinkElement).href
   },
 })
 

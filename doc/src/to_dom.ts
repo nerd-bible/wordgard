@@ -35,12 +35,6 @@ function createElement<Param>(repr: ElementRepresentation<Param>, param: Param, 
   return dom
 }
 
-function localProps(node: Node): {[name: string]: any} {
-  let {props} = node.tag, result: {[name: string]: any} = Object.create(null)
-  for (let name in props) result[name] = node.prop(props[name])
-  return result
-}
-
 function applyAttributes(attrs: Attrs, elt: Element) {
   for (let name in attrs) {
     let value = attrs[name]
@@ -57,21 +51,25 @@ function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, in
 }
 
 function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
-  let {dom} = node.tag.spec, elt: HTMLElement | undefined, text: Text | undefined
+  let {dom} = node.tag.type.spec, elt: HTMLElement | undefined, text: Text | undefined
   if (node.isText()) {
     text = options.document.createTextNode(node.text)
   } else if (typeof dom == "function") {
-    elt = dom(localProps(node)) // FIXME include dangling parents
+    elt = dom(node.tag.param) // FIXME include dangling parents
   } else {
     elt = options.document.createElement(dom.tag)
     if (dom.attributes)
-      applyAttributes(typeof dom.attributes == "function" ? dom.attributes(localProps(node)) : dom.attributes, elt)
+      applyAttributes(typeof dom.attributes == "function" ? dom.attributes(node.tag.param) : dom.attributes, elt)
   }
-  for (let {type, value} of node.props.set) {
+  for (let {type, value} of node.props.set) if (!type.spec.spanning) {
     let propDOM = type.spec.dom
     if (propDOM) {
       if (isElementRepresentation(propDOM)) {
-        if (type.local) throw new Error("Local properties DOM representation must be an attribute or a style")
+        let wrap = options.document.createElement(propDOM.tag)
+        if (propDOM.attributes)
+          applyAttributes(typeof propDOM.attributes == "function" ? propDOM.attributes(value) : propDOM.attributes, wrap)
+        wrap.appendChild(elt || text!)
+        elt = wrap
       } else {
         if (!elt) {
           elt = document.createElement("span")
@@ -94,9 +92,9 @@ function serializeChildren(
   let top = target, active: Prop[] = []
   for (let child of children) {
     let childDOM = serializeNodeInner(child, options)
-    if (active.length || child.props.set.some(p => !p.type.local)) {
+    if (active.length || child.props.set.some(p => p.type.spec.spanning)) {
       let keep = 0, rendered = 0, eltProps = []
-      for (let val of child.props.set) {
+      for (let val of child.props.set) if (val.type.spec.spanning) {
         let {dom} = val.type.spec
         if (dom && isElementRepresentation(dom)) eltProps.push(val)
       }

@@ -1,13 +1,14 @@
 import {Node, DocNode, TextNode, PropSet, PropType,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
-        Paragraph, Blockquote, OrderedList, CodeBlock,
+        Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "@willows/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
 
 const Comment = PropType.define<readonly number[]>("Comment", {
   tags: "Inline",
-  multi: {compare: (a, b) => a - b}
+  multi: {compare: (a, b) => a - b},
+  dom: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
 
 export function open(node: Node) { return new OpenToken(node) }
@@ -58,7 +59,7 @@ export function rDoc(minLength: number) {
   }
   function close() {
     closeOne()
-    while (stack.length > 1 && (!stack[stack.length - 1].type.tag.canContain(Paragraph) || r(3))) closeOne()
+    while (stack.length > 1 && (!stack[stack.length - 1].type.tag.type.canContain(Paragraph.type) || r(3))) closeOne()
   }
   do {
     open()
@@ -71,10 +72,10 @@ export function rDoc(minLength: number) {
         node = Node.text(" ", props)
       } else {
         if (!r(5)) {
-          let prop = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of({href: "/" + rWord()}))
+          let prop = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of("/" + rWord()))
           props = props.add(prop)
         }
-        node = r(5) ? Node.text(rWord()) : r(2) ? br() : img({src: rWord() + ".svg"})
+        node = r(5) ? Node.text(rWord()) : r(2) ? br() : img(rWord() + ".svg")
         node = node.withProps(node.props.join(props))
       }
       len += node.length
@@ -113,17 +114,17 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   },
   // Join two adjacent blocks
   doc => scanBlocks(doc, (node, pos, parent, index) => {
-    if (index && parent.children[index - 1].tag.sharesContent(node.tag))
+    if (index && parent.children[index - 1].tag.type.sharesContent(node.tag.type))
       return {from: pos - 1, to: pos + 1}
   }),
   // Lift a block's content out to its parent
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.tag.sharesContent(node.tag))
+    if (parent.tag.type.sharesContent(node.tag.type))
       return [{from: pos, to: pos + 1}, {from: pos + node.length - 1, to: pos + node.length}]
   }),
   // Wrap a block in a blockquote
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.tag.canContain(Blockquote) && Blockquote.canContain(node.tag))
+    if (parent.tag.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.tag.type))
       return [{from: pos, insert: slice(open(blockquote()))}, {from: pos + node.length, insert: slice(close)}]
   }),
   // Delete an entire node
@@ -133,24 +134,21 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Mark some inline content
   doc => {
     let len = 2 + r(6), from = r(doc.length - len)
-    return {from, to: from + len, add: !r(4) ? Comment.of([r(100)]) : !r(3) ? Emphasis : r(2) ? Strong : Link.of({href: "/" + rWord()})}
+    return {from, to: from + len, add: !r(4) ? Comment.of([r(100)]) : !r(3) ? Emphasis : r(2) ? Strong : Link.of("/" + rWord())}
   },
   // Remove a prop from some textblock
   doc => scanBlocks(doc, (node, pos) => {
     if (node.isTextblock()) for (let i = 0; i < node.children.length; i++) {
       let props = node.children[i].props
-      if (props.set.some(v => !v.type.isRequired)) {
-        let notReq = props.set.filter(v => !v.type.isRequired)
-        return {from: pos, to: pos + node.length, remove: notReq[r(notReq.length)]}
+      if (props.set.length) {
+        return {from: pos, to: pos + node.length, remove: props.set[r(props.set.length)]}
       }
     }
   }),
   // Change a prop on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
-    if (node.tag == OrderedList)
-      return {from: pos, add: OrderedList.props.start.of(node.prop(OrderedList.props.start, true) + 1)}
     if (node.tag == CodeBlock)
-      return {from: pos, add: CodeBlock.props.language.of(rWord())}
+      return {from: pos, add: CodeBlockLanguage.of(rWord())}
   })
 ]
 

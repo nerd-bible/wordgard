@@ -1,36 +1,22 @@
 import {Schema} from "./schema"
-import {Tag, Node, PropType, PropSet, Prop} from "./node"
+import {Tag, Node, PropSet, Prop} from "./node"
 import {ParseRule, isElementRepresentation} from "./spec"
 
 type DOMNode = InstanceType<typeof window.Node>
 
-function isEmpty<T>(obj: Record<string, T>) {
-  for (let _ in obj) return false
-  return true
-}
-
-function readProps(props: Record<string, PropType<any>>) {
-  let read: {name: string, read: (node: HTMLElement) => string}[] = []
-  for (let name in props) {
-    let prop = props[name], {dom} = prop.spec
-    if (!isAttributeRepresentation(prop.spec.dom)) throw new Error(`Missing DOM representation for local property ${prop.name}`)
-    read.push({name, read: (
-  }
-}
-
 function collectRules(schema: Schema) {
   let rules: ParseRule[] = []
-  for (let node of schema.tags) {
-    let {dom, parseRules} = node.spec
+  for (let tag of schema.tags) {
+    let {dom, parseRules} = tag.spec
     // FIXME synthesize readElement from local attribute specs
     if (typeof dom != "function") rules.push({
       selector: dom.selector || dom.tag,
-      readElement: dom.readElement || readProps(node.props)
-      node
+      readElement: dom.readElement,
+      tag
     })
-    if (parseRules) for (let rule of parseRules) rules.push({...rule, node: rule.node || node})
+    if (parseRules) for (let rule of parseRules) rules.push({...rule, tag: rule.tag || tag})
   }
-  for (let prop of schema.props) if (!prop.local) {
+  for (let prop of schema.props) {
     let {dom, parseRules} = prop.spec
     if (isElementRepresentation(dom)) {
       rules.push({
@@ -92,16 +78,16 @@ class ParseContext {
   }
 
   parseElement(elt: HTMLElement, props: readonly Prop[]) {
-    for (let type of this.schema.tags) {
-      let repr = type.spec.dom
-    }
+/*    for (let tag of this.schema.tags) {
+      let repr = tag.spec.dom
+    }*/
   }
 
   parseTextNode(dom: Text, props: readonly Prop[]) {
     let text = dom.nodeValue!
-    if (!(this.top.type.preserveWhitespace || this.options.preserveWhiteSpace)) {
+    if (!(this.top.tag.type.preserveWhitespace || this.options.preserveWhiteSpace)) {
       // Ignore entirely blank node
-      if (!this.top.type.inlineContent() && !/[^ \t\r\n\u000c]/.test(text)) {
+      if (!this.top.tag.inlineContent() && !/[^ \t\r\n\u000c]/.test(text)) {
         this.scanInside(dom)
         return
       }
@@ -119,7 +105,7 @@ class ParseContext {
           text = text.slice(1)
       }
     } else {
-      text = text.replace(/\r?\n|\r/g, this.top.type.preserveWhitespace ? "\n" : " ")
+      text = text.replace(/\r?\n|\r/g, this.top.tag.type.preserveWhitespace ? "\n" : " ")
     }
     if (text) this.insertNode(Node.text(text), props)
     this.scanText(dom, text)
@@ -130,7 +116,7 @@ class ParseContext {
     if (innerProps) {
       let top = this.top
       let nodeProps = PropSet.empty
-      for (let p of innerProps) if (p.type.canTarget(node.tag)) nodeProps = nodeProps.add(p)
+      for (let p of innerProps) if (p.type.canTarget(node.tag.type)) nodeProps = nodeProps.add(p)
       for (let p of node.props.set) nodeProps = nodeProps.add(p)
       top.children.push(node.withProps(nodeProps))
       return true
@@ -145,7 +131,7 @@ class ParseContext {
   findPlace(node: Node, props: readonly Prop[]): readonly Prop[] | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
-      let found = this.schema.findWrapping(cx.type, node.tag)
+      let found = this.schema.findWrapping(cx.tag, node.tag)
       if (found && (!route || route.length > found.length)) {
         route = found
         under = cx
@@ -156,21 +142,20 @@ class ParseContext {
     if (!route) return null
     this.sync(under!)
     for (let i = 0; i < route.length; i++)
-      props = this.enterInner(route[i].tag, route[i].props, props, false)
+      props = this.enterInner(route[i], props, false)
     return props
   }
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(type: Tag, nodeProps: PropSet | null, props: readonly Prop[], solid: boolean = false) {
+  enterInner(tag: Tag<any>, props: readonly Prop[], solid: boolean = false) {
     let localProps = PropSet.empty
     props = props.filter(p => {
-      if (!p.type.canTarget(type)) return true
+      if (!p.type.canTarget(tag.type)) return true
       localProps = localProps.add(p)
       return false
     })
-    if (nodeProps) for (let p of nodeProps.set) localProps = localProps.add(p)
-    this.top = new NodeContext(type, localProps, solid ? CxFlag.Solid : CxFlag.None, this.top)
+    this.top = new NodeContext(tag, localProps, solid ? CxFlag.Solid : CxFlag.None, this.top)
     return props
   }
 
@@ -229,7 +214,7 @@ class ParseContext {
 class NodeContext {
   children: Node[] = []
 
-  constructor(readonly type: Tag, readonly props: PropSet,
+  constructor(readonly tag: Tag<any>, readonly props: PropSet,
               readonly flags: CxFlag,
               readonly parent: NodeContext | null) {}
 
@@ -239,8 +224,8 @@ class NodeContext {
   }
 
   finish(schema: Schema) {
-    if (!this.type.inlineContent() && !this.type.isLeaf() && !this.children.length)
-      this.children.push(schema.createDefault(this.type))
-    return this.type.isDoc() ? schema.doc(this.children) : this.type.create(this.props, this.children)
+    if (!this.tag.inlineContent() && !this.tag.isLeaf() && !this.children.length)
+      this.children.push(schema.createDefault(this.tag.type))
+    return this.tag.isDoc() ? schema.doc(this.children) : this.tag.create(this.props, this.children)
   }
 }

@@ -59,7 +59,7 @@ function isRemove(m: Modification): m is {remove: Prop} { return !!(m as any).re
 function applyModifications(modifications: readonly Modification[], node: Node) {
   for (const m of modifications) {
     if (isAdd(m)) {
-      if (!m.add.type.canTarget(node.tag))
+      if (!m.add.type.canTarget(node.tag.type))
         throw new Error(`Trying to add prop ${m.add.name} to a node of type ${node.name}`)
       node = node.withProps(node.props.add(m.add))
     } else {
@@ -375,7 +375,7 @@ export class ChangeSet {
           if (add) {
             let mods: Modification[] = [{add: add}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!add.type.canTarget(node.tag)) return false
+              if (!add.type.canTarget(node.tag.type)) return false
               let has = node.props.has(add.type)
               if (add.type.multi) {
                 let modsHere = mods
@@ -505,10 +505,10 @@ class FitLevel {
   flags = FitFlag.None
 
   constructor(
-    readonly type: Tag,
+    readonly tag: Tag,
     readonly next: FitLevel | null,
   ) {
-    if (!this.type.inlineContent() && !this.type.isLeaf()) this.flags |= FitFlag.NeedsChild
+    if (!this.tag.inlineContent() && !this.tag.isLeaf()) this.flags |= FitFlag.NeedsChild
   }
 }
 
@@ -581,13 +581,13 @@ class ChangeFitter implements Walker {
     this.inserting = false
   }
 
-  fit(type: Tag) {
-    if (this.stack.type.canContain(type)) return true
-    let fix: {leave: number, enter: readonly Node[], cost: number} | null = null
+  fit(tag: Tag) {
+    if (this.stack.tag.type.canContain(tag.type)) return true
+    let fix: {leave: number, enter: readonly Tag[], cost: number} | null = null
     let dDelta = this.stackDelta - this.inputDelta
     for (let level: FitLevel | null = this.stack, leave = 0, leaveCost = 0; level; level = level.next, leave++) {
       if (fix && leaveCost > fix.cost) break
-      let enter = this.doc.schema.findWrapping(level.type, type)
+      let enter = this.doc.schema.findWrapping(level.tag, tag)
       if (enter) {
         let cost = leaveCost + enter.length * 2 - Math.max(0, Math.min(-dDelta, enter.length))
         if (!fix || fix.cost > cost) fix = {leave, enter, cost}
@@ -600,9 +600,9 @@ class ChangeFitter implements Walker {
       this.stackDelta--
     }
     for (let wrapper of fix.enter) {
-      this.patch(0, new OpenToken(wrapper))
+      this.patch(0, new OpenToken(wrapper.create()))
       this.stack.flags &= ~FitFlag.NeedsChild
-      this.stack = new FitLevel(wrapper.tag, this.stack)
+      this.stack = new FitLevel(wrapper, this.stack)
       this.stack.flags |= FitFlag.Synthetic
       this.stackDelta++
     }
@@ -617,7 +617,7 @@ class ChangeFitter implements Walker {
     while (levels.length > depth + 1) { this.insertClose(); levels.pop() }
     for (let d = 1; d <= Math.min(depth, levels.length - 1); d++) {
       let cx = context.atDepth(d)
-      if (!cx.node.tag.sharesContent(levels[d].type)) {
+      if (!cx.node.tag.type.sharesContent(levels[d].tag.type)) {
         while (levels.length > d) { this.insertClose(); levels.pop() }
         break
       }
@@ -630,7 +630,7 @@ class ChangeFitter implements Walker {
   }
 
   insertClose() {
-    if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.type), CloseToken)
+    if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.tag.type), CloseToken)
     else this.patch(0, CloseToken)
     this.stack = this.stack.next!
   }
@@ -674,7 +674,7 @@ class ChangeFitter implements Walker {
       this.doubleDeleteDelta++
       this.patch(1)
     } else if (this.stack.next) {
-      if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.type))
+      if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.tag.type))
       this.stack = this.stack.next
       if (this.inserting) this.stackDelta++
     } else {
@@ -686,7 +686,7 @@ class ChangeFitter implements Walker {
   finish(): ChangeSet | null {
     while (this.stack.next || (this.stack.flags && FitFlag.NeedsChild)) {
       if (this.stack.flags & FitFlag.NeedsChild) {
-        this.patch(0, this.doc.schema.createDefault(this.stack.type))
+        this.patch(0, this.doc.schema.createDefault(this.stack.tag.type))
         this.stack.flags &= ~FitFlag.NeedsChild
       } else {
         this.patch(0, CloseToken)

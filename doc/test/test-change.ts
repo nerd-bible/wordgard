@@ -2,9 +2,9 @@ import ist from "ist"
 import {Node, DocNode, Tag, Prop,
         ChangeSet, ChangeSpec, Token,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
-        Image, CodeBlock, OrderedList, Emphasis, Strong, Link} from "@willows/doc"
+        ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "@willows/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
-const {doc, p, h1, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
+const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Prop} | {remove: Prop}
 
@@ -91,7 +91,7 @@ describe("ChangeSet", () => {
     })
 
     it("can change node props", () => {
-      testApply(doc(p(0, img({src: "a.png"}), 1)), [{add: Image.props.src.of("b.jpg")}], doc(p(img({src: "b.jpg"}))))
+      testApply(doc(p(0, imgAlt("A", img("a.png")), 1)), [{add: ImageAlt.of("B")}], doc(p(imgAlt("B", img("a.jpg")))))
     })
 
     it("complains on a mismatched length", () => {
@@ -145,8 +145,8 @@ describe("ChangeSet", () => {
     })
 
     it("exits wrapper nodes when possible", () => {
-      let Wrapper = Tag.block("Wrapper", {content: "Inner Block", group: "Block", dom: {tag: "wrapper"}})
-      let Inner = Tag.block("Inner", {dom: {tag: "inner"}})
+      let Wrapper = Tag.define("Wrapper", {kind: "block", blockContent: "Inner Block", group: "Block", dom: {tag: "wrapper"}})
+      let Inner = Tag.define("Inner", {kind: "block", dom: {tag: "inner"}})
       let schema = Schema.define([basicSchema.tags, Wrapper, Inner])
       let doc = schema.doc([p()]), ch = ChangeSet.createChecked(doc, {from: 0, insert: slice(Inner.create())})
       ist(ch.apply(doc), schema.doc([Wrapper.create([Inner.create()]), p()]), eq)
@@ -308,8 +308,8 @@ describe("ChangeSet", () => {
 
     it("orders local prop modifications correctly", () => {
       let d = doc(0, pre(1, "a"))
-      let a = mk(d, [{add: CodeBlock.props.language.of("x")}])
-      let b = mk(d, [{add: CodeBlock.props.language.of("y")}])
+      let a = mk(d, [{add: CodeBlockLanguage.of("x")}])
+      let b = mk(d, [{add: CodeBlockLanguage.of("y")}])
       let docAB = b.map(a, d).apply(a.apply(d))
       let docBA = a.map(b, d, true).apply(b.apply(d))
       ist(docAB, docBA, eq)
@@ -317,7 +317,7 @@ describe("ChangeSet", () => {
 
     it("orders prop-adding modifications correctly", () => {
       let d = doc(p(0, "a", 1))
-      let a = mk(d, [{add: Link.of({href: "x"})}]), b = mk(d, [{add: Link.of({href: "y"})}])
+      let a = mk(d, [{add: Link.of("x")}]), b = mk(d, [{add: Link.of("y")}])
       let docAB = b.map(a, d).apply(a.apply(d))
       let docBA = a.map(b, d, true).apply(b.apply(d))
       ist(docAB, docBA, eq)
@@ -363,7 +363,7 @@ describe("ChangeSet", () => {
     })
 
     it("can invert adding a prop", () => {
-      testInv(doc(p(0, "abc", 1, " ", 2, "def", 3)), [{add: Emphasis}, {add: Link.of({href: "/"})}])
+      testInv(doc(p(0, "abc", 1, " ", 2, "def", 3)), [{add: Emphasis}, {add: Link.of("/")}])
     })
 
     it("can invert removing a prop", () => {
@@ -371,11 +371,11 @@ describe("ChangeSet", () => {
     })
 
     it("can invert replacing a prop with another version", () => {
-      testInv(doc(p(0, a({href: "1"}, "abc"), 1)), [{add: Link.of({href: "2"})}])
+      testInv(doc(p(0, a("1", "abc"), 1)), [{add: Link.of("2")}])
     })
 
     it("can invert changing a prop", () => {
-      testInv(doc(0, ol(1, li(p("-")))), [{add: OrderedList.props.start.of(5)}])
+      testInv(doc(0, preLang("js", pre("null"))), [{add: CodeBlockLanguage.of("c++")}])
     })
 
     it("can invert sequences of random changes", () => {

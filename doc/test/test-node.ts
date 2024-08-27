@@ -62,7 +62,7 @@ describe("Node", () => {
       ist(doc(p("one"), hr(), hr(), p("two")).textContent(), "one\n---\n---\ntwo")
     })
 
-    let BlockLeaf = Tag.block("BlockLeaf", {group: "Block", dom: {tag: "div"}})
+    let BlockLeaf = Tag.define("BlockLeaf", {kind: "block", group: "Block", dom: {tag: "div"}})
 
     it("doesn't add block separator around non-rendered leaf nodes", () => {
       ist(blockquote(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
@@ -79,13 +79,8 @@ describe("Node", () => {
 
   describe("create", () => {
     it("fills params", () => {
-      let i = Image.createWith({src: "x.jpg"})
-      ist(i.prop(Image.props.src), "x.jpg")
-      ist(i.prop(Image.props.alt), undefined)
-    })
-
-    it("complains about missing params", () => {
-      ist.throws(() => Image.createWith({}), /Required prop/)
+      let i = Image.of("x.jpg").create()
+      ist(i.tag.param, "x.jpg")
     })
 
     it("allows child nodes", () => {

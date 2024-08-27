@@ -1,4 +1,4 @@
-import {Node, PropType, Tag} from "./node"
+import {Node, PropType, TagType} from "./node"
 
 export type Attrs = {[name: string]: string | number | undefined}
 
@@ -6,7 +6,7 @@ export const Reject: unique symbol = Symbol("reject")
 export type Reject = typeof Reject
 
 export type ElementRepresentation<Param> = {
-  tag: string
+  tag: string // FIXME too easy to confuse with our use of tag
   selector?: string
   attributes?: Attrs | ((param: Param) => Attrs)
   readElement?: (element: HTMLElement) => Param | Reject
@@ -60,7 +60,7 @@ export interface BaseParseRule {
 
 export interface ElementParseRule<Param> extends BaseParseRule {
   selector: string
-  node?: Param extends {} ? Tag<Param> : never
+  tag?: TagType<Param>
   prop?: PropType<Param>
   param?: Param
   readElement?: (element: HTMLElement) => Param | Reject

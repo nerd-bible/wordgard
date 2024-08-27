@@ -1,6 +1,6 @@
 import ist from "ist"
-import {DocNode, basicBuilder, builder, serialize, PropType} from "@willows/doc"
-const {doc, blockquote, p, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
+import {DocNode, basicBuilder, builder, serialize, Prop, PropType} from "@willows/doc"
+const {doc, blockquote, p, em, strong, $img} = basicBuilder
 
 function html(doc: DocNode) {
   let wrap = document.createElement("div")
@@ -24,16 +24,16 @@ describe("serialize", () => {
   it("can serialize attribute props", () => {
     let Pr = PropType.define<string>("Pr", {
       tags: "Paragraph",
-      dom: {attribute: "data-p", read: (x: string) => x}
+      dom: {attribute: "data-p", readAttribute: x => x}
     })
     let {pr} = builder({pr: Pr})
     ist(html(doc(pr("one", p("x")))), "<p data-p=\"one\">x</p>")
   })
 
   it("can serialize style props", () => {
-    let Ul = PropType.flag("Ul", {
+    let Ul = Prop.define("Ul", {
       tags: "Paragraph",
-      dom: {style: "text-decoration", value: () => "underline", read: () => null}
+      dom: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
     let {ul} = builder({ul: Ul})
     ist(html(doc(p(ul("one")))), "<p><span style=\"text-decoration: underline;\">one</span></p>")

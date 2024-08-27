@@ -1,19 +1,19 @@
-import {Node, DocNode, Tag, PropType, Prop, PropSet} from "./node"
+import {Node, DocNode, Tag, TagType, PropType, Prop, PropSet} from "./node"
 import {pushNode} from "./slice"
 import {Schema, basicSchema} from "./schema"
-import {Paragraph, Heading, CodeBlock, Image, LineBreak,
+import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"
 
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
 export type NodeBuilder<Source> =
-  Source extends Node | Prop | Tag<null> ? (...children: ContentSpec[]) => Node :
+  Source extends Node | Prop | Tag<any> ? (...children: ContentSpec[]) => Node :
   Source extends PropType<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
-  Source extends Tag<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
+  Source extends TagType<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
   never
 
-export function builder<T extends {[name: string]: Tag<any> | Node | PropType<any> | Prop}>(spec: T, schema?: Schema): {
+export function builder<T extends {[name: string]: Tag<any> | TagType<any> | Node | PropType<any> | Prop}>(spec: T, schema?: Schema): {
   [name in keyof T]: NodeBuilder<T[name]>
 } & {doc(...children: ContentSpec[]): DocNode} {
   let result = Object.create(null)
@@ -22,7 +22,8 @@ export function builder<T extends {[name: string]: Tag<any> | Node | PropType<an
     result[name] = val instanceof Prop ? propInstanceBuilder(val)
       : val instanceof PropType ? propBuilder(val)
       : val instanceof Node ? nodeBuilder(val.tag, val.props)
-      : nodeBuilder(val, PropSet.empty)
+      : val instanceof Tag ? nodeBuilder(val, PropSet.empty)
+      : tagBuilder(val)
   }
   result.doc = (...children: ContentSpec[]) => {
     if (!schema) throw new Error("This builder does not have a schema")
@@ -31,24 +32,37 @@ export function builder<T extends {[name: string]: Tag<any> | Node | PropType<an
   return result
 }
 
-function nodeBuilder<Param>(type: Tag<Param>, props: PropSet): any {
-  if (type.needsParam())
-    return (param: Param, ...children: ContentSpec[]) => type.withParam(param).create(props, collectChildren(children))
+function nodeBuilder<Param>(type: Tag<Param>, props: PropSet): NodeBuilder<Tag> {
   return (...children: ContentSpec[]) => type.create(props, collectChildren(children))
 }
 
-const Fragment = Tag.inline("Fragment", {
+function tagBuilder<Param>(tag: TagType<Param>): NodeBuilder<TagType<Param>> {
+  return (param: Param, ...children: ContentSpec[]) => tag.of(param).create(PropSet.empty, collectChildren(children))
+}
+
+const InlineFragment = Tag.define("Fragment", {
+  kind: "inline",
   dom: {tag: "span"},
-  content: "_"
+  inlineContent: "_"
+})
+const BlockFragment = Tag.define("Fragment", {
+  kind: "block",
+  dom: {tag: "div"},
+  blockContent: "_"
 })
 
+function fragment(children: ContentSpec[], prop: Prop) {
+  let chs = collectChildren(children, prop)
+  return (chs.length && chs[0].isBlock() ? BlockFragment : InlineFragment).create(chs)
+}
+  
+
 function propBuilder<Value>(type: PropType<Value>): NodeBuilder<PropType<Value>> {
-  return (value: Value, ...children: ContentSpec[]) =>
-    Fragment.create(collectChildren(children, type.of(value)))
+  return (value: Value, ...children: ContentSpec[]) => fragment(children, type.of(value))
 }
 
 function propInstanceBuilder(prop: Prop): NodeBuilder<Prop> {
-  return (...children: ContentSpec[]) => Fragment.create(collectChildren(children, prop))
+  return (...children: ContentSpec[]) => fragment(children, prop)
 }
 
 const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()
@@ -63,7 +77,7 @@ function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
   } else if (typeof spec == "string") {
     pushNode(list, addProp(Node.text(spec), prop))
   } else if (spec instanceof Node) {
-    if (spec.tag == Fragment) {
+    if (spec.tag == InlineFragment || spec.tag == BlockFragment) {
       copyTags(spec.children, list, 0)
       for (let ch of spec.children) collectChildren(ch, prop, list)
     } else {
@@ -105,16 +119,18 @@ export function tag(node: Node, id: number): number {
 
 export const basicBuilder = builder({
   p: Paragraph,
-  h1: Heading.createWith({level: 1}),
-  h2: Heading.createWith({level: 2}),
-  h3: Heading.createWith({level: 3}),
-  h4: Heading.createWith({level: 4}),
+  h1: Heading.of(1),
+  h2: Heading.of(2),
+  h3: Heading.of(3),
+  h4: Heading.of(4),
   pre: CodeBlock,
+  preLang: CodeBlockLanguage,
   img: Image,
-  $img: Image.createWith({src: "test.png"}),
+  $img: Image.of("test.png"),
+  imgAlt: ImageAlt,
   br: LineBreak,
   blockquote: Blockquote,
-  ol: OrderedList.createWith({start: 1}),
+  ol: OrderedList.default!,
   ul: BulletList,
   li: ListItem,
   hr: HorizontalRule,
@@ -122,5 +138,5 @@ export const basicBuilder = builder({
   strong: Strong,
   code: Code,
   a: Link,
-  $a: Link.of({href: "/"})
+  $a: Link.of("/")
 }, basicSchema)

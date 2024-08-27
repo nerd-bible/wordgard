@@ -70,6 +70,8 @@ export class TagType<Param> {
 
   get schemaElement(): SchemaElement { return this }
 
+  of(param: Param) { return new Tag(this, param) }
+
   isInGroup(group: string) {
     return group == "_" || this.groups.includes(group)
   }
@@ -123,7 +125,7 @@ export class Tag<Param = unknown> {
   }
 
   static defineDoc(spec: {inlineContent?: string, blockContent?: string}) {
-    if (!spec.inlineContent || spec.blockContent) throw new Error("Doc nodes must allow content")
+    if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
     let flags = TagFlag.NullParam | TagFlag.Doc
     if (spec.inlineContent) flags |= TagFlag.InlineContent
     return new TagType<null>("Doc", flags, {
@@ -349,7 +351,10 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
   }
 }
 
-export const Text = new Tag(new TagType("Text", TagFlag.Text | TagFlag.Inline, {kind: "inline", dom: {tag: ""}}), null)
+export const Text = new Tag(new TagType("Text", TagFlag.Leaf | TagFlag.Text | TagFlag.Inline, {
+  kind: "inline",
+  dom: {tag: ""}
+}), null)
 
 export class TextNode extends Node {
   constructor(readonly text: string, props: PropSet) {
@@ -490,7 +495,7 @@ export class Prop<Value = any> {
 
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
-  static define(name: string, spec: PropSpec<null>): Prop {
+  static define(name: string, spec: PropSpec<null>): Prop<null> {
     return new PropType<null>(name, spec).of(null)
   }
 }
