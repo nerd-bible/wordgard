@@ -1,5 +1,5 @@
 import ist from "ist"
-import {DocNode, basicBuilder, builder, serialize, Prop} from "@willows/doc"
+import {DocNode, basicBuilder, builder, serialize, PropType} from "@willows/doc"
 const {doc, blockquote, p, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
 
 function html(doc: DocNode) {
@@ -22,8 +22,8 @@ describe("serialize", () => {
   })
 
   it("can serialize attribute props", () => {
-    let Pr = Prop.define<string>("Pr", {
-      nodes: "Paragraph",
+    let Pr = PropType.define<string>("Pr", {
+      tags: "Paragraph",
       dom: {attribute: "data-p", read: (x: string) => x}
     })
     let {pr} = builder({pr: Pr})
@@ -31,8 +31,8 @@ describe("serialize", () => {
   })
 
   it("can serialize style props", () => {
-    let Ul = Prop.flag("Ul", {
-      nodes: "Paragraph",
+    let Ul = PropType.flag("Ul", {
+      tags: "Paragraph",
       dom: {style: "text-decoration", value: () => "underline", read: () => null}
     })
     let {ul} = builder({ul: Ul})

@@ -1,17 +1,27 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
-import {NodeSpec, PropSpec, LocalPropSpec} from "./spec"
+import {TagSpec, PropSpec} from "./spec"
 import {Schema, SchemaElement} from "./schema"
 import {Context} from "./context"
 
 export const enum TokenType { Open, Close, Node }
 
-const enum NodeFlag {
+const enum TagFlag {
   None = 0,
   Inline = 1,
   InlineContent = 2,
   Text = 4,
   Leaf = 8,
   Doc = 16,
+  NullParam = 32
+}
+
+function flagsFor(spec: TagSpec<any>) {
+  let flags = TagFlag.None
+  if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
+  if (spec.inlineContent) flags |= TagFlag.InlineContent
+  else if (!spec.blockContent) flags |= TagFlag.Leaf
+  if (spec.kind == "inline") flags |= TagFlag.Inline
+  return flags
 }
 
 export const none: readonly any[] = []
@@ -31,59 +41,99 @@ function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)
 }
 
-export class NodeType<Props extends {} = {}> {
-  props: {[name in keyof Props]: Prop<Props[name]>}
-  private groups: readonly string[]
-  private contentGroups: readonly string[]
-  private childCache: Map<NodeType, boolean> = new Map
-  readonly requiredProps: Prop<any>[] = []
+export class TagType<Param> {
+  groups: readonly string[]
+  contentGroups: readonly string[]
+  readonly childCache: Map<TagType<unknown>, boolean> = new Map
   readonly preserveWhitespace: boolean
-  flags: NodeFlag
+  readonly default: Tag<Param> | null
 
   constructor(
     readonly name: string,
-    flags: NodeFlag,
-    readonly spec: NodeSpec<Props>
+    readonly flags: TagFlag,
+    readonly spec: TagSpec<Param>
   ) {
-    this.flags = flags | (spec.content ? NodeFlag.None : NodeFlag.Leaf)
-    this.props = Object.create(null)
-    if (spec.props) for (let propName in spec.props) {
-      let prop = new Prop(name + "/" + propName, {...spec.props[propName], nodes: name}, true)
-      this.props[propName] = prop as any
-      if (prop.required) this.requiredProps.push(prop)
-    }
     let groups = this.groups = [name]
-    if (flags & NodeFlag.Inline) groups.push("Inline")
+    if (flags & TagFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
-    this.contentGroups = spec.content ? splitGroups(spec.content) : none
+    let content = spec.inlineContent || spec.blockContent
+    this.contentGroups = content ? splitGroups(content) : none
     this.preserveWhitespace = !!spec.preserveWhitespace
+    this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!) :
+      (flags & TagFlag.NullParam) ? new Tag(this, null as any) : null
   }
 
-  static block<Props extends {}>(name: string, spec: NodeSpec<Props>) {
+  static define<T>(name: string, spec: TagSpec<T>) {
     checkReserved(name)
-    return new NodeType<Props>(name, NodeFlag.None, spec)
-  }
-
-  static textblock<Props extends {}>(name: string, spec: NodeSpec<Props>) {
-    checkReserved(name)
-    return new NodeType<Props>(name, NodeFlag.InlineContent, spec)
-  }
-
-  static inline<Props extends {}>(name: string, spec: NodeSpec<Props>) {
-    checkReserved(name)
-    return new NodeType<Props>(name, NodeFlag.Inline | (spec.content ? NodeFlag.InlineContent : NodeFlag.None), spec)
-  }
-
-  static inlineblock<Props extends {}>(name: string, spec: NodeSpec<Props>) {
-    checkReserved(name)
-    return new NodeType<Props>(name, NodeFlag.Inline, spec)
-  }
-
-  static doc(content: string, inlineContent = false) {
-    return new NodeType("Doc", NodeFlag.Doc | (inlineContent ? NodeFlag.InlineContent : NodeFlag.None), {content} as any as NodeSpec<{}>)
+    return new TagType<T>(name, flagsFor(spec), spec)
   }
 
   get schemaElement(): SchemaElement { return this }
+
+  isInGroup(group: string) {
+    return group == "_" || this.groups.includes(group)
+  }
+
+  canContain(child: TagType<any>) {
+    let result = this.childCache.get(child)
+    if (result == null) {
+      result = (child.flags & TagFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
+      this.childCache.set(child, result)
+    }
+    return result
+  }
+
+  sharesContent(other: TagType<any>) {
+    return other.contentGroups.some(g => this.contentGroups.includes(g))
+  }
+
+  checkChildren(children: readonly Node[]) {
+    for (let child of children)
+      if (!this.canContain(child.tag.type))
+        throw new Error(`${child.name} is not a valid child of ${this.name}`)
+    return children
+  }
+
+  checkProps(props: PropSet) {
+    for (let prop of props.set) if (!prop.type.canTarget(this))
+      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
+    return props
+  }
+
+  isInline() { return (this.flags & TagFlag.Inline) > 0 }
+  isText() { return (this.flags & TagFlag.Text) > 0 }
+  isBlock() { return (this.flags & TagFlag.Inline) == 0 }
+  inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
+  isTextblock() { return this.isBlock() && this.inlineContent() }
+  isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
+  isDoc() { return (this.flags & TagFlag.Doc) > 0 }
+}
+
+export class Tag<Param = unknown> {
+  constructor(
+    readonly type: TagType<Param>,
+    readonly param: Param
+  ) {}
+
+  get name() { return this.type.name }
+
+  static define(name: string, spec: TagSpec<null>) {
+    checkReserved(name)
+    return new TagType<null>(name, flagsFor(spec) | TagFlag.NullParam, spec).default!
+  }
+
+  static defineDoc(spec: {inlineContent?: string, blockContent?: string}) {
+    if (!spec.inlineContent || spec.blockContent) throw new Error("Doc nodes must allow content")
+    let flags = TagFlag.NullParam | TagFlag.Doc
+    if (spec.inlineContent) flags |= TagFlag.InlineContent
+    return new TagType<null>("Doc", flags, {
+      kind: "block",
+      ...spec,
+      dom: {tag: ""}
+    }).default!
+  }
+
+  get schemaElement(): SchemaElement { return this.type }
 
   // FIXME should this join text nodes?
   create(props: PropSet, children?: readonly Node[]): Node
@@ -97,57 +147,16 @@ export class NodeType<Props extends {} = {}> {
       else if (propsOrChildren instanceof Node) children = [propsOrChildren]
       else props = propsOrChildren as PropSet
     }
-    return new Node(this, this.checkProps(props), this.checkChildren(children || none))
+    return new Node(this, this.type.checkProps(props), this.type.checkChildren(children || none))
   }
 
-  createWith(props: Partial<Props>, children: readonly Node[] = none): Node {
-    let set = PropSet.empty
-    for (let name in props) {
-      let prop = this.props[name]
-      set = set.add(prop.of(props[name]!))
-    }
-    return this.create(set, children)
-  }
-
-  isInGroup(group: string) {
-    return group == "_" || this.groups.includes(group)
-  }
-
-  canContain(child: NodeType) {
-    let result = this.childCache.get(child)
-    if (result == null) {
-      result = (child.flags & NodeFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
-      this.childCache.set(child, result)
-    }
-    return result
-  }
-
-  sharesContent(other: NodeType) {
-    return other.contentGroups.some(g => this.contentGroups.includes(g))
-  }
-
-  checkChildren(children: readonly Node[]) {
-    for (let child of children)
-      if (!this.canContain(child.type))
-        throw new Error(`${child.name} is not a valid child of ${this.name}`)
-    return children
-  }
-
-  checkProps(props: PropSet) {
-    for (let prop of props.set) if (!prop.prop.canTarget(this))
-      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
-    for (let prop of this.requiredProps) if (!props.has(prop))
-      throw new Error(`Required prop ${prop.name} missing`)
-    return props
-  }
-
-  isInline() { return (this.flags & NodeFlag.Inline) > 0 }
-  isText() { return (this.flags & NodeFlag.Text) > 0 }
-  isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
-  inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }
-  isTextblock() { return this.isBlock() && this.inlineContent() }
-  isLeaf() { return (this.flags & NodeFlag.Leaf) > 0 }
-  isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
+  isInline() { return this.type.isInline() }
+  isText() { return this.type.isText() }
+  isBlock() { return this.type.isBlock() }
+  inlineContent() { return this.type.inlineContent() }
+  isTextblock() { return this.type.isTextblock() }
+  isLeaf() { return this.type.isLeaf() }
+  isDoc() { return this.type.isDoc() }
 }
 
 function checkReserved(name: string) {
@@ -159,23 +168,23 @@ export class Node {
   contentLength: number
 
   constructor(
-    readonly type: NodeType<any>,
+    readonly tag: Tag<any>,
     readonly props: PropSet,
     readonly children: readonly Node[],
   ) {
     this.contentLength = children.reduce((s, c) => s + c.length, 0)
   }
 
-  get name() { return this.type.name }
+  get name() { return this.tag.name }
 
   get length() { return this.isLeaf() ? 1 : 2 + this.contentLength }
 
   withProps(props: PropSet) {
-    return props.eq(this.props) ? this : new Node(this.type, this.type.checkProps(props), this.children)
+    return props.eq(this.props) ? this : new Node(this.tag, this.tag.type.checkProps(props), this.children)
   }
 
   sameMarkup(other: Node) {
-    return this.type == other.type && this.props.eq(other.props)
+    return this.tag == other.tag && this.props.eq(other.props)
   }
 
   eq(other: Node): boolean {
@@ -183,7 +192,7 @@ export class Node {
   }
 
   copy(children: readonly Node[]) {
-    return new Node(this.type, this.props, this.type.checkChildren(children))
+    return new Node(this.tag, this.props, this.tag.type.checkChildren(children))
   }
 
   slice(from: number, to = this.length) {
@@ -206,13 +215,13 @@ export class Node {
     if (to >= this.length) content.push(CloseToken)
   }
 
-  isInline() { return this.type.isInline() }
-  isText(): this is TextNode { return this.type.isText() }
-  isBlock() { return this.type.isBlock() }
-  inlineContent() { return this.type.inlineContent() }
-  isTextblock() { return this.type.isTextblock() }
-  isLeaf() { return this.type.isLeaf() }
-  isDoc() { return this.type.isDoc() }
+  isInline() { return this.tag.isInline() }
+  isText(): this is TextNode { return this.tag.isText() }
+  isBlock() { return this.tag.isBlock() }
+  inlineContent() { return this.tag.inlineContent() }
+  isTextblock() { return this.tag.isTextblock() }
+  isLeaf() { return this.tag.isLeaf() }
+  isDoc() { return this.tag.isDoc() }
 
   iterate(from: number, to: number, f: (node: Node, pos: number) => boolean | void) {
     if (f(this, 0) !== false)
@@ -246,6 +255,7 @@ export class Node {
 
   toJSON(): NodeJSON {
     let result: NodeJSON = {type: this.name}
+    if (this.tag != this.tag.type.default) result.param = this.tag.param
     if (!this.props.empty) {
       result.props = Object.create(null)
       for (let {name, value} of this.props.set) result.props![name] = value
@@ -266,7 +276,7 @@ export class Node {
       let nodeText = node.isText() ? node.text.slice(Math.max(0, from - pos), Math.min(node.length, to - pos))
         : !node.isLeaf() ? ""
         : leafText ? (typeof leafText === "function" ? leafText(node) : leafText)
-        : node.type.spec.toText ? node.type.spec.toText(node)
+        : node.tag.type.spec.toText ? node.tag.type.spec.toText(node)
         : ""
       if (node.isBlock() && (node.isLeaf() && nodeText || node.isTextblock())) {
         if (first) first = false
@@ -277,21 +287,22 @@ export class Node {
     return text
   }
 
-  prop<Value>(prop: Prop<Value>, required: true): Value
-  prop<Value>(prop: Prop<Value>): Value | undefined
-  prop<Value>(prop: Prop<Value>, required = false): Value | undefined {
+  prop<Value>(prop: PropType<Value>, required: true): Value
+  prop<Value>(prop: PropType<Value>): Value | undefined
+  prop<Value>(prop: PropType<Value>, required = false): Value | undefined {
     return (this.props.get as any)(prop, required)
   }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
 
   static text(text: string, props: PropSet = PropSet.empty) {
-    return new TextNode(text, Text.checkProps(props))
+    return new TextNode(text, Text.type.checkProps(props))
   }
 }
 
 export type NodeJSON = {
   type: string,
+  param?: any
   props?: {[name: string]: any}
   text?: string,
   children?: readonly NodeJSON[]
@@ -303,14 +314,14 @@ export type MarkJSON = {
 }
 
 export class DocNode extends Node {
-  constructor(type: NodeType, children: readonly Node[], readonly schema: Schema) {
+  constructor(type: Tag<null>, children: readonly Node[], readonly schema: Schema) {
     super(type, PropSet.empty, children)
   }
 
   get length() { return this.contentLength }
 
   copy(children: readonly Node[]) {
-    return new DocNode(this.type, this.type.checkChildren(children), this.schema)
+    return new DocNode(this.tag, this.tag.type.checkChildren(children), this.schema)
   }
 
   withProps(props: PropSet) {
@@ -338,7 +349,7 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
   }
 }
 
-export const Text = new NodeType("Text", NodeFlag.Text | NodeFlag.Inline, {dom: {tag: ""}})
+export const Text = new Tag(new TagType("Text", TagFlag.Text | TagFlag.Inline, {kind: "inline", dom: {tag: ""}}), null)
 
 export class TextNode extends Node {
   constructor(readonly text: string, props: PropSet) {
@@ -435,74 +446,72 @@ export function subMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b:
   }
 }
 
-export class Prop<Value> {
+export class PropType<Value> {
   readonly targetGroups: readonly string[]
   readonly rank: number
   readonly multi: null | ((a: any, b: any) => number)
-  readonly required: boolean
 
   constructor(
     readonly name: string,
-    readonly spec: PropSpec<Value> | LocalPropSpec<Value>,
-    readonly local: boolean
+    readonly spec: PropSpec<Value>
   ) {
-    let s = spec as any
-    this.targetGroups = s.nodes == null ? ["Inline"] : splitGroups(s.nodes)
-    this.rank = s.rank ?? 100
-    this.multi = !local && s.multi ? s.multi.compare : null
-    this.required = local && !!s.required
+    this.targetGroups = spec.tags == null ? ["Inline"] : splitGroups(spec.tags)
+    this.rank = spec.rank ?? 100
+    this.multi = spec.multi ? spec.multi.compare : null
   }
 
-  of(value: Value) { return new PropValue(this, value) }
+  of(value: Value) { return new Prop(this, value) }
 
   get schemaElement(): SchemaElement { return this }
 
-  canTarget(node: NodeType<any>) {
-    return this.targetGroups.some(g => node.isInGroup(g))
+  canTarget(tag: TagType<any>) {
+    return this.targetGroups.some(g => tag.isInGroup(g))
   }
 
-  compareRank(other: Prop<any>) {
+  compareRank(other: PropType<any>) {
     return this.rank - other.rank || (other.name < this.name ? 1 : -1)
   }
 
   static define<Value>(name: string, spec: PropSpec<Value>) {
-    return new Prop<Value>(name, spec, false)
-  }
-
-  static flag(name: string, spec: PropSpec<null>): PropValue {
-    return new Prop<null>(name, spec, false).of(null)
+    return new PropType<Value>(name, spec)
   }
 }
 
-export class PropValue<Value = any> {
-  constructor(readonly prop: Prop<Value>, readonly value: Value) {}
+export class Prop<Value = any> {
+  constructor(readonly type: PropType<Value>, readonly value: Value) {}
 
-  eq(other: PropValue) {
-    return this.prop == other.prop && compareDeep(this.value, other.value)
+  eq(other: Prop) {
+    return this.type == other.type && compareDeep(this.value, other.value)
   }
 
-  get name() { return this.prop.name }
+  get name() { return this.type.name }
+
+  get schemaElement() { return this.type }
 
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
+
+  static define(name: string, spec: PropSpec<null>): Prop {
+    return new PropType<null>(name, spec).of(null)
+  }
 }
 
 export class PropSet {
-  constructor(readonly set: readonly PropValue[]) {}
+  constructor(readonly set: readonly Prop[]) {}
 
   eq(other: PropSet) {
     return this == other || eqArray(this.set, other.set)
   }
 
-  add(prop: PropValue) {
-    let placed = null, copy: PropValue[] = []
+  add(prop: Prop) {
+    let placed = null, copy: Prop[] = []
     for (let i = 0; i < this.set.length; i++) {
       let other = this.set[i]
       if (prop.eq(other)) return this
-      if (other.prop != prop.prop) {
-        if (!placed && prop.prop.compareRank(other.prop) < 0) copy.push(placed = prop)
+      if (other.type != prop.type) {
+        if (!placed && prop.type.compareRank(other.type) < 0) copy.push(placed = prop)
         copy.push(other)
-      } else if (prop.prop.multi) {
-        copy.push(placed = new PropValue(prop.prop, addMulti(other.value, prop.value, prop.prop.multi)))
+      } else if (prop.type.multi) {
+        copy.push(placed = new Prop(prop.type, addMulti(other.value, prop.value, prop.type.multi)))
       }
     }
     if (!placed) copy.push(prop)
@@ -515,21 +524,21 @@ export class PropSet {
     return result
   }
 
-  remove(prop: Prop<any> | PropValue): PropSet {
-    if (prop instanceof Prop) {
-      for (var i = 0; i < this.set.length; i++) if (this.set[i].prop == prop)
+  remove(prop: PropType<any> | Prop): PropSet {
+    if (prop instanceof PropType) {
+      for (var i = 0; i < this.set.length; i++) if (this.set[i].type == prop)
         return this.set.length > 1 ? new PropSet(remove(this.set, i)) : PropSet.empty
     } else {
-      let type = prop.prop
-      for (var i = 0; i < this.set.length; i++) if (this.set[i].prop == type) {
-        let val = this.set[i], set: readonly PropValue[]
+      let type = prop.type
+      for (var i = 0; i < this.set.length; i++) if (this.set[i].type == type) {
+        let val = this.set[i], set: readonly Prop[]
         if (type.multi) {
           let rest = subMulti(val.value, prop.value, type.multi)
           if (!rest.length) {
             set = remove(this.set, i)
           } else {
             set = this.set.slice()
-            ;(set as PropValue[])[i] = new PropValue(type, rest)
+            ;(set as Prop[])[i] = new Prop(type, rest)
           }
         } else if (!val.eq(prop)) {
           continue
@@ -542,19 +551,19 @@ export class PropSet {
     return this
   }
 
-  has(prop: Prop<any> | PropValue): PropValue | null {
-    if (prop instanceof Prop) {
-      for (let v of this.set) if (v.prop == prop) return v
+  has(prop: PropType<any> | Prop): Prop | null {
+    if (prop instanceof PropType) {
+      for (let v of this.set) if (v.type == prop) return v
     } else {
       for (let v of this.set) if (v.eq(prop)) return v
     }
     return null
   }
 
-  get<Value>(prop: Prop<Value>, required: true): Value
-  get<Value>(prop: Prop<Value>): Value | undefined
-  get<Value>(prop: Prop<Value>, required = false): Value | undefined {
-    for (let v of this.set) if (v.prop == prop) return v.value
+  get<Value>(prop: PropType<Value>, required: true): Value
+  get<Value>(prop: PropType<Value>): Value | undefined
+  get<Value>(prop: PropType<Value>, required = false): Value | undefined {
+    for (let v of this.set) if (v.type == prop) return v.value
     if (required) throw new Error(`Missing required prop ${prop.name}`)
     return undefined
   }
@@ -565,7 +574,7 @@ export class PropSet {
 
   static empty = new PropSet(none)
 
-  static of(props: readonly PropValue[]) {
+  static of(props: readonly Prop[]) {
     let result = PropSet.empty
     for (let prop of props) result = result.add(prop)
     return result

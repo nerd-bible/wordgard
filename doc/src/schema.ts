@@ -1,27 +1,27 @@
-import {Node, NodeType, Prop, PropSet, NodeJSON, Text, DocNode, none} from "./node"
+import {Node, Tag, TagType, Prop, PropType, PropSet, NodeJSON, Text, DocNode, none} from "./node"
 
 export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]
 
 export class Schema {
-  private nodeSet: Set<NodeType>
-  private propSet: Set<Prop<any>>
-  private nodesByName: {[name: string]: NodeType} = Object.create(null)
-  private propsByName: {[name: string]: Prop<any>} = Object.create(null)
-  private wrappingCache: {[key: string]: readonly Node[] | null} = Object.create(null)
+  private tagSet: Set<TagType<unknown>>
+  private propSet: Set<PropType<any>>
+  private tagsByName: {[name: string]: TagType<unknown>} = Object.create(null)
+  private propsByName: {[name: string]: PropType<any>} = Object.create(null)
+  private wrappingCache: {[key: string]: readonly Tag[] | null} = Object.create(null)
 
   private constructor(
-    readonly nodes: readonly NodeType[],
-    readonly props: readonly Prop<any>[],
-    readonly docType: NodeType
+    readonly tags: readonly TagType<unknown>[],
+    readonly props: readonly PropType<any>[],
+    readonly docTag: Tag<null>
   ) {
-    this.nodeSet = new Set(nodes)
+    this.tagSet = new Set(tags)
     this.propSet = new Set(props)
-    for (let node of nodes) this.nodesByName[node.name] = node
+    for (let tag of tags) this.tagsByName[tag.name] = tag
     for (let prop of props) this.propsByName[prop.name] = prop
   }
 
   doc(children: readonly Node[]) {
-    return new DocNode(this.docType, this.docType.checkChildren(children), this)
+    return new DocNode(this.docTag, this.docTag.type.checkChildren(children), this)
   }
 
   get schemaElement() { return this }
@@ -31,70 +31,69 @@ export class Schema {
   // FIXME probably don't want to integrate this in document
   // construction, but rather in the editor state.
   validate(node: Node) {
-    if (!this.nodeSet.has(node.type))
+    if (!this.tagSet.has(node.tag.type))
       throw new Error(`Node type ${node.name} not in schema`)
-    for (let prop of node.props.set) if (!this.propSet.has(prop.prop))
+    for (let prop of node.props.set) if (!this.propSet.has(prop.type))
       throw new Error(`Prop type ${prop.name} not in schema`)
     for (let ch of node.children) this.validate(ch)
   }
 
-  defaultContentType(parent: NodeType) {
+  defaultContentType(parent: TagType<any>) {
     // FIXME provide less obscure control over order
-    for (let node of this.nodes) if (parent.canContain(node) && !node.requiredProps.length) return node
+    for (let tag of this.tags) if (parent.canContain(tag) && tag.default) return tag.default
     return null
   }
 
-  createDefault(parent: NodeType): Node {
+  createDefault(parent: TagType<any>): Node {
     let child = this.defaultContentType(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     if (child.isLeaf() || child.inlineContent()) return child.create()
-    return child.create([this.createDefault(child)])
+    return child.create([this.createDefault(child.type)])
   }
 
-  findWrapping(parent: NodeType, child: NodeType): readonly Node[] | null {
+  findWrapping(parent: Tag, child: Tag): readonly Tag[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  private findWrappingInner(parent: NodeType, child: NodeType): readonly Node[] | null {
-    let seen: Set<NodeType> = new Set, work: Node[][] = [[]]
+  private findWrappingInner(parent: Tag<any>, child: Tag): readonly Tag[] | null {
+    let seen: Set<TagType<unknown>> = new Set, work: Tag[][] = [[]]
     for (let i = 0; i < work.length; i++) {
-      let path = work[i], at = path.length ? path[path.length - 1].type : parent
-      for (let node of this.nodes) if (at.canContain(node)) {
-        if (node == child) return path
-        if (!seen.has(node) && !node.isLeaf() && !node.requiredProps.length) {
-          seen.add(node)
-          work.push(path.concat(node.create()))
+      let path = work[i], at = path.length ? path[path.length - 1] : parent
+      for (let tag of this.tags) if (at.type.canContain(tag)) {
+        if (tag == child.type) return path
+        if (!seen.has(tag) && !tag.isLeaf() && tag.default) {
+          seen.add(tag)
+          work.push(path.concat(tag.default))
         }
       }
     }
     return null
   }
 
-  getProp(name: string): Prop<any> | undefined { return this.propsByName[name] }
+  getProp(name: string): PropType<any> | undefined { return this.propsByName[name] }
 
-  getNode(name: string): NodeType<any> | undefined { return this.nodesByName[name] }
+  getTag(name: string): TagType<unknown> | undefined { return this.tagsByName[name] }
 
   static define(spec: SchemaElement) {
-    let nodes: NodeType[] = [Text], props: Prop<any>[] = []
+    let tags: TagType<unknown>[] = [Text.type], props: PropType<unknown>[] = []
     let nodeNames: Set<string> = new Set, propNames: Set<string> = new Set
     function scan(spec: SchemaElement) {
       if (Array.isArray(spec)) {
         spec.forEach(scan)
-      } else if (spec instanceof NodeType) {
-        if (nodes.includes(spec)) return
+      } else if (spec instanceof TagType) {
+        if (tags.includes(spec)) return
         if (nodeNames.has(spec.name)) throw new Error(`Duplicate use of node name ${spec.name} in schema`)
         nodeNames.add(spec.name)
-        nodes.push(spec)
-        for (let prop in spec.props) scan(spec.props[prop])
-      } else if (spec instanceof Prop) {
+        tags.push(spec)
+      } else if (spec instanceof PropType) {
         if (props.includes(spec)) return
         if (propNames.has(spec.name)) throw new Error(`Duplicate use of prop name ${spec.name} in schema`)
         propNames.add(spec.name)
         props.push(spec as any)
       } else if (spec instanceof Schema) {
-        scan(spec.nodes)
+        scan(spec.tags)
         scan(spec.props)
       } else if ((spec as any).schemaElement == spec) {
         throw new Error("Unexpected schema element type. You may have multiple versions of @willows/doc loaded")
@@ -103,36 +102,35 @@ export class Schema {
       }
     }
     scan(spec)
-    let docType: NodeType | null = null
-    for (let node of nodes) {
-      if (node.isDoc()) docType = node
-      if (!node.isLeaf()) {
+    let docTag: Tag<null> | null = null
+    for (let tag of tags) {
+      if (tag.isDoc()) docTag = tag.default as Tag<null>
+      if (!tag.isLeaf()) {
         let sawDefaultable = false
-        for (let child of nodes) if (node.canContain(child)) {
-          if (!child.requiredProps.length) sawDefaultable = true
-          if (child.isInline() != node.inlineContent())
-            throw new Error(`Node type ${node.name} has ${node.inlineContent() ? "block" : "inline"
+        for (let child of tags) if (tag.canContain(child)) {
+          if (child.default) sawDefaultable = true
+          if (child.isInline() != tag.inlineContent())
+            throw new Error(`Node type ${tag.name} has ${tag.inlineContent() ? "block" : "inline"
                               } content, but allows ${child.name} as a child`)
         }
-        if (!node.inlineContent() && !sawDefaultable)
-          throw new Error(`Node ${node.name} has block content, but all possible children require non-default props`)
-      }
-      for (let name in node.props) {
-        if (propNames.has(name)) throw new Error(`Local prop ${name} in ${node.name} clashes with a global prop name`)
+        if (!tag.inlineContent() && !sawDefaultable)
+          throw new Error(`Node ${tag.name} has block content, but all possible children require non-default props`)
       }
     }
-    if (!docType) throw new Error("A schema must define a document node type (Node.doc)")
-    return new Schema(nodes, props, docType)
+    if (!docTag) throw new Error("A schema must define a document tag")
+    return new Schema(tags, props, docTag)
   }
 
   nodeFromJSON(json: NodeJSON) {
-    if (!json || typeof json != "object" || !(json.type in this.nodesByName))
+    if (!json || typeof json != "object" || !(json.type in this.tagsByName))
       throw new Error("Invalid node JSON")
-    let type = this.nodesByName[json.type]
+    let type = this.tagsByName[json.type]
+    let tag = "param" in json ? new Tag(type, json.param) : type.default
+    if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
     let props = PropSet.empty, children = none
     if (json.props && typeof json.props == "object") {
       for (let name in json.props) {
-        let prop = (type.props as any)[name] || this.propsByName[name]
+        let prop = this.propsByName[name]
         if (prop) props = props.add(prop.of(json.props[name]))
       }
     }
@@ -141,89 +139,98 @@ export class Schema {
     if (json.children && Array.isArray(json.children))
       children = json.children.map(c => this.nodeFromJSON(c))
     if (type.isDoc()) return this.doc(children)
-    return type.create(props, children)
+    return tag.create(props, children)
   }
 }
 
-export const Paragraph = NodeType.textblock("Paragraph", {
-  content: "Inline",
+export const Paragraph = Tag.define("Paragraph", {
+  kind: "block",
+  inlineContent: "Inline",
   group: "Block",
   dom: {tag: "p"}
 })
 
-export const Heading = NodeType.textblock<{level: number}>("Heading", {
-  props: {
-    level: {required: true, dom: {attribute: "level", readAttribute: Number}}
-  },
-  content: "Inline",
+export const Heading = TagType.define("Heading", {
+  kind: "block",
+  defaultParam: 1,
+  inlineContent: "Inline",
   group: "Block",
   dom: {tag: "h1"} // FIXME
 })
 
-export const CodeBlock = NodeType.textblock<{language: string}>("CodeBlock", {
-  props: {
-    language: {dom: {attribute: "data-language", readAttribute: x => x}}
-  },
-  content: "Inline",
+export const CodeBlock = Tag.define("CodeBlock", {
+  kind: "block",
+  inlineContent: "Inline",
   group: "Block",
   dom: {tag: "pre"}
 })
 
-export const Blockquote = NodeType.block("Blockquote", {
-  content: "Block",
+export const CodeBlockLanguage = PropType.define("CodeBlockLanguage", {
+  tags: "CodeBlock",
+  dom: {attribute: "data-language", readAttribute: x => x}
+})
+
+export const Blockquote = Tag.define("Blockquote", {
+  kind: "block",
+  blockContent: "Block",
   group: "Block",
   dom: {tag: "blockquote"}
 })
 
-export const OrderedList = NodeType.block<{start: number}>("OrderedList", {
-  content: "ListItem",
+export const OrderedList = TagType.define("OrderedList", {
+  defaultParam: 1,
+  kind: "block",
+  blockContent: "ListItem",
   group: "Block",
   dom: {tag: "ol"},
-  props: {
-    start: {dom: {attribute: "start", readAttribute: Number}}
-  }
 })
 
-export const BulletList = NodeType.block("BulletList", {
-  content: "ListItem",
+export const BulletList = Tag.define("BulletList", {
+  kind: "block",
+  blockContent: "ListItem",
   group: "Block",
   dom: {tag: "ul"}
 })
 
-export const ListItem = NodeType.block("ListItem", {
-  content: "Block",
+export const ListItem = Tag.define("ListItem", {
+  kind: "block",
+  blockContent: "Block",
   dom: {tag: "li"}
 })
 
-export const HorizontalRule = NodeType.block("HorizontalRule", {
+export const HorizontalRule = Tag.define("HorizontalRule", {
+  kind: "block",
   group: "Block",
   dom: {tag: "hr"},
   toText: () => "---"
 })
 
-export const Image = NodeType.inline<{src: string, alt: string}>("Image", {
-  dom: {tag: "img"},
-  props: {
-    src: {required: true, dom: {attribute: "src", readAttribute: x => x}},
-    alt: {dom: {attribute: "alt", readAttribute: x => x}}
-  }
+export const Image = TagType.define<string>("Image", {
+  kind: "inline",
+  dom: {tag: "img"}
 })
 
-export const LineBreak = NodeType.inline("LineBreak", {
+export const ImageAlt = PropType.define<string>("ImageAlt", {
+  tags: "Image",
+  dom: {attribute: "alt", readAttribute: x => x}
+})
+
+export const LineBreak = Tag.define("LineBreak", {
+  kind: "inline",
   dom: {tag: "br"}
 })
 
-export const Emphasis = Prop.flag("Emphasis", {
+export const Emphasis = Prop.define("Emphasis", {
   rank: 40,
   dom: {tag: "em"}
 })
 
-export const Strong = Prop.flag("Strong", {
+export const Strong = Prop.define("Strong", {
   rank: 60,
   dom: {tag: "strong"},
 })
 
-export const Link = Prop.define<{href: string}>("Link", {
+export const Link = PropType.define<{href: string}>("Link", {
   rank: 20,
   dom: {
     tag: "a",
@@ -233,26 +240,30 @@ export const Link = Prop.define<{href: string}>("Link", {
   },
 })
 
-export const Code = Prop.flag("Code", {
+export const Code = Prop.define("Code", {
   rank: 80,
   dom: {tag: "code"}
 })
 
-export const Doc = NodeType.doc("Block")
+export const Doc = Tag.defineDoc({
+  blockContent: "Block"
+})
 
 export const basicSchema = Schema.define([
   Doc,
   Paragraph,
   Heading,
   CodeBlock,
+  CodeBlockLanguage,
   Blockquote,
   Image,
+  ImageAlt,
   HorizontalRule,
   BulletList,
   OrderedList,
   ListItem,
-  Emphasis.prop,
-  Strong.prop,
+  Emphasis,
+  Strong,
   Link,
-  Code.prop
+  Code
 ])

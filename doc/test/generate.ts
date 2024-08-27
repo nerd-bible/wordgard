@@ -1,12 +1,12 @@
-import {Node, DocNode, TextNode, PropSet, Prop,
+import {Node, DocNode, TextNode, PropSet, PropType,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
         Paragraph, Blockquote, OrderedList, CodeBlock,
         Emphasis, Strong, Code, Link} from "@willows/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
 
-const Comment = Prop.define<readonly number[]>("Comment", {
-  nodes: "Inline",
+const Comment = PropType.define<readonly number[]>("Comment", {
+  tags: "Inline",
   multi: {compare: (a, b) => a - b}
 })
 
@@ -58,7 +58,7 @@ export function rDoc(minLength: number) {
   }
   function close() {
     closeOne()
-    while (stack.length > 1 && (!stack[stack.length - 1].type.type.canContain(Paragraph) || r(3))) closeOne()
+    while (stack.length > 1 && (!stack[stack.length - 1].type.tag.canContain(Paragraph) || r(3))) closeOne()
   }
   do {
     open()
@@ -113,17 +113,17 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   },
   // Join two adjacent blocks
   doc => scanBlocks(doc, (node, pos, parent, index) => {
-    if (index && parent.children[index - 1].type.sharesContent(node.type))
+    if (index && parent.children[index - 1].tag.sharesContent(node.tag))
       return {from: pos - 1, to: pos + 1}
   }),
   // Lift a block's content out to its parent
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.sharesContent(node.type))
+    if (parent.tag.sharesContent(node.tag))
       return [{from: pos, to: pos + 1}, {from: pos + node.length - 1, to: pos + node.length}]
   }),
   // Wrap a block in a blockquote
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.canContain(Blockquote) && Blockquote.canContain(node.type))
+    if (parent.tag.canContain(Blockquote) && Blockquote.canContain(node.tag))
       return [{from: pos, insert: slice(open(blockquote()))}, {from: pos + node.length, insert: slice(close)}]
   }),
   // Delete an entire node
@@ -139,17 +139,17 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   doc => scanBlocks(doc, (node, pos) => {
     if (node.isTextblock()) for (let i = 0; i < node.children.length; i++) {
       let props = node.children[i].props
-      if (props.set.some(v => !v.prop.isRequired)) {
-        let notReq = props.set.filter(v => !v.prop.isRequired)
+      if (props.set.some(v => !v.type.isRequired)) {
+        let notReq = props.set.filter(v => !v.type.isRequired)
         return {from: pos, to: pos + node.length, remove: notReq[r(notReq.length)]}
       }
     }
   }),
   // Change a prop on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
-    if (node.type == OrderedList)
+    if (node.tag == OrderedList)
       return {from: pos, add: OrderedList.props.start.of(node.prop(OrderedList.props.start, true) + 1)}
-    if (node.type == CodeBlock)
+    if (node.tag == CodeBlock)
       return {from: pos, add: CodeBlock.props.language.of(rWord())}
   })
 ]

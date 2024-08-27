@@ -1,4 +1,4 @@
-import {Node, DocNode, NodeType, PropValue, subMulti, TokenType} from "./node"
+import {Node, DocNode, Tag, Prop, subMulti, TokenType} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON, pushNode} from "./slice"
 import {Context, Walker} from "./context"
@@ -18,7 +18,7 @@ class Builder implements Walker {
 
   add(node: Node) {
     if (this.modifications) {
-      if (!node.type.isLeaf()) throw new Error("Invalid modification on non-leaf node")
+      if (!node.tag.isLeaf()) throw new Error("Invalid modification on non-leaf node")
       node = applyModifications(this.modifications, node)
     }
     pushNode(this.stack[this.stack.length - 1].children, node)
@@ -33,7 +33,7 @@ class Builder implements Walker {
     if (this.modifications) throw new Error("Invalid modification on close token")
     if (this.stack.length == 1) throw new Error("Surplus close token")
     let top = this.stack.pop()!
-    if (!top.children.length && !top.node.type.isLeaf() && !top.node.inlineContent())
+    if (!top.children.length && !top.node.tag.isLeaf() && !top.node.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.node.copy(top.children))
   }
@@ -51,15 +51,15 @@ class Builder implements Walker {
   }
 }
 
-type Modification = {add: PropValue} | {remove: PropValue}
+type Modification = {add: Prop} | {remove: Prop}
 
-function isAdd(m: Modification): m is {add: PropValue} { return !!(m as any).add }
-function isRemove(m: Modification): m is {remove: PropValue} { return !!(m as any).remove }
+function isAdd(m: Modification): m is {add: Prop} { return !!(m as any).add }
+function isRemove(m: Modification): m is {remove: Prop} { return !!(m as any).remove }
 
 function applyModifications(modifications: readonly Modification[], node: Node) {
   for (const m of modifications) {
     if (isAdd(m)) {
-      if (!m.add.prop.canTarget(node.type))
+      if (!m.add.type.canTarget(node.tag))
         throw new Error(`Trying to add prop ${m.add.name} to a node of type ${node.name}`)
       node = node.withProps(node.props.add(m.add))
     } else {
@@ -101,8 +101,8 @@ export type ChangeSpec = {
   from: number
   to?: number
   insert?: Slice
-  add?: PropValue
-  remove?: PropValue
+  add?: Prop
+  remove?: Prop
 } | ChangeSet | ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
@@ -375,14 +375,14 @@ export class ChangeSet {
           if (add) {
             let mods: Modification[] = [{add: add}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!add.prop.canTarget(node.type)) return false
-              let has = node.props.has(add.prop)
-              if (add.prop.multi) {
+              if (!add.type.canTarget(node.tag)) return false
+              let has = node.props.has(add.type)
+              if (add.type.multi) {
                 let modsHere = mods
                 if (has) {
-                  let left = subMulti(add.value, has.value, add.prop.multi)
+                  let left = subMulti(add.value, has.value, add.type.multi)
                   if (!left.length) return false
-                  modsHere = [{add: add.prop.of(left)}]
+                  modsHere = [{add: add.type.of(left)}]
                 }
                 section(from, to, -1, modsHere)
               } else if (!has || !has.eq(add)) {
@@ -394,7 +394,7 @@ export class ChangeSet {
           if (remove) {
             let mods: Modification[] = [{remove: remove}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!remove.prop.multi && !node.props.has(remove)) return false
+              if (!remove.type.multi && !node.props.has(remove)) return false
               section(from, to, -1, mods)
               return true
             })
@@ -459,7 +459,7 @@ function filterMods(mods: null | readonly Modification[], against: null | readon
 
 function modCancels(mod: Modification, other: Modification) {
   if (isAdd(other)) {
-    return isAdd(mod) ? mod.add.prop == other.add.prop && !mod.add.prop.multi : mod.remove.eq(other.add)
+    return isAdd(mod) ? mod.add.type == other.add.type && !mod.add.type.multi : mod.remove.eq(other.add)
   } else {
     return isAdd(mod) && mod.add.eq(isAdd(other) ? other.add : other.remove)
   }
@@ -468,8 +468,8 @@ function modCancels(mod: Modification, other: Modification) {
 function invertMods(mods: readonly Modification[], target: Node): readonly Modification[] {
   return mods.map(mod => {
     if (isRemove(mod)) return {add: mod.remove}
-    if (!mod.add.prop.multi) {
-      let existed = target.props.has(mod.add.prop)
+    if (!mod.add.type.multi) {
+      let existed = target.props.has(mod.add.type)
       if (existed) return {add: existed}
     }
     return {remove: mod.add}
@@ -505,7 +505,7 @@ class FitLevel {
   flags = FitFlag.None
 
   constructor(
-    readonly type: NodeType,
+    readonly type: Tag,
     readonly next: FitLevel | null,
   ) {
     if (!this.type.inlineContent() && !this.type.isLeaf()) this.flags |= FitFlag.NeedsChild
@@ -534,7 +534,7 @@ class ChangeFitter implements Walker {
   inserting = false
 
   constructor(readonly doc: DocNode) {
-    this.stack = new FitLevel(doc.type, null)
+    this.stack = new FitLevel(doc.tag, null)
     this.inputPos = this.delInputPos = Context.atStart(doc)
   }
 
@@ -581,7 +581,7 @@ class ChangeFitter implements Walker {
     this.inserting = false
   }
 
-  fit(type: NodeType) {
+  fit(type: Tag) {
     if (this.stack.type.canContain(type)) return true
     let fix: {leave: number, enter: readonly Node[], cost: number} | null = null
     let dDelta = this.stackDelta - this.inputDelta
@@ -602,7 +602,7 @@ class ChangeFitter implements Walker {
     for (let wrapper of fix.enter) {
       this.patch(0, new OpenToken(wrapper))
       this.stack.flags &= ~FitFlag.NeedsChild
-      this.stack = new FitLevel(wrapper.type, this.stack)
+      this.stack = new FitLevel(wrapper.tag, this.stack)
       this.stack.flags |= FitFlag.Synthetic
       this.stackDelta++
     }
@@ -617,14 +617,14 @@ class ChangeFitter implements Walker {
     while (levels.length > depth + 1) { this.insertClose(); levels.pop() }
     for (let d = 1; d <= Math.min(depth, levels.length - 1); d++) {
       let cx = context.atDepth(d)
-      if (!cx.node.type.sharesContent(levels[d].type)) {
+      if (!cx.node.tag.sharesContent(levels[d].type)) {
         while (levels.length > d) { this.insertClose(); levels.pop() }
         break
       }
     }
     for (let i = levels.length; i < depth + 1; i++) {
       let cx = context.atDepth(i)
-      this.stack = new FitLevel(cx.node.type, this.stack)
+      this.stack = new FitLevel(cx.node.tag, this.stack)
       this.patch(0, new OpenToken(cx.node))
     }
   }
@@ -646,7 +646,7 @@ class ChangeFitter implements Walker {
   }
 
   skip(node: Node) {
-    if (this.fit(node.type))
+    if (this.fit(node.tag))
       this.stack.flags &= ~FitFlag.NeedsChild
     else
       this.patch(node.length)
@@ -658,9 +658,9 @@ class ChangeFitter implements Walker {
     if (this.doubleDeleteDelta > 0) {
       this.doubleDeleteDelta--
       this.patch(1)
-    } else if (this.fit(node.type)) {
+    } else if (this.fit(node.tag)) {
       this.stack.flags &= ~FitFlag.NeedsChild
-      this.stack = new FitLevel(node.type, this.stack)
+      this.stack = new FitLevel(node.tag, this.stack)
       if (this.inserting) this.stackDelta++
     } else {
       this.patch(1)

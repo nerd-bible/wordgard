@@ -1,4 +1,4 @@
-import {Node, Prop, NodeType} from "./node"
+import {Node, PropType, Tag} from "./node"
 
 export type Attrs = {[name: string]: string | number | undefined}
 
@@ -18,31 +18,33 @@ export type AttributeRepresentation<Param> = {
   readAttribute?: (value: string) => Param | Reject
 }
 
-export function isElementRepresentation<T>(repr: AttributeRepresentation<T> | ElementRepresentation<T>): repr is ElementRepresentation<T> {
+export function isElementRepresentation<T>(
+  repr: AttributeRepresentation<T> | ElementRepresentation<T>
+): repr is ElementRepresentation<T> {
   return (repr as ElementRepresentation<any>).tag != null
 }
 
-export function isAttributeRepresentation<T>(repr: AttributeRepresentation<T> | ElementRepresentation<T>): repr is AttributeRepresentation<T> {
+export function isAttributeRepresentation<T>(
+  repr: AttributeRepresentation<T> | ElementRepresentation<T>
+): repr is AttributeRepresentation<T> {
   return (repr as AttributeRepresentation<any>).attribute != null
 }
 
-export type NodeSpec<Props extends {}> = {
-  props?: {[name in keyof Props]: LocalPropSpec<Props[name]>}
-  content?: string
+export type TagSpec<Param> = {
+  kind: "block" | "inline"
+  blockContent?: string
+  // FIXME allow inlineContent: true
+  inlineContent?: string
+  defaultParam?: Param extends null ? never : Param
   group?: string
   toText?: (node: Node) => string
-  dom: ElementRepresentation<Props> | ((props: Props) => HTMLElement)
-  parseRules?: readonly ElementParseRule<Props>[]
+  dom: ElementRepresentation<Param> | ((param: Param) => HTMLElement)
+  parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
 }
 
-export type LocalPropSpec<Value> = {
-  required?: boolean
-  dom?: ElementRepresentation<Value> | AttributeRepresentation<Value>
-}
-
 export type PropSpec<Value> = {
-  nodes?: string
+  tags?: string
   rank?: number
   spanning?: boolean
   // FIXME rename
@@ -58,15 +60,15 @@ export interface BaseParseRule {
 
 export interface ElementParseRule<Param> extends BaseParseRule {
   selector: string
-  node?: Param extends {} ? NodeType<Param> : never
-  prop?: Prop<Param>
+  node?: Param extends {} ? Tag<Param> : never
+  prop?: PropType<Param>
   param?: Param
   readElement?: (element: HTMLElement) => Param | Reject
 }
 
 export interface AttributeParseRule<Param> extends BaseParseRule {
   attribute: string
-  prop?: Prop<Param>
+  prop?: PropType<Param>
   param?: Param
   readAttribute?: (value: string) => Param | Reject
 }

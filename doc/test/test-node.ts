@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Node, NodeType, basicBuilder, tag, Paragraph, Image, basicSchema as schema} from "@willows/doc"
+import {Node, Tag, basicBuilder, tag, Paragraph, Image, basicSchema as schema} from "@willows/doc"
 const {doc, blockquote, p, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
 
 describe("Node", () => {
@@ -25,8 +25,8 @@ describe("Node", () => {
       let i = 0
       doc.iterate(tag(doc, 1), tag(doc, 2), (node, pos) => {
         if (i == nodes.length)
-          throw new Error("More nodes iterated than listed (" + node.type.name + ")")
-        let compare = node.isText() ? node.text : node.type.name
+          throw new Error("More nodes iterated than listed (" + node.tag.name + ")")
+        let compare = node.isText() ? node.text : node.tag.name
         if (compare != nodes[i++])
           throw new Error("Expected " + JSON.stringify(nodes[i - 1]) + ", got " + JSON.stringify(compare))
         if (!node.isText && doc.nodeAt(pos) != node)
@@ -62,7 +62,7 @@ describe("Node", () => {
       ist(doc(p("one"), hr(), hr(), p("two")).textContent(), "one\n---\n---\ntwo")
     })
 
-    let BlockLeaf = NodeType.block("BlockLeaf", {group: "Block", dom: {tag: "div"}})
+    let BlockLeaf = Tag.block("BlockLeaf", {group: "Block", dom: {tag: "div"}})
 
     it("doesn't add block separator around non-rendered leaf nodes", () => {
       ist(blockquote(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")

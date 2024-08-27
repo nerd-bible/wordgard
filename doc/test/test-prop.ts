@@ -1,4 +1,4 @@
-import {Prop, PropValue, PropSet, Emphasis, Strong, Link, Code} from "@willows/doc"
+import {PropType, Prop, PropSet, Emphasis, Strong, Link, Code} from "@willows/doc"
 import ist from "ist"
 
 const em = Emphasis
@@ -6,7 +6,7 @@ const strong = Strong
 const link = (href: string) => Link.of({href})
 const code = Code
 
-let Tag = Prop.define<readonly number[]>("Tag", {
+let Tag = PropType.define<readonly number[]>("Tag", {
   rank: 10,
   multi: {compare: (a, b) => a - b},
 })
@@ -40,7 +40,7 @@ describe("Prop", () => {
        ist(!PropSet.of([link("http://foo"), code]).eq(PropSet.of([link("http://bar"), code]))))
   })
 
-  function eqSet(set: PropSet, array: PropValue[]) {
+  function eqSet(set: PropSet, array: Prop[]) {
     if (set.set.length != array.length) return false
     for (let i = 0; i < array.length; i++) if (!set.set[i].eq(array[i])) return false
     return true

@@ -1,4 +1,4 @@
-import {Node, DocNode, NodeType, Prop, PropValue, PropSet} from "./node"
+import {Node, DocNode, Tag, PropType, Prop, PropSet} from "./node"
 import {pushNode} from "./slice"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, Image, LineBreak,
@@ -8,22 +8,20 @@ import {Paragraph, Heading, CodeBlock, Image, LineBreak,
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
 export type NodeBuilder<Source> =
-  Source extends Node | PropValue ? (...children: ContentSpec[]) => Node :
-  Source extends Prop<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
-  Source extends NodeType<infer Props> ? {
-    (props: Partial<Props>, ...children: ContentSpec[]): Node
-    (...children: ContentSpec[]): Node
-  } : never
+  Source extends Node | Prop | Tag<null> ? (...children: ContentSpec[]) => Node :
+  Source extends PropType<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
+  Source extends Tag<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
+  never
 
-export function builder<T extends {[name: string]: NodeType<any> | Node | Prop<any> | PropValue}>(spec: T, schema?: Schema): {
+export function builder<T extends {[name: string]: Tag<any> | Node | PropType<any> | Prop}>(spec: T, schema?: Schema): {
   [name in keyof T]: NodeBuilder<T[name]>
 } & {doc(...children: ContentSpec[]): DocNode} {
   let result = Object.create(null)
   for (let name in spec) {
     let val = spec[name]
-    result[name] = val instanceof PropValue ? propInstanceBuilder(val)
-      : val instanceof Prop ? propBuilder(val)
-      : val instanceof Node ? nodeBuilder(val.type, val.props)
+    result[name] = val instanceof Prop ? propInstanceBuilder(val)
+      : val instanceof PropType ? propBuilder(val)
+      : val instanceof Node ? nodeBuilder(val.tag, val.props)
       : nodeBuilder(val, PropSet.empty)
   }
   result.doc = (...children: ContentSpec[]) => {
@@ -33,48 +31,39 @@ export function builder<T extends {[name: string]: NodeType<any> | Node | Prop<a
   return result
 }
 
-function nodeBuilder<Props extends {}>(type: NodeType<Props>, given: PropSet): NodeBuilder<NodeType<Props>> {
-  return (propsOrChild?: ContentSpec | Partial<Props>, ...children: ContentSpec[]) => {
-    let props = given
-    if (propsOrChild != null) {
-      if (Array.isArray(propsOrChild) || typeof propsOrChild != "object" || propsOrChild instanceof Node) {
-        children.unshift(propsOrChild)
-      } else {
-        for (let name in propsOrChild)
-          props = props.add(type.props[name as keyof Props].of((propsOrChild as Partial<Props>)[name as keyof Props]!))
-      }
-    }
-    return type.create(props, collectChildren(children))
-  }
+function nodeBuilder<Param>(type: Tag<Param>, props: PropSet): any {
+  if (type.needsParam())
+    return (param: Param, ...children: ContentSpec[]) => type.withParam(param).create(props, collectChildren(children))
+  return (...children: ContentSpec[]) => type.create(props, collectChildren(children))
 }
 
-const Fragment = NodeType.inline("Fragment", {
+const Fragment = Tag.inline("Fragment", {
   dom: {tag: "span"},
   content: "_"
 })
 
-function propBuilder<Value>(type: Prop<Value>): NodeBuilder<Prop<Value>> {
+function propBuilder<Value>(type: PropType<Value>): NodeBuilder<PropType<Value>> {
   return (value: Value, ...children: ContentSpec[]) =>
     Fragment.create(collectChildren(children, type.of(value)))
 }
 
-function propInstanceBuilder(prop: PropValue): NodeBuilder<PropValue> {
+function propInstanceBuilder(prop: Prop): NodeBuilder<Prop> {
   return (...children: ContentSpec[]) => Fragment.create(collectChildren(children, prop))
 }
 
 const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()
 
-function addProp(node: Node, prop?: PropValue) {
+function addProp(node: Node, prop?: Prop) {
   return prop ? node.withProps(node.props.add(prop)) : node
 }
 
-function collectChildren(spec: ContentSpec, prop?: PropValue, list: Node[] = []) {
+function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
   if (Array.isArray(spec)) {
     for (let elt of spec) collectChildren(elt, prop, list)
   } else if (typeof spec == "string") {
     pushNode(list, addProp(Node.text(spec), prop))
   } else if (spec instanceof Node) {
-    if (spec.type == Fragment) {
+    if (spec.tag == Fragment) {
       copyTags(spec.children, list, 0)
       for (let ch of spec.children) collectChildren(ch, prop, list)
     } else {

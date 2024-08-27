@@ -1,12 +1,12 @@
 import ist from "ist"
-import {Node, DocNode, NodeType, PropValue,
+import {Node, DocNode, Tag, Prop,
         ChangeSet, ChangeSpec, Token,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
         Image, CodeBlock, OrderedList, Emphasis, Strong, Link} from "@willows/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, h1, blockquote, ol, ul, li, pre, img, $img, a, em, strong} = basicBuilder
 
-type ChangeData = (Token | string)[] | {add: PropValue} | {remove: PropValue}
+type ChangeData = (Token | string)[] | {add: Prop} | {remove: Prop}
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
@@ -16,7 +16,7 @@ function mk(doc: DocNode, changes: readonly ChangeData[]) {
     if (from == null) throw new Error(`No start position defined for change ${i}`)
     let to = maybeTag(doc, i * 2 + 1) ?? from
     if (Array.isArray(ch)) return {from, to, insert: slice(...ch)}
-    let {add, remove} = ch as {add?: PropValue, remove?: PropValue}
+    let {add, remove} = ch as {add?: Prop, remove?: Prop}
     return add ? {from, to, add: add} : {from, to, remove: remove}
   }))
 }
@@ -145,9 +145,9 @@ describe("ChangeSet", () => {
     })
 
     it("exits wrapper nodes when possible", () => {
-      let Wrapper = NodeType.block("Wrapper", {content: "Inner Block", group: "Block", dom: {tag: "wrapper"}})
-      let Inner = NodeType.block("Inner", {dom: {tag: "inner"}})
-      let schema = Schema.define([basicSchema.nodes, Wrapper, Inner])
+      let Wrapper = Tag.block("Wrapper", {content: "Inner Block", group: "Block", dom: {tag: "wrapper"}})
+      let Inner = Tag.block("Inner", {dom: {tag: "inner"}})
+      let schema = Schema.define([basicSchema.tags, Wrapper, Inner])
       let doc = schema.doc([p()]), ch = ChangeSet.createChecked(doc, {from: 0, insert: slice(Inner.create())})
       ist(ch.apply(doc), schema.doc([Wrapper.create([Inner.create()]), p()]), eq)
     })

@@ -1,5 +1,5 @@
 import {Schema} from "./schema"
-import {NodeType, Node, Prop, PropSet, PropValue} from "./node"
+import {Tag, Node, PropType, PropSet, Prop} from "./node"
 import {ParseRule, isElementRepresentation} from "./spec"
 
 type DOMNode = InstanceType<typeof window.Node>
@@ -9,7 +9,7 @@ function isEmpty<T>(obj: Record<string, T>) {
   return true
 }
 
-function readProps(props: Record<string, Prop<any>>) {
+function readProps(props: Record<string, PropType<any>>) {
   let read: {name: string, read: (node: HTMLElement) => string}[] = []
   for (let name in props) {
     let prop = props[name], {dom} = prop.spec
@@ -20,7 +20,7 @@ function readProps(props: Record<string, Prop<any>>) {
 
 function collectRules(schema: Schema) {
   let rules: ParseRule[] = []
-  for (let node of schema.nodes) {
+  for (let node of schema.tags) {
     let {dom, parseRules} = node.spec
     // FIXME synthesize readElement from local attribute specs
     if (typeof dom != "function") rules.push({
@@ -64,7 +64,7 @@ export type ParseOptions = {
 }
 
 export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
-  let top = new NodeContext(schema.docType, PropSet.empty, CxFlag.Solid, null)
+  let top = new NodeContext(schema.docTag, PropSet.empty, CxFlag.Solid, null)
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [])
   cx.sync(top)
@@ -84,20 +84,20 @@ class ParseContext {
     this.find = options.findPositions
   }
 
-  parseChildren(parent: HTMLElement | DocumentFragment, props: readonly PropValue[]) {
+  parseChildren(parent: HTMLElement | DocumentFragment, props: readonly Prop[]) {
     for (let ch = parent.firstChild; ch; ch = ch.nextSibling) {
       if (ch.nodeType == 1) this.parseElement(ch as HTMLElement, props)
       else if (ch.nodeType == 3) this.parseTextNode(ch as Text, props)
     }
   }
 
-  parseElement(elt: HTMLElement, props: readonly PropValue[]) {
-    for (let type of this.schema.nodes) {
+  parseElement(elt: HTMLElement, props: readonly Prop[]) {
+    for (let type of this.schema.tags) {
       let repr = type.spec.dom
     }
   }
 
-  parseTextNode(dom: Text, props: readonly PropValue[]) {
+  parseTextNode(dom: Text, props: readonly Prop[]) {
     let text = dom.nodeValue!
     if (!(this.top.type.preserveWhitespace || this.options.preserveWhiteSpace)) {
       // Ignore entirely blank node
@@ -125,12 +125,12 @@ class ParseContext {
     this.scanText(dom, text)
   }
 
-  insertNode(node: Node, props: readonly PropValue[]) {
+  insertNode(node: Node, props: readonly Prop[]) {
     let innerProps = this.findPlace(node, props)
     if (innerProps) {
       let top = this.top
       let nodeProps = PropSet.empty
-      for (let p of innerProps) if (p.prop.canTarget(node.type)) nodeProps = nodeProps.add(p)
+      for (let p of innerProps) if (p.type.canTarget(node.tag)) nodeProps = nodeProps.add(p)
       for (let p of node.props.set) nodeProps = nodeProps.add(p)
       top.children.push(node.withProps(nodeProps))
       return true
@@ -142,10 +142,10 @@ class ParseContext {
   // context. May add intermediate wrappers and/or leave non-solid
   // nodes that we're in. Returns null if no place could be created, a
   // set of prop values not applied to wrappers otherwise.
-  findPlace(node: Node, props: readonly PropValue[]): readonly PropValue[] | null {
+  findPlace(node: Node, props: readonly Prop[]): readonly Prop[] | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
-      let found = this.schema.findWrapping(cx.type, node.type)
+      let found = this.schema.findWrapping(cx.type, node.tag)
       if (found && (!route || route.length > found.length)) {
         route = found
         under = cx
@@ -156,16 +156,16 @@ class ParseContext {
     if (!route) return null
     this.sync(under!)
     for (let i = 0; i < route.length; i++)
-      props = this.enterInner(route[i].type, route[i].props, props, false)
+      props = this.enterInner(route[i].tag, route[i].props, props, false)
     return props
   }
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(type: NodeType, nodeProps: PropSet | null, props: readonly PropValue[], solid: boolean = false) {
+  enterInner(type: Tag, nodeProps: PropSet | null, props: readonly Prop[], solid: boolean = false) {
     let localProps = PropSet.empty
     props = props.filter(p => {
-      if (!p.prop.canTarget(type)) return true
+      if (!p.type.canTarget(type)) return true
       localProps = localProps.add(p)
       return false
     })
@@ -229,7 +229,7 @@ class ParseContext {
 class NodeContext {
   children: Node[] = []
 
-  constructor(readonly type: NodeType, readonly props: PropSet,
+  constructor(readonly type: Tag, readonly props: PropSet,
               readonly flags: CxFlag,
               readonly parent: NodeContext | null) {}
 
