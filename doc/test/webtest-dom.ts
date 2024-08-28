@@ -13,7 +13,7 @@ describe("serialize", () => {
     ist(html(doc(p("One"), blockquote(p("Two")))), "<p>One</p><blockquote><p>Two</p></blockquote>")
   })
 
-  it("can serialize local attributes", () => {
+  it("can serialize tag parameters", () => {
     ist(html(doc(p($img()))), "<p><img src=\"test.png\"></p>")
   })
 

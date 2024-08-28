@@ -1,4 +1,5 @@
 import {Node, Tag, TagType, Prop, PropType, PropSet, NodeJSON, Text, DocNode, none} from "./node"
+import {Reject} from "./spec"
 
 export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]
 
@@ -209,7 +210,7 @@ export const HorizontalRule = Tag.define("HorizontalRule", {
 
 export const Image = TagType.define<string>("Image", {
   kind: "inline",
-  dom: {tag: "img"}
+  dom: {tag: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
 
 export const ImageAlt = PropType.define<string>("ImageAlt", {

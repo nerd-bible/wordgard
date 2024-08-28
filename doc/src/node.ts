@@ -152,6 +152,10 @@ export class Tag<Param = unknown> {
     return new Node(this, this.type.checkProps(props), this.type.checkChildren(children || none))
   }
 
+  eq(other: Tag) {
+    return this == other || this.type == other.type && compareDeep(this.param, other.param)
+  }
+
   isInline() { return this.type.isInline() }
   isText() { return this.type.isText() }
   isBlock() { return this.type.isBlock() }
@@ -186,7 +190,7 @@ export class Node {
   }
 
   sameMarkup(other: Node) {
-    return this.tag == other.tag && this.props.eq(other.props)
+    return this.tag.eq(other.tag) && this.props.eq(other.props)
   }
 
   eq(other: Node): boolean {
@@ -390,10 +394,8 @@ export class TextNode extends Node {
 
 // FIXME show values? display differently?
 function propsToString(props: PropSet, inner: string) {
-  for (let i = props.set.length - 1; i >= 0; i--) {
-    let {name} = props.set[i]
-    if (name.indexOf("/") < 0) inner = name + "(" + inner + ")"
-  }
+  for (let i = props.set.length - 1; i >= 0; i--)
+    inner = props.set[i].name + "(" + inner + ")"
   return inner
 }
 

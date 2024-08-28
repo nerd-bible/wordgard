@@ -394,8 +394,15 @@ export class ChangeSet {
           if (remove) {
             let mods: Modification[] = [{remove: remove}]
             markableSections(doc, from, to, (node, from, to) => {
-              if (!remove.type.multi && !node.props.has(remove)) return false
-              section(from, to, -1, mods)
+              const has = node.props.has(remove)
+              if (!has || !remove.type.canTarget(node.tag.type)) return false
+              let modsHere = mods
+              if (remove.type.multi) {
+                let left = (remove.value as any[]).filter(a => (has.value as any[]).some(b => remove.type.multi!(a, b)))
+                if (!left.length) return false
+                modsHere = [{remove: remove.type.of(left)}]
+              }
+              section(from, to, -1, modsHere)
               return true
             })
           }

@@ -1,5 +1,5 @@
 import {DocNode, Node, Prop} from "./node"
-import {Attrs, ElementRepresentation, AttributeRepresentation, isElementRepresentation} from "./spec"
+import {Attrs, ElementRepresentation, AttributeRepresentation, isElementRepresentation, isAttributeRepresentation} from "./spec"
 
 export type SerializeOptions = {
   document?: Document
@@ -61,23 +61,12 @@ function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
     if (dom.attributes)
       applyAttributes(typeof dom.attributes == "function" ? dom.attributes(node.tag.param) : dom.attributes, elt)
   }
-  for (let {type, value} of node.props.set) if (!type.spec.spanning) {
-    let propDOM = type.spec.dom
-    if (propDOM) {
-      if (isElementRepresentation(propDOM)) {
-        let wrap = options.document.createElement(propDOM.tag)
-        if (propDOM.attributes)
-          applyAttributes(typeof propDOM.attributes == "function" ? propDOM.attributes(value) : propDOM.attributes, wrap)
-        wrap.appendChild(elt || text!)
-        elt = wrap
-      } else {
-        if (!elt) {
-          elt = document.createElement("span")
-          elt.appendChild(text!)
-        }
-        applyAttribute(propDOM, elt, value)
-      }
+  for (let {type, value} of node.props.set) if (isAttributeRepresentation(type.spec.dom)) {
+    if (!elt) {
+      elt = document.createElement("span")
+      elt.appendChild(text!)
     }
+    applyAttribute(type.spec.dom, elt, value)
   }
   if (!text) serializeChildren(node.children, elt!, options, node.tag.inlineContent())
   return elt || text!
@@ -92,12 +81,10 @@ function serializeChildren(
   let top = target, active: Prop[] = []
   for (let child of children) {
     let childDOM = serializeNodeInner(child, options)
-    if (active.length || child.props.set.some(p => p.type.spec.spanning)) {
+    if (active.length || child.props.set.some(p => isElementRepresentation(p.type.spec.dom))) {
       let keep = 0, rendered = 0, eltProps = []
-      for (let val of child.props.set) if (val.type.spec.spanning) {
-        let {dom} = val.type.spec
-        if (dom && isElementRepresentation(dom)) eltProps.push(val)
-      }
+      for (let prop of child.props.set)
+        if (isElementRepresentation(prop.type.spec.dom)) eltProps.push(prop)
       while (keep < active.length && rendered < eltProps.length) {
         let next = eltProps[rendered]
         if (!next.eq(active[keep]) || !(next.type.spec.spanning ?? inline)) break

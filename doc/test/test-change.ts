@@ -3,7 +3,7 @@ import {Node, DocNode, Tag, Prop,
         ChangeSet, ChangeSpec, Token,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
         ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "@willows/doc"
-import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
+import {permute, open, close, slice, rDoc, rChange, Comment} from "./generate.js"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Prop} | {remove: Prop}
@@ -91,7 +91,7 @@ describe("ChangeSet", () => {
     })
 
     it("can change node props", () => {
-      testApply(doc(p(0, imgAlt("A", img("a.png")), 1)), [{add: ImageAlt.of("B")}], doc(p(imgAlt("B", img("a.jpg")))))
+      testApply(doc(p(0, imgAlt("A", img("a.png")), 1)), [{add: ImageAlt.of("B")}], doc(p(imgAlt("B", img("a.png")))))
     })
 
     it("complains on a mismatched length", () => {
