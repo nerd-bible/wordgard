@@ -89,19 +89,6 @@ export class TagType<Param> {
     return other.contentGroups.some(g => this.contentGroups.includes(g))
   }
 
-  checkChildren(children: readonly Node[]) {
-    for (let child of children)
-      if (!this.canContain(child.tag.type))
-        throw new Error(`${child.name} is not a valid child of ${this.name}`)
-    return children
-  }
-
-  checkProps(props: PropSet) {
-    for (let prop of props.set) if (!prop.type.canTarget(this))
-      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
-    return props
-  }
-
   isInline() { return (this.flags & TagFlag.Inline) > 0 }
   isText() { return (this.flags & TagFlag.Text) > 0 }
   isBlock() { return (this.flags & TagFlag.Inline) == 0 }
@@ -149,11 +136,24 @@ export class Tag<Param = unknown> {
       else if (propsOrChildren instanceof Node) children = [propsOrChildren]
       else props = propsOrChildren as PropSet
     }
-    return new Node(this, this.type.checkProps(props), this.type.checkChildren(children || none))
+    return new Node(this, this.checkProps(props), this.checkChildren(children || none))
   }
 
   eq(other: Tag) {
     return this == other || this.type == other.type && compareDeep(this.param, other.param)
+  }
+
+  checkChildren(children: readonly Node[]) {
+    for (let child of children)
+      if (!this.type.canContain(child.tag.type))
+        throw new Error(`${child.name} is not a valid child of ${this.name}`)
+    return children
+  }
+
+  checkProps(props: PropSet) {
+    for (let prop of props.set) if (!prop.type.canTarget(this.type))
+      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
+    return props
   }
 
   isInline() { return this.type.isInline() }
@@ -186,7 +186,7 @@ export class Node {
   get length() { return this.isLeaf() ? 1 : 2 + this.contentLength }
 
   withProps(props: PropSet) {
-    return props.eq(this.props) ? this : new Node(this.tag, this.tag.type.checkProps(props), this.children)
+    return props.eq(this.props) ? this : new Node(this.tag, this.tag.checkProps(props), this.children)
   }
 
   sameMarkup(other: Node) {
@@ -198,7 +198,7 @@ export class Node {
   }
 
   copy(children: readonly Node[]) {
-    return new Node(this.tag, this.props, this.tag.type.checkChildren(children))
+    return new Node(this.tag, this.props, this.tag.checkChildren(children))
   }
 
   slice(from: number, to = this.length) {
@@ -302,7 +302,7 @@ export class Node {
   get tokenType(): TokenType.Node { return TokenType.Node }
 
   static text(text: string, props: PropSet = PropSet.empty) {
-    return new TextNode(text, Text.type.checkProps(props))
+    return new TextNode(text, Text.checkProps(props))
   }
 }
 
@@ -327,7 +327,7 @@ export class DocNode extends Node {
   get length() { return this.contentLength }
 
   copy(children: readonly Node[]) {
-    return new DocNode(this.tag, this.tag.type.checkChildren(children), this.schema)
+    return new DocNode(this.tag, this.tag.checkChildren(children), this.schema)
   }
 
   withProps(props: PropSet) {
@@ -457,14 +457,17 @@ export class PropType<Value> {
   readonly targetGroups: readonly string[]
   readonly rank: number
   readonly multi: null | ((a: any, b: any) => number)
+  readonly default: Prop<Value> | null
 
   constructor(
     readonly name: string,
-    readonly spec: PropSpec<Value>
+    readonly spec: PropSpec<Value>,
+    isFlag: boolean
   ) {
     this.targetGroups = spec.tags == null ? ["Inline"] : splitGroups(spec.tags)
     this.rank = spec.rank ?? 100
     this.multi = spec.multi ? spec.multi.compare : null
+    this.default = isFlag ? new Prop(this, null as any) : null
   }
 
   of(value: Value) { return new Prop(this, value) }
@@ -480,7 +483,7 @@ export class PropType<Value> {
   }
 
   static define<Value>(name: string, spec: PropSpec<Value>) {
-    return new PropType<Value>(name, spec)
+    return new PropType<Value>(name, spec, false)
   }
 }
 
@@ -498,7 +501,7 @@ export class Prop<Value = any> {
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
   static define(name: string, spec: PropSpec<null>): Prop<null> {
-    return new PropType<null>(name, spec).of(null)
+    return new PropType<null>(name, spec, true).default!
   }
 }
 

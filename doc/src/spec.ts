@@ -1,4 +1,4 @@
-import {Node, PropType, TagType} from "./node"
+import {Node, Prop, PropType, Tag, TagType} from "./node"
 
 export type Attrs = {[name: string]: string | number | undefined}
 
@@ -55,22 +55,30 @@ export type PropSpec<Value> = {
 
 export interface BaseParseRule {
   ignore?: boolean | "skip"
-  consuming?: boolean
 }
 
 export interface ElementParseRule<Param> extends BaseParseRule {
   selector: string
-  tag?: TagType<Param>
-  prop?: PropType<Param>
-  param?: Param
+  tag?: TagType<Param> | Tag<Param>
+  prop?: PropType<Param> | Prop<Param>
   readElement?: (element: HTMLElement) => Param | Reject
+  contentElement?: string | ((elt: HTMLElement) => HTMLElement)
+}
+
+export function isElementParseRule(rule: ParseRule): rule is ElementParseRule<unknown> {
+  return (rule as any).selector != null
 }
 
 export interface AttributeParseRule<Param> extends BaseParseRule {
   attribute: string
-  prop?: PropType<Param>
-  param?: Param
+  prop?: PropType<Param> | Prop<Param>
+  clearProp?: (prop: Prop<unknown>) => boolean
   readAttribute?: (value: string) => Param | Reject
+  consuming?: boolean
+}
+
+export function isAttributeParseRule(rule: ParseRule): rule is AttributeParseRule<unknown> {
+  return (rule as any).attribute != null
 }
 
 export type ParseRule<Param = any> = ElementParseRule<Param> | AttributeParseRule<Param>

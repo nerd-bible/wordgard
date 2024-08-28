@@ -1,39 +1,51 @@
 import {Schema} from "./schema"
-import {Tag, Node, PropSet, Prop} from "./node"
-import {ParseRule, isElementRepresentation} from "./spec"
+import {Tag, TagType, Node, PropSet, Prop, PropType, Text} from "./node"
+import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
+        AttributeParseRule, Reject} from "./spec"
 
 type DOMNode = InstanceType<typeof window.Node>
 
-function collectRules(schema: Schema) {
-  let rules: ParseRule[] = []
-  for (let tag of schema.tags) {
-    let {dom, parseRules} = tag.spec
-    // FIXME synthesize readElement from local attribute specs
-    if (typeof dom != "function") rules.push({
-      selector: dom.selector || dom.tag,
-      readElement: dom.readElement,
-      tag
-    })
-    if (parseRules) for (let rule of parseRules) rules.push({...rule, tag: rule.tag || tag})
+class RuleSet {
+  elementRules: ElementParseRule<unknown>[] = []
+  attributeRules: AttributeParseRule<unknown>[] = []
+
+  constructor(rules: readonly ParseRule[]) {
+    for (let rule of rules) {
+      if (isElementParseRule(rule)) this.elementRules.push(rule)
+      else this.attributeRules.push(rule)
+    }
   }
-  for (let prop of schema.props) {
-    let {dom, parseRules} = prop.spec
-    if (isElementRepresentation(dom)) {
-      rules.push({
+
+  static fromSchema(schema: Schema) {
+    let rules: ParseRule[] = []
+    for (let tag of schema.tags) {
+      let {dom, parseRules} = tag.spec
+      if (typeof dom != "function") rules.push({
         selector: dom.selector || dom.tag,
         readElement: dom.readElement,
-        prop
+        tag
       })
-    } else {
-      rules.push({
-        attribute: dom.attribute,
-        readAttribute: dom.readAttribute,
-        prop
-      })
+      if (parseRules) for (let rule of parseRules) rules.push({...rule, tag: rule.tag || tag})
     }
-    if (parseRules) for (let rule of parseRules) rules.push({...rule, prop: rule.prop || prop})
+    for (let prop of schema.props) {
+      let {dom, parseRules} = prop.spec
+      if (isElementRepresentation(dom)) {
+        rules.push({
+          selector: dom.selector || dom.tag,
+          readElement: dom.readElement,
+          prop
+        })
+      } else {
+        rules.push({
+          attribute: dom.attribute,
+          readAttribute: dom.readAttribute,
+          prop
+        })
+      }
+      if (parseRules) for (let rule of parseRules) rules.push({...rule, prop: rule.prop || prop})
+    }
+    return new RuleSet(rules)
   }
-  return rules
 }
 
 export type ParseOptions = {
@@ -65,9 +77,11 @@ const enum CxFlag {
 
 class ParseContext {
   find: {node: DOMNode, offset: number, pos?: number}[] | undefined
+  rules: RuleSet
 
   constructor(readonly schema: Schema, readonly options: ParseOptions, public top: NodeContext) {
     this.find = options.findPositions
+    this.rules = RuleSet.fromSchema(schema)
   }
 
   parseChildren(parent: HTMLElement | DocumentFragment, props: readonly Prop[]) {
@@ -77,10 +91,80 @@ class ParseContext {
     }
   }
 
+  matchElement(elt: HTMLElement): {rule: ElementParseRule<unknown>, value?: unknown} | null {
+    for (let rule of this.rules.elementRules) {
+      if (elt.matches(rule.selector)) {
+        if (!rule.readElement) return {rule}
+        let result = rule.readElement(elt)
+        if (result === Reject) continue
+        return {rule, value: result}
+      }
+    }
+    return null
+  }
+
+  ignoreElement(elt: HTMLElement, props: readonly Prop[]) {
+    if (elt.nodeName == "BR" && !this.top.tag.inlineContent())
+      this.findPlace(Text, props)
+  }
+
   parseElement(elt: HTMLElement, props: readonly Prop[]) {
-/*    for (let tag of this.schema.tags) {
-      let repr = tag.spec.dom
-    }*/
+    let name = elt.nodeName.toLowerCase()
+    if (name in normalizers) normalizers[name](elt)
+    let match = this.matchElement(elt)
+    if (match ? match.rule.ignore === true : ignoreTags.has(name)) {
+      this.scanInside(elt)
+      this.ignoreElement(elt, props)
+    } else if (!match || match.rule.ignore === "skip") {
+      let sync, top = this.top
+      if (blockTags.has(name)) {
+        if (top.children.length && top.children[0].isInline()) this.close()
+        sync = true
+      }
+      let innerProps = match && match.rule.ignore ? props : this.parseAttributes(elt, props)
+      if (innerProps) this.parseChildren(elt, innerProps)
+      if (sync) this.sync(top)
+    } else {
+      let innerProps = this.parseAttributes(elt, props)
+      if (innerProps)
+        this.parseElementByRule(elt, match, innerProps)
+    }
+  }
+
+  parseElementByRule(elt: HTMLElement, match: {rule: ElementParseRule<unknown>, value?: unknown}, props: readonly Prop[]) {
+    let sync, tag, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
+    if (rule.tag) {
+      tag = rule.tag instanceof Tag ? rule.tag :
+        rule.tag instanceof TagType && hasValue ? rule.tag.of(match.value) : null
+      if (!tag) throw new Error(`Parse rule for ${rule.selector} does not produce a tag`)
+      if (!tag.isLeaf()) {
+        let innerProps = this.enter(tag, props)
+        if (innerProps) {
+          sync = true
+          props = innerProps
+        }
+      } else {
+        this.insertNode(tag.create(), props)
+      }
+    } else {
+      let prop = rule.prop instanceof Prop ? rule.prop :
+        rule.prop instanceof PropType && hasValue ? rule.prop.of(match.value) : null
+      if (!prop) throw new Error(`Parse rule for ${rule.selector} does not produce a prop`)
+      props = props.concat(prop)
+    }
+    let startIn = this.top
+
+    if (tag && tag.isLeaf()) {
+      this.scanInside(elt)
+    } else {
+      let content = elt
+      if (typeof rule.contentElement == "string") content = elt.querySelector(rule.contentElement) || elt
+      else if (typeof rule.contentElement == "function") content = rule.contentElement(elt)
+      if (content != elt) this.scanAround(elt, content, true)
+      this.parseChildren(content, props)
+      if (content != elt) this.scanAround(elt, content, false)
+    }
+    if (sync && this.sync(startIn)) this.close()
   }
 
   parseTextNode(dom: Text, props: readonly Prop[]) {
@@ -111,8 +195,37 @@ class ParseContext {
     this.scanText(dom, text)
   }
 
+  parseAttributes(elt: HTMLElement, props: readonly Prop[]) {
+    let matched = new Set<string>(), hasStyles = elt.style.length > 0
+    for (let rule of this.rules.attributeRules) if (!matched.has(rule.attribute)) {
+      let isStyle = /^style\//.test(rule.attribute)
+      let value = !isStyle ? elt.getAttribute(rule.attribute) :
+        hasStyles ? elt.style.getPropertyValue(rule.attribute.slice(6)) : ""
+      if (!value) continue
+      let hasParam = false, param: any
+      if (rule.readAttribute) {
+        param = rule.readAttribute(value)
+        hasParam = true
+        if (param == Reject) continue
+      } else if (rule.attribute && rule.attribute != value) {
+        continue
+      }
+      if (rule.ignore) return null
+      if (rule.consuming !== false) matched.add(rule.attribute)
+      if (rule.clearProp) {
+        props = props.filter(p => !rule.clearProp!(p))
+      } else {
+        let prop = rule.prop instanceof Prop ? rule.prop :
+          hasParam && rule.prop instanceof PropType ? rule.prop.of(param) : null
+        if (!prop) throw new Error(`Parse rule for ${rule.attribute} does not produce a prop (or have ignore/clearProp properties)`)
+        props = props.concat(prop)
+      }
+    }
+    return props
+  }
+
   insertNode(node: Node, props: readonly Prop[]) {
-    let innerProps = this.findPlace(node, props)
+    let innerProps = this.findPlace(node.tag, props)
     if (innerProps) {
       let top = this.top
       let nodeProps = PropSet.empty
@@ -128,10 +241,10 @@ class ParseContext {
   // context. May add intermediate wrappers and/or leave non-solid
   // nodes that we're in. Returns null if no place could be created, a
   // set of prop values not applied to wrappers otherwise.
-  findPlace(node: Node, props: readonly Prop[]): readonly Prop[] | null {
+  findPlace(tag: Tag, props: readonly Prop[]): readonly Prop[] | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
-      let found = this.schema.findWrapping(cx.tag, node.tag)
+      let found = this.schema.findWrapping(cx.tag, tag)
       if (found && (!route || route.length > found.length)) {
         route = found
         under = cx
@@ -144,6 +257,12 @@ class ParseContext {
     for (let i = 0; i < route.length; i++)
       props = this.enterInner(route[i], props, false)
     return props
+  }
+
+  enter(tag: Tag<unknown>, props: readonly Prop[]) {
+    let innerProps = this.findPlace(tag, props)
+    if (innerProps) innerProps = this.enterInner(tag, props, true)
+    return innerProps
   }
 
   // Open a node of the given type. Return the set of marks not
@@ -161,12 +280,14 @@ class ParseContext {
 
   sync(to: NodeContext) {
     if (!this.top.isIn(to)) return false
-    for (let cx: NodeContext = this.top; cx != to;) {
-      let parent = cx.parent!
-      parent.children.push(cx.finish(this.schema)) // FIXME use close method?
-      cx = this.top = parent
-    }
+    while (this.top != to) this.close()
     return true
+  }
+
+  close() {
+    let parent = this.top.parent!
+    parent.children.push(this.top.finish(this.schema))
+    this.top = parent
   }
 
   scanInside(dom: DOMNode) {
@@ -229,3 +350,28 @@ class NodeContext {
     return this.tag.isDoc() ? schema.doc(this.children) : this.tag.create(this.props, this.children)
   }
 }
+
+// Kludge to work around directly nested list nodes produced by some
+// tools and allowed by browsers to mean that the nested list is
+// actually part of the list item above it.
+function normalizeList(dom: HTMLElement) {
+  for (let child = dom.firstChild, prevItem: ChildNode | null = null; child; child = child.nextSibling) {
+    if (child.nodeType != 1) continue
+    let name = child.nodeName.toLowerCase()
+    if (prevItem && (name == "ol" || name == "ul")) {
+      prevItem.appendChild(child)
+      child = prevItem
+    } else {
+      prevItem = name == "li" ? child : null
+    }
+  }
+}
+
+const normalizers: Record<string, (dom: HTMLElement) => void> = {ol: normalizeList, ul: normalizeList}
+  
+const ignoreTags = new Set(["head", "noscript", "object", "script", "style", "title"])
+
+const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas", "dd", "div", "dl",
+                           "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5",
+                           "h6", "header", "hgroup", "hr", "li", "noscript", "ol", "output", "p", "pre",
+                           "section", "table", "tfoot", "ul"])
