@@ -1,6 +1,6 @@
 import {Node, DocNode, Tag, Prop, subtractSet, TokenType} from "./node"
 import {Schema} from "./schema"
-import {Slice, Token, CloseToken, OpenToken, SliceJSON, pushNode} from "./slice"
+import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 import {Context, Walker} from "./context"
 
 class BuildContext {
@@ -21,7 +21,7 @@ class Builder implements Walker {
       if (!node.tag.isLeaf()) throw new Error("Invalid modification on non-leaf node")
       node = applyModifications(this.modifications, node)
     }
-    pushNode(this.stack[this.stack.length - 1].children, node)
+    node.pushTo(this.stack[this.stack.length - 1].children)
   }    
 
   enter(node: Node) {
@@ -492,7 +492,7 @@ function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
     } else if (tok.tokenType == TokenType.Node) {
       let node = applyModifications(mods, tok)
       if (content.length && content[content.length - 1].tokenType == TokenType.Node)
-        pushNode(content as Node[], node)
+        node.pushTo(content as Node[])
       else
         content.push(node)
     } else {

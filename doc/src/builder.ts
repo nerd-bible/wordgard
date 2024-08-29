@@ -1,5 +1,4 @@
 import {Node, DocNode, Tag, TagType, PropType, Prop, PropSet} from "./node"
-import {pushNode} from "./slice"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
@@ -75,14 +74,14 @@ function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
   if (Array.isArray(spec)) {
     for (let elt of spec) collectChildren(elt, prop, list)
   } else if (typeof spec == "string") {
-    pushNode(list, addProp(Node.text(spec), prop))
+    addProp(Node.text(spec), prop).pushTo(list)
   } else if (spec instanceof Node) {
     if (spec.tag == InlineFragment || spec.tag == BlockFragment) {
       copyTags(spec.children, list, 0)
       for (let ch of spec.children) collectChildren(ch, prop, list)
     } else {
       copyTags(spec.children, list, 1)
-      pushNode(list, addProp(spec, prop))
+      addProp(spec, prop).pushTo(list)
     }
   } else if (typeof spec == "number") {
     let tags = tagMap.get(list)

@@ -22,7 +22,7 @@ export class Schema {
   }
 
   doc(children: readonly Node[]) {
-    return new DocNode(this.docTag, this.docTag.checkChildren(children), this)
+    return new DocNode(this.docTag, this.docTag.type.checkChildren(children), this)
   }
 
   get schemaElement() { return this }
@@ -78,7 +78,7 @@ export class Schema {
   getTag(name: string): TagType<unknown> | undefined { return this.tagsByName[name] }
 
   static define(spec: SchemaElement) {
-    let tags: TagType<unknown>[] = [Text.type], props: PropType<unknown>[] = []
+    let tags: TagType<any>[] = [Text], props: PropType<unknown>[] = []
     let nodeNames: Set<string> = new Set, propNames: Set<string> = new Set
     function scan(spec: SchemaElement) {
       if (Array.isArray(spec)) {

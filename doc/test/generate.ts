@@ -81,7 +81,7 @@ export function rDoc(minLength: number) {
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
       if (node.isText() && last && last.sameMarkup(node))
-        children[children.length - 1] = node.withText((last as TextNode).text + node.text)
+        children[children.length - 1] = Node.text((last as TextNode).text + node.text, node.props)
       else 
         children.push(node)
     }

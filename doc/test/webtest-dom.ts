@@ -35,7 +35,7 @@ describe("serialize", () => {
 
   it("can serialize style props", () => {
     let Ul = Prop.define("Ul", {
-      tags: "Paragraph",
+      tags: "Text",
       dom: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
     let {ul} = builder({ul: Ul})

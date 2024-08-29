@@ -40,11 +40,11 @@ export class Context {
   get nodeAfter() {
     if (this.index == this.node.children.length) return null
     let node = this.node.children[this.index]
-    return this.inText ? (node as TextNode).cut(this.inText) : node
+    return this.inText && node.isText() ? node.cutText(this.inText) : node
   }
 
   get nodeBefore() {
-    if (this.inText) return (this.node.children[this.index] as TextNode).cut(0, this.inText)
+    if (this.inText) return (this.node.children[this.index] as TextNode).cutText(0, this.inText)
     return this.index ? this.node.children[this.index - 1] : null
   }
 
@@ -88,7 +88,7 @@ function advanceContext(distance: number, node: Node, index: number,
   if (inText) {
     let text = node.children[index] as TextNode
     let textStart = pos - inText, textEnd = textStart + text.length
-    if (walk) walk.skip(text.cut(inText, Math.min(node.length, target - textStart)))
+    if (walk) walk.skip(text.cutText(inText, Math.min(node.length, target - textStart)))
     if (target < textEnd)
       return new Context(node, index, target, target - textStart, parent)
     pos = textEnd
@@ -108,7 +108,7 @@ function advanceContext(distance: number, node: Node, index: number,
         pos = end
         index++
       } else if (next.isText()) {
-        if (walk) walk.skip(next.cut(0, target - pos))
+        if (walk) walk.skip(next.cutText(0, target - pos))
         return new Context(node, index, target, target - pos, parent)
       } else {
         if (walk) walk.enter(next)

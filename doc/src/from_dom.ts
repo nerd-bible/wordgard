@@ -1,5 +1,5 @@
 import {Schema} from "./schema"
-import {Tag, TagType, Node, TextNode, PropSet, Prop, PropType, Text} from "./node"
+import {Tag, TagType, Node, PropSet, Prop, PropType, Text} from "./node"
 import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
         AttributeParseRule, Reject} from "./spec"
 
@@ -106,7 +106,7 @@ class ParseContext {
 
   ignoreElement(elt: HTMLElement, props: readonly Prop[]) {
     if (elt.nodeName == "BR" && !this.top.tag.inlineContent())
-      this.findPlace(Text, props)
+      this.findPlace(Text.of("-"), props)
   }
 
   parseElement(elt: HTMLElement, props: readonly Prop[]) {
@@ -232,12 +232,7 @@ class ParseContext {
       let nodeProps = PropSet.empty
       for (let p of innerProps) if (p.type.canTarget(node.tag.type)) nodeProps = nodeProps.add(p)
       for (let p of node.props.set) nodeProps = nodeProps.add(p)
-      let last = top.children.length ? top.children[top.children.length - 1] : null
-      if (node.isText() && last && last.isText() && nodeProps.eq(last.props)) {
-        top.children[top.children.length - 1] = last.withText(last.text + node.text)
-      } else {
-        top.children.push(node.withProps(nodeProps))
-      }
+      node.withProps(nodeProps).pushTo(top.children)
       return true
     }
     return false
@@ -247,7 +242,7 @@ class ParseContext {
   // context. May add intermediate wrappers and/or leave non-solid
   // nodes that we're in. Returns null if no place could be created, a
   // set of prop values not applied to wrappers otherwise.
-  findPlace(tag: Tag, props: readonly Prop[]): readonly Prop[] | null {
+  findPlace(tag: Tag<any>, props: readonly Prop[]): readonly Prop[] | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
       let found = this.schema.findWrapping(cx.tag, tag)
@@ -302,7 +297,7 @@ class ParseContext {
       if (last.isText() && (m = /[ \t\r\n\u000c]+$/.exec(last.text))) {
         let len = last.text.length - m[0].length
         if (!len) cx.children.pop()
-        else cx.children[cx.children.length - 1] = last.withText(last.text.slice(0, len))
+        else cx.children[cx.children.length - 1] = last.cutText(0, len)
       }
     }
     if (!cx.tag.inlineContent() && !cx.tag.isLeaf() && !cx.children.length)

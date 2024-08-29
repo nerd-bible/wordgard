@@ -89,6 +89,19 @@ export class TagType<Param> {
     return other.contentGroups.some(g => this.contentGroups.includes(g))
   }
 
+  checkProps(props: PropSet) {
+    for (let prop of props.set) if (!prop.type.canTarget(this))
+      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
+    return props
+  }
+
+  checkChildren(children: readonly Node[]) {
+    for (let child of children)
+      if (!this.canContain(child.tag.type))
+        throw new Error(`${child.name} is not a valid child of ${this.name}`)
+    return children
+  }
+
   isInline() { return (this.flags & TagFlag.Inline) > 0 }
   isText() { return (this.flags & TagFlag.Text) > 0 }
   isBlock() { return (this.flags & TagFlag.Inline) == 0 }
@@ -128,31 +141,17 @@ export class Tag<Param = unknown> {
   create(children?: readonly Node[]): Node
   create(propsOrChildren?: PropSet | readonly Node[], children?: readonly Node[]): Node {
     if (this.isDoc()) throw new Error("Document nodes must be created with schema.doc()")
-    if (this.isText()) throw new Error("Text nodes must be created with Node.text()")
     let props = PropSet.empty
     if (propsOrChildren) {
       if (Array.isArray(propsOrChildren)) children = propsOrChildren
       else if (propsOrChildren instanceof Node) children = [propsOrChildren]
       else props = propsOrChildren as PropSet
     }
-    return new Node(this, this.checkProps(props), this.checkChildren(joinText(children || none)))
+    return new Node(this, this.type.checkProps(props), this.type.checkChildren(joinText(children || none)))
   }
 
   eq(other: Tag) {
     return this == other || this.type == other.type && compareDeep(this.param, other.param)
-  }
-
-  checkChildren(children: readonly Node[]) {
-    for (let child of children)
-      if (!this.type.canContain(child.tag.type))
-        throw new Error(`${child.name} is not a valid child of ${this.name}`)
-    return children
-  }
-
-  checkProps(props: PropSet) {
-    for (let prop of props.set) if (!prop.type.canTarget(this.type))
-      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
-    return props
   }
 
   isInline() { return this.type.isInline() }
@@ -171,21 +170,37 @@ function checkReserved(name: string) {
 
 export class Node {
   contentLength: number
+  tag: Tag<unknown>
 
   constructor(
-    readonly tag: Tag<any>,
+    tag: Tag<any>,
     readonly props: PropSet,
     readonly children: readonly Node[],
   ) {
+    this.tag = tag
     this.contentLength = children.reduce((s, c) => s + c.length, 0)
   }
 
   get name() { return this.tag.name }
 
-  get length() { return this.isLeaf() ? 1 : 2 + this.contentLength }
+  get length() { return this.tag.type == Text ? (this.tag.param as string).length : this.isLeaf() ? 1 : 2 + this.contentLength }
+
+  get text(): string | null { return this.isText() ? this.tag.param as string : null }
+
+  cutText(this: TextNode, from: number, to = this.text.length) {
+    return !from && to == this.text.length ? this : new Node(Text.of(this.text.slice(Math.max(from, 0), Math.max(0, to))), this.props, none)
+  }
 
   withProps(props: PropSet) {
-    return props.eq(this.props) ? this : new Node(this.tag, this.tag.checkProps(props), this.children)
+    return props.eq(this.props) ? this : new Node(this.tag, this.tag.type.checkProps(props), this.children)
+  }
+
+  pushTo(nodes: Node[]) {
+    let last = nodes.length - 1
+    if (last >= 0 && this.isText() && nodes[last].isText() && nodes[last].props.eq(this.props))
+      nodes[last] = Node.text(nodes[last].text + this.text, this.props)
+    else
+      nodes.push(this)
   }
 
   sameMarkup(other: Node) {
@@ -197,7 +212,7 @@ export class Node {
   }
 
   copy(children: readonly Node[]) {
-    return new Node(this.tag, this.props, this.tag.checkChildren(children))
+    return new Node(this.tag, this.props, this.tag.type.checkChildren(joinText(children)))
   }
 
   slice(from: number, to = this.length) {
@@ -209,6 +224,10 @@ export class Node {
 
   /// @internal
   sliceNode(content: Token[], from: number, to: number) {
+    if (this.isText()) {
+      if (from < to) content.push(this.cutText(from, to))
+      return
+    }
     if (from <= 0) {
       if (to >= this.length) {
         content.push(this)
@@ -255,7 +274,7 @@ export class Node {
 
   /// @internal
   toString() {
-    return propsToString(this.props, this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
+    return propsToString(this.props, this.isText() ? JSON.stringify(this.text) : this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
   }
 
   toJSON(): NodeJSON {
@@ -301,9 +320,11 @@ export class Node {
   get tokenType(): TokenType.Node { return TokenType.Node }
 
   static text(text: string, props: PropSet = PropSet.empty) {
-    return new TextNode(text, Text.checkProps(props))
+    return new Node(Text.of(text), Text.checkProps(props), none)
   }
 }
+
+export type TextNode = Node & {text: string}
 
 export type NodeJSON = {
   type: string,
@@ -326,7 +347,7 @@ export class DocNode extends Node {
   get length() { return this.contentLength }
 
   copy(children: readonly Node[]) {
-    return new DocNode(this.tag, this.tag.checkChildren(children), this.schema)
+    return new DocNode(this.tag as Tag<null>, this.tag.type.checkChildren(children), this.schema)
   }
 
   withProps(props: PropSet) {
@@ -354,42 +375,10 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
   }
 }
 
-export const Text = new Tag(new TagType("Text", TagFlag.Leaf | TagFlag.Text | TagFlag.Inline, {
+export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Text | TagFlag.Inline, {
   kind: "inline",
   dom: {element: ""}
-}), null)
-
-export class TextNode extends Node {
-  constructor(readonly text: string, props: PropSet) {
-    if (!text.length) throw new Error("Text nodes must not be empty")
-    super(Text, props, none)
-  }
-
-  get length() { return this.text.length }
-
-  withText(text: string) {
-    return text == this.text ? this : new TextNode(text, this.props)
-  }
-
-  withProps(props: PropSet) {
-    return props.eq(this.props) ? this : new TextNode(this.text, props)
-  }
-
-  sliceNode(content: Token[], from: number, to: number) {
-    content.push(this.cut(from, to))
-  }
-
-  cut(from: number, to = this.length) {
-    return !from && to == this.length ? this : new TextNode(this.text.slice(Math.max(from, 0), Math.max(0, to)), this.props)
-  }
-
-  eq(other: Node) {
-    return this.sameMarkup(other) && this.text == (other as TextNode).text
-  }
-
-  /// @internal
-  toString() { return propsToString(this.props, JSON.stringify(this.text)) }
-}
+})
 
 // FIXME show values? display differently?
 function propsToString(props: PropSet, inner: string) {
@@ -591,14 +580,16 @@ export class PropSet {
 }
 
 function joinText(nodes: readonly Node[]) {
+  if (!nodes.length || nodes[0].isBlock()) return nodes
   let joined: Node[] | undefined
-  for (let i = 0; i < nodes.length; i++) {
+  for (let i = 0, last = null; i < nodes.length; i++) {
     let node = nodes[i]
-    if (i && node.isText() && nodes[i - 1].sameMarkup(node)) {
-      if (!joined) joined = nodes.slice(0, i - 1)
-      joined.push(node.withText((nodes[i - 1] as TextNode).text + node.text))
-    } else if (joined) {
-      joined.push(node)
+    if (last && node.isText() && last.isText() && last.props.eq(node.props)) {
+      if (!joined) joined = nodes.slice(0, i)
+      last = joined[joined.length - 1] = Node.text(last.text + node.text, node.props)
+    } else {
+      last = node
+      if (joined) joined.push(node)
     }
   }
   return joined || nodes
