@@ -31,7 +31,6 @@ export function isAttributeRepresentation<T>(
 }
 
 export type TagSpec<Param> = {
-  kind: "block" | "inline"
   blockContent?: string
   inlineContent?: string | true
   defaultParam?: Param extends null ? never : Param

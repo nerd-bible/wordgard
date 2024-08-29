@@ -15,12 +15,11 @@ const enum TagFlag {
   NullParam = 32
 }
 
-function flagsFor(spec: TagSpec<any>) {
-  let flags = TagFlag.None
+function flagsFor(spec: TagSpec<any>, inline: boolean) {
+  let flags = inline ? TagFlag.Inline : TagFlag.None
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= TagFlag.InlineContent
   else if (!spec.blockContent) flags |= TagFlag.Leaf
-  if (spec.kind == "inline") flags |= TagFlag.Inline
   return flags
 }
 
@@ -63,9 +62,14 @@ export class TagType<Param> {
       (flags & TagFlag.NullParam) ? new Tag(this, null as any) : null
   }
 
-  static define<T>(name: string, spec: TagSpec<T>) {
+  static defineInline<T>(name: string, spec: TagSpec<T>) {
     checkReserved(name)
-    return new TagType<T>(name, flagsFor(spec), spec)
+    return new TagType<T>(name, flagsFor(spec, true), spec)
+  }
+
+  static defineBlock<T>(name: string, spec: TagSpec<T>) {
+    checkReserved(name)
+    return new TagType<T>(name, flagsFor(spec, false), spec)
   }
 
   get schemaElement(): SchemaElement { return this }
@@ -119,9 +123,14 @@ export class Tag<Param = unknown> {
 
   get name() { return this.type.name }
 
-  static define(name: string, spec: TagSpec<null>) {
+  static defineInline(name: string, spec: TagSpec<null>) {
     checkReserved(name)
-    return new TagType<null>(name, flagsFor(spec) | TagFlag.NullParam, spec).default!
+    return new TagType<null>(name, flagsFor(spec, true) | TagFlag.NullParam, spec).default!
+  }
+
+  static defineBlock(name: string, spec: TagSpec<null>) {
+    checkReserved(name)
+    return new TagType<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
   }
 
   static defineDoc(spec: {inlineContent?: string, blockContent?: string}) {
@@ -129,7 +138,6 @@ export class Tag<Param = unknown> {
     let flags = TagFlag.NullParam | TagFlag.Doc
     if (spec.inlineContent) flags |= TagFlag.InlineContent
     return new TagType<null>("Doc", flags, {
-      kind: "block",
       ...spec,
       dom: {element: ""}
     }).default!
@@ -376,7 +384,6 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
 }
 
 export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Text | TagFlag.Inline, {
-  kind: "inline",
   dom: {element: ""}
 })
 

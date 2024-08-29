@@ -144,17 +144,13 @@ export class Schema {
   }
 }
 
-// FIXME definition format still needs work
-
-export const Paragraph = Tag.define("Paragraph", {
-  kind: "block",
+export const Paragraph = Tag.defineBlock("Paragraph", {
   inlineContent: true,
   group: "Block",
   dom: {element: "p"}
 })
 
-export const Heading = TagType.define("Heading", {
-  kind: "block",
+export const Heading = TagType.defineBlock("Heading", {
   defaultParam: 1,
   inlineContent: true,
   group: "Block",
@@ -169,8 +165,7 @@ export const Heading = TagType.define("Heading", {
   ]
 })
 
-export const CodeBlock = Tag.define("CodeBlock", {
-  kind: "block",
+export const CodeBlock = Tag.defineBlock("CodeBlock", {
   inlineContent: true,
   group: "Block",
   dom: {element: "pre"},
@@ -182,16 +177,14 @@ export const CodeBlockLanguage = PropType.define("CodeBlockLanguage", {
   dom: {attribute: "data-language", readAttribute: x => x}
 })
 
-export const Blockquote = Tag.define("Blockquote", {
-  kind: "block",
+export const Blockquote = Tag.defineBlock("Blockquote", {
   blockContent: "Block",
   group: "Block",
   dom: {element: "blockquote"}
 })
 
-export const OrderedList = TagType.define("OrderedList", {
+export const OrderedList = TagType.defineBlock("OrderedList", {
   defaultParam: 1,
-  kind: "block",
   blockContent: "ListItem",
   group: "Block",
   dom: {
@@ -201,28 +194,24 @@ export const OrderedList = TagType.define("OrderedList", {
   },
 })
 
-export const BulletList = Tag.define("BulletList", {
-  kind: "block",
+export const BulletList = Tag.defineBlock("BulletList", {
   blockContent: "ListItem",
   group: "Block",
   dom: {element: "ul"}
 })
 
-export const ListItem = Tag.define("ListItem", {
-  kind: "block",
+export const ListItem = Tag.defineBlock("ListItem", {
   blockContent: "Block",
   dom: {element: "li"}
 })
 
-export const HorizontalRule = Tag.define("HorizontalRule", {
-  kind: "block",
+export const HorizontalRule = Tag.defineBlock("HorizontalRule", {
   group: "Block",
   dom: {element: "hr"},
   toText: () => "---"
 })
 
-export const Image = TagType.define<string>("Image", {
-  kind: "inline",
+export const Image = TagType.defineInline<string>("Image", {
   dom: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
 
@@ -231,8 +220,7 @@ export const ImageAlt = PropType.define<string>("ImageAlt", {
   dom: {attribute: "alt", readAttribute: x => x}
 })
 
-export const LineBreak = Tag.define("LineBreak", {
-  kind: "inline",
+export const LineBreak = Tag.defineInline("LineBreak", {
   dom: {element: "br"}
 })
 

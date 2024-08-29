@@ -39,13 +39,11 @@ function tagBuilder<Param>(tag: TagType<Param>): NodeBuilder<TagType<Param>> {
   return (param: Param, ...children: ContentSpec[]) => tag.of(param).create(PropSet.empty, collectChildren(children))
 }
 
-const InlineFragment = Tag.define("Fragment", {
-  kind: "inline",
+const InlineFragment = Tag.defineInline("Fragment", {
   dom: {element: "span"},
   inlineContent: true
 })
-const BlockFragment = Tag.define("Fragment", {
-  kind: "block",
+const BlockFragment = Tag.defineBlock("Fragment", {
   dom: {element: "div"},
   blockContent: "_"
 })
