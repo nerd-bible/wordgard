@@ -131,6 +131,7 @@ export const basicBuilder = builder({
   br: LineBreak,
   blockquote: Blockquote,
   ol: OrderedList.default!,
+  olOrder: OrderedList,
   ul: BulletList,
   li: ListItem,
   hr: HorizontalRule,

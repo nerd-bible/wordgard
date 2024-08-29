@@ -22,7 +22,7 @@ export class Schema {
   }
 
   doc(children: readonly Node[]) {
-    return new DocNode(this.docTag, this.docTag.type.checkChildren(children), this)
+    return new DocNode(this.docTag, this.docTag.checkChildren(children), this)
   }
 
   get schemaElement() { return this }
@@ -158,14 +158,23 @@ export const Heading = TagType.define("Heading", {
   defaultParam: 1,
   inlineContent: "Inline",
   group: "Block",
-  dom: {tag: "h1"} // FIXME
+  dom: level => document.createElement("h" + level),
+  parseRules: [
+    {selector: "h1", param: 1},
+    {selector: "h2", param: 2},
+    {selector: "h3", param: 3},
+    {selector: "h4", param: 4},
+    {selector: "h5", param: 5},
+    {selector: "h6", param: 6},
+  ]
 })
 
 export const CodeBlock = Tag.define("CodeBlock", {
   kind: "block",
   inlineContent: "Inline",
   group: "Block",
-  dom: {tag: "pre"}
+  dom: {tag: "pre"},
+  preserveWhitespace: true
 })
 
 export const CodeBlockLanguage = PropType.define("CodeBlockLanguage", {
@@ -185,7 +194,11 @@ export const OrderedList = TagType.define("OrderedList", {
   kind: "block",
   blockContent: "ListItem",
   group: "Block",
-  dom: {tag: "ol"},
+  dom: {
+    tag: "ol",
+    attributes: order => order == 1 ? {} : {order},
+    readElement: elt => Number(elt.getAttribute("order") || "1")
+  },
 })
 
 export const BulletList = Tag.define("BulletList", {
@@ -225,12 +238,23 @@ export const LineBreak = Tag.define("LineBreak", {
 
 export const Emphasis = Prop.define("Emphasis", {
   rank: 40,
-  dom: {tag: "em"}
+  dom: {tag: "em"},
+  parseRules: [
+    {attribute: "style/font-style", value: "italic"},
+    {attribute: "style/font-style", value: "normal", clearProp: p => p.name == "Emphasis"}
+  ]
 })
 
 export const Strong = Prop.define("Strong", {
   rank: 60,
   dom: {tag: "strong"},
+  parseRules: [
+    {attribute: "style/font-weight",
+     readAttribute: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value) ? null : Reject},
+    {attribute: "style/font-weight",
+     readAttribute: value => /^(normal|lighter|[1-4]\d{2})$/.test(value) ? null : Reject,
+     clearProp: p => p.name == "Strong"},
+  ]
 })
 
 export const Link = PropType.define<string>("Link", {

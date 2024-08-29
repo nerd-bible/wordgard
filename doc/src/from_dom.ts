@@ -20,7 +20,7 @@ class RuleSet {
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
       let {dom, parseRules} = tag.spec
-      if (typeof dom != "function") rules.push({
+      if (typeof dom != "function" && dom.tag) rules.push({
         selector: dom.selector || dom.tag,
         readElement: dom.readElement,
         tag
@@ -94,7 +94,7 @@ class ParseContext {
   matchElement(elt: HTMLElement): {rule: ElementParseRule<unknown>, value?: unknown} | null {
     for (let rule of this.rules.elementRules) {
       if (elt.matches(rule.selector)) {
-        if (!rule.readElement) return {rule}
+        if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
         let result = rule.readElement(elt)
         if (result === Reject) continue
         return {rule, value: result}
@@ -135,7 +135,7 @@ class ParseContext {
     let sync, tag, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.tag) {
       tag = rule.tag instanceof Tag ? rule.tag :
-        rule.tag instanceof TagType && hasValue ? rule.tag.of(match.value) : null
+        rule.tag instanceof TagType ? (hasValue ? rule.tag.of(match.value) : rule.tag.default) : null
       if (!tag) throw new Error(`Parse rule for ${rule.selector} does not produce a tag`)
       if (!tag.isLeaf()) {
         let innerProps = this.enter(tag, props)
@@ -148,7 +148,7 @@ class ParseContext {
       }
     } else {
       let prop = rule.prop instanceof Prop ? rule.prop :
-        rule.prop instanceof PropType && hasValue ? rule.prop.of(match.value) : null
+        rule.prop instanceof PropType ? (hasValue ? rule.prop.of(match.value) : rule.prop.default) : null
       if (!prop) throw new Error(`Parse rule for ${rule.selector} does not produce a prop`)
       props = props.concat(prop)
     }
@@ -202,12 +202,12 @@ class ParseContext {
       let value = !isStyle ? elt.getAttribute(rule.attribute) :
         hasStyles ? elt.style.getPropertyValue(rule.attribute.slice(6)) : ""
       if (!value) continue
-      let hasParam = false, param: any
+      let hasParam = Object.prototype.hasOwnProperty.call(rule, "param"), param = rule.param
       if (rule.readAttribute) {
         param = rule.readAttribute(value)
         hasParam = true
         if (param == Reject) continue
-      } else if (rule.attribute && rule.attribute != value) {
+      } else if (rule.value != null && rule.value != value) {
         continue
       }
       if (rule.ignore) return null
@@ -216,7 +216,7 @@ class ParseContext {
         props = props.filter(p => !rule.clearProp!(p))
       } else {
         let prop = rule.prop instanceof Prop ? rule.prop :
-          hasParam && rule.prop instanceof PropType ? rule.prop.of(param) : null
+          rule.prop instanceof PropType ? (hasParam ? rule.prop.of(param) : rule.prop.default) : null
         if (!prop) throw new Error(`Parse rule for ${rule.attribute} does not produce a prop (or have ignore/clearProp properties)`)
         props = props.concat(prop)
       }
@@ -231,7 +231,12 @@ class ParseContext {
       let nodeProps = PropSet.empty
       for (let p of innerProps) if (p.type.canTarget(node.tag.type)) nodeProps = nodeProps.add(p)
       for (let p of node.props.set) nodeProps = nodeProps.add(p)
-      top.children.push(node.withProps(nodeProps))
+      let last = top.children.length ? top.children[top.children.length - 1] : null
+      if (node.isText() && last && last.isText() && last.props.eq(nodeProps)) {
+        top.children[top.children.length - 1] = last.withText(last.text + node.text)
+      } else {
+        top.children.push(node.withProps(nodeProps))
+      }
       return true
     }
     return false

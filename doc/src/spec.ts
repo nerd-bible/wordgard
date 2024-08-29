@@ -53,14 +53,12 @@ export type PropSpec<Value> = {
   parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
 }
 
-export interface BaseParseRule {
-  ignore?: boolean | "skip"
-}
-
-export interface ElementParseRule<Param> extends BaseParseRule {
+export interface ElementParseRule<Param> {
   selector: string
   tag?: TagType<Param> | Tag<Param>
   prop?: PropType<Param> | Prop<Param>
+  ignore?: boolean | "skip"
+  param?: Param
   readElement?: (element: HTMLElement) => Param | Reject
   contentElement?: string | ((elt: HTMLElement) => HTMLElement)
 }
@@ -69,10 +67,13 @@ export function isElementParseRule(rule: ParseRule): rule is ElementParseRule<un
   return (rule as any).selector != null
 }
 
-export interface AttributeParseRule<Param> extends BaseParseRule {
+export interface AttributeParseRule<Param> {
   attribute: string
   prop?: PropType<Param> | Prop<Param>
+  ignore?: boolean
   clearProp?: (prop: Prop<unknown>) => boolean
+  param?: Param
+  value?: string
   readAttribute?: (value: string) => Param | Reject
   consuming?: boolean
 }

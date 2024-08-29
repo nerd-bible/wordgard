@@ -3,7 +3,7 @@ import {Node, DocNode, Tag, Prop,
         ChangeSet, ChangeSpec, Token,
         Schema, basicSchema, basicBuilder, tag, maybeTag,
         ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "@willows/doc"
-import {permute, open, close, slice, rDoc, rChange, Comment} from "./generate.js"
+import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilder
 
 type ChangeData = (Token | string)[] | {add: Prop} | {remove: Prop}
