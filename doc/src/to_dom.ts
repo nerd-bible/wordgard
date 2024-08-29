@@ -1,4 +1,5 @@
-import {DocNode, Node, Prop} from "./node"
+import {DocNode, Node} from "./node"
+import {Prop} from "./prop"
 import {Attrs, ElementRepresentation, AttributeRepresentation, isElementRepresentation, isAttributeRepresentation} from "./spec"
 
 export type SerializeOptions = {

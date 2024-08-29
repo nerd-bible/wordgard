@@ -1,4 +1,5 @@
-import {Node, Prop, PropType, Tag, TagType} from "./node"
+import {Node, Tag, TagType} from "./node"
+import {Prop, PropType} from "./prop"
 
 export type Attrs = {[name: string]: string | number | undefined}
 

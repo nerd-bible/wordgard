@@ -1,4 +1,5 @@
-import {Node, DocNode, Tag, Prop, subtractSet, TokenType} from "./node"
+import {Node, DocNode, Tag, TokenType} from "./node"
+import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 import {Context, Walker} from "./context"

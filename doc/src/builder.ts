@@ -1,4 +1,5 @@
-import {Node, DocNode, Tag, TagType, PropType, Prop, PropSet} from "./node"
+import {Node, DocNode, Tag, TagType} from "./node"
+import {PropType, Prop, PropSet} from "./prop"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,

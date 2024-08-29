@@ -1,5 +1,6 @@
 import {Schema} from "./schema"
-import {Tag, TagType, Node, PropSet, Prop, PropType, Text} from "./node"
+import {Tag, TagType, Node, Text} from "./node"
+import {Prop, PropSet, PropType} from "./prop"
 import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
         AttributeParseRule, Reject} from "./spec"
 

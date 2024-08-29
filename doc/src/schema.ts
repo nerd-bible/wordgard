@@ -1,4 +1,6 @@
-import {Node, Tag, TagType, Prop, PropType, PropSet, NodeJSON, Text, DocNode, none} from "./node"
+import {Node, Tag, TagType, NodeJSON, Text, DocNode} from "./node"
+import {Prop, PropType, PropSet} from "./prop"
+import {none} from "./helper"
 import {Reject} from "./spec"
 
 export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]

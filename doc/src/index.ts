@@ -1,4 +1,5 @@
 export * from "./node"
+export * from "./prop"
 export * from "./schema"
 export * from "./change"
 export * from "./context"
