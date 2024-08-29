@@ -15,8 +15,10 @@
   },
   "author": "Marijn Haverbeke <marijn@haverbeke.berlin>",
   "license": "MIT",
-  "dependencies": {
+  "devDependencies": {
     "@marijn/buildtool": "^1.0.0",
-    "@marijn/testtool": "^0.1.2"
+    "@marijn/testtool": "^0.1.2",
+    "send": "^0.18.0",
+    "serve-static": "^1.15.0"
   }
 }
