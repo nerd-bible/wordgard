@@ -7,7 +7,7 @@ const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
 
 export const Comment = PropType.define<readonly number[]>("Comment", {
   tags: "Inline",
-  multi: {compare: (a, b) => a - b},
+  set: {compare: (a, b) => a - b},
   dom: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
 

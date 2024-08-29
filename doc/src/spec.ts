@@ -6,7 +6,7 @@ export const Reject: unique symbol = Symbol("reject")
 export type Reject = typeof Reject
 
 export type ElementRepresentation<Param> = {
-  tag: string // FIXME too easy to confuse with our use of tag
+  element: string
   selector?: string
   attributes?: Attrs | ((param: Param) => Attrs)
   readElement?: (element: HTMLElement) => Param | Reject
@@ -21,7 +21,7 @@ export type AttributeRepresentation<Param> = {
 export function isElementRepresentation<T>(
   repr: AttributeRepresentation<T> | ElementRepresentation<T>
 ): repr is ElementRepresentation<T> {
-  return (repr as ElementRepresentation<any>).tag != null
+  return (repr as ElementRepresentation<any>).element != null
 }
 
 export function isAttributeRepresentation<T>(
@@ -33,8 +33,7 @@ export function isAttributeRepresentation<T>(
 export type TagSpec<Param> = {
   kind: "block" | "inline"
   blockContent?: string
-  // FIXME allow inlineContent: true
-  inlineContent?: string
+  inlineContent?: string | true
   defaultParam?: Param extends null ? never : Param
   group?: string
   toText?: (node: Node) => string
@@ -47,8 +46,7 @@ export type PropSpec<Value> = {
   tags?: string
   rank?: number
   spanning?: boolean
-  // FIXME rename
-  multi?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
+  set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
   dom: ElementRepresentation<Value> | AttributeRepresentation<Value>
   parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
 }

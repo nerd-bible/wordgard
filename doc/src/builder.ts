@@ -42,12 +42,12 @@ function tagBuilder<Param>(tag: TagType<Param>): NodeBuilder<TagType<Param>> {
 
 const InlineFragment = Tag.define("Fragment", {
   kind: "inline",
-  dom: {tag: "span"},
-  inlineContent: "_"
+  dom: {element: "span"},
+  inlineContent: true
 })
 const BlockFragment = Tag.define("Fragment", {
   kind: "block",
-  dom: {tag: "div"},
+  dom: {element: "div"},
   blockContent: "_"
 })
 

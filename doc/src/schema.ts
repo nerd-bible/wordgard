@@ -148,15 +148,15 @@ export class Schema {
 
 export const Paragraph = Tag.define("Paragraph", {
   kind: "block",
-  inlineContent: "Inline",
+  inlineContent: true,
   group: "Block",
-  dom: {tag: "p"}
+  dom: {element: "p"}
 })
 
 export const Heading = TagType.define("Heading", {
   kind: "block",
   defaultParam: 1,
-  inlineContent: "Inline",
+  inlineContent: true,
   group: "Block",
   dom: level => document.createElement("h" + level),
   parseRules: [
@@ -171,9 +171,9 @@ export const Heading = TagType.define("Heading", {
 
 export const CodeBlock = Tag.define("CodeBlock", {
   kind: "block",
-  inlineContent: "Inline",
+  inlineContent: true,
   group: "Block",
-  dom: {tag: "pre"},
+  dom: {element: "pre"},
   preserveWhitespace: true
 })
 
@@ -186,7 +186,7 @@ export const Blockquote = Tag.define("Blockquote", {
   kind: "block",
   blockContent: "Block",
   group: "Block",
-  dom: {tag: "blockquote"}
+  dom: {element: "blockquote"}
 })
 
 export const OrderedList = TagType.define("OrderedList", {
@@ -195,7 +195,7 @@ export const OrderedList = TagType.define("OrderedList", {
   blockContent: "ListItem",
   group: "Block",
   dom: {
-    tag: "ol",
+    element: "ol",
     attributes: order => order == 1 ? {} : {order},
     readElement: elt => Number(elt.getAttribute("order") || "1")
   },
@@ -205,25 +205,25 @@ export const BulletList = Tag.define("BulletList", {
   kind: "block",
   blockContent: "ListItem",
   group: "Block",
-  dom: {tag: "ul"}
+  dom: {element: "ul"}
 })
 
 export const ListItem = Tag.define("ListItem", {
   kind: "block",
   blockContent: "Block",
-  dom: {tag: "li"}
+  dom: {element: "li"}
 })
 
 export const HorizontalRule = Tag.define("HorizontalRule", {
   kind: "block",
   group: "Block",
-  dom: {tag: "hr"},
+  dom: {element: "hr"},
   toText: () => "---"
 })
 
 export const Image = TagType.define<string>("Image", {
   kind: "inline",
-  dom: {tag: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
+  dom: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
 
 export const ImageAlt = PropType.define<string>("ImageAlt", {
@@ -233,12 +233,12 @@ export const ImageAlt = PropType.define<string>("ImageAlt", {
 
 export const LineBreak = Tag.define("LineBreak", {
   kind: "inline",
-  dom: {tag: "br"}
+  dom: {element: "br"}
 })
 
 export const Emphasis = Prop.define("Emphasis", {
   rank: 40,
-  dom: {tag: "em"},
+  dom: {element: "em"},
   parseRules: [
     {attribute: "style/font-style", value: "italic"},
     {attribute: "style/font-style", value: "normal", clearProp: p => p.name == "Emphasis"}
@@ -247,7 +247,7 @@ export const Emphasis = Prop.define("Emphasis", {
 
 export const Strong = Prop.define("Strong", {
   rank: 60,
-  dom: {tag: "strong"},
+  dom: {element: "strong"},
   parseRules: [
     {attribute: "style/font-weight",
      readAttribute: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value) ? null : Reject},
@@ -260,7 +260,7 @@ export const Strong = Prop.define("Strong", {
 export const Link = PropType.define<string>("Link", {
   rank: 20,
   dom: {
-    tag: "a",
+    element: "a",
     selector: "a[href]",
     attributes: href => ({href}),
     readElement: dom => (dom as HTMLLinkElement).href
@@ -269,7 +269,7 @@ export const Link = PropType.define<string>("Link", {
 
 export const Code = Prop.define("Code", {
   rank: 80,
-  dom: {tag: "code"}
+  dom: {element: "code"}
 })
 
 export const Doc = Tag.defineDoc({

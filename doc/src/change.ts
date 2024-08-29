@@ -1,4 +1,4 @@
-import {Node, DocNode, Tag, Prop, subMulti, TokenType} from "./node"
+import {Node, DocNode, Tag, Prop, subtractSet, TokenType} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON, pushNode} from "./slice"
 import {Context, Walker} from "./context"
@@ -377,10 +377,10 @@ export class ChangeSet {
             markableSections(doc, from, to, (node, from, to) => {
               if (!add.type.canTarget(node.tag.type)) return false
               let has = node.props.has(add.type)
-              if (add.type.multi) {
+              if (add.type.set) {
                 let modsHere = mods
                 if (has) {
-                  let left = subMulti(add.value, has.value, add.type.multi)
+                  let left = subtractSet(add.value, has.value, add.type.set)
                   if (!left.length) return false
                   modsHere = [{add: add.type.of(left)}]
                 }
@@ -397,8 +397,8 @@ export class ChangeSet {
               const has = node.props.has(remove)
               if (!has || !remove.type.canTarget(node.tag.type)) return false
               let modsHere = mods
-              if (remove.type.multi) {
-                let left = (remove.value as any[]).filter(a => (has.value as any[]).some(b => remove.type.multi!(a, b)))
+              if (remove.type.set) {
+                let left = subtractSet(remove.value as any[], has.value as any[], remove.type.set!)
                 if (!left.length) return false
                 modsHere = [{remove: remove.type.of(left)}]
               }
@@ -466,7 +466,7 @@ function filterMods(mods: null | readonly Modification[], against: null | readon
 
 function modCancels(mod: Modification, other: Modification) {
   if (isAdd(other)) {
-    return isAdd(mod) ? mod.add.type == other.add.type && !mod.add.type.multi : mod.remove.eq(other.add)
+    return isAdd(mod) ? mod.add.type == other.add.type && !mod.add.type.set : mod.remove.eq(other.add)
   } else {
     return isAdd(mod) && mod.add.eq(isAdd(other) ? other.add : other.remove)
   }
@@ -475,7 +475,7 @@ function modCancels(mod: Modification, other: Modification) {
 function invertMods(mods: readonly Modification[], target: Node): readonly Modification[] {
   return mods.map(mod => {
     if (isRemove(mod)) return {add: mod.remove}
-    if (!mod.add.type.multi) {
+    if (!mod.add.type.set) {
       let existed = target.props.has(mod.add.type)
       if (existed) return {add: existed}
     }

@@ -1,5 +1,5 @@
 import {Schema} from "./schema"
-import {Tag, TagType, Node, PropSet, Prop, PropType, Text} from "./node"
+import {Tag, TagType, Node, TextNode, PropSet, Prop, PropType, Text} from "./node"
 import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
         AttributeParseRule, Reject} from "./spec"
 
@@ -20,8 +20,8 @@ class RuleSet {
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
       let {dom, parseRules} = tag.spec
-      if (typeof dom != "function" && dom.tag) rules.push({
-        selector: dom.selector || dom.tag,
+      if (typeof dom != "function" && dom.element) rules.push({
+        selector: dom.selector || dom.element,
         readElement: dom.readElement,
         tag
       })
@@ -31,7 +31,7 @@ class RuleSet {
       let {dom, parseRules} = prop.spec
       if (isElementRepresentation(dom)) {
         rules.push({
-          selector: dom.selector || dom.tag,
+          selector: dom.selector || dom.element,
           readElement: dom.readElement,
           prop
         })
@@ -52,8 +52,9 @@ export type ParseOptions = {
   // rules: readonly ParseRule[]
 
   /// Controls whether HTML-style whitespace collapsing is used
-  /// (outside nodes that don't enable `preserveWhitespace`).
-  preserveWhiteSpace?: boolean // FIXME rename
+  /// (outside nodes that don't enable `preserveWhitespace`). Defaults
+  /// to true.
+  collapseWhiteSpace?: boolean
   /// When given, the parser will, beside parsing the content, record
   /// the document positions of the given DOM positions. It will do so
   /// by writing to the objects, setting a `pos` property that holds
@@ -66,7 +67,7 @@ export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, op
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [])
   cx.sync(top)
-  return top.finish(schema)
+  return cx.finishNode(cx.top)
 }
 
 const enum CxFlag {
@@ -169,7 +170,7 @@ class ParseContext {
 
   parseTextNode(dom: Text, props: readonly Prop[]) {
     let text = dom.nodeValue!
-    if (!(this.top.tag.type.preserveWhitespace || this.options.preserveWhiteSpace)) {
+    if (!this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
       // Ignore entirely blank node
       if (!this.top.tag.inlineContent() && !/[^ \t\r\n\u000c]/.test(text)) {
         this.scanInside(dom)
@@ -232,7 +233,7 @@ class ParseContext {
       for (let p of innerProps) if (p.type.canTarget(node.tag.type)) nodeProps = nodeProps.add(p)
       for (let p of node.props.set) nodeProps = nodeProps.add(p)
       let last = top.children.length ? top.children[top.children.length - 1] : null
-      if (node.isText() && last && last.isText() && last.props.eq(nodeProps)) {
+      if (node.isText() && last && last.isText() && nodeProps.eq(last.props)) {
         top.children[top.children.length - 1] = last.withText(last.text + node.text)
       } else {
         top.children.push(node.withProps(nodeProps))
@@ -291,9 +292,24 @@ class ParseContext {
 
   close() {
     let parent = this.top.parent!
-    parent.children.push(this.top.finish(this.schema))
+    parent.children.push(this.finishNode(this.top))
     this.top = parent
   }
+
+  finishNode(cx: NodeContext) {
+    if (cx.children.length && !cx.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
+      let last = cx.children[cx.children.length - 1], m
+      if (last.isText() && (m = /[ \t\r\n\u000c]+$/.exec(last.text))) {
+        let len = last.text.length - m[0].length
+        if (!len) cx.children.pop()
+        else cx.children[cx.children.length - 1] = last.withText(last.text.slice(0, len))
+      }
+    }
+    if (!cx.tag.inlineContent() && !cx.tag.isLeaf() && !cx.children.length)
+      cx.children.push(this.schema.createDefault(cx.tag.type))
+    return cx.tag.isDoc() ? this.schema.doc(cx.children) : cx.tag.create(cx.props, cx.children)
+  }
+
 
   scanInside(dom: DOMNode) {
     if (this.find && dom.nodeType == 1) for (let query of this.find) {
@@ -347,12 +363,6 @@ class NodeContext {
   isIn(parent: NodeContext) {
     for (let cx: NodeContext | null = this; cx; cx = cx.parent) if (cx == parent) return true
     return false
-  }
-
-  finish(schema: Schema) {
-    if (!this.tag.inlineContent() && !this.tag.isLeaf() && !this.children.length)
-      this.children.push(schema.createDefault(this.tag.type))
-    return this.tag.isDoc() ? schema.doc(this.children) : this.tag.create(this.props, this.children)
   }
 }
 

@@ -56,7 +56,7 @@ export class TagType<Param> {
     let groups = this.groups = [name]
     if (flags & TagFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
-    let content = spec.inlineContent || spec.blockContent
+    let content = spec.inlineContent === true ? "Inline" : spec.inlineContent  || spec.blockContent
     this.contentGroups = content ? splitGroups(content) : none
     this.preserveWhitespace = !!spec.preserveWhitespace
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!) :
@@ -118,13 +118,12 @@ export class Tag<Param = unknown> {
     return new TagType<null>("Doc", flags, {
       kind: "block",
       ...spec,
-      dom: {tag: ""}
+      dom: {element: ""}
     }).default!
   }
 
   get schemaElement(): SchemaElement { return this.type }
 
-  // FIXME should this join text nodes?
   create(props: PropSet, children?: readonly Node[]): Node
   create(children?: readonly Node[]): Node
   create(propsOrChildren?: PropSet | readonly Node[], children?: readonly Node[]): Node {
@@ -136,7 +135,7 @@ export class Tag<Param = unknown> {
       else if (propsOrChildren instanceof Node) children = [propsOrChildren]
       else props = propsOrChildren as PropSet
     }
-    return new Node(this, this.checkProps(props), this.checkChildren(children || none))
+    return new Node(this, this.checkProps(props), this.checkChildren(joinText(children || none)))
   }
 
   eq(other: Tag) {
@@ -357,7 +356,7 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
 
 export const Text = new Tag(new TagType("Text", TagFlag.Leaf | TagFlag.Text | TagFlag.Inline, {
   kind: "inline",
-  dom: {tag: ""}
+  dom: {element: ""}
 }), null)
 
 export class TextNode extends Node {
@@ -421,7 +420,7 @@ export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], 
   return true
 }
 
-export function addMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
+export function addSet<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
   let result: T[] = []
   for (let i = 0, j = 0;;) {
     if (i == a.length) {
@@ -438,7 +437,7 @@ export function addMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b:
   }
 }
 
-export function subMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
+export function subtractSet<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => number) {
   let result: T[] = []
   for (let i = 0, j = 0;;) {
     if (i == a.length) return result
@@ -456,7 +455,7 @@ export function subMulti<T>(a: readonly T[], b: readonly T[], compare: (a: T, b:
 export class PropType<Value> {
   readonly targetGroups: readonly string[]
   readonly rank: number
-  readonly multi: null | ((a: any, b: any) => number)
+  readonly set: null | ((a: any, b: any) => number)
   readonly default: Prop<Value> | null
 
   constructor(
@@ -466,7 +465,7 @@ export class PropType<Value> {
   ) {
     this.targetGroups = spec.tags == null ? ["Inline"] : splitGroups(spec.tags)
     this.rank = spec.rank ?? 100
-    this.multi = spec.multi ? spec.multi.compare : null
+    this.set = spec.set ? spec.set.compare : null
     this.default = isFlag ? new Prop(this, null as any) : null
   }
 
@@ -520,8 +519,8 @@ export class PropSet {
       if (other.type != prop.type) {
         if (!placed && prop.type.compareRank(other.type) < 0) copy.push(placed = prop)
         copy.push(other)
-      } else if (prop.type.multi) {
-        copy.push(placed = new Prop(prop.type, addMulti(other.value, prop.value, prop.type.multi)))
+      } else if (prop.type.set) {
+        copy.push(placed = new Prop(prop.type, addSet(other.value, prop.value, prop.type.set)))
       }
     }
     if (!placed) copy.push(prop)
@@ -542,8 +541,8 @@ export class PropSet {
       let type = prop.type
       for (var i = 0; i < this.set.length; i++) if (this.set[i].type == type) {
         let val = this.set[i], set: readonly Prop[]
-        if (type.multi) {
-          let rest = subMulti(val.value, prop.value, type.multi)
+        if (type.set) {
+          let rest = subtractSet(val.value, prop.value, type.set)
           if (!rest.length) {
             set = remove(this.set, i)
           } else {
@@ -589,4 +588,18 @@ export class PropSet {
     for (let prop of props) result = result.add(prop)
     return result
   }
+}
+
+function joinText(nodes: readonly Node[]) {
+  let joined: Node[] | undefined
+  for (let i = 0; i < nodes.length; i++) {
+    let node = nodes[i]
+    if (i && node.isText() && nodes[i - 1].sameMarkup(node)) {
+      if (!joined) joined = nodes.slice(0, i - 1)
+      joined.push(node.withText((nodes[i - 1] as TextNode).text + node.text))
+    } else if (joined) {
+      joined.push(node)
+    }
+  }
+  return joined || nodes
 }

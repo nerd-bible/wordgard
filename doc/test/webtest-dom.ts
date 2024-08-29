@@ -83,6 +83,16 @@ describe("parseDoc", () => {
         doc(pre("one  two\n  three")), eq)
   })
 
+  it("collapses whitespace", () => {
+    ist(parse("<p>  \none   \n two  </p>\n  <p>three</p>"),
+        doc(p("one two"), p("three")), eq)
+  })
+
+  it("can disable whitespace collapsing", () => {
+    ist(parse("<p>  \none \n two  </p>", {collapseWhiteSpace: false}),
+        doc(p("   one   two  ")), eq)
+  })
+
   it("parses heading levels", () => {
     ist(parse("<h1>One</h1><h2>Two</h2>"),
         doc(h1("One"), h2("Two")), eq)

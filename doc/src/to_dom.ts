@@ -24,7 +24,7 @@ export function serializeNode(node: Node, options?: SerializeOptions): HTMLEleme
 }
 
 function createElement<Param>(repr: ElementRepresentation<Param>, param: Param, doc: Document) {
-  let dom = doc.createElement(repr.tag)
+  let dom = doc.createElement(repr.element)
   if (repr.attributes) {
     let attrs = typeof repr.attributes == "function" ? repr.attributes(param) : repr.attributes
     for (let attr in attrs) {
@@ -57,7 +57,7 @@ function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
   } else if (typeof dom == "function") {
     elt = dom(node.tag.param) // FIXME include dangling parents
   } else {
-    elt = options.document.createElement(dom.tag)
+    elt = options.document.createElement(dom.element)
     if (dom.attributes)
       applyAttributes(typeof dom.attributes == "function" ? dom.attributes(node.tag.param) : dom.attributes, elt)
   }
