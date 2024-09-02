@@ -1,6 +1,6 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
 import {TagSpec} from "./spec"
-import {Schema, SchemaElement} from "./schema"
+import {Schema} from "./schema"
 import {Context} from "./context"
 import {PropType, PropSet} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
@@ -56,8 +56,6 @@ export class TagType<Param> {
     checkReserved(name)
     return new TagType<T>(name, flagsFor(spec, false), spec)
   }
-
-  get schemaElement(): SchemaElement { return this }
 
   of(param: Param) { return new Tag(this, param) }
 
@@ -127,8 +125,6 @@ export class Tag<Param = unknown> {
       dom: {element: ""}
     })
   }
-
-  get schemaElement(): SchemaElement { return this.type }
 
   create(props: PropSet, children?: readonly Node[]): Node
   create(children?: readonly Node[]): Node

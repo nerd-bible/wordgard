@@ -3,7 +3,7 @@ import {Prop, PropType, PropSet} from "./prop"
 import {none} from "./helper"
 import {Reject} from "./spec"
 
-export type SchemaElement = {schemaElement: SchemaElement} | readonly SchemaElement[]
+export type SchemaElement = Tag<any> | TagType<any> | Prop<any> | PropType<any>
 
 export class Schema {
   private tagSet: Set<TagType<unknown>>
@@ -28,10 +28,6 @@ export class Schema {
   doc(children: readonly Node[]) {
     return new DocNode(this.docTag, this.docTag.type.checkChildren(children))
   }
-
-  get schemaElement() { return this }
-
-  // FIXME minus() method that returns a schema elt with some of the props/nodes gone?
 
   // FIXME probably don't want to integrate this in document
   // construction, but rather in the editor state.
@@ -81,32 +77,25 @@ export class Schema {
 
   getTag(name: string): TagType<unknown> | undefined { return this.tagsByName[name] }
 
-  static define(spec: SchemaElement) {
+  static define(spec: readonly SchemaElement[]) {
     let tags: TagType<any>[] = [Text], props: PropType<unknown>[] = []
-    let nodeNames: Set<string> = new Set, propNames: Set<string> = new Set
-    function scan(spec: SchemaElement) {
-      if (Array.isArray(spec)) {
-        spec.forEach(scan)
-      } else if (spec instanceof TagType) {
-        if (tags.includes(spec)) return
-        if (nodeNames.has(spec.name)) throw new Error(`Duplicate use of node name ${spec.name} in schema`)
-        nodeNames.add(spec.name)
-        tags.push(spec)
-      } else if (spec instanceof PropType) {
-        if (props.includes(spec)) return
-        if (propNames.has(spec.name)) throw new Error(`Duplicate use of prop name ${spec.name} in schema`)
-        propNames.add(spec.name)
-        props.push(spec as any)
-      } else if (spec instanceof Schema) {
-        scan(spec.tags)
-        scan(spec.props)
-      } else if ((spec as any).schemaElement == spec) {
-        throw new Error("Unexpected schema element type. You may have multiple versions of @willows/doc loaded")
+    let tagNames: Set<string> = new Set, propNames: Set<string> = new Set
+    for (let elt of spec) {
+      if (elt instanceof Tag || elt instanceof Prop) elt = elt.type
+      if (elt instanceof TagType) {
+        if (tags.includes(elt)) continue
+        if (tagNames.has(elt.name)) throw new Error(`Duplicate use of node name ${elt.name} in schema`)
+        tagNames.add(elt.name)
+        tags.push(elt)
+      } else if (elt instanceof PropType) {
+        if (props.includes(elt)) continue
+        if (propNames.has(elt.name)) throw new Error(`Duplicate use of prop name ${elt.name} in schema`)
+        propNames.add(elt.name)
+        props.push(elt as any)
       } else {
-        scan((spec as any).schemaElement)
+        throw new Error("Unexpected schema element type. You may have multiple versions of @willows/doc loaded")
       }
     }
-    scan(spec)
     let docTag: TagType<Schema> | null = null
     for (let tag of tags) {
       if (tag.isDoc()) docTag = tag
