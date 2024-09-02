@@ -135,6 +135,12 @@ export class Schema {
     if (type.isDoc()) return this.doc(children)
     return tag.create(props, children)
   }
+
+  docFromJSON(json: NodeJSON) {
+    if (!json || json.type != this.docTag.name)
+      throw new Error("Invalid document JSON")
+    return this.nodeFromJSON(json) as DocNode
+  }
 }
 
 export const Paragraph = Tag.defineBlock("Paragraph", {

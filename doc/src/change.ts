@@ -118,6 +118,7 @@ export class ChangeSet {
   ) {}
 
   apply(doc: DocNode) {
+    if (this.empty) return doc
     let builder = new Builder(doc)
     let cursor = Context.atStart(doc)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
@@ -455,6 +456,8 @@ export class ChangeSet {
     return result
   }
 }
+
+export type ChangeDesc = ChangeSet // FIXME
 
 function combineMods(a: null | readonly Modification[], b: null | readonly Modification[]): null | readonly Modification[] {
   return !a ? b : !b ? a : a.concat(b)
@@ -816,3 +819,4 @@ function addSection(sections: number[], data: SectionData[],
     data.push(value)
   }
 }
+

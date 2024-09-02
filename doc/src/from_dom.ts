@@ -1,5 +1,5 @@
 import {Schema} from "./schema"
-import {Tag, TagType, Node, Text} from "./node"
+import {Tag, TagType, Node, DocNode, Text} from "./node"
 import {Prop, PropSet, PropType} from "./prop"
 import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
         AttributeParseRule, Reject} from "./spec"
@@ -68,7 +68,7 @@ export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, op
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [])
   cx.sync(top)
-  return cx.finishNode(cx.top)
+  return cx.finishNode(cx.top) as DocNode
 }
 
 const enum CxFlag {
