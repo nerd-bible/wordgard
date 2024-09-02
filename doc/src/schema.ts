@@ -11,20 +11,22 @@ export class Schema {
   private tagsByName: {[name: string]: TagType<unknown>} = Object.create(null)
   private propsByName: {[name: string]: PropType<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Tag[] | null} = Object.create(null)
+  readonly docTag: Tag<Schema>
 
   private constructor(
     readonly tags: readonly TagType<unknown>[],
     readonly props: readonly PropType<any>[],
-    readonly docTag: Tag<null>
+    docType: TagType<Schema>
   ) {
     this.tagSet = new Set(tags)
     this.propSet = new Set(props)
+    this.docTag = docType.of(this)
     for (let tag of tags) this.tagsByName[tag.name] = tag
     for (let prop of props) this.propsByName[prop.name] = prop
   }
 
   doc(children: readonly Node[]) {
-    return new DocNode(this.docTag, this.docTag.type.checkChildren(children), this)
+    return new DocNode(this.docTag, this.docTag.type.checkChildren(children))
   }
 
   get schemaElement() { return this }
@@ -105,9 +107,9 @@ export class Schema {
       }
     }
     scan(spec)
-    let docTag: Tag<null> | null = null
+    let docTag: TagType<Schema> | null = null
     for (let tag of tags) {
-      if (tag.isDoc()) docTag = tag.default as Tag<null>
+      if (tag.isDoc()) docTag = tag
       if (!tag.isLeaf()) {
         let sawDefaultable = false
         for (let child of tags) if (tag.canContain(child)) {

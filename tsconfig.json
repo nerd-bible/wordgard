@@ -12,6 +12,7 @@
     "moduleResolution": "node",
     "paths": {
       "@willows/doc": ["./doc/src/index.ts"],
+      "@willows/state": ["./state/src/index.ts"]
     }
   },
   "include": ["*/src/*.ts", "*/test/*.ts"],

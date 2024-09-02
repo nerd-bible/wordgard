@@ -122,10 +122,10 @@ export class Tag<Param = unknown> {
     if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
     let flags = TagFlag.NullParam | TagFlag.Doc
     if (spec.inlineContent) flags |= TagFlag.InlineContent
-    return new TagType<null>("Doc", flags, {
+    return new TagType<Schema>("Doc", flags, {
       ...spec,
       dom: {element: ""}
-    }).default!
+    })
   }
 
   get schemaElement(): SchemaElement { return this.type }
@@ -333,14 +333,16 @@ export type MarkJSON = {
 }
 
 export class DocNode extends Node {
-  constructor(type: Tag<null>, children: readonly Node[], readonly schema: Schema) {
-    super(type, PropSet.empty, children)
+  constructor(tag: Tag<Schema>, children: readonly Node[]) {
+    super(tag, PropSet.empty, children)
   }
 
   get length() { return this.contentLength }
 
+  get schema() { return this.tag.param as Schema }
+
   copy(children: readonly Node[]) {
-    return new DocNode(this.tag as Tag<null>, this.tag.type.checkChildren(children), this.schema)
+    return new DocNode(this.tag as Tag<Schema>, this.tag.type.checkChildren(children))
   }
 
   withProps(props: PropSet) {
