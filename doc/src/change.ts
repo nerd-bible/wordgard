@@ -330,7 +330,9 @@ export class ChangeSet {
         let at = pos, end = pos + len
         if (mods) doc.iterate(pos, end, (node, nodePos) => {
           if (node.isLeaf() || nodePos >= pos && nodePos < end) {
-            let [from, to] = node.isText() ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)] : [nodePos, nodePos + 1]
+            let [from, to] = node.isText()
+              ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)]
+              : [nodePos, nodePos + 1]
             if (at < from) addSection(sections, data, from - at, -1, null)
             addSection(sections, data, to - from, -1, invertMods(mods!, node))
             at = to
@@ -341,6 +343,53 @@ export class ChangeSet {
       pos += len
     }
     return new ChangeSet(sections, data)
+  }
+
+  touchesRange(from: number, to: number) {
+    for (let i = 0, pos = 0; i < this.sections.length && pos <= to;) {
+      let len = this.sections[i++], ins = this.sections[i++], end = pos + len
+      if (ins >= 0 && pos <= to && end >= from) return pos < from && end > to ? "cover" : true
+      pos = end
+    }
+    return false
+  }
+
+  /// Iterate over the sections of the document this change leaves
+  /// unchanged or which have only prop changes. `posA` provides the
+  /// position of the range in the original document, `posB` the
+  /// position in the changed document.
+  iterGaps(f: (posA: number, posB: number, length: number) => void) {
+    for (let i = 0, posA = 0, posB = 0; i < this.sections.length;) {
+      let len = this.sections[i++], ins = this.sections[i++]
+      if (ins < 0) {
+        while (i < this.sections.length && this.sections[i + 1] < 0) {
+          len += this.sections[i]
+          i += 2
+        }
+        f(posA, posB, len)
+        posB += len
+      } else {
+        posB += ins
+      }
+      posA += len
+    }
+  }
+
+  /// Iterate over the ranges in this changeset, calling `replaced`
+  /// for ranges that have been replaced, and `preserved` for ranges
+  /// that are either preserved as-is (when `modifications` is null)
+  /// or only have properties modified.
+  iterChanges(replaced: (fromA: number, toA: number, fromB: number, toB: number, inserted: Slice) => void,
+              preserved?: (fromA: number, toA: number, fromB: number, toB: number, modifications: readonly Modification[] | null) => void) {
+    for (let posA = 0, posB = 0, i = 0, iS = 0; i < this.data.length;) {
+      let len = this.sections[iS++], ins = this.sections[iS++], data = this.data[i++]
+      if (ins < 0) {
+        if (preserved) preserved(posA, posA + len, posB, posB + len, data as any)
+        posA += len; posB += len
+      } else {
+        replaced(posA, posA += len, posB, posB += ins, data as Slice)
+      }
+    }
   }
 
   static create(doc: DocNode, spec: ChangeSpec): ChangeSet {
@@ -738,9 +787,9 @@ export enum MapMode {
   Simple,
   /// Return null if deletion happens across the position.
   TrackDel,
-  /// Return null if the character _before_ the position is deleted.
+  /// Return null if the token _before_ the position is deleted.
   TrackBefore,
-  /// Return null if the character _after_ the position is deleted.
+  /// Return null if the token _after_ the position is deleted.
   TrackAfter
 }
 
@@ -819,4 +868,3 @@ function addSection(sections: number[], data: SectionData[],
     data.push(value)
   }
 }
-
