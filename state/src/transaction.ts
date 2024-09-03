@@ -318,7 +318,7 @@ function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedS
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   return {
     changes: spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || []),
-    selection: sel && (sel instanceof EditorSelection ? sel : EditorSelection.between(sel.anchor, sel.head)),
+    selection: sel && (sel instanceof EditorSelection ? sel : EditorSelection.single(sel.anchor, sel.head)),
     effects: asArray(spec.effects),
     annotations,
     scrollIntoView: !!spec.scrollIntoView

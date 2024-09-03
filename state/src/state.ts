@@ -402,7 +402,7 @@ export class EditorState {
     let selection = !spec.selection ? EditorSelection.atStart(doc)
       : typeof spec.selection == "function" ? spec.selection(doc)
       : spec.selection instanceof EditorSelection ? spec.selection
-      : EditorSelection.between(spec.selection.anchor, spec.selection.head)
+      : EditorSelection.single(spec.selection.anchor, spec.selection.head)
     return EditorState.fromConfig(config, doc, selection)
   }
 
