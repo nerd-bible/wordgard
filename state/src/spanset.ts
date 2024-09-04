@@ -171,12 +171,10 @@ type SpanSetUpdate<T extends SpanLabel> = {
   /// Filter the spans already in the set. Only those for which this
   /// function returns `true` are kept.
   filter?: (from: number, to: number, label: T) => boolean,
-  /// Can be used to limit the span on which the filter is
-  /// applied. Filtering only a small span, as opposed to the entire
-  /// set, can make updates cheaper.
-  filterFrom?: number
-  /// The end position to apply the filter to.
-  filterTo?: number
+  /// Can be used to limit the rane on which the filter is applied.
+  /// Filtering only a small range, as opposed to the entire set, will
+  /// make updates cheaper.
+  filterRange?: {from: number, to: number}
 }
 
 /// A span set stores a collection of [spans](#state.Span) in a
@@ -227,7 +225,8 @@ export class SpanSet<T extends SpanLabel> {
   /// from being a subtype of `SpanSet<Y>` when `X` is a subtype of
   /// `Y`.)
   update<U extends T>(updateSpec: SpanSetUpdate<U>): SpanSet<T> {
-    let {add = [], sort = false, filterFrom = 0, filterTo = this.length} = updateSpec
+    let {add = [], sort = false, filterRange} = updateSpec
+    let filterFrom = filterRange ? filterRange.from : 0, filterTo = filterRange ? filterRange.to : this.length
     let filter = updateSpec.filter as undefined | ((from: number, to: number, label: T) => boolean)
     if (add.length == 0 && !filter) return this
     if (sort) add = add.slice().sort(cmpSpan)
@@ -254,7 +253,7 @@ export class SpanSet<T extends SpanLabel> {
     }
 
     return builder.finishInner(this.nextLayer.isEmpty && !spill.length ? SpanSet.empty
-                               : this.nextLayer.update<T>({add: spill, filter, filterFrom, filterTo}))
+                               : this.nextLayer.update<T>({add: spill, filter, filterRange}))
   }
 
   /// Map this span set through a set of changes, return the new set.
