@@ -103,9 +103,17 @@ export interface PluginValue {
   /// your code in a DOM reading phase if you need to.
   update?(update: ViewUpdate): void
 
-  /// Called when the plugin is no longer going to be used. Should
-  /// revert any changes the plugin made to the DOM.
-  destroy?(): void
+  /// Called when the editor is attached to the DOM. It is possible
+  /// for an editor to be disconnected and then reconnected again, so
+  /// if you implement either method, you probably need to implement
+  /// both, and make them invert each other's effect.
+  connect?(): void
+
+  /// Called when the editor is removed from the DOM. If the plugin
+  /// produced any effects (event handlers, DOM changes, global data)
+  /// outside of the editor's DOM, it should undo those here, in order
+  /// to avoid leaking data.
+  disconnect?(): void
 }
 
 let nextPluginID = 0
@@ -210,7 +218,7 @@ export class PluginInstance {
           this.value.update(update)
         } catch (e) {
           logException(update.state, e, "CodeMirror plugin crashed")
-          if (this.value.destroy) try { this.value.destroy() } catch (_) {}
+          if (this.value.disconnect) try { this.value.disconnect() } catch (_) {}
           this.deactivate()
         }
       }
@@ -218,10 +226,23 @@ export class PluginInstance {
     return this
   }
 
-  destroy(view: EditorView) {
-    if (this.value?.destroy) {
-      try { this.value.destroy() }
-      catch (e) { logException(view.state, e, "CodeMirror plugin crashed") }
+  connect(view: EditorView) {
+    if (this.value?.connect) {
+      try { this.value.connect() }
+      catch (e) {
+        logException(view.state, e, "CodeMirror plugin crashed")
+        this.deactivate()
+      }
+    }
+  }
+
+  disconnect(view: EditorView) {
+    if (this.value?.disconnect) {
+      try { this.value.disconnect() }
+      catch (e) {
+        logException(view.state, e, "CodeMirror plugin crashed")
+        this.deactivate()
+      }
     }
   }
 
@@ -253,6 +274,7 @@ export const decorations = Facet.define<DecorationSet | ((view: EditorView) => D
 
 export const bidiIsolatedRanges = Facet.define<DecorationSet | ((view: EditorView) => DecorationSet)>()
 
+// FIXME
 export function getIsolatedRanges(view: EditorView, line: Line): readonly Isolate[] {
   let isolates = view.state.facet(bidiIsolatedRanges)
   if (!isolates.length) return isolates as any[]

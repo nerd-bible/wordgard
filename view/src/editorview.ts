@@ -1,10 +1,10 @@
 import {EditorState, Transaction, TransactionSpec, Extension, Prec,
         EditorSelection, SelectionRange, StateEffect, Facet, EditorStateSpec} from "@willows/state"
-import {ChangeDesc} from "@willows/doc"
+import {Node, ChangeDesc} from "@willows/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocView} from "./docview"
-import {posAtCoords, moveByChar, moveToLineBoundary, byGroup, moveVertically, skipAtoms} from "./cursor"
+import {posAtCoords, moveByChar, moveToLineBoundary, byGroup, moveVertically} from "./cursor"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
         exceptionSink, updateListener, logException,
@@ -17,6 +17,7 @@ import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState} from "./input"
 import {ViewState} from "./viewstate"
 import browser from "./browser"
+import {Rect, getRoot, ScrollStrategy} from "./dom"
 import {computeOrder, trivialOrder, BidiSpan, Direction, Isolate, isolatesEq} from "./bidi"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
@@ -118,11 +119,11 @@ export class EditorView extends HTMLElement {
 
     this.scrollDOM = document.createElement("div")
     this.scrollDOM.tabIndex = -1
-    this.scrollDOM.className = "cm-scroller"
+    this.scrollDOM.className = "ws-scroller"
     this.scrollDOM.appendChild(this.contentDOM)
 
     this.announceDOM = document.createElement("div")
-    this.announceDOM.className = "cm-announced"
+    this.announceDOM.className = "ws-announced"
     this.announceDOM.setAttribute("aria-live", "polite")
 
     this.appendChild(this.announceDOM)
@@ -141,7 +142,6 @@ export class EditorView extends HTMLElement {
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.inputState.ensureHandlers(this.plugins) // FIXME move to ctor
     this.docView = new DocView(this)
 
     this.updateAttrs()
@@ -153,14 +153,21 @@ export class EditorView extends HTMLElement {
     this.connected = true
     this.root = getRoot(this.parentNode!) || document
     this.mountStyles()
-    this.requestMeasure() // FIXME needed?
-    this.observer.registerGlobalHandlers()
+    this.docView.connect()
+    this.inputState.connect()
+    for (let plugin of this.plugins) plugin.connect(this)
+    this.observer.connect()
+    this.scheduleFlush()
   }
 
   disconnectedCallback() {
     this.connected = false
     this.root = document
-    this.observer.unregisterGlobalHandlers()
+    this.observer.disconnect()
+    for (let plugin of this.plugins) plugin.disconnect(this)
+    this.inputState.disconnect()
+    this.docView.disconnect()
+    if (this.flushScheduled > -1) this.win.cancelAnimationFrame(this.flushScheduled)
   }
 
   /// All regular editor state updates should go through this. It
@@ -234,20 +241,20 @@ export class EditorView extends HTMLElement {
 
     // FIXME flush pending DOM selection change?
     // FIXME force full redraw on phrase facet change
+    // FIXME avoid unnecessary work
     try {
       this.flushing = true
-      let redrawn = false, attrsChanged = false
       if (this.viewState.pendingTransactions.length) {
         let transactions = this.viewState.takePendingTransactions()
-        redrawn = this.docView.update(transactions)
-        let update = new ViewUpdate(this, transactions)
+        let update = ViewUpdate.create(this, this.state, transactions)
+        this.docView.update(update)
         // FIXME update selection here, or in docView.update?
         this.bidiCache = CachedOrder.update(this.bidiCache, update.changes)
         this.updatePlugins(update)
         this.inputState.update(update)
         this.showAnnouncements(update.transactions)
         if (this.state.facet(styleModule) != this.styleModules) this.mountStyles()
-        attrsChanged = this.updateAttrs()
+        this.updateAttrs()
         for (let listener of this.state.facet(updateListener)) {
           try { listener(update) }
           catch (e) { logException(this.state, e, "update listener") }
@@ -331,7 +338,7 @@ export class EditorView extends HTMLElement {
 
   private updateAttrs() {
     let editorAttrs = attrsFromFacet(this, editorAttributes, {
-      class: "cm-editor" + (this.hasFocus ? " cm-focused " : " ") + this.themeClasses
+      class: "ws-editor" + (this.hasFocus ? " ws-focused " : " ") + this.themeClasses
     })
     let contentAttrs: Attrs = {
       spellcheck: "false",
@@ -339,8 +346,7 @@ export class EditorView extends HTMLElement {
       autocapitalize: "off",
       translate: "no",
       contenteditable: !this.state.facet(editable) ? "false" : "true",
-      class: "cm-content",
-      style: `${browser.tabSize}: ${this.state.tabSize}`,
+      class: "ws-content",
       role: "textbox",
       "aria-multiline": "true"
     }
@@ -371,12 +377,6 @@ export class EditorView extends HTMLElement {
     this.styleModules = this.state.facet(styleModule)
     let nonce = this.state.facet(EditorView.cspNonce)
     StyleModule.mount(this.root, this.styleModules.concat(baseTheme).reverse(), nonce ? {nonce} : undefined)
-  }
-
-  private readMeasured() {
-    if (this.updateState == UpdateState.Updating)
-      throw new Error("Reading the editor layout isn't allowed during an update")
-    if (this.updateState == UpdateState.Idle && this.measureScheduled > -1) this.measure(false)
   }
 
   /// Schedule a layout measurement, optionally providing callbacks to
@@ -410,18 +410,6 @@ export class EditorView extends HTMLElement {
     return known && known.update(this).value as T
   }
 
-  /// The top position of the document, in screen coordinates. This
-  /// may be negative when the editor is scrolled down. Points
-  /// directly to the top of the first line, not above the padding.
-  get documentTop() {
-    return this.contentDOM.getBoundingClientRect().top + this.viewState.paddingTop
-  }
-
-  /// Reports the padding above and below the document.
-  get documentPadding() {
-    return {top: this.viewState.paddingTop, bottom: this.viewState.paddingBottom}
-  }
-
   /// If the editor is transformed with CSS, this provides the scale
   /// along the X axis. Otherwise, it will just be 1. Note that
   /// transforms other than translation and scaling are not supported.
@@ -430,76 +418,27 @@ export class EditorView extends HTMLElement {
   /// Provide the CSS transformed scale along the Y axis.
   get scaleY() { return this.viewState.scaleY }
 
-  /// Find the text line or block widget at the given vertical
-  /// position (which is interpreted as relative to the [top of the
-  /// document](#view.EditorView.documentTop)).
-  elementAtHeight(height: number) {
-    this.readMeasured()
-    return this.viewState.elementAtHeight(height)
+  /// Move a cursor position by one [grapheme
+  /// cluster](#state.findClusterBreak) or structural cursor position.
+  /// `forward` determines whether the motion is away from the line
+  /// start, or towards it. In bidirectional text, a textblock is
+  /// traversed in visual order, using the editor's [text
+  /// direction](#view.EditorView.textDirection). If there is no
+  /// cursor position beyond the given start position, the original
+  /// position is returned.
+  moveHorizontally(start: SelectionRange, forward: boolean) {
+    return moveByChar(this, start, forward)
   }
 
-  /// Find the line block (see
-  /// [`lineBlockAt`](#view.EditorView.lineBlockAt) at the given
-  /// height, again interpreted relative to the [top of the
-  /// document](#view.EditorView.documentTop).
-  lineBlockAtHeight(height: number): BlockInfo {
-    this.readMeasured()
-    return this.viewState.lineBlockAtHeight(height)
+  /// Move a cursor position across the next word or, if there is no
+  /// word ahead of it, move it by a single cursor position.
+  moveByWord(start: SelectionRange, forward: boolean) {
+    return moveByChar(this, start, forward, initial => byGroup(this, start.head, initial))
   }
 
-  /// Get the extent and vertical position of all [line
-  /// blocks](#view.EditorView.lineBlockAt) in the viewport. Positions
-  /// are relative to the [top of the
-  /// document](#view.EditorView.documentTop);
-  get viewportLineBlocks() {
-    return this.viewState.viewportLines
-  }
-
-  /// Find the line block around the given document position. A line
-  /// block is a range delimited on both sides by either a
-  /// non-[hidden](#view.Decoration^replace) line break, or the
-  /// start/end of the document. It will usually just hold a line of
-  /// text, but may be broken into multiple textblocks by block
-  /// widgets.
-  lineBlockAt(pos: number): BlockInfo {
-    return this.viewState.lineBlockAt(pos)
-  }
-
-  /// The editor's total content height.
-  get contentHeight() {
-    return this.viewState.contentHeight
-  }
-
-  /// Move a cursor position by [grapheme
-  /// cluster](#state.findClusterBreak). `forward` determines whether
-  /// the motion is away from the line start, or towards it. In
-  /// bidirectional text, the line is traversed in visual order, using
-  /// the editor's [text direction](#view.EditorView.textDirection).
-  /// When the start position was the last one on the line, the
-  /// returned position will be across the line break. If there is no
-  /// further line, the original position is returned.
-  ///
-  /// By default, this method moves over a single cluster. The
-  /// optional `by` argument can be used to move across more. It will
-  /// be called with the first cluster as argument, and should return
-  /// a predicate that determines, for each subsequent cluster,
-  /// whether it should also be moved over.
-  moveByChar(start: SelectionRange, forward: boolean, by?: (initial: string) => (next: string) => boolean) {
-    return skipAtoms(this, start, moveByChar(this, start, forward, by))
-  }
-
-  /// Move a cursor position across the next group of either
-  /// [letters](#state.EditorState.charCategorizer) or non-letter
-  /// non-whitespace characters.
-  moveByGroup(start: SelectionRange, forward: boolean) {
-    return skipAtoms(this, start, moveByChar(this, start, forward, initial => byGroup(this, start.head, initial)))
-  }
-
-  /// Get the cursor position visually at the start or end of a line.
-  /// Note that this may differ from the _logical_ position at its
-  /// start or end (which is simply at `line.from`/`line.to`) if text
-  /// at the start or end goes against the line's base text direction.
-  visualLineSide(line: Line, end: boolean) {
+  /// Get the cursor position visually at the start or end of a
+  /// textblock. Note that, depending on the text direction and the 
+  visualSide(textblock: Node, end: boolean) {
     let order = this.bidiSpans(line), dir = this.textDirectionAt(line.from)
     let span = order[end ? order.length - 1 : 0]
     return EditorSelection.cursor(span.side(end, dir) + line.from, span.forward(!end, dir) ? 1 : -1)
@@ -515,9 +454,9 @@ export class EditorView extends HTMLElement {
   }
 
   /// Move a cursor position vertically. When `distance` isn't given,
-  /// it defaults to moving to the next line (including wrapped
-  /// lines). Otherwise, `distance` should provide a positive distance
-  /// in pixels.
+  /// it defaults to moving to the vertical element below or above the
+  /// start position. Otherwise, `distance` should provide a positive
+  /// distance in pixels.
   ///
   /// When `start` has a
   /// [`goalColumn`](#state.SelectionRange.goalColumn), the vertical
@@ -526,17 +465,12 @@ export class EditorView extends HTMLElement {
   /// cursor will have its goal column set to whichever column was
   /// used.
   moveVertically(start: SelectionRange, forward: boolean, distance?: number) {
-    return skipAtoms(this, start, moveVertically(this, start, forward, distance))
+    return moveVertically(this, start, forward, distance)
   }
 
   /// Find the DOM parent node and offset (child offset if `node` is
   /// an element, character offset when it is a text node) at the
   /// given document position.
-  ///
-  /// Note that for positions that aren't currently in
-  /// `visibleRanges`, the resulting DOM position isn't necessarily
-  /// meaningful (it may just point before or after a placeholder
-  /// element).
   domAtPos(pos: number): {node: Node, offset: number} {
     return this.docView.domAtPos(pos)
   }
@@ -548,16 +482,9 @@ export class EditorView extends HTMLElement {
     return this.docView.posFromDOM(node, offset)
   }
 
-  /// Get the document position at the given screen coordinates. For
-  /// positions not covered by the visible viewport's DOM structure,
-  /// this will return null, unless `false` is passed as second
-  /// argument, in which case it'll return an estimated position that
-  /// would be near the coordinates if it were rendered.
-  posAtCoords(coords: {x: number, y: number}, precise: false): number
-  posAtCoords(coords: {x: number, y: number}): number | null
-  posAtCoords(coords: {x: number, y: number}, precise = true): number | null {
-    this.readMeasured()
-    return posAtCoords(this, coords, precise)
+  /// Get the document position at the given screen coordinates.
+  posAtCoords(coords: {x: number, y: number}): number {
+    return posAtCoords(this, coords)
   }
 
   /// Get the screen coordinates at the given document position.
@@ -566,57 +493,21 @@ export class EditorView extends HTMLElement {
   /// available on the given side, the method will transparently use
   /// another strategy to get reasonable coordinates).
   coordsAtPos(pos: number, side: -1 | 1 = 1): Rect | null {
-    this.readMeasured()
-    let rect = this.docView.coordsAt(pos, side)
-    if (!rect || rect.left == rect.right) return rect
-    let line = this.state.doc.lineAt(pos), order = this.bidiSpans(line)
-    let span = order[BidiSpan.find(order, pos - line.from, -1, side)]
-    return flattenRect(rect, (span.dir == Direction.LTR) == (side > 0))
+    return this.docView.coordsAt(pos, side) // FIXME
   }
 
   /// Return the rectangle around a given character. If `pos` does not
-  /// point in front of a character that is in the viewport and
-  /// rendered (i.e. not replaced, not a line break), this will return
-  /// null. For space characters that are a line wrap point, this will
-  /// return the position before the line break.
+  /// point in front of a character, this will return null. For space
+  /// characters that are a line wrap point, this will return the
+  /// position before the line break.
   coordsForChar(pos: number): Rect | null {
-    this.readMeasured()
     return this.docView.coordsForChar(pos)
   }
-
-  /// The default width of a character in the editor. May not
-  /// accurately reflect the width of all characters (given variable
-  /// width fonts or styling of invididual ranges).
-  get defaultCharacterWidth() { return this.viewState.heightOracle.charWidth }
-
-  /// The default height of a line in the editor. May not be accurate
-  /// for all lines.
-  get defaultLineHeight() { return this.viewState.heightOracle.lineHeight }
 
   /// The text direction
   /// ([`direction`](https://developer.mozilla.org/en-US/docs/Web/CSS/direction)
   /// CSS property) of the editor's content element.
   get textDirection(): Direction { return this.viewState.defaultTextDirection }
-
-  /// Find the text direction of the block at the given position, as
-  /// assigned by CSS. If
-  /// [`perLineTextDirection`](#view.EditorView^perLineTextDirection)
-  /// isn't enabled, or the given position is outside of the viewport,
-  /// this will always return the same as
-  /// [`textDirection`](#view.EditorView.textDirection). Note that
-  /// this may trigger a DOM layout.
-  textDirectionAt(pos: number) {
-    let perLine = this.state.facet(perLineTextDirection)
-    if (!perLine || pos < this.viewport.from || pos > this.viewport.to) return this.textDirection
-    this.readMeasured()
-    return this.docView.textDirectionAt(pos)
-  }
-
-  /// Whether this editor [wraps lines](#view.EditorView.lineWrapping)
-  /// (as determined by the
-  /// [`white-space`](https://developer.mozilla.org/en-US/docs/Web/CSS/white-space)
-  /// CSS property of its content element).
-  get lineWrapping(): boolean { return this.viewState.heightOracle.lineWrapping }
 
   /// Returns the bidirectional text structure of the given line
   /// (which should be in the current document) as an array of span
@@ -624,9 +515,10 @@ export class EditorView extends HTMLElement {
   /// direction](#view.EditorView.textDirection)—if that is
   /// left-to-right, the leftmost spans come first, otherwise the
   /// rightmost spans come first.
-  bidiSpans(line: Line) {
-    if (line.length > MaxBidiLine) return trivialOrder(line.length)
-    let dir = this.textDirectionAt(line.from), isolates: readonly Isolate[] | undefined
+  bidiSpans(textblock: Node) {
+    /* FIXME position-relevant block handles, etc
+    if (textblock.length > MaxBidiLine) return trivialOrder(textblock)
+    let dir = textDirectionAt(textblock), isolates: readonly Isolate[] | undefined
     for (let entry of this.bidiCache) {
       if (entry.from == line.from && entry.dir == dir &&
           (entry.fresh || isolatesEq(entry.isolates, isolates = getIsolatedRanges(this, line))))
@@ -636,6 +528,7 @@ export class EditorView extends HTMLElement {
     let order = computeOrder(line.text, dir, isolates)
     this.bidiCache.push(new CachedOrder(line.from, line.to, dir, isolates, true, order))
     return order
+    */
   }
 
   /// Check whether the editor has focus.
@@ -644,42 +537,16 @@ export class EditorView extends HTMLElement {
     // or closing, which leads us to ignore selection changes from the
     // context menu because it looks like the editor isn't focused.
     // This kludges around that.
-    return (this.dom.ownerDocument.hasFocus() || browser.safari && this.inputState?.lastContextMenu > Date.now() - 3e4) &&
+    return (this.ownerDocument.hasFocus() || browser.safari && this.inputState?.lastContextMenu > Date.now() - 3e4) &&
       this.root.activeElement == this.contentDOM
   }
 
   /// Put focus on the editor.
   focus() {
     this.observer.ignore(() => {
-      focusPreventScroll(this.contentDOM)
+      this.contentDOM.focus({preventScroll: true})
       this.docView.updateSelection()
     })
-  }
-
-  /// Update the [root](##view.EditorViewSpec.root) in which the editor lives. This is only
-  /// necessary when moving the editor's existing DOM to a new window or shadow root.
-  setRoot(root: Document | ShadowRoot) {
-    if (this._root != root) {
-      this._root = root
-      this.observer.setWindow((root.nodeType == 9 ? root as Document : root.ownerDocument!).defaultView || window)
-      this.mountStyles()
-    }
-  }
-
-  /// Clean up this editor view, removing its element from the
-  /// document, unregistering event handlers, and notifying
-  /// plugins. The view instance can no longer be used after
-  /// calling this.
-  destroy() {
-    if (this.root.activeElement == this.contentDOM) this.contentDOM.blur()
-    for (let plugin of this.plugins) plugin.destroy(this)
-    this.plugins = []
-    this.inputState.destroy()
-    this.docView.destroy()
-    this.dom.remove()
-    this.observer.destroy()
-    if (this.measureScheduled > -1) this.win.cancelAnimationFrame(this.measureScheduled)
-    this.destroyed = true
   }
 
   /// Returns an effect that can be
@@ -786,28 +653,11 @@ export class EditorView extends HTMLElement {
   /// dispatching the custom behavior as a separate transaction.
   static inputHandler = inputHandler
 
-  /// Functions provided in this facet will be used to transform text
-  /// pasted or dropped into the editor.
-  static clipboardInputFilter = clipboardInputFilter
-
-  /// Transform text copied or dragged from the editor.
-  static clipboardOutputFilter = clipboardOutputFilter
-
   /// Scroll handlers can override how things are scrolled into view.
   /// If they return `true`, no further handling happens for the
   /// scrolling. If they return false, the default scroll behavior is
   /// applied. Scroll handlers should never initiate editor updates.
   static scrollHandler = scrollHandler
-
-  /// This facet can be used to provide functions that create effects
-  /// to be dispatched when the editor's focus state changes.
-  static focusChangeEffect = focusChangeEffect
-
-  /// By default, the editor assumes all its content has the same
-  /// [text direction](#view.Direction). Configure this with a `true`
-  /// value to make it read the text direction of every (rendered)
-  /// line separately.
-  static perLineTextDirection = perLineTextDirection
 
   /// Allows you to provide a function that should be called when the
   /// library catches an exception from an extension (mostly from view
@@ -888,7 +738,7 @@ export class EditorView extends HTMLElement {
   /// element](#view.EditorView.dom)—to which the scope class will be
   /// added—need to be explicitly differentiated by adding an `&` to
   /// the selector for that element—for example
-  /// `&.cm-focused`.
+  /// `&.ws-focused`.
   ///
   /// When `dark` is set to true, the theme will be marked as dark,
   /// which will cause the `&dark` rules from [base
