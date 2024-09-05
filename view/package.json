@@ -24,7 +24,8 @@
   "license": "MIT",
   "dependencies": {
     "@willows/doc": "^0.0.1",
-    "@willows/state": "^0.0.1"
+    "@willows/state": "^0.0.1",
+    "style-mod": "^4.1.2"
   },
   "devDependencies": {
     "@marijn/buildtool": "^1.0.0"
