@@ -108,14 +108,115 @@ export type ChangeSpec = {
 
 type SectionData = Slice | readonly Modification[] | null
 
-export class ChangeSet {
+export class ChangeDesc {
   constructor(
     // Pairs of integers, first one representing the length of the
     // section in A, the second either -1 for a preserved or marked
     // range, or an insertion length for a replacement.
-    readonly sections: readonly number[],
-    readonly data: readonly SectionData[]
+    readonly sections: readonly number[]
   ) {}
+
+  get length() {
+    let result = 0
+    for (let i = 0; i < this.sections.length; i += 2) result += this.sections[i]
+    return result
+  }
+
+  get newLength() {
+    let result = 0
+    for (let i = 0; i < this.sections.length; i += 2) {
+      let ins = this.sections[i + 1]
+      result += ins < 0 ? this.sections[i] : ins
+    }
+    return result
+  }
+
+  get empty() { return this.sections.length == 0 || this.sections.length == 2 && this.sections[1] < 0 }
+
+  get desc(): ChangeDesc { return this }
+
+  eq(other: ChangeDesc) {
+    if (other.sections.length != this.sections.length) return false
+    for (let i = 0; i < this.sections.length; i++)
+      if (this.sections[i] != other.sections[i]) return false
+    return true
+  }
+
+  mapPos(pos: number, assoc?: number): number
+  mapPos(pos: number, assoc: number, mode: MapMode): number | null
+  mapPos(pos: number, assoc = -1, mode: MapMode = MapMode.Simple) {
+    let posA = 0, posB = 0
+    for (let i = 0; i < this.sections.length;) {
+      let len = this.sections[i++], type = this.sections[i++], endA = posA + len
+      if (type < 0) {
+        if (endA > pos) return posB + (pos - posA)
+        posB += len
+      } else {
+        if (mode != MapMode.Simple && endA >= pos &&
+            (mode == MapMode.TrackDel && posA < pos && endA > pos ||
+             mode == MapMode.TrackBefore && posA < pos ||
+             mode == MapMode.TrackAfter && endA > pos)) return null
+        if (endA > pos || endA == pos && assoc < 0 && !len)
+          return pos == posA || assoc < 0 ? posB : posB + type
+        posB += type
+      }
+      posA = endA
+    }
+    if (pos > posA) throw new RangeError(`Position ${pos} is out of range for changeset of length ${posA}`)
+    return posB
+  }
+
+  composeDesc(other: ChangeDesc): ChangeDesc { return compose(this, other, false) }
+
+  invertDesc() {
+    let sections: number[] = []
+    for (let iS = 0, pos = 0; iS < this.sections.length; iS += 2) {
+      let len = this.sections[iS], ins = this.sections[iS + 1]
+      if (ins >= 0) addSection(sections, null, ins, len, null)
+      else if (len) addSection(sections, null, len, -1, null)
+      pos += len
+    }
+    return new ChangeDesc(sections)
+  }
+
+  touchesRange(from: number, to: number) {
+    for (let i = 0, pos = 0; i < this.sections.length && pos <= to;) {
+      let len = this.sections[i++], ins = this.sections[i++], end = pos + len
+      if (ins >= 0 && pos <= to && end >= from) return pos < from && end > to ? "cover" : true
+      pos = end
+    }
+    return false
+  }
+
+  /// Iterate over the sections of the document this change leaves
+  /// unchanged or which have only prop changes. `posA` provides the
+  /// position of the range in the original document, `posB` the
+  /// position in the changed document.
+  iterGaps(f: (posA: number, posB: number, length: number) => void) {
+    for (let i = 0, posA = 0, posB = 0; i < this.sections.length;) {
+      let len = this.sections[i++], ins = this.sections[i++]
+      if (ins < 0) {
+        while (i < this.sections.length && this.sections[i + 1] < 0) {
+          len += this.sections[i]
+          i += 2
+        }
+        f(posA, posB, len)
+        posB += len
+      } else {
+        posB += ins
+      }
+      posA += len
+    }
+  }
+}
+
+export class ChangeSet extends ChangeDesc {
+  constructor(
+    sections: readonly number[],
+    readonly data: readonly SectionData[]
+  ) {
+    super(sections)
+  }
 
   apply(doc: DocNode) {
     if (this.empty) return doc
@@ -137,31 +238,15 @@ export class ChangeSet {
     return builder.finish()
   }
 
-  get length() {
-    let result = 0
-    for (let i = 0; i < this.sections.length; i += 2) result += this.sections[i]
-    return result
-  }
+  get desc() { return new ChangeDesc(this.sections) }
 
-  get newLength() {
-    let result = 0
-    for (let i = 0; i < this.sections.length; i += 2) {
-      let ins = this.sections[i + 1]
-      result += ins < 0 ? this.sections[i] : ins
-    }
-    return result
-  }
-
-  get empty() { return this.sections.length == 0 || this.sections.length == 2 && this.sections[1] < 0 }
-
-  eq(other: ChangeSet) {
-    if (other.data.length != this.data.length) return false
-    for (let i = 0; i < this.sections.length; i++)
-      if (this.sections[i] != other.sections[i]) return false
+  eq(other: ChangeDesc) {
+    if (!(other instanceof ChangeSet) && super.eq(other)) return false
     for (let i = 0; i < this.data.length; i++) {
-      let a = this.data[i] as any, b = other.data[i] as any
+      let a = this.data[i] as any, b = (other as ChangeSet).data[i] as any
       if (a && !(this.sections[(i << 1) + 1] < 0 ? compareModifications(a, b) : a.eq(b))) return false
     }
+    return true
   }
 
   toJSON(): ChangeSetJSON {
@@ -190,30 +275,6 @@ export class ChangeSet {
       }
     }
     return new ChangeSet(sections, data)
-  }
-
-  mapPos(pos: number, assoc?: number): number
-  mapPos(pos: number, assoc: number, mode: MapMode): number | null
-  mapPos(pos: number, assoc = -1, mode: MapMode = MapMode.Simple) {
-    let posA = 0, posB = 0
-    for (let i = 0; i < this.sections.length;) {
-      let len = this.sections[i++], type = this.sections[i++], endA = posA + len
-      if (type < 0) {
-        if (endA > pos) return posB + (pos - posA)
-        posB += len
-      } else {
-        if (mode != MapMode.Simple && endA >= pos &&
-            (mode == MapMode.TrackDel && posA < pos && endA > pos ||
-             mode == MapMode.TrackBefore && posA < pos ||
-             mode == MapMode.TrackAfter && endA > pos)) return null
-        if (endA > pos || endA == pos && assoc < 0 && !len)
-          return pos == posA || assoc < 0 ? posB : posB + type
-        posB += type
-      }
-      posA = endA
-    }
-    if (pos > posA) throw new RangeError(`Position ${pos} is out of range for changeset of length ${posA}`)
-    return posB
   }
 
   map(other: ChangeSet, doc: DocNode, before: boolean = false): ChangeSet {
@@ -287,37 +348,7 @@ export class ChangeSet {
     }
   }
 
-  compose(other: ChangeSet): ChangeSet {
-    let sections: number[] = [], data: SectionData[] = []
-    let a = new SectionIter(this), b = new SectionIter(other)
-    for (let open = false;;) {
-      if (a.done && b.done) {
-        return new ChangeSet(sections, data)
-      } else if (a.ins == 0) { // Deletion in A
-        addSection(sections, data, a.len, 0, a.slice, open)
-        a.next()
-      } else if (b.len == 0 && !b.done) { // Insertion in B
-        addSection(sections, data, 0, b.ins, b.slice, open)
-        b.next()
-      } else if (a.done || b.done) {
-        throw new Error("Mismatched change set lengths")
-      } else {
-        let len = Math.min(a.len2, b.len), sectionLen = sections.length
-        if (a.ins == -1 && b.ins == -1) {
-          addSection(sections, data, len, -1, combineMods(a.mods, b.mods), open)
-        } else if (a.ins == -1) {
-          addSection(sections, data, len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
-        } else if (b.ins == -1) {
-          addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
-        } else {
-          addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
-        }
-        open = (a.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen)
-        a.forward2(len)
-        b.forward(len)
-      }
-    }
-  }
+  compose(other: ChangeSet): ChangeSet { return compose(this, other, true) as ChangeSet }
 
   invert(doc: DocNode) {
     let sections: number[] = [], data: SectionData[] = []
@@ -343,36 +374,6 @@ export class ChangeSet {
       pos += len
     }
     return new ChangeSet(sections, data)
-  }
-
-  touchesRange(from: number, to: number) {
-    for (let i = 0, pos = 0; i < this.sections.length && pos <= to;) {
-      let len = this.sections[i++], ins = this.sections[i++], end = pos + len
-      if (ins >= 0 && pos <= to && end >= from) return pos < from && end > to ? "cover" : true
-      pos = end
-    }
-    return false
-  }
-
-  /// Iterate over the sections of the document this change leaves
-  /// unchanged or which have only prop changes. `posA` provides the
-  /// position of the range in the original document, `posB` the
-  /// position in the changed document.
-  iterGaps(f: (posA: number, posB: number, length: number) => void) {
-    for (let i = 0, posA = 0, posB = 0; i < this.sections.length;) {
-      let len = this.sections[i++], ins = this.sections[i++]
-      if (ins < 0) {
-        while (i < this.sections.length && this.sections[i + 1] < 0) {
-          len += this.sections[i]
-          i += 2
-        }
-        f(posA, posB, len)
-        posB += len
-      } else {
-        posB += ins
-      }
-      posA += len
-    }
   }
 
   /// Iterate over the ranges in this changeset, calling `replaced`
@@ -506,7 +507,37 @@ export class ChangeSet {
   }
 }
 
-export type ChangeDesc = ChangeSet // FIXME
+function compose<T extends ChangeDesc>(chA: T, chB: T, isSet: boolean): ChangeSet | ChangeDesc {
+  let sections: number[] = [], data: SectionData[] | null = isSet ? [] : null
+  let a = new SectionIter(chA), b = new SectionIter(chB)
+  for (let open = false;;) {
+      if (a.done && b.done) {
+        return isSet ? new ChangeSet(sections, data!) : new ChangeDesc(sections)
+      } else if (a.ins == 0) { // Deletion in A
+        addSection(sections, data, a.len, 0, a.slice, open)
+        a.next()
+      } else if (b.len == 0 && !b.done) { // Insertion in B
+        addSection(sections, data, 0, b.ins, b.slice, open)
+        b.next()
+      } else if (a.done || b.done) {
+        throw new Error("Mismatched change set lengths")
+      } else {
+        let len = Math.min(a.len2, b.len), sectionLen = sections.length
+        if (a.ins == -1 && b.ins == -1) {
+          addSection(sections, data, len, -1, combineMods(a.mods, b.mods), open)
+        } else if (a.ins == -1) {
+          addSection(sections, data, len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
+        } else if (b.ins == -1) {
+          addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
+        } else {
+          addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
+        }
+        open = (a.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen)
+        a.forward2(len)
+        b.forward(len)
+      }
+    }
+}
 
 function combineMods(a: null | readonly Modification[], b: null | readonly Modification[]): null | readonly Modification[] {
   return !a ? b : !b ? a : a.concat(b)
@@ -799,7 +830,7 @@ class SectionIter {
   off!: number
   ins!: number
 
-  constructor(readonly set: ChangeSet) {
+  constructor(readonly set: ChangeDesc) {
     this.next()
   }
 
@@ -819,11 +850,15 @@ class SectionIter {
   get len2() { return this.ins < 0 ? this.len : this.ins }
 
   get mods() {
-    return this.set.data[(this.i - 2) >> 1] as readonly Modification[] | null
+    if (this.set instanceof ChangeSet)
+      return this.set.data[(this.i - 2) >> 1] as readonly Modification[] | null
+    return null
   }
 
   get slice() {
-    return this.set.data[(this.i - 2) >> 1] as Slice
+    if (this.set instanceof ChangeSet)
+      return this.set.data[(this.i - 2) >> 1] as Slice
+    return Slice.empty
   }
 
   slicePart(len?: number) {
@@ -842,14 +877,14 @@ class SectionIter {
   }
 }
 
-function addSection(sections: number[], data: SectionData[],
+function addSection(sections: number[], data: SectionData[] | null,
                     len: number, ins: number, value: SectionData,
                     forceJoin = false) {
   if (len == 0 && ins <= 0) return
   let last = sections.length - 2
   if (last >= 0 && ins <= 0 && ins == sections[last + 1]) {
     // Deletion or preserved section that matches the last element in `sections`
-    let lastValue = data[data.length - 1]
+    let lastValue = data ? data[data.length - 1] : null
     let match = ins == 0 ? true
       : value ? lastValue && compareModifications(lastValue as readonly Modification[], value as readonly Modification[])
       : !lastValue
@@ -862,9 +897,9 @@ function addSection(sections: number[], data: SectionData[],
     // Insertion or replacement joinable to another insertion
     sections[last] += len
     sections[last + 1] += ins
-    data[data.length - 1] = (data[data.length - 1] as Slice).concat(value as Slice)
+    if (data) data[data.length - 1] = (data[data.length - 1] as Slice).concat(value as Slice)
   } else {
     sections.push(len, ins)
-    data.push(value)
+    if (data) data.push(value)
   }
 }
