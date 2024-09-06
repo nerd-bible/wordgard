@@ -1,6 +1,6 @@
 import {EditorState, Transaction, TransactionSpec, Extension, Prec,
         EditorSelection, SelectionRange, StateEffect, Facet, EditorStateSpec} from "@willows/state"
-import {Node, ChangeDesc} from "@willows/doc"
+import {Node} from "@willows/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocView} from "./docview"
@@ -8,17 +8,16 @@ import {posAtCoords, moveByChar, moveToLineBoundary, byGroup, moveVertically} fr
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
         exceptionSink, updateListener, logException,
-        viewPlugin, ViewPlugin, PluginValue, PluginInstance, decorations,
+        viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, MeasureRequest, editable, inputHandler, scrollIntoView,
-        ScrollTarget, bidiIsolatedRanges, getIsolatedRanges, scrollHandler} from "./extension"
+        ScrollTarget, scrollHandler} from "./extension"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState} from "./input"
 import {ViewState} from "./viewstate"
 import browser from "./browser"
-import {Rect, getRoot, ScrollStrategy} from "./dom"
-import {computeOrder, trivialOrder, BidiSpan, Direction, Isolate, isolatesEq} from "./bidi"
+import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
@@ -92,12 +91,12 @@ export class EditorView extends HTMLElement {
   /// @internal
   docView: DocView
 
-  private plugins: PluginInstance[] = []
+  /// @internal
+  plugins: PluginInstance[] = []
   private pluginMap: Map<ViewPlugin<any>, PluginInstance | null> = new Map
   private editorAttrs: Attrs = {}
   private contentAttrs: Attrs = {}
   private styleModules!: readonly StyleModule[]
-  private bidiCache: CachedOrder[] = []
   private connected = false
   private flushing = false
 
@@ -213,18 +212,21 @@ export class EditorView extends HTMLElement {
   /// [`dispatch`](#view.EditorView.dispatch) instead.)
   setState(newState: EditorState) {
     let hadFocus = this.hasFocus
-    for (let plugin of this.plugins) plugin.destroy(this)
+    if (this.connected) for (let plugin of this.plugins) plugin.disconnect(this)
     this.viewState = new ViewState(newState)
     this.plugins = newState.facet(viewPlugin).map(spec => new PluginInstance(spec))
     this.pluginMap.clear()
-    for (let plugin of this.plugins) plugin.update(this)
-    this.docView.destroy()
-    this.docView = new DocView(this)
+    if (this.connected) this.docView.disconnect()
     this.inputState.destroy()
+    this.docView = new DocView(this)
+    if (this.connected) this.docView.connect()
     this.inputState = new InputState(this)
+    for (let plugin of this.plugins) {
+      plugin.update(this)
+      if (this.connected) plugin.connect(this)
+    }
     this.mountStyles()
     this.updateAttrs()
-    this.bidiCache = []
     if (hadFocus) this.focus()
     this.scheduleFlush()
   }
@@ -249,7 +251,6 @@ export class EditorView extends HTMLElement {
         let update = ViewUpdate.create(this, this.state, transactions)
         this.docView.update(update)
         // FIXME update selection here, or in docView.update?
-        this.bidiCache = CachedOrder.update(this.bidiCache, update.changes)
         this.updatePlugins(update)
         this.inputState.update(update)
         this.showAnnouncements(update.transactions)
@@ -278,7 +279,11 @@ export class EditorView extends HTMLElement {
           newPlugins.push(plugin)
         }
       }
-      for (let plugin of this.plugins) if (plugin.mustUpdate != update) plugin.destroy(this)
+      if (this.connected) {
+        for (let plugin of this.plugins)
+          if (plugin.mustUpdate != update) plugin.disconnect(this)
+        for (let plugin of newPlugins) plugin.connect(this)
+      }
       this.plugins = newPlugins
       this.pluginMap.clear()
     } else {
@@ -355,7 +360,7 @@ export class EditorView extends HTMLElement {
 
     let changed = this.observer.ignore(() => {
       let changedContent = updateAttrs(this.contentDOM, this.contentAttrs, contentAttrs)
-      let changedEditor = updateAttrs(this.dom, this.editorAttrs, editorAttrs)
+      let changedEditor = updateAttrs(this, this.editorAttrs, editorAttrs)
       return changedContent || changedEditor
     })
     this.editorAttrs = editorAttrs
@@ -436,14 +441,6 @@ export class EditorView extends HTMLElement {
     return moveByChar(this, start, forward, initial => byGroup(this, start.head, initial))
   }
 
-  /// Get the cursor position visually at the start or end of a
-  /// textblock. Note that, depending on the text direction and the 
-  visualSide(textblock: Node, end: boolean) {
-    let order = this.bidiSpans(line), dir = this.textDirectionAt(line.from)
-    let span = order[end ? order.length - 1 : 0]
-    return EditorSelection.cursor(span.side(end, dir) + line.from, span.forward(!end, dir) ? 1 : -1)
-  }
-
   /// Move to the next line boundary in the given direction. If
   /// `includeWrap` is true, line wrapping is on, and there is a
   /// further wrap point on the current line, the wrap point will be
@@ -471,14 +468,14 @@ export class EditorView extends HTMLElement {
   /// Find the DOM parent node and offset (child offset if `node` is
   /// an element, character offset when it is a text node) at the
   /// given document position.
-  domAtPos(pos: number): {node: Node, offset: number} {
+  domAtPos(pos: number): {node: DOMNode, offset: number} {
     return this.docView.domAtPos(pos)
   }
 
   /// Find the document position at the given DOM node. Can be useful
   /// for associating positions with DOM events. Will raise an error
   /// when `node` isn't part of the editor content.
-  posAtDOM(node: Node, offset: number = 0) {
+  posAtDOM(node: DOMNode, offset: number = 0) {
     return this.docView.posFromDOM(node, offset)
   }
 
@@ -508,28 +505,6 @@ export class EditorView extends HTMLElement {
   /// ([`direction`](https://developer.mozilla.org/en-US/docs/Web/CSS/direction)
   /// CSS property) of the editor's content element.
   get textDirection(): Direction { return this.viewState.defaultTextDirection }
-
-  /// Returns the bidirectional text structure of the given line
-  /// (which should be in the current document) as an array of span
-  /// objects. The order of these spans matches the [text
-  /// direction](#view.EditorView.textDirection)—if that is
-  /// left-to-right, the leftmost spans come first, otherwise the
-  /// rightmost spans come first.
-  bidiSpans(textblock: Node) {
-    /* FIXME position-relevant block handles, etc
-    if (textblock.length > MaxBidiLine) return trivialOrder(textblock)
-    let dir = textDirectionAt(textblock), isolates: readonly Isolate[] | undefined
-    for (let entry of this.bidiCache) {
-      if (entry.from == line.from && entry.dir == dir &&
-          (entry.fresh || isolatesEq(entry.isolates, isolates = getIsolatedRanges(this, line))))
-        return entry.order
-    }
-    if (!isolates) isolates = getIsolatedRanges(this, line)
-    let order = computeOrder(line.text, dir, isolates)
-    this.bidiCache.push(new CachedOrder(line.from, line.to, dir, isolates, true, order))
-    return order
-    */
-  }
 
   /// Check whether the editor has focus.
   get hasFocus(): boolean {
@@ -574,23 +549,6 @@ export class EditorView extends HTMLElement {
   } = {}): StateEffect<unknown> {
     return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos,
                                               options.y, options.x, options.yMargin, options.xMargin))
-  }
-
-  /// Return an effect that resets the editor to its current (at the
-  /// time this method was called) scroll position. Note that this
-  /// only affects the editor's own scrollable element, not parents.
-  /// See also
-  /// [`EditorViewSpec.scrollTo`](#view.EditorViewSpec.scrollTo).
-  ///
-  /// The effect should be used with a document identical to the one
-  /// it was created for. Failing to do so is not an error, but may
-  /// not scroll to the expected position. You can
-  /// [map](#state.StateEffect.map) the effect to account for changes.
-  scrollSnapshot() {
-    let {scrollTop, scrollLeft} = this.scrollDOM
-    let ref = this.viewState.scrollAnchorAt(scrollTop)
-    return scrollIntoView.of(new ScrollTarget(EditorSelection.cursor(ref.from), "start", "start",
-                                              ref.top - scrollTop, scrollLeft, true))
   }
 
   /// Enable or disable tab-focus mode, which disables key bindings
@@ -696,31 +654,6 @@ export class EditorView extends HTMLElement {
   /// `event.ctrlKey` elsewhere.
   static clickAddsSelectionRange = clickAddsSelectionRange
 
-  /// A facet that determines which [decorations](#view.Decoration)
-  /// are shown in the view. Decorations can be provided in two
-  /// ways—directly, or via a function that takes an editor view.
-  ///
-  /// Only decoration sets provided directly are allowed to influence
-  /// the editor's vertical layout structure. The ones provided as
-  /// functions are called _after_ the new viewport has been computed,
-  /// and thus **must not** introduce block widgets or replacing
-  /// decorations that cover line breaks.
-  ///
-  /// If you want decorated ranges to behave like atomic units for
-  /// cursor motion and deletion purposes, also provide the range set
-  /// containing the decorations to
-  /// [`EditorView.atomicRanges`](#view.EditorView^atomicRanges).
-  static decorations = decorations
-
-  /// When range decorations add a `unicode-bidi: isolate` style, they
-  /// should also include a
-  /// [`bidiIsolate`](#view.MarkDecorationSpec.bidiIsolate) property
-  /// in their decoration spec, and be exposed through this facet, so
-  /// that the editor can compute the proper text order. (Other values
-  /// for `unicode-bidi`, except of course `normal`, are not
-  /// supported.)
-  static bidiIsolatedRanges = bidiIsolatedRanges
-
   /// Facet that allows extensions to provide additional scroll
   /// margins (space around the sides of the scrolling element that
   /// should be considered invisible). This can be useful when the
@@ -816,33 +749,7 @@ export type DOMEventHandlers<This> = {
   [event in keyof DOMEventMap]?: (this: This, event: DOMEventMap[event], view: EditorView) => boolean | void
 }
 
-// Maximum line length for which we compute accurate bidi info
-const MaxBidiLine = 4096
-
 const BadMeasure = {}
-
-class CachedOrder {
-  constructor(
-    readonly from: number,
-    readonly to: number,
-    readonly dir: Direction,
-    readonly isolates: readonly Isolate[],
-    readonly fresh: boolean,
-    readonly order: readonly BidiSpan[]
-  ) {}
-
-  static update(cache: CachedOrder[], changes: ChangeDesc) {
-    if (changes.empty && !cache.some(c => c.fresh)) return cache
-    let result = [], lastDir = cache.length ? cache[cache.length - 1].dir : Direction.LTR
-    for (let i = Math.max(0, cache.length - 10); i < cache.length; i++) {
-      let entry = cache[i]
-      if (entry.dir == lastDir && !changes.touchesRange(entry.from, entry.to))
-        result.push(new CachedOrder(changes.mapPos(entry.from, 1), changes.mapPos(entry.to, -1),
-                                    entry.dir, entry.isolates, false, entry.order))
-    }
-    return result
-  }
-}
 
 function attrsFromFacet(view: EditorView, facet: Facet<AttrSource>, base: Attrs) {
   for (let sources = view.state.facet(facet), i = sources.length - 1; i >= 0; i--) {

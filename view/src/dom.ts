@@ -339,3 +339,5 @@ export function textNodeAfter(startNode: Node, startOffset: number): {node: Text
     }
   }
 }
+
+export type DOMNode = Node

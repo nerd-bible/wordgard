@@ -1,8 +1,6 @@
-import {EditorState, Transaction, Facet, StateEffect, Extension,
-        SelectionRange, SpanSet, EditorSelection} from "@willows/state"
+import {EditorState, Transaction, Facet, StateEffect, Extension, SelectionRange, EditorSelection} from "@willows/state"
 import {ChangeSet, ChangeDesc} from "@willows/doc"
 import {StyleModule} from "style-mod"
-import {DecorationSet, Decoration} from "./decoration"
 import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
 import {Isolate, autoDirection} from "./bidi"
@@ -30,9 +28,6 @@ export const inputHandler = Facet.define<(view: EditorView, from: number, to: nu
                                           insert: () => Transaction) => boolean>()
 
 export const focusChangeEffect = Facet.define<(state: EditorState, focusing: boolean) => StateEffect<any> | null>()
-
-export const clipboardInputFilter = Facet.define<(text: string, state: EditorState) => string>()
-export const clipboardOutputFilter = Facet.define<(text: string, state: EditorState) => string>()
 
 export const scrollHandler = Facet.define<(
   view: EditorView,
@@ -68,8 +63,6 @@ export class ScrollTarget {
 }
 
 export const scrollIntoView = StateEffect.define<ScrollTarget>({map: (t, ch) => t.map(ch)})
-
-export const setEditContextFormatting = StateEffect.define<DecorationSet>()
 
 /// Log or report an unhandled exception in client code. Should
 /// probably only be used by extension code that allows client code to
@@ -137,13 +130,6 @@ export interface PluginSpec<V extends PluginValue> {
   /// Specify that the plugin provides additional extensions when
   /// added to an editor configuration.
   provide?: (plugin: ViewPlugin<V>) => Extension
-
-  /// Allow the plugin to provide decorations. When given, this should
-  /// be a function that take the plugin value and return a
-  /// [decoration set](#view.DecorationSet). See also the caveat about
-  /// [layout-changing decorations](#view.EditorView^decorations) that
-  /// depend on the view.
-  decorations?: (value: V) => DecorationSet
 }
 
 /// View plugins associate stateful values with a view. They can
@@ -170,13 +156,9 @@ export class ViewPlugin<V extends PluginValue> {
   /// Define a plugin from a constructor function that creates the
   /// plugin's value, given an editor view.
   static define<V extends PluginValue>(create: (view: EditorView) => V, spec?: PluginSpec<V>) {
-    const {eventHandlers, eventObservers, provide, decorations: deco} = spec || {}
+    const {eventHandlers, eventObservers, provide} = spec || {}
     return new ViewPlugin<V>(nextPluginID++, create, eventHandlers, eventObservers, plugin => {
       let ext = [viewPlugin.of(plugin)]
-      if (deco) ext.push(decorations.of(view => {
-        let pluginInst = view.plugin(plugin)
-        return pluginInst ? deco(pluginInst) : Decoration.none
-      }))
       if (provide) ext.push(provide(plugin))
       return ext
     })
@@ -268,41 +250,6 @@ export type AttrSource = Attrs | ((view: EditorView) => Attrs | null)
 export const editorAttributes = Facet.define<AttrSource>()
 
 export const contentAttributes = Facet.define<AttrSource>()
-
-// Provide decorations
-export const decorations = Facet.define<DecorationSet | ((view: EditorView) => DecorationSet)>()
-
-export const bidiIsolatedRanges = Facet.define<DecorationSet | ((view: EditorView) => DecorationSet)>()
-
-// FIXME
-export function getIsolatedRanges(view: EditorView, line: Line): readonly Isolate[] {
-  let isolates = view.state.facet(bidiIsolatedRanges)
-  if (!isolates.length) return isolates as any[]
-  let sets = isolates.map<DecorationSet>(i => i instanceof Function ? i(view) : i)
-  let result: Isolate[] = []
-  RangeSet.spans(sets, line.from, line.to, {
-    point() {},
-    span(fromDoc, toDoc, active, open) {
-      let from = fromDoc - line.from, to = toDoc - line.from
-      let level = result
-      for (let i = active.length - 1; i >= 0; i--, open--) {
-        let direction = active[i].spec.bidiIsolate, update
-        if (direction == null)
-          direction = autoDirection(line.text, from, to)
-        if (open > 0 && level.length &&
-            (update = level[level.length - 1]).to == from && update.direction == direction) {
-          update.to = to
-          level = update.inner as Isolate[]
-        } else {
-          let add = {from, to, direction, inner: []}
-          level.push(add)
-          level = add.inner
-        }
-      }
-    }
-  })
-  return result
-}
 
 export const scrollMargins = Facet.define<(view: EditorView) => Partial<Rect> | null>()
 

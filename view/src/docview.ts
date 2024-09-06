@@ -4,5 +4,5 @@ import {ViewUpdate} from "./extension"
 export class DocView {
   constructor(readonly view: EditorView) {}
 
-  update(update: ViewUpdate) {}
+  update(update: ViewUpdate) { return true }
 }
