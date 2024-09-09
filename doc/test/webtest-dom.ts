@@ -1,6 +1,6 @@
 import ist from "ist"
 import {DocNode, basicBuilder, builder, Prop, PropType,
-        serialize, parseDoc, ParseOptions, Schema, basicSchema} from "@willows/doc"
+        serialize, serializeSlice, parseDoc, ParseOptions, Schema, basicSchema, tag} from "@willows/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2} = basicBuilder
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
@@ -8,6 +8,12 @@ function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) 
 function html(doc: DocNode) {
   let wrap = document.createElement("div")
   wrap.appendChild(serialize(doc))
+  return wrap.innerHTML
+}
+
+function sliceHTML(doc: DocNode) {
+  let wrap = document.createElement("div")
+  wrap.appendChild(serializeSlice(doc.slice(tag(doc, 0), tag(doc, 1), true)))
   return wrap.innerHTML
 }
 
@@ -44,6 +50,21 @@ describe("serialize", () => {
 
   it("serializes heading levels", () => {
     ist(html(doc(h1("One"), h2("Two"))), "<h1>One</h1><h2>Two</h2>")
+  })
+})
+
+describe("serializeSlice", () => {
+  it("can serialize a simple slice", () => {
+    ist(sliceHTML(doc(0, p("One"), p("Two"), 1)), "<p>One</p><p>Two</p>")
+  })
+
+  it("can serialize an open slice", () => {
+    ist(sliceHTML(doc(h1(0, "One"), p("Two", 1))), "<h1>One</h1><p>Two</p>")
+  })
+
+  it("can serialize a slice with deeper open sides", () => {
+    ist(sliceHTML(doc(ul(li(p(0, "A"))), blockquote(p("B", 1)))),
+        "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 })
 

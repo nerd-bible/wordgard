@@ -204,11 +204,16 @@ export class Node {
     return new Node(this.tag, this.props, this.tag.type.checkChildren(joinText(children)))
   }
 
-  slice(from: number, to = this.length) {
+  slice(from: number, to = this.length, context = false) {
     if (from == to) return Slice.empty
     let content: Token[] = []
     this.sliceNode(content, from, to)
-    return new Slice(content)
+    if (!context || !(this instanceof DocNode)) return new Slice(content)
+    for (let cx = this.resolve(from), stack = [];;) {
+      stack.push(cx.node.tag)
+      if (!cx.parent) return new Slice(content, stack)
+      cx = cx.parent
+    }
   }
 
   /// @internal

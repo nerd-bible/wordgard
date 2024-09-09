@@ -82,8 +82,8 @@ export class Context {
 let contextCache = new Map<DocNode, Context[]>(), cacheSize = 8, cachePos = 0
 
 function advanceContext(distance: number, node: Node, index: number,
-                    pos: number, inText: number, parent: Context | null,
-                    walk?: Walker) {
+                        pos: number, inText: number, parent: Context | null,
+                        walk?: Walker) {
   let target = pos + distance
   if (inText) {
     let text = node.children[index] as TextNode

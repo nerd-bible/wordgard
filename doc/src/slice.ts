@@ -1,9 +1,12 @@
-import {TokenType, Node, NodeJSON} from "./node"
+import {TokenType, Node, NodeJSON, Tag} from "./node"
 import {Schema} from "./schema"
 import {Walker} from "./context"
+import {none} from "./helper"
 
 export class OpenToken {
-  constructor(readonly node: Node) {}
+  constructor(readonly node: Node) { // FIXME only put tag/props in here?
+    if (node.tag.isLeaf()) throw new Error("Cannot create an opening token for a leaf node")
+  }
 
   get tokenType(): TokenType.Open { return TokenType.Open }
 
@@ -24,7 +27,8 @@ export type Token = Node | OpenToken | CloseToken
 export class Slice {
   readonly length: number
 
-  constructor(readonly content: readonly Token[]) {
+  // FIXME use a separate Context value here instead of rolling this into Slice?
+  constructor(readonly content: readonly Token[], readonly context: readonly Tag[] = none) {
     this.length = content.reduce((l, e) => l + (e.tokenType == TokenType.Node ? e.length : 1), 0)
   }
 
