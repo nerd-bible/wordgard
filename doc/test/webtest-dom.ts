@@ -1,7 +1,7 @@
 import ist from "ist"
-import {DocNode, basicBuilder, builder, Prop, PropType,
-        serialize, serializeSlice, parseDoc, ParseOptions, Schema, basicSchema, tag} from "@willows/doc"
-const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2} = basicBuilder
+import {DocNode, Node, basicBuilder, builder, Prop, PropType, Slice, OpenToken, CloseToken, Token,
+        serialize, serializeSlice, parseDoc, parseSlice, ParseOptions, Schema, basicSchema, tag} from "@willows/doc"
+const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilder
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -137,5 +137,42 @@ describe("parseDoc", () => {
 
   it("joins text nodes", () => {
     ist(parse("<p>a<span>b</span></p>"), doc(p("ab")), eq)
+  })
+})
+
+describe("parseSlice", () => {
+  function parse(html: string, options: ParseOptions & {schema?: Schema} = {}) {
+    let wrap = document.implementation.createHTMLDocument("").createElement("div")
+    wrap.innerHTML = html
+    return parseSlice(options.schema || basicSchema, wrap, options)
+  }
+
+  function sameSlice(a: Slice, b: Slice) {
+    return a.eq(b) && a.context.length == b.context.length && a.context.every((t, i) => t.eq(b.context[i]))
+  }
+
+  function slice(children: (string | Token)[], context: Node[]) {
+    return new Slice(children.map(ch => typeof ch == "string" ? Node.text(ch) : ch),
+                     context.map(n => n.tag))
+  }
+
+  it("can parse a simple slice", () => {
+    ist(parse("<p>One</p><p>Two</p>"), slice(["One", CloseToken, new OpenToken(p()), "Two"], [p()]), sameSlice)
+  })
+
+  it("can parse text at the top level", () => {
+    ist(parse("hello"), slice(["hello"], []), sameSlice)
+  })
+
+  it("doesn't trim text at the top level", () => {
+    ist(parse("  hello  ", {collapseWhiteSpace: false}), slice(["  hello  "], []), sameSlice)
+  })
+
+  it("opens nested nodes", () => {
+    ist(parse("<ul><li><p>One</p></li></ul>"), slice(["One"], [p(), li(), ul()]), sameSlice)
+  })
+
+  it("doesn't open leaf nodes", () => {
+    ist(parse("<hr><p>A<br></p>"), slice([hr(), new OpenToken(p()), "A", br()], []), sameSlice)
   })
 })

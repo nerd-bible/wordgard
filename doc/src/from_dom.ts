@@ -1,6 +1,7 @@
 import {Schema} from "./schema"
 import {Tag, TagType, Node, DocNode, Text} from "./node"
 import {Prop, PropSet, PropType} from "./prop"
+import {Slice, Token, OpenToken, CloseToken} from "./slice"
 import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
         AttributeParseRule, Reject} from "./spec"
 
@@ -66,15 +67,45 @@ export type ParseOptions = {
 export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
   let top = new NodeContext(schema.docTag, PropSet.empty, CxFlag.Solid, null)
   let cx = new ParseContext(schema, options, top)
-  cx.parseChildren(doc, [])
+  cx.parseChildren(doc, [], false)
   cx.sync(top)
   return cx.finishNode(cx.top) as DocNode
 }
 
+export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
+  let top = new NodeContext(null, PropSet.empty, CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
+  let cx = new ParseContext(schema, options, top)
+  cx.parseChildren(doc, [], true)
+  cx.sync(top)
+  let tokens: Token[] = [], context: Tag[] = []
+  let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
+    for (let i = 0; i < children.length; i++) {
+      let child = children[i]
+      if (openStart && i == 0 && !child.isLeaf()) {
+        if (children.length == 1 && openEnd) {
+          emitTokens(child.children, true, true)
+        } else {
+          emitTokens(child.children, true, false)
+          tokens.push(CloseToken)
+        }
+        context.push(children[0].tag)
+      } else if (openEnd && i == children.length - 1 && !child.isLeaf()) {
+        tokens.push(new OpenToken(child))
+        emitTokens(child.children, false, true)
+      } else {
+        tokens.push(child)
+      }
+    }
+  }
+  emitTokens(top.children, true, true)
+  return new Slice(tokens, context)
+}
+
 const enum CxFlag {
   None = 0,
-  Open = 1,
-  Solid = 2,
+  OpenStart = 1,
+  OpenEnd = 2,
+  Solid = 4,
 }
 
 class ParseContext {
@@ -86,9 +117,9 @@ class ParseContext {
     this.rules = RuleSet.fromSchema(schema)
   }
 
-  parseChildren(parent: HTMLElement | DocumentFragment, props: readonly Prop[]) {
+  parseChildren(parent: HTMLElement | DocumentFragment, props: readonly Prop[], endOfSlice: boolean) {
     for (let ch = parent.firstChild; ch; ch = ch.nextSibling) {
-      if (ch.nodeType == 1) this.parseElement(ch as HTMLElement, props)
+      if (ch.nodeType == 1) this.parseElement(ch as HTMLElement, props, endOfSlice && !ch.nextSibling)
       else if (ch.nodeType == 3) this.parseTextNode(ch as Text, props)
     }
   }
@@ -106,11 +137,11 @@ class ParseContext {
   }
 
   ignoreElement(elt: HTMLElement, props: readonly Prop[]) {
-    if (elt.nodeName == "BR" && !this.top.tag.inlineContent())
-      this.findPlace(Text.of("-"), props)
+    if (elt.nodeName == "BR" && this.top.tag && !this.top.tag.inlineContent())
+      this.findPlace(Text.of("-"), props, false)
   }
 
-  parseElement(elt: HTMLElement, props: readonly Prop[]) {
+  parseElement(elt: HTMLElement, props: readonly Prop[], endOfSlice: boolean) {
     let name = elt.nodeName.toLowerCase()
     if (name in normalizers) normalizers[name](elt)
     let match = this.matchElement(elt)
@@ -124,23 +155,24 @@ class ParseContext {
         sync = true
       }
       let innerProps = match && match.rule.ignore ? props : this.parseAttributes(elt, props)
-      if (innerProps) this.parseChildren(elt, innerProps)
+      if (innerProps) this.parseChildren(elt, innerProps, endOfSlice)
       if (sync) this.sync(top)
     } else {
       let innerProps = this.parseAttributes(elt, props)
       if (innerProps)
-        this.parseElementByRule(elt, match, innerProps)
+        this.parseElementByRule(elt, match, innerProps, endOfSlice)
     }
   }
 
-  parseElementByRule(elt: HTMLElement, match: {rule: ElementParseRule<unknown>, value?: unknown}, props: readonly Prop[]) {
+  parseElementByRule(elt: HTMLElement, match: {rule: ElementParseRule<unknown>, value?: unknown},
+                     props: readonly Prop[], endOfSlice: boolean) {
     let sync, tag, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.tag) {
       tag = rule.tag instanceof Tag ? rule.tag :
         rule.tag instanceof TagType ? (hasValue ? rule.tag.of(match.value) : rule.tag.default) : null
       if (!tag) throw new Error(`Parse rule for ${rule.selector} does not produce a tag`)
       if (!tag.isLeaf()) {
-        let innerProps = this.enter(tag, props)
+        let innerProps = this.enter(tag, props, endOfSlice)
         if (innerProps) {
           sync = true
           props = innerProps
@@ -163,7 +195,7 @@ class ParseContext {
       if (typeof rule.contentElement == "string") content = elt.querySelector(rule.contentElement) || elt
       else if (typeof rule.contentElement == "function") content = rule.contentElement(elt)
       if (content != elt) this.scanAround(elt, content, true)
-      this.parseChildren(content, props)
+      this.parseChildren(content, props, endOfSlice)
       if (content != elt) this.scanAround(elt, content, false)
     }
     if (sync && this.sync(startIn)) this.close()
@@ -171,9 +203,9 @@ class ParseContext {
 
   parseTextNode(dom: Text, props: readonly Prop[]) {
     let text = dom.nodeValue!
-    if (!this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
+    if (this.top.tag && !this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
       // Ignore entirely blank node
-      if (!this.top.tag.inlineContent() && !/[^ \t\r\n\u000c]/.test(text)) {
+      if (!(this.top.tag && this.top.tag.inlineContent()) && !/[^ \t\r\n\u000c]/.test(text)) {
         this.scanInside(dom)
         return
       }
@@ -185,13 +217,13 @@ class ParseContext {
       if (/^ /.test(text)) {
         let nodeBefore = this.top.children[this.top.children.length - 1]
         let domNodeBefore = dom.previousSibling
-        if (!nodeBefore && !(this.top.flags & CxFlag.Open) ||
+        if (!nodeBefore && !(this.top.flags & CxFlag.OpenStart) ||
             (domNodeBefore && domNodeBefore.nodeName == 'BR') ||
             nodeBefore && nodeBefore.isText() && / $/.test(nodeBefore.text))
           text = text.slice(1)
       }
     } else {
-      text = text.replace(/\r?\n|\r/g, this.top.tag.type.preserveWhitespace ? "\n" : " ")
+      text = text.replace(/\r?\n|\r/g, this.top.tag && this.top.tag.type.preserveWhitespace ? "\n" : " ")
     }
     if (text) this.insertNode(Node.text(text), props)
     this.scanText(dom, text)
@@ -227,7 +259,7 @@ class ParseContext {
   }
 
   insertNode(node: Node, props: readonly Prop[]) {
-    let innerProps = this.findPlace(node.tag, props)
+    let innerProps = this.findPlace(node.tag, props, false)
     if (innerProps) {
       let top = this.top
       let nodeProps = PropSet.empty
@@ -243,10 +275,11 @@ class ParseContext {
   // context. May add intermediate wrappers and/or leave non-solid
   // nodes that we're in. Returns null if no place could be created, a
   // set of prop values not applied to wrappers otherwise.
-  findPlace(tag: Tag<any>, props: readonly Prop[]): readonly Prop[] | null {
+  findPlace(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean): readonly Prop[] | null {
+    if (!this.top.tag) return props
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
-      let found = this.schema.findWrapping(cx.tag, tag)
+      let found = this.schema.findWrapping(cx.tag!, tag)
       if (found && (!route || route.length > found.length)) {
         route = found
         under = cx
@@ -257,26 +290,28 @@ class ParseContext {
     if (!route) return null
     this.sync(under!)
     for (let i = 0; i < route.length; i++)
-      props = this.enterInner(route[i], props, false)
+      props = this.enterInner(route[i], props, endOfSlice, false)
     return props
   }
 
-  enter(tag: Tag<unknown>, props: readonly Prop[]) {
-    let innerProps = this.findPlace(tag, props)
-    if (innerProps) innerProps = this.enterInner(tag, props, true)
+  enter(tag: Tag<unknown>, props: readonly Prop[], endOfSlice: boolean) {
+    let innerProps = this.findPlace(tag, props, endOfSlice)
+    if (innerProps) innerProps = this.enterInner(tag, props, endOfSlice, true)
     return innerProps
   }
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(tag: Tag<any>, props: readonly Prop[], solid: boolean = false) {
+  enterInner(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean, solid: boolean = false) {
     let localProps = PropSet.empty
     props = props.filter(p => {
       if (!p.type.canTarget(tag.type)) return true
       localProps = localProps.add(p)
       return false
     })
-    this.top = new NodeContext(tag, localProps, solid ? CxFlag.Solid : CxFlag.None, this.top)
+    let open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
+      (endOfSlice ? this.top.flags & CxFlag.OpenEnd : 0)
+    this.top = new NodeContext(tag, localProps, (solid ? CxFlag.Solid : CxFlag.None) | open, this.top)
     return props
   }
 
@@ -293,7 +328,8 @@ class ParseContext {
   }
 
   finishNode(cx: NodeContext) {
-    if (cx.children.length && !cx.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
+    if (!(cx.flags & CxFlag.OpenEnd) && cx.children.length && !cx.tag!.type.preserveWhitespace &&
+        this.options.collapseWhiteSpace !== false) {
       let last = cx.children[cx.children.length - 1], m
       if (last.isText() && (m = /[ \t\r\n\u000c]+$/.exec(last.text))) {
         let len = last.text.length - m[0].length
@@ -301,9 +337,10 @@ class ParseContext {
         else cx.children[cx.children.length - 1] = last.cutText(0, len)
       }
     }
-    if (!cx.tag.inlineContent() && !cx.tag.isLeaf() && !cx.children.length)
-      cx.children.push(this.schema.createDefault(cx.tag.type))
-    return cx.tag.isDoc() ? this.schema.doc(cx.children) : cx.tag.create(cx.props, cx.children)
+    if (!(cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)) &&
+        !cx.tag!.inlineContent() && !cx.tag!.isLeaf() && !cx.children.length)
+      cx.children.push(this.schema.createDefault(cx.tag!.type))
+    return cx.tag!.isDoc() ? this.schema.doc(cx.children) : cx.tag!.create(cx.props, cx.children)
   }
 
 
@@ -352,7 +389,7 @@ class ParseContext {
 class NodeContext {
   children: Node[] = []
 
-  constructor(readonly tag: Tag<any>, readonly props: PropSet,
+  constructor(readonly tag: Tag<any> | null, readonly props: PropSet,
               readonly flags: CxFlag,
               readonly parent: NodeContext | null) {}
 

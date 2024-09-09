@@ -272,6 +272,7 @@ export const basicSchema = Schema.define([
   Blockquote,
   Image,
   ImageAlt,
+  LineBreak,
   HorizontalRule,
   BulletList,
   OrderedList,
