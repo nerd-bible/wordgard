@@ -1,4 +1,4 @@
-import {Node, DocNode, TextNode, PropSet, PropType,
+import {Node, Prop, DocNode, TextNode, PropType,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
@@ -63,25 +63,25 @@ export function rDoc(minLength: number) {
   }
   do {
     open()
-    let props = PropSet.empty
+    let props: readonly Prop[] = []
     for (let i = 0, elements = r(7); i < elements * 2 - 1; i++) {
       let node: Node
       if (i % 2) {
-        if (props.set.length && !r(3))
-          props = props.remove(props.set[r(props.set.length)])
+        if (props.length && !r(3))
+          props = props[r(props.length)].removeFromSet(props)
         node = Node.text(" ", props)
       } else {
         if (!r(5)) {
           let prop = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of("/" + rWord()))
-          props = props.add(prop)
+          props = prop.addToSet(props)
         }
         node = r(5) ? Node.text(rWord()) : r(2) ? br() : img(rWord() + ".svg")
-        node = node.withProps(node.props.join(props))
+        node = node.withProps(props)
       }
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
-      if (node.isText() && last && last.sameMarkup(node))
-        children[children.length - 1] = Node.text((last as TextNode).text + node.text, node.props)
+      if (node.isText() && last && last.isText() && last.tag.sameProps(node.tag))
+        children[children.length - 1] = Node.text((last as TextNode).text + node.text, node.tag.props)
       else 
         children.push(node)
     }
@@ -139,9 +139,9 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Remove a prop from some textblock
   doc => scanBlocks(doc, (node, pos) => {
     if (node.isTextblock()) for (let i = 0; i < node.children.length; i++) {
-      let props = node.children[i].props
-      if (props.set.length) {
-        return {from: pos, to: pos + node.length, remove: props.set[r(props.set.length)]}
+      let props = node.children[i].tag.props
+      if (props.length) {
+        return {from: pos, to: pos + node.length, remove: props[r(props.length)]}
       }
     }
   }),

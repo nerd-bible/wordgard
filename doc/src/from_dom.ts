@@ -1,6 +1,6 @@
 import {Schema} from "./schema"
 import {Tag, TagType, Node, DocNode, Text} from "./node"
-import {Prop, PropSet, PropType} from "./prop"
+import {Prop, PropType} from "./prop"
 import {Slice, Token, OpenToken, CloseToken} from "./slice"
 import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
         AttributeParseRule, Reject} from "./spec"
@@ -65,7 +65,7 @@ export type ParseOptions = {
 }
 
 export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
-  let top = new NodeContext(schema.docTag, PropSet.empty, CxFlag.Solid, null)
+  let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [], false)
   cx.sync(top)
@@ -73,7 +73,7 @@ export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, op
 }
 
 export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
-  let top = new NodeContext(null, PropSet.empty, CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
+  let top = new NodeContext(null, CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [], true)
   cx.sync(top)
@@ -261,11 +261,10 @@ class ParseContext {
   insertNode(node: Node, props: readonly Prop[]) {
     let innerProps = this.findPlace(node.tag, props, false)
     if (innerProps) {
-      let top = this.top
-      let nodeProps = PropSet.empty
-      for (let p of innerProps) if (p.type.canTarget(node.tag.type)) nodeProps = nodeProps.add(p)
-      for (let p of node.props.set) nodeProps = nodeProps.add(p)
-      node.withProps(nodeProps).pushTo(top.children)
+      let top = this.top, tag = node.tag
+      for (let p of innerProps) if (p.type.canTarget(tag.type)) tag = tag.addProp(p)
+      for (let p of node.tag.props) tag = tag.addProp(p)
+      tag.create(node.children).pushTo(top.children)
       return true
     }
     return false
@@ -303,15 +302,14 @@ class ParseContext {
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
   enterInner(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean, solid: boolean = false) {
-    let localProps = PropSet.empty
     props = props.filter(p => {
       if (!p.type.canTarget(tag.type)) return true
-      localProps = localProps.add(p)
+      tag = tag.addProp(p)
       return false
     })
     let open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
       (endOfSlice ? this.top.flags & CxFlag.OpenEnd : 0)
-    this.top = new NodeContext(tag, localProps, (solid ? CxFlag.Solid : CxFlag.None) | open, this.top)
+    this.top = new NodeContext(tag, (solid ? CxFlag.Solid : CxFlag.None) | open, this.top)
     return props
   }
 
@@ -340,7 +338,7 @@ class ParseContext {
     if (!(cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)) &&
         !cx.tag!.inlineContent() && !cx.tag!.isLeaf() && !cx.children.length)
       cx.children.push(this.schema.createDefault(cx.tag!.type))
-    return cx.tag!.isDoc() ? this.schema.doc(cx.children) : cx.tag!.create(cx.props, cx.children)
+    return cx.tag!.isDoc() ? this.schema.doc(cx.children) : cx.tag!.create(cx.children)
   }
 
 
@@ -389,7 +387,7 @@ class ParseContext {
 class NodeContext {
   children: Node[] = []
 
-  constructor(readonly tag: Tag<any> | null, readonly props: PropSet,
+  constructor(readonly tag: Tag<any> | null,
               readonly flags: CxFlag,
               readonly parent: NodeContext | null) {}
 

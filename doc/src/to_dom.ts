@@ -1,6 +1,6 @@
 import {DocNode, Node, Tag, TokenType} from "./node"
 import {Slice} from "./slice"
-import {Prop, PropSet} from "./prop"
+import {Prop} from "./prop"
 import {Attrs, ElementRepresentation, AttributeRepresentation,
         isElementRepresentation, isAttributeRepresentation} from "./spec"
 
@@ -39,14 +39,14 @@ export function serializeSlice(slice: Slice, options?: SerializeOptions): Docume
       while (i < slice.content.length && slice.content[i].tokenType == TokenType.Node) i++
       serializeChildren(slice.content.slice(start, i) as Node[], top, opts, next.isInline())
     } else if (next.tokenType == TokenType.Open) {
-      let wrap = serializeNodeMarkup(next.node.tag, next.node.props, opts) as HTMLElement
+      let wrap = serializeNodeMarkup(next.node.tag, opts) as HTMLElement
       top.appendChild(wrap)
       top = wrap
     } else if (top.parentNode) {
       top = top.parentNode as DocumentFragment | HTMLElement
     } else {
       let wrap = slice.context.length < contextDepth ? opts.document.createElement("div")
-        : serializeNodeMarkup(slice.context[contextDepth++], PropSet.empty, opts)
+        : serializeNodeMarkup(slice.context[contextDepth++], opts)
       wrap.appendChild(top)
       result = top = opts.document.createDocumentFragment()
       top.appendChild(wrap)
@@ -82,7 +82,7 @@ function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, in
   }
 }
 
-function serializeNodeMarkup(tag: Tag, props: PropSet, options: Required<SerializeOptions>) {
+function serializeNodeMarkup(tag: Tag, options: Required<SerializeOptions>) {
   let {dom} = tag.type.spec, elt: HTMLElement | undefined, text: Text | undefined
   if (tag.isText()) {
     text = options.document.createTextNode(tag.param as string)
@@ -93,7 +93,7 @@ function serializeNodeMarkup(tag: Tag, props: PropSet, options: Required<Seriali
     if (dom.attributes)
       applyAttributes(typeof dom.attributes == "function" ? dom.attributes(tag.param) : dom.attributes, elt)
   }
-  for (let {type, value} of props.set) if (isAttributeRepresentation(type.spec.dom)) {
+  for (let {type, value} of tag.props) if (isAttributeRepresentation(type.spec.dom)) {
     if (!elt) {
       elt = document.createElement("span")
       elt.appendChild(text!)
@@ -104,7 +104,7 @@ function serializeNodeMarkup(tag: Tag, props: PropSet, options: Required<Seriali
 }
 
 function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
-  let dom = serializeNodeMarkup(node.tag, node.props, options)
+  let dom = serializeNodeMarkup(node.tag, options)
   if (!node.isLeaf()) serializeChildren(node.children, dom as HTMLElement, options, node.tag.inlineContent())
   return dom
 }
@@ -118,9 +118,9 @@ function serializeChildren(
   let top = target, active: Prop[] = []
   for (let child of children) {
     let childDOM = serializeNodeInner(child, options)
-    if (active.length || child.props.set.some(p => isElementRepresentation(p.type.spec.dom))) {
+    if (active.length || child.tag.props.some(p => isElementRepresentation(p.type.spec.dom))) {
       let keep = 0, rendered = 0, eltProps = []
-      for (let prop of child.props.set)
+      for (let prop of child.tag.props)
         if (isElementRepresentation(prop.type.spec.dom)) eltProps.push(prop)
       while (keep < active.length && rendered < eltProps.length) {
         let next = eltProps[rendered]

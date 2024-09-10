@@ -1,5 +1,5 @@
 import {Node, DocNode, Tag, TagType} from "./node"
-import {PropType, Prop, PropSet} from "./prop"
+import {PropType, Prop} from "./prop"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
@@ -8,36 +8,36 @@ import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineB
 type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
 export type NodeBuilder<Source> =
-  Source extends Node | Prop | Tag<any> ? (...children: ContentSpec[]) => Node :
+  Source extends Prop<any> | Tag<any> ? (...children: ContentSpec[]) => Node :
   Source extends PropType<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
   Source extends TagType<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
   never
 
-export function builder<T extends {[name: string]: Tag<any> | TagType<any> | Node | PropType<any> | Prop}>(spec: T, schema?: Schema): {
+export function builder<Source extends Prop<any> | Tag<any> | PropType<any> | TagType<any>>(
+  source: Source
+): NodeBuilder<Source> {
+  return (source instanceof Tag
+    ? (...children: ContentSpec[]) => source.create(collectChildren(children))
+    : source instanceof Prop
+    ? (...children: ContentSpec[]) => fragment(children, source)
+    : source instanceof TagType
+    ? (param: any, ...children: ContentSpec[]) => source.of(param).create(collectChildren(children))
+    : (value: any, ...children: ContentSpec[]) => fragment(children, source.of(value))
+  ) as any
+}
+
+// FIXME possibly per-builder constructor functions are easier to type
+// and understand?
+export function builders<T extends {[name: string]: Parameters<typeof builder>[0]}>(spec: T, schema?: Schema): {
   [name in keyof T]: NodeBuilder<T[name]>
 } & {doc(...children: ContentSpec[]): DocNode} {
   let result = Object.create(null)
-  for (let name in spec) {
-    let val = spec[name]
-    result[name] = val instanceof Prop ? propInstanceBuilder(val)
-      : val instanceof PropType ? propBuilder(val)
-      : val instanceof Node ? nodeBuilder(val.tag, val.props)
-      : val instanceof Tag ? nodeBuilder(val, PropSet.empty)
-      : tagBuilder(val)
-  }
+  for (let name in spec) result[name] = builder(spec[name])
   result.doc = (...children: ContentSpec[]) => {
     if (!schema) throw new Error("This builder does not have a schema")
     return schema.doc(collectChildren(children))
   }
   return result
-}
-
-function nodeBuilder<Param>(type: Tag<Param>, props: PropSet): NodeBuilder<Tag> {
-  return (...children: ContentSpec[]) => type.create(props, collectChildren(children))
-}
-
-function tagBuilder<Param>(tag: TagType<Param>): NodeBuilder<TagType<Param>> {
-  return (param: Param, ...children: ContentSpec[]) => tag.of(param).create(PropSet.empty, collectChildren(children))
 }
 
 const InlineFragment = Tag.defineInline("Fragment", {
@@ -54,19 +54,10 @@ function fragment(children: ContentSpec[], prop: Prop) {
   return (chs.length && chs[0].isBlock() ? BlockFragment : InlineFragment).create(chs)
 }
   
-
-function propBuilder<Value>(type: PropType<Value>): NodeBuilder<PropType<Value>> {
-  return (value: Value, ...children: ContentSpec[]) => fragment(children, type.of(value))
-}
-
-function propInstanceBuilder(prop: Prop): NodeBuilder<Prop> {
-  return (...children: ContentSpec[]) => fragment(children, prop)
-}
-
 const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()
 
 function addProp(node: Node, prop?: Prop) {
-  return prop ? node.withProps(node.props.add(prop)) : node
+  return prop ? node.tag.addProp(prop).create(node.children) : node
 }
 
 function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
@@ -115,7 +106,7 @@ export function tag(node: Node, id: number): number {
   return value
 }
 
-export const basicBuilder = builder({
+export const basicBuilder = builders({
   p: Paragraph,
   h1: Heading.of(1),
   h2: Heading.of(2),

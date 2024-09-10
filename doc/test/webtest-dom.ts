@@ -35,7 +35,7 @@ describe("serialize", () => {
       tags: "Paragraph",
       dom: {attribute: "data-p", readAttribute: x => x}
     })
-    let {pr} = builder({pr: Pr})
+    let pr = builder(Pr)
     ist(html(doc(pr("one", p("x")))), "<p data-p=\"one\">x</p>")
   })
 
@@ -44,7 +44,7 @@ describe("serialize", () => {
       tags: "Text",
       dom: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
-    let {ul} = builder({ul: Ul})
+    let ul = builder(Ul)
     ist(html(doc(p(ul("one")))), "<p><span style=\"text-decoration: underline;\">one</span></p>")
   })
 

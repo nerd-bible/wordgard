@@ -1,5 +1,5 @@
 import {Node, Tag, TagType, NodeJSON, Text, DocNode} from "./node"
-import {Prop, PropType, PropSet} from "./prop"
+import {Prop, PropType} from "./prop"
 import {none} from "./helper"
 import {Reject} from "./spec"
 
@@ -34,7 +34,7 @@ export class Schema {
   validate(node: Node) {
     if (!this.tagSet.has(node.tag.type))
       throw new Error(`Node type ${node.name} not in schema`)
-    for (let prop of node.props.set) if (!this.propSet.has(prop.type))
+    for (let prop of node.tag.props) if (!this.propSet.has(prop.type))
       throw new Error(`Prop type ${prop.name} not in schema`)
     for (let ch of node.children) this.validate(ch)
   }
@@ -119,13 +119,13 @@ export class Schema {
     if (!json || typeof json != "object" || !(json.type in this.tagsByName))
       throw new Error("Invalid node JSON")
     let type = this.tagsByName[json.type]
-    let tag = "param" in json ? new Tag(type, json.param) : type.default
+    let tag = "param" in json ? new Tag(type, json.param, none) : type.default
     if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
-    let props = PropSet.empty, children = none
+    let props = none, children = none
     if (json.props && typeof json.props == "object") {
       for (let name in json.props) {
         let prop = this.propsByName[name]
-        if (prop) props = props.add(prop.of(json.props[name]))
+        if (prop) props = prop.of(json.props[name]).addToSet(props)
       }
     }
     if (type.isText() && typeof json.text == "string")
@@ -133,7 +133,7 @@ export class Schema {
     if (json.children && Array.isArray(json.children))
       children = json.children.map(c => this.nodeFromJSON(c))
     if (type.isDoc()) return this.doc(children)
-    return tag.create(props, children)
+    return (props.length ? tag.type.of(tag.param, props) : tag).create(children)
   }
 
   docFromJSON(json: NodeJSON) {

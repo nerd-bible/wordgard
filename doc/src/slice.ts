@@ -56,7 +56,7 @@ export class Slice {
       } else if (a.tokenType == TokenType.Node) {
         if (!((b.tokenType == TokenType.Node) && a.eq(b))) return false
       } else if (a.tokenType == TokenType.Open) {
-        if (!((b.tokenType == TokenType.Open) && a.node.sameMarkup(b.node))) return false
+        if (!((b.tokenType == TokenType.Open) && a.node.tag.eq(b.node.tag))) return false
       }
     }
     return true

@@ -62,9 +62,9 @@ function applyModifications(modifications: readonly Modification[], node: Node) 
     if (isAdd(m)) {
       if (!m.add.type.canTarget(node.tag.type))
         throw new Error(`Trying to add prop ${m.add.name} to a node of type ${node.name}`)
-      node = node.withProps(node.props.add(m.add))
+      node = node.tag.addProp(m.add).create(node.children)
     } else {
-      node = node.withProps(node.props.remove(m.remove))
+      node = node.tag.removeProp(m.remove).create(node.children)
     }
   }
   return node
@@ -102,8 +102,8 @@ export type ChangeSpec = {
   from: number
   to?: number
   insert?: Slice
-  add?: Prop
-  remove?: Prop
+  add?: Prop<any>
+  remove?: Prop<any>
 } | ChangeSet | ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
@@ -428,11 +428,11 @@ export class ChangeSet extends ChangeDesc {
             let mods: Modification[] = [{add: add}]
             markableSections(doc, from, to, (node, from, to) => {
               if (!add.type.canTarget(node.tag.type)) return false
-              let has = node.props.has(add.type)
+              let has = node.tag.hasProp(add.type)
               if (add.type.set) {
                 let modsHere = mods
                 if (has) {
-                  let left = subtractSet(add.value, has.value, add.type.set)
+                  let left = subtractSet(add.value as any[], has.value as any[], add.type.set)
                   if (!left.length) return false
                   modsHere = [{add: add.type.of(left)}]
                 }
@@ -446,7 +446,7 @@ export class ChangeSet extends ChangeDesc {
           if (remove) {
             let mods: Modification[] = [{remove: remove}]
             markableSections(doc, from, to, (node, from, to) => {
-              const has = node.props.has(remove)
+              const has = node.tag.hasProp(remove)
               if (!has || !remove.type.canTarget(node.tag.type)) return false
               let modsHere = mods
               if (remove.type.set) {
@@ -560,7 +560,7 @@ function invertMods(mods: readonly Modification[], target: Node): readonly Modif
   return mods.map(mod => {
     if (isRemove(mod)) return {add: mod.remove}
     if (!mod.add.type.set) {
-      let existed = target.props.has(mod.add.type)
+      let existed = target.tag.hasProp(mod.add.type)
       if (existed) return {add: existed}
     }
     return {remove: mod.add}

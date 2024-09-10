@@ -6,7 +6,7 @@ import {Node, DocNode, Tag, Prop,
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilder
 
-type ChangeData = (Token | string)[] | {add: Prop} | {remove: Prop}
+type ChangeData = (Token | string)[] | {add: Prop<any>} | {remove: Prop<any>}
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.

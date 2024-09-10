@@ -2,7 +2,7 @@ import {Slice, OpenToken, Token, CloseToken} from "./slice"
 import {TagSpec} from "./spec"
 import {Schema} from "./schema"
 import {Context} from "./context"
-import {PropType, PropSet} from "./prop"
+import {PropType, Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 
 export const enum TokenType { Open, Close, Node }
@@ -43,8 +43,8 @@ export class TagType<Param> {
     let content = spec.inlineContent === true ? "Inline" : spec.inlineContent  || spec.blockContent
     this.contentGroups = content ? splitGroups(content) : none
     this.preserveWhitespace = !!spec.preserveWhitespace
-    this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!) :
-      (flags & TagFlag.NullParam) ? new Tag(this, null as any) : null
+    this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
+      (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
   }
 
   static defineInline<T>(name: string, spec: TagSpec<T>) {
@@ -57,7 +57,7 @@ export class TagType<Param> {
     return new TagType<T>(name, flagsFor(spec, false), spec)
   }
 
-  of(param: Param) { return new Tag(this, param) }
+  of(param: Param, props: readonly Prop<any>[] = none) { return new Tag(this, param, props) }
 
   isInGroup(group: string) {
     return group == "_" || this.groups.includes(group)
@@ -74,12 +74,6 @@ export class TagType<Param> {
 
   sharesContent(other: TagType<any>) {
     return other.contentGroups.some(g => this.contentGroups.includes(g))
-  }
-
-  checkProps(props: PropSet) {
-    for (let prop of props.set) if (!prop.type.canTarget(this))
-      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
-    return props
   }
 
   checkChildren(children: readonly Node[]) {
@@ -101,8 +95,12 @@ export class TagType<Param> {
 export class Tag<Param = unknown> {
   constructor(
     readonly type: TagType<Param>,
-    readonly param: Param
-  ) {}
+    readonly param: Param,
+    readonly props: readonly Prop<unknown>[]
+  ) {
+    for (let prop of props) if (!prop.type.canTarget(this.type))
+      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
+  }
 
   get name() { return this.type.name }
 
@@ -126,22 +124,27 @@ export class Tag<Param = unknown> {
     })
   }
 
-  create(props: PropSet, children?: readonly Node[]): Node
-  create(children?: readonly Node[]): Node
-  create(propsOrChildren?: PropSet | readonly Node[], children?: readonly Node[]): Node {
+  create(children?: readonly Node[]): Node {
     if (this.isDoc()) throw new Error("Document nodes must be created with schema.doc()")
-    let props = PropSet.empty
-    if (propsOrChildren) {
-      if (Array.isArray(propsOrChildren)) children = propsOrChildren
-      else if (propsOrChildren instanceof Node) children = [propsOrChildren]
-      else props = propsOrChildren as PropSet
-    }
-    return new Node(this, this.type.checkProps(props), this.type.checkChildren(joinText(children || none)))
+    return new Node(this, this.type.checkChildren(joinText(children || none)))
   }
 
   eq(other: Tag) {
-    return this == other || this.type == other.type && compareDeep(this.param, other.param)
+    return this == other || this.type == other.type && compareDeep(this.param, other.param) && this.sameProps(other)
   }
+
+  sameProps(other: Tag) {
+    return this == other || eqArray(this.props, other.props)
+  }
+
+  prop<Value>(prop: PropType<Value>): Value | undefined {
+    for (let v of this.props) if (v.type == prop) return v.value as Value
+    return undefined
+  }
+
+  addProp(prop: Prop<any>) { return this.type.of(this.param, prop.addToSet(this.props)) }
+  removeProp(prop: Prop<any> | PropType<any>) { return this.type.of(this.param, prop.removeFromSet(this.props)) }
+  hasProp(prop: Prop<any> | PropType<any>) { return prop.isInSet(this.props) }
 
   isInline() { return this.type.isInline() }
   isText() { return this.type.isText() }
@@ -163,7 +166,6 @@ export class Node {
 
   constructor(
     tag: Tag<any>,
-    readonly props: PropSet,
     readonly children: readonly Node[],
   ) {
     this.tag = tag
@@ -172,36 +174,31 @@ export class Node {
 
   get name() { return this.tag.name }
 
-  get length() { return this.tag.type == Text ? (this.tag.param as string).length : this.isLeaf() ? 1 : 2 + this.contentLength }
+  get length() {
+    return this.tag.type == Text ? (this.tag.param as string).length : this.isLeaf() ? 1 : 2 + this.contentLength
+  }
 
   get text(): string | null { return this.isText() ? this.tag.param as string : null }
 
   cutText(this: TextNode, from: number, to = this.text.length) {
-    return !from && to == this.text.length ? this : new Node(Text.of(this.text.slice(Math.max(from, 0), Math.max(0, to))), this.props, none)
-  }
-
-  withProps(props: PropSet) {
-    return props.eq(this.props) ? this : new Node(this.tag, this.tag.type.checkProps(props), this.children)
+    if (!from && to == this.text.length) return this
+    return new Node(Text.of(this.text.slice(Math.max(from, 0), Math.max(0, to)), this.tag.props), none)
   }
 
   pushTo(nodes: Node[]) {
     let last = nodes.length - 1
-    if (last >= 0 && this.isText() && nodes[last].isText() && nodes[last].props.eq(this.props))
-      nodes[last] = Node.text(nodes[last].text + this.text, this.props)
+    if (last >= 0 && this.isText() && nodes[last].isText() && nodes[last].tag.sameProps(this.tag))
+      nodes[last] = Node.text(nodes[last].text + this.text, this.tag.props)
     else
       nodes.push(this)
   }
 
-  sameMarkup(other: Node) {
-    return this.tag.eq(other.tag) && this.props.eq(other.props)
-  }
-
   eq(other: Node): boolean {
-    return this == other || this.sameMarkup(other) && eqArray(this.children, other.children)
+    return this == other || this.tag.eq(other.tag) && eqArray(this.children, other.children)
   }
 
   copy(children: readonly Node[]) {
-    return new Node(this.tag, this.props, this.tag.type.checkChildren(joinText(children)))
+    return new Node(this.tag, this.tag.type.checkChildren(joinText(children)))
   }
 
   slice(from: number, to = this.length, context = false) {
@@ -268,15 +265,15 @@ export class Node {
 
   /// @internal
   toString() {
-    return propsToString(this.props, this.isText() ? JSON.stringify(this.text) : this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
+    return propsToString(this.tag.props, this.isText() ? JSON.stringify(this.text) : this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
   }
 
   toJSON(): NodeJSON {
     let result: NodeJSON = {type: this.name}
     if (this.tag != this.tag.type.default) result.param = this.tag.param
-    if (!this.props.empty) {
+    if (this.tag.props.length) {
       result.props = Object.create(null)
-      for (let {name, value} of this.props.set) result.props![name] = value
+      for (let {name, value} of this.tag.props) result.props![name] = value
     }
     if (this.isText()) result.text = this.text
     if (this.children.length) result.children = this.children.map(c => c.toJSON())
@@ -305,16 +302,14 @@ export class Node {
     return text
   }
 
-  prop<Value>(prop: PropType<Value>, required: true): Value
-  prop<Value>(prop: PropType<Value>): Value | undefined
-  prop<Value>(prop: PropType<Value>, required = false): Value | undefined {
-    return (this.props.get as any)(prop, required)
-  }
+  prop<Value>(prop: PropType<Value>): Value | undefined { return this.tag.prop(prop) }
+
+  withProps(props: readonly Prop<any>[]) { return new Node(new Tag(this.tag.type, this.tag.param, props), this.children) }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
 
-  static text(text: string, props: PropSet = PropSet.empty) {
-    return new Node(Text.of(text), Text.checkProps(props), none)
+  static text(text: string, props: readonly Prop<any>[] = none) {
+    return new Node(Text.of(text, props), none)
   }
 }
 
@@ -335,7 +330,7 @@ export type MarkJSON = {
 
 export class DocNode extends Node {
   constructor(tag: Tag<Schema>, children: readonly Node[]) {
-    super(tag, PropSet.empty, children)
+    super(tag, children)
   }
 
   get length() { return this.contentLength }
@@ -344,11 +339,6 @@ export class DocNode extends Node {
 
   copy(children: readonly Node[]) {
     return new DocNode(this.tag as Tag<Schema>, this.tag.type.checkChildren(children))
-  }
-
-  withProps(props: PropSet) {
-    if (props.empty) throw new Error("Document nodes cannot have props")
-    return this
   }
 
   sliceNode(content: Token[], from: number, to: number) {
@@ -376,9 +366,9 @@ export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Text | Ta
 })
 
 // FIXME show values? display differently?
-function propsToString(props: PropSet, inner: string) {
-  for (let i = props.set.length - 1; i >= 0; i--)
-    inner = props.set[i].name + "(" + inner + ")"
+function propsToString(props: readonly Prop<unknown>[], inner: string) {
+  for (let i = props.length - 1; i >= 0; i--)
+    inner = props[i].name + "(" + inner + ")"
   return inner
 }
 
@@ -387,9 +377,9 @@ function joinText(nodes: readonly Node[]) {
   let joined: Node[] | undefined
   for (let i = 0, last = null; i < nodes.length; i++) {
     let node = nodes[i]
-    if (last && node.isText() && last.isText() && last.props.eq(node.props)) {
+    if (last && node.isText() && last.isText() && last.tag.sameProps(node.tag)) {
       if (!joined) joined = nodes.slice(0, i)
-      last = joined[joined.length - 1] = Node.text(last.text + node.text, node.props)
+      last = joined[joined.length - 1] = Node.text(last.text + node.text, node.tag.props)
     } else {
       last = node
       if (joined) joined.push(node)

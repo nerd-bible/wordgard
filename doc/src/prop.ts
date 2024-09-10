@@ -68,15 +68,25 @@ export class PropType<Value> {
     return this.rank - other.rank || (other.name < this.name ? 1 : -1)
   }
 
+  removeFromSet(set: readonly Prop[]): readonly Prop[] {
+    for (var i = 0; i < set.length; i++) if (set[i].type == this) return remove(set, i)
+    return set
+  }
+
+  isInSet(set: readonly Prop[]): Prop | null {
+    for (let v of set) if (v.type == this) return v
+    return null
+  }
+
   static define<Value>(name: string, spec: PropSpec<Value>) {
     return new PropType<Value>(name, spec, false)
   }
 }
 
-export class Prop<Value = any> {
+export class Prop<Value = unknown> {
   constructor(readonly type: PropType<Value>, readonly value: Value) {}
 
-  eq(other: Prop) {
+  eq(other: Prop<any>) {
     return this.type == other.type && compareDeep(this.value, other.value)
   }
 
@@ -89,90 +99,51 @@ export class Prop<Value = any> {
   static define(name: string, spec: PropSpec<null>): Prop<null> {
     return new PropType<null>(name, spec, true).default!
   }
-}
 
-export class PropSet {
-  constructor(readonly set: readonly Prop[]) {}
-
-  eq(other: PropSet) {
-    return this == other || eqArray(this.set, other.set)
-  }
-
-  add(prop: Prop) {
-    let placed = null, copy: Prop[] = []
-    for (let i = 0; i < this.set.length; i++) {
-      let other = this.set[i]
-      if (prop.eq(other)) return this
-      if (other.type != prop.type) {
-        if (!placed && prop.type.compareRank(other.type) < 0) copy.push(placed = prop)
+  addToSet(set: readonly Prop<any>[]): readonly Prop[] {
+    let placed: Prop<any> | null = null, copy: Prop<any>[] = []
+    for (let i = 0; i < set.length; i++) {
+      let other = set[i]
+      if (this.eq(other)) return set
+      if (other.type != this.type) {
+        if (!placed && this.type.compareRank(other.type) < 0) copy.push(placed = this)
         copy.push(other)
-      } else if (prop.type.set) {
-        copy.push(placed = new Prop(prop.type, addSet(other.value, prop.value, prop.type.set)))
+      } else if (this.type.set) {
+        copy.push(placed = new Prop(this.type, addSet(other.value as any[], this.value as any[], this.type.set) as any))
       }
     }
-    if (!placed) copy.push(prop)
-    return new PropSet(copy)
+    if (!placed) copy.push(this)
+    return copy
   }
 
-  join(other: PropSet) {
-    let result = this as PropSet
-    for (let val of other.set) result = result.add(val)
-    return result
-  }
-
-  remove(prop: PropType<any> | Prop): PropSet {
-    if (prop instanceof PropType) {
-      for (var i = 0; i < this.set.length; i++) if (this.set[i].type == prop)
-        return this.set.length > 1 ? new PropSet(remove(this.set, i)) : PropSet.empty
-    } else {
-      let type = prop.type
-      for (var i = 0; i < this.set.length; i++) if (this.set[i].type == type) {
-        let val = this.set[i], set: readonly Prop[]
-        if (type.set) {
-          let rest = subtractSet(val.value, prop.value, type.set)
-          if (!rest.length) {
-            set = remove(this.set, i)
-          } else {
-            set = this.set.slice()
-            ;(set as Prop[])[i] = new Prop(type, rest)
-          }
-        } else if (!val.eq(prop)) {
-          continue
+  removeFromSet(set: readonly Prop<any>[]): readonly Prop[] {
+    let type = this.type
+    for (var i = 0; i < set.length; i++) if (set[i].type == type) {
+      let val = set[i], newSet: readonly Prop<any>[]
+      if (type.set) {
+        let rest = subtractSet(val.value as any[], this.value as any[], type.set)
+        if (!rest.length) {
+          newSet = remove(set, i)
         } else {
-          set = remove(this.set, i)
+          newSet = set.slice()
+          ;(newSet as Prop[])[i] = new Prop(type, rest as any)
         }
-        return set.length ? new PropSet(set) : PropSet.empty
+      } else if (!val.eq(this as any)) {
+        continue
+      } else {
+        newSet = remove(set, i)
       }
+      return newSet
     }
-    return this
+    return set
   }
 
-  has(prop: PropType<any> | Prop): Prop | null {
-    if (prop instanceof PropType) {
-      for (let v of this.set) if (v.type == prop) return v
-    } else {
-      for (let v of this.set) if (v.eq(prop)) return v
-    }
+  isInSet(set: readonly Prop<any>[]): Prop | null {
+    for (let v of set) if (v.eq(this)) return v
     return null
   }
 
-  get<Value>(prop: PropType<Value>, required: true): Value
-  get<Value>(prop: PropType<Value>): Value | undefined
-  get<Value>(prop: PropType<Value>, required = false): Value | undefined {
-    for (let v of this.set) if (v.type == prop) return v.value
-    if (required) throw new Error(`Missing required prop ${prop.name}`)
-    return undefined
-  }
-  
-  get empty() { return this.set.length == 0 }
-
-  toString() { return "{" + this.set.join(",") + "}" }
-
-  static empty = new PropSet(none)
-
-  static of(props: readonly Prop[]) {
-    let result = PropSet.empty
-    for (let prop of props) result = result.add(prop)
-    return result
+  static sameSet(a: readonly Prop<any>[], b: readonly Prop<any>[]): boolean {
+    return eqArray(a, b)
   }
 }

@@ -1,4 +1,4 @@
-import {PropType, Prop, PropSet, Emphasis, Strong, Link, Code} from "@willows/doc"
+import {PropType, Prop, Emphasis, Strong, Link, Code} from "@willows/doc"
 import ist from "ist"
 
 let Tag = PropType.define<readonly number[]>("Tag", {
@@ -17,80 +17,84 @@ describe("Prop", () => {
        ist(!Link.of("http://foo").eq(Link.of("http://bar"))))
   })
 
-  describe("set-eq", () => {
-    it("returns true for two empty sets", () => ist(PropSet.empty.eq(PropSet.empty)))
+  function set(props: readonly Prop<any>[]) {
+    let result: readonly Prop<any>[] = []
+    for (let prop of props) result = prop.addToSet(result)
+    return result
+  }
 
-    it("returns true for simple identical sets", () =>
-       ist(PropSet.of([Emphasis, Strong]).eq(PropSet.of([Emphasis, Strong]))))
-
-    it("returns false for different sets", () =>
-       ist(!PropSet.of([Emphasis, Strong]).eq(PropSet.of([Emphasis, Code]))))
-
-    it("returns false when set size differs", () =>
-       ist(!PropSet.of([Emphasis, Strong]).eq(PropSet.of([Emphasis, Strong, Code]))))
-
-    it("recognizes identical links in set", () =>
-       ist(PropSet.of([Link.of("http://foo"), Code]).eq(PropSet.of([Link.of("http://foo"), Code]))))
-
-    it("recognizes different links in set", () =>
-       ist(!PropSet.of([Link.of("http://foo"), Code]).eq(PropSet.of([Link.of("http://bar"), Code]))))
-  })
-
-  function eqSet(set: PropSet, array: Prop[]) {
-    if (set.set.length != array.length) return false
-    for (let i = 0; i < array.length; i++) if (!set.set[i].eq(array[i])) return false
+  function eqSet(a: readonly Prop<any>[], b: readonly Prop<any>[]) {
+    if (a.length != b.length) return false
+    for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
     return true
   }
 
+  describe("set-eq", () => {
+    it("returns true for simple identical sets", () =>
+       ist(set([Emphasis, Strong]), set([Emphasis, Strong]), eqSet))
+
+    it("returns false for different sets", () =>
+       ist(!eqSet(set([Emphasis, Strong]), set([Emphasis, Code]))))
+
+    it("returns false when set size differs", () =>
+       ist(!eqSet(set([Emphasis, Strong]), set([Emphasis, Strong, Code]))))
+
+    it("recognizes identical links in set", () =>
+       ist(set([Link.of("http://foo"), Code]), set([Link.of("http://foo"), Code]), eqSet))
+
+    it("recognizes different links in set", () =>
+       ist(!eqSet(set([Link.of("http://foo"), Code]), set([Link.of("http://bar"), Code]))))
+  })
+
   describe("add", () => {
     it("can add to the empty set", () =>
-       ist(PropSet.empty.add(Emphasis), [Emphasis], eqSet))
+       ist(Emphasis.addToSet([]), [Emphasis], eqSet))
 
     it("is a no-op when the added thing is in set", () =>
-       ist(PropSet.of([Emphasis, Emphasis]), [Emphasis], eqSet))
+       ist(set([Emphasis, Emphasis]), [Emphasis], eqSet))
 
     it("adds marks with lower rank before others", () =>
-       ist(PropSet.of([Strong, Emphasis]), [Emphasis, Strong], eqSet))
+       ist(set([Strong, Emphasis]), [Emphasis, Strong], eqSet))
 
     it("adds marks with higher rank after others", () =>
-       ist(PropSet.of([Strong]).add(Emphasis), [Emphasis, Strong], eqSet))
+       ist(Emphasis.addToSet(set([Strong])), [Emphasis, Strong], eqSet))
 
     it("replaces different marks with new params", () =>
-       ist(PropSet.of([Link.of("http://foo"), Emphasis]).add(Link.of("http://bar")),
+       ist(Link.of("http://bar").addToSet(set([Link.of("http://foo"), Emphasis])),
            [Link.of("http://bar"), Emphasis], eqSet))
 
     it("does nothing when adding an existing link", () =>
-       ist(PropSet.of([Emphasis, Link.of("http://foo")]).add(Link.of("http://foo")),
+       ist(Link.of("http://foo").addToSet(set([Emphasis, Link.of("http://foo")])),
            [Link.of("http://foo"), Emphasis], eqSet))
 
     it("puts code marks at the end", () =>
-       ist(PropSet.of([Link.of("http://foo"), Emphasis, Strong]).add(Code),
+       ist(Code.addToSet(set([Link.of("http://foo"), Emphasis, Strong])),
            [Link.of("http://foo"), Emphasis, Strong, Code], eqSet))
 
     it("puts marks with middle rank in the middle", () =>
-       ist(PropSet.of([Emphasis, Code]).add(Strong), [Emphasis, Strong, Code], eqSet))
+       ist(Strong.addToSet(set([Emphasis, Code])), [Emphasis, Strong, Code], eqSet))
 
     it("combines multi-props", () =>
-       ist(PropSet.of([tag1]).add(tag2), [tag12], eqSet))
+       ist(tag2.addToSet(set([tag1])), [tag12], eqSet))
 
     it("doesn't duplicate identical instances of multi-props", () =>
-       ist(PropSet.of([tag1]).add(tag1), [tag1], eqSet))
+       ist(tag1.addToSet(set([tag1])), [tag1], eqSet))
   })
 
   describe("remove", () => {
     it("is a no-op for the empty set", () =>
-       ist(PropSet.empty.remove(Emphasis), [], eqSet))
+       ist(Emphasis.removeFromSet([]), [], eqSet))
 
     it("can remove the last mark from a set", () =>
-       ist(PropSet.of([Emphasis]).remove(Emphasis), [], eqSet))
+       ist(Emphasis.removeFromSet([Emphasis]), [], eqSet))
 
     it("is a no-op when the mark isn't in the set", () =>
-       ist(PropSet.of([Emphasis]).remove(Strong), [Emphasis], eqSet))
+       ist(Strong.removeFromSet([Emphasis]), [Emphasis], eqSet))
 
     it("can remove a mark with params", () =>
-       ist(PropSet.of([Link.of("http://foo")]).remove(Link.of("http://foo")), [], eqSet))
+       ist(Link.of("http://foo").removeFromSet([Link.of("http://foo")]), [], eqSet))
 
     it("doesn't remove a mark when its params differ", () =>
-       ist(PropSet.of([Link.of("http://bar")]).remove(Link.of("http://foo")), [Link.of("http://bar")], eqSet))
+       ist(Link.of("http://foo").removeFromSet([Link.of("http://bar")]), [Link.of("http://bar")], eqSet))
   })
 })
