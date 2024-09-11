@@ -3,6 +3,7 @@ import {Slice, CloseToken} from "./slice"
 import {Prop} from "./prop"
 import {Attrs, ElementRepresentation, AttributeRepresentation,
         isElementRepresentation, isAttributeRepresentation} from "./spec"
+import {OpenSide} from "./from_dom"
 
 export type SerializeOptions = {
   document?: Document
@@ -29,7 +30,7 @@ export function serializeNode(node: Node, options?: SerializeOptions): HTMLEleme
 }
 
 export function serializeSlice(slice: Slice, options: SerializeOptions & {
-  markOpen?: (elt: HTMLElement, side: "start" | "end") => void
+  markOpen?: (elt: HTMLElement, side: OpenSide) => void
   includeContext?: number
 } = {}): DocumentFragment {
   let opts = fillOptions(options)
@@ -48,22 +49,20 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
       top.appendChild(wrap)
       top = wrap
     } else if (top.parentNode) {
-      if (i == slice.content.length && options.markOpen) options.markOpen(top as HTMLElement, "end")
+      if (i == slice.content.length && options.markOpen) options.markOpen(top as HTMLElement, OpenSide.End)
       top = top.parentNode as DocumentFragment | HTMLElement
     } else {
       let wrap = slice.context.length < contextDepth ? opts.document.createElement("div")
         : serializeNodeMarkup(slice.context[contextDepth++], opts) as HTMLElement
       wrap.appendChild(top)
-      if (options.markOpen) {
-        options.markOpen(wrap, "start")
-        if (i == slice.content.length) options.markOpen(wrap, "end")
-      }
+      if (options.markOpen)
+        options.markOpen(wrap, OpenSide.Start | (i == slice.content.length ? OpenSide.End : 0))
       result = top = opts.document.createDocumentFragment()
       top.appendChild(wrap)
     }
   }
   while (top != result) {
-    if (options.markOpen) options.markOpen(top as HTMLElement, "end")
+    if (options.markOpen) options.markOpen(top as HTMLElement, OpenSide.End)
     top = top.parentNode as DocumentFragment | HTMLElement
   }
   return result

@@ -1,6 +1,7 @@
 import ist from "ist"
 import {DocNode, Node, basicBuilder, builder, Prop, PropType, Slice, OpenToken, CloseToken, Token,
-        serialize, serializeSlice, parseDoc, parseSlice, ParseOptions, Schema, basicSchema, tag} from "@willows/doc"
+        serialize, serializeSlice, parseDoc, parseSlice, OpenSide, ParseOptions,
+        Schema, basicSchema, tag} from "@willows/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilder
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
@@ -67,8 +68,9 @@ describe("serializeSlice", () => {
         "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  function markOpen(elt: HTMLElement, side: "end" | "start") {
-    elt.setAttribute("open-" + side, "true")
+  function markOpen(elt: HTMLElement, open: OpenSide) {
+    if (open & OpenSide.Start) elt.setAttribute("open-start", "true")
+    if (open & OpenSide.End) elt.setAttribute("open-end", "true")
   }
 
   it("can mark open nodes", () => {
@@ -189,5 +191,14 @@ describe("parseSlice", () => {
 
   it("doesn't open leaf nodes", () => {
     ist(parse("<hr><p>A<br></p>"), slice([hr(), new OpenToken(p().tag), "A", br()], []), sameSlice)
+  })
+
+  function isOpen(elt: HTMLElement) {
+    return (elt.hasAttribute("open-start") ? OpenSide.Start : 0) | (elt.hasAttribute("open-end") ? OpenSide.End : 0)
+  }
+
+  it("can query the DOM for open structure", () => {
+    ist(parse('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}),
+        slice([new OpenToken(p().tag), "hi"], [blockquote()]), sameSlice)
   })
 })

@@ -62,6 +62,7 @@ export type ParseOptions = {
   /// by writing to the objects, setting a `pos` property that holds
   /// the document position.
   findPositions?: {node: DOMNode, offset: number, pos?: number}[]
+  isOpen?: (elt: HTMLElement) => OpenSide
 }
 
 export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
@@ -72,6 +73,8 @@ export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, op
   return cx.finishNode(cx.top) as DocNode
 }
 
+export enum OpenSide { Start = 1, End = 2, Both = 3 }
+
 export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
   let top = new NodeContext(null, CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
   let cx = new ParseContext(schema, options, top)
@@ -81,15 +84,15 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
   let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
     for (let i = 0; i < children.length; i++) {
       let child = children[i]
-      if (openStart && i == 0 && !child.isLeaf()) {
-        if (children.length == 1 && openEnd) {
+      if (openStart && i == 0 && !child.isLeaf() && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
+        if (children.length == 1 && openEnd && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
           emitTokens(child.children, true, true)
         } else {
           emitTokens(child.children, true, false)
           tokens.push(CloseToken)
         }
         context.push(children[0].tag)
-      } else if (openEnd && i == children.length - 1 && !child.isLeaf()) {
+      } else if (openEnd && i == children.length - 1 && !child.isLeaf() && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
         tokens.push(new OpenToken(child.tag))
         emitTokens(child.children, false, true)
       } else {
@@ -111,6 +114,7 @@ const enum CxFlag {
 class ParseContext {
   find: {node: DOMNode, offset: number, pos?: number}[] | undefined
   rules: RuleSet
+  open: Map<Node, CxFlag> = new Map
 
   constructor(readonly schema: Schema, readonly options: ParseOptions, public top: NodeContext) {
     this.find = options.findPositions
@@ -171,14 +175,14 @@ class ParseContext {
       tag = rule.tag instanceof Tag ? rule.tag :
         rule.tag instanceof TagType ? (hasValue ? rule.tag.of(match.value) : rule.tag.default) : null
       if (!tag) throw new Error(`Parse rule for ${rule.selector} does not produce a tag`)
-      if (!tag.isLeaf()) {
-        let innerProps = this.enter(tag, props, endOfSlice)
+      if (tag.isLeaf()) {
+        this.insertNode(tag.create(), props)
+      } else {
+        let innerProps = this.enter(tag, props, endOfSlice, elt)
         if (innerProps) {
           sync = true
           props = innerProps
         }
-      } else {
-        this.insertNode(tag.create(), props)
       }
     } else {
       let prop = rule.prop instanceof Prop ? rule.prop :
@@ -289,19 +293,19 @@ class ParseContext {
     if (!route) return null
     this.sync(under!)
     for (let i = 0; i < route.length; i++)
-      props = this.enterInner(route[i], props, endOfSlice, false)
+      props = this.enterInner(route[i], props, endOfSlice, null)
     return props
   }
 
-  enter(tag: Tag<unknown>, props: readonly Prop[], endOfSlice: boolean) {
+  enter(tag: Tag<unknown>, props: readonly Prop[], endOfSlice: boolean, elt: HTMLElement) {
     let innerProps = this.findPlace(tag, props, endOfSlice)
-    if (innerProps) innerProps = this.enterInner(tag, props, endOfSlice, true)
+    if (innerProps) innerProps = this.enterInner(tag, props, endOfSlice, elt)
     return innerProps
   }
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean, solid: boolean = false) {
+  enterInner(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean, element: HTMLElement | null) {
     props = props.filter(p => {
       if (!p.type.canTarget(tag.type)) return true
       tag = tag.addProp(p)
@@ -309,7 +313,12 @@ class ParseContext {
     })
     let open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
       (endOfSlice ? this.top.flags & CxFlag.OpenEnd : 0)
-    this.top = new NodeContext(tag, (solid ? CxFlag.Solid : CxFlag.None) | open, this.top)
+    if (open && element && this.options.isOpen) {
+      let test = this.options.isOpen(element)
+      if (!(test & OpenSide.Start)) open &= ~CxFlag.OpenStart
+      if (!(test & OpenSide.End)) open &= ~CxFlag.OpenEnd
+    }
+    this.top = new NodeContext(tag, (element ? CxFlag.Solid : CxFlag.None) | open, this.top)
     return props
   }
 
@@ -335,12 +344,13 @@ class ParseContext {
         else cx.children[cx.children.length - 1] = last.cutText(0, len)
       }
     }
-    if (!(cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)) &&
-        !cx.tag!.inlineContent() && !cx.tag!.isLeaf() && !cx.children.length)
+    let open = cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)
+    if (!open && !cx.tag!.inlineContent() && !cx.tag!.isLeaf() && !cx.children.length)
       cx.children.push(this.schema.createDefault(cx.tag!.type))
-    return cx.tag!.isDoc() ? this.schema.doc(cx.children) : cx.tag!.create(cx.children)
+    let node = cx.tag!.isDoc() ? this.schema.doc(cx.children) : cx.tag!.create(cx.children)
+    if (open) this.open.set(node, open)
+    return node
   }
-
 
   scanInside(dom: DOMNode) {
     if (this.find && dom.nodeType == 1) for (let query of this.find) {
