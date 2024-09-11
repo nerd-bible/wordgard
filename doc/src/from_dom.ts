@@ -90,7 +90,7 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
         }
         context.push(children[0].tag)
       } else if (openEnd && i == children.length - 1 && !child.isLeaf()) {
-        tokens.push(new OpenToken(child))
+        tokens.push(new OpenToken(child.tag))
         emitTokens(child.children, false, true)
       } else {
         tokens.push(child)

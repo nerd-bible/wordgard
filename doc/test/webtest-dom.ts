@@ -157,7 +157,7 @@ describe("parseSlice", () => {
   }
 
   it("can parse a simple slice", () => {
-    ist(parse("<p>One</p><p>Two</p>"), slice(["One", CloseToken, new OpenToken(p()), "Two"], [p()]), sameSlice)
+    ist(parse("<p>One</p><p>Two</p>"), slice(["One", CloseToken, new OpenToken(p().tag), "Two"], [p()]), sameSlice)
   })
 
   it("can parse text at the top level", () => {
@@ -173,6 +173,6 @@ describe("parseSlice", () => {
   })
 
   it("doesn't open leaf nodes", () => {
-    ist(parse("<hr><p>A<br></p>"), slice([hr(), new OpenToken(p()), "A", br()], []), sameSlice)
+    ist(parse("<hr><p>A<br></p>"), slice([hr(), new OpenToken(p().tag), "A", br()], []), sameSlice)
   })
 })

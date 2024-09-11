@@ -1,8 +1,8 @@
-import {Node, TextNode, DocNode} from "./node"
+import {Node, Tag, TextNode, DocNode} from "./node"
 
 export interface Walker {
   skip(node: Node): void
-  enter(node: Node): void
+  enter(tag: Tag): void
   leave(): void
 }
 
@@ -111,7 +111,7 @@ function advanceContext(distance: number, node: Node, index: number,
         if (walk) walk.skip(next.cutText(0, target - pos))
         return new Context(node, index, target, target - pos, parent)
       } else {
-        if (walk) walk.enter(next)
+        if (walk) walk.enter(next.tag)
         parent = new Context(node, index, pos, 0, parent)
         pos++
         node = next

@@ -6,37 +6,40 @@ import {Context, Walker} from "./context"
 
 class BuildContext {
   children: Node[] = []
-  constructor(readonly node: Node) {}
+  constructor(readonly tag: Tag) {}
 }
 
 class Builder implements Walker {
   stack: BuildContext[]
   modifications: readonly Modification[] | null = null
+  schema: Schema
 
   constructor(doc: DocNode) {
-    this.stack = [new BuildContext(doc)]
+    this.schema = doc.schema
+    this.stack = [new BuildContext(doc.tag)]
   }
 
   add(node: Node) {
     if (this.modifications) {
       if (!node.tag.isLeaf()) throw new Error("Invalid modification on non-leaf node")
-      node = applyModifications(this.modifications, node)
+      let tag = applyModifications(this.modifications, node.tag)
+      if (tag != node.tag) node = tag.create(node.children)
     }
     node.pushTo(this.stack[this.stack.length - 1].children)
   }    
 
-  enter(node: Node) {
-    if (this.modifications) node = applyModifications(this.modifications, node)
-    this.stack.push(new BuildContext(node))
+  enter(tag: Tag) {
+    if (this.modifications) tag = applyModifications(this.modifications, tag)
+    this.stack.push(new BuildContext(tag))
   }
 
   leave() {
     if (this.modifications) throw new Error("Invalid modification on close token")
     if (this.stack.length == 1) throw new Error("Surplus close token")
     let top = this.stack.pop()!
-    if (!top.children.length && !top.node.tag.isLeaf() && !top.node.inlineContent())
+    if (!top.children.length && !top.tag.isLeaf() && !top.tag.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
-    this.add(top.node.copy(top.children))
+    this.add(top.tag.create(top.children))
   }
 
   skip(node: Node) {
@@ -45,10 +48,10 @@ class Builder implements Walker {
 
   finish() {
     if (this.stack.length != 1) throw new Error("Invalid change")
-    let {node, children} = this.stack[0]
-    if (!children.length && !node.inlineContent())
+    let {tag, children} = this.stack[0]
+    if (!children.length && !tag.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
-    return node.copy(children) as DocNode
+    return this.schema.doc(children)
   }
 }
 
@@ -57,17 +60,17 @@ type Modification = {add: Prop} | {remove: Prop}
 function isAdd(m: Modification): m is {add: Prop} { return !!(m as any).add }
 function isRemove(m: Modification): m is {remove: Prop} { return !!(m as any).remove }
 
-function applyModifications(modifications: readonly Modification[], node: Node) {
+function applyModifications(modifications: readonly Modification[], tag: Tag) {
   for (const m of modifications) {
     if (isAdd(m)) {
-      if (!m.add.type.canTarget(node.tag.type))
-        throw new Error(`Trying to add prop ${m.add.name} to a node of type ${node.name}`)
-      node = node.tag.addProp(m.add).create(node.children)
+      if (!m.add.type.canTarget(tag.type))
+        throw new Error(`Trying to add prop ${m.add.name} to a node of type ${tag.name}`)
+      tag = tag.addProp(m.add)
     } else {
-      node = node.tag.removeProp(m.remove).create(node.children)
+      tag = tag.removeProp(m.remove)
     }
   }
-  return node
+  return tag
 }
 
 export type ModificationJSON = {add: string, value: any} | {remove: string, value: any}
@@ -572,9 +575,9 @@ function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
   let content: Token[] = []
   for (let tok of slice.content) {
     if (tok.tokenType == TokenType.Open) {
-      content.push(new OpenToken(applyModifications(mods, tok.node)))
+      content.push(new OpenToken(applyModifications(mods, tok.tag)))
     } else if (tok.tokenType == TokenType.Node) {
-      let node = applyModifications(mods, tok)
+      let node = applyModifications(mods, tok.tag).create(tok.children)
       if (content.length && content[content.length - 1].tokenType == TokenType.Node)
         node.pushTo(content as Node[])
       else
@@ -691,7 +694,7 @@ class ChangeFitter implements Walker {
       this.stackDelta--
     }
     for (let wrapper of fix.enter) {
-      this.patch(0, new OpenToken(wrapper.create()))
+      this.patch(0, new OpenToken(wrapper))
       this.stack.flags &= ~FitFlag.NeedsChild
       this.stack = new FitLevel(wrapper, this.stack)
       this.stack.flags |= FitFlag.Synthetic
@@ -716,7 +719,7 @@ class ChangeFitter implements Walker {
     for (let i = levels.length; i < depth + 1; i++) {
       let cx = context.atDepth(i)
       this.stack = new FitLevel(cx.node.tag, this.stack)
-      this.patch(0, new OpenToken(cx.node))
+      this.patch(0, new OpenToken(cx.node.tag))
     }
   }
 
@@ -744,14 +747,14 @@ class ChangeFitter implements Walker {
     this.pos += node.length
   }
 
-  enter(node: Node) {
+  enter(tag: Tag) {
     if (this.inserting) this.inputDelta++
     if (this.doubleDeleteDelta > 0) {
       this.doubleDeleteDelta--
       this.patch(1)
-    } else if (this.fit(node.tag)) {
+    } else if (this.fit(tag)) {
       this.stack.flags &= ~FitFlag.NeedsChild
-      this.stack = new FitLevel(node.tag, this.stack)
+      this.stack = new FitLevel(tag, this.stack)
       if (this.inserting) this.stackDelta++
     } else {
       this.patch(1)

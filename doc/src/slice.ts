@@ -1,17 +1,17 @@
-import {TokenType, Node, NodeJSON, Tag} from "./node"
+import {TokenType, Node, NodeJSON, TagJSON, Tag} from "./node"
 import {Schema} from "./schema"
 import {Walker} from "./context"
 import {none} from "./helper"
 
 export class OpenToken {
-  constructor(readonly node: Node) { // FIXME only put tag/props in here?
-    if (node.tag.isLeaf()) throw new Error("Cannot create an opening token for a leaf node")
+  constructor(readonly tag: Tag) { // FIXME only put tag/props in here?
+    if (tag.isLeaf()) throw new Error("Cannot create an opening token for a leaf node")
   }
 
   get tokenType(): TokenType.Open { return TokenType.Open }
 
   /// @internal
-  toString() { return `OPEN(${this.node.name})` }
+  toString() { return `OPEN(${this.tag.name})` }
 }
 
 export type CloseToken = {tokenType: TokenType.Close}
@@ -34,13 +34,13 @@ export class Slice {
 
   toJSON(): SliceJSON {
     return this.content.map(e => e.tokenType == TokenType.Node ? {node: e.toJSON()}
-      : e.tokenType == TokenType.Open ? {open: e.node.toJSON()} : {close: true})
+      : e.tokenType == TokenType.Open ? {open: e.tag.toJSON()} : {close: true})
   }
 
   static fromJSON(schema: Schema, json: SliceJSON) {
     if (!Array.isArray(json)) throw new Error("Invalid slice JSON")
     return new Slice(json.map(value => {
-      if (value.open) return new OpenToken(schema.nodeFromJSON(value.open))
+      if (value.open) return new OpenToken(schema.tagFromJSON(value.open))
       if (value.close) return CloseToken
       if (value.node) return schema.nodeFromJSON(value.node)
       throw new Error("Invalid slice JSON")
@@ -56,7 +56,7 @@ export class Slice {
       } else if (a.tokenType == TokenType.Node) {
         if (!((b.tokenType == TokenType.Node) && a.eq(b))) return false
       } else if (a.tokenType == TokenType.Open) {
-        if (!((b.tokenType == TokenType.Open) && a.node.tag.eq(b.node.tag))) return false
+        if (!((b.tokenType == TokenType.Open) && a.tag.eq(b.tag))) return false
       }
     }
     return true
@@ -64,7 +64,7 @@ export class Slice {
 
   run(track: Walker) {
     for (let elt of this.content) {
-      if (elt.tokenType == TokenType.Open) track.enter(elt.node)
+      if (elt.tokenType == TokenType.Open) track.enter(elt.tag)
       else if (elt.tokenType == TokenType.Node) track.skip(elt)
       else track.leave()
     }
@@ -107,4 +107,4 @@ export class Slice {
   }
 }
 
-export type SliceJSON = readonly ({node: NodeJSON} | {open: NodeJSON} | {close: true})[]
+export type SliceJSON = readonly ({node: NodeJSON} | {open: TagJSON} | {close: true})[]

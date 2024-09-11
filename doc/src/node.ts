@@ -153,6 +153,16 @@ export class Tag<Param = unknown> {
   isTextblock() { return this.type.isTextblock() }
   isLeaf() { return this.type.isLeaf() }
   isDoc() { return this.type.isDoc() }
+
+  toJSON(): TagJSON {
+    let result: TagJSON = {type: this.name}
+    if (this != this.type.default) result.param = this.param
+    if (this.props.length) {
+      result.props = Object.create(null)
+      for (let {name, value} of this.props) result.props![name] = value
+    }
+    return result
+  }
 }
 
 function checkReserved(name: string) {
@@ -197,10 +207,6 @@ export class Node {
     return this == other || this.tag.eq(other.tag) && eqArray(this.children, other.children)
   }
 
-  copy(children: readonly Node[]) {
-    return new Node(this.tag, this.tag.type.checkChildren(joinText(children)))
-  }
-
   slice(from: number, to = this.length, context = false) {
     if (from == to) return Slice.empty
     let content: Token[] = []
@@ -224,7 +230,7 @@ export class Node {
         content.push(this)
         return
       }
-      content.push(new OpenToken(this.copy(none)))
+      content.push(new OpenToken(this.tag))
     }
     sliceContent(content, this.children, from - 1, to - 1)
     if (to >= this.length) content.push(CloseToken)
@@ -269,13 +275,7 @@ export class Node {
   }
 
   toJSON(): NodeJSON {
-    let result: NodeJSON = {type: this.name}
-    if (this.tag != this.tag.type.default) result.param = this.tag.param
-    if (this.tag.props.length) {
-      result.props = Object.create(null)
-      for (let {name, value} of this.tag.props) result.props![name] = value
-    }
-    if (this.isText()) result.text = this.text
+    let result = this.tag.toJSON() as NodeJSON
     if (this.children.length) result.children = this.children.map(c => c.toJSON())
     return result
   }
@@ -315,16 +315,18 @@ export class Node {
 
 export type TextNode = Node & {text: string}
 
-export type NodeJSON = {
-  type: string,
+export interface TagJSON {
+  type: string
   param?: any
   props?: {[name: string]: any}
-  text?: string,
+}
+
+export interface NodeJSON extends TagJSON {
   children?: readonly NodeJSON[]
 }
 
-export type MarkJSON = {
-  type: string,
+export interface MarkJSON {
+  type: string
   params?: any
 }
 
@@ -336,10 +338,6 @@ export class DocNode extends Node {
   get length() { return this.contentLength }
 
   get schema() { return this.tag.param as Schema }
-
-  copy(children: readonly Node[]) {
-    return new DocNode(this.tag as Tag<Schema>, this.tag.type.checkChildren(children))
-  }
 
   sliceNode(content: Token[], from: number, to: number) {
     sliceContent(content, this.children, from, to)

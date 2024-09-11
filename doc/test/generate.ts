@@ -1,4 +1,4 @@
-import {Node, Prop, DocNode, TextNode, PropType,
+import {Node, Tag, Prop, DocNode, TextNode, PropType,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilder, ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
@@ -11,7 +11,7 @@ export const Comment = PropType.define<readonly number[]>("Comment", {
   dom: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
 
-export function open(node: Node) { return new OpenToken(node) }
+export function open(node: Node) { return new OpenToken(node.tag) }
 export const close = CloseToken
 
 export function slice(...tokens: (Token | string)[]) {
@@ -40,26 +40,26 @@ function rWord(len = 2 + r(5)) {
 }
 
 export function rDoc(minLength: number) {
-  let stack: {type: Node, children: Node[]}[] = [{type: doc(), children: []}]
+  let stack: {tag: Tag, children: Node[]}[] = [{tag: doc().tag, children: []}]
   let len = 0
   function open() {
     while (!r(5)) {
       for (let type of r(1) ? [blockquote()] : [r(1) ? ul() : ol(), li()]) {
-        stack.push({type, children: []})
+        stack.push({tag: type.tag, children: []})
         len++
       }
     }
-    stack.push({type: r(5) ? p() : r(2) ? pre() : h1(), children: []})
+    stack.push({tag: (r(5) ? p() : r(2) ? pre() : h1()).tag, children: []})
     len++
   }
   function closeOne() {
     let top = stack.pop()!
-    stack[stack.length - 1].children.push(top.type.copy(top.children))
+    stack[stack.length - 1].children.push(top.tag.create(top.children))
     len++
   }
   function close() {
     closeOne()
-    while (stack.length > 1 && (!stack[stack.length - 1].type.tag.type.canContain(Paragraph.type) || r(3))) closeOne()
+    while (stack.length > 1 && (!stack[stack.length - 1].tag.type.canContain(Paragraph.type) || r(3))) closeOne()
   }
   do {
     open()

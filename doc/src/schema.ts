@@ -1,4 +1,4 @@
-import {Node, Tag, TagType, NodeJSON, Text, DocNode} from "./node"
+import {Node, Tag, TagType, TagJSON, NodeJSON, Text, DocNode} from "./node"
 import {Prop, PropType} from "./prop"
 import {none} from "./helper"
 import {Reject} from "./spec"
@@ -116,24 +116,29 @@ export class Schema {
   }
 
   nodeFromJSON(json: NodeJSON) {
+    let tag = this.tagFromJSON(json), children = none
+    if (json.children && Array.isArray(json.children))
+      children = json.children.map(c => this.nodeFromJSON(c))
+    if (tag.type.isDoc()) return this.doc(children)
+    return tag.create(children)
+  }
+
+  tagFromJSON(json: TagJSON) {
     if (!json || typeof json != "object" || !(json.type in this.tagsByName))
-      throw new Error("Invalid node JSON")
+      throw new Error("Invalid tag JSON")
     let type = this.tagsByName[json.type]
-    let tag = "param" in json ? new Tag(type, json.param, none) : type.default
-    if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
-    let props = none, children = none
+    let props = none
     if (json.props && typeof json.props == "object") {
       for (let name in json.props) {
         let prop = this.propsByName[name]
         if (prop) props = prop.of(json.props[name]).addToSet(props)
       }
     }
-    if (type.isText() && typeof json.text == "string")
-      return Node.text(json.text, props)
-    if (json.children && Array.isArray(json.children))
-      children = json.children.map(c => this.nodeFromJSON(c))
-    if (type.isDoc()) return this.doc(children)
-    return (props.length ? tag.type.of(tag.param, props) : tag).create(children)
+    let tag = "param" in json ? new Tag(type, json.param, props)
+      : !type.default ? null
+      : props.length ? new Tag(type, type.default.param, props) : type.default
+    if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
+    return tag
   }
 
   docFromJSON(json: NodeJSON) {

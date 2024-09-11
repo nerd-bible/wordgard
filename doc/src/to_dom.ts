@@ -39,7 +39,7 @@ export function serializeSlice(slice: Slice, options?: SerializeOptions): Docume
       while (i < slice.content.length && slice.content[i].tokenType == TokenType.Node) i++
       serializeChildren(slice.content.slice(start, i) as Node[], top, opts, next.isInline())
     } else if (next.tokenType == TokenType.Open) {
-      let wrap = serializeNodeMarkup(next.node.tag, opts) as HTMLElement
+      let wrap = serializeNodeMarkup(next.tag, opts) as HTMLElement
       top.appendChild(wrap)
       top = wrap
     } else if (top.parentNode) {
