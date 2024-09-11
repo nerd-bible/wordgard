@@ -1,5 +1,5 @@
 import {DocNode, Node, Tag, TokenType} from "./node"
-import {Slice} from "./slice"
+import {Slice, CloseToken} from "./slice"
 import {Prop} from "./prop"
 import {Attrs, ElementRepresentation, AttributeRepresentation,
         isElementRepresentation, isAttributeRepresentation} from "./spec"
@@ -28,12 +28,17 @@ export function serializeNode(node: Node, options?: SerializeOptions): HTMLEleme
   return frag.firstChild as (HTMLElement | Text)
 }
 
-export function serializeSlice(slice: Slice, options?: SerializeOptions): DocumentFragment {
+export function serializeSlice(slice: Slice, options: SerializeOptions & {
+  markOpen?: (elt: HTMLElement, side: "start" | "end") => void
+  includeContext?: number
+} = {}): DocumentFragment {
   let opts = fillOptions(options)
   let result = opts.document.createDocumentFragment(), top: DocumentFragment | HTMLElement = result
-  let contextDepth = 0
-  for (let i = 0; i < slice.content.length;) {
-    let next = slice.content[i++]
+  let contextDepth = 0, includeContextDepth = Math.min(slice.context.length, options.includeContext ?? 0)
+  for (let i = 0;;) {
+    let next = i < slice.content.length ? slice.content[i++]
+      : contextDepth < includeContextDepth ? CloseToken : null
+    if (!next) break
     if (next.tokenType == TokenType.Node) {
       let start = i - 1
       while (i < slice.content.length && slice.content[i].tokenType == TokenType.Node) i++
@@ -43,14 +48,23 @@ export function serializeSlice(slice: Slice, options?: SerializeOptions): Docume
       top.appendChild(wrap)
       top = wrap
     } else if (top.parentNode) {
+      if (i == slice.content.length && options.markOpen) options.markOpen(top as HTMLElement, "end")
       top = top.parentNode as DocumentFragment | HTMLElement
     } else {
       let wrap = slice.context.length < contextDepth ? opts.document.createElement("div")
-        : serializeNodeMarkup(slice.context[contextDepth++], opts)
+        : serializeNodeMarkup(slice.context[contextDepth++], opts) as HTMLElement
       wrap.appendChild(top)
+      if (options.markOpen) {
+        options.markOpen(wrap, "start")
+        if (i == slice.content.length) options.markOpen(wrap, "end")
+      }
       result = top = opts.document.createDocumentFragment()
       top.appendChild(wrap)
     }
+  }
+  while (top != result) {
+    if (options.markOpen) options.markOpen(top as HTMLElement, "end")
+    top = top.parentNode as DocumentFragment | HTMLElement
   }
   return result
 }

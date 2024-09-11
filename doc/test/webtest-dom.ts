@@ -11,9 +11,9 @@ function html(doc: DocNode) {
   return wrap.innerHTML
 }
 
-function sliceHTML(doc: DocNode) {
+function sliceHTML(doc: DocNode, options?: any) {
   let wrap = document.createElement("div")
-  wrap.appendChild(serializeSlice(doc.slice(tag(doc, 0), tag(doc, 1), true)))
+  wrap.appendChild(serializeSlice(doc.slice(tag(doc, 0), tag(doc, 1), true), options))
   return wrap.innerHTML
 }
 
@@ -65,6 +65,21 @@ describe("serializeSlice", () => {
   it("can serialize a slice with deeper open sides", () => {
     ist(sliceHTML(doc(ul(li(p(0, "A"))), blockquote(p("B", 1)))),
         "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
+  })
+
+  function markOpen(elt: HTMLElement, side: "end" | "start") {
+    elt.setAttribute("open-" + side, "true")
+  }
+
+  it("can mark open nodes", () => {
+    ist(sliceHTML(doc(p(0, "a"), blockquote(p("b", 1))), {markOpen}),
+        '<p open-start="true">a</p><blockquote open-end="true"><p open-end="true">b</p></blockquote>')
+  })
+
+  it("can include extra context", () => {
+    ist(sliceHTML(doc(blockquote(ul(li(p(0, "a")), li(p("b"), 1)))), {markOpen, includeContext: 3}),
+        '<ul open-start="true" open-end="true"><li open-start="true"><p open-start="true">a</p></li>' +
+        '<li open-end="true"><p>b</p></li></ul>')
   })
 })
 
