@@ -1,4 +1,4 @@
-import {PropSpec} from "./spec"
+import {PropSpec, isElementRepresentation} from "./spec"
 import {compareDeep, eqArray, none, splitGroups} from "./helper"
 import {SchemaElement} from "./schema"
 import {TagType} from "./node"
@@ -44,6 +44,8 @@ export class PropType<Value> {
   readonly rank: number
   readonly set: null | ((a: any, b: any) => number)
   readonly default: Prop<Value> | null
+  readonly inclusive: boolean
+  readonly spanning: boolean
 
   constructor(
     readonly name: string,
@@ -54,6 +56,8 @@ export class PropType<Value> {
     this.rank = spec.rank ?? 100
     this.set = spec.set ? spec.set.compare : null
     this.default = isFlag ? new Prop(this, null as any) : null
+    this.inclusive = spec.inclusive !== false
+    this.spanning = spec.spanning ?? isElementRepresentation(spec.dom)
   }
 
   of(value: Value) { return new Prop(this, value) }

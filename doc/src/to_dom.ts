@@ -137,7 +137,7 @@ function serializeChildren(
         if (isElementRepresentation(prop.type.spec.dom)) eltProps.push(prop)
       while (keep < active.length && rendered < eltProps.length) {
         let next = eltProps[rendered]
-        if (!next.eq(active[keep]) || !(next.type.spec.spanning ?? inline)) break
+        if (!next.eq(active[keep]) || !next.type.spanning) break
         keep++; rendered++
       }
       while (keep < active.length) {

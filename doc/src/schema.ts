@@ -52,18 +52,19 @@ export class Schema {
     return child.create([this.createDefault(child.type)])
   }
 
-  findWrapping(parent: Tag, child: Tag): readonly Tag[] | null {
+  findWrapping(parent: Tag, child: Tag<any> | TagType<any>): readonly Tag[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  private findWrappingInner(parent: Tag<any>, child: Tag): readonly Tag[] | null {
+  private findWrappingInner(parent: Tag<any>, child: Tag<any> | TagType<any>): readonly Tag[] | null {
     let seen: Set<TagType<unknown>> = new Set, work: Tag[][] = [[]]
+    let childType = child instanceof Tag ? child.type : child
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1] : parent
       for (let tag of this.tags) if (at.type.canContain(tag)) {
-        if (tag == child.type) return path
+        if (tag == childType) return path
         if (!seen.has(tag) && !tag.isLeaf() && tag.default) {
           seen.add(tag)
           work.push(path.concat(tag.default))

@@ -48,6 +48,18 @@ class RuleSet {
     }
     return new RuleSet(rules)
   }
+
+  matchElement(elt: HTMLElement): {rule: ElementParseRule<unknown>, value?: unknown} | null {
+    for (let rule of this.elementRules) {
+      if (elt.matches(rule.selector)) {
+        if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
+        let result = rule.readElement(elt)
+        if (result === Reject) continue
+        return {rule, value: result}
+      }
+    }
+    return null
+  }
 }
 
 export type ParseOptions = {
@@ -73,10 +85,10 @@ export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, op
   return cx.finishNode(cx.top) as DocNode
 }
 
-export enum OpenSide { Start = 1, End = 2, Both = 3 }
+export enum OpenSide { None = 0, Start = 1, End = 2, Both = 3 }
 
 export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
-  let top = new NodeContext(null, CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
+  let top = new NodeContext(guessParent(doc, schema), CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [], true)
   cx.sync(top)
@@ -128,27 +140,15 @@ class ParseContext {
     }
   }
 
-  matchElement(elt: HTMLElement): {rule: ElementParseRule<unknown>, value?: unknown} | null {
-    for (let rule of this.rules.elementRules) {
-      if (elt.matches(rule.selector)) {
-        if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
-        let result = rule.readElement(elt)
-        if (result === Reject) continue
-        return {rule, value: result}
-      }
-    }
-    return null
-  }
-
   ignoreElement(elt: HTMLElement, props: readonly Prop[]) {
-    if (elt.nodeName == "BR" && this.top.tag && !this.top.tag.inlineContent())
+    if (elt.nodeName == "BR" && !this.top.tag.inlineContent())
       this.findPlace(Text.of("-"), props, false)
   }
 
   parseElement(elt: HTMLElement, props: readonly Prop[], endOfSlice: boolean) {
     let name = elt.nodeName.toLowerCase()
     if (name in normalizers) normalizers[name](elt)
-    let match = this.matchElement(elt)
+    let match = this.rules.matchElement(elt)
     if (match ? match.rule.ignore === true : ignoreTags.has(name)) {
       this.scanInside(elt)
       this.ignoreElement(elt, props)
@@ -207,9 +207,9 @@ class ParseContext {
 
   parseTextNode(dom: Text, props: readonly Prop[]) {
     let text = dom.nodeValue!
-    if (this.top.tag && !this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
+    if (!this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
       // Ignore entirely blank node
-      if (!(this.top.tag && this.top.tag.inlineContent()) && !/[^ \t\r\n\u000c]/.test(text)) {
+      if (!this.top.tag.inlineContent() && !/[^ \t\r\n\u000c]/.test(text)) {
         this.scanInside(dom)
         return
       }
@@ -227,7 +227,7 @@ class ParseContext {
           text = text.slice(1)
       }
     } else {
-      text = text.replace(/\r?\n|\r/g, this.top.tag && this.top.tag.type.preserveWhitespace ? "\n" : " ")
+      text = text.replace(/\r?\n|\r/g, this.top.tag.type.preserveWhitespace ? "\n" : " ")
     }
     if (text) this.insertNode(Node.text(text), props)
     this.scanText(dom, text)
@@ -279,10 +279,9 @@ class ParseContext {
   // nodes that we're in. Returns null if no place could be created, a
   // set of prop values not applied to wrappers otherwise.
   findPlace(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean): readonly Prop[] | null {
-    if (!this.top.tag) return props
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
-      let found = this.schema.findWrapping(cx.tag!, tag)
+      let found = this.schema.findWrapping(cx.tag, tag)
       if (found && (!route || route.length > found.length)) {
         route = found
         under = cx
@@ -335,7 +334,7 @@ class ParseContext {
   }
 
   finishNode(cx: NodeContext) {
-    if (!(cx.flags & CxFlag.OpenEnd) && cx.children.length && !cx.tag!.type.preserveWhitespace &&
+    if (!(cx.flags & CxFlag.OpenEnd) && cx.children.length && !cx.tag.type.preserveWhitespace &&
         this.options.collapseWhiteSpace !== false) {
       let last = cx.children[cx.children.length - 1], m
       if (last.isText() && (m = /[ \t\r\n\u000c]+$/.exec(last.text))) {
@@ -345,9 +344,9 @@ class ParseContext {
       }
     }
     let open = cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)
-    if (!open && !cx.tag!.inlineContent() && !cx.tag!.isLeaf() && !cx.children.length)
-      cx.children.push(this.schema.createDefault(cx.tag!.type))
-    let node = cx.tag!.isDoc() ? this.schema.doc(cx.children) : cx.tag!.create(cx.children)
+    if (!open && !cx.tag.inlineContent() && !cx.tag.isLeaf() && !cx.children.length)
+      cx.children.push(this.schema.createDefault(cx.tag.type))
+    let node = cx.tag.isDoc() ? this.schema.doc(cx.children) : cx.tag.create(cx.children)
     if (open) this.open.set(node, open)
     return node
   }
@@ -397,7 +396,7 @@ class ParseContext {
 class NodeContext {
   children: Node[] = []
 
-  constructor(readonly tag: Tag<any> | null,
+  constructor(readonly tag: Tag<any>,
               readonly flags: CxFlag,
               readonly parent: NodeContext | null) {}
 
@@ -431,3 +430,34 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
                            "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5",
                            "h6", "header", "hgroup", "hr", "li", "noscript", "ol", "output", "p", "pre",
                            "section", "table", "tfoot", "ul"])
+
+function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
+  let rules = RuleSet.fromSchema(schema) // FIXME avoid recomputing these
+  let tags: TagType<any>[] = []
+  let explore = (node: DOMNode) => {
+    if (node.nodeType == 3) {
+      tags.push(Text)
+    } else if (node.nodeType == 1) {
+      let match = rules.matchElement(node as HTMLElement)
+      if (match && match.rule.tag) {
+        tags.push(match.rule.tag instanceof Tag ? match.rule.tag.type : match.rule.tag)
+      } else if (!(match && match.rule.ignore)) {
+        for (let ch = node.firstChild; ch; ch = ch.nextSibling) explore(ch)
+      }
+    }
+  }
+  explore(content)
+  let best: Tag | undefined, bestCost = 0
+  scan: for (let parent of schema.tags) if (parent.default) {
+    let cost = parent.isDoc() ? -1 : 0
+    for (let child of tags) {
+      let fit = schema.findWrapping(parent.default, child)
+      cost += fit ? fit.length * 2 : 1000
+    }
+    if (!best || bestCost > cost) {
+      best = parent.default
+      bestCost = cost
+    }
+  }
+  return best!
+}

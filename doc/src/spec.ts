@@ -45,6 +45,11 @@ export type TagSpec<Param> = {
 export type PropSpec<Value> = {
   tags?: string
   rank?: number
+  /// Whether this mark should be active when the cursor is positioned
+  /// at its end (or at its start when that is also the start of the
+  /// parent node). Defaults to true.
+  inclusive?: boolean
+  /// Defaults to true for specs with an element representation.
   spanning?: boolean
   set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
   dom: ElementRepresentation<Value> | AttributeRepresentation<Value>

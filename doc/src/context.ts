@@ -1,4 +1,5 @@
 import {Node, Tag, TextNode, DocNode} from "./node"
+import {none} from "./helper"
 
 export interface Walker {
   skip(node: Node): void
@@ -58,6 +59,14 @@ export class Context {
     let c = this as Context
     for (let off = this.depth - depth; off > 0; off--) c = c.parent!
     return c
+  }
+
+  props() {
+    if (this.inText) return this.node.children[this.index].tag.props
+    let before = this.nodeBefore, after = this.nodeAfter
+    let [main, sec] = before ? [before.tag.props, after ? after.tag.props : none]
+      : [after ? after.tag.props : none, none]
+    return main.filter(p => p.type.inclusive || p.isInSet(sec))
   }
 
   static atStart(doc: DocNode) {

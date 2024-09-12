@@ -1,4 +1,4 @@
-import {EditorSelection, EditorState, SelectionRange, Facet} from "@willows/state"
+import {EditorSelection, EditorState, SelectionRange} from "@willows/state"
 import {Slice, Node, ChangeSet} from "@willows/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
@@ -9,6 +9,7 @@ import {readClipboard, writeClipboard} from "./clipboard"
 
 // This will also be where dragging info and such goes
 export class InputState {
+  shiftKey = false
   lastKeyCode: number = 0
   lastKeyTime: number = 0
   lastTouchTime = 0
@@ -78,6 +79,7 @@ export class InputState {
   handleEvent(event: Event) {
     if (!eventBelongsToEditor(this.view, event) || this.ignoreDuringComposition(event)) return
     if (event.type == "keydown" && this.keydown(event as KeyboardEvent)) return
+    if (event.type == "keyup" && (event as KeyboardEvent).keyCode == 16) this.shiftKey = false
     this.runHandlers(event.type, event)
   }
 
@@ -112,6 +114,7 @@ export class InputState {
     // Must always run, even if a custom handler handled the event
     this.lastKeyCode = event.keyCode
     this.lastKeyTime = Date.now()
+    this.shiftKey = event.keyCode == 16 || event.shiftKey
 
     if (event.keyCode == 9 && this.tabFocusMode > -1 && (!this.tabFocusMode || Date.now() <= this.tabFocusMode))
       return true
@@ -428,6 +431,10 @@ handlers.keydown = (view, event: KeyboardEvent) => {
   return false
 }
 
+handlers.keyup = (view, event) => {
+  if ((event as KeyboardEvent).keyCode == 16) this.shiftKey = false
+}
+
 observers.touchstart = (view, e) => {
   view.inputState.lastTouchTime = Date.now()
   view.inputState.setSelectionOrigin("select.pointer")
@@ -438,6 +445,7 @@ observers.touchmove = view => {
 }
 
 handlers.mousedown = (view, event: MouseEvent) => {
+  view.input.shiftKey = event.shiftKey
   view.observer.read()
   if (view.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
   let style: MouseSelectionStyle | null = null
@@ -548,7 +556,8 @@ handlers.dragend = view => {
 handlers.drop = (view, event: DragEvent) => {
   if (!event.dataTransfer || view.state.readOnly) return true
   // FIXME allow handling of file drops
-  let slice = readClipboard(view.state, event.dataTransfer)
+  let slice = readClipboard(view.state, event.dataTransfer,
+                            view.state.doc.resolve(view.state.selection.main.head), false)
   if (slice) {
     let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY})
     let {draggedContent} = view.inputState
@@ -568,10 +577,11 @@ handlers.drop = (view, event: DragEvent) => {
 }
 
 handlers.paste = (view: EditorView, event: ClipboardEvent) => {
-  if (view.state.readOnly) return true
+  if (view.state.readOnly || !event.clipboardData) return true
   view.observer.read()
   let {state} = view
-  let slice = readClipboard(state, event.clipboardData)
+  let slice = readClipboard(state, event.clipboardData,
+                            state.doc.resolve(state.selection.main.head), view.inputState.shiftKey)
   if (slice) { // FIXME proper multi-selection pasting
     view.dispatch({
       changes: {from: state.selection.main.from, to: state.selection.main.to, insert: slice},

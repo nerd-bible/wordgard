@@ -57,7 +57,9 @@ export class TagType<Param> {
     return new TagType<T>(name, flagsFor(spec, false), spec)
   }
 
-  of(param: Param, props: readonly Prop<any>[] = none) { return new Tag(this, param, props) }
+  of(param: Param, props: readonly Prop<any>[] = none) {
+    return new Tag(this, param, props)
+  }
 
   isInGroup(group: string) {
     return group == "_" || this.groups.includes(group)
@@ -99,7 +101,7 @@ export class Tag<Param = unknown> {
     readonly props: readonly Prop<unknown>[]
   ) {
     for (let prop of props) if (!prop.type.canTarget(this.type))
-      throw new Error(`Prop ${prop.name} cannot be applied to node ${this.name}`)
+      this.props = prop.removeFromSet(this.props)
   }
 
   get name() { return this.type.name }
@@ -183,6 +185,7 @@ export class Node {
   }
 
   get name() { return this.tag.name }
+  get type() { return this.tag.type }
 
   get length() {
     return this.tag.type == Text ? (this.tag.param as string).length : this.isLeaf() ? 1 : 2 + this.contentLength
@@ -304,7 +307,7 @@ export class Node {
 
   prop<Value>(prop: PropType<Value>): Value | undefined { return this.tag.prop(prop) }
 
-  withProps(props: readonly Prop<any>[]) { return new Node(new Tag(this.tag.type, this.tag.param, props), this.children) }
+  withProps(props: readonly Prop<any>[]) { return new Node(this.tag.type.of(this.tag.param, props), this.children) }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
 
