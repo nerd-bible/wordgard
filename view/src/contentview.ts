@@ -1,23 +1,107 @@
 import {DocNode, Node, Tag, Prop, Context, ChangeSet, ElementRepresentation} from "@willows/doc"
-import {DOMNode} from "./dom"
+import {DOMNode, domIndex} from "./dom"
+
+declare global {
+  interface Node { wsView?: ContentView }
+}
 
 export abstract class ContentView {
+  parent: ContentView | null = null
+
   constructor(
     readonly children: readonly ContentView[],
     readonly length: number,
-    readonly dom: DOMNode
+    readonly dom: DOMNode,
+    readonly contentDOM: HTMLElement | null
   ) {
+    dom.wsView = this
     let prev: DOMNode | null = null, next
-    for (let child of children) {
-      next = prev ? prev.nextSibling : dom.firstChild
-      if (child.dom.parentNode == dom) {
-        while (next && next != child.dom) next = rm(next)
-      } else {
-        dom.insertBefore(child.dom, next)
+    if (contentDOM) {
+      for (let child of children) {
+        child.parent = this
+        next = prev ? prev.nextSibling : contentDOM.firstChild
+        if (child.dom.parentNode == contentDOM) {
+          while (next && next != child.dom) next = rm(next)
+        } else {
+          contentDOM.insertBefore(child.dom, next)
+        }
+        prev = child.dom
       }
-      prev = child.dom
+      while (next) next = rm(next)
+    } else if (children.length) {
+      throw new Error("FIXME")
     }
-    while (next) next = rm(next)
+  }
+
+  posBeforeChild(child: ContentView): number {
+    for (let i = 0, pos = this.posAtStart;; i++) {
+      let cur = this.children[i]
+      if (cur == child) return pos
+      pos += cur.length
+    }
+  }
+
+  get posBefore() {
+    return this.parent!.posBeforeChild(this)
+  }
+
+  get posAtStart() {
+    return this.parent ? this.parent.posBeforeChild(this) + this.boundary : 0
+  }
+
+  get posAfter() {
+    return this.posBefore + this.length
+  }
+
+  get posAtEnd() {
+    return this.posAtStart + this.length - 2 * this.boundary
+  }
+
+  localPosFromDOM(dom: DOMNode, offset: number, bias: number): number {
+    // If the DOM position is in the content, use the child desc after
+    // it to figure out a position.
+    if (this.contentDOM && this.contentDOM.contains(dom.nodeType == 1 ? dom : dom.parentNode)) {
+      if (bias < 0) {
+        let domBefore, view: ContentView | undefined
+        if (dom == this.contentDOM) {
+          domBefore = dom.childNodes[offset - 1]
+        } else {
+          while (dom.parentNode != this.contentDOM) dom = dom.parentNode!
+          domBefore = dom.previousSibling
+        }
+        while (domBefore && !((view = domBefore.wsView) && view.parent == this)) domBefore = domBefore.previousSibling
+        return domBefore ? this.posBeforeChild(view!) + view!.length : this.posAtStart
+      } else {
+        let domAfter, desc: ContentView | undefined
+        if (dom == this.contentDOM) {
+          domAfter = dom.childNodes[offset]
+        } else {
+          while (dom.parentNode != this.contentDOM) dom = dom.parentNode!
+          domAfter = dom.nextSibling
+        }
+        while (domAfter && !((desc = domAfter.wsView) && desc.parent == this)) domAfter = domAfter.nextSibling
+        return domAfter ? this.posBeforeChild(desc!) : this.posAtEnd
+      }
+    }
+    // Otherwise, use various heuristics, falling back on the bias
+    // parameter, to determine whether to return the position at the
+    // start or at the end of this view desc.
+    let atEnd
+    if (dom == this.dom && this.contentDOM) {
+      atEnd = offset > domIndex(this.contentDOM)
+    } else if (this.contentDOM && this.contentDOM != this.dom && this.dom.contains(this.contentDOM)) {
+      atEnd = dom.compareDocumentPosition(this.contentDOM) & 2
+    } else if (this.dom.firstChild) {
+      if (offset == 0) for (let search = dom;; search = search.parentNode!) {
+        if (search == this.dom) { atEnd = false; break }
+        if (search.previousSibling) break
+      }
+      if (atEnd == null && offset == dom.childNodes.length) for (let search = dom;; search = search.parentNode!) {
+        if (search == this.dom) { atEnd = true; break }
+        if (search.nextSibling) break
+      }
+    }
+    return (atEnd == null ? bias > 0 : atEnd) ? this.posAtEnd : this.posAtStart
   }
 
   get boundary() { return 0 }
@@ -73,11 +157,16 @@ class ViewBuilder {
   constructor(readonly tag: Tag | null, readonly prop: Prop | null, readonly parent: ViewBuilder | null) {}
 
   finish() {
-    let len = this.children.reduce((l, ch) => l + ch.length, 0)
+    let len = this.children.reduce((l, ch) => l + ch.length, 0), view
     // FIXME reuse existing DOM when possible
-    let view = this.tag ? new NodeView(this.tag, this.children, len + 2, renderNode(this.tag))
-      : new PropView(this.prop!, this.children, len,
-                     drawElement(this.prop!.type.spec.dom as ElementRepresentation<any>, this.prop!.value))
+    if (this.tag) {
+      let dom = renderNode(this.tag)
+      // FIXME separate contentView
+      view = new NodeView(this.tag, this.children, len + 2, dom, dom)
+    } else {
+      view = new PropView(this.prop!, this.children, len,
+                          drawElement(this.prop!.type.spec.dom as ElementRepresentation<any>, this.prop!.value))
+    }
     let parent = this.parent!
     parent.children.push(view)
     return parent
@@ -137,7 +226,7 @@ class ContentViewUpdate {
 
 export class DocView extends ContentView {
   constructor(readonly doc: DocNode, children: readonly ContentView[], length: number, dom: HTMLElement) {
-    super(children, length, dom)
+    super(children, length, dom, dom)
   }
 
   static build(doc: DocNode, dom: HTMLElement) {
@@ -166,18 +255,72 @@ export class DocView extends ContentView {
     return builder.finish()
   }
 
+  nearestNodeView(dom: DOMNode) {
+    for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
+      let view = cur.wsView
+      if (view instanceof NodeView && this.owns(view)) return view
+    }
+    return null
+  }
+
+  nearest(dom: DOMNode) {
+    for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
+      let view = cur.wsView
+      if (view && this.owns(view)) return view
+    }
+    return null
+  }
+
+  owns(view: ContentView) {
+    for (;;) {
+      let {parent} = view
+      if (parent == this) return true
+      if (!parent) return false
+      view = parent
+    }
+  }
+
+  resolve(pos: number, side: -1 | 1) {
+    let parent: ContentView = this, index = 0, off = 0
+    for (;;) {
+      if (parent.tag?.isText()) return {view: parent, offset: pos - off, pos}
+      if (off == pos) {
+        let before = index ? parent.children[index - 1] : null
+        let after = index < parent.children.length ? parent.children[index] : null
+        if (before?.boundary) before = null
+        if (after?.boundary) after = null
+        if (!before && !after) return {view: parent, offset: index, pos}
+        if (!after || before && side < 0) { parent = before!; index = before!.children.length }
+        else { parent = after; index = 0 }
+      }
+      let next = parent.children[index]
+      if (off + next.length > pos) {
+        parent = next
+        index = 0
+        off += next.boundary
+      }
+    }
+  }
+
+  posFromDOM(dom: DOMNode, offset: number, bias: number) {
+    let view = this.nearest(dom)
+    if (!view) throw new RangeError("Trying to find position for a DOM position outside of the document")
+    return view.localPosFromDOM(dom, offset, bias)
+  }
+
   connect() {
     // FIXME
   }
 
   disconnect() {
-    // FIXME
+    // FIXME must determine disconnected views during update
   }
 }
 
 export class NodeView extends ContentView {
-  constructor(readonly _tag: Tag, readonly children: readonly ContentView[], readonly length: number, dom: DOMNode) {
-    super(children, length, dom)
+  constructor(readonly _tag: Tag, readonly children: readonly ContentView[], readonly length: number,
+              dom: DOMNode, contentDOM: HTMLElement | null) {
+    super(children, length, dom, contentDOM)
   }
 
   get boundary() { return 1 }
@@ -186,14 +329,28 @@ export class NodeView extends ContentView {
 
   // FIXME this approach cannot build spanning props
   static build(node: Node): NodeView {
-    return new NodeView(node.tag, node.children.map(ch => NodeView.build(ch)), node.length, renderNode(node.tag))
+    if (node.isText()) {
+      return new TextView(node.tag, [], node.length, document.createTextNode(node.text), null)
+    } else {
+      let dom = renderNode(node.tag)
+      // FIXME separate content view
+      return new NodeView(node.tag, node.children.map(ch => NodeView.build(ch)), node.length, dom, node.isLeaf() ? null : dom)
+    }
+  }
+}
+
+export class TextView extends NodeView {
+  get boundary() { return 0 }
+
+  localPosFromDOM(dom: DOMNode, offset: number, bias: number) {
+    return this.posAtStart + Math.min(offset, (this.tag.param as string).length)
   }
 }
 
 // FIXME actually create these
 export class PropView extends ContentView {
-  constructor(readonly _prop: Prop, readonly children: readonly ContentView[], readonly length: number, dom: DOMNode) {
-    super(children, length, dom)
+  constructor(readonly _prop: Prop, readonly children: readonly ContentView[], readonly length: number, dom: HTMLElement) {
+    super(children, length, dom, dom)
   }
 
   get prop() { return this._prop }

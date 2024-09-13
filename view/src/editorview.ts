@@ -3,7 +3,7 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocView} from "./contentview"
-import {posAtCoords, moveByChar, moveToLineBoundary, byGroup, moveVertically} from "./cursor"
+import {posAtCoords} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
         exceptionSink, updateListener, logException,

@@ -1,5 +1,7 @@
 // FIXME prune unused functions when stuff is more stable
 
+export type DOMNode = Node
+
 export function getSelection(root: DocumentOrShadowRoot): Selection | null {
   let target
   // Browsers differ on whether shadow roots have a getSelection
@@ -340,4 +342,18 @@ export function textNodeAfter(startNode: Node, startOffset: number): {node: Text
   }
 }
 
-export type DOMNode = Node
+export function caretFromPoint(doc: Document, x: number, y: number): {node: Node, offset: number} | undefined {
+  if ((doc as any).caretPositionFromPoint) {
+    try { // Firefox throws for this call in hard-to-predict circumstances (#994)
+      let pos = (doc as any).caretPositionFromPoint(x, y)
+      // Clip the offset, because Chrome will return a text offset
+      // into <input> nodes, which can't be treated as a regular DOM
+      // offset
+      if (pos) return {node: pos.offsetNode, offset: Math.min(maxOffset(pos.offsetNode), pos.offset)}
+    } catch (_) {}
+  }
+  if (doc.caretRangeFromPoint) {
+    let range = doc.caretRangeFromPoint(x, y)
+    if (range) return {node: range.startContainer, offset: Math.min(maxOffset(range.startContainer), range.startOffset)}
+  }
+}
