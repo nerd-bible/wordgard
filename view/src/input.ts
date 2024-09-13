@@ -646,10 +646,14 @@ observers.contextmenu = view => {
   view.inputState.lastContextMenu = Date.now()
 }
 
+function cursorContext(state: EditorState) {
+  return state.doc.resolve(state.selection.main.head)
+}
+
 handlers.beforeinput = (view, event: InputEvent) => {
   if (event.inputType == "insertReplacementText" || event.inputType == "insertText") {
-    let slice = event.inputType == "insertText" ? new Slice([Node.text(event.data!)])
-      : readClipboard(view.state, event.dataTransfer)
+    let slice = event.inputType == "insertText" ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "))])
+      : readClipboard(view.state, event.dataTransfer!, cursorContext(view.state), true)
     let ranges = event.getTargetRanges()
     if (slice && ranges.length) {
       let r = ranges[0]

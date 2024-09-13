@@ -271,47 +271,6 @@ export const styleModule = Facet.define<StyleModule>()
 
 export const enum UpdateFlag { Focus = 1, Geometry = 2 }
 
-export class ChangedRange {
-  constructor(readonly fromA: number, readonly toA: number, readonly fromB: number, readonly toB: number) {}
-
-  join(other: ChangedRange): ChangedRange {
-    return new ChangedRange(Math.min(this.fromA, other.fromA), Math.max(this.toA, other.toA),
-                            Math.min(this.fromB, other.fromB), Math.max(this.toB, other.toB))
-  }
-
-  addToSet(set: ChangedRange[]): ChangedRange[] {
-    let i = set.length, me: ChangedRange = this
-    for (; i > 0; i--) {
-      let range = set[i - 1]
-      if (range.fromA > me.toA) continue
-      if (range.toA < me.fromA) break
-      me = me.join(range)
-      set.splice(i - 1, 1)
-    }
-    set.splice(i, 0, me)
-    return set
-  }
-
-  static extendWithRanges(diff: readonly ChangedRange[], ranges: number[]): readonly ChangedRange[] {
-    if (ranges.length == 0) return diff
-    let result: ChangedRange[] = []
-    for (let dI = 0, rI = 0, posA = 0, posB = 0;; dI++) {
-      let next = dI == diff.length ? null : diff[dI], off = posA - posB
-      let end = next ? next.fromB : 1e9
-      while (rI < ranges.length && ranges[rI] < end) {
-        let from = ranges[rI], to = ranges[rI + 1]
-        let fromB = Math.max(posB, from), toB = Math.min(end, to)
-        if (fromB <= toB) new ChangedRange(fromB + off, toB + off, fromB, toB).addToSet(result)
-        if (to > end) break
-        else rI += 2
-      }
-      if (!next) return result
-      new ChangedRange(next.fromA, next.toA, next.fromB, next.toB).addToSet(result)
-      posA = next.toA; posB = next.toB
-    }
-  }
-}
-
 /// View [plugins](#view.ViewPlugin) are given instances of this
 /// class, which describe what happened, whenever the view is updated.
 export class ViewUpdate {
@@ -321,8 +280,6 @@ export class ViewUpdate {
   readonly startState: EditorState
   /// @internal
   flags = 0
-  /// @internal
-  changedRanges: readonly ChangedRange[]
 
   private constructor(
     /// The editor view that the update is associated with.
@@ -335,12 +292,6 @@ export class ViewUpdate {
     this.startState = view.state
     this.changes = ChangeSet.empty(this.startState.doc.length)
     for (let tr of transactions) this.changes = this.changes.compose(tr.changes)
-    let changedRanges: ChangedRange[] = []
-    function addRange(fromA: number, toA: number, fromB: number, toB: number, change: any) {
-      if (change) new ChangedRange(fromA, toA, fromB, toB).addToSet(changedRanges)
-    }
-    this.changes.iterChanges(addRange, addRange)
-    this.changedRanges = changedRanges
   }
 
   /// @internal

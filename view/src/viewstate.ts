@@ -72,7 +72,6 @@ export class ViewState {
       }
     }
 
-    // Vertical padding
     if (this.editorWidth != view.scrollDOM.clientWidth) {
       this.editorWidth = view.scrollDOM.clientWidth
       result |= UpdateFlag.Geometry
