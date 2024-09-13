@@ -61,7 +61,7 @@ function findOffsetInText(node: Text, coords: {x: number, y: number}) {
 }
 
 function inRect(coords: {x: number, y: number}, rect: Rect) {
-  return coords.x >= rect.left - 1 && coords.x <= rect.right + 1&&
+  return coords.x >= rect.left - 1 && coords.x <= rect.right + 1 &&
     coords.y >= rect.top - 1 && coords.y <= rect.bottom + 1
 }
 
@@ -73,7 +73,7 @@ function targetKludge(dom: HTMLElement, coords: {x: number, y: number}) {
 }
 
 function posFromElement(view: EditorView, elt: HTMLElement, coords: {x: number, y: number}) {
-  let {node, offset} = findOffsetInNode(elt, coords), bias = -1
+  let {node, offset} = findOffsetInNode(elt, coords), bias: -1 | 1 = -1
   if (node.nodeType == 1 && !node.firstChild) {
     let rect = (node as HTMLElement).getBoundingClientRect()
     bias = rect.left != rect.right && coords.x > (rect.left + rect.right) / 2 ? 1 : -1
@@ -142,9 +142,7 @@ export function posAtCoords(view: EditorView, coords: {x: number, y: number}) {
   let pos
   if (!elt || !view.contains(elt.nodeType != 1 ? elt.parentNode : elt)) {
     let box = view.getBoundingClientRect()
-    if (!inRect(coords, box)) return null
     elt = elementFromPoint(view, coords, box)
-    if (!elt) return null
   }
   // Safari's caretRangeFromPoint returns nonsense when on a draggable element
   if (browser.safari) {
@@ -177,10 +175,7 @@ export function posAtCoords(view: EditorView, coords: {x: number, y: number}) {
     else if (offset == 0 || node.nodeType != 1 || node.childNodes[offset - 1].nodeName != "BR")
       pos = posFromCaret(view, node, offset, coords)
   }
-  if (pos == null) pos = posFromElement(view, elt, coords)
-
-  let cView = view.docView.nearestNodeView(elt)
-  return {pos, inside: cView ? cView.posAtStart - cView.boundary : -1}
+  return pos ?? posFromElement(view, elt, coords)
 }
 
 function nonZero(rect: DOMRect) {
@@ -200,15 +195,15 @@ const BIDI = /[\u0590-\u05f4\u0600-\u06ff\u0700-\u08ac]/
 
 // Given a position in the document model, get a bounding box of the
 // character at that position, relative to the window.
-export function coordsAtPos(view: EditorView, pos: number, side: number): Rect {
-  let cView = view.docView.resolve(pos, side < 0 ? -1 : 1)
+export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect {
+  let cView = view.docView.resolve(pos, assoc < 0 ? -1 : 1)
   let node = cView.view.contentDOM || cView.view.dom, {offset} = cView
 
   if (node.nodeType == 3) {
     // These browsers support querying empty text ranges. Prefer that in
     // bidi context or when at the end of a node.
-    if (BIDI.test(node.nodeValue!) || (side < 0 ? !offset : offset == node.nodeValue!.length)) {
-      let rect = singleRect(textRange(node as Text, offset, offset), side)
+    if (BIDI.test(node.nodeValue!) || (assoc < 0 ? !offset : offset == node.nodeValue!.length)) {
+      let rect = singleRect(textRange(node as Text, offset, offset), assoc)
       // Firefox returns bad results (the position before the space)
       // when querying a position directly after line-broken
       // whitespace. Detect this situation and and kludge around it
@@ -222,10 +217,10 @@ export function coordsAtPos(view: EditorView, pos: number, side: number): Rect {
       }
       return rect
     } else {
-      let from = offset, to = offset, takeSide = side < 0 ? 1 : -1
-      if (side < 0 && !offset) { to++; takeSide = -1 }
-      else if (side >= 0 && offset == node.nodeValue!.length) { from--; takeSide = 1 }
-      else if (side < 0) { from-- }
+      let from = offset, to = offset, takeSide = assoc < 0 ? 1 : -1
+      if (assoc < 0 && !offset) { to++; takeSide = -1 }
+      else if (assoc >= 0 && offset == node.nodeValue!.length) { from--; takeSide = 1 }
+      else if (assoc < 0) { from-- }
       else { to ++ }
       return flattenV(singleRect(textRange(node as Text, from, to), takeSide), takeSide < 0)
     }
@@ -234,7 +229,7 @@ export function coordsAtPos(view: EditorView, pos: number, side: number): Rect {
   let cx = view.state.doc.resolve(cView.view.posAtStart)
   // Return a horizontal line in block context
   if (!cx.node.inlineContent()) {
-    if (offset && (side < 0 || offset == maxOffset(node))) {
+    if (offset && (assoc < 0 || offset == maxOffset(node))) {
       let before = node.childNodes[offset - 1]
       if (before.nodeType == 1) return flattenH((before as HTMLElement).getBoundingClientRect(), false)
     }
@@ -242,11 +237,11 @@ export function coordsAtPos(view: EditorView, pos: number, side: number): Rect {
       let after = node.childNodes[offset]
       if (after.nodeType == 1) return flattenH((after as HTMLElement).getBoundingClientRect(), true)
     }
-    return flattenH((node as HTMLElement).getBoundingClientRect(), side >= 0)
+    return flattenH((node as HTMLElement).getBoundingClientRect(), assoc >= 0)
   }
 
   // Inline, not in text node (this is not Bidi-safe)
-  if (offset && (side < 0 || offset == maxOffset(node))) {
+  if (offset && (assoc < 0 || offset == maxOffset(node))) {
     let before = node.childNodes[offset - 1]
     let target = before.nodeType == 3 ? textRange(before as Text, maxOffset(before))
         // BR nodes tend to only return the rectangle before them.
@@ -262,7 +257,7 @@ export function coordsAtPos(view: EditorView, pos: number, side: number): Rect {
     if (target) return flattenV(singleRect(target as Range | HTMLElement, -1), true)
   }
   // All else failed, just try to get a rectangle for the target node
-  return flattenV(singleRect(node.nodeType == 3 ? textRange(node as Text, 0, node.nodeValue!.length) : node as HTMLElement, -side), side >= 0)
+  return flattenV(singleRect(node.nodeType == 3 ? textRange(node as Text, 0, node.nodeValue!.length) : node as HTMLElement, -assoc), assoc >= 0)
 }
 
 function flattenV(rect: DOMRect, left: boolean) {

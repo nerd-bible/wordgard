@@ -412,7 +412,7 @@ function eventBelongsToEditor(view: EditorView, event: Event): boolean {
   if (!event.bubbles) return true
   if (event.defaultPrevented) return false
   for (let node = event.target as DOMNode | null, cView; node != view.contentDOM; node = node.parentNode)
-    if (!node || node.nodeType == 11 || ((cView = ContentView.get(node)) && cView.ignoreEvent(event)))
+    if (!node || node.nodeType == 11 || (cView = node.wsView) && cView.ignoreEvent(event))
       return false
   return true
 }
@@ -431,10 +431,6 @@ handlers.keydown = (view, event: KeyboardEvent) => {
   return false
 }
 
-handlers.keyup = (view, event) => {
-  if ((event as KeyboardEvent).keyCode == 16) this.shiftKey = false
-}
-
 observers.touchstart = (view, e) => {
   view.inputState.lastTouchTime = Date.now()
   view.inputState.setSelectionOrigin("select.pointer")
@@ -445,7 +441,7 @@ observers.touchmove = view => {
 }
 
 handlers.mousedown = (view, event: MouseEvent) => {
-  view.input.shiftKey = event.shiftKey
+  view.inputState.shiftKey = event.shiftKey
   view.observer.read()
   if (view.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
   let style: MouseSelectionStyle | null = null
@@ -530,13 +526,6 @@ function removeRangeAround(sel: EditorSelection, pos: number) {
 
 handlers.dragstart = (view, event: DragEvent) => {
   let {selection: {main: range}} = view.state
-  if ((event.target as HTMLElement).draggable) { // FIXME check with contentview interface
-    let cView = view.docView.nearest(event.target as HTMLElement)
-    if (cView && cView.isWidget) {
-      let from = cView.posAtStart, to = from + cView.length
-      if (from >= range.to || to <= range.from) range = EditorSelection.range(from, to)
-    }
-  }
   let {inputState} = view
   if (inputState.mouseSelection) inputState.mouseSelection.dragging = true
   inputState.draggedContent = range

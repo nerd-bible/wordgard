@@ -3,7 +3,7 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocView} from "./contentview"
-import {posAtCoords} from "./coords"
+import {posAtCoords, coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
         exceptionSink, updateListener, logException,
@@ -14,7 +14,7 @@ import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, ligh
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState} from "./input"
-import {ViewState} from "./viewstate"
+import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
 
@@ -432,13 +432,13 @@ export class EditorView extends HTMLElement {
   /// cursor position beyond the given start position, the original
   /// position is returned.
   moveHorizontally(start: SelectionRange, forward: boolean) {
-    return moveByChar(this, start, forward)
+    //return moveByChar(this, start, forward)
   }
 
   /// Move a cursor position across the next word or, if there is no
   /// word ahead of it, move it by a single cursor position.
   moveByWord(start: SelectionRange, forward: boolean) {
-    return moveByChar(this, start, forward, initial => byGroup(this, start.head, initial))
+    //return moveByChar(this, start, forward, initial => byGroup(this, start.head, initial))
   }
 
   /// Move to the next line boundary in the given direction. If
@@ -447,7 +447,7 @@ export class EditorView extends HTMLElement {
   /// returned. Otherwise this function will return the start or end
   /// of the line.
   moveToLineBoundary(start: SelectionRange, forward: boolean, includeWrap = true) {
-    return moveToLineBoundary(this, start, forward, includeWrap)
+    //return moveToLineBoundary(this, start, forward, includeWrap)
   }
 
   /// Move a cursor position vertically. When `distance` isn't given,
@@ -462,21 +462,22 @@ export class EditorView extends HTMLElement {
   /// cursor will have its goal column set to whichever column was
   /// used.
   moveVertically(start: SelectionRange, forward: boolean, distance?: number) {
-    return moveVertically(this, start, forward, distance)
+  //  return moveVertically(this, start, forward, distance)
   }
 
   /// Find the DOM parent node and offset (child offset if `node` is
   /// an element, character offset when it is a text node) at the
   /// given document position.
-  domAtPos(pos: number): {node: DOMNode, offset: number} {
-    return this.docView.domAtPos(pos)
+  domAtPos(pos: number, assoc: -1 | 1 = -1): {node: DOMNode, offset: number} {
+    let viewPos = this.docView.resolve(pos, assoc)
+    return {node: viewPos.node, offset: viewPos.offset}
   }
 
   /// Find the document position at the given DOM node. Can be useful
   /// for associating positions with DOM events. Will raise an error
   /// when `node` isn't part of the editor content.
   posAtDOM(node: DOMNode, offset: number = 0) {
-    return this.docView.posFromDOM(node, offset)
+    return this.docView.posFromDOM(node, offset, 1)
   }
 
   /// Get the document position at the given screen coordinates.
@@ -489,16 +490,16 @@ export class EditorView extends HTMLElement {
   /// element before (-1) or after (1) the position (if no element is
   /// available on the given side, the method will transparently use
   /// another strategy to get reasonable coordinates).
-  coordsAtPos(pos: number, side: -1 | 1 = 1): Rect | null {
-    return this.docView.coordsAt(pos, side) // FIXME
+  coordsAtPos(pos: number, assoc: -1 | 1 = -1): Rect {
+    return coordsAtPos(this, pos, assoc)
   }
 
   /// Return the rectangle around a given character. If `pos` does not
   /// point in front of a character, this will return null. For space
   /// characters that are a line wrap point, this will return the
   /// position before the line break.
-  coordsForChar(pos: number): Rect | null {
-    return this.docView.coordsForChar(pos)
+  coordsForChar(pos: number) {
+    // return this.docView.coordsForChar(pos)
   }
 
   /// The text direction
@@ -520,7 +521,7 @@ export class EditorView extends HTMLElement {
   focus() {
     this.observer.ignore(() => {
       this.contentDOM.focus({preventScroll: true})
-      this.docView.updateSelection()
+      // FIXME sync selection
     })
   }
 

@@ -3,7 +3,6 @@ import {ChangeSet, ChangeDesc} from "@willows/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
-import {Isolate, autoDirection} from "./bidi"
 import {Rect, ScrollStrategy} from "./dom"
 import {MakeSelectionStyle} from "./input"
 

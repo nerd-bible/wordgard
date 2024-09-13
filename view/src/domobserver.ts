@@ -1,9 +1,7 @@
-import {EditorSelection, EditorState} from "@willows/state"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {editable, ViewUpdate, setEditContextFormatting, MeasureRequest} from "./extension"
-import {hasSelection, getSelection, DOMSelectionState, isEquivalentPosition, atElementStart} from "./dom"
-import type {EditContext, TextUpdateEvent, CharacterBoundsUpdateEvent, TextFormatUpdateEvent} from "./editcontext"
+import {editable, ViewUpdate} from "./extension"
+import {DOMNode, hasSelection, getSelection, DOMSelectionState, isEquivalentPosition, atElementStart} from "./dom"
 
 const observeOptions = {
   childList: true,
@@ -49,7 +47,7 @@ export class DOMObserver {
     if (window.EditContext &&
         // Chrome <126 doesn't support inverted selections in edit context (#1392)
         !(browser.chrome && browser.chrome_version < 126)) {
-      this.editContext = new EditContextManager(view)
+      //this.editContext = new EditContextManager(view)
     }
 
     this.onSelectionChange = this.onSelectionChange.bind(this)
@@ -58,7 +56,7 @@ export class DOMObserver {
 
     if (typeof ResizeObserver == "function") {
       this.resizeScroll = new ResizeObserver(() => {
-        if (this.view.docView?.lastUpdate < Date.now() - 75) this.onResize()
+        // FIXME if (this.view.docView?.lastUpdate < Date.now() - 75) this.onResize()
       })
     }
     this.readSelectionRange()
@@ -147,7 +145,7 @@ export class DOMObserver {
         view.inputState.lastTouchTime < Date.now() - 300 &&
         atElementStart(this.dom, range)) {
       this.view.inputState.lastFocusTime = 0
-      view.docView.updateSelection() // FIXME
+      // view.docView.updateSelection() // FIXME
       return false
     }
     this.selectionRange.setRange(range)
@@ -155,7 +153,7 @@ export class DOMObserver {
     return true
   }
 
-  setSelectionRange(anchor: {node: Node, offset: number}, head: {node: Node, offset: number}) {
+  setSelectionRange(anchor: {node: DOMNode, offset: number}, head: {node: DOMNode, offset: number}) {
     this.selectionRange.set(anchor.node, anchor.offset, head.node, head.offset)
     this.selectionChanged = false
   }
@@ -186,11 +184,10 @@ export class DOMObserver {
     let records = this.pendingRecords()
     if (records.length) this.queue = []
 
-    let from = -1, to = -1, typeOver = false
+    let from = -1, to = -1
     for (let record of records) {
       let range = this.readMutation(record)
       if (!range) continue
-      if (range.typeOver) typeOver = true
       if (from == -1) {
         ;({from, to} = range)
       } else {
@@ -198,7 +195,11 @@ export class DOMObserver {
         to = Math.max(range.to, to)
       }
     }
-    return {from, to, typeOver}
+    return {from, to}
+  }
+
+  readMutation(record: MutationRecord): {from: number, to: number} | null {
+    return null
   }
 
   // Apply pending changes, if any
@@ -216,7 +217,7 @@ export class DOMObserver {
 function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
   let anchorNode = range.startContainer, anchorOffset = range.startOffset
   let focusNode = range.endContainer, focusOffset = range.endOffset
-  let curAnchor = view.docView.domAtPos(view.state.selection.main.anchor)
+  let curAnchor = view.docView.resolve(view.state.selection.main.anchor, -1)
   // Since such a range doesn't distinguish between anchor and head,
   // use a heuristic that flips it around if its end matches the
   // current anchor.
@@ -249,13 +250,9 @@ function safariSelectionRangeHack(view: EditorView, selection: Selection) {
   return found ? buildSelectionRangeFromRange(view, found) : null
 }
 
-const enum CxVp {
-  Margin = 10000,
-  MaxSize = Margin * 3,
-  MinMargin = 500
-}
-
 // FIXME work in terms of textblocks instead of text documents
+type EditContextManager = any
+/*
 class EditContextManager {
   editContext: EditContext
   measureReq: MeasureRequest<void>
@@ -269,7 +266,7 @@ class EditContextManager {
   // order to make the minimal changes to the context (since touching
   // that sometimes breaks series of multiple edits made for a single
   // user action on some Android keyboards)
-  pendingContextChange: {from: number, to: number, insert: Text} | null = null
+  pendingContextChange: {from: number, to: number, insert: string} | null = null
   connected = false
   handlers: Record<string, (event: any) => void>
 
@@ -277,7 +274,7 @@ class EditContextManager {
     this.resetRange(view.state)
 
     this.editContext = new window.EditContext({
-      text: view.state.doc.sliceString(this.from, this.to),
+      text: view.state.doc.textContent(), // FIXME
       selectionStart: this.toContextPos(Math.max(this.from, Math.min(this.to, view.state.selection.main.anchor))),
       selectionEnd: this.toContextPos(view.state.selection.main.head)
     })
@@ -315,7 +312,7 @@ class EditContextManager {
     let {anchor} = view.state.selection.main
     let change = {from: this.toEditorPos(e.updateRangeStart),
                   to: this.toEditorPos(e.updateRangeEnd),
-                  insert: Text.of(e.text.split("\n"))}
+                  insert: e.text}
     // If the window doesn't include the anchor, assume changes
     // adjacent to a side go up to the anchor.
     if (change.from == this.from && anchor < this.from) change.from = anchor
@@ -326,8 +323,7 @@ class EditContextManager {
 
     this.pendingContextChange = change
     if (!view.state.readOnly)
-      applyDOMChangeInner(view, change, EditorSelection.single(this.toEditorPos(e.selectionStart),
-                                                               this.toEditorPos(e.selectionEnd)))
+      applyTextChange(view, change.from, change.to, new Slice([Node.text(change.insert)]))
     // If the transaction didn't flush our change, revert it so
     // that the context is in sync with the editor state again.
     if (this.pendingContextChange) {
@@ -344,22 +340,21 @@ class EditContextManager {
         || prev || new DOMRect
       rects.push(prev)
     }
-    this.context.updateCharacterBounds(e.rangeStart, rects)
+    this.editContext.updateCharacterBounds(e.rangeStart, rects)
   }
 
   onTextFormatUpdate(view: EditorView, e: TextFormatUpdateEvent) {
-    let deco = []
     for (let format of e.getTextFormats()) {
       let lineStyle = format.underlineStyle, thickness = format.underlineThickness
       if (lineStyle != "None" && thickness != "None") {
         let style = `text-decoration: underline ${
           lineStyle == "Dashed" ? "dashed " : lineStyle == "Squiggle" ? "wavy " : ""
         }${thickness == "Thin" ? 1 : 2}px`
-        deco.push(Decoration.mark({attributes: {style}})
-          .range(this.toEditorPos(format.rangeStart), this.toEditorPos(format.rangeEnd)))
+        console.log("mark", {attributes: {style}}, "for",
+                    this.toEditorPos(format.rangeStart), this.toEditorPos(format.rangeEnd))
       }
     }
-    view.dispatch({effects: setEditContextFormatting.of(Decoration.set(deco))})
+    // FIXME actually add decorations
   }
 
   onCompositionStart(view: EditorView) {
@@ -381,7 +376,7 @@ class EditContextManager {
 
       let dLen = insert.length - (toA - fromA)
       if (pending && toA >= pending.to) {
-        if (pending.from == fromA && pending.to == toA && pending.insert.eq(insert)) {
+        if (pending.from == fromA && pending.to == toA && pending.insert == insert) {
           pending = this.pendingContextChange = null // Match
           off += dLen
           this.to += dLen
@@ -457,3 +452,4 @@ class EditContextManager {
   toEditorPos(contextPos: number) { return contextPos + this.from }
   toContextPos(editorPos: number) { return editorPos - this.from }
 }
+*/

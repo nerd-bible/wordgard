@@ -1,11 +1,9 @@
 import {EditorState, EditorSelection, Transaction} from "@willows/state"
 import {getScale} from "./dom"
-import {HeightMap, HeightOracle, BlockInfo, MeasuredHeights, QueryType, heightRelevantDecoChanges,
-        clearHeightChangeFlag, heightChangeFlag} from "./heightmap"
 import {UpdateFlag, ScrollTarget, scrollIntoView} from "./extension"
-import {WidgetType, Decoration, DecorationSet} from "./decoration"
 import {EditorView} from "./editorview"
-import {Direction} from "./bidi"
+
+export enum Direction { LTR, RTL }
 
 export class ViewState {
   contentDOMWidth = 0 // contentDOM.getBoundingClientRect().width

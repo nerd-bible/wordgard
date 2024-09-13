@@ -1,8 +1,24 @@
 import {DocNode, Node, Tag, Prop, Context, ChangeSet, ElementRepresentation} from "@willows/doc"
-import {DOMNode, domIndex} from "./dom"
+import {DOMNode} from "./dom"
 
 declare global {
   interface Node { wsView?: ContentView }
+}
+
+export class ViewPos {
+  constructor(
+    readonly view: ContentView,
+    readonly offset: number,
+    readonly pos: number
+  ) {}
+
+  get node(): DOMNode { return this.view.contentDOM || this.view.dom }
+
+  get nearestNode(): Tag {
+    let {view} = this
+    while (!(view instanceof NodeView)) view = view.parent!
+    return view.tag
+  }
 }
 
 export abstract class ContentView {
@@ -57,56 +73,45 @@ export abstract class ContentView {
     return this.posAtStart + this.length - 2 * this.boundary
   }
 
-  localPosFromDOM(dom: DOMNode, offset: number, bias: number): number {
+  localPosFromDOM(dom: DOMNode, offset: number, bias: -1 | 1): number {
     // If the DOM position is in the content, use the child desc after
     // it to figure out a position.
     if (this.contentDOM && this.contentDOM.contains(dom.nodeType == 1 ? dom : dom.parentNode)) {
-      if (bias < 0) {
-        let domBefore, view: ContentView | undefined
-        if (dom == this.contentDOM) {
-          domBefore = dom.childNodes[offset - 1]
-        } else {
-          while (dom.parentNode != this.contentDOM) dom = dom.parentNode!
-          domBefore = dom.previousSibling
-        }
-        while (domBefore && !((view = domBefore.wsView) && view.parent == this)) domBefore = domBefore.previousSibling
-        return domBefore ? this.posBeforeChild(view!) + view!.length : this.posAtStart
+      let domBefore, view: ContentView | undefined
+      if (dom == this.contentDOM) {
+        domBefore = dom.childNodes[offset - 1]
       } else {
-        let domAfter, desc: ContentView | undefined
-        if (dom == this.contentDOM) {
-          domAfter = dom.childNodes[offset]
-        } else {
-          while (dom.parentNode != this.contentDOM) dom = dom.parentNode!
-          domAfter = dom.nextSibling
-        }
-        while (domAfter && !((desc = domAfter.wsView) && desc.parent == this)) domAfter = domAfter.nextSibling
-        return domAfter ? this.posBeforeChild(desc!) : this.posAtEnd
+        while (dom.parentNode != this.contentDOM) dom = dom.parentNode!
+        domBefore = dom.previousSibling
       }
+      while (domBefore && !((view = domBefore.wsView) && view.parent == this)) domBefore = domBefore.previousSibling
+      return domBefore ? this.posBeforeChild(view!) + view!.length : this.posAtStart
     }
     // Otherwise, use various heuristics, falling back on the bias
     // parameter, to determine whether to return the position at the
     // start or at the end of this view desc.
-    let atEnd
-    if (dom == this.dom && this.contentDOM) {
-      atEnd = offset > domIndex(this.contentDOM)
-    } else if (this.contentDOM && this.contentDOM != this.dom && this.dom.contains(this.contentDOM)) {
-      atEnd = dom.compareDocumentPosition(this.contentDOM) & 2
+    if (this.contentDOM && this.contentDOM != this.dom) {
+      let cmp = dom.compareDocumentPosition(this.contentDOM)
+      if (cmp & 2) return this.posAtEnd
+      else if (cmp & 4) return this.posAtStart
     } else if (this.dom.firstChild) {
       if (offset == 0) for (let search = dom;; search = search.parentNode!) {
-        if (search == this.dom) { atEnd = false; break }
+        if (search == this.dom) return this.posAtStart
         if (search.previousSibling) break
       }
-      if (atEnd == null && offset == dom.childNodes.length) for (let search = dom;; search = search.parentNode!) {
-        if (search == this.dom) { atEnd = true; break }
+      if (offset == dom.childNodes.length) for (let search = dom;; search = search.parentNode!) {
+        if (search == this.dom) return this.posAtEnd
         if (search.nextSibling) break
       }
     }
-    return (atEnd == null ? bias > 0 : atEnd) ? this.posAtEnd : this.posAtStart
+    return bias > 0 ? this.posAtEnd : this.posAtStart
   }
 
   get boundary() { return 0 }
   get tag(): Tag | null { return null }
   get prop(): Prop | null { return null }
+
+  ignoreEvent(event: Event) { return false } // FIXME implement or redesign
 }
 
 function rm(dom: DOMNode): DOMNode | null {
@@ -280,17 +285,17 @@ export class DocView extends ContentView {
     }
   }
 
-  resolve(pos: number, side: -1 | 1) {
+  resolve(pos: number, assoc: -1 | 1) {
     let parent: ContentView = this, index = 0, off = 0
     for (;;) {
-      if (parent.tag?.isText()) return {view: parent, offset: pos - off, pos}
+      if (parent.tag?.isText()) return new ViewPos(parent, pos - off, pos)
       if (off == pos) {
         let before = index ? parent.children[index - 1] : null
         let after = index < parent.children.length ? parent.children[index] : null
         if (before?.boundary) before = null
         if (after?.boundary) after = null
-        if (!before && !after) return {view: parent, offset: index, pos}
-        if (!after || before && side < 0) { parent = before!; index = before!.children.length }
+        if (!before && !after) return new ViewPos(parent, index, pos)
+        if (!after || before && assoc < 0) { parent = before!; index = before!.children.length }
         else { parent = after; index = 0 }
       }
       let next = parent.children[index]
@@ -298,11 +303,15 @@ export class DocView extends ContentView {
         parent = next
         index = 0
         off += next.boundary
+      } else {
+        if (index == parent.children.length)
+          throw new Error(`Invalid position ${pos} in document of size ${this.doc.length}`)
+        index++
       }
     }
   }
 
-  posFromDOM(dom: DOMNode, offset: number, bias: number) {
+  posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
     let view = this.nearest(dom)
     if (!view) throw new RangeError("Trying to find position for a DOM position outside of the document")
     return view.localPosFromDOM(dom, offset, bias)
