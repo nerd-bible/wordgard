@@ -275,27 +275,27 @@ export const enum UpdateFlag { Focus = 1, Geometry = 2 }
 export class ViewUpdate {
   /// The changes made to the document by this update.
   readonly changes: ChangeSet
-  /// The previous editor state.
-  readonly startState: EditorState
   /// @internal
   flags = 0
 
   private constructor(
     /// The editor view that the update is associated with.
     readonly view: EditorView,
+    /// The previous editor state.
+    readonly startState: EditorState,
     /// The new editor state.
     readonly state: EditorState,
     /// The transactions involved in the update. May be empty.
     readonly transactions: readonly Transaction[]
   ) {
     this.startState = view.state
-    this.changes = ChangeSet.empty(this.startState.doc.length)
+    this.changes = ChangeSet.empty(startState.doc.length)
     for (let tr of transactions) this.changes = this.changes.compose(tr.changes)
   }
 
   /// @internal
-  static create(view: EditorView, state: EditorState, transactions: readonly Transaction[]) {
-    return new ViewUpdate(view, state, transactions)
+  static create(view: EditorView, startState: EditorState, state: EditorState, transactions: readonly Transaction[]) {
+    return new ViewUpdate(view, startState, state, transactions)
   }
 
   /// Returns true when the document was modified or the size of the

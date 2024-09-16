@@ -514,32 +514,32 @@ function compose<T extends ChangeDesc>(chA: T, chB: T, isSet: boolean): ChangeSe
   let sections: number[] = [], data: SectionData[] | null = isSet ? [] : null
   let a = new SectionIter(chA), b = new SectionIter(chB)
   for (let open = false;;) {
-      if (a.done && b.done) {
-        return isSet ? new ChangeSet(sections, data!) : new ChangeDesc(sections)
-      } else if (a.ins == 0) { // Deletion in A
-        addSection(sections, data, a.len, 0, a.slice, open)
-        a.next()
-      } else if (b.len == 0 && !b.done) { // Insertion in B
-        addSection(sections, data, 0, b.ins, b.slice, open)
-        b.next()
-      } else if (a.done || b.done) {
-        throw new Error("Mismatched change set lengths")
+    if (a.done && b.done) {
+      return isSet ? new ChangeSet(sections, data!) : new ChangeDesc(sections)
+    } else if (a.ins == 0) { // Deletion in A
+      addSection(sections, data, a.len, 0, a.slice, open)
+      a.next()
+    } else if (b.len == 0 && !b.done) { // Insertion in B
+      addSection(sections, data, 0, b.ins, b.slice, open)
+      b.next()
+    } else if (a.done || b.done) {
+      throw new Error("Mismatched change set lengths")
+    } else {
+      let len = Math.min(a.len2, b.len), sectionLen = sections.length
+      if (a.ins == -1 && b.ins == -1) {
+        addSection(sections, data, len, -1, combineMods(a.mods, b.mods), open)
+      } else if (a.ins == -1) {
+        addSection(sections, data, len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
+      } else if (b.ins == -1) {
+        addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
       } else {
-        let len = Math.min(a.len2, b.len), sectionLen = sections.length
-        if (a.ins == -1 && b.ins == -1) {
-          addSection(sections, data, len, -1, combineMods(a.mods, b.mods), open)
-        } else if (a.ins == -1) {
-          addSection(sections, data, len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
-        } else if (b.ins == -1) {
-          addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
-        } else {
-          addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
-        }
-        open = (a.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen)
-        a.forward2(len)
-        b.forward(len)
+        addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
       }
+      open = (a.ins > len || b.ins >= 0 && b.len > len) && (open || sections.length > sectionLen)
+      a.forward2(len)
+      b.forward(len)
     }
+  }
 }
 
 function combineMods(a: null | readonly Modification[], b: null | readonly Modification[]): null | readonly Modification[] {

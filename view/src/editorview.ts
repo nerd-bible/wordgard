@@ -46,7 +46,7 @@ export interface EditorViewSpec extends Partial<EditorStateSpec> {
 /// the editable DOM surface, and possibly other elements such as
 /// panels. It handles events and dispatches state transactions for
 /// editing actions.
-export class EditorView extends HTMLElement {
+export class EditorView extends HTMLElement {// FIXME make custom element a member, not the class itself?
   /// The current editor state.
   get state() { return this.viewState.state }
 
@@ -246,8 +246,9 @@ export class EditorView extends HTMLElement {
     try {
       this.flushing = true
       if (this.viewState.pendingTransactions.length) {
+        let startState = this.viewState.drawnState
         let transactions = this.viewState.takePendingTransactions()
-        let update = ViewUpdate.create(this, this.state, transactions)
+        let update = ViewUpdate.create(this, startState, this.state, transactions)
         this.docView.update(update.state.doc, update.changes)
         // FIXME update selection here, or in docView.update?
         this.updatePlugins(update)
@@ -309,7 +310,7 @@ export class EditorView extends HTMLElement {
         try { return m.read(this) }
         catch(e) { logException(this.state, e); return BadMeasure }
       })
-      let update = ViewUpdate.create(this, this.state, []), redrawn = false
+      let update = ViewUpdate.create(this, this.state, this.state, []), redrawn = false
       update.flags |= changed
       if (!updated) updated = update
       else updated.flags |= changed

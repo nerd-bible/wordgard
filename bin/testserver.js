@@ -7,7 +7,7 @@ import {createServer} from "node:http"
 
 let port = 8111
 let base = join(import.meta.dirname, ".."), root = join(base, "demo")
-let moduleserver = new ModuleServer({root, maxDepth: 1})
+let moduleserver = new ModuleServer({root, maxDepth: 2})
 let staticserver = serveStatic(root)
 
 createServer((req, resp) => {

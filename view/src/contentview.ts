@@ -146,7 +146,7 @@ class ViewPointer {
         } else {
           if (walker) walker.enter(next)
           dist -= next.boundary
-          parent = new ViewPointer(next, index, parent)
+          parent = new ViewPointer(view, index, parent)
           view = next
           index = 0
         }
