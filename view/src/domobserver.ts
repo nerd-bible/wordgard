@@ -117,7 +117,7 @@ export class DOMObserver {
     if (view.state.facet(editable) ? view.root.activeElement != this.dom : !hasSelection(this.dom, sel))
       return
 
-    let context = sel.anchorNode && view.docView.nearest(sel.anchorNode)
+    let context = sel.anchorNode && view.docElt.nearest(sel.anchorNode)
     if (context && context.ignoreEvent(event)) {
       if (!wasChanged) this.selectionChanged = false
       return
@@ -217,7 +217,7 @@ export class DOMObserver {
 function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
   let anchorNode = range.startContainer, anchorOffset = range.startOffset
   let focusNode = range.endContainer, focusOffset = range.endOffset
-  let curAnchor = view.docView.resolve(view.state.selection.main.anchor, -1)
+  let curAnchor = view.docElt.resolve(view.state.selection.main.anchor, -1)
   // Since such a range doesn't distinguish between anchor and head,
   // use a heuristic that flips it around if its end matches the
   // current anchor.

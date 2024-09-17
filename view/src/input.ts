@@ -412,7 +412,7 @@ function eventBelongsToEditor(view: EditorView, event: Event): boolean {
   if (!event.bubbles) return true
   if (event.defaultPrevented) return false
   for (let node = event.target as DOMNode | null, cView; node != view.contentDOM; node = node.parentNode)
-    if (!node || node.nodeType == 11 || (cView = node.wsView) && cView.ignoreEvent(event))
+    if (!node || node.nodeType == 11 || (cView = node.wsElt) && cView.ignoreEvent(event))
       return false
   return true
 }

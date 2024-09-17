@@ -2,7 +2,7 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
         EditorSelection, SelectionRange, StateEffect, Facet, EditorStateSpec} from "@willows/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
-import {DocView} from "./contentview"
+import {DocElt} from "./content"
 import {posAtCoords, coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
@@ -88,7 +88,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
   /// @internal
   viewState: ViewState
   /// @internal
-  docView: DocView
+  docElt: DocElt
 
   /// @internal
   plugins: PluginInstance[] = []
@@ -140,7 +140,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.docView = DocView.create(this.state.doc, this.contentDOM)
+    this.docElt = DocElt.create(this.state.doc, this.contentDOM)
 
     this.updateAttrs()
 
@@ -151,7 +151,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     this.connected = true
     this.root = getRoot(this.parentNode!) || document
     this.mountStyles()
-    this.docView.connect()
+    this.docElt.connect()
     this.inputState.connect()
     for (let plugin of this.plugins) plugin.connect(this)
     this.observer.connect()
@@ -164,7 +164,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     this.observer.disconnect()
     for (let plugin of this.plugins) plugin.disconnect(this)
     this.inputState.disconnect()
-    this.docView.disconnect()
+    this.docElt.disconnect()
     if (this.flushScheduled > -1) this.win.cancelAnimationFrame(this.flushScheduled)
   }
 
@@ -215,10 +215,10 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     this.viewState = new ViewState(newState)
     this.plugins = newState.facet(viewPlugin).map(spec => new PluginInstance(spec))
     this.pluginMap.clear()
-    if (this.connected) this.docView.disconnect()
+    if (this.connected) this.docElt.disconnect()
     this.inputState.disconnect()
-    this.docView = DocView.create(this.state.doc, this.contentDOM)
-    if (this.connected) this.docView.connect()
+    this.docElt = DocElt.create(this.state.doc, this.contentDOM)
+    if (this.connected) this.docElt.connect()
     this.inputState = new InputState(this)
     for (let plugin of this.plugins) {
       plugin.update(this)
@@ -249,7 +249,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
         let startState = this.viewState.drawnState
         let transactions = this.viewState.takePendingTransactions()
         let update = ViewUpdate.create(this, startState, this.state, transactions)
-        this.docView = this.docView.update(update.state.doc, update.changes)
+        this.docElt = this.docElt.update(update.state.doc, update.changes)
         // FIXME update selection here
         this.updatePlugins(update)
         this.inputState.update(update)
@@ -470,7 +470,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
   /// an element, character offset when it is a text node) at the
   /// given document position.
   domAtPos(pos: number, assoc: -1 | 1 = -1): {node: DOMNode, offset: number} {
-    let viewPos = this.docView.resolve(pos, assoc)
+    let viewPos = this.docElt.resolve(pos, assoc)
     return {node: viewPos.node, offset: viewPos.offset}
   }
 
@@ -478,7 +478,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
   /// for associating positions with DOM events. Will raise an error
   /// when `node` isn't part of the editor content.
   posAtDOM(node: DOMNode, offset: number = 0) {
-    return this.docView.posFromDOM(node, offset, 1)
+    return this.docElt.posFromDOM(node, offset, 1)
   }
 
   /// Get the document position at the given screen coordinates.

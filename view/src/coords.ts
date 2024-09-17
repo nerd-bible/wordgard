@@ -78,7 +78,7 @@ function posFromElement(view: EditorView, elt: HTMLElement, coords: {x: number, 
     let rect = (node as HTMLElement).getBoundingClientRect()
     bias = rect.left != rect.right && coords.x > (rect.left + rect.right) / 2 ? 1 : -1
   }
-  return view.docView.posFromDOM(node, offset, bias)
+  return view.docElt.posFromDOM(node, offset, bias)
 }
 
 function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: number, y: number}) {
@@ -91,7 +91,7 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
   let outsideBlock = -1
   for (let cur = node, sawBlock = false;;) {
     if (cur == view) break
-    let cView = view.docView.nearestNodeView(cur)
+    let cView = view.docElt.nearestNodeElt(cur)
     if (!cView) return null
     if (cView.dom.nodeType == 1 && (cView.tag.isBlock() && cView.parent || !cView.contentDOM)) {
       let rect = (cView.dom as HTMLElement).getBoundingClientRect()
@@ -110,7 +110,7 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
     }
     cur = cView.dom.parentNode!
   }
-  return outsideBlock > -1 ? outsideBlock : view.docView.posFromDOM(node, offset, -1)
+  return outsideBlock > -1 ? outsideBlock : view.docElt.posFromDOM(node, offset, -1)
 }
 
 function elementFromPoint(element: HTMLElement, coords: {x: number, y: number}, box: Rect): HTMLElement {
@@ -196,8 +196,8 @@ const BIDI = /[\u0590-\u05f4\u0600-\u06ff\u0700-\u08ac]/
 // Given a position in the document model, get a bounding box of the
 // character at that position, relative to the window.
 export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect {
-  let cView = view.docView.resolve(pos, assoc < 0 ? -1 : 1)
-  let node = cView.view.contentDOM || cView.view.dom, {offset} = cView
+  let cView = view.docElt.resolve(pos, assoc < 0 ? -1 : 1)
+  let node = cView.elt.contentDOM || cView.elt.dom, {offset} = cView
 
   if (node.nodeType == 3) {
     // These browsers support querying empty text ranges. Prefer that in
@@ -226,7 +226,7 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
     }
   }
 
-  let cx = view.state.doc.resolve(cView.view.posAtStart)
+  let cx = view.state.doc.resolve(cView.elt.posAtStart)
   // Return a horizontal line in block context
   if (!cx.node.inlineContent()) {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {

@@ -2,29 +2,29 @@ import {DocNode, Tag, Prop, Context, Walker, ChangeSet, Slice, ElementRepresenta
 import {DOMNode} from "./dom"
 
 declare global {
-  interface Node { wsView?: ContentView }
+  interface Node { wsElt?: ContentElt }
 }
 
-export class ViewPos {
+export class ContentPos {
   constructor(
-    readonly view: ContentView,
+    readonly elt: ContentElt,
     readonly offset: number,
     readonly pos: number
   ) {}
 
-  get node(): DOMNode { return this.view.contentDOM || this.view.dom }
+  get node(): DOMNode { return this.elt.contentDOM || this.elt.dom }
 }
 
-export abstract class ContentView {
-  parent: ContentView | null = null
+export abstract class ContentElt {
+  parent: ContentElt | null = null
 
   constructor(
-    readonly children: readonly ContentView[],
+    readonly children: readonly ContentElt[],
     readonly length: number,
     readonly dom: DOMNode,
     readonly contentDOM: HTMLElement | null
   ) {
-    dom.wsView = this
+    dom.wsElt = this
     if (contentDOM) {
       let prev: DOMNode | null = null, next: Node | null = contentDOM.firstChild
       for (let child of children) {
@@ -43,11 +43,11 @@ export abstract class ContentView {
     }
   }
 
-  isSpanning(): this is PropView {
-    return this instanceof PropView && this.prop.type.spanning && this.prop.type.element
+  isSpanning(): this is WrapperElt {
+    return this instanceof WrapperElt && this.prop.type.spanning && this.prop.type.element
   }
 
-  posBeforeChild(child: ContentView): number {
+  posBeforeChild(child: ContentElt): number {
     for (let i = 0, pos = this.posAtStart;; i++) {
       let cur = this.children[i]
       if (cur == child) return pos
@@ -75,19 +75,19 @@ export abstract class ContentView {
     // If the DOM position is in the content, use the child desc after
     // it to figure out a position.
     if (this.contentDOM && this.contentDOM.contains(dom.nodeType == 1 ? dom : dom.parentNode)) {
-      let domBefore, view: ContentView | undefined
+      let domBefore, elt: ContentElt | undefined
       if (dom == this.contentDOM) {
         domBefore = dom.childNodes[offset - 1]
       } else {
         while (dom.parentNode != this.contentDOM) dom = dom.parentNode!
         domBefore = dom.previousSibling
       }
-      while (domBefore && !((view = domBefore.wsView) && view.parent == this)) domBefore = domBefore.previousSibling
-      return domBefore ? this.posBeforeChild(view!) + view!.length : this.posAtStart
+      while (domBefore && !((elt = domBefore.wsElt) && elt.parent == this)) domBefore = domBefore.previousSibling
+      return domBefore ? this.posBeforeChild(elt!) + elt!.length : this.posAtStart
     }
     // Otherwise, use various heuristics, falling back on the bias
     // parameter, to determine whether to return the position at the
-    // start or at the end of this view desc.
+    // start or at the end of this content element.
     if (this.contentDOM && this.contentDOM != this.dom) {
       let cmp = dom.compareDocumentPosition(this.contentDOM)
       if (cmp & 2) return this.posAtEnd
@@ -118,25 +118,25 @@ function rm(dom: DOMNode): DOMNode | null {
   return next
 }
 
-interface ViewWalker {
-  enter(view: ContentView): void
-  skip(view: ContentView): void
-  leave(view: ContentView): void
+interface ContentWalker {
+  enter(elt: ContentElt): void
+  skip(elt: ContentElt): void
+  leave(elt: ContentElt): void
 }
 
-class ViewPointer {
-  constructor(readonly view: ContentView, public index: number, readonly parent: ViewPointer | null) {}
+class ContentPointer {
+  constructor(readonly elt: ContentElt, public index: number, readonly parent: ContentPointer | null) {}
 
-  advance(dist: number, walker?: ViewWalker) {
-    let {view, index, parent} = this
+  advance(dist: number, walker?: ContentWalker) {
+    let {elt, index, parent} = this
     while (dist > 0) {
-      if (index == view.children.length) {
-        if (walker) walker.leave(view)
-        dist -= view.boundary
-        ;({view, index, parent} = parent!)
+      if (index == elt.children.length) {
+        if (walker) walker.leave(elt)
+        dist -= elt.boundary
+        ;({elt, index, parent} = parent!)
         index++
       } else {
-        let next = view.children[index]
+        let next = elt.children[index]
         if (next.length <= dist) {
           if (walker) walker.skip(next)
           dist -= next.length
@@ -144,24 +144,24 @@ class ViewPointer {
         } else {
           if (walker) walker.enter(next)
           dist -= next.boundary
-          parent = new ViewPointer(view, index, parent)
-          view = next
+          parent = new ContentPointer(elt, index, parent)
+          elt = next
           index = 0
         }
       }
     }
-    return new ViewPointer(view, index, parent)
+    return new ContentPointer(elt, index, parent)
   }
 }
 
-class ViewBuilder {
-  children: ContentView[] = []
+class ContentBuilder {
+  children: ContentElt[] = []
 
   constructor(
     readonly tag: Tag | null,
     readonly prop: Prop | null,
-    readonly parent: ViewBuilder | null,
-    readonly reuse: ContentView | null
+    readonly parent: ContentBuilder | null,
+    readonly reuse: ContentElt | null
   ) {}
 
   finish() {
@@ -169,12 +169,12 @@ class ViewBuilder {
     let parent = this.parent!, dom = this.reuse ? this.reuse.dom as HTMLElement : null
     if (this.tag) {
       if (!dom) dom = renderNode(this.tag)
-      // FIXME separate contentView
+      // FIXME separate content DOM
       // FIXME add attribute props
-      parent.children.push(new NodeView(this.tag, this.children, len + 2, dom, dom))
+      parent.children.push(new NodeElt(this.tag, this.children, len + 2, dom, dom))
     } else {
       if (!dom) dom = drawElement(this.prop!.type.spec.dom as ElementRepresentation<any>, this.prop!.value)
-      parent.children.push(new PropView(this.prop!, this.children, len, dom))
+      parent.children.push(new WrapperElt(this.prop!, this.children, len, dom))
     }
     return parent
   }
@@ -197,15 +197,15 @@ function renderNode(tag: Tag) { // FIXME draw attr props, deduplicate with DOM s
   return typeof dom == "function" ? dom(tag.param) : drawElement(dom, tag.param)
 }
 
-class ContentViewUpdate {
-  old: ViewPointer
-  new: ViewBuilder
+class ContentUpdate {
+  old: ContentPointer
+  new: ContentBuilder
   cursor: Context
-  pendingWrappers: PropView[] = []
+  pendingWrappers: WrapperElt[] = []
 
-  constructor(readonly doc: DocNode, old: DocView) {
-    this.old = new ViewPointer(old, 0, null)
-    this.new = new ViewBuilder(doc.tag, null, null, old)
+  constructor(readonly doc: DocNode, old: DocElt) {
+    this.old = new ContentPointer(old, 0, null)
+    this.new = new ContentBuilder(doc.tag, null, null, old)
     this.cursor = doc.resolve(0)
   }
 
@@ -228,7 +228,7 @@ class ContentViewUpdate {
       let wrap = wrappers[i]
       if (wrap.type.element) {
         let found = this.pendingWrappers.find(v => v.prop.eq(wrap)) || null
-        this.new = new ViewBuilder(null, wrappers[i], this.new, found)
+        this.new = new ContentBuilder(null, wrappers[i], this.new, found)
       }
     }
   }
@@ -236,17 +236,17 @@ class ContentViewUpdate {
   // FIXME reuse of DOM nodes
   keep(len: number) {
     this.cursor = this.cursor.advance(len)
-    let walk: ViewWalker = { // FIXME store in builder
+    let walk: ContentWalker = { // FIXME store in builder
       enter: v => {
         if (v.isSpanning()) {
           this.pendingWrappers.push(v)
         } else {
           this.syncWrappers(innerWrappers(v))
-          this.new = new ViewBuilder(v.tag, v.prop, this.new, v)
+          this.new = new ContentBuilder(v.tag, v.prop, this.new, v)
         }
       },
       leave: v => {
-        if (v instanceof NodeView) {
+        if (v instanceof NodeElt) {
           if (this.pendingWrappers.length) this.pendingWrappers = []
           for (;;) {
             let isTag = this.new.tag
@@ -279,9 +279,9 @@ class ContentViewUpdate {
       enter: tag => {
         this.syncWrappers(tag.props)
         for (let prop of tag.props) if (prop.type.element) {
-          this.new = new ViewBuilder(null, prop, this.new, null)
+          this.new = new ContentBuilder(null, prop, this.new, null)
         }
-        this.new = new ViewBuilder(tag, null, this.new, null)
+        this.new = new ContentBuilder(tag, null, this.new, null)
       },
       leave: () => {
         while (this.new.prop) this.new = this.new.finish()
@@ -292,9 +292,9 @@ class ContentViewUpdate {
         if (node.isLeaf()) {
           this.syncWrappers(node.tag.props)
           if (node.isText())
-            this.new.children.push(new TextView(node.tag, [], node.length, document.createTextNode(node.text), null))
+            this.new.children.push(new TextElt(node.tag, [], node.length, document.createTextNode(node.text), null))
           else
-            this.new.children.push(new NodeView(node.tag, [], node.length, renderNode(node.tag), null))
+            this.new.children.push(new NodeElt(node.tag, [], node.length, renderNode(node.tag), null))
         } else {
           walk.enter(node.tag)
           for (let ch of node.children) walk.skip(ch)
@@ -307,32 +307,32 @@ class ContentViewUpdate {
 
   finish() {
     while (this.new.parent) this.new = this.new.finish()
-    return new DocView(this.doc, this.new.children, this.doc.length, this.old.view.dom as HTMLElement)
+    return new DocElt(this.doc, this.new.children, this.doc.length, this.old.elt.dom as HTMLElement)
   }
 }
 
-function innerWrappers(view: ContentView) {
-  while (view instanceof PropView) view = view.children[0]
-  if (view instanceof NodeView) {
-    return view.tag.props
+function innerWrappers(elt: ContentElt) {
+  while (elt instanceof WrapperElt) elt = elt.children[0]
+  if (elt instanceof NodeElt) {
+    return elt.tag.props
   } else {
     throw new Error("FIXME")
   }
 }
 
-export class DocView extends ContentView {
-  constructor(readonly doc: DocNode, children: readonly ContentView[], length: number, dom: HTMLElement) {
+export class DocElt extends ContentElt {
+  constructor(readonly doc: DocNode, children: readonly ContentElt[], length: number, dom: HTMLElement) {
     super(children, length, dom, dom)
   }
 
   static create(doc: DocNode, dom: HTMLElement) {
-    let empty = new DocView(doc.schema.doc([]), [], 0, dom)
+    let empty = new DocElt(doc.schema.doc([]), [], 0, dom)
     return empty.update(doc, ChangeSet.create(empty.doc, {from: 0, insert: new Slice(doc.children)}))
   }
 
   update(doc: DocNode, changes: ChangeSet) {
     if (changes.empty) return this
-    let builder = new ContentViewUpdate(doc, this)
+    let builder = new ContentUpdate(doc, this)
     for (let i = 0; i < changes.sections.length;) {
       let data = changes.data[i >> 1], len = changes.sections[i++], ins = changes.sections[i++]
       if (!data) {
@@ -349,41 +349,41 @@ export class DocView extends ContentView {
     return builder.finish()
   }
 
-  nearestNodeView(dom: DOMNode) {
+  nearestNodeElt(dom: DOMNode) {
     for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
-      let view = cur.wsView
-      if (view instanceof NodeView && this.owns(view)) return view
+      let elt = cur.wsElt
+      if (elt instanceof NodeElt && this.owns(elt)) return elt
     }
     return null
   }
 
   nearest(dom: DOMNode) {
     for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
-      let view = cur.wsView
-      if (view && this.owns(view)) return view
+      let elt = cur.wsElt
+      if (elt && this.owns(elt)) return elt
     }
     return null
   }
 
-  owns(view: ContentView) {
+  owns(elt: ContentElt) {
     for (;;) {
-      let {parent} = view
+      let {parent} = elt
       if (parent == this) return true
       if (!parent) return false
-      view = parent
+      elt = parent
     }
   }
 
   resolve(pos: number, assoc: -1 | 1) {
-    let parent: ContentView = this, index = 0, off = 0
+    let parent: ContentElt = this, index = 0, off = 0
     for (;;) {
-      if (parent.tag?.isText()) return new ViewPos(parent, pos - off, pos)
+      if (parent.tag?.isText()) return new ContentPos(parent, pos - off, pos)
       if (off == pos) {
         let before = index ? parent.children[index - 1] : null
         let after = index < parent.children.length ? parent.children[index] : null
         if (before?.boundary) before = null
         if (after?.boundary) after = null
-        if (!before && !after) return new ViewPos(parent, index, pos)
+        if (!before && !after) return new ContentPos(parent, index, pos)
         if (!after || before && assoc < 0) { parent = before!; index = before!.children.length }
         else { parent = after; index = 0 }
       }
@@ -401,9 +401,9 @@ export class DocView extends ContentView {
   }
 
   posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
-    let view = this.nearest(dom)
-    if (!view) throw new RangeError("Trying to find position for a DOM position outside of the document")
-    return view.localPosFromDOM(dom, offset, bias)
+    let elt = this.nearest(dom)
+    if (!elt) throw new RangeError("Trying to find position for a DOM position outside of the document")
+    return elt.localPosFromDOM(dom, offset, bias)
   }
 
   connect() {
@@ -411,13 +411,13 @@ export class DocView extends ContentView {
   }
 
   disconnect() {
-    // FIXME must determine disconnected views during update
+    // FIXME must determine disconnected elements during update
   }
 }
 
 // FIXME render attribute props
-export class NodeView extends ContentView {
-  constructor(readonly _tag: Tag, readonly children: readonly ContentView[], readonly length: number,
+export class NodeElt extends ContentElt {
+  constructor(readonly _tag: Tag, readonly children: readonly ContentElt[], readonly length: number,
               dom: DOMNode, contentDOM: HTMLElement | null) {
     super(children, length, dom, contentDOM)
   }
@@ -427,7 +427,7 @@ export class NodeView extends ContentView {
   get tag() { return this._tag }
 }
 
-export class TextView extends NodeView {
+export class TextElt extends NodeElt {
   get boundary() { return 0 }
 
   localPosFromDOM(dom: DOMNode, offset: number, bias: number) {
@@ -436,8 +436,8 @@ export class TextView extends NodeView {
 }
 
 // FIXME actually create these
-export class PropView extends ContentView {
-  constructor(readonly _prop: Prop, readonly children: readonly ContentView[], readonly length: number, dom: HTMLElement) {
+export class WrapperElt extends ContentElt {
+  constructor(readonly _prop: Prop, readonly children: readonly ContentElt[], readonly length: number, dom: HTMLElement) {
     super(children, length, dom, dom)
   }
 
