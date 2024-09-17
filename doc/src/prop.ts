@@ -45,6 +45,7 @@ export class PropType<Value> {
   readonly set: null | ((a: any, b: any) => number)
   readonly default: Prop<Value> | null
   readonly inclusive: boolean
+  readonly element: boolean
   readonly spanning: boolean
 
   constructor(
@@ -53,11 +54,12 @@ export class PropType<Value> {
     isFlag: boolean
   ) {
     this.targetGroups = spec.tags == null ? ["Inline"] : splitGroups(spec.tags)
-    this.rank = spec.rank ?? 100
+    this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
     this.set = spec.set ? spec.set.compare : null
     this.default = isFlag ? new Prop(this, null as any) : null
     this.inclusive = spec.inclusive !== false
-    this.spanning = spec.spanning ?? isElementRepresentation(spec.dom)
+    this.element = isElementRepresentation(spec.dom)
+    this.spanning = spec.spanning ?? this.element
   }
 
   of(value: Value) { return new Prop(this, value) }

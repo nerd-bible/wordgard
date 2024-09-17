@@ -140,7 +140,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.docView = DocView.build(this.state.doc, this.contentDOM)
+    this.docView = DocView.create(this.state.doc, this.contentDOM)
 
     this.updateAttrs()
 
@@ -217,7 +217,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     this.pluginMap.clear()
     if (this.connected) this.docView.disconnect()
     this.inputState.disconnect()
-    this.docView = DocView.build(this.state.doc, this.contentDOM)
+    this.docView = DocView.create(this.state.doc, this.contentDOM)
     if (this.connected) this.docView.connect()
     this.inputState = new InputState(this)
     for (let plugin of this.plugins) {
@@ -249,8 +249,8 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
         let startState = this.viewState.drawnState
         let transactions = this.viewState.takePendingTransactions()
         let update = ViewUpdate.create(this, startState, this.state, transactions)
-        this.docView.update(update.state.doc, update.changes)
-        // FIXME update selection here, or in docView.update?
+        this.docView = this.docView.update(update.state.doc, update.changes)
+        // FIXME update selection here
         this.updatePlugins(update)
         this.inputState.update(update)
         this.showAnnouncements(update.transactions)

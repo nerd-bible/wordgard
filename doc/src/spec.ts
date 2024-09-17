@@ -43,13 +43,25 @@ export type TagSpec<Param> = {
 }
 
 export type PropSpec<Value> = {
+  /// Which node tags this prop may apply to, as a space separated
+  /// string of tag or group names. The default is `"Inline"`.
   tags?: string
+  /// Determines the position of this prop relative to other props.
+  /// Props with lower rank appear first in prop set arrays, and are
+  /// rendered around higher rank props in DOM representation. Ties
+  /// are broken by name.
   rank?: number
   /// Whether this mark should be active when the cursor is positioned
   /// at its end (or at its start when that is also the start of the
   /// parent node). Defaults to true.
   inclusive?: boolean
-  /// Defaults to true for specs with an element representation.
+  /// Whether this prop can span across multiple nodes, or refers to
+  /// an individual node. Only spanning props can be added to text.
+  /// Spanning props with an element representation can be drawn as
+  /// elements containing multiple nodes, unless another, lower-ranked
+  /// prop requires the nodes to be wrapped separately. Defaults to
+  /// true for specs with an element representation, false
+  /// for specs with an attribute representation.
   spanning?: boolean
   set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
   dom: ElementRepresentation<Value> | AttributeRepresentation<Value>

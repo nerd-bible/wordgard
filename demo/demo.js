@@ -4,6 +4,6 @@ import {schemaElement} from "@willows/state"
 
 window.view = new EditorView({
   parent: document.body,
-  doc: "<p>Hi <strong>you</strong></p>",
+  doc: "<p>One <em>two <strong>three</strong></em></p>",
   extensions: schemaElement.of(basicSchema.tags.concat(basicSchema.props))
 })
