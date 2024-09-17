@@ -1,4 +1,5 @@
-import {DocNode, Tag, Prop, Context, Walker, ChangeSet, Slice, ElementRepresentation} from "@willows/doc"
+import {DocNode, Tag, Prop, Context, Walker, ChangeSet, Slice,
+        ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {DOMNode} from "./dom"
 
 declare global {
@@ -168,9 +169,8 @@ class ContentBuilder {
     let len = this.children.reduce((l, ch) => l + ch.length, 0)
     let parent = this.parent!, dom = this.reuse ? this.reuse.dom as HTMLElement : null
     if (this.tag) {
-      if (!dom) dom = renderNode(this.tag)
+      if (!dom) dom = renderNode(this.tag) as HTMLElement
       // FIXME separate content DOM
-      // FIXME add attribute props
       parent.children.push(new NodeElt(this.tag, this.children, len + 2, dom, dom))
     } else {
       if (!dom) dom = drawElement(this.prop!.type.spec.dom as ElementRepresentation<any>, this.prop!.value)
@@ -193,8 +193,26 @@ function drawElement<T>(repr: ElementRepresentation<T>, value: T) {
 }
 
 function renderNode(tag: Tag) { // FIXME draw attr props, deduplicate with DOM serializer?
-  let {dom} = tag.type.spec
-  return typeof dom == "function" ? dom(tag.param) : drawElement(dom, tag.param)
+  let text, elt
+  if (tag.isText()) {
+    text = document.createTextNode(tag.param as string)
+  } else {
+    let {dom} = tag.type.spec
+    elt = typeof dom == "function" ? dom(tag.param) : drawElement(dom, tag.param)
+  }
+  for (let prop of tag.props) if (!prop.type.element) {
+    let repr = prop.type.spec.dom as AttributeRepresentation<any>
+    let value = repr.value == null ? String(prop.value) : typeof repr.value == "string" ? repr.value : repr.value(prop.value)
+    if (value != null) {
+      if (!elt) {
+        elt = document.createElement("span")
+        elt.appendChild(text!)
+      }
+      if (/^style\//.test(repr.attribute)) elt.style.setProperty(repr.attribute.slice(6), value)
+      else elt.setAttribute(repr.attribute, value)
+    }
+  }
+  return elt || text!
 }
 
 class ContentUpdate {
@@ -291,10 +309,8 @@ class ContentUpdate {
         // FIXME text joinings
         if (node.isLeaf()) {
           this.syncWrappers(node.tag.props)
-          if (node.isText())
-            this.new.children.push(new TextElt(node.tag, [], node.length, document.createTextNode(node.text), null))
-          else
-            this.new.children.push(new NodeElt(node.tag, [], node.length, renderNode(node.tag), null))
+          this.new.children.push(new (node.isText() ? TextElt : NodeElt)(node.tag, [], node.length,
+                                                                         renderNode(node.tag), null))
         } else {
           walk.enter(node.tag)
           for (let ch of node.children) walk.skip(ch)
@@ -415,7 +431,6 @@ export class DocElt extends ContentElt {
   }
 }
 
-// FIXME render attribute props
 export class NodeElt extends ContentElt {
   constructor(readonly _tag: Tag, readonly children: readonly ContentElt[], readonly length: number,
               dom: DOMNode, contentDOM: HTMLElement | null) {
