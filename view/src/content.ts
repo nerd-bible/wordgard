@@ -114,6 +114,11 @@ export abstract class ContentElt {
     return bias > 0 ? this.posAtEnd : this.posAtStart
   }
 
+  get lastChild(): ContentElt | null {
+    let last = this.children.length - 1
+    return last < 0 ? null : this.children[last]
+  }
+
   get boundary() { return 0 }
   get tag(): Tag | null { return null }
   get prop(): Prop | null { return null }
@@ -148,7 +153,7 @@ class ContentPointer {
           if (left && walker) {
             if (index) {
               // FIXME make this easier
-              let tag = elt.tag.type.of((elt.tag.param as string).slice(index), elt.tag.props)
+              let tag = elt.tag.type.of(elt.tag.param.slice(index), elt.tag.props)
               walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)))
             } else {
               walker.skip(elt)
@@ -158,7 +163,7 @@ class ContentPointer {
           index++
         } else {
           if (walker) {
-            let tag = elt.tag.type.of((elt.tag.param as string).slice(index, index + dist), elt.tag.props)
+            let tag = elt.tag.type.of(elt.tag.param.slice(index, index + dist), elt.tag.props)
             walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)))
           }
           index += dist
@@ -261,7 +266,16 @@ class ContentUpdate {
     this.closeWrappers()
   }
 
+  joinText(tag: Tag<string>) {
+    let prev = this.new.lastChild
+    while (prev && !(prev instanceof NodeElt)) prev = prev.lastChild
+    if (!prev || !(prev instanceof TextElt) || !prev.tag.sameProps(tag)) return false
+    prev.addText(tag.param)
+    return true
+  }
+
   leaf(node: Node) {
+    if (node.tag.isText() && this.joinText(node.tag)) return
     this.openWrappers(wrappers(node.tag.props))
     let dom = renderNode(node.tag)
     let elt = node.isText() ? new TextElt(node.tag as Tag<string>, dom) : new NodeElt(node.tag, dom, null)
@@ -271,9 +285,13 @@ class ContentUpdate {
 
   reuseNodes(elt: ContentElt) {
     if (elt.tag) {
-      this.openWrappers(wrappers(elt.tag.props))
-      this.new.add(elt)
-      this.closeWrappers()
+      if (elt.tag.isText() && this.joinText(elt.tag)) {
+        // Done
+      } else {
+        this.openWrappers(wrappers(elt.tag.props))
+        this.new.add(elt)
+        this.closeWrappers()
+      }
     } else {
       for (let ch of elt.children) this.reuseNodes(ch)
     }
@@ -281,13 +299,20 @@ class ContentUpdate {
 
   openWrappers(props: readonly Prop[]) {
     // FIXME reuse existing dom
-    // FIXME join to spanning
+    let prev = this.new.lastChild
+    let canSpan = true
     for (let prop of props) {
-      let dom = drawElement(prop.type.spec.dom as ElementRepresentation<any>, prop.value)
-      let elt = new WrapperElt(prop, dom)
-      this.new.add(elt)
-      this.toSync.push(elt)
-      this.new = elt
+      if (canSpan && prop.type.spanning && prev?.prop && prev.prop.eq(prop)) {
+        this.new = prev
+        prev = this.new.lastChild
+      } else {
+        canSpan = false
+        let dom = drawElement(prop.type.spec.dom as ElementRepresentation<any>, prop.value)
+        let elt = new WrapperElt(prop, dom)
+        this.new.add(elt)
+        this.toSync.push(elt)
+        this.new = elt
+      }
     }
   }
 
@@ -438,7 +463,7 @@ export class DocElt extends ContentElt {
 }
 
 export class NodeElt extends ContentElt {
-  constructor(readonly _tag: Tag<any>, dom: DOMNode, contentDOM: HTMLElement | null) {
+  constructor(public _tag: Tag<any>, dom: DOMNode, contentDOM: HTMLElement | null) {
     super(dom, contentDOM)
   }
 
@@ -448,7 +473,7 @@ export class NodeElt extends ContentElt {
 }
 
 export class TextElt extends NodeElt {
-  constructor(readonly _tag: Tag<string>, dom: DOMNode) {
+  constructor(_tag: Tag<string>, dom: DOMNode) {
     super(_tag, dom, null)
     this.length = _tag.param.length
   }
@@ -460,6 +485,13 @@ export class TextElt extends NodeElt {
   }
 
   toString() { return JSON.stringify(this.tag.param) }
+
+  addText(text: string) {
+    this._tag = this._tag.type.of(this.tag.param + text, this.tag.props) // FIXME
+    this.length = this._tag.param.length
+    let textNode = this.dom.nodeType == 3 ? this.dom : this.dom.firstChild!
+    textNode.nodeValue = this._tag.param
+  }
 }
 
 // FIXME actually create these

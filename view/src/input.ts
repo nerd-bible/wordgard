@@ -641,7 +641,9 @@ function cursorContext(state: EditorState) {
 
 handlers.beforeinput = (view, event: InputEvent) => {
   if (event.inputType == "insertReplacementText" || event.inputType == "insertText") {
-    let slice = event.inputType == "insertText" ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "))])
+    let slice = event.inputType == "insertText"
+      ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "),
+                             view.state.doc.resolve(view.state.selection.main.from).props())])
       : readClipboard(view.state, event.dataTransfer!, cursorContext(view.state), true)
     let ranges = event.getTargetRanges()
     if (slice && ranges.length) {

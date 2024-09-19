@@ -86,7 +86,7 @@ export class TagType<Param> {
   }
 
   isInline() { return (this.flags & TagFlag.Inline) > 0 }
-  isText() { return (this.flags & TagFlag.Text) > 0 }
+  isText(): this is TagType<string> { return (this.flags & TagFlag.Text) > 0 }
   isBlock() { return (this.flags & TagFlag.Inline) == 0 }
   inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
   isTextblock() { return this.isBlock() && this.inlineContent() }
@@ -131,11 +131,11 @@ export class Tag<Param = unknown> {
     return new Node(this, this.type.checkChildren(joinText(children || none)))
   }
 
-  eq(other: Tag) {
+  eq(other: Tag<any>) {
     return this == other || this.type == other.type && compareDeep(this.param, other.param) && this.sameProps(other)
   }
 
-  sameProps(other: Tag) {
+  sameProps(other: Tag<any>) {
     return this == other || eqArray(this.props, other.props)
   }
 
@@ -149,7 +149,7 @@ export class Tag<Param = unknown> {
   hasProp(prop: Prop<any> | PropType<any>) { return prop.isInSet(this.props) }
 
   isInline() { return this.type.isInline() }
-  isText() { return this.type.isText() }
+  isText(): this is Tag<string> { return this.type.isText() }
   isBlock() { return this.type.isBlock() }
   inlineContent() { return this.type.inlineContent() }
   isTextblock() { return this.type.isTextblock() }
