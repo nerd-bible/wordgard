@@ -136,7 +136,7 @@ function rm(dom: DOMNode): DOMNode | null {
 
 interface ContentWalker {
   enter(elt: ContentElt): void
-  skip(elt: ContentElt): void
+  skip(elt: ContentElt, parent: ContentElt | null): void
   leave(elt: ContentElt): void
 }
 
@@ -154,9 +154,9 @@ class ContentPointer {
             if (index) {
               // FIXME make this easier
               let tag = elt.tag.type.of(elt.tag.param.slice(index), elt.tag.props)
-              walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)))
+              walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)), elt.parent)
             } else {
-              walker.skip(elt)
+              walker.skip(elt, elt.parent)
             }
           }
           ;({elt, index, parent} = parent!)
@@ -164,7 +164,7 @@ class ContentPointer {
         } else {
           if (walker) {
             let tag = elt.tag.type.of(elt.tag.param.slice(index, index + dist), elt.tag.props)
-            walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)))
+            walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)), elt.parent)
           }
           index += dist
           dist = 0
@@ -177,7 +177,7 @@ class ContentPointer {
       } else {
         let next = elt.children[index]
         if (next.length <= dist) {
-          if (walker) walker.skip(next)
+          if (walker) walker.skip(next, next.parent)
           dist -= next.length
           index++
         } else {
@@ -283,22 +283,21 @@ class ContentUpdate {
     this.closeWrappers()
   }
 
-  reuseNodes(elt: ContentElt) {
+  reuseNodes(elt: ContentElt, parent: ContentElt | null) {
     if (elt.tag) {
       if (elt.tag.isText() && this.joinText(elt.tag)) {
         // Done
       } else {
-        this.openWrappers(wrappers(elt.tag.props))
+        this.openWrappers(wrappers(elt.tag.props), parent || elt.parent)
         this.new.add(elt)
         this.closeWrappers()
       }
     } else {
-      for (let ch of elt.children) this.reuseNodes(ch)
+      for (let ch of elt.children) this.reuseNodes(ch, null)
     }
   }
 
-  openWrappers(props: readonly Prop[]) {
-    // FIXME reuse existing dom
+  openWrappers(props: readonly Prop[], reuse: ContentElt | null = null) {
     let prev = this.new.lastChild
     let canSpan = true
     for (let prop of props) {
@@ -307,7 +306,14 @@ class ContentUpdate {
         prev = this.new.lastChild
       } else {
         canSpan = false
-        let dom = drawElement(prop.type.spec.dom as ElementRepresentation<any>, prop.value)
+        let dom
+        if (reuse) for (let scan = reuse; scan instanceof WrapperElt; scan = scan.parent!) {
+          if (scan.prop.eq(prop) && !this.toSync.some(e => e.dom == scan.dom)) {
+            dom = scan.dom as HTMLElement
+            break
+          }
+        }
+        if (!dom) dom = drawElement(prop.type.spec.dom as ElementRepresentation<any>, prop.value)
         let elt = new WrapperElt(prop, dom)
         this.new.add(elt)
         this.toSync.push(elt)
@@ -329,8 +335,8 @@ class ContentUpdate {
       leave: elt => {
         if (elt.tag) this.close()
       },
-      skip: elt => {
-        this.reuseNodes(elt)
+      skip: (elt, parent) => {
+        this.reuseNodes(elt, parent)
       }
     }
     this.old = this.old.advance(len, walk)
