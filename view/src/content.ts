@@ -1,4 +1,4 @@
-import {DocNode, Tag, Prop, Context, Walker, ChangeSet, Slice,
+import {DocNode, Node, Tag, Prop, Context, Walker, ChangeSet, Slice,
         ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {DOMNode} from "./dom"
 
@@ -18,30 +18,38 @@ export class ContentPos {
 
 export abstract class ContentElt {
   parent: ContentElt | null = null
+  readonly children: ContentElt[] = []
+  public length = 2 * this.boundary
 
   constructor(
-    readonly children: readonly ContentElt[],
-    readonly length: number,
     readonly dom: DOMNode,
     readonly contentDOM: HTMLElement | null
   ) {
     dom.wsElt = this
-    if (contentDOM) {
-      let prev: DOMNode | null = null, next: Node | null = contentDOM.firstChild
-      for (let child of children) {
-        child.parent = this
-        if (child.dom.parentNode == contentDOM) {
+  }
+
+  sync() {
+    if (this.contentDOM) {
+      let len = this.boundary * 2
+      let prev: DOMNode | null = null, next: DOMNode | null = this.contentDOM.firstChild
+      for (let child of this.children) {
+        len += child.length
+        if (child.dom.parentNode == this.contentDOM) {
           while (next && next != child.dom) next = rm(next)
         } else {
-          contentDOM.insertBefore(child.dom, next)
+          this.contentDOM.insertBefore(child.dom, next)
         }
         prev = child.dom
         next = prev.nextSibling
       }
       while (next) next = rm(next)
-    } else if (children.length) {
-      throw new Error("FIXME")
+      this.length = len
     }
+  }
+
+  add(child: ContentElt) {
+    this.children.push(child)
+    child.parent = this
   }
 
   isSpanning(): this is WrapperElt {
@@ -111,6 +119,8 @@ export abstract class ContentElt {
   get prop(): Prop | null { return null }
 
   ignoreEvent(event: Event) { return false } // FIXME implement or redesign
+
+  toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
 }
 
 function rm(dom: DOMNode): DOMNode | null {
@@ -131,7 +141,30 @@ class ContentPointer {
   advance(dist: number, walker?: ContentWalker) {
     let {elt, index, parent} = this
     while (dist > 0) {
-      if (index == elt.children.length) {
+      if (elt.tag?.isText()) {
+        let left = elt.length - index
+        if (dist >= left) {
+          dist -= left
+          if (left && walker) {
+            if (index) {
+              // FIXME make this easier
+              let tag = elt.tag.type.of((elt.tag.param as string).slice(index), elt.tag.props)
+              walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)))
+            } else {
+              walker.skip(elt)
+            }
+          }
+          ;({elt, index, parent} = parent!)
+          index++
+        } else {
+          if (walker) {
+            let tag = elt.tag.type.of((elt.tag.param as string).slice(index, index + dist), elt.tag.props)
+            walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)))
+          }
+          index += dist
+          dist = 0
+        }
+      } else if (index == elt.children.length) {
         if (walker) walker.leave(elt)
         dist -= elt.boundary
         ;({elt, index, parent} = parent!)
@@ -143,7 +176,7 @@ class ContentPointer {
           dist -= next.length
           index++
         } else {
-          if (walker) walker.enter(next)
+          if (walker && !next.tag?.isText()) walker.enter(next)
           dist -= next.boundary
           parent = new ContentPointer(elt, index, parent)
           elt = next
@@ -152,31 +185,6 @@ class ContentPointer {
       }
     }
     return new ContentPointer(elt, index, parent)
-  }
-}
-
-class ContentBuilder {
-  children: ContentElt[] = []
-
-  constructor(
-    readonly tag: Tag | null,
-    readonly prop: Prop | null,
-    readonly parent: ContentBuilder | null,
-    readonly reuse: ContentElt | null
-  ) {}
-
-  finish() {
-    let len = this.children.reduce((l, ch) => l + ch.length, 0)
-    let parent = this.parent!, dom = this.reuse ? this.reuse.dom as HTMLElement : null
-    if (this.tag) {
-      if (!dom) dom = renderNode(this.tag) as HTMLElement
-      // FIXME separate content DOM
-      parent.children.push(new NodeElt(this.tag, this.children, len + 2, dom, dom))
-    } else {
-      if (!dom) dom = drawElement(this.prop!.type.spec.dom as ElementRepresentation<any>, this.prop!.value)
-      parent.children.push(new WrapperElt(this.prop!, this.children, len, dom))
-    }
-    return parent
   }
 }
 
@@ -192,7 +200,7 @@ function drawElement<T>(repr: ElementRepresentation<T>, value: T) {
   return elt
 }
 
-function renderNode(tag: Tag) { // FIXME draw attr props, deduplicate with DOM serializer?
+function renderNode(tag: Tag) { // FIXME deduplicate with DOM serializer?
   let text, elt
   if (tag.isText()) {
     text = document.createTextNode(tag.param as string)
@@ -215,106 +223,110 @@ function renderNode(tag: Tag) { // FIXME draw attr props, deduplicate with DOM s
   return elt || text!
 }
 
+const none: any[] = []
+
+function wrappers(props: readonly Prop[]) {
+  let all = true, some = false
+  for (let prop of props) {
+    if (prop.type.element) some = true
+    else all = false
+  }
+  return all ? props : some ? props.filter(p => p.type.element) : none
+}
+
 class ContentUpdate {
   old: ContentPointer
-  new: ContentBuilder
+  new: ContentElt
   cursor: Context
-  pendingWrappers: WrapperElt[] = []
+  toSync: ContentElt[] = []
 
   constructor(readonly doc: DocNode, old: DocElt) {
     this.old = new ContentPointer(old, 0, null)
-    this.new = new ContentBuilder(doc.tag, null, null, old)
+    this.new = new DocElt(doc, old.dom as HTMLElement)
+    this.toSync.push(this.new)
     this.cursor = doc.resolve(0)
   }
 
-  // Make sure this.new has precisely the given set of spanning
-  // wrappers, ordered outer first.
-  syncWrappers(wrappers: readonly Prop[]) {
-    let existing = [] // FIXME optimize
-    for (let cx = this.new; cx.prop; cx = cx.parent!) existing.push(cx.prop)
-    let keep = 0, index = 0
-    while (index < wrappers.length && keep < existing.length) {
-      let next = wrappers[index]
-      if (next.type.element) {
-        if (!next.type.spanning) break
-        keep++
-      }
-      index++
-    }
-    for (let i = existing.length - keep; i > 0; i--) this.new = this.new.finish()
-    for (let i = index; i < wrappers.length; i++) {
-      let wrap = wrappers[i]
-      if (wrap.type.element) {
-        let found = this.pendingWrappers.find(v => v.prop.eq(wrap)) || null
-        this.new = new ContentBuilder(null, wrappers[i], this.new, found)
-      }
+  open(tag: Tag, reuse?: NodeElt) {
+    this.openWrappers(wrappers(tag.props))
+    let dom = reuse?.dom ?? renderNode(tag)
+    let elt = new NodeElt(tag, dom, dom as HTMLElement)
+    this.new.add(elt)
+    this.toSync.push(elt)
+    this.new = elt
+  }
+
+  close() {
+    this.new = this.new.parent!
+    this.closeWrappers()
+  }
+
+  leaf(node: Node) {
+    this.openWrappers(wrappers(node.tag.props))
+    let dom = renderNode(node.tag)
+    let elt = node.isText() ? new TextElt(node.tag as Tag<string>, dom) : new NodeElt(node.tag, dom, null)
+    this.new.add(elt)
+    this.closeWrappers()
+  }
+
+  reuseNodes(elt: ContentElt) {
+    if (elt.tag) {
+      this.openWrappers(wrappers(elt.tag.props))
+      this.new.add(elt)
+      this.closeWrappers()
+    } else {
+      for (let ch of elt.children) this.reuseNodes(ch)
     }
   }
 
-  // FIXME reuse of DOM nodes
+  openWrappers(props: readonly Prop[]) {
+    // FIXME reuse existing dom
+    // FIXME join to spanning
+    for (let prop of props) {
+      let dom = drawElement(prop.type.spec.dom as ElementRepresentation<any>, prop.value)
+      let elt = new WrapperElt(prop, dom)
+      this.new.add(elt)
+      this.toSync.push(elt)
+      this.new = elt
+    }
+  }
+
+  closeWrappers() {
+    while (this.new instanceof WrapperElt) this.new = this.new.parent!
+  }
+
   keep(len: number) {
     this.cursor = this.cursor.advance(len)
-    let walk: ContentWalker = { // FIXME store in builder
-      enter: v => {
-        if (v.isSpanning()) {
-          this.pendingWrappers.push(v)
-        } else {
-          this.syncWrappers(innerWrappers(v))
-          this.new = new ContentBuilder(v.tag, v.prop, this.new, v)
-        }
+    let walk: ContentWalker = { // FIXME store obj in builder
+      enter: elt => {
+        if (elt.tag) this.open(elt.tag, elt as NodeElt)
       },
-      leave: v => {
-        if (v instanceof NodeElt) {
-          if (this.pendingWrappers.length) this.pendingWrappers = []
-          for (;;) {
-            let isTag = this.new.tag
-            this.new = this.new.finish()
-            if (isTag) break
-          }
-        }
+      leave: elt => {
+        if (elt.tag) this.close()
       },
-      skip: v => {
-        // FIXME text join case
-        if (v.isSpanning()) {
-          walk.enter(v)
-          for (let ch of v.children) walk.skip(ch)
-          walk.leave(v)
-        } else {
-          let wrappers = innerWrappers(v)
-          this.syncWrappers(v.prop ? wrappers.slice(0, wrappers.indexOf(v.prop)) : wrappers)
-          if (this.pendingWrappers.length) this.pendingWrappers = []
-          this.new.children.push(v)
-        }
+      skip: elt => {
+        this.reuseNodes(elt)
       }
     }
     this.old = this.old.advance(len, walk)
-    if (this.pendingWrappers.length) this.pendingWrappers = []
   }
 
   replace(len: number, ins: number) {
     if (len) this.old.advance(len)
     let walk: Walker = {
       enter: tag => {
-        this.syncWrappers(tag.props)
-        for (let prop of tag.props) if (prop.type.element) {
-          this.new = new ContentBuilder(null, prop, this.new, null)
-        }
-        this.new = new ContentBuilder(tag, null, this.new, null)
+        this.open(tag)
       },
       leave: () => {
-        while (this.new.prop) this.new = this.new.finish()
-        this.new = this.new.finish()
+        this.close()
       },
       skip: node => {
-        // FIXME text joinings
         if (node.isLeaf()) {
-          this.syncWrappers(node.tag.props)
-          this.new.children.push(new (node.isText() ? TextElt : NodeElt)(node.tag, [], node.length,
-                                                                         renderNode(node.tag), null))
+          this.leaf(node)
         } else {
-          walk.enter(node.tag)
+          this.open(node.tag)
           for (let ch of node.children) walk.skip(ch)
-          walk.leave()
+          this.close()
         }
       }
     }
@@ -322,27 +334,19 @@ class ContentUpdate {
   }
 
   finish() {
-    while (this.new.parent) this.new = this.new.finish()
-    return new DocElt(this.doc, this.new.children, this.doc.length, this.old.elt.dom as HTMLElement)
-  }
-}
-
-function innerWrappers(elt: ContentElt) {
-  while (elt instanceof WrapperElt) elt = elt.children[0]
-  if (elt instanceof NodeElt) {
-    return elt.tag.props
-  } else {
-    throw new Error("FIXME")
+    this.closeWrappers()
+    for (let i = this.toSync.length - 1; i >= 0; i--) this.toSync[i].sync()
+    return this.new as DocElt
   }
 }
 
 export class DocElt extends ContentElt {
-  constructor(readonly doc: DocNode, children: readonly ContentElt[], length: number, dom: HTMLElement) {
-    super(children, length, dom, dom)
+  constructor(readonly doc: DocNode, dom: HTMLElement) {
+    super(dom, dom)
   }
 
   static create(doc: DocNode, dom: HTMLElement) {
-    let empty = new DocElt(doc.schema.doc([]), [], 0, dom)
+    let empty = new DocElt(doc.schema.doc([]), dom)
     return empty.update(doc, ChangeSet.create(empty.doc, {from: 0, insert: new Slice(doc.children)}))
   }
 
@@ -402,16 +406,18 @@ export class DocElt extends ContentElt {
         if (!before && !after) return new ContentPos(parent, index, pos)
         if (!after || before && assoc < 0) { parent = before!; index = before!.children.length }
         else { parent = after; index = 0 }
-      }
-      let next = parent.children[index]
-      if (off + next.length > pos) {
-        parent = next
-        index = 0
-        off += next.boundary
       } else {
-        if (index == parent.children.length)
-          throw new Error(`Invalid position ${pos} in document of size ${this.doc.length}`)
-        index++
+        let next = parent.children[index]
+        if (off + next.length > pos) {
+          parent = next
+          index = 0
+          off += next.boundary
+        } else {
+          if (index == parent.children.length)
+            throw new Error(`Invalid position ${pos} in document of size ${this.doc.length}`)
+          index++
+          off += next.length
+        }
       }
     }
   }
@@ -432,9 +438,8 @@ export class DocElt extends ContentElt {
 }
 
 export class NodeElt extends ContentElt {
-  constructor(readonly _tag: Tag, readonly children: readonly ContentElt[], readonly length: number,
-              dom: DOMNode, contentDOM: HTMLElement | null) {
-    super(children, length, dom, contentDOM)
+  constructor(readonly _tag: Tag<any>, dom: DOMNode, contentDOM: HTMLElement | null) {
+    super(dom, contentDOM)
   }
 
   get boundary() { return 1 }
@@ -443,17 +448,24 @@ export class NodeElt extends ContentElt {
 }
 
 export class TextElt extends NodeElt {
+  constructor(readonly _tag: Tag<string>, dom: DOMNode) {
+    super(_tag, dom, null)
+    this.length = _tag.param.length
+  }
+  
   get boundary() { return 0 }
 
   localPosFromDOM(dom: DOMNode, offset: number, bias: number) {
-    return this.posAtStart + Math.min(offset, (this.tag.param as string).length)
+    return this.posAtStart + (dom.nodeType == 3 ? Math.min(offset, this.length) : offset ? this.length : 0)
   }
+
+  toString() { return JSON.stringify(this.tag.param) }
 }
 
 // FIXME actually create these
 export class WrapperElt extends ContentElt {
-  constructor(readonly _prop: Prop, readonly children: readonly ContentElt[], readonly length: number, dom: HTMLElement) {
-    super(children, length, dom, dom)
+  constructor(readonly _prop: Prop, dom: HTMLElement) {
+    super(dom, dom)
   }
 
   get prop() { return this._prop }

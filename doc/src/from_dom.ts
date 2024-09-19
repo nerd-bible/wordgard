@@ -73,7 +73,7 @@ export type ParseOptions = {
   /// the document positions of the given DOM positions. It will do so
   /// by writing to the objects, setting a `pos` property that holds
   /// the document position.
-  findPositions?: {node: DOMNode, offset: number, pos?: number}[]
+  findPositions?: {node: DOMNode, offset: number, pos?: number}[] // FIXME no longer needed?
   isOpen?: (elt: HTMLElement) => OpenSide
 }
 

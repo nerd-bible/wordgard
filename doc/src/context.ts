@@ -73,7 +73,7 @@ export class Context {
     return new Context(doc, 0, 0, 0, null)
   }
 
-  static resolve(doc: DocNode, pos: number) {
+  static resolve(doc: DocNode, pos: number): Context {
     let cache = contextCache.get(doc), nearest: Context | undefined
     if (!cache) {
       contextCache.set(doc, cache = [])

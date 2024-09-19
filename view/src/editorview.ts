@@ -17,6 +17,7 @@ import {InputState} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
+import {setDOMSelection} from "./selection"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
@@ -250,6 +251,9 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
         let transactions = this.viewState.takePendingTransactions()
         let update = ViewUpdate.create(this, startState, this.state, transactions)
         this.docElt = this.docElt.update(update.state.doc, update.changes)
+        if (!update.changes.empty || update.selectionSet && !this.hasFocus)
+          setDOMSelection(this)
+        this.observer.clear()
         // FIXME update selection here
         this.updatePlugins(update)
         this.inputState.update(update)
