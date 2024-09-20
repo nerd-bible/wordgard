@@ -1,4 +1,4 @@
-import {DocNode, Node, Tag, Prop, Context, Walker, ChangeDesc, Slice,
+import {DocNode, Node, Tag, Prop, Context, Walker, ChangeDesc,
         ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {DOMNode} from "./dom"
 
@@ -345,7 +345,7 @@ class ContentUpdate {
   }
 
   replace(len: number, ins: number) {
-    if (len) this.old.advance(len)
+    if (len) this.old = this.old.advance(len)
     let walk: Walker = {
       enter: tag => {
         this.open(tag)

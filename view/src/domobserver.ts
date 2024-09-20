@@ -1,7 +1,10 @@
+import {ChangeDesc} from "@willows/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
 import {editable, ViewUpdate} from "./extension"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, isEquivalentPosition, atElementStart} from "./dom"
+import {ContentElt} from "./content"
+import {setDOMSelection} from "./selection"
 
 const observeOptions = {
   childList: true,
@@ -170,48 +173,73 @@ export class DOMObserver {
 
   // Throw away any pending changes
   clear() {
-    this.processRecords()
+    this.takeRecords()
     this.queue.length = 0
     this.selectionChanged = false
   }
 
-  pendingRecords() {
+  takeRecords() {
     for (let mut of this.observer.takeRecords()) this.queue.push(mut)
-    return this.queue
+    let records = this.queue
+    if (records.length) this.queue = []
+    return records
   }
 
   processRecords() {
-    let records = this.pendingRecords()
-    if (records.length) this.queue = []
-
-    let from = -1, to = -1
-    for (let record of records) {
-      let range = this.readMutation(record)
-      if (!range) continue
-      if (from == -1) {
-        ;({from, to} = range)
-      } else {
-        from = Math.min(range.from, from)
-        to = Math.max(range.to, to)
+    let change: ChangeDesc | undefined
+    for (let record of this.takeRecords()) {
+      let range = this.findMutation(record)
+      if (range) {
+        let sections = range[0] ? [range[0], -1] : [], len = this.view.viewState.drawnState.doc.length
+        sections.push(range[1] - range[0], -2)
+        if (range[1] < len) sections.push(len - range[1], -1)
+        let desc = new ChangeDesc(sections)
+        change = change ? change.composeDesc(desc) : desc
       }
     }
-    return {from, to}
+    return change
   }
 
-  readMutation(record: MutationRecord): {from: number, to: number} | null {
-    return null
+  findMutation(record: MutationRecord): [number, number] | null {
+    let elt = this.view.docElt.nearest(record.target)
+    if (!elt || elt.ignoreMutations) return null
+    if (record.type == "attributes" || record.type == "characterData") {
+      return [elt.posBefore, elt.posAfter]
+    } else if (record.type == "childList") {
+      let childBefore = findChild(elt, record.previousSibling || record.target.previousSibling, -1)
+      let childAfter = findChild(elt, record.nextSibling || record.target.nextSibling, 1)
+      return [childBefore ? elt.posBeforeChild(childBefore) + childBefore.length : elt.posAtStart,
+              childAfter ? elt.posBeforeChild(childAfter) : elt.posAtEnd]
+    } else {
+      return null
+    }
   }
 
   // Apply pending changes, if any
   read(readSelection = true) {
     if (readSelection) this.readSelectionRange()
-
+    let changed = this.processRecords()
+    if (changed) {
+      // FIXME reuse path of regular updates, somehow
+      this.view.docElt.update(this.view.state.doc, changed)
+      setDOMSelection(this.view)
+    }
     // FIXME mark changed range as dirty, redraw, see when to use selection change
   }
 
   update(update: ViewUpdate) {
     if (this.editContext) this.editContext.update(update)
   }
+}
+
+function findChild(elt: ContentElt, dom: Node | null, dir: number): ContentElt | null {
+  while (dom) {
+    let cur = dom.wsElt
+    if (cur && cur.parent == elt) return cur
+    let parent = dom.parentNode
+    dom = parent != elt.dom ? parent : dir > 0 ? dom.nextSibling : dom.previousSibling
+  }
+  return null
 }
 
 function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {

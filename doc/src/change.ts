@@ -530,11 +530,11 @@ function compose<T extends ChangeDesc>(chA: T, chB: T, isSet: boolean): ChangeSe
       let len = Math.min(a.len2, b.len), sectionLen = sections.length
       if (a.keep && b.keep) {
         let mods = combineMods(a.mods, b.mods)
-        addSection(sections, data, len, mods ? -2 : -1, mods, open)
+        addSection(sections, data, len, (data ? mods : a.ins == -2 || b.ins == -2) ? -2 : -1, mods, open)
       } else if (a.keep) {
         addSection(sections, data, len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
       } else if (b.keep) {
-        addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
+        addSection(sections, data, a.off ? 0 : a.len, len, data ? applyModsToSlice(a.slicePart(len), b.mods) : null, open)
       } else {
         addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
       }
