@@ -114,8 +114,9 @@ type SectionData = Slice | readonly Modification[] | null
 export class ChangeDesc {
   constructor(
     // Pairs of integers, first one representing the length of the
-    // section in A, the second either -1 for a preserved or marked
-    // range, or an insertion length for a replacement.
+    // section in A, the second either -1 for a preserved, -2 for a
+    // marked range, or a non-negative insertion length for a
+    // replacement.
     readonly sections: readonly number[]
   ) {}
 
@@ -176,7 +177,7 @@ export class ChangeDesc {
     for (let iS = 0, pos = 0; iS < this.sections.length; iS += 2) {
       let len = this.sections[iS], ins = this.sections[iS + 1]
       if (ins >= 0) addSection(sections, null, ins, len, null)
-      else if (len) addSection(sections, null, len, -1, null)
+      else if (len) addSection(sections, null, len, ins, null)
       pos += len
     }
     return new ChangeDesc(sections)
@@ -293,10 +294,11 @@ export class ChangeSet extends ChangeDesc {
     // content has been inserted already, and refers to the section
     // index.
     for (let inserted = -1;;) {
-      if (a.ins == -1 && b.ins == -1) {
+      if (a.keep && b.keep) {
         // Move across ranges skipped by both sets.
         let len = Math.min(a.len, b.len)
-        addSection(sections, data, len, -1, before ? a.mods : filterMods(a.mods, b.mods))
+        let mods = before ? a.mods : filterMods(a.mods, b.mods)
+        addSection(sections, data, len, mods ? -2 : -1, mods)
         a.forward(len)
         b.forward(len)
         fitter.preserved(pos, pos += len)
@@ -323,7 +325,7 @@ export class ChangeSet extends ChangeDesc {
         // non-deletion change in B (if overlapping).
         let start = pos, end = pos + a.len, len = 0
         while (pos < end) {
-          if (b.ins == -1) {
+          if (b.keep) {
             let piece = Math.min(end - pos, b.len)
             pos += piece
             len += piece
@@ -368,7 +370,7 @@ export class ChangeSet extends ChangeDesc {
               ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)]
               : [nodePos, nodePos + 1]
             if (at < from) addSection(sections, data, from - at, -1, null)
-            addSection(sections, data, to - from, -1, invertMods(mods!, node))
+            addSection(sections, data, to - from, -2, invertMods(mods!, node))
             at = to
           }
         })
@@ -439,9 +441,9 @@ export class ChangeSet extends ChangeDesc {
                   if (!left.length) return false
                   modsHere = [{add: add.type.of(left)}]
                 }
-                section(from, to, -1, modsHere)
+                section(from, to, -2, modsHere)
               } else if (!has || !has.eq(add)) {
-                section(from, to, -1, mods)
+                section(from, to, -2, mods)
               }
               return true
             })
@@ -457,7 +459,7 @@ export class ChangeSet extends ChangeDesc {
                 if (!left.length) return false
                 modsHere = [{remove: remove.type.of(left)}]
               }
-              section(from, to, -1, modsHere)
+              section(from, to, -2, modsHere)
               return true
             })
           }
@@ -526,11 +528,12 @@ function compose<T extends ChangeDesc>(chA: T, chB: T, isSet: boolean): ChangeSe
       throw new Error("Mismatched change set lengths")
     } else {
       let len = Math.min(a.len2, b.len), sectionLen = sections.length
-      if (a.ins == -1 && b.ins == -1) {
-        addSection(sections, data, len, -1, combineMods(a.mods, b.mods), open)
-      } else if (a.ins == -1) {
+      if (a.keep && b.keep) {
+        let mods = combineMods(a.mods, b.mods)
+        addSection(sections, data, len, mods ? -2 : -1, mods, open)
+      } else if (a.keep) {
         addSection(sections, data, len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
-      } else if (b.ins == -1) {
+      } else if (b.keep) {
         addSection(sections, data, a.off ? 0 : a.len, len, applyModsToSlice(a.slicePart(len), b.mods), open)
       } else {
         addSection(sections, data, a.off ? 0 : a.len, b.off ? 0 : b.ins, b.off ? Slice.empty : b.slice, open)
@@ -843,12 +846,14 @@ class SectionIter {
       this.len = sections[this.i++]
       this.ins = sections[this.i++]
     } else {
-      this.len = 0; this.ins = -2
+      this.len = 0; this.ins = -3
     }
     this.off = 0
   }
 
-  get done() { return this.ins == -2 }
+  get keep() { return this.ins == -1 || this.ins == -2 }
+
+  get done() { return this.ins == -3 }
 
   get len2() { return this.ins < 0 ? this.len : this.ins }
 
@@ -874,7 +879,7 @@ class SectionIter {
   }
 
   forward2(len: number) {
-    if (this.ins == -1) this.forward(len)
+    if (this.keep) this.forward(len)
     else if (len == this.ins) this.next()
     else { this.ins -= len; this.off += len }
   }

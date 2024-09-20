@@ -1,4 +1,4 @@
-import {DocNode, Node, Tag, Prop, Context, Walker, ChangeSet, Slice,
+import {DocNode, Node, Tag, Prop, Context, Walker, ChangeDesc, Slice,
         ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {DOMNode} from "./dom"
 
@@ -124,6 +124,8 @@ export abstract class ContentElt {
   get prop(): Prop | null { return null }
 
   ignoreEvent(event: Event) { return false } // FIXME implement or redesign
+
+  get ignoreMutations() { return false }
 
   toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
 }
@@ -378,19 +380,19 @@ export class DocElt extends ContentElt {
 
   static create(doc: DocNode, dom: HTMLElement) {
     let empty = new DocElt(doc.schema.doc([]), dom)
-    return empty.update(doc, ChangeSet.create(empty.doc, {from: 0, insert: new Slice(doc.children)}))
+    return empty.update(doc, new ChangeDesc([0, doc.length]))
   }
 
-  update(doc: DocNode, changes: ChangeSet) {
+  update(doc: DocNode, changes: ChangeDesc) {
     if (changes.empty) return this
     let builder = new ContentUpdate(doc, this)
-    for (let i = 0; i < changes.sections.length;) {
-      let data = changes.data[i >> 1], len = changes.sections[i++], ins = changes.sections[i++]
-      if (!data) {
+    for (let i = 0; i < changes.sections.length;) { // FIXME make this a method on changeSet?
+      let len = changes.sections[i++], ins = changes.sections[i++]
+      if (ins == -1) {
         builder.keep(len)
       } else {
         if (ins < 0) ins = len
-        while (i < changes.sections.length && changes.data[i >> 1]) {
+        while (i < changes.sections.length && changes.sections[i + 1] != -1) {
           let len2 = changes.sections[i++], ins2 = changes.sections[i++]
           len += len2; ins += ins2 < 0 ? len2 : ins2
         }
@@ -475,7 +477,7 @@ export class NodeElt extends ContentElt {
 
   get boundary() { return 1 }
 
-  get tag() { return this._tag }
+  get tag(): Tag<unknown> { return this._tag }
 }
 
 export class TextElt extends NodeElt {
