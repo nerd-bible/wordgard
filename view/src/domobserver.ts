@@ -4,7 +4,7 @@ import {EditorView} from "./editorview"
 import {editable, ViewUpdate} from "./extension"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, isEquivalentPosition, atElementStart} from "./dom"
 import {ContentElt} from "./content"
-import {setDOMSelection} from "./selection"
+import {setDOMSelection, readDOMSelection} from "./selection"
 
 const observeOptions = {
   childList: true,
@@ -165,7 +165,7 @@ export class DOMObserver {
     this.selectionRange.set(null, 0, null, 0)
   }
 
-  ignore<T>(f: () => T): T {
+  ignore<T>(f: () => T): T { // FIXME just call clear directly?
     let result = f() // FIXME add mechanism to ensure no synchronous flush?
     this.clear()
     return result
@@ -175,6 +175,7 @@ export class DOMObserver {
   clear() {
     this.takeRecords()
     this.queue.length = 0
+    this.readSelectionRange()
     this.selectionChanged = false
   }
 
@@ -218,13 +219,19 @@ export class DOMObserver {
   // Apply pending changes, if any
   read(readSelection = true) {
     if (readSelection) this.readSelectionRange()
-    let changed = this.processRecords()
+    let changed = this.processRecords(), {view} = this
     if (changed) {
       // FIXME reuse path of regular updates, somehow
-      this.view.docElt.update(this.view.state.doc, changed)
+      view.docElt.update(this.view.state.doc, changed)
       setDOMSelection(this.view)
+    } else if (this.selectionChanged && view.hasFocus && hasSelection(view.contentDOM, this.selectionRange)) {
+      let sel = readDOMSelection(view, this.selectionRange)
+      if (!sel.main.eq(view.state.selection.main)) {
+        for (let tr of view.viewState.pendingTransactions) sel = sel.map(tr.changes)
+        view.dispatch({selection: sel})
+      }
+      this.selectionChanged = false
     }
-    // FIXME mark changed range as dirty, redraw, see when to use selection change
   }
 
   update(update: ViewUpdate) {
