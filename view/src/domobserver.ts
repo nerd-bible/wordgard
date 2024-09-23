@@ -222,8 +222,9 @@ export class DOMObserver {
     let changed = this.processRecords(), {view} = this
     if (changed) {
       // FIXME reuse path of regular updates, somehow
-      view.docElt.update(this.view.state.doc, changed)
+      view.docElt = view.docElt.update(this.view.state.doc, changed)
       setDOMSelection(this.view)
+      this.clear()
     } else if (this.selectionChanged && view.hasFocus && hasSelection(view.contentDOM, this.selectionRange)) {
       let sel = readDOMSelection(view, this.selectionRange)
       if (!sel.main.eq(view.state.selection.main)) {

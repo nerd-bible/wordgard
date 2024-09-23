@@ -241,7 +241,6 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     if (this.flushScheduled > -1) this.win.cancelAnimationFrame(this.flushScheduled)
     this.flushScheduled = -1
 
-    // FIXME flush pending DOM selection change?
     // FIXME force full redraw on phrase facet change
     // FIXME avoid unnecessary work
     try {
@@ -254,7 +253,6 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
         if (!update.changes.empty || update.selectionSet && this.hasFocus)
           setDOMSelection(this)
         this.observer.clear()
-        // FIXME update selection here
         this.updatePlugins(update)
         this.inputState.update(update)
         this.showAnnouncements(update.transactions)

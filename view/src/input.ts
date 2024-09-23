@@ -7,7 +7,6 @@ import browser from "./browser"
 import {getSelection, dispatchKey, scrollableParents, DOMNode} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 
-// This will also be where dragging info and such goes
 export class InputState {
   shiftKey = false
   lastKeyCode: number = 0
