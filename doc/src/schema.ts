@@ -128,18 +128,24 @@ export class Schema {
     if (!json || typeof json != "object" || !(json.type in this.tagsByName))
       throw new Error("Invalid tag JSON")
     let type = this.tagsByName[json.type]
-    let props = none
-    if (json.props && typeof json.props == "object") {
-      for (let name in json.props) {
-        let prop = this.propsByName[name]
-        if (prop) props = prop.of(json.props[name]).addToSet(props)
-      }
-    }
+    let props = json.props ? this.propsFromJSON(json.props) : none
     let tag = "param" in json ? new Tag(type, json.param, props)
       : !type.default ? null
       : props.length ? new Tag(type, type.default.param, props) : type.default
     if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
     return tag
+  }
+
+  propsFromJSON(json: Record<string, any>) {
+    if (!json || typeof json != "object") throw new Error("Invalid prop JSON")
+    let props = none
+    for (let name in json) {
+      let prop = this.propsByName[name]
+      if (!prop) throw new Error(`Unrecognized prop ${name} in JSON`)
+      // FIXME validate value
+      props = prop.of(json[name]).addToSet(props)
+    }
+    return props
   }
 
   docFromJSON(json: NodeJSON) {

@@ -1,5 +1,6 @@
-import {Schema, SchemaElement, DocNode, NodeJSON, parseDoc} from "@willows/doc"
-import {EditorSelection} from "./selection"
+import {Schema, Slice, SchemaElement, DocNode, Node, NodeJSON, parseDoc,
+        ChangeSet, ChangeSpec, fitReplacement} from "@willows/doc"
+import {EditorSelection, SelectionRange} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
         sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
@@ -356,6 +357,51 @@ export class EditorState {
     new EditorState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
   }
 
+  replaceSelection(content: Slice | string | Node) {
+    return this.changeByRange(range => {
+      let slice = content
+      if (!(slice instanceof Slice)) {
+        let props = this.selection.props || this.doc.resolve(range.from).props(this.doc.resolve(range.to))
+        slice = new Slice([typeof slice == "string" ? Node.text(slice, props) : slice.withProps(props)])
+      }
+      let fit = fitReplacement(this.doc, range.from, range.to, slice)
+      if (!fit) return {range}
+      return {
+        changes: fit.change,
+        range: EditorSelection.cursor(fit.sliceEnd, -1)
+      }
+    })
+  }
+
+  changeByRange(f: (range: SelectionRange) => {
+    range: SelectionRange,
+    changes?: ChangeSpec,
+    effects?: StateEffect<any> | readonly StateEffect<any>[]
+  }): {
+    changes: ChangeSet,
+    selection: EditorSelection,
+    effects: readonly StateEffect<any>[]
+  } {
+    let sel = this.selection
+    let result1 = f(sel.ranges[0])
+    let changes = ChangeSet.create(this.doc, result1.changes || []), ranges = [result1.range]
+    let effects = !result1.effects ? [] : Array.isArray(result1.effects) ? result1.effects : [result1.effects]
+    for (let i = 1; i < sel.ranges.length; i++) {
+      let result = f(sel.ranges[i])
+      let newChanges = ChangeSet.create(this.doc, result.changes || []), newMapped = newChanges.map(changes, this.doc)
+      for (let j = 0; j < i; j++) ranges[j] = ranges[j].map(newMapped)
+      let mapBy = changes.map(newChanges, this.doc, true)
+      ranges.push(result.range.map(mapBy))
+      changes = changes.compose(newMapped)
+      effects = StateEffect.mapEffects(effects, newMapped).concat(StateEffect.mapEffects(asArray(result.effects), mapBy))
+    }
+    return {
+      changes,
+      selection: EditorSelection.create(ranges, sel.mainIndex),
+      effects
+    }
+  }
+
   /// Convert this state to a JSON-serializable object. When custom
   /// fields should be serialized, you can pass them in as an object
   /// mapping property names (in the resulting object, which should
@@ -389,7 +435,7 @@ export class EditorState {
     }
     let config = Configuration.create([extensions, fieldInit])
     let schema = schemaFromConfig(config)
-    return EditorState.fromConfig(config, schema.docFromJSON(json.doc), EditorSelection.fromJSON(json.selection))
+    return EditorState.fromConfig(config, schema.docFromJSON(json.doc), EditorSelection.fromJSON(schema, json.selection))
   }
 
   /// Create a new state. You'll usually only need this when

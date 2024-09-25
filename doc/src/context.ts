@@ -61,9 +61,10 @@ export class Context {
     return c
   }
 
-  props() {
-    if (this.inText) return this.node.children[this.index].tag.props
-    let before = this.nodeBefore, after = this.nodeAfter
+  props(across?: Context) {
+    if (this.inText && !across) return this.node.children[this.index].tag.props
+    let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
+    let before = from.nodeBefore, after = to.nodeAfter
     let [main, sec] = before ? [before.tag.props, after ? after.tag.props : none]
       : [after ? after.tag.props : none, none]
     return main.filter(p => p.type.inclusive || p.isInSet(sec))

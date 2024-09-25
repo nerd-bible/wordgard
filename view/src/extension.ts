@@ -5,13 +5,7 @@ import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
 import {Rect, ScrollStrategy} from "./dom"
 import {MakeSelectionStyle} from "./input"
-
-/// Command functions are used in key bindings and other types of user
-/// actions. Given an editor view, they check whether their effect can
-/// apply to the editor, and if it can, perform it as a side effect
-/// (which usually means [dispatching](#view.EditorView.dispatch) a
-/// transaction) and return `true`.
-export type Command = (target: EditorView) => boolean
+import {Command} from "./commands"
 
 export const clickAddsSelectionRange = Facet.define<(event: MouseEvent) => boolean>()
 
@@ -25,6 +19,8 @@ export const updateListener = Facet.define<(update: ViewUpdate) => void>()
 
 export const inputHandler = Facet.define<(view: EditorView, from: number, to: number, text: string,
                                           insert: () => Transaction) => boolean>()
+
+export const inputEventHandler = Facet.define<{event: string, run: Command}>()
 
 export const focusChangeEffect = Facet.define<(state: EditorState, focusing: boolean) => StateEffect<any> | null>()
 

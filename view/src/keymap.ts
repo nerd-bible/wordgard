@@ -1,5 +1,5 @@
 import {EditorView} from "./editorview"
-import {Command} from "./extension"
+import {Command} from "./commands"
 import {Facet, Prec} from "@willows/state"
 import browser from "./browser"
 

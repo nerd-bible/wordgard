@@ -2,7 +2,7 @@ import {EditorSelection, EditorState, SelectionRange} from "@willows/state"
 import {Slice, Node, ChangeSet} from "@willows/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
-        logException, mouseSelectionStyle, PluginInstance, getScrollMargins} from "./extension"
+        logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
 import browser from "./browser"
 import {getSelection, dispatchKey, scrollableParents, DOMNode} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -639,7 +639,14 @@ function cursorContext(state: EditorState) {
 }
 
 handlers.beforeinput = (view, event: InputEvent) => {
+  for (let handler of view.state.facet(inputEventHandler))
+    if (handler.event == event.type && handler.run(view)) return true
+
   if (event.inputType == "insertReplacementText" || event.inputType == "insertText") {
+    // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
+    if (browser.safari && view.inputState.composing >= 0)
+      setTimeout(() => observers.compositionend(view, event), 20)
+
     let slice = event.inputType == "insertText"
       ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "),
                              view.state.doc.resolve(view.state.selection.main.from).props())])
@@ -652,22 +659,14 @@ handlers.beforeinput = (view, event: InputEvent) => {
       return true
     }
   }
-  // FIXME lots of other actions + support for handlers for these
-
-  if (browser.ios && event.inputType == "deleteContentForward") {
-    // For some reason, DOM changes (and beforeinput) happen _before_
-    // the key event for ctrl-d on iOS when using an external
-    // keyboard.
-    view.observer.read() // FIXME read composition state instead
-  }
-  // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
-  if (browser.safari && event.inputType == "insertText" && view.inputState.composing >= 0) {
-    setTimeout(() => observers.compositionend(view, event), 20)
-  }
 
   return false
 }
 
 export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {
-  view.dispatch({changes: {from, to, insert}, selection: {anchor: from + insert.length}}) // FIXME
+  let {main} = view.state.selection
+  if (from == main.from && to == main.to)
+    view.dispatch(view.state.replaceSelection(insert)) // FIXME pass raw text
+  else
+    view.dispatch({changes: {from, to, insert}})
 }

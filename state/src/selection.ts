@@ -1,4 +1,4 @@
-import {DocNode, Node, ChangeDesc} from "@willows/doc"
+import {Schema, DocNode, Node, ChangeDesc, Prop} from "@willows/doc"
 
 // A range's flags field is used like this:
 // - 2 bits for bidi level (3 means unset) (only meaningful for
@@ -17,7 +17,13 @@ const enum RangeFlag {
   GoalColumnOffset = 6,
   NoGoalColumn = 0xffffff
 }
-  
+
+export type SelectionJSON = {
+  ranges: {anchor: number, head: number}[],
+  main: number,
+  props?: Record<string, any>
+}
+
 /// A single selection range. When
 /// [`allowMultipleSelections`](#state.EditorState^allowMultipleSelections)
 /// is enabled, a [selection](#state.EditorSelection) may hold
@@ -91,7 +97,7 @@ export class SelectionRange {
   }
 
   /// Return a JSON-serializable object representing the range.
-  toJSON(): any { return {anchor: this.anchor, head: this.head} }
+  toJSON(): {anchor: number, head: number} { return {anchor: this.anchor, head: this.head} }
 
   /// Convert a JSON representation of a range to a `SelectionRange`
   /// instance.
@@ -115,7 +121,13 @@ export class EditorSelection {
     readonly ranges: readonly SelectionRange[],
     /// The index of the _main_ range in the selection (which is
     /// usually the range that was added last).
-    readonly mainIndex: number
+    readonly mainIndex: number,
+    /// A set of active props that should be applied to content
+    /// inserted at this selection (replacing the contextual props).
+    /// Used mostly for making the effect of toggling inline styles
+    /// stick until something is inserted. Props that aren't valid for
+    /// the inserted content will be ignored.
+    readonly props: readonly Prop[] | null
   ) {}
 
   /// Map a selection through a change. Used to adjust the selection
@@ -161,32 +173,39 @@ export class EditorSelection {
 
   /// Convert this selection to an object that can be serialized to
   /// JSON.
-  toJSON(): any {
-    return {ranges: this.ranges.map(r => r.toJSON()), main: this.mainIndex}
+  toJSON(): SelectionJSON {
+    let result: SelectionJSON = {ranges: this.ranges.map(r => r.toJSON()), main: this.mainIndex}
+    if (this.props) {
+      result.props = {}
+      for (let prop of this.props) result.props[prop.name] = prop.value
+    }
+    return result
   }
 
   /// Create a selection from a JSON representation.
-  static fromJSON(json: any): EditorSelection {
+  static fromJSON(schema: Schema, json: SelectionJSON): EditorSelection {
     if (!json || !Array.isArray(json.ranges) || typeof json.main != "number" || json.main >= json.ranges.length)
       throw new RangeError("Invalid JSON representation for EditorSelection")
-    return new EditorSelection(json.ranges.map((r: any) => SelectionRange.fromJSON(r)), json.main)
+    let props = json.props ? schema.propsFromJSON(json.props) : null
+    return new EditorSelection(json.ranges.map((r: any) => SelectionRange.fromJSON(r)), json.main, props)
   }
 
   /// Create a selection holding a single range.
-  static single(anchor: number, head: number = anchor) {
-    return new EditorSelection([EditorSelection.range(anchor, head)], 0)
+  static single(anchor: number, head: number = anchor, props: readonly Prop[] | null = null) {
+    return new EditorSelection([EditorSelection.range(anchor, head)], 0, props)
   }
 
   /// Sort and merge the given set of ranges, creating a valid
   /// selection.
-  static create(ranges: readonly SelectionRange[], mainIndex: number = 0) {
+  static create(ranges: readonly SelectionRange[], mainIndex: number = 0, props: readonly Prop[] | null = null) {
     if (ranges.length == 0) throw new RangeError("A selection needs at least one range")
     for (let pos = 0, i = 0; i < ranges.length; i++) {
       let range = ranges[i]
-      if (range.empty ? range.from <= pos : range.from < pos) return EditorSelection.normalized(ranges.slice(), mainIndex)
+      if (range.empty ? range.from <= pos : range.from < pos)
+        return EditorSelection.normalized(ranges.slice(), mainIndex, props)
       pos = range.to
     }
-    return new EditorSelection(ranges, mainIndex)
+    return new EditorSelection(ranges, mainIndex, props)
   }
 
   /// Create a cursor selection range at the given position. You can
@@ -216,7 +235,7 @@ export class EditorSelection {
   }
 
   /// @internal
-  static normalized(ranges: SelectionRange[], mainIndex: number = 0): EditorSelection {
+  static normalized(ranges: SelectionRange[], mainIndex: number = 0, props: readonly Prop[] | null): EditorSelection {
     let main = ranges[mainIndex]
     ranges.sort((a, b) => a.from - b.from)
     mainIndex = ranges.indexOf(main)
@@ -228,6 +247,6 @@ export class EditorSelection {
         ranges.splice(--i, 2, range.anchor > range.head ? EditorSelection.range(to, from) : EditorSelection.range(from, to))
       }
     }
-    return new EditorSelection(ranges, mainIndex)
+    return new EditorSelection(ranges, mainIndex, props)
   }
 }
