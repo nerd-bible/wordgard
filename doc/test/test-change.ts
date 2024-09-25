@@ -163,6 +163,12 @@ describe("ChangeSet", () => {
       ist(ChangeSet.createChecked(d, {from: 3, insert: slice}).apply(d),
           doc(p("a"), h1("hell")), eq)
     })
+
+    it("preserves the type of partially-deleted nodes", () => {
+      let d = doc(p("one"), h1("two"))
+      ist(ChangeSet.createChecked(d, {from: 0, to: 7}).apply(d),
+          doc(h1("wo")), eq)
+    })
   })
 
   describe("compose", () => {

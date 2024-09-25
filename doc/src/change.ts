@@ -3,7 +3,6 @@ import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 import {Context, Walker} from "./context"
-import {none} from "./helper"
 
 class BuildContext {
   children: Node[] = []
@@ -630,6 +629,8 @@ class ChangeFitter implements Walker {
   stackDelta = 0
   inputDelta = 0
   inserting = false
+  activeContext: readonly Tag[] = []
+  activeContextPos = -1
 
   constructor(readonly doc: DocNode) {
     this.stack = new FitLevel(doc.tag, null)
@@ -649,6 +650,10 @@ class ChangeFitter implements Walker {
       this.syncToContext(inputPos)
       this.stackDelta = 0
     }
+    let activeContext: Tag[] = this.activeContext = []
+    this.activeContextPos = this.pos
+    for (let c = inputPos; c.parent; c = c.parent)
+      activeContext.push(c.node.tag)
 
     this.inputPos = inputPos.advance(to - from, this)
   }
@@ -656,8 +661,6 @@ class ChangeFitter implements Walker {
   lastCoverFrom = -1
   lastCoverTo = -1
   doubleDeleteDelta = 0
-  activeContext: readonly Tag[] = none
-  activeContextPos = -1
 
   replaced(slice: Slice, from: number, to: number, covering = false) {
     this.doubleDeleteDelta = 0
