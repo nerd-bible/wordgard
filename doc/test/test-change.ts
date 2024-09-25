@@ -156,6 +156,13 @@ describe("ChangeSet", () => {
       let d = doc(blockquote(p("a")))
       ist(ChangeSet.createChecked(d, {from: 4, insert: slice(close, close, close)}).apply(d), d, eq)
     })
+
+    it("uses slice context for fitting", () => {
+      let slice = doc(h1("hello")).slice(1, 5, true)
+      let d = doc(p("a"))
+      ist(ChangeSet.createChecked(d, {from: 3, insert: slice}).apply(d),
+          doc(p("a"), h1("hell")), eq)
+    })
   })
 
   describe("compose", () => {

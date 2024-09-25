@@ -3,6 +3,7 @@ import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 import {Context, Walker} from "./context"
+import {none} from "./helper"
 
 class BuildContext {
   children: Node[] = []
@@ -655,6 +656,8 @@ class ChangeFitter implements Walker {
   lastCoverFrom = -1
   lastCoverTo = -1
   doubleDeleteDelta = 0
+  activeContext: readonly Tag[] = none
+  activeContextPos = -1
 
   replaced(slice: Slice, from: number, to: number, covering = false) {
     this.doubleDeleteDelta = 0
@@ -669,6 +672,8 @@ class ChangeFitter implements Walker {
         this.doubleDeleteDelta = counter.count
       }
     }
+    this.activeContext = slice.context
+    this.activeContextPos = this.pos
     if (from != to) {
       this.delInputPos = counter.countDelta(this.getPos(from), to - from)
       this.inputDelta -= counter.count
@@ -680,14 +685,22 @@ class ChangeFitter implements Walker {
 
   fit(tag: Tag) {
     if (this.stack.tag.type.canContain(tag.type)) return true
-    let fix: {leave: number, enter: readonly Tag[], cost: number} | null = null
+    let fix: {leave: number, enter: readonly Tag[], cost: number, context: boolean} | null = null
     let dDelta = this.stackDelta - this.inputDelta
     for (let level: FitLevel | null = this.stack, leave = 0, leaveCost = 0; level; level = level.next, leave++) {
       if (fix && leaveCost > fix.cost) break
       let enter = this.doc.schema.findWrapping(level.tag, tag)
       if (enter) {
         let cost = leaveCost + enter.length * 2 - Math.max(0, Math.min(-dDelta, enter.length))
-        if (!fix || fix.cost > cost) fix = {leave, enter, cost}
+        if (!fix || fix.cost > cost && !fix.context) fix = {leave, enter, cost, context: false}
+      }
+      if (this.activeContextPos == this.pos) for (let i = 0; i < this.activeContext.length; i++) {
+        if (level.tag.type.canContain(this.activeContext[i].type)) {
+          let cost = leaveCost + (i + 1) * 2 - Math.max(0, Math.min(-dDelta, i + 1))
+          if (!fix || fix.cost > cost || !fix.context)
+            fix = {leave, enter: this.activeContext.slice(0, i + 1).reverse(), cost, context: true}
+          break
+        }
       }
       leaveCost += level.flags & FitFlag.Synthetic ? 0 : dDelta > leave ? 1 : 2
     }
