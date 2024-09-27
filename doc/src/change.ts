@@ -6,17 +6,17 @@ import {Context, Walker} from "./context"
 
 class BuildContext {
   children: Node[] = []
-  constructor(readonly tag: Tag) {}
+  constructor(readonly tag: Tag, readonly parent: BuildContext | null) {}
 }
 
 class Builder implements Walker {
-  stack: BuildContext[]
+  stack: BuildContext
   modifications: readonly Modification[] | null = null
   schema: Schema
 
   constructor(doc: DocNode) {
     this.schema = doc.schema
-    this.stack = [new BuildContext(doc.tag)]
+    this.stack = new BuildContext(doc.tag, null)
   }
 
   add(node: Node) {
@@ -25,18 +25,19 @@ class Builder implements Walker {
       let tag = applyModifications(this.modifications, node.tag)
       if (tag != node.tag) node = tag.create(node.children)
     }
-    node.pushTo(this.stack[this.stack.length - 1].children)
+    node.pushTo(this.stack.children)
   }    
 
   enter(tag: Tag) {
     if (this.modifications) tag = applyModifications(this.modifications, tag)
-    this.stack.push(new BuildContext(tag))
+    this.stack = new BuildContext(tag, this.stack)
   }
 
   leave() {
     if (this.modifications) throw new Error("Invalid modification on close token")
-    if (this.stack.length == 1) throw new Error("Surplus close token")
-    let top = this.stack.pop()!
+    if (!this.stack.parent) throw new Error("Surplus close token")
+    let top = this.stack
+    this.stack = this.stack.parent
     if (!top.children.length && !top.tag.isLeaf() && !top.tag.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.tag.create(top.children))
@@ -47,8 +48,8 @@ class Builder implements Walker {
   }
 
   finish() {
-    if (this.stack.length != 1) throw new Error("Invalid change")
-    let {tag, children} = this.stack[0]
+    let {tag, children, parent} = this.stack
+    if (parent) throw new Error("Invalid change")
     if (!children.length && !tag.inlineContent())
       throw new Error(`Invalid change creating an empty block-child node`)
     return this.schema.doc(children)
@@ -469,9 +470,8 @@ export class ChangeSet extends ChangeDesc {
           let to = spec.to ?? spec.from
           if (to <= from) to = from
           if (fit) {
-            insert = fit
             needsFit = true
-            ;({from, to} = fitReplacement(doc, from, to, insert))
+            ;({from, to, slice: insert} = fitReplacement(doc, from, to, fit))
           }
           if (insert || to != from)
             section(from, to, insert ? insert.length : 0, insert || Slice.empty)
@@ -671,7 +671,7 @@ class ChangeFitter implements Walker {
         this.doubleDeleteDelta = counter.count
       }
     }
-    this.activeContext = slice.context
+    this.activeContext = slice.context // This shouldn't even be here. Find another way to pass it in
     this.activeContextPos = this.pos
     if (from != to) {
       this.delInputPos = counter.countDelta(this.getPos(from), to - from)
@@ -691,7 +691,8 @@ class ChangeFitter implements Walker {
       let enter = this.doc.schema.findWrapping(level.tag, tag)
       if (enter) {
         let cost = leaveCost + enter.length * 2 - Math.max(0, Math.min(-dDelta, enter.length))
-        if (!fix || fix.cost > cost && !fix.context) fix = {leave, enter, cost, context: false}
+        if (!fix || fix.cost > cost && !fix.context)
+          fix = {leave, enter, cost, context: false}
       }
       if (this.activeContextPos == this.pos) for (let i = 0; i < this.activeContext.length; i++) {
         if (level.tag.type.canContain(this.activeContext[i].type)) {
@@ -924,102 +925,111 @@ function addSection(sections: number[], data: SectionData[] | null,
   }
 }
 
-function startOfParents(context: Context) {
-  let n = 0
-  while (context.parent && context.parent.pos == context.pos - 1 && !context.node.type.isolating) {
-    context = context.parent
-    n++
-  }
-  return n
-}
-
-function endOfParents(context: Context) {
-  let n = 0
-  while (context.parent && context.after == context.parent.pos + context.parent.node.length - 1 &&
-         !context.node.type.isolating) {
-    context = context.parent
-    n++
-  }
-  return n
-}
-
 function fitsTrivially($from: Context, $to: Context, slice: Slice) {
   return $from.start == $to.start &&
     slice.content.every(tok => tok.tokenType == TokenType.Node && $from.node.type.canContain(tok.type))
 }
 
+function closeSlice(schema: Schema, slice: Slice, depth: number) {
+  let top: Token[] = [], stack: BuildContext | null = null
+  for (let i = depth - 1; i >= 0; i--) stack = new BuildContext(slice.context[i], stack)
+  for (let token of slice.content) {
+    if (token.tokenType == TokenType.Close) {
+      if (stack) {
+        let node = stack.tag.create(stack.children.length || stack.tag.inlineContent() ? stack.children
+                                    : [schema.createDefault(stack.tag.type)])
+        stack = stack.parent
+        ;(stack ? stack.children : top).push(node)
+      } else {
+        top.push(token)
+      }
+    } else if (token.tokenType == TokenType.Open) {
+      stack = new BuildContext(token.tag, stack)
+    } else {
+      ;(stack ? stack.children : top).push(token)
+    }
+  }
+  if (stack) splatContext(top, stack)
+  return new Slice(top, slice.context.slice(depth))
+}
+
+function splatContext(top: Token[], cx: BuildContext) {
+  if (cx.parent) splatContext(top, cx.parent)
+  top.push(new OpenToken(cx.tag))
+  for (let ch of cx.children) top.push(ch)
+}
+
 function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice = Slice.empty) {
   if (!slice.length) return fitDeletion(doc, from, to)
   let $from = doc.resolve(from), $to = doc.resolve(to)
-  if (fitsTrivially($from, $to, slice)) return {from, to}
+  if (fitsTrivially($from, $to, slice)) return {from, to, slice}
 
-  let startCover = startOfParents($from)
-  // If there is defining context, and the slice isn't just inline
-  // content, exit nodes that from is at the start of if the defining
-  // context fits in their parent.
-  if (slice.context.length && slice.content.some(tok => tok.tokenType != TokenType.Node || !tok.isInline())) {
-    for (let scan = $from, i = 0; i < startCover && scan.node.type.neutral; i++) {
-      scan = scan.parent!
-      for (let j = 0; j < slice.context.length; j++) {
-        let tag = slice.context[j]
-        if (tag.type.defining) {
-          if (scan.node.type.canContain(tag.type)) {
-            $from = scan
-            from = scan.pos
-            startCover -= i
-          }
-          break
-        }
-      }
-    }
+  let preferredContext = -1
+  for (let i = 0; i < slice.context.length; i++) {
+    let next = slice.context[i]
+    if (next.type.defining) { preferredContext = i; break }
   }
 
   // Scan over nodes covered entirely, see if the slice or one of its
   // contexts can be inserted instead of that node. If so, replace the
   // node.
-  let fromDepth = $from.depth, toDepth = $to.depth
-  let coveredUpTo = Math.max(fromDepth - startCover, toDepth - endOfParents($to))
-  let sharedDepth = Math.min(fromDepth, toDepth)
-  while (fromDepth > sharedDepth) { fromDepth--; $from = $from.parent! }
-  while (toDepth > sharedDepth) { toDepth--; $to = $to.parent! }
-  for (let i = 0, tag; i <= slice.context.length; i++) {
-    if (i) tag = slice.context[i]
-    else if (slice.content[0].tokenType == TokenType.Node) tag = slice.content[0].tag
-    else continue
-    for (let j = sharedDepth, scanFrom = $from, scanTo = $to; j > coveredUpTo;
-         j--, scanFrom = scanFrom.parent!, scanTo = scanTo.parent!) {
-      if (scanFrom.start == scanTo.start && scanFrom.parent!.node.type.canContain(tag.type))
-        return {from: scanFrom.before, to: scanFrom.after}
+  let found: {from: number, to: number, slice: Slice} | undefined, foundCost = 1e8
+  let neutral = true, toEnded = false
+  for (let cxFrom = $from, cxTo = $to, fromDepth = cxFrom.depth, toDepth = cxTo.depth, start = from, end = to;
+       cxFrom.parent;
+       cxFrom = cxFrom.parent, start--, fromDepth--) {
+    if (cxFrom.start != start || cxFrom.node.type.isolating) break
+    while (toDepth > fromDepth) { cxTo = cxTo.parent!; toDepth--; end++ }
+    if (cxTo.end != end || cxTo.node.type.isolating) toEnded = true
+    if (!cxFrom.node.type.neutral) neutral = false
+    for (let i = -1, tag; i < slice.context.length; i++) {
+      if (i >= 0) tag = slice.context[i]
+      else if (slice.content[0].tokenType == TokenType.Node) tag = slice.content[0].tag
+      else continue
+      if (cxFrom.parent.node.type.canContain(tag.type)) {
+        if (!toEnded && fromDepth == toDepth) {
+          let cost = (neutral ? 0 : 2) + (i < preferredContext ? slice.context.length - i : i - preferredContext)
+          if (foundCost > cost) {
+            found = {from: cxFrom.before, to: cxTo.after, slice: i >= 0 ? closeSlice(doc.schema, slice, i + 1) : slice}
+            foundCost = cost
+          }
+        }
+        if (neutral && i >= preferredContext && foundCost > 1e7) {
+          found = {from: cxFrom.before, to, slice: i >= 0 ? closeSlice(doc.schema, slice, i + 1) : slice}
+          foundCost = 1e7
+        }
+      }
     }
   }
 
-  return {from, to}
+  return found || {from, to, slice}
 }
 
 function fitDeletion(doc: DocNode, from: number, to: number) {
   let $from = doc.resolve(from), $to = doc.resolve(to), toDepth = $to.depth
-  let covered: {from: number, to: number} | undefined
+  let covered: {from: number, to: number, slice: Slice} | undefined
   // Walk up the contexts (catching up on cxTo whenever depth reaches
   // its depth), tracking whether there is any content between the
   // current depth's start/end and from/to by counting tokens.
   for (let cx = $from, cxTo = $to, depth = $from.depth, start = from, end = to;
        cx.parent; start--, cx = cx.parent, depth--) {
-    if (cx.start != start) break // Content before from, stop
+    // If there is content before from, or this is an isolating node, stop
+    if (cx.start != start || cx.node.type.isolating) break
     while (toDepth > depth) { cxTo = cxTo.parent!; toDepth--; end++ }
     let toAtEnd = toDepth == depth && cxTo.end == end // Check for content before to
     // If this is a deletion starting at the start of a node and
     // continuing past its end (but not to the end of a node at the
     // same level), include the node's open token.
-    if (cx.end < to && cx.parent.end > to && !toAtEnd) return {from: cx.before, to}
+    if (cx.end < to && cx.parent.end > to && !toAtEnd) return {from: cx.before, to, slice: Slice.empty}
     // Else if this is a completely covered set of siblings with
     // non-inline content, and the range isn't inside a single
     // textblock, pick the outermost such range and delete it
     // entirely.
     if (!cx.node.inlineContent() && toAtEnd && cx.parent.start == cxTo.parent!.start &&
         !($from.start == $to.start && $from.node.inlineContent()))
-      covered = {from: cx.before, to: cxTo.after}
+      covered = {from: cx.before, to: cxTo.after, slice: Slice.empty}
   }
-  return covered || {from, to}
+  return covered || {from, to, slice: Slice.empty}
 }
 
 function fitChangeSet(doc: DocNode, change: ChangeSet) {

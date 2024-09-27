@@ -134,7 +134,7 @@ describe("ChangeSet", () => {
 
     it("inserts required nodes", () => {
       let d = doc(blockquote(pre("x")))
-      ist(ChangeSet.create(d, {from: 1, to: 4, fit: slice()}).apply(d), doc(blockquote(p())), eq)
+      ist(ChangeSet.create(d, {from: 1, to: 4, fit: slice()}).apply(d), doc(p()), eq)
       ist(ChangeSet.create(d, {from: 0, to: 5, fit: slice()}).apply(d), doc(p()), eq)
     })
 
@@ -206,12 +206,6 @@ describe("ChangeSet", () => {
       let d = doc(blockquote(p("one")))
       ist(ChangeSet.create(d, {from: 2, to: 5, fit: slice()}).apply(d),
           doc(blockquote(p())), eq)
-    })
-
-    it("preserves opening tokens when the range ends at the end of a node", () => {
-      let d = doc(blockquote(h1("one")), p("two"))
-      ist(ChangeSet.create(d, {from: 2, to: 11, fit: slice()}).apply(d),
-          doc(blockquote(h1())), eq)
     })
 
     it("expands replacements to use defining context", () => {
