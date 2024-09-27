@@ -3,6 +3,7 @@ import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
 import {Context, Walker} from "./context"
+import {validate} from "./helper"
 
 class BuildContext {
   children: Node[] = []
@@ -85,7 +86,7 @@ function modificationFromJSON(schema: Schema, json: ModificationJSON): Modificat
   if (typeof add == "string" || typeof remove == "string") {
     let prop = schema.getProp((add || remove)!)
     if (!prop) throw new Error(`Unknown prop ${add || remove}`)
-    let value = prop.of(json.value) // FIXME validate
+    let value = prop.of(validate(prop.spec.validate, json.value))
     if (prop) return add ? {add: value} : {remove: value}
   }
   throw new Error("Invalid modification JSON")
@@ -643,7 +644,7 @@ class ChangeFitter implements Walker {
   preserved(from: number, to: number) {
     let inputPos = this.getPos(from)
     if (!this.inputDelta && this.stackDelta) {
-      this.syncToContext(inputPos) // FIXME don't sync until end of textblock?
+      this.syncToContext(inputPos)
       this.stackDelta = 0
     }
     this.activeContext = inputPos

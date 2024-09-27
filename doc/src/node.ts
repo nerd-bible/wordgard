@@ -164,7 +164,7 @@ export class Tag<Param = unknown> {
 
   toJSON(): TagJSON {
     let result: TagJSON = {type: this.name}
-    if (this != this.type.default) result.param = this.param
+    if (this != this.type.default && !this.isDoc()) result.param = this.param
     if (this.props.length) {
       result.props = Object.create(null)
       for (let {name, value} of this.props) result.props![name] = value

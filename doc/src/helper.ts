@@ -32,3 +32,14 @@ export function eqArray<T extends {eq: (other: T) => boolean}>(a: readonly T[], 
   for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
   return true
 }
+
+export function validate<T>(validator: string | ((value: T) => void) | undefined, value: T) {
+  if (typeof validator == "string") {
+    let types = validator.split("|")
+    let name = value === null ? "null" : typeof value
+    if (types.indexOf(name) < 0) throw new RangeError(`Expected value of type ${validator} got ${name}`)
+  } else if (validator) {
+    validator(value)
+  }
+  return value
+}

@@ -1,4 +1,5 @@
 import {Node, Tag, TextNode, DocNode} from "./node"
+import {Prop} from "./prop"
 import {none} from "./helper"
 
 export interface Walker {
@@ -66,9 +67,9 @@ export class Context {
     if (this.inText && !across) return this.node.children[this.index].tag.props
     let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
     let before = from.nodeBefore, after = to.nodeAfter
-    let [main, sec] = before ? [before.tag.props, after ? after.tag.props : none]
-      : [after ? after.tag.props : none, none]
-    return main.filter(p => p.type.inclusive || p.isInSet(sec))
+    let [main, sec]: [readonly Prop[], readonly Prop[]] =
+      before ? [before.tag.props, after ? after.tag.props : none] : [after ? after.tag.props : none, none]
+    return main.filter(p => p.type.spanning && (p.type.inclusive || p.isInSet(sec)))
   }
 
   static atStart(doc: DocNode) {

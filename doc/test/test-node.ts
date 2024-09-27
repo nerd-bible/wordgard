@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Node, Tag, basicBuilder, tag, Paragraph, Image, basicSchema as schema} from "@willows/doc"
-const {doc, blockquote, p, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
+const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
 
 describe("Node", () => {
   describe("toString", () => {
@@ -110,6 +110,18 @@ describe("Node", () => {
 
     it("can serialize nested nodes", () =>
        roundTrip(doc(blockquote(ul(li(p("a"), p("b")), li(p($img()))), p("c")), p("d"))))
+
+    it("complains about incorrect param types", () => {
+      let json = doc(h1()).toJSON()
+      json.children![0].param = "huh"
+      ist.throws(() => schema.nodeFromJSON(json), /Expected value of type number/)
+    })
+
+    it("complains about incorrect prop types", () => {
+      let json = doc(p($a("hi"))).toJSON()
+      json.children![0].children![0].props!.Link = [1, 2, 3]
+      ist.throws(() => schema.nodeFromJSON(json), /Expected value of type string/)
+    })
   })
 })
 

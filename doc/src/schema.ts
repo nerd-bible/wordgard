@@ -1,6 +1,6 @@
 import {Node, Tag, TagType, TagJSON, NodeJSON, Text, DocNode} from "./node"
 import {Prop, PropType} from "./prop"
-import {none} from "./helper"
+import {none, validate} from "./helper"
 import {Reject} from "./spec"
 
 export type SchemaElement = Tag<any> | TagType<any> | Prop<any> | PropType<any>
@@ -129,7 +129,7 @@ export class Schema {
       throw new Error("Invalid tag JSON")
     let type = this.tagsByName[json.type]
     let props = json.props ? this.propsFromJSON(json.props) : none
-    let tag = "param" in json ? new Tag(type, json.param, props)
+    let tag = "param" in json ? new Tag(type, validate(type.spec.validateParam, json.param), props)
       : !type.default ? null
       : props.length ? new Tag(type, type.default.param, props) : type.default
     if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
@@ -142,8 +142,7 @@ export class Schema {
     for (let name in json) {
       let prop = this.propsByName[name]
       if (!prop) throw new Error(`Unrecognized prop ${name} in JSON`)
-      // FIXME validate value
-      props = prop.of(json[name]).addToSet(props)
+      props = prop.of(validate(prop.spec.validate, json[name])).addToSet(props)
     }
     return props
   }
@@ -163,6 +162,7 @@ export const Paragraph = Tag.defineBlock("Paragraph", {
 
 export const Heading = TagType.defineBlock("Heading", {
   defaultParam: 1,
+  validateParam: "number",
   inlineContent: true,
   group: "Block",
   dom: level => document.createElement("h" + level),
@@ -186,6 +186,7 @@ export const CodeBlock = Tag.defineBlock("CodeBlock", {
 
 export const CodeBlockLanguage = PropType.define("CodeBlockLanguage", {
   tags: "CodeBlock",
+  validate: "string",
   dom: {attribute: "data-language", readAttribute: x => x}
 })
 
@@ -197,6 +198,7 @@ export const Blockquote = Tag.defineBlock("Blockquote", {
 
 export const OrderedList = TagType.defineBlock("OrderedList", {
   defaultParam: 1,
+  validateParam: "number",
   blockContent: "ListItem",
   group: "Block",
   dom: {
@@ -225,11 +227,13 @@ export const HorizontalRule = Tag.defineBlock("HorizontalRule", {
 })
 
 export const Image = TagType.defineInline<string>("Image", {
+  validateParam: "string",
   dom: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
 
 export const ImageAlt = PropType.define<string>("ImageAlt", {
   tags: "Image",
+  validate: "string",
   dom: {attribute: "alt", readAttribute: x => x}
 })
 
@@ -260,6 +264,7 @@ export const Strong = Prop.define("Strong", {
 
 export const Link = PropType.define<string>("Link", {
   rank: 20,
+  validate: "string",
   dom: {
     element: "a",
     selector: "a[href]",

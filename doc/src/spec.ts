@@ -35,6 +35,15 @@ export type TagSpec<Param> = {
   blockContent?: string
   inlineContent?: string | true
   defaultParam?: Param extends null ? never : Param
+  /// A function or type name used to validate this tag's parameter
+  /// value. This will be used when deserializing the attribute from
+  /// JSON. When a string, it should be a `|`-separated string of
+  /// primitive types (`"number"`, `"string"`, `"boolean"`, `"null"`,
+  /// and `"undefined"`), and the library will raise an error when the
+  /// value is not one of those types. When a function, it should
+  /// raise an error if the value doesn't have the expected type or
+  /// shape.
+  validateParam?: string | ((param: Param) => void)
   group?: string
   toText?: (node: Node) => string
   dom: ElementRepresentation<Param> | ((param: Param) => HTMLElement)
@@ -67,6 +76,9 @@ export type PropSpec<Value> = {
   /// true for specs with an element representation, false
   /// for specs with an attribute representation.
   spanning?: boolean
+  /// A function or type name used to validate values of this prop.
+  /// See [`TagSpec.validateParam`](#doc.TagSpec.validateParam).
+  validate?: string | ((value: Value) => void)
   set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
   dom: ElementRepresentation<Value> | AttributeRepresentation<Value>
   parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
