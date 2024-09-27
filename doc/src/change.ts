@@ -625,7 +625,7 @@ class ChangeFitter implements Walker {
   stackDelta = 0
   inputDelta = 0
   inserting = false
-  activeContext: readonly Tag[] = []
+  activeContext: Context | null = null
   activeContextPos = -1
 
   constructor(readonly doc: DocNode) {
@@ -646,11 +646,8 @@ class ChangeFitter implements Walker {
       this.syncToContext(inputPos) // FIXME don't sync until end of textblock?
       this.stackDelta = 0
     }
-    let activeContext: Tag[] = this.activeContext = []
+    this.activeContext = inputPos
     this.activeContextPos = this.pos
-    for (let c = inputPos; c.parent; c = c.parent)
-      activeContext.push(c.node.tag)
-
     this.inputPos = inputPos.advance(to - from, this)
   }
 
@@ -671,8 +668,6 @@ class ChangeFitter implements Walker {
         this.doubleDeleteDelta = counter.count
       }
     }
-    this.activeContext = slice.context // This shouldn't even be here. Find another way to pass it in
-    this.activeContextPos = this.pos
     if (from != to) {
       this.delInputPos = counter.countDelta(this.getPos(from), to - from)
       this.inputDelta -= counter.count
@@ -694,11 +689,17 @@ class ChangeFitter implements Walker {
         if (!fix || fix.cost > cost && !fix.context)
           fix = {leave, enter, cost, context: false}
       }
-      if (this.activeContextPos == this.pos) for (let i = 0; i < this.activeContext.length; i++) {
-        if (level.tag.type.canContain(this.activeContext[i].type)) {
-          let cost = leaveCost + (i + 1) * 2 - Math.max(0, Math.min(-dDelta, i + 1))
-          if (!fix || fix.cost > cost || !fix.context)
-            fix = {leave, enter: this.activeContext.slice(0, i + 1).reverse(), cost, context: true}
+      if (this.activeContextPos == this.pos) for (let cx = this.activeContext, i = 1; cx; cx = cx.parent, i++) {
+        if (level.tag.type.canContain(cx.node.type)) {
+          let cost = leaveCost + i * 2 - Math.max(0, Math.min(-dDelta, i))
+          if (!fix || fix.cost > cost || !fix.context) {
+            let enter: Tag[] = []
+            for (let scan = this.activeContext;; scan = scan!.parent) {
+              enter.unshift(scan!.node.tag)
+              if (scan == cx) break
+            }
+            fix = {leave, enter, cost, context: true}
+          }
           break
         }
       }
@@ -1001,8 +1002,15 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice = S
       }
     }
   }
+  if (found) return found
 
-  return found || {from, to, slice}
+  for (let i = 0; i < slice.context.length; i++) {
+    if ($from.node.type.canContain(slice.context[i].type)) {
+      slice = closeSlice(doc.schema, slice, i + 1)
+      break
+    }
+  }
+  return {from, to, slice}
 }
 
 function fitDeletion(doc: DocNode, from: number, to: number) {
