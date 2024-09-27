@@ -29,6 +29,9 @@ export class TagType<Param> {
   groups: readonly string[]
   contentGroups: readonly string[]
   readonly childCache: Map<TagType<unknown>, boolean> = new Map
+  readonly isolating: boolean
+  readonly defining: boolean
+  readonly neutral: boolean
   readonly preserveWhitespace: boolean
   readonly default: Tag<Param> | null
 
@@ -42,6 +45,9 @@ export class TagType<Param> {
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
     let content = spec.inlineContent === true ? "Inline" : spec.inlineContent  || spec.blockContent
     this.contentGroups = content ? splitGroups(content) : none
+    this.isolating = !!spec.isolating
+    this.defining = !!spec.defining
+    this.neutral = spec.neutral ?? !this.defining
     this.preserveWhitespace = !!spec.preserveWhitespace
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null

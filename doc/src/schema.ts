@@ -166,6 +166,7 @@ export const Heading = TagType.defineBlock("Heading", {
   inlineContent: true,
   group: "Block",
   dom: level => document.createElement("h" + level),
+  defining: true,
   parseRules: [
     {selector: "h1", param: 1},
     {selector: "h2", param: 2},
@@ -213,7 +214,8 @@ export const BulletList = Tag.defineBlock("BulletList", {
 
 export const ListItem = Tag.defineBlock("ListItem", {
   blockContent: "Block",
-  dom: {element: "li"}
+  dom: {element: "li"},
+  defining: true,
 })
 
 export const HorizontalRule = Tag.defineBlock("HorizontalRule", {

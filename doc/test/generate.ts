@@ -125,11 +125,11 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Wrap a block in a blockquote
   doc => scanBlocks(doc, (node, pos, parent) => {
     if (parent.tag.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.tag.type))
-      return [{from: pos, insert: slice(open(blockquote()))}, {from: pos + node.length, insert: slice(close)}]
+      return [{from: pos, fit: slice(open(blockquote()))}, {from: pos + node.length, fit: slice(close)}]
   }),
   // Delete an entire node
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.children.length > 1) return {from: pos, to: pos + node.length}
+    if (parent.children.length > 1) return {from: pos, to: pos + node.length, fit: Slice.empty}
   }),
   // Mark some inline content
   doc => {
@@ -169,5 +169,5 @@ function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, 
 export function rChange(doc: DocNode, parts = 1) {
   let specs: ChangeSpec[] = []
   for (let i = 0; i < parts; i++) specs.push(rChangeSpec(doc))
-  return ChangeSet.createChecked(doc, specs)
+  return ChangeSet.create(doc, specs)
 }

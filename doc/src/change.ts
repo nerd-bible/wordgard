@@ -105,6 +105,7 @@ export type ChangeSpec = {
   from: number
   to?: number
   insert?: Slice
+  fit?: Slice
   add?: Prop<any>
   remove?: Prop<any>
 } | ChangeSet | ChangeSpec[]
@@ -401,6 +402,7 @@ export class ChangeSet extends ChangeDesc {
   static create(doc: DocNode, spec: ChangeSpec): ChangeSet {
     let sections: number[] = [], data: SectionData[] = [], pos = 0
     let accum: ChangeSet | null = null
+    let needsFit = false
     let section = (from: number, to: number, ins: number, value: SectionData) => {
       if (from < pos) flush()
       if (from > pos) addSection(sections, data, from - pos, -1, null)
@@ -425,9 +427,9 @@ export class ChangeSet extends ChangeDesc {
         flush()
         add(spec)
       } else {
-        const {from, add, remove, insert} = spec
+        let {from, add, remove, insert, fit} = spec
         let modifies = add || remove
-        if (modifies && !insert) {
+        if (modifies && !insert && !fit) {
           let to = spec.to ?? spec.from + 1
           if (add) {
             let mods: Modification[] = [{add: add}]
@@ -466,6 +468,11 @@ export class ChangeSet extends ChangeDesc {
         } else {
           let to = spec.to ?? spec.from
           if (to <= from) to = from
+          if (fit) {
+            insert = fit
+            needsFit = true
+            ;({from, to} = fitReplacement(doc, from, to, insert))
+          }
           if (insert || to != from)
             section(from, to, insert ? insert.length : 0, insert || Slice.empty)
         }
@@ -473,19 +480,8 @@ export class ChangeSet extends ChangeDesc {
     }
     explore(spec)
     flush()
-    return accum || ChangeSet.empty(doc.length)
-  }
-
-  static createChecked(doc: DocNode, spec: ChangeSpec): ChangeSet {
-    let base = ChangeSet.create(doc, spec)
-    let fitter = new ChangeFitter(doc)
-    for (let i = 0, iS = 0, pos = 0; i < base.data.length; i++) {
-      let len = base.sections[iS++], ins = base.sections[iS++]
-      if (ins < 0) fitter.preserved(pos, pos += len)
-      else fitter.replaced(base.data[i] as Slice, pos, pos += len)
-    }
-    let fit = fitter.finish()
-    return fit ? base.compose(fit) : base
+    if (!accum) accum = ChangeSet.empty(doc.length)
+    return needsFit ? fitChangeSet(doc, accum) : accum
   }
 
   static empty(length: number) {
@@ -647,7 +643,7 @@ class ChangeFitter implements Walker {
   preserved(from: number, to: number) {
     let inputPos = this.getPos(from)
     if (!this.inputDelta && this.stackDelta) {
-      this.syncToContext(inputPos)
+      this.syncToContext(inputPos) // FIXME don't sync until end of textblock?
       this.stackDelta = 0
     }
     let activeContext: Tag[] = this.activeContext = []
@@ -926,4 +922,113 @@ function addSection(sections: number[], data: SectionData[] | null,
     sections.push(len, ins)
     if (data) data.push(value)
   }
+}
+
+function startOfParents(context: Context) {
+  let n = 0
+  while (context.parent && context.parent.pos == context.pos - 1 && !context.node.type.isolating) {
+    context = context.parent
+    n++
+  }
+  return n
+}
+
+function endOfParents(context: Context) {
+  let n = 0
+  while (context.parent && context.after == context.parent.pos + context.parent.node.length - 1 &&
+         !context.node.type.isolating) {
+    context = context.parent
+    n++
+  }
+  return n
+}
+
+function fitsTrivially($from: Context, $to: Context, slice: Slice) {
+  return $from.start == $to.start &&
+    slice.content.every(tok => tok.tokenType == TokenType.Node && $from.node.type.canContain(tok.type))
+}
+
+function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice = Slice.empty) {
+  if (!slice.length) return fitDeletion(doc, from, to)
+  let $from = doc.resolve(from), $to = doc.resolve(to)
+  if (fitsTrivially($from, $to, slice)) return {from, to}
+
+  let startCover = startOfParents($from)
+  // If there is defining context, and the slice isn't just inline
+  // content, exit nodes that from is at the start of if the defining
+  // context fits in their parent.
+  if (slice.context.length && slice.content.some(tok => tok.tokenType != TokenType.Node || !tok.isInline())) {
+    for (let scan = $from, i = 0; i < startCover && scan.node.type.neutral; i++) {
+      scan = scan.parent!
+      for (let j = 0; j < slice.context.length; j++) {
+        let tag = slice.context[j]
+        if (tag.type.defining) {
+          if (scan.node.type.canContain(tag.type)) {
+            $from = scan
+            from = scan.pos
+            startCover -= i
+          }
+          break
+        }
+      }
+    }
+  }
+
+  // Scan over nodes covered entirely, see if the slice or one of its
+  // contexts can be inserted instead of that node. If so, replace the
+  // node.
+  let fromDepth = $from.depth, toDepth = $to.depth
+  let coveredUpTo = Math.max(fromDepth - startCover, toDepth - endOfParents($to))
+  let sharedDepth = Math.min(fromDepth, toDepth)
+  while (fromDepth > sharedDepth) { fromDepth--; $from = $from.parent! }
+  while (toDepth > sharedDepth) { toDepth--; $to = $to.parent! }
+  for (let i = 0, tag; i <= slice.context.length; i++) {
+    if (i) tag = slice.context[i]
+    else if (slice.content[0].tokenType == TokenType.Node) tag = slice.content[0].tag
+    else continue
+    for (let j = sharedDepth, scanFrom = $from, scanTo = $to; j > coveredUpTo;
+         j--, scanFrom = scanFrom.parent!, scanTo = scanTo.parent!) {
+      if (scanFrom.start == scanTo.start && scanFrom.parent!.node.type.canContain(tag.type))
+        return {from: scanFrom.before, to: scanFrom.after}
+    }
+  }
+
+  return {from, to}
+}
+
+function fitDeletion(doc: DocNode, from: number, to: number) {
+  let $from = doc.resolve(from), $to = doc.resolve(to), toDepth = $to.depth
+  let covered: {from: number, to: number} | undefined
+  // Walk up the contexts (catching up on cxTo whenever depth reaches
+  // its depth), tracking whether there is any content between the
+  // current depth's start/end and from/to by counting tokens.
+  for (let cx = $from, cxTo = $to, depth = $from.depth, start = from, end = to;
+       cx.parent; start--, cx = cx.parent, depth--) {
+    if (cx.start != start) break // Content before from, stop
+    while (toDepth > depth) { cxTo = cxTo.parent!; toDepth--; end++ }
+    let toAtEnd = toDepth == depth && cxTo.end == end // Check for content before to
+    // If this is a deletion starting at the start of a node and
+    // continuing past its end (but not to the end of a node at the
+    // same level), include the node's open token.
+    if (cx.end < to && cx.parent.end > to && !toAtEnd) return {from: cx.before, to}
+    // Else if this is a completely covered set of siblings with
+    // non-inline content, and the range isn't inside a single
+    // textblock, pick the outermost such range and delete it
+    // entirely.
+    if (!cx.node.inlineContent() && toAtEnd && cx.parent.start == cxTo.parent!.start &&
+        !($from.start == $to.start && $from.node.inlineContent()))
+      covered = {from: cx.before, to: cxTo.after}
+  }
+  return covered || {from, to}
+}
+
+function fitChangeSet(doc: DocNode, change: ChangeSet) {
+  let fitter = new ChangeFitter(doc)
+  for (let i = 0, iS = 0, pos = 0; i < change.data.length; i++) {
+    let len = change.sections[iS++], ins = change.sections[iS++]
+    if (ins < 0) fitter.preserved(pos, pos += len)
+    else fitter.replaced(change.data[i] as Slice, pos, pos += len)
+  }
+  let fit = fitter.finish()
+  return fit ? change.compose(fit) : change
 }

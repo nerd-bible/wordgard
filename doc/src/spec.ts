@@ -40,6 +40,10 @@ export type TagSpec<Param> = {
   dom: ElementRepresentation<Param> | ((param: Param) => HTMLElement)
   parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
+  isolating?: boolean
+  defining?: boolean
+  neutral?: boolean
+  autoJoin?: boolean | ((before: Tag, after: Tag) => boolean) // FIXME implement
 }
 
 export type PropSpec<Value> = {

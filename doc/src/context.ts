@@ -7,6 +7,7 @@ export interface Walker {
   leave(): void
 }
 
+// FIXME reconsider an array representation
 export class Context {
   constructor(
     readonly node: Node,
