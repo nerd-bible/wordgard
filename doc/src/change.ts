@@ -358,6 +358,43 @@ export class ChangeSet extends ChangeDesc {
 
   compose(other: ChangeSet): ChangeSet { return compose(this, other, true) as ChangeSet }
 
+  merge(other: ChangeSet): ChangeSet | null {
+    let sections: number[] = [], data: SectionData[] = []
+    let a = new SectionIter(this), b = new SectionIter(other)
+    for (;;) {
+      if (a.done || b.done) {
+        if (!a.done || !b.done) throw new Error("Merging mismatched change sets")
+        return new ChangeSet(sections, data)
+      } else if (a.keep && b.keep) {
+        let len = Math.min(a.len, b.len)
+        let mods = combineMods(a.mods, b.mods)
+        addSection(sections, data, len, mods ? -2 : -1, mods)
+        a.forward(len)
+        b.forward(len)
+      } else if (a.len >= 0) {
+        let len = a.len
+        while (len) {
+          if (!b.keep) return null
+          let skip = Math.min(b.len, len)
+          b.forward(skip)
+          len -= skip
+        }
+        addSection(sections, data, a.len, a.ins, a.slice)
+        a.next()
+      } else {
+        let len = b.len
+        while (len) {
+          if (!a.keep) return null
+          let skip = Math.min(a.len, len)
+          a.forward(skip)
+          len -= skip
+        }
+        addSection(sections, data, b.len, b.ins, b.slice)
+        b.next()
+      }
+    }
+  }
+
   invert(doc: DocNode) {
     let sections: number[] = [], data: SectionData[] = []
     for (let i = 0, iS = 0, pos = 0; iS < this.sections.length; iS += 2, i++) {
