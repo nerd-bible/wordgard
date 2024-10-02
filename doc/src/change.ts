@@ -107,7 +107,7 @@ export type ChangeSpec = {
   from: number
   to?: number
   insert?: Slice
-  fit?: Slice
+  fit?: boolean | readonly Tag<any>[]
   add?: Prop<any>
   remove?: Prop<any>
 } | ChangeSet | ChangeSpec[]
@@ -468,7 +468,9 @@ export class ChangeSet extends ChangeDesc {
       } else {
         let {from, add, remove, insert, fit} = spec
         let modifies = add || remove
-        if (modifies && !insert && !fit) {
+        if (modifies) {
+          if (insert)
+            throw new Error(`A change spec object cannot both ${add ? "add" : "remove"} a prop and replace a range`)
           let to = spec.to ?? spec.from + 1
           if (add) {
             let mods: Modification[] = [{add: add}]
@@ -506,13 +508,14 @@ export class ChangeSet extends ChangeDesc {
           }
         } else {
           let to = spec.to ?? spec.from
+          insert = insert ?? Slice.empty
           if (to <= from) to = from
           if (fit) {
             needsFit = true
-            ;({from, to, slice: insert} = fitReplacement(doc, from, to, fit))
+            ;({from, to, slice: insert} = fitReplacement(doc, from, to, insert, fit === true ? [] : fit))
           }
-          if (insert || to != from)
-            section(from, to, insert ? insert.length : 0, insert || Slice.empty)
+          if (insert.length || to != from)
+            section(from, to, insert.length, insert)
         }
       }
     }
@@ -969,9 +972,9 @@ function fitsTrivially($from: Context, $to: Context, slice: Slice) {
     slice.content.every(tok => tok.tokenType == TokenType.Node && $from.node.type.canContain(tok.type))
 }
 
-function closeSlice(schema: Schema, slice: Slice, depth: number) {
+function closeSlice(schema: Schema, slice: Slice, context: readonly Tag[], depth: number) {
   let top: Token[] = [], stack: BuildContext | null = null
-  for (let i = depth - 1; i >= 0; i--) stack = new BuildContext(slice.context[i], stack)
+  for (let i = depth - 1; i >= 0; i--) stack = new BuildContext(context[i], stack)
   for (let token of slice.content) {
     if (token.tokenType == TokenType.Close) {
       if (stack) {
@@ -989,7 +992,7 @@ function closeSlice(schema: Schema, slice: Slice, depth: number) {
     }
   }
   if (stack) splatContext(top, stack)
-  return new Slice(top, slice.context.slice(depth))
+  return new Slice(top)
 }
 
 function splatContext(top: Token[], cx: BuildContext) {
@@ -998,14 +1001,14 @@ function splatContext(top: Token[], cx: BuildContext) {
   for (let ch of cx.children) top.push(ch)
 }
 
-function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice = Slice.empty) {
+function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice, context: readonly Tag[]) {
   if (!slice.length) return fitDeletion(doc, from, to)
   let $from = doc.resolve(from), $to = doc.resolve(to)
   if (fitsTrivially($from, $to, slice)) return {from, to, slice}
 
   let preferredContext = -1
-  for (let i = 0; i < slice.context.length; i++) {
-    let next = slice.context[i]
+  for (let i = 0; i < context.length; i++) {
+    let next = context[i]
     if (next.type.defining) { preferredContext = i; break }
   }
 
@@ -1021,20 +1024,21 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice = S
     while (toDepth > fromDepth) { cxTo = cxTo.parent!; toDepth--; end++ }
     if (cxTo.end != end || cxTo.node.type.isolating) toEnded = true
     if (!cxFrom.node.type.neutral) neutral = false
-    for (let i = -1, tag; i < slice.context.length; i++) {
-      if (i >= 0) tag = slice.context[i]
+    for (let i = -1, tag; i < context.length; i++) {
+      if (i >= 0) tag = context[i]
       else if (slice.content[0].tokenType == TokenType.Node) tag = slice.content[0].tag
       else continue
       if (cxFrom.parent.node.type.canContain(tag.type)) {
         if (!toEnded && fromDepth == toDepth) {
-          let cost = (neutral ? 0 : 2) + (i < preferredContext ? slice.context.length - i : i - preferredContext)
+          let cost = (neutral ? 0 : 2) + (i < preferredContext ? context.length - i : i - preferredContext)
           if (foundCost > cost) {
-            found = {from: cxFrom.before, to: cxTo.after, slice: i >= 0 ? closeSlice(doc.schema, slice, i + 1) : slice}
+            found = {from: cxFrom.before, to: cxTo.after,
+                     slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1) : slice}
             foundCost = cost
           }
         }
         if (neutral && i >= preferredContext && foundCost > 1e7) {
-          found = {from: cxFrom.before, to, slice: i >= 0 ? closeSlice(doc.schema, slice, i + 1) : slice}
+          found = {from: cxFrom.before, to, slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1) : slice}
           foundCost = 1e7
         }
       }
@@ -1042,9 +1046,9 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice = S
   }
   if (found) return found
 
-  for (let i = 0; i < slice.context.length; i++) {
-    if ($from.node.type.canContain(slice.context[i].type)) {
-      slice = closeSlice(doc.schema, slice, i + 1)
+  for (let i = 0; i < context.length; i++) {
+    if ($from.node.type.canContain(context[i].type)) {
+      slice = closeSlice(doc.schema, slice, context, i + 1)
       break
     }
   }

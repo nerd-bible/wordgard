@@ -113,7 +113,7 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
     }
   }
   emitTokens(top.children, true, true)
-  return new Slice(tokens, context)
+  return {slice: new Slice(tokens), context}
 }
 
 const enum CxFlag {

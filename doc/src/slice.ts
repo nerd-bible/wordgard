@@ -1,7 +1,6 @@
 import {TokenType, Node, NodeJSON, TagJSON, Tag} from "./node"
 import {Schema} from "./schema"
 import {Walker} from "./context"
-import {none} from "./helper"
 
 export class OpenToken {
   constructor(readonly tag: Tag) { // FIXME only put tag/props in here?
@@ -27,8 +26,7 @@ export type Token = Node | OpenToken | CloseToken
 export class Slice {
   readonly length: number
 
-  // FIXME use a separate Context value here instead of rolling this into Slice?
-  constructor(readonly content: readonly Token[], readonly context: readonly Tag[] = none) {
+  constructor(readonly content: readonly Token[]) {
     this.length = content.reduce((l, e) => l + (e.tokenType == TokenType.Node ? e.length : 1), 0)
   }
 

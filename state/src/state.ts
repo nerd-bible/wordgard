@@ -1,5 +1,5 @@
 import {Schema, Slice, SchemaElement, DocNode, Node, NodeJSON, parseDoc,
-        ChangeSet, ChangeSpec, fitReplacement} from "@willows/doc"
+        ChangeSet, ChangeSpec} from "@willows/doc"
 import {EditorSelection, SelectionRange} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
@@ -358,6 +358,7 @@ export class EditorState {
   }
 
   replaceSelection(content: Slice | string | Node) {
+      /* FIXME
     return this.changeByRange(range => {
       let slice = content
       if (!(slice instanceof Slice)) {
@@ -371,6 +372,8 @@ export class EditorState {
         range: EditorSelection.cursor(fit.sliceEnd, -1)
       }
     })
+      */
+    return {}
   }
 
   changeByRange(f: (range: SelectionRange) => {

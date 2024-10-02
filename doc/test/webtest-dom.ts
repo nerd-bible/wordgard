@@ -14,7 +14,10 @@ function html(doc: DocNode) {
 
 function sliceHTML(doc: DocNode, options?: any) {
   let wrap = document.createElement("div")
-  wrap.appendChild(serializeSlice(doc.slice(tag(doc, 0), tag(doc, 1), true), options))
+  wrap.appendChild(serializeSlice(doc.slice(tag(doc, 0), tag(doc, 1)), {
+    ...options,
+    context: doc.contextAt(tag(doc, 0), options?.maxDepth)
+  }))
   return wrap.innerHTML
 }
 
@@ -79,7 +82,7 @@ describe("serializeSlice", () => {
   })
 
   it("can include extra context", () => {
-    ist(sliceHTML(doc(blockquote(ul(li(p(0, "a")), li(p("b"), 1)))), {markOpen, includeContext: 3}),
+    ist(sliceHTML(doc(blockquote(ul(li(p(0, "a")), li(p("b"), 1)))), {markOpen, maxDepth: 3}),
         '<ul open-start="true" open-end="true"><li open-start="true"><p open-start="true">a</p></li>' +
         '<li open-end="true"><p>b</p></li></ul>')
   })
@@ -164,33 +167,28 @@ describe("parseSlice", () => {
     return parseSlice(options.schema || basicSchema, wrap, options)
   }
 
-  function sameSlice(a: Slice, b: Slice) {
-    return a.eq(b) && a.context.length == b.context.length && a.context.every((t, i) => t.eq(b.context[i]))
-  }
-
-  function slice(children: (string | Token)[], context: Node[]) {
-    return new Slice(children.map(ch => typeof ch == "string" ? Node.text(ch) : ch),
-                     context.map(n => n.tag))
+  function slice(children: (string | Token)[]) {
+    return new Slice(children.map(ch => typeof ch == "string" ? Node.text(ch) : ch))
   }
 
   it("can parse a simple slice", () => {
-    ist(parse("<p>One</p><p>Two</p>"), slice(["One", CloseToken, new OpenToken(p().tag), "Two"], [p()]), sameSlice)
+    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", CloseToken, new OpenToken(p().tag), "Two"]), eq)
   })
 
   it("can parse text at the top level", () => {
-    ist(parse("hello"), slice(["hello"], []), sameSlice)
+    ist(parse("hello").slice, slice(["hello"]), eq)
   })
 
   it("doesn't trim text at the top level", () => {
-    ist(parse("  hello  ", {collapseWhiteSpace: false}), slice(["  hello  "], []), sameSlice)
+    ist(parse("  hello  ", {collapseWhiteSpace: false}).slice, slice(["  hello  "]), eq)
   })
 
   it("opens nested nodes", () => {
-    ist(parse("<ul><li><p>One</p></li></ul>"), slice(["One"], [p(), li(), ul()]), sameSlice)
+    ist(parse("<ul><li><p>One</p></li></ul>").slice, slice(["One"]), eq)
   })
 
   it("doesn't open leaf nodes", () => {
-    ist(parse("<hr><p>A<br></p>"), slice([hr(), new OpenToken(p().tag), "A", br()], []), sameSlice)
+    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), new OpenToken(p().tag), "A", br()]), eq)
   })
 
   function isOpen(elt: HTMLElement) {
@@ -198,7 +196,7 @@ describe("parseSlice", () => {
   }
 
   it("can query the DOM for open structure", () => {
-    ist(parse('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}),
-        slice([new OpenToken(p().tag), "hi"], [blockquote()]), sameSlice)
+    ist(parse('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}).slice,
+        slice([new OpenToken(p().tag), "hi"]), eq)
   })
 })

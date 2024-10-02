@@ -125,8 +125,8 @@ describe("ChangeSet", () => {
     it("can handle overlapping conflicting changes", () => {
       let d = doc(p("abc"), p("def"))
       let ch = ChangeSet.create(d, [
-        {from: 0, fit: slice(open(blockquote()))},
-        {from: 5, fit: slice(close)},
+        {from: 0, insert: slice(open(blockquote())), fit: true},
+        {from: 5, insert: slice(close), fit: true},
         {from: 4, to: 6}
       ])
       ist(ch.apply(d), doc(blockquote(p("abc")), p("def")), eq)
@@ -134,13 +134,13 @@ describe("ChangeSet", () => {
 
     it("inserts required nodes", () => {
       let d = doc(blockquote(pre("x")))
-      ist(ChangeSet.create(d, {from: 1, to: 4, fit: slice()}).apply(d), doc(p()), eq)
-      ist(ChangeSet.create(d, {from: 0, to: 5, fit: slice()}).apply(d), doc(p()), eq)
+      ist(ChangeSet.create(d, {from: 1, to: 4, fit: true}).apply(d), doc(p()), eq)
+      ist(ChangeSet.create(d, {from: 0, to: 5, fit: true}).apply(d), doc(p()), eq)
     })
 
     it("adds wrapper nodes", () => {
       let d = doc(p())
-      ist(ChangeSet.create(d, {from: 0, fit: slice(li(p("a")))}).apply(d),
+      ist(ChangeSet.create(d, {from: 0, insert: slice(li(p("a"))), fit: true}).apply(d),
           doc(ul(li(p("a"))), p()), eq)
     })
 
@@ -148,75 +148,77 @@ describe("ChangeSet", () => {
       let Wrapper = Tag.defineBlock("Wrapper", {blockContent: "Inner Block", group: "Block", dom: {element: "wrapper"}})
       let Inner = Tag.defineBlock("Inner", {dom: {element: "inner"}})
       let schema = Schema.define([...basicSchema.tags, Wrapper, Inner])
-      let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, fit: slice(Inner.create())})
+      let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, insert: slice(Inner.create()), fit: true})
       ist(ch.apply(doc), schema.doc([Wrapper.create([Inner.create()]), p()]), eq)
     })
 
     it("discards extra close tokens", () => {
       let d = doc(blockquote(p("a")))
-      ist(ChangeSet.create(d, {from: 4, fit: slice(close, close, close)}).apply(d), d, eq)
+      ist(ChangeSet.create(d, {from: 4, insert: slice(close, close, close), fit: true}).apply(d), d, eq)
     })
 
     it("can chance the depth of existing content", () => {
       let d = doc(p("abc"))
-      ist(ChangeSet.create(d, {from: 1, fit: slice("x", close, open(blockquote()), open(p()))}).apply(d),
+      ist(ChangeSet.create(d, {from: 1, insert: slice("x", close, open(blockquote()), open(p())), fit: true}).apply(d),
           doc(p("x"), blockquote(p("abc"))), eq)
     })
 
     it("uses slice context for fitting", () => {
-      let slice = doc(h1("hello")).slice(1, 5, true)
       let d = doc(p("a"))
-      ist(ChangeSet.create(d, {from: 3, fit: slice}).apply(d),
+      let src = doc(h1("hello"))
+      ist(ChangeSet.create(d, {from: 3, insert: src.slice(1, 5), fit: src.contextAt(1)}).apply(d),
           doc(p("a"), h1("hell")), eq)
     })
 
     it("preserves the type of partially-deleted nodes", () => {
       let d = doc(p("one"), h1("two"))
-      ist(ChangeSet.create(d, {from: 0, to: 7, fit: slice()}).apply(d),
+      ist(ChangeSet.create(d, {from: 0, to: 7, fit: true}).apply(d),
           doc(h1("wo")), eq)
     })
 
     it("expands deletions to cover opening tokens", () => {
       let d = doc(h1("one"), p("two"))
-      ist(ChangeSet.create(d, {from: 1, to: 7, fit: slice()}).apply(d),
+      ist(ChangeSet.create(d, {from: 1, to: 7, fit: true}).apply(d),
           doc(p("wo")), eq)
     })
 
     it("expands deletions to cover multiple opening tokens", () => {
       let d = doc(blockquote(h1("one")), p("two"))
-      ist(ChangeSet.create(d, {from: 2, to: 9, fit: slice()}).apply(d),
+      ist(ChangeSet.create(d, {from: 2, to: 9, fit: true}).apply(d),
           doc(p("wo")), eq)
     })
 
     it("expands deletions covering an entire block-content node", () => {
       let d = doc(blockquote(p("one"), p("two")))
-      ist(ChangeSet.create(d, {from: 2, to: 10, fit: slice()}).apply(d),
+      ist(ChangeSet.create(d, {from: 2, to: 10, fit: true}).apply(d),
           doc(p()), eq)
     })
 
     it("expands deletions asymetrically covering an entire block-content node", () => {
       let d = doc(blockquote(p("one"), p("two")))
-      ist(ChangeSet.create(d, {from: 1, to: 10, fit: slice()}).apply(d),
+      ist(ChangeSet.create(d, {from: 1, to: 10, fit: true}).apply(d),
           doc(p()), eq)
-      ist(ChangeSet.create(d, {from: 2, to: 11, fit: slice()}).apply(d),
+      ist(ChangeSet.create(d, {from: 2, to: 11, fit: true}).apply(d),
           doc(p()), eq)
     })
 
     it("doesn't expand deletions covering a full textblock", () => {
       let d = doc(blockquote(p("one")))
-      ist(ChangeSet.create(d, {from: 2, to: 5, fit: slice()}).apply(d),
+      ist(ChangeSet.create(d, {from: 2, to: 5, fit: true}).apply(d),
           doc(blockquote(p())), eq)
     })
 
     it("expands replacements to use defining context", () => {
       let d = doc(p("..."))
-      ist(ChangeSet.create(d, {from: 1, fit: doc(ul(li(p("one")), li(p("two")))).slice(3, 13, true)}).apply(d),
+      let src = doc(ul(li(p("one")), li(p("two"))))
+      ist(ChangeSet.create(d, {from: 1, insert: src.slice(3, 13), fit: src.contextAt(3)}).apply(d),
           doc(ul(li(p("one")), li(p("two...")))), eq)
     })
 
     it("doesn't expand when pasting inline content only", () => {
       let d = doc(p("hi"))
-      ist(ChangeSet.create(d, {from: 1, fit: doc(h1("!")).slice(1, 2)}).apply(d),
+      let src = doc(h1("!"))
+      ist(ChangeSet.create(d, {from: 1, insert: src.slice(1, 2), fit: src.contextAt(1)}).apply(d),
           doc(p("!hi")), eq)
     })
   })

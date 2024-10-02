@@ -216,16 +216,11 @@ export class Node {
     return this == other || this.tag.eq(other.tag) && eqArray(this.children, other.children)
   }
 
-  slice(from: number, to = this.length, context = false) {
+  slice(from: number, to = this.length) {
     if (from == to) return Slice.empty
     let content: Token[] = []
     this.sliceNode(content, from, to)
-    if (!context || !(this instanceof DocNode)) return new Slice(content)
-    for (let cx = this.resolve(from), stack = [];;) {
-      stack.push(cx.node.tag)
-      if (!cx.parent) return new Slice(content, stack)
-      cx = cx.parent
-    }
+    return new Slice(content)
   }
 
   /// @internal
@@ -354,6 +349,14 @@ export class DocNode extends Node {
 
   resolve(pos: number) {
     return Context.resolve(this, pos)
+  }
+
+  contextAt(pos: number, maxDepth?: number): readonly Tag[] {
+    for (let cx = this.resolve(pos), context = [];;) {
+      if (!cx.parent || maxDepth != null && context.length == maxDepth) return context
+      context.push(cx.node.tag)
+      cx = cx.parent
+    }
   }
 }
 

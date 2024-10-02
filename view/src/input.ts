@@ -544,14 +544,14 @@ handlers.dragend = view => {
 handlers.drop = (view, event: DragEvent) => {
   if (!event.dataTransfer || view.state.readOnly) return true
   // FIXME allow handling of file drops
-  let slice = readClipboard(view.state, event.dataTransfer,
-                            view.state.doc.resolve(view.state.selection.main.head), false)
-  if (slice) {
+  let content = readClipboard(view.state, event.dataTransfer,
+                              view.state.doc.resolve(view.state.selection.main.head), false)
+  if (content) {
     let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY})
     let {draggedContent} = view.inputState
     let del = draggedContent && dragMovesSelection(view, event)
       ? {from: draggedContent.from, to: draggedContent.to} : null
-    let ins = {from: dropPos, insert: slice}
+    let ins = {from: dropPos, insert: content.slice, fit: content.context}
     let changes = ChangeSet.create(view.state.doc, del ? [del, ins] : ins)
     view.focus()
     view.dispatch({
@@ -568,11 +568,11 @@ handlers.paste = (view: EditorView, event: ClipboardEvent) => {
   if (view.state.readOnly || !event.clipboardData) return true
   view.observer.read()
   let {state} = view
-  let slice = readClipboard(state, event.clipboardData,
-                            state.doc.resolve(state.selection.main.head), view.inputState.shiftKey)
-  if (slice) { // FIXME proper multi-selection pasting
+  let content = readClipboard(state, event.clipboardData,
+                              state.doc.resolve(state.selection.main.head), view.inputState.shiftKey)
+  if (content) { // FIXME proper multi-selection pasting
     view.dispatch({
-      changes: {from: state.selection.main.from, to: state.selection.main.to, insert: slice},
+      changes: {from: state.selection.main.from, to: state.selection.main.to, insert: content.slice, fit: content.context},
       userEvent: "input.paste",
       scrollIntoView: true
     })
@@ -650,7 +650,8 @@ handlers.beforeinput = (view, event: InputEvent) => {
     let slice = event.inputType == "insertText"
       ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "),
                              view.state.doc.resolve(view.state.selection.main.from).props())])
-      : readClipboard(view.state, event.dataTransfer!, cursorContext(view.state), true)
+      // FIXME why is this in a dataTransfer anyway?
+      : readClipboard(view.state, event.dataTransfer!, cursorContext(view.state), true)?.slice
     let ranges = event.getTargetRanges()
     if (slice && ranges.length) {
       let r = ranges[0]

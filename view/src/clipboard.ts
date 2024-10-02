@@ -43,7 +43,7 @@ export function readClipboard(state: EditorState, data: DataTransfer, context: C
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
   if (text && (context.node.type.preserveWhitespace || !html || plain))
-    return text ? readClipboardText(state, text, context, plain) : null
+    return text ? {slice: readClipboardText(state, text, context, plain), context: []} : null
 
   // FIXME transform HTML
   let dom = readHTML(html)
@@ -76,7 +76,7 @@ function readClipboardText(state: EditorState, text: string, context: Context, p
   content.push(new OpenToken(wrapper))
   let last = lines[lines.length - 1]
   if (last) content.push(Node.text(last, props))
-  return new Slice(content, [wrapper])
+  return new Slice(content)
 }
 
 // Trick from jQuery -- some elements must be wrapped in other
