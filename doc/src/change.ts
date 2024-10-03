@@ -125,6 +125,7 @@ export class ChangeDesc {
     readonly sections: readonly number[]
   ) {}
 
+  // FIXME store?
   get length() {
     let result = 0
     for (let i = 0; i < this.sections.length; i += 2) result += this.sections[i]
@@ -451,8 +452,10 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
     accum = accum ? accum.compose(map(set, accum, doc, false, false)) : set
   }
   let section = (from: number, to: number, ins: number, value: SectionData) => {
-    if (!cur) cur = new ChangeSetBuilder(doc.length)
-    if (from < cur.pos) flush()
+    if (!cur || from < cur.pos) {
+      flush()
+      cur = new ChangeSetBuilder(doc.length)
+    }
     if (from > cur.pos) addSection(cur.sections, cur.data, from - cur.pos, -1, null)
     addSection(cur.sections, cur.data, to - from, ins, value)
     cur.pos = to
@@ -546,7 +549,8 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fi
       addSection(sections, data, len, mods ? -2 : -1, mods)
       a.forward(len)
       b.forward(len)
-      if (fitter) fitter.preserved(pos, pos += len)
+      if (fitter) fitter.preserved(pos, pos + len)
+      pos += len
     } else if (b.ins >= 0 && (a.ins < 0 || inserted == a.i || a.off == 0 && (b.len < a.len || b.len == a.len && !before))) {
       // If there's a change in B that comes before the next change in
       // A (ordered by start pos, then len, then before flag), skip
@@ -555,6 +559,7 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fi
       addSection(sections, data, b.ins, -1, null)
       if (fitter) fitter.replaced(b.slice, pos, end, true)
       while (pos < end) {
+        if (a.done) throw new Error("Mismatched change sets")
         let piece = Math.min(a.len, end - pos)
         if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
           addSection(sections, data, 0, a.ins, a.slice)
@@ -576,7 +581,8 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fi
           len += piece
           b.forward(piece)
         } else if (b.ins == 0 && pos + b.len < end) {
-          if (fitter) fitter.replaced(b.slice, pos, pos += b.len, true)
+          if (fitter) fitter.replaced(b.slice, pos, pos + b.len, true)
+          pos += b.len
           b.next()
         } else {
           break
@@ -591,7 +597,6 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fi
       }
       a.forward(pos - start)
     } else {
-      if (!a.done || !b.done) throw new Error("Mismatched change set lengths")
       let correction = fitter && fitter.finish(), base = new ChangeSet(sections, data)
       return correction ? base.compose(correction) : base
     }
