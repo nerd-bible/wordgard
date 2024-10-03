@@ -117,6 +117,9 @@ export type ChangeSpec = Change | {correct: ChangeSpec} | ChangeSet | readonly C
 type SectionData = Slice | readonly Modification[] | null
 
 export class ChangeDesc {
+  private _length = -1
+  private _newLength = -1
+
   constructor(
     // Pairs of integers, first one representing the length of the
     // section in A, the second either -1 for a preserved, -2 for a
@@ -125,20 +128,23 @@ export class ChangeDesc {
     readonly sections: readonly number[]
   ) {}
 
-  // FIXME store?
   get length() {
-    let result = 0
-    for (let i = 0; i < this.sections.length; i += 2) result += this.sections[i]
-    return result
+    if (this._length < 0) {
+      this._length = 0
+      for (let i = 0; i < this.sections.length; i += 2) this._length += this.sections[i]
+    }
+    return this._length
   }
 
   get newLength() {
-    let result = 0
-    for (let i = 0; i < this.sections.length; i += 2) {
-      let ins = this.sections[i + 1]
-      result += ins < 0 ? this.sections[i] : ins
+    if (this._newLength < 0) {
+      this._newLength = 0
+      for (let i = 0; i < this.sections.length; i += 2) {
+        let ins = this.sections[i + 1]
+        this._newLength += ins < 0 ? this.sections[i] : ins
+      }
     }
-    return result
+    return this._newLength
   }
 
   get empty() { return this.sections.length == 0 || this.sections.length == 2 && this.sections[1] < 0 }
