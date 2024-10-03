@@ -103,14 +103,16 @@ function compareModification(a: Modification, b: Modification) {
   return isAdd(a) ? isAdd(b) && a.add.eq(b.add) : isRemove(b) && a.remove.eq(b.remove)
 }
 
-export type ChangeSpec = {
+export type Change = {
   from: number
   to?: number
   insert?: Slice
   fit?: boolean | readonly Tag<any>[]
   add?: Prop<any>
   remove?: Prop<any>
-} | ChangeSet | ChangeSpec[]
+}
+
+export type ChangeSpec = Change | {correct: ChangeSpec} | ChangeSet | readonly ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
 
@@ -285,85 +287,19 @@ export class ChangeSet extends ChangeDesc {
   }
 
   map(other: ChangeSet, doc: DocNode, before: boolean = false): ChangeSet {
-    if (this.length != doc.length || other.length != doc.length)
-      throw new Error("Mapping a change that doesn't match the start document")
-    // Produce a copy of setA that applies to the document after setB
-    // has been applied. Assumes both start at the same document (`doc`).
-    let sections: number[] = [], data: SectionData[] = []
-    let fitter = new ChangeFitter(doc)
-    let a = new SectionIter(this), b = new SectionIter(other), pos = 0
-    // Iterate over both sets in parallel. inserted tracks, for changes
-    // in A that have to be processed piece-by-piece, whether their
-    // content has been inserted already, and refers to the section
-    // index.
-    for (let inserted = -1;;) {
-      if (a.keep && b.keep) {
-        // Move across ranges skipped by both sets.
-        let len = Math.min(a.len, b.len)
-        let mods = before ? a.mods : filterMods(a.mods, b.mods)
-        addSection(sections, data, len, mods ? -2 : -1, mods)
-        a.forward(len)
-        b.forward(len)
-        fitter.preserved(pos, pos += len)
-      } else if (b.ins >= 0 && (a.ins < 0 || inserted == a.i || a.off == 0 && (b.len < a.len || b.len == a.len && !before))) {
-        // If there's a change in B that comes before the next change in
-        // A (ordered by start pos, then len, then before flag), skip
-        // that (and process any changes in A it covers).
-        let end = pos + b.len
-        addSection(sections, data, b.ins, -1, null)
-        fitter.replaced(b.slice, pos, end, true)
-        while (pos < end) {
-          let piece = Math.min(a.len, end - pos)
-          if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
-            addSection(sections, data, 0, a.ins, a.slice)
-            fitter.replaced(a.slice, pos - a.off, pos + a.len)
-            inserted = a.i
-          }
-          a.forward(piece)
-          pos += piece
-        }
-        b.next()
-      } else if (a.ins >= 0) {
-        // Process the part of a change in A up to the start of the next
-        // non-deletion change in B (if overlapping).
-        let start = pos, end = pos + a.len, len = 0
-        while (pos < end) {
-          if (b.keep) {
-            let piece = Math.min(end - pos, b.len)
-            pos += piece
-            len += piece
-            b.forward(piece)
-          } else if (b.ins == 0 && pos + b.len < end) {
-            fitter.replaced(b.slice, pos, pos += b.len, true)
-            b.next()
-          } else {
-            break
-          }
-        }
-        if (inserted < a.i) {
-          addSection(sections, data, len, a.ins, a.slice)
-          fitter.replaced(a.slice, start - a.off, start + a.len)
-          inserted = a.i
-        } else {
-          addSection(sections, data, len, 0, Slice.empty)
-        }
-        a.forward(pos - start)
-      } else {
-        if (!a.done || !b.done) throw new Error("Mismatched change set lengths")
-        let fit = fitter.finish(), base = new ChangeSet(sections, data)
-        return fit ? base.compose(fit) : base
-      }
-    }
+    return map(this, other, doc, before, true)
   }
 
-  compose(other: ChangeSet): ChangeSet { return compose(this, other, true) as ChangeSet }
+  compose(other: ChangeSet): ChangeSet {
+    return compose(this, other, true) as ChangeSet
+  }
 
-  merge(other: ChangeSet): ChangeSet | null {
+  // FIXME delete?
+  merge(other: ChangeSet): ChangeSet {
     let sections: number[] = [], data: SectionData[] = []
     let a = new SectionIter(this), b = new SectionIter(other)
-    for (;;) {
-      if (a.done || b.done) {
-        if (!a.done || !b.done) throw new Error("Merging mismatched change sets")
+    sections: for (let added = -1;;) {
+      if (a.done && b.done) {
         return new ChangeSet(sections, data)
       } else if (a.keep && b.keep) {
         let len = Math.min(a.len, b.len)
@@ -371,26 +307,37 @@ export class ChangeSet extends ChangeDesc {
         addSection(sections, data, len, mods ? -2 : -1, mods)
         a.forward(len)
         b.forward(len)
-      } else if (a.len >= 0) {
-        let len = a.len
-        while (len) {
-          if (!b.keep) return null
-          let skip = Math.min(b.len, len)
-          b.forward(skip)
-          len -= skip
-        }
+      } else if (a.ins >= 0) {
         addSection(sections, data, a.len, a.ins, a.slice)
+        for (let len = 0; len < a.len;) {
+          if (b.done) throw new Error("Merging mismatched change sets")
+          let skip = Math.min(b.len, a.len - len)
+          if (b.ins >= 0 && skip >= b.len) {
+            let slice = added != b.i ? b.slice : Slice.empty
+            addSection(sections, data, skip, slice.length, slice)
+            added = b.i
+          }
+          b.forward(skip)
+          len += skip
+        }
         a.next()
       } else {
-        let len = b.len
-        while (len) {
-          if (!a.keep) return null
-          let skip = Math.min(a.len, len)
+        let len = 0
+        while (len < b.len) {
+          if (a.done) throw new Error("Merging mismatched change sets")
+          if (!a.keep) {
+            addSection(sections, data, len, b.ins, b.slice)
+            added = b.i
+            continue sections
+          }
+          let skip = Math.min(a.len, b.len - len)
           a.forward(skip)
-          len -= skip
+          len += skip
         }
-        addSection(sections, data, b.len, b.ins, b.slice)
-        b.next()
+        let slice = added != b.i ? b.slice : Slice.empty
+        addSection(sections, data, len, slice.length, slice)
+        added = b.i
+        b.forward(len)
       }
     }
   }
@@ -421,6 +368,20 @@ export class ChangeSet extends ChangeDesc {
     return new ChangeSet(sections, data)
   }
 
+  /// Returns the change itself if it can be applied to this document
+  /// and produce a valid document, or a modified version of the
+  /// change that _is_ correct.
+  correct(doc: DocNode) {
+    let fitter = new ChangeFitter(doc)
+    for (let i = 0, iS = 0, pos = 0; i < this.data.length; i++) {
+      let len = this.sections[iS++], ins = this.sections[iS++]
+      if (ins < 0) fitter.preserved(pos, pos += len)
+      else fitter.replaced(this.data[i] as Slice, pos, pos += len)
+    }
+    let fit = fitter.finish()
+    return fit ? this.compose(fit) : this
+  }
+
   /// Iterate over the ranges in this changeset, calling `replaced`
   /// for ranges that have been replaced, and `preserved` for ranges
   /// that are either preserved as-is (when `modifications` is null)
@@ -439,90 +400,7 @@ export class ChangeSet extends ChangeDesc {
   }
 
   static create(doc: DocNode, spec: ChangeSpec): ChangeSet {
-    let sections: number[] = [], data: SectionData[] = [], pos = 0
-    let accum: ChangeSet | null = null
-    let needsFit = false
-    let section = (from: number, to: number, ins: number, value: SectionData) => {
-      if (from < pos) flush()
-      if (from > pos) addSection(sections, data, from - pos, -1, null)
-      addSection(sections, data, to - from, ins, value)
-      pos = to
-    }
-    let flush = () => {
-      if (sections.length) {
-        if (pos < doc.length) addSection(sections, data, doc.length - pos, -1, null)
-        add(new ChangeSet(sections, data))
-        sections = []; data = []; pos = 0
-      }
-    }
-    let add = (set: ChangeSet) => {
-      accum = accum ? accum.compose(set.map(accum, doc)) : set
-    }
-    let explore = (spec: ChangeSpec) => {
-      if (Array.isArray(spec)) {
-        spec.forEach(explore)
-      } else if (spec instanceof ChangeSet) {
-        if (spec.length != doc.length) throw new Error("Mismatched change set length")
-        flush()
-        add(spec)
-      } else {
-        let {from, add, remove, insert, fit} = spec
-        let modifies = add || remove
-        if (modifies) {
-          if (insert)
-            throw new Error(`A change spec object cannot both ${add ? "add" : "remove"} a prop and replace a range`)
-          let to = spec.to ?? spec.from + 1
-          if (add) {
-            let mods: Modification[] = [{add: add}]
-            markableSections(doc, from, to, (node, from, to) => {
-              if (!add.type.canTarget(node.tag.type)) return false
-              let has = node.tag.hasProp(add.type)
-              if (add.type.set) {
-                let modsHere = mods
-                if (has) {
-                  let left = subtractSet(add.value as any[], has.value as any[], add.type.set)
-                  if (!left.length) return false
-                  modsHere = [{add: add.type.of(left)}]
-                }
-                section(from, to, -2, modsHere)
-              } else if (!has || !has.eq(add)) {
-                section(from, to, -2, mods)
-              }
-              return true
-            })
-          }
-          if (remove) {
-            let mods: Modification[] = [{remove: remove}]
-            markableSections(doc, from, to, (node, from, to) => {
-              const has = node.tag.hasProp(remove)
-              if (!has || !remove.type.canTarget(node.tag.type)) return false
-              let modsHere = mods
-              if (remove.type.set) {
-                let left = subtractSet(remove.value as any[], has.value as any[], remove.type.set!)
-                if (!left.length) return false
-                modsHere = [{remove: remove.type.of(left)}]
-              }
-              section(from, to, -2, modsHere)
-              return true
-            })
-          }
-        } else {
-          let to = spec.to ?? spec.from
-          insert = insert ?? Slice.empty
-          if (to <= from) to = from
-          if (fit) {
-            needsFit = true
-            ;({from, to, slice: insert} = fitReplacement(doc, from, to, insert, fit === true ? [] : fit))
-          }
-          if (insert.length || to != from)
-            section(from, to, insert.length, insert)
-        }
-      }
-    }
-    explore(spec)
-    flush()
-    if (!accum) accum = ChangeSet.empty(doc.length)
-    return needsFit ? fitChangeSet(doc, accum) : accum
+    return createChangeSet(doc, spec)
   }
 
   static empty(length: number) {
@@ -546,6 +424,177 @@ export class ChangeSet extends ChangeDesc {
       pos += len
     }
     return result
+  }
+}
+
+class ChangeSetBuilder {
+  constructor(readonly docLen: number) {}
+
+  sections: number[] = []
+  data: SectionData[] = []
+  pos = 0
+}
+
+function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): ChangeSet {
+  let cur: ChangeSetBuilder | null = null
+  let accum: ChangeSet | null = null
+  let doCorrect: boolean = false
+
+  let flush = () => {
+    if (cur) {
+      if (cur.pos < cur.docLen) addSection(cur.sections, cur.data, cur.docLen - cur.pos, -1, null)
+      push(new ChangeSet(cur.sections, cur.data))
+      cur = null
+    }
+  }
+  let push = (set: ChangeSet) => {
+    accum = accum ? accum.compose(map(set, accum, doc, false, false)) : set
+  }
+  let section = (from: number, to: number, ins: number, value: SectionData) => {
+    if (!cur) cur = new ChangeSetBuilder(doc.length)
+    if (from < cur.pos) flush()
+    if (from > cur.pos) addSection(cur.sections, cur.data, from - cur.pos, -1, null)
+    addSection(cur.sections, cur.data, to - from, ins, value)
+    cur.pos = to
+  }
+
+  let build = (spec: ChangeSpec) => {
+    if (Array.isArray(spec)) {
+      for (let elt of spec) build(elt)
+    } else if (spec instanceof ChangeSet) {
+      flush()
+      push(spec)
+    } else if ((spec as any).correct) {
+      let inner = createChangeSet(doc, (spec as any).correct, false)
+      return mayCorrect ? inner.correct(doc) : inner
+    } else {
+      let {from, to, add, remove, insert, fit} = spec as Change
+      let modifies = add || remove
+      if (modifies) {
+        if (insert)
+          throw new Error(`A Change object cannot both ${add ? "add" : "remove"} a prop and replace a range`)
+        if (to == null) to = from + 1
+        if (add) {
+          let mods: Modification[] = [{add: add}]
+          markableSections(doc, from, to, (node, from, to) => {
+            if (!add.type.canTarget(node.tag.type)) return false
+            let has = node.tag.hasProp(add.type)
+            if (add.type.set) {
+              let modsHere = mods
+              if (has) {
+                let left = subtractSet(add.value as any[], has.value as any[], add.type.set)
+                if (!left.length) return false
+                modsHere = [{add: add.type.of(left)}]
+              }
+              section(from, to, -2, modsHere)
+            } else if (!has || !has.eq(add)) {
+              section(from, to, -2, mods)
+            }
+            return true
+          })
+        }
+        if (remove) {
+          let mods: Modification[] = [{remove: remove}]
+          markableSections(doc, from, to, (node, from, to) => {
+            const has = node.tag.hasProp(remove)
+            if (!has || !remove.type.canTarget(node.tag.type)) return false
+            let modsHere = mods
+            if (remove.type.set) {
+              let left = subtractSet(remove.value as any[], has.value as any[], remove.type.set!)
+              if (!left.length) return false
+              modsHere = [{remove: remove.type.of(left)}]
+            }
+            section(from, to, -2, modsHere)
+            return true
+          })
+        }
+      } else {
+        if (to == null) to = from
+        insert = insert ?? Slice.empty
+        if (to <= from) to = from
+        if (fit) {
+          doCorrect = true
+          ;({from, to, slice: insert} = fitReplacement(doc, from, to, insert, fit === true ? [] : fit))
+        }
+        if (insert.length || to != from)
+          section(from, to, insert.length, insert)
+      }
+    }
+  }
+  build(spec)
+  flush()
+  return !accum ? ChangeSet.empty(doc.length) : doCorrect && mayCorrect ? (accum as any).correct(doc) : accum
+}
+
+function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fit: boolean) {
+  if (setA.length != doc.length || setB.length != doc.length)
+    throw new Error("Mapping a change that doesn't match the start document")
+  // Produce a copy of setA that applies to the document after setB
+  // has been applied. Assumes both start at the same document (`doc`).
+  let sections: number[] = [], data: SectionData[] = []
+  let fitter = fit ? new ChangeFitter(doc) : null
+  let a = new SectionIter(setA), b = new SectionIter(setB), pos = 0
+  // Iterate over both sets in parallel. inserted tracks, for changes
+  // in A that have to be processed piece-by-piece, whether their
+  // content has been inserted already, and refers to the section
+  // index.
+  for (let inserted = -1;;) {
+    if (a.keep && b.keep) {
+      // Move across ranges skipped by both sets.
+      let len = Math.min(a.len, b.len)
+      let mods = before ? a.mods : filterMods(a.mods, b.mods)
+      addSection(sections, data, len, mods ? -2 : -1, mods)
+      a.forward(len)
+      b.forward(len)
+      if (fitter) fitter.preserved(pos, pos += len)
+    } else if (b.ins >= 0 && (a.ins < 0 || inserted == a.i || a.off == 0 && (b.len < a.len || b.len == a.len && !before))) {
+      // If there's a change in B that comes before the next change in
+      // A (ordered by start pos, then len, then before flag), skip
+      // that (and process any changes in A it covers).
+      let end = pos + b.len
+      addSection(sections, data, b.ins, -1, null)
+      if (fitter) fitter.replaced(b.slice, pos, end, true)
+      while (pos < end) {
+        let piece = Math.min(a.len, end - pos)
+        if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
+          addSection(sections, data, 0, a.ins, a.slice)
+          if (fitter) fitter.replaced(a.slice, pos - a.off, pos + a.len)
+          inserted = a.i
+        }
+        a.forward(piece)
+        pos += piece
+      }
+      b.next()
+    } else if (a.ins >= 0) {
+      // Process the part of a change in A up to the start of the next
+      // non-deletion change in B (if overlapping).
+      let start = pos, end = pos + a.len, len = 0
+      while (pos < end) {
+        if (b.keep) {
+          let piece = Math.min(end - pos, b.len)
+          pos += piece
+          len += piece
+          b.forward(piece)
+        } else if (b.ins == 0 && pos + b.len < end) {
+          if (fitter) fitter.replaced(b.slice, pos, pos += b.len, true)
+          b.next()
+        } else {
+          break
+        }
+      }
+      if (inserted < a.i) {
+        addSection(sections, data, len, a.ins, a.slice)
+        if (fitter) fitter.replaced(a.slice, start - a.off, start + a.len)
+        inserted = a.i
+      } else {
+        addSection(sections, data, len, 0, Slice.empty)
+      }
+      a.forward(pos - start)
+    } else {
+      if (!a.done || !b.done) throw new Error("Mismatched change set lengths")
+      let correction = fitter && fitter.finish(), base = new ChangeSet(sections, data)
+      return correction ? base.compose(correction) : base
+    }
   }
 }
 
@@ -1080,15 +1129,4 @@ function fitDeletion(doc: DocNode, from: number, to: number) {
       covered = {from: cx.before, to: cxTo.after, slice: Slice.empty}
   }
   return covered || {from, to, slice: Slice.empty}
-}
-
-function fitChangeSet(doc: DocNode, change: ChangeSet) {
-  let fitter = new ChangeFitter(doc)
-  for (let i = 0, iS = 0, pos = 0; i < change.data.length; i++) {
-    let len = change.sections[iS++], ins = change.sections[iS++]
-    if (ins < 0) fitter.preserved(pos, pos += len)
-    else fitter.replaced(change.data[i] as Slice, pos, pos += len)
-  }
-  let fit = fitter.finish()
-  return fit ? change.compose(fit) : change
 }
