@@ -295,54 +295,6 @@ export class ChangeSet extends ChangeDesc {
     return compose(this, other, true) as ChangeSet
   }
 
-  // FIXME delete?
-  merge(other: ChangeSet): ChangeSet {
-    let sections: number[] = [], data: SectionData[] = []
-    let a = new SectionIter(this), b = new SectionIter(other)
-    sections: for (let added = -1;;) {
-      if (a.done && b.done) {
-        return new ChangeSet(sections, data)
-      } else if (a.keep && b.keep) {
-        let len = Math.min(a.len, b.len)
-        let mods = combineMods(a.mods, b.mods)
-        addSection(sections, data, len, mods ? -2 : -1, mods)
-        a.forward(len)
-        b.forward(len)
-      } else if (a.ins >= 0) {
-        addSection(sections, data, a.len, a.ins, a.slice)
-        for (let len = 0; len < a.len;) {
-          if (b.done) throw new Error("Merging mismatched change sets")
-          let skip = Math.min(b.len, a.len - len)
-          if (b.ins >= 0 && skip >= b.len) {
-            let slice = added != b.i ? b.slice : Slice.empty
-            addSection(sections, data, skip, slice.length, slice)
-            added = b.i
-          }
-          b.forward(skip)
-          len += skip
-        }
-        a.next()
-      } else {
-        let len = 0
-        while (len < b.len) {
-          if (a.done) throw new Error("Merging mismatched change sets")
-          if (!a.keep) {
-            addSection(sections, data, len, b.ins, b.slice)
-            added = b.i
-            continue sections
-          }
-          let skip = Math.min(a.len, b.len - len)
-          a.forward(skip)
-          len += skip
-        }
-        let slice = added != b.i ? b.slice : Slice.empty
-        addSection(sections, data, len, slice.length, slice)
-        added = b.i
-        b.forward(len)
-      }
-    }
-  }
-
   invert(doc: DocNode) {
     let sections: number[] = [], data: SectionData[] = []
     for (let i = 0, iS = 0, pos = 0; iS < this.sections.length; iS += 2, i++) {
