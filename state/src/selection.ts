@@ -1,7 +1,8 @@
-import {Schema, DocNode, Node, ChangeDesc, Prop} from "@willows/doc"
+import {Schema, DocNode, Node, ChangeDesc, Prop, Context} from "@willows/doc"
+import {findClusterBreak} from "@marijn/find-cluster-break"
 
 // A range's flags field is used like this:
-// - 2 bits for bidi level (3 means unset) (only meaningful for
+// - 3 bits for bidi level (7 means unset) (only meaningful for
 //   cursors)
 // - 2 bits to indicate the side the cursor is associated with (only
 //   for cursors)
@@ -155,6 +156,21 @@ export class EditorSelection {
       throw new Error(`Selection out of document range`)
   }
 
+  normalize(doc: DocNode) {
+    let copy: SelectionRange[] | undefined
+    for (let i = 0; i < this.ranges.length; i++) {
+      let range = this.ranges[i]
+      if (range.empty) {
+        let normal = EditorSelection.normalPositionAfter(doc, range.from, false) // FIXME scan back
+        if (normal != null && normal != range.from) {
+          if (!copy) copy = this.ranges.slice()
+          copy[i] = EditorSelection.cursor(normal, -1, undefined, range.goalColumn)
+        }
+      }
+    }
+    return copy ? EditorSelection.sorted(copy, this.mainIndex, this.props) : this
+  }
+
   /// Get the primary selection range.
   get main(): SelectionRange { return this.ranges[this.mainIndex] }
 
@@ -163,8 +179,8 @@ export class EditorSelection {
     return EditorSelection.create([range].concat(this.ranges), main ? 0 : this.mainIndex + 1)
   }
 
-  /// Replace a given range with another range, and then normalize the
-  /// selection to merge and sort ranges if necessary.
+  /// Replace a given range with another range, and then merge and
+  /// sort ranges if necessary.
   replaceRange(range: SelectionRange, which: number = this.mainIndex) {
     let ranges = this.ranges.slice()
     ranges[which] = range
@@ -202,7 +218,7 @@ export class EditorSelection {
     for (let pos = 0, i = 0; i < ranges.length; i++) {
       let range = ranges[i]
       if (range.empty ? range.from <= pos : range.from < pos)
-        return EditorSelection.normalized(ranges.slice(), mainIndex, props)
+        return EditorSelection.sorted(ranges.slice(), mainIndex, props)
       pos = range.to
     }
     return new EditorSelection(ranges, mainIndex, props)
@@ -235,7 +251,7 @@ export class EditorSelection {
   }
 
   /// @internal
-  static normalized(ranges: SelectionRange[], mainIndex: number = 0, props: readonly Prop[] | null): EditorSelection {
+  static sorted(ranges: SelectionRange[], mainIndex: number = 0, props: readonly Prop[] | null): EditorSelection {
     let main = ranges[mainIndex]
     ranges.sort((a, b) => a.from - b.from)
     mainIndex = ranges.indexOf(main)
@@ -248,5 +264,58 @@ export class EditorSelection {
       }
     }
     return new EditorSelection(ranges, mainIndex, props)
+  }
+
+  static normalPositionAfter(doc: DocNode, from: number, mustMove: boolean = true) {
+    return scanNormalAfter(doc, from, mustMove)
+  }
+}
+
+function isBarrier(node: Node) {
+  return node.tag.type.isolating || node.isBlock() && node.tag.isAtom() // FIXME allow node specs to enable this
+}
+
+function scanNormalAfter(doc: DocNode, from: number, mustMove: boolean) {
+  let $pos = doc.resolve(from)
+  if ($pos.inText) {
+    if (!mustMove) return from
+    let text = $pos.node.children[$pos.index].text!
+    return from - $pos.inText + findClusterBreak(text, $pos.inText, true)
+  }
+  let barrierBefore = !$pos.parent && $pos.index == 0
+  for (let {node, index} = $pos; !barrierBefore && index;) {
+    let before = node.children[index - 1]
+    if (isBarrier(before)) barrierBefore = true
+    if (before.inlineContent()) break
+    node = before
+    index = before.children.length
+  }
+  let bottom = $pos.pos
+  for (let {parent, index, node} = $pos, pos = from;;) {
+    if (node.inlineContent() && (pos != from || !mustMove)) return pos
+    if (index == node.children.length) {
+      let barrier = !parent || isBarrier(node)
+      if ((bottom != from || !mustMove) && barrierBefore && barrier) return bottom
+      if (!parent) return null
+      ;({parent, index, node} = parent)
+      pos++; index++
+      bottom = pos
+      if (barrier) barrierBefore = true
+    } else {
+      let next = node.children[index]
+      if (next.isText()) return pos + (pos != from || !mustMove ? 0 : findClusterBreak(next.text, 0, true))
+      let barrier = isBarrier(next)
+      if (barrierBefore && (bottom != from || !mustMove) && barrier) return bottom
+      if (next.isAtom()) {
+        index++
+        pos += next.length
+      } else {
+        parent = new Context(node, index, pos, 0, parent)
+        pos++
+        index = 0
+        node = next
+      }
+      if (barrier) { barrierBefore = true; bottom = pos }
+    }
   }
 }

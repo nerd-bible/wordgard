@@ -123,6 +123,10 @@ export interface TransactionSpec {
   /// Offsets in this selection should refer to the document as it is
   /// _after_ the transaction.
   selection?: EditorSelection | {anchor: number, head?: number} | undefined,
+  /// When true, cursor ranges in the provided selection will be
+  /// [normalized](#state.EditorSelection.normalize) in the created
+  /// state.
+  normalizeSelection?: boolean,
   /// Attach [state effects](#state.StateEffect) to this transaction.
   /// Again, when they contain positions and this same spec makes
   /// changes, those positions should refer to positions in the
@@ -161,6 +165,8 @@ export class Transaction {
   /// @internal
   _doc: DocNode | null = null
   /// @internal
+  _selection: EditorSelection | null = null
+  /// @internal
   _state: EditorState | null = null
 
   private constructor(
@@ -171,6 +177,10 @@ export class Transaction {
     /// The selection set by this transaction, or undefined if it
     /// doesn't explicitly set a selection.
     readonly selection: EditorSelection | undefined,
+    /// Whether [selection
+    /// normalization](#state.TransactionSpec.normalizeSelection) is
+    /// enabled for this transaction,
+    readonly normalizeSelection: boolean,
     /// The effects added to the transaction.
     readonly effects: readonly StateEffect<any>[],
     /// @internal
@@ -184,10 +194,11 @@ export class Transaction {
   }
 
   /// @internal
-  static create(startState: EditorState, changes: ChangeSet, selection: EditorSelection | undefined,
+  static create(startState: EditorState, changes: ChangeSet,
+                selection: EditorSelection | undefined, normalizeSelection: boolean,
                 effects: readonly StateEffect<any>[], annotations: readonly Annotation<any>[],
                 scrollIntoView: boolean) {
-    return new Transaction(startState, changes, selection, effects, annotations, scrollIntoView)
+    return new Transaction(startState, changes, selection, normalizeSelection, effects, annotations, scrollIntoView)
   }
 
   /// The new document produced by the transaction. Contrary to
@@ -209,7 +220,13 @@ export class Transaction {
   /// this will [map](#state.EditorSelection.map) the start state's
   /// current selection through the changes made by the transaction.
   get newSelection() {
-    return this.selection || this.startState.selection.map(this.changes)
+    if (!this._selection) {
+      if (this.selection)
+        this._selection = this.normalizeSelection ? this.selection.normalize(this.newDoc) : this.selection
+      else
+        this._selection = this.startState.selection.map(this.changes)
+    }
+    return this._selection
   }
 
   /// The new state created by the transaction.
@@ -288,6 +305,7 @@ export class Transaction {
 type ResolvedSpec = {
   changes: ChangeSet,
   selection: EditorSelection | undefined,
+  normalizeSelection: boolean,
   effects: readonly StateEffect<any>[],
   annotations: readonly Annotation<any>[],
   scrollIntoView: boolean
@@ -307,6 +325,7 @@ function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec, sequen
   return {
     changes,
     selection: b.selection ? b.selection.map(mapForB) : a.selection?.map(mapForA),
+    normalizeSelection: b.selection ? b.normalizeSelection : a.normalizeSelection,
     effects: StateEffect.mapEffects(a.effects, mapForA).concat(StateEffect.mapEffects(b.effects, mapForB)),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
     scrollIntoView: a.scrollIntoView || b.scrollIntoView
@@ -319,6 +338,7 @@ function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedS
   return {
     changes: spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || []),
     selection: sel && (sel instanceof EditorSelection ? sel : EditorSelection.single(sel.anchor, sel.head)),
+    normalizeSelection: sel ? !!spec.normalizeSelection : false,
     effects: asArray(spec.effects),
     annotations,
     scrollIntoView: !!spec.scrollIntoView
@@ -335,7 +355,7 @@ export function resolveTransaction(state: EditorState, specs: readonly Transacti
     let s2 = resolveTransactionInner(seq && spec.changes ? s.changes.apply(state.doc) : state.doc, spec)
     s = mergeTransaction(state.doc, s, s2, seq)
   }
-  let tr = Transaction.create(state, s.changes, s.selection, s.effects, s.annotations, s.scrollIntoView)
+  let tr = Transaction.create(state, s.changes, s.selection, s.normalizeSelection, s.effects, s.annotations, s.scrollIntoView)
   return extendTransaction(filter ? filterTransaction(tr) : tr)
 }
 
@@ -359,7 +379,7 @@ function extendTransaction(tr: Transaction) {
     if (extension && Object.keys(extension).length)
       spec = mergeTransaction(state.doc, tr, resolveTransactionInner(state.doc, extension), true)
   }
-  return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, spec.effects,
+  return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, tr.normalizeSelection, spec.effects,
                                               spec.annotations, spec.scrollIntoView)
 }
 

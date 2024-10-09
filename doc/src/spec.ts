@@ -35,6 +35,7 @@ export type TagSpec<Param> = {
   blockContent?: string
   inlineContent?: string | true
   defaultParam?: Param extends null ? never : Param
+  atom?: boolean
   /// A function or type name used to validate this tag's parameter
   /// value. This will be used when deserializing the attribute from
   /// JSON. When a string, it should be a `|`-separated string of

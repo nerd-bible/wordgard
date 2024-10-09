@@ -22,7 +22,8 @@
   "sideEffects": false,
   "license": "MIT",
   "dependencies": {
-    "@willows/doc": "^0.0.1"
+    "@willows/doc": "^0.0.1",
+    "@marijn/find-cluster-break": "^1.0.0"
   },
   "devDependencies": {
     "@marijn/buildtool": "^1.0.0"

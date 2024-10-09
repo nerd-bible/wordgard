@@ -1,4 +1,4 @@
-import {Schema, Slice, SchemaElement, DocNode, Node, NodeJSON, parseDoc,
+import {Schema, Slice, SchemaElement, DocNode, Node, Tag, NodeJSON, parseDoc,
         ChangeSet, ChangeSpec} from "@willows/doc"
 import {EditorSelection, SelectionRange} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
@@ -357,23 +357,19 @@ export class EditorState {
     new EditorState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
   }
 
-  replaceSelection(content: Slice | string | Node) {
-      /* FIXME
-    return this.changeByRange(range => {
-      let slice = content
-      if (!(slice instanceof Slice)) {
-        let props = this.selection.props || this.doc.resolve(range.from).props(this.doc.resolve(range.to))
-        slice = new Slice([typeof slice == "string" ? Node.text(slice, props) : slice.withProps(props)])
-      }
-      let fit = fitReplacement(this.doc, range.from, range.to, slice)
-      if (!fit) return {range}
+  replaceSelectionWith(content: string | readonly Node[]) {
+  }
+
+  replaceSelection(content: Slice, context?: readonly Tag[]) {
+    return this.update(this.changeByRange(range => {
+      let changes = ChangeSet.create(this.doc, {from: range.from, to: range.to, insert: content, fit: context || true})
+      let after = range.from
+      changes.iterChanges((fromA, toA, fromB, toB) => after = toB)
       return {
-        changes: fit.change,
-        range: EditorSelection.cursor(fit.sliceEnd, -1)
+        changes,
+        range: EditorSelection.cursor(after, -1)
       }
-    })
-      */
-    return {}
+    }), {scrollIntoView: true})
   }
 
   changeByRange(f: (range: SelectionRange) => {

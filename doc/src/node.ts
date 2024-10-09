@@ -13,8 +13,9 @@ const enum TagFlag {
   InlineContent = 2,
   Text = 4,
   Leaf = 8,
-  Doc = 16,
-  NullParam = 32
+  Atom = 16,
+  Doc = 32,
+  NullParam = 64
 }
 
 function flagsFor(spec: TagSpec<any>, inline: boolean) {
@@ -22,6 +23,7 @@ function flagsFor(spec: TagSpec<any>, inline: boolean) {
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= TagFlag.InlineContent
   else if (!spec.blockContent) flags |= TagFlag.Leaf
+  if (spec.atom || (flags & TagFlag.Leaf)) flags |= TagFlag.Atom
   return flags
 }
 
@@ -97,6 +99,7 @@ export class TagType<Param> {
   inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
   isTextblock() { return this.isBlock() && this.inlineContent() }
   isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
+  isAtom() { return (this.flags & TagFlag.Atom) > 0 }
   isDoc() { return (this.flags & TagFlag.Doc) > 0 }
 }
 
@@ -160,6 +163,7 @@ export class Tag<Param = unknown> {
   inlineContent() { return this.type.inlineContent() }
   isTextblock() { return this.type.isTextblock() }
   isLeaf() { return this.type.isLeaf() }
+  isAtom() { return this.type.isAtom() }
   isDoc() { return this.type.isDoc() }
 
   toJSON(): TagJSON {
@@ -246,6 +250,7 @@ export class Node {
   inlineContent() { return this.tag.inlineContent() }
   isTextblock() { return this.tag.isTextblock() }
   isLeaf() { return this.tag.isLeaf() }
+  isAtom() { return this.tag.isAtom() }
   isDoc() { return this.tag.isDoc() }
 
   iterate(from: number, to: number, f: (node: Node, pos: number) => boolean | void) {
