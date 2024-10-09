@@ -267,7 +267,11 @@ export class EditorSelection {
   }
 
   static normalPositionAfter(doc: DocNode, from: number, mustMove: boolean = true) {
-    return scanNormalAfter(doc, from, mustMove)
+    return scanNormalFrom(doc, from, true, mustMove)
+  }
+
+  static normalPositionBefore(doc: DocNode, from: number, mustMove: boolean = true) {
+    return scanNormalFrom(doc, from, false, mustMove)
   }
 }
 
@@ -275,47 +279,52 @@ function isBarrier(node: Node) {
   return node.tag.type.isolating || node.isBlock() && node.tag.isAtom() // FIXME allow node specs to enable this
 }
 
-function scanNormalAfter(doc: DocNode, from: number, mustMove: boolean) {
+function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: boolean) {
   let $pos = doc.resolve(from)
   if ($pos.inText) {
     if (!mustMove) return from
     let text = $pos.node.children[$pos.index].text!
-    return from - $pos.inText + findClusterBreak(text, $pos.inText, true)
+    return from - $pos.inText + findClusterBreak(text, $pos.inText, forward)
   }
-  let barrierBefore = !$pos.parent && $pos.index == 0
-  for (let {node, index} = $pos; !barrierBefore && index;) {
-    let before = node.children[index - 1]
-    if (isBarrier(before)) barrierBefore = true
-    if (before.inlineContent()) break
+  let pastBarrier = !$pos.parent && $pos.index == (forward ? 0 : $pos.node.children.length)
+  for (let {node, index} = $pos; !pastBarrier && (forward ? index : index < node.children.length);) {
+    let before = node.children[forward ? index - 1 : index]
+    if (isBarrier(before)) pastBarrier = true
+    if (before.inlineContent() || before.isAtom()) break
     node = before
-    index = before.children.length
+    index = forward ? before.children.length : 0
   }
-  let bottom = $pos.pos
+  let bottom = $pos.pos, dir = forward ? 1 : -1
   for (let {parent, index, node} = $pos, pos = from;;) {
     if (node.inlineContent() && (pos != from || !mustMove)) return pos
-    if (index == node.children.length) {
+    if (index == (forward ? node.children.length : 0)) {
       let barrier = !parent || isBarrier(node)
-      if ((bottom != from || !mustMove) && barrierBefore && barrier) return bottom
+      if ((bottom != from || !mustMove) && pastBarrier && barrier) return bottom
       if (!parent) return null
       ;({parent, index, node} = parent)
-      pos++; index++
+      pos += dir
+      if (forward) index++
       bottom = pos
-      if (barrier) barrierBefore = true
+      if (barrier) pastBarrier = true
     } else {
-      let next = node.children[index]
-      if (next.isText()) return pos + (pos != from || !mustMove ? 0 : findClusterBreak(next.text, 0, true))
+      let next = node.children[index - (forward ? 0 : 1)]
+      if (next.isText()) {
+        if (forward) return pos + (pos != from || !mustMove ? 0 : findClusterBreak(next.text, 0, true))
+        return pos - (pos != from || !mustMove ? 0 : next.length - findClusterBreak(next.text, next.text.length, false))
+      }
       let barrier = isBarrier(next)
-      if (barrierBefore && (bottom != from || !mustMove) && barrier) return bottom
+      if (pastBarrier && (bottom != from || !mustMove) && barrier) return bottom
       if (next.isAtom()) {
-        index++
-        pos += next.length
+        index += dir
+        pos += next.length * dir
       } else {
+        if (!forward) index--
         parent = new Context(node, index, pos, 0, parent)
-        pos++
-        index = 0
+        pos += dir
+        index = forward ? 0 : next.children.length
         node = next
       }
-      if (barrier) { barrierBefore = true; bottom = pos }
+      if (barrier) { pastBarrier = true; bottom = pos }
     }
   }
 }

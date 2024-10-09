@@ -5,7 +5,7 @@ const {doc, p, hr, blockquote} = basicBuilder
 
 describe("normalPosAfter", () => {
   function testNormal(doc: DocNode) {
-    let expect = [], find = []
+    let expect = [], forward = [], back = []
     for (let i = 0;; i++) {
       let next = maybeTag(doc, i)
       if (next == null) break
@@ -14,9 +14,15 @@ describe("normalPosAfter", () => {
     for (let cur = 0, first = true;; first = false) {
       let next = EditorSelection.normalPositionAfter(doc, cur, !first)
       if (next == null) break
-      find.push(cur = next)
+      forward.push(cur = next)
     }
-    ist(find.join(), expect.join())
+    for (let cur = doc.length, first = true;; first = false) {
+      let next = EditorSelection.normalPositionBefore(doc, cur, !first)
+      if (next == null) break
+      back.push(cur = next)
+    }
+    ist(forward.join(), expect.join())
+    ist(back.join(), expect.reverse().join())
   }
 
   let Iso = Tag.defineBlock("Iso", {
