@@ -376,7 +376,7 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
   }
 }
 
-export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Text | TagFlag.Inline, {
+export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Atom | TagFlag.Text | TagFlag.Inline, {
   dom: {element: ""}
 })
 

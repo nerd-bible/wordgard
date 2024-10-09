@@ -284,23 +284,31 @@ function isBarrier(node: Node) {
 }
 
 function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: boolean) {
-  let $pos = doc.resolve(from)
+  let $pos = doc.resolve(from), pastBarrier = false
   if ($pos.inText) {
     if (!mustMove) return from
     let text = $pos.node.children[$pos.index].text!
-    return from - $pos.inText + findClusterBreak(text, $pos.inText, forward)
+    let next = findClusterBreak(text, $pos.inText, forward), nextPos = from - $pos.inText + next
+    if (!next) $pos = new Context($pos.node, $pos.index, nextPos, 0, $pos.parent)
+    else if (next == text.length) $pos = new Context($pos.node, $pos.index + 1, nextPos, 0, $pos.parent)
+    else return nextPos
+  } else {
+    pastBarrier = !$pos.parent && $pos.index == (forward ? 0 : $pos.node.children.length)
+    for (let {node, index} = $pos; !pastBarrier && (forward ? index : index < node.children.length);) {
+      let before = node.children[forward ? index - 1 : index]
+      if (isBarrier(before)) pastBarrier = true
+      if (before.inlineContent() || before.isAtom()) break
+      node = before
+      index = forward ? before.children.length : 0
+    }
   }
-  let pastBarrier = !$pos.parent && $pos.index == (forward ? 0 : $pos.node.children.length)
-  for (let {node, index} = $pos; !pastBarrier && (forward ? index : index < node.children.length);) {
-    let before = node.children[forward ? index - 1 : index]
-    if (isBarrier(before)) pastBarrier = true
-    if (before.inlineContent() || before.isAtom()) break
-    node = before
-    index = forward ? before.children.length : 0
-  }
+
   let bottom = $pos.pos, dir = forward ? 1 : -1
-  for (let {parent, index, node} = $pos, pos = from;;) {
-    if (node.inlineContent() && (pos != from || !mustMove)) return pos
+  for (let {parent, index, node} = $pos, pos = $pos.pos;;) {
+    if (node.inlineContent() && (pos != from || !mustMove) &&
+        (index && index < node.children.length ||
+         !parent || !parent.node.inlineContent() || node.type.spec.cursorInsideBounds))
+      return pos
     if (index == (forward ? node.children.length : 0)) {
       let barrier = !parent || isBarrier(node)
       if ((bottom != from || !mustMove) && pastBarrier && barrier) return bottom
@@ -313,8 +321,13 @@ function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: 
     } else {
       let next = node.children[index - (forward ? 0 : 1)]
       if (next.isText()) {
-        if (forward) return pos + (pos != from || !mustMove ? 0 : findClusterBreak(next.text, 0, true))
-        return pos - (pos != from || !mustMove ? 0 : next.length - findClusterBreak(next.text, next.text.length, false))
+        if (forward) {
+          let skip = findClusterBreak(next.text, 0, true)
+          if (skip < next.length) return pos + skip
+        } else {
+          let skip = findClusterBreak(next.text, next.text.length, false)
+          if (skip) return pos - next.length + skip
+        }
       }
       let barrier = isBarrier(next)
       if (pastBarrier && (bottom != from || !mustMove) && barrier) return bottom

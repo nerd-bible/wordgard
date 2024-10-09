@@ -55,4 +55,21 @@ describe("normalPosAfter", () => {
 
   it("skips whole glyphs", () =>
     testNormal(doc(p(0, "ő", 1, "👨‍🎤", 2, "🇪🇸", 3))))
+
+  let InlineA = Tag.defineInline("InlineA", {
+    inlineContent: true,
+    dom: {element: "span"}
+  })
+  let InlineB = Tag.defineInline("InlineB", {
+    inlineContent: true,
+    cursorInsideBounds: true,
+    dom: {element: "span"}
+  })
+  let {a, b} = builders({a: InlineA, b: InlineB})
+
+  it("creates positions outside inline content nodes", () =>
+    testNormal(doc(p(0, "a", 1, a("b", 2, "c"), 3, "d", 4))))
+
+  it("creates positions inside inline content nodes with inside bounds", () =>
+    testNormal(doc(p(0, "a", 1, b(2, "b", 3, "c", 4), 5, "d", 6))))
 })

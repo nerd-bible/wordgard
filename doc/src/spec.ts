@@ -54,6 +54,11 @@ export type TagSpec<Param> = {
   defining?: boolean
   neutral?: boolean
   autoJoin?: boolean | ((before: Tag, after: Tag) => boolean) // FIXME implement
+  /// For inline nodes with inline content, this determines whether
+  /// there are normalized cursor positions directly inside the node.
+  /// The default is to only have cursor positions right outside the
+  /// node.
+  cursorInsideBounds?: boolean
 }
 
 export type PropSpec<Value> = {
