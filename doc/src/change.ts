@@ -984,14 +984,18 @@ function fitsTrivially($from: Context, $to: Context, slice: Slice) {
     slice.content.every(tok => tok.tokenType == TokenType.Node && $from.node.type.canContain(tok.type))
 }
 
-function closeSlice(schema: Schema, slice: Slice, context: readonly Tag[], depth: number) {
+function finishCx(cx: BuildContext, schema: Schema) {
+  return cx.tag.create(cx.children.length || cx.tag.inlineContent() ? cx.children
+                       : [schema.createDefault(cx.tag.type)])
+}
+
+function closeSlice(schema: Schema, slice: Slice, context: readonly Tag[], depth: number, closeEnd = false) {
   let top: Token[] = [], stack: BuildContext | null = null
   for (let i = depth - 1; i >= 0; i--) stack = new BuildContext(context[i], stack)
   for (let token of slice.content) {
     if (token.tokenType == TokenType.Close) {
       if (stack) {
-        let node = stack.tag.create(stack.children.length || stack.tag.inlineContent() ? stack.children
-                                    : [schema.createDefault(stack.tag.type)])
+        let node = finishCx(stack, schema)
         stack = stack.parent
         ;(stack ? stack.children : top).push(node)
       } else {
@@ -1002,6 +1006,11 @@ function closeSlice(schema: Schema, slice: Slice, context: readonly Tag[], depth
     } else {
       ;(stack ? stack.children : top).push(token)
     }
+  }
+  if (closeEnd) while (stack) {
+    let node = finishCx(stack, schema)
+    stack = stack.parent
+    ;(stack ? stack.children : top).push(node)
   }
   if (stack) splatContext(top, stack)
   return new Slice(top)
@@ -1045,7 +1054,7 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice, co
           let cost = (neutral ? 0 : 2) + (i < preferredContext ? context.length - i : i - preferredContext)
           if (foundCost > cost) {
             found = {from: cxFrom.before, to: cxTo.after,
-                     slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1) : slice}
+                     slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1, true) : slice}
             foundCost = cost
           }
         }
@@ -1060,7 +1069,7 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice, co
 
   for (let i = 0; i < context.length; i++) {
     if ($from.node.type.canContain(context[i].type)) {
-      slice = closeSlice(doc.schema, slice, context, i + 1)
+      slice = closeSlice(doc.schema, slice, context, i + 1, true)
       break
     }
   }

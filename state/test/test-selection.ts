@@ -1,7 +1,7 @@
 import ist from "ist"
 import {DocNode, Tag, basicBuilder, builders, maybeTag} from "@willows/doc"
 import {EditorSelection} from "@willows/state"
-const {doc, p, hr, blockquote} = basicBuilder
+const {doc, p, hr, blockquote, pre, $img} = basicBuilder
 
 describe("normalPosAfter", () => {
   function testNormal(doc: DocNode) {
@@ -46,4 +46,13 @@ describe("normalPosAfter", () => {
 
   it("stops at isolating nodes", () =>
     testNormal(doc(0, iso(1, hr(), 2), 3, iso(p(4)), 5)))
+
+  it("creates positions around whitespace-preserving nodes", () =>
+    testNormal(doc(0, pre(1, "a", 2), p(3), pre(4), 5)))
+
+  it("handles inline nodes", () =>
+    testNormal(doc(p(0, "a", 1, $img(), 2, "b", 3), p(4, $img(), 5))))
+
+  it("skips whole glyphs", () =>
+    testNormal(doc(p(0, "ő", 1, "👨‍🎤", 2, "🇪🇸", 3))))
 })

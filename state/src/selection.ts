@@ -156,12 +156,15 @@ export class EditorSelection {
       throw new Error(`Selection out of document range`)
   }
 
+  /// Make sure all cursor ranges in the selection exist at a normal
+  /// cursor position.
   normalize(doc: DocNode) {
     let copy: SelectionRange[] | undefined
     for (let i = 0; i < this.ranges.length; i++) {
       let range = this.ranges[i]
       if (range.empty) {
-        let normal = EditorSelection.normalPositionAfter(doc, range.from, false) // FIXME scan back
+        let normal = EditorSelection.normalPositionBefore(doc, range.from, false)
+          ?? EditorSelection.normalPositionAfter(doc, range.from, true)
         if (normal != null && normal != range.from) {
           if (!copy) copy = this.ranges.slice()
           copy[i] = EditorSelection.cursor(normal, -1, undefined, range.goalColumn)
@@ -276,7 +279,8 @@ export class EditorSelection {
 }
 
 function isBarrier(node: Node) {
-  return node.tag.type.isolating || node.isBlock() && node.tag.isAtom() // FIXME allow node specs to enable this
+  return node.tag.type.isolating || node.tag.type.preserveWhitespace ||
+    node.isBlock() && node.tag.isAtom() // FIXME allow node specs to enable this?
 }
 
 function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: boolean) {
