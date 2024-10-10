@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Node, Tag, basicBuilder, tag, Paragraph, Image, basicSchema as schema} from "@willows/doc"
-const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilder
+import {Node, Tag, basicBuilders, tag, Paragraph, Image, basicSchema as schema} from "@willows/doc"
+const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilders
 
 describe("Node", () => {
   describe("toString", () => {

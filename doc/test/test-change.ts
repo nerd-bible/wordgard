@@ -1,10 +1,10 @@
 import ist from "ist"
 import {Node, DocNode, Tag, Prop,
         ChangeSet, ChangeSpec, Token,
-        Schema, basicSchema, basicBuilder, tag, maybeTag,
+        Schema, basicSchema, basicBuilders, tag, maybeTag,
         ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "@willows/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
-const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilder
+const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilders
 
 type ChangeData = (Token | string)[] | {add: Prop<any>} | {remove: Prop<any>}
 

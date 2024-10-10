@@ -1,8 +1,8 @@
 import ist from "ist"
-import {DocNode, Node, basicBuilder, builder, Prop, PropType, Slice, OpenToken, CloseToken, Token,
+import {DocNode, Node, basicBuilders, builder, Prop, PropType, Slice, OpenToken, CloseToken, Token,
         serialize, serializeSlice, parseDoc, parseSlice, OpenSide, ParseOptions,
         Schema, basicSchema, tag} from "@willows/doc"
-const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilder
+const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 

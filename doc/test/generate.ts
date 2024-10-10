@@ -1,9 +1,9 @@
 import {Node, Tag, Prop, DocNode, TextNode, PropType,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
-        basicBuilder, ChangeSpec,
+        basicBuilders, ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "@willows/doc"
-const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilder
+const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
 export const Comment = PropType.define<readonly number[]>("Comment", {
   tags: "Inline",

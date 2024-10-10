@@ -1,7 +1,7 @@
 import ist from "ist"
-import {DocNode, Tag, basicBuilder, builders, maybeTag} from "@willows/doc"
+import {DocNode, Tag, basicBuilders, builder, maybeTag} from "@willows/doc"
 import {EditorSelection} from "@willows/state"
-const {doc, p, hr, blockquote, pre, $img} = basicBuilder
+const {doc, p, hr, blockquote, pre, $img} = basicBuilders
 
 describe("normalPosAfter", () => {
   function testNormal(doc: DocNode) {
@@ -30,7 +30,7 @@ describe("normalPosAfter", () => {
     group: "Block",
     isolating: true,
     dom: {element: "div"}
-  }), {iso} = builders({iso: Iso})
+  }), iso = builder(Iso)
 
   it("finds inline positions", () =>
     testNormal(doc(p(0, "o", 1, "n", 2, "e", 3))))
@@ -65,7 +65,7 @@ describe("normalPosAfter", () => {
     cursorInsideBounds: true,
     dom: {element: "span"}
   })
-  let {a, b} = builders({a: InlineA, b: InlineB})
+  let a = builder(InlineA), b = builder(InlineB)
 
   it("creates positions outside inline content nodes", () =>
     testNormal(doc(p(0, "a", 1, a("b", 2, "c"), 3, "d", 4))))

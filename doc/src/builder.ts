@@ -11,9 +11,10 @@ export type NodeBuilder<Source> =
   Source extends Prop<any> | Tag<any> ? (...children: ContentSpec[]) => Node :
   Source extends PropType<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
   Source extends TagType<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
+  Source extends Schema ? (...children: ContentSpec[]) => DocNode :
   never
 
-export function builder<Source extends Prop<any> | Tag<any> | PropType<any> | TagType<any>>(
+export function builder<Source extends Prop<any> | Tag<any> | PropType<any> | TagType<any> | Schema>(
   source: Source
 ): NodeBuilder<Source> {
   return (source instanceof Tag
@@ -22,22 +23,10 @@ export function builder<Source extends Prop<any> | Tag<any> | PropType<any> | Ta
     ? (...children: ContentSpec[]) => fragment(children, source)
     : source instanceof TagType
     ? (param: any, ...children: ContentSpec[]) => source.of(param).create(collectChildren(children))
+    : source instanceof Schema
+    ? (...children: ContentSpec[]) => source.doc(collectChildren(children))
     : (value: any, ...children: ContentSpec[]) => fragment(children, source.of(value))
   ) as any
-}
-
-// FIXME possibly per-builder constructor functions are easier to type
-// and understand?
-export function builders<T extends {[name: string]: Parameters<typeof builder>[0]}>(spec: T, schema?: Schema): {
-  [name in keyof T]: NodeBuilder<T[name]>
-} & {doc(...children: ContentSpec[]): DocNode} {
-  let result = Object.create(null)
-  for (let name in spec) result[name] = builder(spec[name])
-  result.doc = (...children: ContentSpec[]) => {
-    if (!schema) throw new Error("This builder does not have a schema")
-    return schema.doc(collectChildren(children))
-  }
-  return result
 }
 
 const InlineFragment = Tag.defineInline("Fragment", {
@@ -106,27 +95,28 @@ export function tag(node: Node, id: number): number {
   return value
 }
 
-export const basicBuilder = builders({
-  p: Paragraph,
-  h1: Heading.of(1),
-  h2: Heading.of(2),
-  h3: Heading.of(3),
-  h4: Heading.of(4),
-  pre: CodeBlock,
-  preLang: CodeBlockLanguage,
-  img: Image,
-  $img: Image.of("test.png"),
-  imgAlt: ImageAlt,
-  br: LineBreak,
-  blockquote: Blockquote,
-  ol: OrderedList.default!,
-  olOrder: OrderedList,
-  ul: BulletList,
-  li: ListItem,
-  hr: HorizontalRule,
-  em: Emphasis,
-  strong: Strong,
-  code: Code,
-  a: Link,
-  $a: Link.of("/")
-}, basicSchema)
+export const basicBuilders = {
+  doc: builder(basicSchema),
+  p: builder(Paragraph),
+  h1: builder(Heading.of(1)),
+  h2: builder(Heading.of(2)),
+  h3: builder(Heading.of(3)),
+  h4: builder(Heading.of(4)),
+  pre: builder(CodeBlock),
+  preLang: builder(CodeBlockLanguage),
+  img: builder(Image),
+  $img: builder(Image.of("test.png")),
+  imgAlt: builder(ImageAlt),
+  br: builder(LineBreak),
+  blockquote: builder(Blockquote),
+  ol: builder(OrderedList.default!),
+  olOrder: builder(OrderedList),
+  ul: builder(BulletList),
+  li: builder(ListItem),
+  hr: builder(HorizontalRule),
+  em: builder(Emphasis),
+  strong: builder(Strong),
+  code: builder(Code),
+  a: builder(Link),
+  $a: builder(Link.of("/")),
+}

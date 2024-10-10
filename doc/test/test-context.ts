@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Context, Walker, DocNode, basicBuilder, tag} from "@willows/doc"
-const {doc, p, br, li, ul} = basicBuilder
+import {Context, Walker, DocNode, basicBuilders, tag} from "@willows/doc"
+const {doc, p, br, li, ul} = basicBuilders
 
 function testCx(name: string, doc: DocNode, ...contexts: ([string, number] | [string, number, number])[]) {
   it(name, () => {
