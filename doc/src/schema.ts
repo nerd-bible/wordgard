@@ -16,7 +16,8 @@ export class Schema {
   private constructor(
     readonly tags: readonly TagType<unknown>[],
     readonly props: readonly PropType<any>[],
-    docType: TagType<Schema>
+    docType: TagType<Schema>,
+    readonly lineBreak: Tag<unknown> | null
   ) {
     this.tagSet = new Set(tags)
     this.propSet = new Set(props)
@@ -98,8 +99,15 @@ export class Schema {
       }
     }
     let docTag: TagType<Schema> | null = null
+    let lineBreak: Tag<any> | null = null
     for (let tag of tags) {
       if (tag.isDoc()) docTag = tag
+      if (tag.spec.isLineBreak) {
+        if (tag.isBlock() || !tag.isLeaf() || !tag.default)
+          throw new Error("Line break tags must be inline leaves with a default param")
+        if (lineBreak) throw new Error("Multiple line break tags provided")
+        lineBreak = tag.default
+      }
       if (!tag.isLeaf()) {
         let sawDefaultable = false
         for (let child of tags) if (tag.canContain(child)) {
@@ -113,7 +121,7 @@ export class Schema {
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
-    return new Schema(tags, props, docTag)
+    return new Schema(tags, props, docTag, lineBreak as Tag<unknown>)
   }
 
   nodeFromJSON(json: NodeJSON) {
@@ -238,6 +246,7 @@ export const ImageAlt = PropType.define<string>("ImageAlt", {
 })
 
 export const LineBreak = Tag.defineInline("LineBreak", {
+  isLineBreak: true,
   dom: {element: "br"}
 })
 

@@ -16,6 +16,7 @@ function sliceHTML(doc: DocNode, options?: any) {
   let wrap = document.createElement("div")
   wrap.appendChild(serializeSlice(doc.slice(tag(doc, 0), tag(doc, 1)), {
     ...options,
+    schema: doc.schema,
     context: doc.contextAt(tag(doc, 0), options?.maxDepth)
   }))
   return wrap.innerHTML
@@ -54,6 +55,11 @@ describe("serialize", () => {
 
   it("serializes heading levels", () => {
     ist(html(doc(h1("One"), h2("Two"))), "<h1>One</h1><h2>Two</h2>")
+  })
+
+  it("serializes line breaks in whitespace-preserving nodes", () => {
+    ist(html(doc(p("a", br(), "b"), pre("a", br(), "b"))),
+        "<p>a<br>b</p><pre>a\nb</pre>")
   })
 })
 
@@ -119,9 +125,13 @@ describe("parseDoc", () => {
     ist(parse("<li>A</li>"), doc(ul(li(p("A")))), eq)
   })
 
+  it("parses line breaks in code blocks as break nodes", () => {
+    ist(parse("<pre>a\n\nb</pre>"), doc(pre("a", br(), br(), "b")), eq)
+  })
+
   it("preserves whitespace in code blocks", () => {
     ist(parse("<pre>one  two\n  three</pre>"),
-        doc(pre("one  two\n  three")), eq)
+        doc(pre("one  two", br(), "  three")), eq)
   })
 
   it("collapses whitespace", () => {

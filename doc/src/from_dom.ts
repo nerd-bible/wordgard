@@ -215,21 +215,27 @@ class ParseContext {
       }
       // Collapse spans of whitespace into a single space
       text = text.replace(/[ \t\r\n\u000c]+/g, " ")
-      // If this starts with whitespace, and there is no node before it, or
-      // a hard break, or a text node that ends with whitespace, strip the
-      // leading space.
+      // If this starts with whitespace, and there is no node before it,
+      // or a line break, or a text node that ends with whitespace,
+      // strip the leading space.
       if (/^ /.test(text)) {
         let nodeBefore = this.top.children[this.top.children.length - 1]
-        let domNodeBefore = dom.previousSibling
-        if (!nodeBefore && !(this.top.flags & CxFlag.OpenStart) ||
-            (domNodeBefore && domNodeBefore.nodeName == 'BR') ||
-            nodeBefore && nodeBefore.isText() && / $/.test(nodeBefore.text))
+        if (nodeBefore
+            ? nodeBefore.tag == this.schema.lineBreak || nodeBefore.isText() && / $/.test(nodeBefore.text)
+            : !(this.top.flags & CxFlag.OpenStart))
           text = text.slice(1)
       }
+      if (text) this.insertNode(Node.text(text), props)
+    } else if (this.top.tag.type.preserveWhitespace && this.schema.lineBreak) {
+      let lines = text.split(/\r?\n|\r/g)
+      for (let i = 0; i < lines.length; i++) {
+        if (i) this.insertNode(this.schema.lineBreak.create(), props)
+        if (lines[i]) this.insertNode(Node.text(lines[i]), props)
+      }
     } else {
-      text = text.replace(/\r?\n|\r/g, this.top.tag.type.preserveWhitespace ? "\n" : " ")
+      text = text.replace(/\r?\n|\r/g, " ")
+      if (text) this.insertNode(Node.text(text), props)
     }
-    if (text) this.insertNode(Node.text(text), props)
     this.scanText(dom, text)
   }
 

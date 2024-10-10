@@ -8,6 +8,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   // FIXME determine defining context nodes and props
   let doc = detachedDoc(), dom = serializeSlice(slice, {
     document: doc,
+    schema: state.doc.schema,
     markOpen: (elt, open) => {
       elt.setAttribute("ws-open", open == OpenSide.Start ? "start" : open == OpenSide.End ? "end" : "start end")
     }

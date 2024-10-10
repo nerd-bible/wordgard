@@ -50,6 +50,13 @@ export type TagSpec<Param> = {
   dom: ElementRepresentation<Param> | ((param: Param) => HTMLElement)
   parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
+  /// Makes this tag the canonical line break for the schema. The node
+  /// must be inline and a leaf, and have no required parameter. Nodes
+  /// marked as line breaks will be parsed from and serialized to
+  /// newline characters inside
+  /// [whitespace-preserving](#state.TagSpec.preserveWhitespace)
+  /// nodes.
+  isLineBreak?: boolean
   isolating?: boolean
   defining?: boolean
   neutral?: boolean

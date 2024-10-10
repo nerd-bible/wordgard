@@ -1,4 +1,5 @@
 import {DocNode, Node, Tag, TokenType} from "./node"
+import {Schema} from "./schema"
 import {Slice, CloseToken} from "./slice"
 import {Prop} from "./prop"
 import {Attrs, ElementRepresentation, AttributeRepresentation,
@@ -7,35 +8,49 @@ import {OpenSide} from "./from_dom"
 
 export type SerializeOptions = {
   document?: Document
+  emitNewlines?: boolean
 }
 
-function fillOptions(options: SerializeOptions | undefined): Required<SerializeOptions> {
-  return {document: options?.document ?? document}
+// FIXME use a serialization context class
+
+export type FullOptions = {
+  document: Document,
+  emitNewlines: boolean,
+  schema: Schema
+}
+
+function fillOptions(options: SerializeOptions | undefined, schema: Schema): FullOptions {
+  return {
+    document: options?.document ?? document,
+    emitNewlines: options?.emitNewlines !== false,
+    schema
+  }
 }
 
 // FIXME html string variants
 
 export function serialize(doc: DocNode, options?: SerializeOptions) {
-  let opts = fillOptions(options)
+  let opts = fillOptions(options, doc.schema)
   let result = opts.document.createDocumentFragment()
   serializeChildren(doc.children, result, opts, doc.tag.inlineContent())
   return result
 }
 
-export function serializeNode(node: Node, options?: SerializeOptions): HTMLElement | Text {
-  let opts = fillOptions(options)
+export function serializeNode(node: Node, options: SerializeOptions & {schema: Schema}): HTMLElement | Text {
+  let opts = fillOptions(options, options.schema)
   let frag = opts.document.createDocumentFragment()
   serializeChildren([node], frag, opts, node.isInline())
   return frag.firstChild as (HTMLElement | Text)
 }
 
 export function serializeSlice(slice: Slice, options: SerializeOptions & {
+  schema: Schema,
   markOpen?: (elt: HTMLElement, side: OpenSide) => void
   context?: readonly Tag[]
-} = {}): DocumentFragment {
-  let opts = fillOptions(options)
+}): DocumentFragment {
+  let opts = fillOptions(options, options.schema)
   let result = opts.document.createDocumentFragment(), top: DocumentFragment | HTMLElement = result
-  let context = options.context || []
+  let context = options.context || [], stack: Tag<any>[] = []
   let contextDepth = 0
   for (let i = 0;;) {
     let next = i < slice.content.length ? slice.content[i++]
@@ -44,14 +59,20 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
     if (next.tokenType == TokenType.Node) {
       let start = i - 1
       while (i < slice.content.length && slice.content[i].tokenType == TokenType.Node) i++
-      serializeChildren(slice.content.slice(start, i) as Node[], top, opts, next.isInline())
+      let parent = stack.length ? stack[stack.length - 1] : context[contextDepth]
+      let children = slice.content.slice(start, i) as readonly Node[]
+      if (options.emitNewlines && parent.type.preserveWhitespace && options.schema.lineBreak)
+        children = lineBreaksToNewlines(children, options.schema.lineBreak)
+      serializeChildren(children, top, opts, next.isInline())
     } else if (next.tokenType == TokenType.Open) {
       let wrap = serializeNodeMarkup(next.tag, opts) as HTMLElement
       top.appendChild(wrap)
       top = wrap
+      stack.push(next.tag)
     } else if (top.parentNode) {
       if (i == slice.content.length && options.markOpen) options.markOpen(top as HTMLElement, OpenSide.End)
       top = top.parentNode as DocumentFragment | HTMLElement
+      stack.pop()
     } else {
       let wrap = context.length < contextDepth ? opts.document.createElement("div")
         : serializeNodeMarkup(context[contextDepth++], opts) as HTMLElement
@@ -60,6 +81,7 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
         options.markOpen(wrap, OpenSide.Start | (i == slice.content.length ? OpenSide.End : 0))
       result = top = opts.document.createDocumentFragment()
       top.appendChild(wrap)
+      stack.pop()
     }
   }
   while (top != result) {
@@ -96,7 +118,7 @@ function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, in
   }
 }
 
-function serializeNodeMarkup(tag: Tag, options: Required<SerializeOptions>) {
+function serializeNodeMarkup(tag: Tag, options: FullOptions) {
   let {dom} = tag.type.spec, elt: HTMLElement | undefined, text: Text | undefined
   if (tag.isText()) {
     text = options.document.createTextNode(tag.param as string)
@@ -117,16 +139,29 @@ function serializeNodeMarkup(tag: Tag, options: Required<SerializeOptions>) {
   return elt || text!
 }
 
-function serializeNodeInner(node: Node, options: Required<SerializeOptions>) {
+function serializeNodeInner(node: Node, options: FullOptions) {
   let dom = serializeNodeMarkup(node.tag, options)
-  if (!node.isLeaf()) serializeChildren(node.children, dom as HTMLElement, options, node.tag.inlineContent())
+  if (!node.isLeaf()) {
+    let {children} = node
+    if (options.emitNewlines && node.type.preserveWhitespace && options.schema.lineBreak)
+      children = lineBreaksToNewlines(children, options.schema.lineBreak)
+    serializeChildren(children, dom as HTMLElement, options, node.tag.inlineContent())
+  }
   return dom
+}
+
+function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Tag<any>) {
+  if (!nodes.some(n => n.tag == lineBreak)) return nodes
+  let result: Node[] = []
+  for (let node of nodes)
+    (node.tag == lineBreak ? Node.text("\n", node.tag.props) : node).pushTo(result)
+  return result
 }
 
 function serializeChildren(
   children: readonly Node[],
   target: Element | DocumentFragment,
-  options: Required<SerializeOptions>,
+  options: FullOptions,
   inline: boolean
 ) {
   let top = target, active: Prop[] = []
