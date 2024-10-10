@@ -30,5 +30,5 @@ export function readDOMSelection(view: EditorView, range: SelectionRange) {
   let anchor = view.docElt.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
     : view.docElt.posFromDOM(range.focusNode!, range.focusOffset, -1)
-  return EditorSelection.single(anchor, head)
+  return EditorSelection.range(anchor, head).asSelection()
 }

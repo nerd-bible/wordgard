@@ -248,7 +248,7 @@ export interface EditorStateSpec {
   doc: DocSource
   /// The starting selection. Defaults to a cursor at the start of the
   /// document.
-  selection?: EditorSelection | {anchor: number, head?: number} | ((doc: DocNode) => EditorSelection)
+  selection?: EditorSelection | SelectionRange | ((doc: DocNode) => EditorSelection)
   /// Configuration for this state.
   extensions: Extension
 }
@@ -444,10 +444,10 @@ export class EditorState {
     let config = Configuration.resolve(spec.extensions, new Map)
     let schema = schemaFromConfig(config)
     let doc = readDoc(schema, spec.doc)
-    let selection = !spec.selection ? EditorSelection.atStart(doc)
+    let selection = !spec.selection ? EditorSelection.near(doc, 0)
       : typeof spec.selection == "function" ? spec.selection(doc)
       : spec.selection instanceof EditorSelection ? spec.selection
-      : EditorSelection.single(spec.selection.anchor, spec.selection.head)
+      : spec.selection.asSelection()
     return EditorState.fromConfig(config, doc, selection)
   }
 

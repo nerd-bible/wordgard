@@ -1,7 +1,7 @@
 import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "@willows/doc"
 import {EditorState, Extension} from "./state"
 import {transactionFilter, transactionExtender} from "./facet"
-import {EditorSelection} from "./selection"
+import {EditorSelection, SelectionRange} from "./selection"
 
 /// Annotations are tagged values that are used to add metadata to
 /// transactions in an extensible way. They should be used to model
@@ -122,7 +122,7 @@ export interface TransactionSpec {
   /// When set, this transaction explicitly updates the selection.
   /// Offsets in this selection should refer to the document as it is
   /// _after_ the transaction.
-  selection?: EditorSelection | {anchor: number, head?: number} | undefined,
+  selection?: EditorSelection | SelectionRange | undefined,
   /// When true, cursor ranges in the provided selection will be
   /// [normalized](#state.EditorSelection.normalize) in the created
   /// state.
@@ -337,7 +337,7 @@ function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedS
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   return {
     changes: spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || []),
-    selection: sel && (sel instanceof EditorSelection ? sel : EditorSelection.single(sel.anchor, sel.head)),
+    selection: sel && (sel instanceof EditorSelection ? sel : sel.asSelection()),
     normalizeSelection: sel ? !!spec.normalizeSelection : false,
     effects: asArray(spec.effects),
     annotations,

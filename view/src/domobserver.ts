@@ -253,7 +253,7 @@ function findChild(elt: ContentElt, dom: Node | null, dir: number): ContentElt |
 function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
   let anchorNode = range.startContainer, anchorOffset = range.startOffset
   let focusNode = range.endContainer, focusOffset = range.endOffset
-  let curAnchor = view.docElt.resolve(view.state.selection.main.anchor, -1)
+  let curAnchor = view.docElt.resolve(view.state.selection.anchor, -1)
   // Since such a range doesn't distinguish between anchor and head,
   // use a heuristic that flips it around if its end matches the
   // current anchor.

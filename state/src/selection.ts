@@ -112,6 +112,10 @@ export class SelectionRange {
   static create(from: number, to: number, flags: number) {
     return new SelectionRange(from, to, flags)
   }
+
+  asSelection(props: readonly Prop[] | null = null) {
+    return EditorSelection.create([this], 0, props)
+  }
 }
 
 /// An editor selection holds one or more selection ranges.
@@ -177,6 +181,11 @@ export class EditorSelection {
   /// Get the primary selection range.
   get main(): SelectionRange { return this.ranges[this.mainIndex] }
 
+  get from(): number { return this.main.from }
+  get to(): number { return this.main.to }
+  get anchor(): number { return this.main.anchor }
+  get head(): number { return this.main.head }
+
   /// Extend this selection with an extra range.
   addRange(range: SelectionRange, main: boolean = true) {
     return EditorSelection.create([range].concat(this.ranges), main ? 0 : this.mainIndex + 1)
@@ -209,11 +218,6 @@ export class EditorSelection {
     return new EditorSelection(json.ranges.map((r: any) => SelectionRange.fromJSON(r)), json.main, props)
   }
 
-  /// Create a selection holding a single range.
-  static single(anchor: number, head: number = anchor, props: readonly Prop[] | null = null) {
-    return new EditorSelection([EditorSelection.range(anchor, head)], 0, props)
-  }
-
   /// Sort and merge the given set of ranges, creating a valid
   /// selection.
   static create(ranges: readonly SelectionRange[], mainIndex: number = 0, props: readonly Prop[] | null = null) {
@@ -244,15 +248,6 @@ export class EditorSelection {
       : SelectionRange.create(anchor, head, (head > anchor ? RangeFlag.AssocBefore : 0) | flags)
   }
 
-  static atStart(doc: DocNode) {
-    for (let offset = 0, node = doc as Node;;) {
-      if (node.inlineContent()) return EditorSelection.single(offset)
-      if (!node.children.length) return EditorSelection.single(0)
-      node = node.children[0]
-      offset++
-    }
-  }
-
   /// @internal
   static sorted(ranges: SelectionRange[], mainIndex: number = 0, props: readonly Prop[] | null): EditorSelection {
     let main = ranges[mainIndex]
@@ -275,6 +270,11 @@ export class EditorSelection {
 
   static normalPositionBefore(doc: DocNode, from: number, mustMove: boolean = true) {
     return scanNormalFrom(doc, from, false, mustMove)
+  }
+
+  static near(doc: DocNode, pos: number, bias: -1 | 1 = 1) {
+    let norm = scanNormalFrom(doc, pos, bias > 0, false) ?? scanNormalFrom(doc, pos, bias < 0, false)!
+    return EditorSelection.cursor(norm).asSelection()
   }
 }
 
