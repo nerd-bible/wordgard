@@ -68,7 +68,7 @@ function readClipboardText(state: EditorState, text: string, context: Context, p
   let content: Token[] = lines[0] ? [Node.text(lines[0], props)] : []
   if (lines.length == 1) return new Slice(content)
   let parent = (context.node.inlineContent() ? context.parent || context : context).node.tag
-  let wrapping = state.doc.schema.findWrapping(parent, Text)
+  let wrapping = state.doc.schema.findWrapping(parent.type, Text)
   if (!wrapping || !wrapping.length) return new Slice([Node.text(text.replace(/\r?\n|\r/g, " "), props)])
   let wrapper = wrapping[wrapping.length - 1]
   content.push(CloseToken)

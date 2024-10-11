@@ -97,6 +97,10 @@ export class SelectionRange {
       (!includeAssoc || !this.empty || this.assoc == other.assoc)
   }
 
+  resolve(doc: DocNode) {
+    return new ResolvedRange(doc, this)
+  }
+
   /// Return a JSON-serializable object representing the range.
   toJSON(): {anchor: number, head: number} { return {anchor: this.anchor, head: this.head} }
 
@@ -116,6 +120,22 @@ export class SelectionRange {
   asSelection(props: readonly Prop[] | null = null) {
     return EditorSelection.create([this], 0, props)
   }
+}
+
+export class ResolvedRange {
+  anchor: Context
+  head: Context
+
+  constructor(doc: DocNode, readonly range: SelectionRange) {
+    this.anchor = doc.resolve(range.anchor)
+    this.head = range.empty ? this.anchor : doc.resolve(range.head)
+  }
+
+  get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
+  get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
+
+  get empty() { return this.range.empty }
+  get assoc() { return this.range.assoc } 
 }
 
 /// An editor selection holds one or more selection ranges.

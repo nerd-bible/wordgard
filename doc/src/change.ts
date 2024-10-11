@@ -736,7 +736,7 @@ class ChangeFitter implements Walker {
     let dDelta = this.stackDelta - this.inputDelta
     for (let level: FitLevel | null = this.stack, leave = 0, leaveCost = 0; level; level = level.next, leave++) {
       if (fix && leaveCost > fix.cost) break
-      let enter = this.doc.schema.findWrapping(level.tag, tag)
+      let enter = this.doc.schema.findWrapping(level.tag.type, tag.type)
       if (enter) {
         let cost = leaveCost + enter.length * 2 - Math.max(0, Math.min(-dDelta, enter.length))
         if (!fix || fix.cost > cost && !fix.context)

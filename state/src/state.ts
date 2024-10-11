@@ -1,6 +1,6 @@
 import {Schema, Slice, SchemaElement, DocNode, Node, Tag, NodeJSON, parseDoc,
         ChangeSet, ChangeSpec} from "@willows/doc"
-import {EditorSelection, SelectionRange} from "./selection"
+import {EditorSelection, SelectionRange, ResolvedRange} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
         sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
@@ -264,6 +264,7 @@ export class EditorState {
   readonly status: SlotStatus[]
   /// @internal
   computeSlot: null | ((state: EditorState, slot: DynamicSlot) => SlotStatus)
+  private _mainSel: ResolvedRange | null = null
 
   private constructor(
     /// The configuration 
@@ -358,6 +359,7 @@ export class EditorState {
   }
 
   replaceSelectionWith(content: string | readonly Node[]) {
+    // FIXME
   }
 
   replaceSelection(content: Slice, context?: readonly Tag[]) {
@@ -399,6 +401,10 @@ export class EditorState {
       selection: EditorSelection.create(ranges, sel.mainIndex),
       effects
     }
+  }
+
+  get mainSel() {
+    return this._mainSel || (this._mainSel = this.selection.main.resolve(this.doc))
   }
 
   /// Convert this state to a JSON-serializable object. When custom

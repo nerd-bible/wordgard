@@ -31,6 +31,7 @@ export function isAttributeRepresentation<T>(
   return (repr as AttributeRepresentation<any>).attribute != null
 }
 
+// FIXME split inline and block specs?
 export type TagSpec<Param> = {
   blockContent?: string
   inlineContent?: string | true
@@ -50,6 +51,12 @@ export type TagSpec<Param> = {
   dom: ElementRepresentation<Param> | ((param: Param) => HTMLElement)
   parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
+  /// Indicates that this type of block is the default generic block
+  /// type in parent nodes where it may occur (which is appropriate
+  /// for, for example, paragraphs tags). Default blocks should not
+  /// have a required param. When not specified, the configuration
+  /// precedence order determines which child type is the default.
+  defaultBlock?: boolean
   /// Makes this tag the canonical line break for the schema. The node
   /// must be inline and a leaf, and have no required parameter. Nodes
   /// marked as line breaks will be parsed from and serialized to

@@ -66,6 +66,7 @@ export class TagType<Param> {
   }
 
   of(param: Param, props: readonly Prop<any>[] = none) {
+    if (!props.length && this.default && compareDeep(this.default.param, param)) return this.default
     return new Tag(this, param, props)
   }
 
@@ -313,7 +314,9 @@ export class Node {
 
   prop<Value>(prop: PropType<Value>): Value | undefined { return this.tag.prop(prop) }
 
-  withProps(props: readonly Prop<any>[]) { return new Node(this.tag.type.of(this.tag.param, props), this.children) }
+  withProps(props: readonly Prop<any>[]) {
+    return eqArray(this.tag.props, props) ? this : new Node(this.tag.type.of(this.tag.param, props), this.children)
+  }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
 

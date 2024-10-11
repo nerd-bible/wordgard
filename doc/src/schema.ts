@@ -41,7 +41,6 @@ export class Schema {
   }
 
   defaultContentType(parent: TagType<any>) {
-    // FIXME provide less obscure control over order
     for (let tag of this.tags) if (parent.canContain(tag) && tag.default) return tag.default
     return null
   }
@@ -53,19 +52,18 @@ export class Schema {
     return child.create([this.createDefault(child.type)])
   }
 
-  findWrapping(parent: Tag, child: Tag<any> | TagType<any>): readonly Tag[] | null {
+  findWrapping(parent: TagType<any>, child: TagType<any>): readonly Tag[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  private findWrappingInner(parent: Tag<any>, child: Tag<any> | TagType<any>): readonly Tag[] | null {
+  private findWrappingInner(parent: TagType<any>, child: TagType<any>): readonly Tag[] | null {
     let seen: Set<TagType<unknown>> = new Set, work: Tag[][] = [[]]
-    let childType = child instanceof Tag ? child.type : child
     for (let i = 0; i < work.length; i++) {
-      let path = work[i], at = path.length ? path[path.length - 1] : parent
-      for (let tag of this.tags) if (at.type.canContain(tag)) {
-        if (tag == childType) return path
+      let path = work[i], at = path.length ? path[path.length - 1].type : parent
+      for (let tag of this.tags) if (at.canContain(tag)) {
+        if (tag == child) return path
         if (!seen.has(tag) && !tag.isLeaf() && tag.default) {
           seen.add(tag)
           work.push(path.concat(tag.default))
@@ -81,14 +79,16 @@ export class Schema {
 
   static define(spec: readonly SchemaElement[]) {
     let tags: TagType<any>[] = [Text], props: PropType<unknown>[] = []
+    let defaultI = 0
     let tagNames: Set<string> = new Set, propNames: Set<string> = new Set
     for (let elt of spec) {
       if (elt instanceof Tag || elt instanceof Prop) elt = elt.type
       if (elt instanceof TagType) {
         if (tags.includes(elt)) continue
-        if (tagNames.has(elt.name)) throw new Error(`Duplicate use of node name ${elt.name} in schema`)
+        if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
-        tags.push(elt)
+        if (elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
+        else tags.push(elt)
       } else if (elt instanceof PropType) {
         if (props.includes(elt)) continue
         if (propNames.has(elt.name)) throw new Error(`Duplicate use of prop name ${elt.name} in schema`)
@@ -165,6 +165,7 @@ export class Schema {
 export const Paragraph = Tag.defineBlock("Paragraph", {
   inlineContent: true,
   group: "Block",
+  defaultBlock: true,
   dom: {element: "p"}
 })
 

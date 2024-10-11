@@ -287,7 +287,7 @@ class ParseContext {
   findPlace(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean): readonly Prop[] | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
-      let found = this.schema.findWrapping(cx.tag, tag)
+      let found = this.schema.findWrapping(cx.tag.type, tag.type)
       if (found && (!route || route.length > found.length)) {
         route = found
         under = cx
@@ -457,7 +457,7 @@ function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
   scan: for (let parent of schema.tags) if (parent.default) {
     let cost = parent.isDoc() ? -1 : 0
     for (let child of tags) {
-      let fit = schema.findWrapping(parent.default, child)
+      let fit = schema.findWrapping(parent, child)
       cost += fit ? fit.length * 2 : 1000
     }
     if (!best || bestCost > cost) {
