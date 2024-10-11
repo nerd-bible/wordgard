@@ -1,4 +1,4 @@
-import {Node, Slice} from "@willows/doc"
+import {Node, Slice, Text} from "@willows/doc"
 import {EditorSelection} from "@willows/state"
 import {EditorView} from "./editorview"
 
@@ -24,12 +24,25 @@ export const insertLineBreakInCode: Command = view => {
 
 /// If the selection is not in an inline context, insert an empty
 /// default textblock in its position.
-export const createTextblockNear: Command = view => {
+export const createTextblock: Command = view => {
+  let {state} = view, sel = state.mainSel
+  if (sel.head.node.inlineContent() || sel.anchor.node.inlineContent()) return false
+  let wrap = state.doc.schema.findWrapping(sel.from.node.type, Text)
+  if (!wrap) return false
+  let content: Node[] = []
+  for (let i = wrap.length - 1; i >= 0; i--) content = [wrap[i].create(content)]
+  let slice = new Slice(content)
+  view.dispatch({
+    changes: {from: sel.from.pos, to: sel.to.pos, insert: slice, fit: true},
+    selection: EditorSelection.cursor(sel.from.pos + slice.length, -1),
+    normalizeSelection: true,
+    scrollIntoView: true
+  })
   return true
 }
 
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
-    createTextblockNear(view)
+    createTextblock(view)
   // || liftEmptyBlock(view) || splitBlock(view)
 }
