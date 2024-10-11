@@ -114,17 +114,17 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   },
   // Join two adjacent blocks
   doc => scanBlocks(doc, (node, pos, parent, index) => {
-    if (index && parent.children[index - 1].tag.type.sharesContent(node.tag.type))
+    if (index && parent.children[index - 1].type.sharesContent(node.tag.type))
       return {from: pos - 1, to: pos + 1}
   }),
   // Lift a block's content out to its parent
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.tag.type.sharesContent(node.tag.type))
+    if (parent.type.sharesContent(node.tag.type))
       return [{from: pos, to: pos + 1}, {from: pos + node.length - 1, to: pos + node.length}]
   }),
   // Wrap a block in a blockquote
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.tag.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.tag.type))
+    if (parent.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.tag.type))
       return [{from: pos, insert: slice(open(blockquote()))},
               {from: pos + node.length, insert: slice(close)}]
   }),

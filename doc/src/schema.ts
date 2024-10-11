@@ -33,7 +33,7 @@ export class Schema {
   // FIXME probably don't want to integrate this in document
   // construction, but rather in the editor state.
   validate(node: Node) {
-    if (!this.tagSet.has(node.tag.type))
+    if (!this.tagSet.has(node.type))
       throw new Error(`Node type ${node.name} not in schema`)
     for (let prop of node.tag.props) if (!this.propSet.has(prop.type))
       throw new Error(`Prop type ${prop.name} not in schema`)

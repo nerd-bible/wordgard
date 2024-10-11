@@ -89,7 +89,7 @@ export class TagType<Param> {
 
   checkChildren(children: readonly Node[]) {
     for (let child of children)
-      if (!this.canContain(child.tag.type))
+      if (!this.canContain(child.type))
         throw new Error(`${child.name} is not a valid child of ${this.name}`)
     return children
   }
@@ -199,7 +199,7 @@ export class Node {
   get type() { return this.tag.type }
 
   get length() {
-    return this.tag.type == Text ? (this.tag.param as string).length : this.isLeaf() ? 1 : 2 + this.contentLength
+    return this.type == Text ? (this.tag.param as string).length : this.isLeaf() ? 1 : 2 + this.contentLength
   }
 
   get text(): string | null { return this.isText() ? this.tag.param as string : null }
@@ -301,7 +301,7 @@ export class Node {
       let nodeText = node.isText() ? node.text.slice(Math.max(0, from - pos), Math.min(node.length, to - pos))
         : !node.isLeaf() ? ""
         : leafText ? (typeof leafText === "function" ? leafText(node) : leafText)
-        : node.tag.type.spec.toText ? node.tag.type.spec.toText(node)
+        : node.type.spec.toText ? node.type.spec.toText(node)
         : ""
       if (node.isBlock() && (node.isLeaf() && nodeText || node.isTextblock())) {
         if (first) first = false
@@ -315,7 +315,7 @@ export class Node {
   prop<Value>(prop: PropType<Value>): Value | undefined { return this.tag.prop(prop) }
 
   withProps(props: readonly Prop<any>[]) {
-    return eqArray(this.tag.props, props) ? this : new Node(this.tag.type.of(this.tag.param, props), this.children)
+    return eqArray(this.tag.props, props) ? this : new Node(this.type.of(this.tag.param, props), this.children)
   }
 
   get tokenType(): TokenType.Node { return TokenType.Node }

@@ -299,8 +299,8 @@ export class EditorSelection {
 }
 
 function isBarrier(node: Node) {
-  return node.tag.type.isolating || node.tag.type.preserveWhitespace ||
-    node.isBlock() && node.tag.isAtom() // FIXME allow node specs to enable this?
+  return node.type.isolating || node.type.preserveWhitespace ||
+    node.isBlock() && node.isAtom() // FIXME allow node specs to enable this?
 }
 
 function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: boolean) {

@@ -63,7 +63,7 @@ export function readClipboard(state: EditorState, data: DataTransfer, context: C
 function readClipboardText(state: EditorState, text: string, context: Context, plain: boolean) {
   // FIXME text filtering, custom parsers
   let props = plain ? [] : context.props()
-  if (context.node.tag.type.preserveWhitespace) return new Slice([Node.text(text.replace(/\r?\n|\r/g, "\n"), props)])
+  if (context.node.type.preserveWhitespace) return new Slice([Node.text(text.replace(/\r?\n|\r/g, "\n"), props)])
   let lines = text.split(/(?:\r\n?|\n)+/)
   let content: Token[] = lines[0] ? [Node.text(lines[0], props)] : []
   if (lines.length == 1) return new Slice(content)

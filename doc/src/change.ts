@@ -438,7 +438,7 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
         if (add) {
           let mods: Modification[] = [{add: add}]
           markableSections(doc, from, to, (node, from, to) => {
-            if (!add.type.canTarget(node.tag.type)) return false
+            if (!add.type.canTarget(node.type)) return false
             let has = node.tag.hasProp(add.type)
             if (add.type.set) {
               let modsHere = mods
@@ -458,7 +458,7 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
           let mods: Modification[] = [{remove: remove}]
           markableSections(doc, from, to, (node, from, to) => {
             const has = node.tag.hasProp(remove)
-            if (!has || !remove.type.canTarget(node.tag.type)) return false
+            if (!has || !remove.type.canTarget(node.type)) return false
             let modsHere = mods
             if (remove.type.set) {
               let left = subtractSet(remove.value as any[], has.value as any[], remove.type.set!)
@@ -781,7 +781,7 @@ class ChangeFitter implements Walker {
     while (levels.length > depth + 1) { this.insertClose(); levels.pop() }
     for (let d = 1; d <= Math.min(depth, levels.length - 1); d++) {
       let cx = context.atDepth(d)
-      if (!cx.node.tag.type.sharesContent(levels[d].tag.type)) {
+      if (!cx.node.type.sharesContent(levels[d].tag.type)) {
         while (levels.length > d) { this.insertClose(); levels.pop() }
         break
       }
