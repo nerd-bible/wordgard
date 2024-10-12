@@ -6,6 +6,8 @@ import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
         sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
         transactionFilter, transactionExtender} from "./facet"
 
+export type StateCommand = (target: {state: EditorState, dispatch: (tr: Transaction) => void}) => boolean
+
 const schemaCache: WeakMap<readonly SchemaElement[], Schema> = new WeakMap
 
 export function schemaFromConfig(config: Configuration) {
@@ -250,7 +252,7 @@ export interface EditorStateSpec {
   /// document.
   selection?: EditorSelection | SelectionRange | ((doc: DocNode) => EditorSelection)
   /// Configuration for this state.
-  extensions: Extension
+  extensions?: Extension
 }
 
 /// The editor state class is a persistent (immutable) data structure.
@@ -403,6 +405,7 @@ export class EditorState {
     }
   }
 
+  // FIXME too inconsistently abbreviated?
   get mainSel() {
     return this._mainSel || (this._mainSel = this.selection.main.resolve(this.doc))
   }
@@ -447,7 +450,7 @@ export class EditorState {
   /// initializing an editor—updated states are created by applying
   /// transactions.
   static create(spec: EditorStateSpec): EditorState {
-    let config = Configuration.resolve(spec.extensions, new Map)
+    let config = Configuration.resolve(spec.extensions || [], new Map)
     let schema = schemaFromConfig(config)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? EditorSelection.near(doc, 0)

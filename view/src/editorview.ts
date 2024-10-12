@@ -132,8 +132,8 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
       ((trs: readonly Transaction[]) => this.update(trs))
     this.dispatch = this.dispatch.bind(this)
 
-    if (!spec.state && !(spec.doc && spec.extensions))
-      throw new Error("When EditorViewSpec.state isn't given, the doc and extensions fields must be present")
+    if (!spec.state && !spec.doc)
+      throw new Error("When EditorViewSpec.state isn't given, the doc field must be present")
     this.viewState = new ViewState(spec.state || EditorState.create(spec as EditorStateSpec))
     if (spec.scrollTo && spec.scrollTo.is(scrollIntoView))
       this.viewState.scrollTarget = spec.scrollTo.value.clip(this.viewState.state)

@@ -1,5 +1,5 @@
-import {Node, Slice, Text} from "@willows/doc"
-import {EditorSelection} from "@willows/state"
+import {Node, Slice, Text, Token, CloseToken, OpenToken} from "@willows/doc"
+import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
 
 /// Command functions are used in key bindings and other types of user
@@ -9,40 +9,69 @@ import {EditorView} from "./editorview"
 /// transaction) and return `true`.
 export type Command = (target: EditorView) => boolean
 
-export const insertLineBreakInCode: Command = view => {
-  let {doc, mainSel: sel} = view.state
+export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
+  let {doc, mainSel: sel} = state
   if (!sel.from.node.type.preserveWhitespace || sel.from.start != sel.to.start) return false
-  let props = view.state.selection.props || sel.from.props(sel.to)
-  view.dispatch({
+  let props = state.selection.props || sel.from.props(sel.to)
+  dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos,
               insert: new Slice([(doc.schema.lineBreak ? doc.schema.lineBreak.create() : Node.text("\n")).withProps(props)])},
     selection: EditorSelection.cursor(sel.from.pos + 1, -1),
     scrollIntoView: true
-  })
+  }))
   return true
 }
 
 /// If the selection is not in an inline context, insert an empty
 /// default textblock in its position.
-export const createTextblock: Command = view => {
-  let {state} = view, sel = state.mainSel
+export const createTextblock: StateCommand = ({state, dispatch}) => {
+  let sel = state.mainSel
   if (sel.head.node.inlineContent() || sel.anchor.node.inlineContent()) return false
   let wrap = state.doc.schema.findWrapping(sel.from.node.type, Text)
   if (!wrap) return false
   let content: Node[] = []
   for (let i = wrap.length - 1; i >= 0; i--) content = [wrap[i].create(content)]
   let slice = new Slice(content)
-  view.dispatch({
+  dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos, insert: slice, fit: true},
     selection: EditorSelection.cursor(sel.from.pos + slice.length, -1),
     normalizeSelection: true,
     scrollIntoView: true
-  })
+  }))
   return true
+}
+
+export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
+  let sel = state.mainSel, node = sel.head.node
+  if (!sel.empty || !node.inlineContent() || node.children.length) return false
+  let start = sel.head.before, end = sel.head.after, before: Token[] = [], after: Token[] = []
+  for (let level = sel.head, atStart = true, atEnd = true;;) {
+    let next = level.parent
+    if (!next || next.node.isInline()) return false
+    if (level.index) atStart = false
+    if (atStart) start--
+    else before.unshift(CloseToken)
+    if (level.index < next.node.children.length - 1) atEnd = false
+    if (atEnd) end++
+    else after.push(new OpenToken(next.node.tag))
+    if (next.node.type.canContain(node.type)) {
+      dispatch(state.update({
+        changes: [
+          {from: start, to: sel.head.before, insert: new Slice(before)},
+          {from: sel.head.after, to: end, insert: new Slice(after)}
+        ],
+        scrollIntoView: true
+      }))
+      return true
+    }
+    if (level.node.type.isolating) return false
+    level = next
+  }
 }
 
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
-    createTextblock(view)
-  // || liftEmptyBlock(view) || splitBlock(view)
+    createTextblock(view) ||
+    liftEmptyBlock(view)
+  // || splitBlock(view)
 }
