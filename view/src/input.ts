@@ -333,7 +333,7 @@ class MouseSelection {
 
   disconnect() {
     this.setScrollSpeed(0, 0)
-    let doc = this.view.ownerDocument
+    let doc = this.view.dom.ownerDocument
     doc.removeEventListener("mousemove", this.move)
     doc.removeEventListener("mouseup", this.up)
     this.view.inputState.mouseSelection = this.view.inputState.draggedContent = null

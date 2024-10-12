@@ -451,7 +451,7 @@ export class EditorState {
   /// transactions.
   static create(spec: EditorStateSpec): EditorState {
     let config = Configuration.resolve(spec.extensions || [], new Map)
-    let schema = schemaFromConfig(config)
+    let schema = spec.doc instanceof DocNode ? spec.doc.schema : schemaFromConfig(config)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? EditorSelection.near(doc, 0)
       : typeof spec.selection == "function" ? spec.selection(doc)

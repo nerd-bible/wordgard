@@ -2,7 +2,8 @@ import {ChangeDesc} from "@willows/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
 import {editable, ViewUpdate} from "./extension"
-import {DOMNode, hasSelection, getSelection, DOMSelectionState, isEquivalentPosition, atElementStart} from "./dom"
+import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
+        isEquivalentPosition, atElementStart} from "./dom"
 import {ContentElt} from "./content"
 import {setDOMSelection, readDOMSelection} from "./selection"
 
@@ -135,9 +136,12 @@ export class DOMObserver {
     // https://github.com/codemirror/dev/issues/414
     let selection = getSelection(view.root)
     if (!selection) return false
-    let range = browser.safari && (view.root as any).nodeType == 11 &&
-      view.root.activeElement == this.dom &&
-      safariSelectionRangeHack(this.view, selection) || selection
+    let range: SelectionRange = selection
+    if (browser.safari && (view.root as any).nodeType == 11 && view.root.activeElement == this.dom) {
+      // Used to work around a Safari Selection/shadow DOM bug (#414)
+      let selRange = (selection as any).getComposedRanges(view.root)[0] as StaticRange
+      if (selRange) range = buildSelectionRangeFromRange(view, selRange)
+    }
     if (!range || this.selectionRange.eq(range)) return false
     let local = hasSelection(this.dom, range)
     // Detect the situation where the browser has, on focus, moved the
@@ -260,30 +264,6 @@ function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
   if (isEquivalentPosition(curAnchor.node, curAnchor.offset, focusNode, focusOffset))
     [anchorNode, anchorOffset, focusNode, focusOffset] = [focusNode, focusOffset, anchorNode, anchorOffset]
   return {anchorNode, anchorOffset, focusNode, focusOffset}
-}
-
-// Used to work around a Safari Selection/shadow DOM bug (#414)
-function safariSelectionRangeHack(view: EditorView, selection: Selection) {
-  if ((selection as any).getComposedRanges) {
-    let range = (selection as any).getComposedRanges(view.root)[0] as StaticRange
-    if (range) return buildSelectionRangeFromRange(view, range)
-  }
-
-  let found = null as null | StaticRange
-  // Because Safari (at least in 2018-2021) doesn't provide regular
-  // access to the selection inside a shadowroot, we have to perform a
-  // ridiculous hack to get at it—using `execCommand` to trigger a
-  // `beforeInput` event so that we can read the target range from the
-  // event.
-  function read(event: InputEvent) {
-    event.preventDefault()
-    event.stopImmediatePropagation()
-    found = (event as any).getTargetRanges()[0]
-  }
-  view.contentDOM.addEventListener("beforeinput", read, true)
-  view.ownerDocument.execCommand("indent")
-  view.contentDOM.removeEventListener("beforeinput", read, true)
-  return found ? buildSelectionRangeFromRange(view, found) : null
 }
 
 // FIXME work in terms of textblocks instead of text documents

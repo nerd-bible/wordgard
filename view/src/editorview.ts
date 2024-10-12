@@ -43,11 +43,13 @@ export interface EditorViewSpec extends Partial<EditorStateSpec> {
   dispatchTransactions?: (trs: readonly Transaction[], view: EditorView) => void
 }
 
+// FIXME less generic name?
+
 /// An editor view represents the editor's user interface. It holds
 /// the editable DOM surface, and possibly other elements such as
 /// panels. It handles events and dispatches state transactions for
 /// editing actions.
-export class EditorView extends HTMLElement {// FIXME make custom element a member, not the class itself?
+export class EditorView {
   /// The current editor state.
   get state() { return this.viewState.state }
 
@@ -68,7 +70,10 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
   root: DocumentOrShadowRoot = document
 
   /// @internal
-  get win() { return this.ownerDocument.defaultView || window }
+  get win() { return this.dom.ownerDocument.defaultView || window }
+
+  /// The outer DOM element that represents the editor.
+  readonly dom: HTMLElement
 
   /// The DOM element that can be styled to scroll. (Note that it may
   /// not have been, so you can't assume this is scrollable.)
@@ -112,8 +117,8 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
   /// option, or put `view.dom` into your document after creating a
   /// view, so that the user can see the editor.
   constructor(spec: EditorViewSpec) {
-    if (!spec) throw new Error("EditorView cannot be created without providing a configuration")
-    super()
+    this.dom = createWrapElement(this)
+
     this.contentDOM = document.createElement("div")
 
     this.scrollDOM = document.createElement("div")
@@ -125,8 +130,8 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     this.announceDOM.className = "ws-announced"
     this.announceDOM.setAttribute("aria-live", "polite")
 
-    this.appendChild(this.announceDOM)
-    this.appendChild(this.scrollDOM)
+    this.dom.appendChild(this.announceDOM)
+    this.dom.appendChild(this.scrollDOM)
 
     this.dispatchTransactions = spec.dispatchTransactions ||
       ((trs: readonly Transaction[]) => this.update(trs))
@@ -145,28 +150,28 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
 
     this.updateAttrs()
 
-    if (spec.parent) spec.parent.appendChild(this)
+    if (spec.parent) spec.parent.appendChild(this.dom)
   }
 
-  connectedCallback() {
-    this.connected = true
-    this.root = getRoot(this.parentNode!) || document
-    this.mountStyles()
-    this.docElt.connect()
-    this.inputState.connect()
-    for (let plugin of this.plugins) plugin.connect(this)
-    this.observer.connect()
-    this.scheduleFlush()
-  }
-
-  disconnectedCallback() {
-    this.connected = false
-    this.root = document
-    this.observer.disconnect()
-    for (let plugin of this.plugins) plugin.disconnect(this)
-    this.inputState.disconnect()
-    this.docElt.disconnect()
-    if (this.flushScheduled > -1) this.win.cancelAnimationFrame(this.flushScheduled)
+  setConnected(value: boolean) {
+    if (value == this.connected) return
+    this.connected = value
+    if (value) {
+      this.root = getRoot(this.dom.parentNode!) || document
+      this.mountStyles()
+      this.docElt.connect()
+      this.inputState.connect()
+      for (let plugin of this.plugins) plugin.connect(this)
+      this.observer.connect()
+      this.scheduleFlush()
+    } else {
+      this.root = document
+      this.observer.disconnect()
+      for (let plugin of this.plugins) plugin.disconnect(this)
+      this.inputState.disconnect()
+      this.docElt.disconnect()
+      if (this.flushScheduled > -1) this.win.cancelAnimationFrame(this.flushScheduled)
+    }
   }
 
   /// All regular editor state updates should go through this. It
@@ -363,7 +368,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
 
     let changed = this.observer.ignore(() => {
       let changedContent = updateAttrs(this.contentDOM, this.contentAttrs, contentAttrs)
-      let changedEditor = updateAttrs(this, this.editorAttrs, editorAttrs)
+      let changedEditor = updateAttrs(this.dom, this.editorAttrs, editorAttrs)
       return changedContent || changedEditor
     })
     this.editorAttrs = editorAttrs
@@ -516,7 +521,7 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
     // or closing, which leads us to ignore selection changes from the
     // context menu because it looks like the editor isn't focused.
     // This kludges around that.
-    return (this.ownerDocument.hasFocus() || browser.safari && this.inputState?.lastContextMenu > Date.now() - 3e4) &&
+    return (this.dom.ownerDocument.hasFocus() || browser.safari && this.inputState?.lastContextMenu > Date.now() - 3e4) &&
       this.root.activeElement == this.contentDOM
   }
 
@@ -725,17 +730,33 @@ export class EditorView extends HTMLElement {// FIXME make custom element a memb
   static announce = StateEffect.define<string>()
 
   static {
-    // Need to register a name before browsers let you instantiate a
-    // custom element. Try multiple names in case multiple versions of
-    // the library are loaded.
-    for (let i = 0;; i++) {
-      let name = "willows-editor" + (i ? "-" + i : "")
-      if (!customElements.get(name)) {
-        customElements.define(name, EditorView)
-        break
-      }
+  }
+}
+
+let _wrapElement: {new (view: EditorView): HTMLElement} | null = null
+
+function wrapElementConstructor() {
+  let ctor = class extends HTMLElement {
+    constructor(readonly view: EditorView) { super() }
+    connectedCallback() { this.view.setConnected(true) }
+    disconnectedCallback() { this.view.setConnected(false) }
+  }
+  // Need to register a name before browsers let you instantiate a
+  // custom element. Try multiple names in case multiple versions of
+  // the library are loaded.
+  for (let i = 0;; i++) {
+    let name = "willows-editor" + (i ? "-" + i : "")
+    if (!customElements.get(name)) {
+      customElements.define(name, ctor)
+      break
     }
   }
+  return ctor
+}
+
+function createWrapElement(view: EditorView) {
+  if (!_wrapElement) _wrapElement = wrapElementConstructor()
+  return new _wrapElement(view)
 }
 
 /// Helper type that maps event names to event object types, or the

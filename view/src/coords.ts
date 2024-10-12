@@ -90,7 +90,7 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
   // block. If not, we call `posFromDOM` on the raw node/offset.
   let outsideBlock = -1
   for (let cur = node, sawBlock = false;;) {
-    if (cur == view) break
+    if (cur == view.contentDOM) break
     let cView = view.docElt.nearestNodeElt(cur)
     if (!cView) return null
     if (cView.dom.nodeType == 1 && (cView.tag.isBlock() && cView.parent || !cView.contentDOM)) {
@@ -133,16 +133,16 @@ function elementFromPoint(element: HTMLElement, coords: {x: number, y: number}, 
 
 // Given an x,y position on the editor, get the position in the document.
 export function posAtCoords(view: EditorView, coords: {x: number, y: number}) {
-  let doc = view.ownerDocument, node: Node | undefined, offset = 0
+  let doc = view.dom.ownerDocument, node: Node | undefined, offset = 0
   let caret = caretFromPoint(doc, coords.x, coords.y)
   if (caret) ({node, offset} = caret)
 
   let elt = ((view.root as any).elementFromPoint ? view.root : doc)
               .elementFromPoint(coords.x, coords.y) as HTMLElement
   let pos
-  if (!elt || !view.contains(elt.nodeType != 1 ? elt.parentNode : elt)) {
-    let box = view.getBoundingClientRect()
-    elt = elementFromPoint(view, coords, box)
+  if (!elt || !view.contentDOM.contains(elt.nodeType != 1 ? elt.parentNode : elt)) {
+    let box = view.contentDOM.getBoundingClientRect()
+    elt = elementFromPoint(view.contentDOM, coords, box)
   }
   // Safari's caretRangeFromPoint returns nonsense when on a draggable element
   if (browser.safari) {
@@ -166,7 +166,7 @@ export function posAtCoords(view: EditorView, coords: {x: number, y: number}) {
       offset--
     // Suspiciously specific kludge to work around caret*FromPoint
     // never returning a position at the end of the document
-    if (node == view && offset == node.childNodes.length - 1 && node.lastChild!.nodeType == 1 &&
+    if (node == view.contentDOM && offset == node.childNodes.length - 1 && node.lastChild!.nodeType == 1 &&
         coords.y > (node.lastChild as HTMLElement).getBoundingClientRect().bottom)
       pos = view.state.doc.length
     // Ignore positions directly after a BR, since caret*FromPoint
