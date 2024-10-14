@@ -112,7 +112,7 @@ export type Change = {
   remove?: Prop<any>
 }
 
-export type ChangeSpec = Change | {correct: ChangeSpec} | ChangeSet | readonly ChangeSpec[]
+export type ChangeSpec = Change | {correct: ChangeSpec, syncAt?: number} | ChangeSet | readonly ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
 
@@ -330,8 +330,8 @@ export class ChangeSet extends ChangeDesc {
   /// Returns the change itself if it can be applied to this document
   /// and produce a valid document, or a modified version of the
   /// change that _is_ correct.
-  correct(doc: DocNode) {
-    let fitter = new ChangeFitter(doc)
+  correct(doc: DocNode, syncAt?: number) {
+    let fitter = new ChangeFitter(doc, syncAt)
     for (let i = 0, iS = 0, pos = 0; i < this.data.length; i++) {
       let len = this.sections[iS++], ins = this.sections[iS++]
       if (ins < 0) fitter.preserved(pos, pos += len)
@@ -427,7 +427,8 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
       push(spec)
     } else if ((spec as any).correct) {
       let inner = createChangeSet(doc, (spec as any).correct, false)
-      return mayCorrect ? inner.correct(doc) : inner
+      let syncAt = (spec as any).syncAt
+      push(mayCorrect || syncAt != null ? inner.correct(doc, syncAt) : inner)
     } else {
       let {from, to, add, remove, insert, fit} = spec as Change
       let modifies = add || remove
@@ -681,7 +682,7 @@ class ChangeFitter implements Walker {
   activeContext: Context | null = null
   activeContextPos = -1
 
-  constructor(readonly doc: DocNode) {
+  constructor(readonly doc: DocNode, private syncAt?: number) {
     this.stack = new FitLevel(doc.tag, null)
     this.inputPos = this.delInputPos = Context.atStart(doc)
   }
@@ -694,6 +695,15 @@ class ChangeFitter implements Walker {
   }
 
   preserved(from: number, to: number) {
+    let {syncAt} = this
+    if (syncAt != null && to >= syncAt) {
+      this.syncAt = undefined
+      if (from < syncAt) this.preserved(from, syncAt)
+      this.syncToContext(this.getPos(syncAt))
+      if (to > syncAt) this.preserved(syncAt, to)
+      return
+    }
+
     let inputPos = this.getPos(from)
     if (!this.inputDelta && this.stackDelta) {
       this.syncToContext(inputPos)
