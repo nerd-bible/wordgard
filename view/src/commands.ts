@@ -45,16 +45,9 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
   let sel = state.mainSel, node = sel.head.node
   if (!sel.empty || !node.inlineContent() || node.children.length) return false
   let start = sel.head.before, end = sel.head.after, before: Token[] = [], after: Token[] = []
-  for (let level = sel.head, atStart = true, atEnd = true;;) {
-    let next = level.parent
-    if (!next || next.node.isInline()) return false
-    if (level.index) atStart = false
-    if (atStart) start--
-    else before.unshift(CloseToken)
-    if (level.index < next.node.children.length - 1) atEnd = false
-    if (atEnd) end++
-    else after.push(new OpenToken(next.node.tag))
-    if (next.node.type.canContain(node.type)) {
+  for (let level = sel.head.parent, atStart = true, atEnd = true, first = true; level; first = false, level = level.parent) {
+    if (!first && level.node.type.canContain(node.type)) {
+//      console.log(start, sel.head.before, "/" + before, "\n", sel.head.after, end, "/" + after)
       dispatch(state.update({
         changes: [
           {from: start, to: sel.head.before, insert: new Slice(before)},
@@ -64,9 +57,15 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
       }))
       return true
     }
-    if (level.node.type.isolating) return false
-    level = next
+    if (level.node.isInline() || level.node.type.isolating) break
+    if (level.index) atStart = false
+    if (atStart) start--
+    else before.push(CloseToken)
+    if (level.index < level.node.children.length - 1) atEnd = false
+    if (atEnd) end++
+    else after.unshift(new OpenToken(level.node.tag))
   }
+  return false
 }
 
 export const defaultEnter: Command = (view: EditorView) => {
