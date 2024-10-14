@@ -1,4 +1,4 @@
-import {Node, Tag, DocNode, Context, Slice, Text, Token,
+import {Node, Tag, TagType, Context, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken, OpenToken} from "@willows/doc"
 import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
@@ -109,7 +109,7 @@ export const deleteSelection: StateCommand = ({state, dispatch}) => {
   return true
 }
 
-function joinBlocks(doc: DocNode, before: Context, after: Context): ChangeSpec {
+function joinBlocks(before: Context, after: Context): ChangeSpec[] {
   let changes: ChangeSpec[] = [{from: before.pos, to: after.pos}]
   let dBefore = before.depth, dAfter = after.depth
   let tokensAfter: Token[] = [], posAfter = after.after, end = posAfter
@@ -138,27 +138,39 @@ function joinBlocks(doc: DocNode, before: Context, after: Context): ChangeSpec {
   return changes
 }
 
+function clearNonFitting(target: Context, type: TagType<any>) {
+  let changes: ChangeSpec[] = []
+  for (let i = 0, pos = target.pos; i < target.node.children.length; i++) {
+    let child = target.node.children[i], end = pos + child.length
+    if (!type.canContain(child.type)) changes.push({from: pos, to: end})
+    pos = end
+  }
+  return changes
+}
+
 export const joinBackward: StateCommand = ({state, dispatch}) => {
   let sel = state.mainSel
   if (!sel.empty || !sel.head.node.isTextblock() || sel.head.pos != sel.head.start) return false
   let scan = sel.head.parent
-  while (scan && scan.node.isBlock() && !scan.index) scan = scan.parent
+  while (scan && scan.node.isBlock() && !scan.index) {
+    if (scan.node.type.isolating) return false
+    scan = scan.parent
+  }
   if (!scan) return false
   let before = scan.nodeBefore, parent = scan.node, pos = scan.pos
-  while (before && !before.isTextblock()) {
+  while (before && !before.isTextblock() && !before.type.isolating) {
     let last = before.children.length - 1
     parent = before
     before = last >= 0 ? before.children[last] : null
     pos--
   }
   if (!before || !before.isTextblock()) return false
-  let changes = joinBlocks(state.doc, state.doc.resolve(pos - 1), sel.head)
-  if (!before.children.length && !before.tag.eq(sel.head.node.tag) && parent.type.canContain(sel.head.node.type)) {
-    changes = [
-      {from: pos - before.length, to: pos - before.length + 1, insert: new Slice([new OpenToken(sel.head.node.tag)])},
-      changes
-    ]
-  }
+  let changes = joinBlocks(state.doc.resolve(pos - 1), sel.head).concat(clearNonFitting(sel.head, before.type))
+  if (!before.children.length && !before.tag.eq(sel.head.node.tag) && parent.type.canContain(sel.head.node.type))
+    changes.push({
+      from: pos - before.length, to: pos - before.length + 1,
+      insert: new Slice([new OpenToken(sel.head.node.tag)])
+    })
   dispatch(state.update({
     changes,
     selection: EditorSelection.cursor(pos - 1, -1),

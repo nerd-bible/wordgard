@@ -1,6 +1,6 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward} from "@willows/view"
-import {DocNode, basicBuilders, maybeTag} from "@willows/doc"
+import {Tag, DocNode, basicBuilders, maybeTag, builder} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection, SelectionRange} from "@willows/state"
 import ist from "ist"
 
@@ -195,8 +195,13 @@ describe("joinBackward", () => {
     test(doc(ul(li(p("a"))), p(0, "b"), ul(li(p("c")))), joinBackward, doc(ul(li(p("a", 0, "b")), li(p("c")))))
   })
 
-  // FIXME
+  let TextOnly = Tag.defineBlock("TextOnly", {
+    inlineContent: "Text",
+    dom: {element: "div"},
+    group: "Block"
+  }), to = builder(TextOnly)
+
   it("drops nodes not supported by the new parent", () => {
-    test(doc(pre("a"), p(0, $img())), joinBackward, doc(pre("a", 0)))
+    test(doc(to("a"), p(0, $img())), joinBackward, doc(to("a", 0)))
   })
 })
