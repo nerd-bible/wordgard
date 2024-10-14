@@ -112,7 +112,7 @@ export type Change = {
   remove?: Prop<any>
 }
 
-export type ChangeSpec = Change | {correct: ChangeSpec, syncAt?: number} | ChangeSet | readonly ChangeSpec[]
+export type ChangeSpec = Change | {correct: ChangeSpec, local?: boolean} | ChangeSet | readonly ChangeSpec[]
 
 type SectionData = Slice | readonly Modification[] | null
 
@@ -330,8 +330,8 @@ export class ChangeSet extends ChangeDesc {
   /// Returns the change itself if it can be applied to this document
   /// and produce a valid document, or a modified version of the
   /// change that _is_ correct.
-  correct(doc: DocNode, syncAt?: number) {
-    let fitter = new ChangeFitter(doc, syncAt)
+  correct(doc: DocNode, local = false) {
+    let fitter = new ChangeFitter(doc, local)
     for (let i = 0, iS = 0, pos = 0; i < this.data.length; i++) {
       let len = this.sections[iS++], ins = this.sections[iS++]
       if (ins < 0) fitter.preserved(pos, pos += len)
@@ -426,9 +426,9 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
       flush()
       push(spec)
     } else if ((spec as any).correct) {
-      let inner = createChangeSet(doc, (spec as any).correct, false)
-      let syncAt = (spec as any).syncAt
-      push(mayCorrect || syncAt != null ? inner.correct(doc, syncAt) : inner)
+      let {correct, local} = spec as any
+      let inner = createChangeSet(doc, correct, false)
+      push(mayCorrect || local ? inner.correct(doc, local) : inner)
     } else {
       let {from, to, add, remove, insert, fit} = spec as Change
       let modifies = add || remove
@@ -494,7 +494,7 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fi
   // Produce a copy of setA that applies to the document after setB
   // has been applied. Assumes both start at the same document (`doc`).
   let sections: number[] = [], data: SectionData[] = []
-  let fitter = fit ? new ChangeFitter(doc) : null
+  let fitter = fit ? new ChangeFitter(doc, false) : null
   let a = new SectionIter(setA), b = new SectionIter(setB), pos = 0
   // Iterate over both sets in parallel. inserted tracks, for changes
   // in A that have to be processed piece-by-piece, whether their
@@ -681,8 +681,9 @@ class ChangeFitter implements Walker {
   inserting = false
   activeContext: Context | null = null
   activeContextPos = -1
+  nextSync = -1
 
-  constructor(readonly doc: DocNode, private syncAt?: number) {
+  constructor(readonly doc: DocNode, readonly local: boolean) {
     this.stack = new FitLevel(doc.tag, null)
     this.inputPos = this.delInputPos = Context.atStart(doc)
   }
@@ -695,12 +696,13 @@ class ChangeFitter implements Walker {
   }
 
   preserved(from: number, to: number) {
-    let {syncAt} = this
-    if (syncAt != null && to >= syncAt) {
-      this.syncAt = undefined
-      if (from < syncAt) this.preserved(from, syncAt)
-      this.syncToContext(this.getPos(syncAt))
-      if (to > syncAt) this.preserved(syncAt, to)
+    let {nextSync} = this
+    if (nextSync >= from && nextSync <= to) {
+      this.stackDelta = 0
+      this.nextSync = -1
+      if (nextSync > from) this.preserved(from, nextSync)
+      this.syncToContext(this.inputPos)
+      if (to > nextSync) this.preserved(nextSync, to)
       return
     }
 
@@ -738,6 +740,9 @@ class ChangeFitter implements Walker {
     this.inserting = true
     slice.run(this)
     this.inserting = false
+
+    if (this.local)
+      this.nextSync = Math.max(this.nextSync, localSyncPosAfter(this.inputPos = this.getPos(to)))
   }
 
   fit(tag: Tag) {
@@ -878,6 +883,15 @@ class ChangeFitter implements Walker {
     addSection(sections, data, this.pos - pos, -1, null)
     return new ChangeSet(sections, data)
   }
+}
+
+function localSyncPosAfter(pos: Context) {
+  let found = pos.pos
+  for (let cx = pos;; cx = cx.parent) {
+    if (!cx.parent || !cx.node.inlineContent() && cx.index != cx.node.children.length - 1) break
+    found = cx.after
+  }
+  return found
 }
 
 function markableSections(doc: Node, from: number, to: number, f: (n: Node, from: number, to: number) => boolean) {

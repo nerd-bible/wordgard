@@ -89,7 +89,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
     if (deflt && !deflt.eq(sel.from.node.tag))
       changes.unshift({from: sel.from.pos - 1, to: sel.from.pos, insert: new Slice([new OpenToken(deflt)])})
   }
-  let changeSet = ChangeSet.create(state.doc, {correct: changes, syncAt: sel.to.after})
+  let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
   dispatch(state.update({
     changes: changeSet,
     selection: EditorSelection.cursor(changeSet.mapPos(sel.to.pos, 1)),
@@ -98,9 +98,31 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
   return true
 }
 
+export const deleteSelection: StateCommand = ({state, dispatch}) => {
+  if (state.selection.ranges.every(r => r.empty)) return false
+  dispatch(state.update({
+    changes: {correct: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})), local: true},
+    normalizeSelection: true,
+    scrollIntoView: true
+  }))
+  return true
+}
+
+export const joinBackward: StateCommand = ({state, dispatch}) => {
+  return false
+}
+
+export const deleteBackward: StateCommand = ({state, dispatch}) => {
+  return false
+}
+
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
     createTextblock(view) ||
     liftEmptyBlock(view) ||
     splitTextblock(view)
+}
+
+export const defaultBackspace: Command = (view: EditorView) => {
+  return deleteSelection(view) || joinBackward(view) || deleteBackward(view)
 }

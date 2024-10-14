@@ -221,10 +221,8 @@ export class Transaction {
   /// current selection through the changes made by the transaction.
   get newSelection() {
     if (!this._selection) {
-      if (this.selection)
-        this._selection = this.normalizeSelection ? this.selection.normalize(this.newDoc) : this.selection
-      else
-        this._selection = this.startState.selection.map(this.changes)
+      let sel = this.selection || this.startState.selection.map(this.changes)
+      this._selection = this.normalizeSelection ? sel.normalize(this.newDoc) : sel
     }
     return this._selection
   }
@@ -338,7 +336,7 @@ function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedS
   return {
     changes: spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || []),
     selection: sel && (sel instanceof EditorSelection ? sel : sel.asSelection()),
-    normalizeSelection: sel ? !!spec.normalizeSelection : false,
+    normalizeSelection: !!spec.normalizeSelection,
     effects: asArray(spec.effects),
     annotations,
     scrollIntoView: !!spec.scrollIntoView

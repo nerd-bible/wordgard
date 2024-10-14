@@ -1,6 +1,7 @@
-import {liftEmptyBlock, insertLineBreakInCode, createTextblock, splitTextblock} from "@willows/view"
-import {DocNode, basicBuilders, tag, maybeTag} from "@willows/doc"
-import {EditorState, StateCommand, EditorSelection} from "@willows/state"
+import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
+        splitTextblock, deleteSelection} from "@willows/view"
+import {DocNode, basicBuilders, maybeTag} from "@willows/doc"
+import {EditorState, StateCommand, EditorSelection, SelectionRange} from "@willows/state"
 import ist from "ist"
 
 const {doc, p, blockquote, ul, li, pre, br, h1} = basicBuilders
@@ -8,8 +9,12 @@ const {doc, p, blockquote, ul, li, pre, br, h1} = basicBuilders
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function selectionFrom(doc: DocNode) {
-  let head = tag(doc, 0), anchor = maybeTag(doc, 1) ?? head
-  return EditorSelection.range(anchor, head)
+  let ranges: SelectionRange[] = []
+  for (let i = 0;; i += 2) {
+    let head = maybeTag(doc, i)
+    if (head == null) return EditorSelection.create(ranges)
+    ranges.push(EditorSelection.range(maybeTag(doc, i + 1) ?? head, head))
+  }
 }
 
 function test(doc: DocNode, command: StateCommand, expect?: DocNode) {
@@ -120,5 +125,35 @@ describe("splitTextblock", () => {
 
   it("resets the origin block when splitting at the start", () => {
     test(doc(h1(0, "a")), splitTextblock, doc(p(), h1(0, "a")))
+  })
+})
+
+describe("deleteSelection", () => {
+  it("can delete an inline selection", () => {
+    test(doc(p("one", 0, "two", 1, "three")), deleteSelection, doc(p("one", 0, "three")))
+  })
+
+  it("can join two paragraphs", () => {
+    test(doc(p("a", 0, "b"), p("c", 1, "d")), deleteSelection, doc(p("a", 0, "d")))
+  })
+
+  it("can delete across blocks", () => {
+    test(doc(p("a", 0), blockquote(p(1, "b"), p("c"))), deleteSelection, doc(p("a", 0, "b"), blockquote(p("c"))))
+  })
+
+  it("can delete leaving a block", () => {
+    test(doc(blockquote(p("a"), p(0)), p("b", 1, "c"), p("d")), deleteSelection, doc(blockquote(p("a"), p(0, "c")), p("d")))
+  })
+
+  it("keeps the start block type", () => {
+    test(doc(h1("a", 0), pre(1, "b")), deleteSelection, doc(h1("a", 0, "b")))
+  })
+
+  it("expands the deleted range", () => {
+    test(doc(blockquote(p(0, "a"), p("b", 1)), p("b")), deleteSelection, doc(p(0, "b")))
+  })
+
+  it("can delete multiple selected ranges", () => {
+    test(doc(p("a", 0, "b", 1, "c", 2, "d", 3, "e")), deleteSelection, doc(p("a", 0, "c", 2, "e")))
   })
 })

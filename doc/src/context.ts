@@ -51,6 +51,16 @@ export class Context {
     return this.index ? this.node.children[this.index - 1] : null
   }
 
+  // FIXME keep?
+
+  get isLastChild() {
+    return this.parent ? this.parent.index == this.parent.node.children.length - 1 : false
+  }
+
+  get isFirstChild() {
+    return this.parent ? this.parent.index == 0 : false
+  }
+
   get depth() {
     let d = 0
     for (let c = this.parent; c; c = c.parent) d++
