@@ -215,12 +215,14 @@ export const OrderedList = TagType.defineBlock("OrderedList", {
     attributes: order => order == 1 ? {} : {order},
     readElement: elt => Number(elt.getAttribute("order") || "1")
   },
+  autoJoin: (a, b) => b.param == 1
 })
 
 export const BulletList = Tag.defineBlock("BulletList", {
   blockContent: "ListItem",
   group: "Block",
-  dom: {element: "ul"}
+  dom: {element: "ul"},
+  autoJoin: true
 })
 
 export const ListItem = Tag.defineBlock("ListItem", {

@@ -1,10 +1,10 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
-        splitTextblock, deleteSelection} from "@willows/view"
+        splitTextblock, deleteSelection, joinBackward} from "@willows/view"
 import {DocNode, basicBuilders, maybeTag} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection, SelectionRange} from "@willows/state"
 import ist from "ist"
 
-const {doc, p, blockquote, ul, li, pre, br, h1} = basicBuilders
+const {doc, p, blockquote, ul, li, pre, br, h1, $img} = basicBuilders
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -155,5 +155,48 @@ describe("deleteSelection", () => {
 
   it("can delete multiple selected ranges", () => {
     test(doc(p("a", 0, "b", 1, "c", 2, "d", 3, "e")), deleteSelection, doc(p("a", 0, "c", 2, "e")))
+  })
+})
+
+describe("joinBackward", () => {
+  it("can join two paragraphs", () => {
+    test(doc(p("a"), p(0, "b")), joinBackward, doc(p("a", 0, "b")))
+  })
+
+  it("can join when the start is deeper than the end", () => {
+    test(doc(blockquote(p("a")), p(0, "b")), joinBackward, doc(blockquote(p("a", 0, "b"))))
+  })
+
+  it("can join when the start is much deeper than the end", () => {
+    test(doc(ul(li(blockquote(p("a")))), p(0, "b")), joinBackward, doc(ul(li(blockquote(p("a", 0, "b"))))))
+  })
+
+  it("can drop extra tokens after the end", () => {
+    test(doc(ul(li(p("a"))), blockquote(p(0, "b"))), joinBackward, doc(ul(li(p("a", 0, "b")))))
+  })
+
+  it("can join when the end is deeper than the start", () => {
+    test(doc(p("a"), blockquote(p(0, "b"))), joinBackward, doc(p("a", 0, "b")))
+  })
+
+  it("can join when the end is much deeper than the start", () => {
+    test(doc(p("a"), ul(li(blockquote(p(0, "b"))))), joinBackward, doc(p("a", 0, "b")))
+  })
+
+  it("does nothing when not at the start of a textblock", () => {
+    test(doc(p("a"), p("b", 0)), joinBackward)
+  })
+
+  it("drops the type of the first block if it's empty", () => {
+    test(doc(h1(), p(0, "a")), joinBackward, doc(p(0, "a")))
+  })
+
+  it("joins parent nodes after", () => {
+    test(doc(ul(li(p("a"))), p(0, "b"), ul(li(p("c")))), joinBackward, doc(ul(li(p("a", 0, "b")), li(p("c")))))
+  })
+
+  // FIXME
+  it("drops nodes not supported by the new parent", () => {
+    test(doc(pre("a"), p(0, $img())), joinBackward, doc(pre("a", 0)))
   })
 })

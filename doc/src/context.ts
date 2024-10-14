@@ -8,6 +8,8 @@ export interface Walker {
   leave(): void
 }
 
+// FIXME make these easier to work with. pos and index are defined in
+// a confusing way
 // FIXME reconsider an array representation
 export class Context {
   constructor(

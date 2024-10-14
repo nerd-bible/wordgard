@@ -107,7 +107,7 @@ export type Change = {
   from: number
   to?: number
   insert?: Slice
-  fit?: boolean | readonly Tag<any>[]
+  fit?: boolean | readonly Tag<any>[] // FIXME move this into a utility function
   add?: Prop<any>
   remove?: Prop<any>
 }
