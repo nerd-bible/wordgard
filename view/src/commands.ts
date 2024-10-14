@@ -2,6 +2,7 @@ import {Node, Tag, TagType, Context, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken, OpenToken} from "@willows/doc"
 import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
+import {findClusterBreak} from "@marijn/find-cluster-break"
 
 /// Command functions are used in key bindings and other types of user
 /// actions. Given an editor view, they check whether their effect can
@@ -158,7 +159,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   }
   if (!scan) return false
   let before = scan.nodeBefore, parent = scan.node, pos = scan.pos
-  while (before && !before.isTextblock() && !before.type.isolating) {
+  while (before && !before.isTextblock() && !before.type.isolating && !before.isAtom()) {
     let last = before.children.length - 1
     parent = before
     before = last >= 0 ? before.children[last] : null
@@ -180,7 +181,53 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
 }
 
 export const deleteBackward: StateCommand = ({state, dispatch}) => {
-  return false
+  let sel = state.mainSel
+  if (!sel.empty) return false
+  let scan = sel.head
+  if (scan.inText) {
+    let before = scan.nodeBefore!
+    let size = before.length - findClusterBreak(before.text!, before.length, false)
+    dispatch(state.update({
+      changes: {from: scan.pos - size, to: scan.pos},
+      scrollIntoView: true
+    }))
+    return true
+  }
+
+  while (scan && !scan.index) {
+    if (scan.node.type.isolating || !scan.parent) return false
+    scan = scan.parent
+  }
+  if (!scan) return false
+  let before = scan.nodeBefore, pos = scan.pos
+  for (;;) {
+    if (!before || before.type.isolating) return false
+    if (before.isAtom()) break
+    let last = before.children.length - 1
+    if (last < 0) return false
+    before = before.children[last]
+    pos--
+  }
+  if (before.isText()) {
+    let size = before.length - findClusterBreak(before.text, before.length, false)
+    dispatch(state.update({
+      changes: {from: pos - size, to: pos},
+      scrollIntoView: true
+    }))
+    return true
+  }
+  let from = pos - before.length, to = pos
+  let cx: Context | null = state.doc.resolve(pos)
+  while (cx && cx.node.isBlock() && cx.node.children.length == 1 && cx.parent) {
+    from--; to++
+    cx = cx.parent
+  }
+  if (from == 0 && to == state.doc.length) return false
+  dispatch(state.update({
+    changes: {from, to},
+    scrollIntoView: true
+  }))
+  return true
 }
 
 export const defaultEnter: Command = (view: EditorView) => {
@@ -191,5 +238,7 @@ export const defaultEnter: Command = (view: EditorView) => {
 }
 
 export const defaultBackspace: Command = (view: EditorView) => {
-  return deleteSelection(view) || joinBackward(view) || deleteBackward(view)
+  return deleteSelection(view) ||
+    joinBackward(view) ||
+    deleteBackward(view)
 }
