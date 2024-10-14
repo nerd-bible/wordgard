@@ -47,7 +47,6 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
   let start = sel.head.before, end = sel.head.after, before: Token[] = [], after: Token[] = []
   for (let level = sel.head.parent, atStart = true, atEnd = true, first = true; level; first = false, level = level.parent) {
     if (!first && level.node.type.canContain(node.type)) {
-//      console.log(start, sel.head.before, "/" + before, "\n", sel.head.after, end, "/" + after)
       dispatch(state.update({
         changes: [
           {from: start, to: sel.head.before, insert: new Slice(before)},

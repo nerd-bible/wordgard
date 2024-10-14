@@ -1,9 +1,9 @@
-import {liftEmptyBlock} from "@willows/view"
+import {liftEmptyBlock, insertLineBreakInCode, createTextblock} from "@willows/view"
 import {DocNode, basicBuilders, tag, maybeTag} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
 
-const {doc, p, blockquote, ul, li} = basicBuilders
+const {doc, p, blockquote, ul, li, pre, br} = basicBuilders
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -54,5 +54,29 @@ describe("liftEmptyBlock", () => {
 
   it("only goes up to the next parent that fits", () => {
     test(doc(blockquote(blockquote(p(0), p("a")))), liftEmptyBlock, doc(blockquote(p(0), blockquote(p("a")))))
+  })
+})
+
+describe("insertLineBreakInCode", () => {
+  it("does nothing in regular textblocks", () => {
+    test(doc(p("hi", 0)), insertLineBreakInCode)
+  })
+
+  it("adds a line break when in a code block", () => {
+    test(doc(pre("hi", 0)), insertLineBreakInCode, doc(pre("hi", br(), 0)))
+  })
+})
+
+describe("createTextblock", () => {
+  it("inserts a paragraph node", () => {
+    test(doc(p("a"), 0, p("b")), createTextblock, doc(p("a"), p(0), p("b")))
+  })
+
+  it("does nothing in inline context", () => {
+    test(doc(p("a", 0), p("b")), createTextblock)
+  })
+
+  it("can create wrapper nodes", () => {
+    test(doc(ul(li(p("a")), 0, li(p("b")))), createTextblock, doc(ul(li(p("a")), li(p(0)), li(p("b")))))
   })
 })
