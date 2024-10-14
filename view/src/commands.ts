@@ -1,4 +1,4 @@
-import {Node, Slice, Text, Token, CloseToken, OpenToken} from "@willows/doc"
+import {Node, Slice, Text, Token, ChangeSpec, ChangeSet, CloseToken, OpenToken} from "@willows/doc"
 import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
 
@@ -67,9 +67,40 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
   return false
 }
 
+export const splitTextblock: StateCommand = ({state, dispatch}) => {
+  let sel = state.mainSel
+  if (!sel.from.node.isTextblock() || !sel.to.parent) return false
+  let tagAfter = null
+  if (sel.to.node.isTextblock()) {
+    let tag = sel.to.node.tag, atEnd = sel.to.pos == sel.to.end
+    if (tag.type.spec.splitTag) tagAfter = tag.type.spec.splitTag(tag, atEnd)
+    if (atEnd && !tagAfter) tagAfter = state.doc.schema.defaultContentType(sel.to.parent.node.type)
+    if (!tagAfter) tagAfter = tag
+  }
+  let tokens: Token[] = [CloseToken]
+  if (tagAfter) tokens.push(new OpenToken(tagAfter))
+  let changes: ChangeSpec[] = [{
+    from: sel.from.pos, to: sel.to.pos,
+    insert: new Slice(tagAfter ? [CloseToken, new OpenToken(tagAfter)] : [CloseToken])
+  }]
+  if (sel.from.pos == sel.from.start && sel.from.parent) {
+    let deflt = state.doc.schema.defaultContentType(sel.from.parent.node.type)
+    // FIXME make configurable? Inherit selected props?
+    if (deflt && !deflt.eq(sel.from.node.tag))
+      changes.unshift({from: sel.from.pos - 1, to: sel.from.pos, insert: new Slice([new OpenToken(deflt)])})
+  }
+  let changeSet = ChangeSet.create(state.doc, {correct: changes, syncAt: sel.to.after})
+  dispatch(state.update({
+    changes: changeSet,
+    selection: EditorSelection.cursor(changeSet.mapPos(sel.to.pos, 1)),
+    scrollIntoView: true
+  }))
+  return true
+}
+
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
     createTextblock(view) ||
-    liftEmptyBlock(view)
-  // || splitBlock(view)
+    liftEmptyBlock(view) ||
+    splitTextblock(view)
 }

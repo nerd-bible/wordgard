@@ -94,6 +94,7 @@ export class TagType<Param> {
     return children
   }
 
+  // FIXME make these getters and find some other way to make text accessible?
   isInline() { return (this.flags & TagFlag.Inline) > 0 }
   isText(): this is TagType<string> { return (this.flags & TagFlag.Text) > 0 }
   isBlock() { return (this.flags & TagFlag.Inline) == 0 }
