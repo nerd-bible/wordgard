@@ -144,7 +144,7 @@ export class Schema {
     return tag
   }
 
-  propsFromJSON(json: Record<string, any>) {
+  propsFromJSON(json: Record<string, any>): readonly Prop<undefined>[] {
     if (!json || typeof json != "object") throw new Error("Invalid prop JSON")
     let props = none
     for (let name in json) {

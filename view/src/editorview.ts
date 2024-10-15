@@ -1,5 +1,5 @@
 import {EditorState, Transaction, TransactionSpec, Extension, Prec,
-        EditorSelection, SelectionRange, StateEffect, Facet, EditorStateSpec} from "@willows/state"
+        EditorSelection, StateEffect, Facet, EditorStateSpec} from "@willows/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocElt} from "./content"
@@ -439,13 +439,13 @@ export class EditorView {
   /// direction](#view.EditorView.textDirection). If there is no
   /// cursor position beyond the given start position, the original
   /// position is returned.
-  moveHorizontally(start: SelectionRange, forward: boolean) {
+  moveHorizontally(start: EditorSelection, forward: boolean) {
     //return moveByChar(this, start, forward)
   }
 
   /// Move a cursor position across the next word or, if there is no
   /// word ahead of it, move it by a single cursor position.
-  moveByWord(start: SelectionRange, forward: boolean) {
+  moveByWord(start: EditorSelection, forward: boolean) {
     //return moveByChar(this, start, forward, initial => byGroup(this, start.head, initial))
   }
 
@@ -454,7 +454,7 @@ export class EditorView {
   /// further wrap point on the current line, the wrap point will be
   /// returned. Otherwise this function will return the start or end
   /// of the line.
-  moveToLineBoundary(start: SelectionRange, forward: boolean, includeWrap = true) {
+  moveToLineBoundary(start: EditorSelection, forward: boolean, includeWrap = true) {
     //return moveToLineBoundary(this, start, forward, includeWrap)
   }
 
@@ -469,7 +469,7 @@ export class EditorView {
   /// the cursor's own horizontal position is used. The returned
   /// cursor will have its goal column set to whichever column was
   /// used.
-  moveVertically(start: SelectionRange, forward: boolean, distance?: number) {
+  moveVertically(start: EditorSelection, forward: boolean, distance?: number) {
   //  return moveVertically(this, start, forward, distance)
   }
 
@@ -536,7 +536,7 @@ export class EditorView {
   /// Returns an effect that can be
   /// [added](#state.TransactionSpec.effects) to a transaction to
   /// cause it to scroll the given position or range into view.
-  static scrollIntoView(pos: number | SelectionRange, options: {
+  static scrollIntoView(pos: number | EditorSelection, options: {
     /// By default (`"nearest"`) the position will be vertically
     /// scrolled only the minimal amount required to move the given
     /// position into view. You can set this to `"start"` to move it
@@ -556,7 +556,7 @@ export class EditorView {
     /// editor.
     xMargin?: number,
   } = {}): StateEffect<unknown> {
-    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos,
+    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? {from: pos, to: pos} : pos,
                                               options.y, options.x, options.yMargin, options.xMargin))
   }
 

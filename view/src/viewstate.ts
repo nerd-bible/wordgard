@@ -40,9 +40,9 @@ export class ViewState {
     for (let tr of transactions) {
       if (this.scrollTarget) this.scrollTarget = this.scrollTarget.map(tr.changes)
       if (tr.scrollIntoView) {
-        let {main} = tr.state.selection
+        let {selection} = tr.state
         this.scrollTarget = new ScrollTarget(
-          main.empty ? main : EditorSelection.cursor(main.head, main.head > main.anchor ? -1 : 1))
+          selection.empty ? selection : EditorSelection.cursor(selection.head, selection.head > selection.anchor ? -1 : 1))
       }
       for (let e of tr.effects)
         if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)

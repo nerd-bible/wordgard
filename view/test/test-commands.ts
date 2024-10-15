@@ -1,7 +1,7 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, deleteBackward} from "@willows/view"
 import {Tag, DocNode, basicBuilders, maybeTag, builder} from "@willows/doc"
-import {EditorState, StateCommand, EditorSelection, SelectionRange} from "@willows/state"
+import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
 
 const {doc, p, blockquote, ul, li, pre, br, h1, $img, hr} = basicBuilders
@@ -9,11 +9,11 @@ const {doc, p, blockquote, ul, li, pre, br, h1, $img, hr} = basicBuilders
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function selectionFrom(doc: DocNode) {
-  let ranges: SelectionRange[] = []
+  let ranges: {from: number, to: number}[] = []
   for (let i = 0;; i += 2) {
     let head = maybeTag(doc, i)
-    if (head == null) return EditorSelection.create(ranges)
-    ranges.push(EditorSelection.range(maybeTag(doc, i + 1) ?? head, head))
+    if (head == null) return EditorSelection.create({anchor: ranges[0].from, head: ranges[0].to, ranges})
+    ranges.push({from: head, to: maybeTag(doc, i + 1) ?? head})
   }
 }
 
@@ -26,7 +26,10 @@ function test(doc: DocNode, command: StateCommand, expect?: DocNode) {
   if (expect) {
     ist(result)
     ist(state.doc, expect, eq)
-    if (maybeTag(expect, 0) != null) ist(state.selection.main, selectionFrom(expect), eq)
+    if (maybeTag(expect, 0) != null) {
+      let expectedSel = selectionFrom(expect)
+      ist(JSON.stringify(state.selection.ranges), JSON.stringify(expectedSel.ranges))
+    }
   } else {
     ist(!result)
   }

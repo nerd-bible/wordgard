@@ -1,7 +1,7 @@
 import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "@willows/doc"
 import {EditorState, Extension} from "./state"
 import {transactionFilter, transactionExtender} from "./facet"
-import {EditorSelection, SelectionRange} from "./selection"
+import {EditorSelection, SelectionSpec} from "./selection"
 
 /// Annotations are tagged values that are used to add metadata to
 /// transactions in an extensible way. They should be used to model
@@ -122,7 +122,7 @@ export interface TransactionSpec {
   /// When set, this transaction explicitly updates the selection.
   /// Offsets in this selection should refer to the document as it is
   /// _after_ the transaction.
-  selection?: EditorSelection | SelectionRange | undefined,
+  selection?: EditorSelection | SelectionSpec | undefined,
   /// When true, cursor ranges in the provided selection will be
   /// [normalized](#state.EditorSelection.normalize) in the created
   /// state.
@@ -323,7 +323,7 @@ function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec, sequen
   return {
     changes,
     selection: b.selection ? b.selection.map(mapForB) : a.selection?.map(mapForA),
-    normalizeSelection: b.selection ? b.normalizeSelection : a.normalizeSelection,
+    normalizeSelection: b.normalizeSelection || a.normalizeSelection,
     effects: StateEffect.mapEffects(a.effects, mapForA).concat(StateEffect.mapEffects(b.effects, mapForB)),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
     scrollIntoView: a.scrollIntoView || b.scrollIntoView
@@ -335,7 +335,7 @@ function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedS
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   return {
     changes: spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || []),
-    selection: sel && (sel instanceof EditorSelection ? sel : sel.asSelection()),
+    selection: sel && (sel instanceof EditorSelection ? sel : EditorSelection.create(sel)),
     normalizeSelection: !!spec.normalizeSelection,
     effects: asArray(spec.effects),
     annotations,

@@ -9,7 +9,7 @@
     "require": "./dist/index.cjs"
   },
   "scripts": {
-    "test": "testtool doc state",
+    "test": "testtool doc state view",
     "prepare": "node bin/build.js",
     "watch": "node bin/build.js --watch"
   },

@@ -1,4 +1,4 @@
-import {EditorState, Transaction, Facet, StateEffect, Extension, SelectionRange, EditorSelection} from "@willows/state"
+import {EditorState, Transaction, Facet, StateEffect, Extension, EditorSelection} from "@willows/state"
 import {ChangeSet, ChangeDesc} from "@willows/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
@@ -26,13 +26,13 @@ export const focusChangeEffect = Facet.define<(state: EditorState, focusing: boo
 
 export const scrollHandler = Facet.define<(
   view: EditorView,
-  range: SelectionRange,
+  range: {from: number, to: number},
   options: {x: ScrollStrategy, y: ScrollStrategy, xMargin: number, yMargin: number}
 ) => boolean>()
 
 export class ScrollTarget {
   constructor(
-    readonly range: SelectionRange,
+    readonly range: {from: number, to: number},
     readonly y: ScrollStrategy = "nearest",
     readonly x: ScrollStrategy = "nearest",
     readonly yMargin: number = 5,
@@ -48,7 +48,8 @@ export class ScrollTarget {
 
   map(changes: ChangeDesc) {
     return changes.empty ? this :
-      new ScrollTarget(this.range.map(changes), this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot)
+      new ScrollTarget(EditorSelection.mapRange(changes, this.range.from, this.range.to),
+                       this.y, this.x, this.yMargin, this.xMargin, this.isSnapshot)
   }
 
   clip(state: EditorState) {

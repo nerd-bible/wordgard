@@ -231,7 +231,7 @@ export class DOMObserver {
       this.clear()
     } else if (this.selectionChanged && view.hasFocus && hasSelection(view.contentDOM, this.selectionRange)) {
       let sel = readDOMSelection(view, this.selectionRange)
-      if (!sel.main.eq(view.state.selection.main)) {
+      if (!sel.eqPos(view.state.selection)) {
         for (let tr of view.viewState.pendingTransactions) sel = sel.map(tr.changes)
         view.dispatch({selection: sel})
       }

@@ -1,6 +1,5 @@
-import {Schema, Slice, SchemaElement, DocNode, Node, Tag, NodeJSON, parseDoc,
-        ChangeSet, ChangeSpec} from "@willows/doc"
-import {EditorSelection, SelectionRange, ResolvedRange} from "./selection"
+import {Schema, SchemaElement, DocNode, NodeJSON, parseDoc} from "@willows/doc"
+import {EditorSelection, SelectionSpec, ResolvedSelection} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
         sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
@@ -250,7 +249,7 @@ export interface EditorStateSpec {
   doc: DocSource
   /// The starting selection. Defaults to a cursor at the start of the
   /// document.
-  selection?: EditorSelection | SelectionRange | ((doc: DocNode) => EditorSelection)
+  selection?: EditorSelection | SelectionSpec | ((doc: DocNode) => EditorSelection)
   /// Configuration for this state.
   extensions?: Extension
 }
@@ -266,7 +265,7 @@ export class EditorState {
   readonly status: SlotStatus[]
   /// @internal
   computeSlot: null | ((state: EditorState, slot: DynamicSlot) => SlotStatus)
-  private _mainSel: ResolvedRange | null = null
+  private _resolvedSel: ResolvedSelection | null = null
 
   private constructor(
     /// The configuration 
@@ -360,54 +359,9 @@ export class EditorState {
     new EditorState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
   }
 
-  replaceSelectionWith(content: string | readonly Node[]) {
-    // FIXME
-  }
-
-  replaceSelection(content: Slice, context?: readonly Tag[]) {
-    return this.update(this.changeByRange(range => {
-      let changes = ChangeSet.create(this.doc, {from: range.from, to: range.to, insert: content, fit: context || true})
-      let after = range.from
-      changes.iterChanges((fromA, toA, fromB, toB) => after = toB)
-      return {
-        changes,
-        range: EditorSelection.cursor(after, -1)
-      }
-    }), {scrollIntoView: true})
-  }
-
-  changeByRange(f: (range: SelectionRange) => {
-    range: SelectionRange,
-    changes?: ChangeSpec,
-    effects?: StateEffect<any> | readonly StateEffect<any>[]
-  }): {
-    changes: ChangeSet,
-    selection: EditorSelection,
-    effects: readonly StateEffect<any>[]
-  } {
-    let sel = this.selection
-    let result1 = f(sel.ranges[0])
-    let changes = ChangeSet.create(this.doc, result1.changes || []), ranges = [result1.range]
-    let effects = !result1.effects ? [] : Array.isArray(result1.effects) ? result1.effects : [result1.effects]
-    for (let i = 1; i < sel.ranges.length; i++) {
-      let result = f(sel.ranges[i])
-      let newChanges = ChangeSet.create(this.doc, result.changes || []), newMapped = newChanges.map(changes, this.doc)
-      for (let j = 0; j < i; j++) ranges[j] = ranges[j].map(newMapped)
-      let mapBy = changes.map(newChanges, this.doc, true)
-      ranges.push(result.range.map(mapBy))
-      changes = changes.compose(newMapped)
-      effects = StateEffect.mapEffects(effects, newMapped).concat(StateEffect.mapEffects(asArray(result.effects), mapBy))
-    }
-    return {
-      changes,
-      selection: EditorSelection.create(ranges, sel.mainIndex),
-      effects
-    }
-  }
-
   // FIXME too inconsistently abbreviated?
-  get mainSel() {
-    return this._mainSel || (this._mainSel = this.selection.main.resolve(this.doc))
+  get sel() {
+    return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
   }
 
   /// Convert this state to a JSON-serializable object. When custom
@@ -456,7 +410,7 @@ export class EditorState {
     let selection = !spec.selection ? EditorSelection.near(doc, 0)
       : typeof spec.selection == "function" ? spec.selection(doc)
       : spec.selection instanceof EditorSelection ? spec.selection
-      : spec.selection.asSelection()
+      : EditorSelection.create(spec.selection)
     return EditorState.fromConfig(config, doc, selection)
   }
 

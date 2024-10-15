@@ -3,7 +3,7 @@ import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
 export function setDOMSelection(view: EditorView) {
-  let {anchor, head, assoc} = view.state.selection.main
+  let {anchor, head, assoc} = view.state.selection
   let anchorDOM = view.docElt.resolve(anchor, anchor == head ? assoc || 1 : anchor < head ? 1 : -1)
   let headDOM = head == anchor ? anchorDOM : view.docElt.resolve(head, head < anchor ? 1 : -1)
   let domSel = getSelection(view.root)
@@ -30,5 +30,5 @@ export function readDOMSelection(view: EditorView, range: SelectionRange) {
   let anchor = view.docElt.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
     : view.docElt.posFromDOM(range.focusNode!, range.focusOffset, -1)
-  return EditorSelection.range(anchor, head).asSelection()
+  return EditorSelection.range(anchor, head)
 }

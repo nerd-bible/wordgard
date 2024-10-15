@@ -1,4 +1,4 @@
-import {EditorSelection, EditorState, SelectionRange} from "@willows/state"
+import {EditorSelection, EditorState} from "@willows/state"
 import {Slice, Node, ChangeSet} from "@willows/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
@@ -58,7 +58,7 @@ export class InputState {
   mouseSelection: MouseSelection | null = null
   // When a drag from the editor is active, this points at the range
   // being dragged.
-  draggedContent: SelectionRange | null = null
+  draggedContent: EditorSelection | null = null
 
   notifiedFocused: boolean
 
@@ -365,7 +365,7 @@ class MouseSelection {
 
   select(event: MouseEvent) {
     let {view} = this, selection = this.style.get(event, this.extend, this.multiple)
-    if (this.mustSelect || !selection.eq(view.state.selection, this.dragging === false))
+    if (this.mustSelect || !selection.eqPos(view.state.selection)) // FIXME preserve assoc somehow?
       this.view.dispatch({
         selection,
         userEvent: "select.pointer"
@@ -392,8 +392,8 @@ function dragMovesSelection(view: EditorView, event: MouseEvent) {
 }
 
 function isInPrimarySelection(view: EditorView, event: MouseEvent) {
-  let {main} = view.state.selection
-  if (main.empty) return false
+  let {selection} = view.state
+  if (selection.empty) return false
   // On boundary clicks, check whether the coordinates are inside the
   // selection's client rectangles
   let sel = getSelection(view.root)
@@ -466,11 +466,6 @@ handlers.mousedown = (view, event: MouseEvent) => {
   return false
 }
 
-function rangeForClick(view: EditorView, pos: number, bias: -1 | 1, type: number): SelectionRange {
-  // FIXME differentiate click types, be smarter
-  return EditorSelection.cursor(pos, bias)
-}
-
 // Try to determine, for the given coordinates, associated with the
 // given position, whether they are related to the element before or
 // the element after the position.
@@ -484,7 +479,7 @@ function queryPos(view: EditorView, event: MouseEvent): {pos: number, bias: 1 | 
 }
 
 function basicMouseSelection(view: EditorView, event: MouseEvent) {
-  let start = queryPos(view, event), type = event.detail
+  let start = queryPos(view, event)
   let startSel = view.state.selection
   return {
     update(update) {
@@ -493,41 +488,26 @@ function basicMouseSelection(view: EditorView, event: MouseEvent) {
         startSel = startSel.map(update.changes)
       }
     },
-    get(event, extend, multiple) {
-      let cur = queryPos(view, event), removed
-      let range = rangeForClick(view, cur.pos, cur.bias, type)
+    get(event, extend) {
+      // FIXME use click type (event.detail)
+      let cur = queryPos(view, event), from = cur.pos, to = cur.pos
       if (start.pos != cur.pos && !extend) {
-        let startRange = rangeForClick(view, start.pos, start.bias, type)
-        let from = Math.min(startRange.from, range.from), to = Math.max(startRange.to, range.to)
-        range = from < range.from ? EditorSelection.range(from, to) : EditorSelection.range(to, from)
+        from = Math.min(start.pos, from)
+        to = Math.max(start.pos, to)
       }
       if (extend)
-        return startSel.replaceRange(startSel.main.extend(range.from, range.to))
-      else if (multiple && type == 1 && startSel.ranges.length > 1 && (removed = removeRangeAround(startSel, cur.pos)))
-        return removed
-      else if (multiple)
-        return startSel.addRange(range)
+        return startSel.extend(from, to)
       else
-        return EditorSelection.create([range])
+        return EditorSelection.range(from, to)
     }
   } as MouseSelectionStyle
 }
 
-function removeRangeAround(sel: EditorSelection, pos: number) {
-  for (let i = 0; i < sel.ranges.length; i++) {
-    let {from, to} = sel.ranges[i]
-    if (from <= pos && to >= pos)
-      return EditorSelection.create(sel.ranges.slice(0, i).concat(sel.ranges.slice(i + 1)),
-                                    sel.mainIndex == i ? 0 : sel.mainIndex - (sel.mainIndex > i ? 1 : 0))
-  }
-  return null
-}
-
 handlers.dragstart = (view, event: DragEvent) => {
-  let {selection: {main: range}} = view.state
+  let {selection} = view.state
   let {inputState} = view
   if (inputState.mouseSelection) inputState.mouseSelection.dragging = true
-  inputState.draggedContent = range
+  inputState.draggedContent = selection
 
   if (event.dataTransfer) {
     writeClipboard(view.state, selectionSlice(view.state), event.dataTransfer)
@@ -581,13 +561,12 @@ handlers.paste = (view: EditorView, event: ClipboardEvent) => {
 }
 
 function selectionSlice(state: EditorState) { // FIXME smarter primitive?
-  let {main} = state.selection
-  return state.doc.slice(main.from, main.to)
+  return state.doc.slice(state.selection.from, state.selection.to)
 }
 
 handlers.copy = handlers.cut = (view, event: ClipboardEvent) => {
   let {state} = view
-  if (!state.selection.main.empty && event.clipboardData) { // FIXME block-wise copying
+  if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
     writeClipboard(state, selectionSlice(state), event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
       view.dispatch({
@@ -665,9 +644,6 @@ handlers.beforeinput = (view, event: InputEvent) => {
 }
 
 export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {
-  let {main} = view.state.selection
-  if (from == main.from && to == main.to)
-    view.dispatch(view.state.replaceSelection(insert)) // FIXME pass raw text
-  else
-    view.dispatch({changes: {from, to, insert}})
+  // FIXME define selection replacement
+  view.dispatch({changes: {from, to, insert}})
 }

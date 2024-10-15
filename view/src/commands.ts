@@ -12,7 +12,7 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 export type Command = (target: EditorView) => boolean
 
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
-  let {doc, mainSel: sel} = state
+  let {doc, sel: sel} = state
   if (!sel.from.node.type.preserveWhitespace || sel.from.start != sel.to.start) return false
   let props = state.selection.props || sel.from.props(sel.to)
   dispatch(state.update({
@@ -27,7 +27,7 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
 /// If the selection is not in an inline context, insert an empty
 /// default textblock in its position.
 export const createTextblock: StateCommand = ({state, dispatch}) => {
-  let sel = state.mainSel
+  let sel = state.sel
   if (sel.head.node.inlineContent() || sel.anchor.node.inlineContent()) return false
   let wrap = state.doc.schema.findWrapping(sel.from.node.type, Text)
   if (!wrap) return false
@@ -44,7 +44,7 @@ export const createTextblock: StateCommand = ({state, dispatch}) => {
 }
 
 export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
-  let sel = state.mainSel, node = sel.head.node
+  let sel = state.sel, node = sel.head.node
   if (!sel.empty || !node.inlineContent() || node.children.length) return false
   let start = sel.head.before, end = sel.head.after, before: Token[] = [], after: Token[] = []
   for (let level = sel.head.parent, atStart = true, atEnd = true, first = true; level; first = false, level = level.parent) {
@@ -70,7 +70,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
 }
 
 export const splitTextblock: StateCommand = ({state, dispatch}) => {
-  let sel = state.mainSel
+  let sel = state.sel
   if (!sel.from.node.isTextblock() || !sel.to.parent) return false
   let tagAfter = null
   if (sel.to.node.isTextblock()) {
@@ -101,7 +101,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
 }
 
 export const deleteSelection: StateCommand = ({state, dispatch}) => {
-  if (state.selection.ranges.every(r => r.empty)) return false
+  if (state.selection.ranges.every(r => r.from == r.to)) return false
   dispatch(state.update({
     changes: {correct: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})), local: true},
     normalizeSelection: true,
@@ -150,7 +150,7 @@ function clearNonFitting(target: Context, type: TagType<any>) {
 }
 
 export const joinBackward: StateCommand = ({state, dispatch}) => {
-  let sel = state.mainSel
+  let sel = state.sel
   if (!sel.empty || !sel.head.node.isTextblock() || sel.head.pos != sel.head.start) return false
   let scan = sel.head.parent
   while (scan && scan.node.isBlock() && !scan.index) {
@@ -181,7 +181,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
 }
 
 export const deleteBackward: StateCommand = ({state, dispatch}) => {
-  let sel = state.mainSel
+  let sel = state.sel
   if (!sel.empty) return false
   let scan = sel.head
   if (scan.inText) {
