@@ -362,7 +362,7 @@ export class DocNode extends Node {
   }
 
   resolveX(pos: number) {
-    return Pos.resole(this, pos)
+    return Pos.resolve(this, pos)
   }
 
   contextAt(pos: number, maxDepth?: number): readonly Tag[] {

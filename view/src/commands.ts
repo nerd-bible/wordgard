@@ -1,4 +1,4 @@
-import {Node, Tag, TagType, Context, Slice, Text, Token,
+import {Node, Tag, TagType, Context, Pos, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken, OpenToken} from "@willows/doc"
 import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
@@ -110,15 +110,15 @@ export const deleteSelection: StateCommand = ({state, dispatch}) => {
   return true
 }
 
-function joinBlocks(before: Context, after: Context): ChangeSpec[] {
+function joinBlocks(before: Pos, after: Pos): ChangeSpec[] {
   let changes: ChangeSpec[] = [{from: before.pos, to: after.pos}]
   let dBefore = before.depth, dAfter = after.depth
-  let tokensAfter: Token[] = [], posAfter = after.after, end = posAfter
+  let tokensAfter: Token[] = [], posAfter = after.parent.after, end = posAfter
   if (dBefore > dAfter) {
     let extraContext: Tag[] = []
-    for (let i = dBefore - dAfter, cx = before.parent!; i > 0; i--, cx = cx.parent!)
-      extraContext.push(cx.node.tag)
-    let nodeAfter = after.parent!.node.children[after.parent!.index + 1]
+    for (let i = dBefore - dAfter, level = before.parent.parent!; i > 0; i--, level = level.parent!)
+      extraContext.push(level.node.tag)
+    let nodeAfter = after.parent.nextSibling
     for (let i = dBefore - dAfter - 1, joining = true; i >= 0; i--) {
       let context = extraContext[i]
       if (!joining || !nodeAfter || context.type != nodeAfter.type || !context.type.spec.autoJoin ||
@@ -128,10 +128,10 @@ function joinBlocks(before: Context, after: Context): ChangeSpec[] {
       else tokensAfter.push(CloseToken)
     }
   } else if (dAfter > dBefore) {
-    for (let i = dAfter - dBefore, cx = after.parent!, atEnd = true; i > 0; i--, cx = cx.parent!) {
-      if (cx.index < cx.node.children.length - 1) atEnd = false
+    for (let i = dAfter - dBefore, level = after.parent, atEnd = true; i > 0; i--, level = level.parent!) {
+      if (level.nextSibling) atEnd = false
       if (atEnd) end++
-      else tokensAfter.push(new OpenToken(cx.node.tag))
+      else tokensAfter.push(new OpenToken(level.parent!.node.tag))
     }
   }
   if (tokensAfter.length || end > posAfter)
@@ -139,9 +139,9 @@ function joinBlocks(before: Context, after: Context): ChangeSpec[] {
   return changes
 }
 
-function clearNonFitting(target: Context, type: TagType<any>) {
+function clearNonFitting(target: NodePos, type: TagType<any>) {
   let changes: ChangeSpec[] = []
-  for (let i = 0, pos = target.pos; i < target.node.children.length; i++) {
+  for (let i = 0, pos = target.start; i < target.node.children.length; i++) {
     let child = target.node.children[i], end = pos + child.length
     if (!type.canContain(child.type)) changes.push({from: pos, to: end})
     pos = end
@@ -151,26 +151,28 @@ function clearNonFitting(target: Context, type: TagType<any>) {
 
 export const joinBackward: StateCommand = ({state, dispatch}) => {
   let sel = state.sel
-  if (!sel.empty || !sel.head.node.isTextblock() || sel.head.pos != sel.head.start) return false
-  let scan = sel.head.parent
-  while (scan && scan.node.isBlock() && !scan.index) {
-    if (scan.node.type.isolating) return false
+  let head = state.doc.resolveX(state.selection.head)
+  if (!sel.empty || !head.parent.node.isTextblock() || head.pos != head.parent.start) return false
+  let scan = head.parent, target = scan.node
+  while (!scan.index) {
+    if (!scan.parent) return false
     scan = scan.parent
+    if (scan.node.type.isolating || !scan.node.isBlock()) return false
   }
-  if (!scan) return false
-  let before = scan.nodeBefore, parent = scan.node, pos = scan.pos
-  while (before && !before.isTextblock() && !before.type.isolating && !before.isAtom()) {
+  let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
+  while (!before.isTextblock()) {
+    if (before.type.isolating || before.isAtom() || !before.isBlock()) return false
     let last = before.children.length - 1
+    if (last < 0) return false
     parent = before
-    before = last >= 0 ? before.children[last] : null
+    before = before.children[last]
     pos--
   }
-  if (!before || !before.isTextblock()) return false
-  let changes = joinBlocks(state.doc.resolve(pos - 1), sel.head).concat(clearNonFitting(sel.head, before.type))
-  if (!before.children.length && !before.tag.eq(sel.head.node.tag) && parent.type.canContain(sel.head.node.type))
+  let changes = joinBlocks(state.doc.resolveX(pos - 1), head).concat(clearNonFitting(head.parent, before.type))
+  if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
-      insert: new Slice([new OpenToken(sel.head.node.tag)])
+      insert: new Slice([new OpenToken(target.tag)])
     })
   dispatch(state.update({
     changes,

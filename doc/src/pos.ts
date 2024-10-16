@@ -84,6 +84,15 @@ export class NodePos {
   }
 
   get end() { return this.start + this.node.contentLength }
+
+  get nextSibling() {
+    return !this.parent || this.index == this.parent.node.children.length - 1 ? null
+      : this.parent.node.children[this.index + 1]
+  }
+
+  get previousSibling() {
+    return !this.parent || !this.index ? null : this.parent.node.children[this.index - 1]
+  }
 }
 
 function advancePos(distance: number, parent: NodePos, pos: number, index: number, inText: number,
