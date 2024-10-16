@@ -2,6 +2,7 @@ import {Slice, OpenToken, Token, CloseToken} from "./slice"
 import {TagSpec} from "./spec"
 import {Schema} from "./schema"
 import {Context} from "./context"
+import {Pos} from "./pos"
 import {PropType, Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 
@@ -358,6 +359,10 @@ export class DocNode extends Node {
 
   resolve(pos: number) {
     return Context.resolve(this, pos)
+  }
+
+  resolveX(pos: number) {
+    return Pos.resole(this, pos)
   }
 
   contextAt(pos: number, maxDepth?: number): readonly Tag[] {
