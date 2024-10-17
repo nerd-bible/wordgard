@@ -359,14 +359,9 @@ export class EditorState {
     new EditorState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
   }
 
-  // FIXME too inconsistently abbreviated?
-  get sel() {
-    return this.selection.resolve(this.doc)
-  }
-
   // FIXME better name?
   get selPos() {
-    return this._resolvedSel || (this._resolvedSel = this.selection.resolveX(this.doc))
+    return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
   }
 
   /// Convert this state to a JSON-serializable object. When custom

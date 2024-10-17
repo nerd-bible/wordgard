@@ -34,22 +34,6 @@ export class SelectionPos {
   get assoc() { return this.selection.assoc } 
 }
 
-export class ResolvedSelection {
-  anchor: Context
-  head: Context
-
-  constructor(doc: DocNode, readonly selection: EditorSelection) {
-    this.anchor = doc.resolve(selection.anchor)
-    this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
-  }
-
-  get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
-  get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
-
-  get empty() { return this.selection.empty }
-  get assoc() { return this.selection.assoc } 
-}
-
 /// An editor selection holds one or more selection ranges.
 export class EditorSelection {
   private constructor(
@@ -141,9 +125,7 @@ export class EditorSelection {
     return EditorSelection.cursor(normal, -1, this.goalColumn ?? undefined, this.props)
   }
 
-  resolve(doc: DocNode) { return new ResolvedSelection(doc, this) }
-
-  resolveX(doc: DocNode) { return new SelectionPos(doc, this) }
+  resolve(doc: DocNode) { return new SelectionPos(doc, this) }
 
   /// Convert this selection to an object that can be serialized to
   /// JSON.
