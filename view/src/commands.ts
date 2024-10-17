@@ -12,8 +12,9 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 export type Command = (target: EditorView) => boolean
 
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
-  let {doc, sel: sel} = state
-  if (!sel.from.node.type.preserveWhitespace || sel.from.start != sel.to.start) return false
+  let {doc, selPos: sel} = state
+  let block = sel.from.parent
+  if (!block.node.isTextblock() || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
   let props = state.selection.props || sel.from.props(sel.to)
   dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos,
@@ -183,27 +184,28 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
 }
 
 export const deleteBackward: StateCommand = ({state, dispatch}) => {
-  let sel = state.sel
+  let sel = state.selPos
   if (!sel.empty) return false
-  let scan = sel.head
-  if (scan.inText) {
-    let before = scan.nodeBefore!
+  if (sel.head.inText) {
+    let before = sel.head.nodeBefore!
     let size = before.length - findClusterBreak(before.text!, before.length, false)
     dispatch(state.update({
-      changes: {from: scan.pos - size, to: scan.pos},
+      changes: {from: sel.head.pos - size, to: sel.head.pos},
       scrollIntoView: true
     }))
     return true
   }
 
-  while (scan && !scan.index) {
+  let scan = sel.head.parent, {index, pos} = sel.head
+  while (!index) {
     if (scan.node.type.isolating || !scan.parent) return false
+    index = scan.index
     scan = scan.parent
+    pos--
   }
-  if (!scan) return false
-  let before = scan.nodeBefore, pos = scan.pos
+  let before = scan.node.children[index - 1]
   for (;;) {
-    if (!before || before.type.isolating) return false
+    if (before.type.isolating) return false
     if (before.isAtom()) break
     let last = before.children.length - 1
     if (last < 0) return false

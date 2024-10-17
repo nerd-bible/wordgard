@@ -1,5 +1,7 @@
 import {Node, TextNode, DocNode} from "./node"
 import {Walker} from "./context" // FIXME move
+import {Prop} from "./prop"
+import {none} from "./helper"
 
 export class Pos {
   constructor(
@@ -28,6 +30,15 @@ export class Pos {
     let d = 0
     for (let n = this.parent; n.parent; n = n.parent) d++
     return d
+  }
+
+  props(across?: Pos) {
+    if (this.inText && !across) return this.parent.node.children[this.index].tag.props
+    let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
+    let before = from.nodeBefore, after = to.nodeAfter
+    let [main, sec]: [readonly Prop[], readonly Prop[]] =
+      before ? [before.tag.props, after ? after.tag.props : none] : [after ? after.tag.props : none, none]
+    return main.filter(p => p.type.spanning && (p.type.inclusive || p.isInSet(sec)))
   }
 
   static atStart(doc: DocNode) {
