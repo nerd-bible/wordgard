@@ -2,7 +2,8 @@ import {Node, DocNode, Tag, TokenType} from "./node"
 import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
-import {Context, Walker} from "./context"
+import {Pos, NodePos} from "./pos"
+import {Walker} from "./context"
 import {validate} from "./helper"
 
 class BuildContext {
@@ -237,7 +238,7 @@ export class ChangeSet extends ChangeDesc {
   apply(doc: DocNode) {
     if (this.empty) return doc
     let builder = new Builder(doc)
-    let cursor = Context.atStart(doc)
+    let cursor = Pos.atStart(doc)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
       let lenA = this.sections[iS++], lenB = this.sections[iS++]
       if (lenB < 0) {
@@ -249,7 +250,7 @@ export class ChangeSet extends ChangeDesc {
         ;(this.data[i] as Slice).run(builder)
       }
     }
-    if (cursor.parent || cursor.index != (cursor.node.isText() ? cursor.node.text.length : cursor.node.children.length))
+    if (cursor.pos != doc.length)
       throw new Error("Change doesn't cover the entire document")
     return builder.finish()
   }
@@ -476,7 +477,8 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
         if (to <= from) to = from
         if (fit) {
           doCorrect = true
-          ;({from, to, slice: insert} = fitReplacement(doc, from, to, insert, fit === true ? [] : fit))
+          ;({from, to, slice: insert} =
+            fitReplacement(doc, doc.resolveX(from), doc.resolveX(to), insert, fit === true ? [] : fit))
         }
         if (insert.length || to != from)
           section(from, to, insert.length, insert)
@@ -664,7 +666,7 @@ const counter = {
   skip() {},
   enter() { this.count++ },
   leave() { this.count-- },
-  countDelta(pos: Context, distance: number) {
+  countDelta(pos: Pos, distance: number) {
     this.count = 0
     return pos.advance(distance, this)
   }
@@ -672,20 +674,20 @@ const counter = {
 
 class ChangeFitter implements Walker {
   stack: FitLevel
-  inputPos: Context
-  delInputPos: Context
+  inputPos: Pos
+  delInputPos: Pos
   pos = 0
   patches: {from: number, to: number, insert: Token[]}[] = []
   stackDelta = 0
   inputDelta = 0
   inserting = false
-  activeContext: Context | null = null
+  activeContext: Pos | null = null
   activeContextPos = -1
   nextSync = -1
 
   constructor(readonly doc: DocNode, readonly local: boolean) {
     this.stack = new FitLevel(doc.tag, null)
-    this.inputPos = this.delInputPos = Context.atStart(doc)
+    this.inputPos = this.delInputPos = Pos.atStart(doc)
   }
 
   getPos(at: number) {
@@ -757,18 +759,21 @@ class ChangeFitter implements Walker {
         if (!fix || fix.cost > cost && !fix.context)
           fix = {leave, enter, cost, context: false}
       }
-      if (this.activeContextPos == this.pos) for (let cx = this.activeContext, i = 1; cx; cx = cx.parent, i++) {
-        if (level.tag.type.canContain(cx.node.type)) {
-          let cost = leaveCost + i * 2 - Math.max(0, Math.min(-dDelta, i))
-          if (!fix || fix.cost > cost || !fix.context) {
-            let enter: Tag[] = []
-            for (let scan = this.activeContext;; scan = scan!.parent) {
-              enter.unshift(scan!.node.tag)
-              if (scan == cx) break
+      if (this.activeContextPos == this.pos) {
+        let top = this.activeContext?.parent || null
+        for (let cx = top, i = 1; cx; cx = cx.parent, i++) {
+          if (level.tag.type.canContain(cx.node.type)) {
+            let cost = leaveCost + i * 2 - Math.max(0, Math.min(-dDelta, i))
+            if (!fix || fix.cost > cost || !fix.context) {
+              let enter: Tag[] = []
+              for (let scan = top;; scan = scan!.parent) {
+                enter.unshift(scan!.node.tag)
+                if (scan == cx) break
+              }
+              fix = {leave, enter, cost, context: true}
             }
-            fix = {leave, enter, cost, context: true}
+            break
           }
-          break
         }
       }
       leaveCost += level.flags & FitFlag.Synthetic ? 0 : dDelta > leave ? 1 : 2
@@ -788,23 +793,24 @@ class ChangeFitter implements Walker {
     return true
   }
 
-  syncToContext(context: Context) {
-    // FIXME make this elegant somehow
-    let levels = [], depth = context.depth
-    for (let l = this.stack as FitLevel | null; l; l = l.next) levels.push(l)
-    levels.reverse()
-    while (levels.length > depth + 1) { this.insertClose(); levels.pop() }
-    for (let d = 1; d <= Math.min(depth, levels.length - 1); d++) {
-      let cx = context.atDepth(d)
-      if (!cx.node.type.sharesContent(levels[d].tag.type)) {
-        while (levels.length > d) { this.insertClose(); levels.pop() }
+  syncToContext(context: Pos) {
+    // FIXME make this elegant/efficient somehow
+    let cur = [], sync = []
+    for (let l = this.stack as FitLevel | null; l; l = l.next) cur.push(l)
+    cur.reverse()
+    for (let level: NodePos | null = context.parent; level; level = level.parent) sync.push(level.node.tag)
+    sync.reverse()
+    while (cur.length > sync.length) { this.insertClose(); cur.pop() }
+    for (let d = 1; d < Math.min(sync.length, cur.length); d++) {
+      if (!sync[d].type.sharesContent(cur[d].tag.type)) {
+        while (cur.length > d) { this.insertClose(); cur.pop() }
         break
       }
     }
-    for (let i = levels.length; i < depth + 1; i++) {
-      let cx = context.atDepth(i)
-      this.stack = new FitLevel(cx.node.tag, this.stack)
-      this.patch(0, new OpenToken(cx.node.tag))
+    for (let i = cur.length; i < sync.length; i++) {
+      let tag = sync[i]
+      this.stack = new FitLevel(tag, this.stack)
+      this.patch(0, new OpenToken(tag))
     }
   }
 
@@ -885,10 +891,10 @@ class ChangeFitter implements Walker {
   }
 }
 
-function localSyncPosAfter(pos: Context) {
+function localSyncPosAfter(pos: Pos) {
   let found = pos.pos
-  for (let cx = pos;; cx = cx.parent) {
-    if (!cx.parent || !cx.node.inlineContent() && cx.index != cx.node.children.length - 1) break
+  for (let cx = pos.parent, index = pos.index;; index = cx.index, cx = cx.parent) {
+    if (!cx.parent || !cx.node.inlineContent() && index != cx.node.children.length - 1) break
     found = cx.after
   }
   return found
@@ -1003,9 +1009,9 @@ function addSection(sections: number[], data: SectionData[] | null,
   }
 }
 
-function fitsTrivially($from: Context, $to: Context, slice: Slice) {
-  return $from.start == $to.start &&
-    slice.content.every(tok => tok.tokenType == TokenType.Node && $from.node.type.canContain(tok.type))
+function fitsTrivially(from: Pos, to: Pos, slice: Slice) {
+  return from.parent.start == to.parent.start &&
+    slice.content.every(tok => tok.tokenType == TokenType.Node && from.parent.node.type.canContain(tok.type))
 }
 
 function finishCx(cx: BuildContext, schema: Schema) {
@@ -1046,10 +1052,9 @@ function splatContext(top: Token[], cx: BuildContext) {
   for (let ch of cx.children) top.push(ch)
 }
 
-function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice, context: readonly Tag[]) {
+function fitReplacement(doc: DocNode, from: Pos, to: Pos, slice: Slice, context: readonly Tag[]) {
   if (!slice.length) return fitDeletion(doc, from, to)
-  let $from = doc.resolve(from), $to = doc.resolve(to)
-  if (fitsTrivially($from, $to, slice)) return {from, to, slice}
+  if (fitsTrivially(from, to, slice)) return {from: from.pos, to: to.pos, slice}
 
   let preferredContext = -1
   for (let i = 0; i < context.length; i++) {
@@ -1062,7 +1067,9 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice, co
   // node.
   let found: {from: number, to: number, slice: Slice} | undefined, foundCost = 1e8
   let neutral = true, toEnded = false
-  for (let cxFrom = $from, cxTo = $to, fromDepth = cxFrom.depth, toDepth = cxTo.depth, start = from, end = to;
+  for (let cxFrom = from.parent, cxTo = to.parent,
+           fromDepth = from.depth, toDepth = to.depth,
+           start = from.pos, end = to.pos;
        cxFrom.parent;
        cxFrom = cxFrom.parent, start--, fromDepth--) {
     if (cxFrom.start != start || cxFrom.node.type.isolating) break
@@ -1083,7 +1090,7 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice, co
           }
         }
         if (neutral && i >= preferredContext && foundCost > 1e7) {
-          found = {from: cxFrom.before, to, slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1) : slice}
+          found = {from: cxFrom.before, to: to.pos, slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1) : slice}
           foundCost = 1e7
         }
       }
@@ -1092,21 +1099,21 @@ function fitReplacement(doc: DocNode, from: number, to: number, slice: Slice, co
   if (found) return found
 
   for (let i = 0; i < context.length; i++) {
-    if ($from.node.type.canContain(context[i].type)) {
+    if (from.parent.node.type.canContain(context[i].type)) {
       slice = closeSlice(doc.schema, slice, context, i + 1, true)
       break
     }
   }
-  return {from, to, slice}
+  return {from: from.pos, to: to.pos, slice}
 }
 
-function fitDeletion(doc: DocNode, from: number, to: number) {
-  let $from = doc.resolve(from), $to = doc.resolve(to), toDepth = $to.depth
+function fitDeletion(doc: DocNode, from: Pos, to: Pos) {
+  let toDepth = to.depth
   let covered: {from: number, to: number, slice: Slice} | undefined
   // Walk up the contexts (catching up on cxTo whenever depth reaches
   // its depth), tracking whether there is any content between the
   // current depth's start/end and from/to by counting tokens.
-  for (let cx = $from, cxTo = $to, depth = $from.depth, start = from, end = to;
+  for (let cx = from.parent, cxTo = to.parent, depth = from.depth, start = from.pos, end = to.pos;
        cx.parent; start--, cx = cx.parent, depth--) {
     // If there is content before from, or this is an isolating node, stop
     if (cx.start != start || cx.node.type.isolating) break
@@ -1115,14 +1122,14 @@ function fitDeletion(doc: DocNode, from: number, to: number) {
     // If this is a deletion starting at the start of a node and
     // continuing past its end (but not to the end of a node at the
     // same level), include the node's open token.
-    if (cx.end < to && cx.parent.end > to && !toAtEnd) return {from: cx.before, to, slice: Slice.empty}
+    if (cx.end < to.pos && cx.parent.end > to.pos && !toAtEnd) return {from: cx.before, to: to.pos, slice: Slice.empty}
     // Else if this is a completely covered set of siblings with
     // non-inline content, and the range isn't inside a single
     // textblock, pick the outermost such range and delete it
     // entirely.
     if (!cx.node.inlineContent() && toAtEnd && cx.parent.start == cxTo.parent!.start &&
-        !($from.start == $to.start && $from.node.inlineContent()))
+        !(from.parent.start == to.parent.start && from.parent.node.inlineContent()))
       covered = {from: cx.before, to: cxTo.after, slice: Slice.empty}
   }
-  return covered || {from, to, slice: Slice.empty}
+  return covered || {from: from.pos, to: to.pos, slice: Slice.empty}
 }
