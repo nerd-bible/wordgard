@@ -1,4 +1,4 @@
-import {Schema, DocNode, Node, ChangeDesc, Prop, Context} from "@willows/doc"
+import {Schema, DocNode, Node, ChangeDesc, Prop, Context, Pos} from "@willows/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
 export type SelectionJSON = {
@@ -16,6 +16,22 @@ export type SelectionSpec = {
   goalColumn?: number
   ranges?: readonly {from: number, to: number}[]
   props?: readonly Prop<any>[]
+}
+
+export class SelectionPos {
+  anchor: Pos
+  head: Pos
+
+  constructor(doc: DocNode, readonly selection: EditorSelection) {
+    this.anchor = doc.resolveX(selection.anchor)
+    this.head = selection.empty ? this.anchor : doc.resolveX(selection.head)
+  }
+
+  get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
+  get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
+
+  get empty() { return this.selection.empty }
+  get assoc() { return this.selection.assoc } 
 }
 
 export class ResolvedSelection {
@@ -126,6 +142,8 @@ export class EditorSelection {
   }
 
   resolve(doc: DocNode) { return new ResolvedSelection(doc, this) }
+
+  resolveX(doc: DocNode) { return new SelectionPos(doc, this) }
 
   /// Convert this selection to an object that can be serialized to
   /// JSON.

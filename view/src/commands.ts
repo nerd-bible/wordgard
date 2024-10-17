@@ -27,9 +27,9 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
 /// If the selection is not in an inline context, insert an empty
 /// default textblock in its position.
 export const createTextblock: StateCommand = ({state, dispatch}) => {
-  let sel = state.sel
-  if (sel.head.node.inlineContent() || sel.anchor.node.inlineContent()) return false
-  let wrap = state.doc.schema.findWrapping(sel.from.node.type, Text)
+  let sel = state.selPos
+  if (sel.head.parent.node.inlineContent() || sel.anchor.parent.node.inlineContent()) return false
+  let wrap = state.doc.schema.findWrapping(sel.from.parent.node.type, Text)
   if (!wrap) return false
   let content: Node[] = []
   for (let i = wrap.length - 1; i >= 0; i--) content = [wrap[i].create(content)]
@@ -44,25 +44,26 @@ export const createTextblock: StateCommand = ({state, dispatch}) => {
 }
 
 export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
-  let sel = state.sel, node = sel.head.node
-  if (!sel.empty || !node.inlineContent() || node.children.length) return false
-  let start = sel.head.before, end = sel.head.after, before: Token[] = [], after: Token[] = []
-  for (let level = sel.head.parent, atStart = true, atEnd = true, first = true; level; first = false, level = level.parent) {
-    if (!first && level.node.type.canContain(node.type)) {
+  let sel = state.selPos, block = sel.head.parent
+  if (!sel.empty || !block.node.isTextblock() || block.node.children.length) return false
+  let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
+  for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
+       level; first = false, index = level.index, level = level.parent) {
+    if (!first && level.node.type.canContain(block.node.type)) {
       dispatch(state.update({
         changes: [
-          {from: start, to: sel.head.before, insert: new Slice(before)},
-          {from: sel.head.after, to: end, insert: new Slice(after)}
+          {from: start, to: block.before, insert: new Slice(before)},
+          {from: block.after, to: end, insert: new Slice(after)}
         ],
         scrollIntoView: true
       }))
       return true
     }
     if (level.node.isInline() || level.node.type.isolating) break
-    if (level.index) atStart = false
+    if (index) atStart = false
     if (atStart) start--
     else before.push(CloseToken)
-    if (level.index < level.node.children.length - 1) atEnd = false
+    if (index < level.node.children.length - 1) atEnd = false
     if (atEnd) end++
     else after.unshift(new OpenToken(level.node.tag))
   }
@@ -70,13 +71,13 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
 }
 
 export const splitTextblock: StateCommand = ({state, dispatch}) => {
-  let sel = state.sel
-  if (!sel.from.node.isTextblock() || !sel.to.parent) return false
-  let tagAfter = null
-  if (sel.to.node.isTextblock()) {
-    let tag = sel.to.node.tag, atEnd = sel.to.pos == sel.to.end
+  let sel = state.selPos, before = sel.from.parent
+  if (!before.node.isTextblock() || !before.parent) return false
+  let after = sel.to.parent, tagAfter = null
+  if (after.node.isTextblock()) {
+    let tag = after.node.tag, atEnd = sel.to.pos == after.end
     if (tag.type.spec.splitTag) tagAfter = tag.type.spec.splitTag(tag, atEnd)
-    if (atEnd && !tagAfter) tagAfter = state.doc.schema.defaultContentType(sel.to.parent.node.type)
+    if (atEnd && !tagAfter && after.parent) tagAfter = state.doc.schema.defaultContentType(after.parent.node.type)
     if (!tagAfter) tagAfter = tag
   }
   let tokens: Token[] = [CloseToken]
@@ -85,10 +86,10 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
     from: sel.from.pos, to: sel.to.pos,
     insert: new Slice(tagAfter ? [CloseToken, new OpenToken(tagAfter)] : [CloseToken])
   }]
-  if (sel.from.pos == sel.from.start && sel.from.parent) {
-    let deflt = state.doc.schema.defaultContentType(sel.from.parent.node.type)
+  if (sel.from.pos == before.start && before.parent) {
+    let deflt = state.doc.schema.defaultContentType(before.parent.node.type)
     // FIXME make configurable? Inherit selected props?
-    if (deflt && !deflt.eq(sel.from.node.tag))
+    if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({from: sel.from.pos - 1, to: sel.from.pos, insert: new Slice([new OpenToken(deflt)])})
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
