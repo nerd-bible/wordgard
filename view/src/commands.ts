@@ -150,9 +150,8 @@ function clearNonFitting(target: NodePos, type: TagType<any>) {
 }
 
 export const joinBackward: StateCommand = ({state, dispatch}) => {
-  let sel = state.sel
-  let head = state.doc.resolveX(state.selection.head)
-  if (!sel.empty || !head.parent.node.isTextblock() || head.pos != head.parent.start) return false
+  let {head, empty} = state.selPos
+  if (!empty || !head.parent.node.isTextblock() || head.pos != head.parent.start) return false
   let scan = head.parent, target = scan.node
   while (!scan.index) {
     if (!scan.parent) return false

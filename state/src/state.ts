@@ -1,5 +1,5 @@
 import {Schema, SchemaElement, DocNode, NodeJSON, parseDoc} from "@willows/doc"
-import {EditorSelection, SelectionSpec, ResolvedSelection} from "./selection"
+import {EditorSelection, SelectionSpec, SelectionPos} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
         sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
@@ -265,7 +265,7 @@ export class EditorState {
   readonly status: SlotStatus[]
   /// @internal
   computeSlot: null | ((state: EditorState, slot: DynamicSlot) => SlotStatus)
-  private _resolvedSel: ResolvedSelection | null = null
+  private _resolvedSel: SelectionPos | null = null
 
   private constructor(
     /// The configuration 
@@ -361,7 +361,12 @@ export class EditorState {
 
   // FIXME too inconsistently abbreviated?
   get sel() {
-    return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
+    return this.selection.resolve(this.doc)
+  }
+
+  // FIXME better name?
+  get selPos() {
+    return this._resolvedSel || (this._resolvedSel = this.selection.resolveX(this.doc))
   }
 
   /// Convert this state to a JSON-serializable object. When custom
