@@ -228,7 +228,7 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     return true
   }
 
-  let scan = sel.head.parent, {index, pos} = sel.head
+  let {parent: scan, index, pos} = sel.head
   while (!index) {
     if (scan.node.type.isolating || !scan.parent) return false
     index = scan.index
@@ -267,7 +267,53 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
 }
 
 export const deleteForward: StateCommand = ({state, dispatch}) => {
-  return false // FIXME
+  let sel = state.selPos
+  if (!sel.empty) return false
+  if (sel.head.inText) {
+    let after = sel.head.nodeAfter!
+    let size = findClusterBreak(after.text!, 0)
+    dispatch(state.update({
+      changes: {from: sel.head.pos, to: sel.head.pos + size},
+      scrollIntoView: true
+    }))
+    return true
+  }
+
+  let {parent: scan, index, pos} = sel.head
+  while (index == scan.node.children.length) {
+    if (scan.node.type.isolating || !scan.parent) return console.log("AA"), false
+    index = scan.index + 1
+    scan = scan.parent
+    pos++
+  }
+  let after = scan.node.children[index]
+  for (;;) {
+    if (after.type.isolating) return false
+    if (after.isAtom()) break
+    if (!after.children.length) return false
+    after = after.children[0]
+    pos++
+  }
+  if (after.isText()) {
+    let size = findClusterBreak(after.text, 0)
+    dispatch(state.update({
+      changes: {from: pos, to: pos + size},
+      scrollIntoView: true
+    }))
+    return true
+  }
+  let from = pos, to = pos + after.length
+  let parent: NodePos | null = state.doc.resolve(pos).parent
+  while (parent && parent.node.isBlock() && parent.node.children.length == 1) {
+    if (!parent.parent) return false
+    parent = parent.parent
+    from--; to++
+  }
+  dispatch(state.update({
+    changes: {from, to},
+    scrollIntoView: true
+  }))
+  return true
 }
 
 export const defaultEnter: Command = (view: EditorView) => {

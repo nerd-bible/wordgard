@@ -1,6 +1,6 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
-        deleteBackward} from "@willows/view"
+        deleteBackward, deleteForward} from "@willows/view"
 import {Tag, DocNode, basicBuilders, maybeTag, builder} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
@@ -289,5 +289,43 @@ describe("deleteBackward", () => {
 
   it("will not clear the document", () => {
     test(doc(hr(), 0), deleteBackward)
+  })
+})
+
+describe("deleteForward", () => {
+  it("can delete a letter", () => {
+    test(doc(p(0, "abc")), deleteForward, doc(p(0, "bc")))
+  })
+
+  it("can delete a letter in the middle of a text node", () => {
+    test(doc(p("a", 0, "bc")), deleteForward, doc(p("a", 0, "c")))
+  })
+
+  it("can delete a composite letter", () => {
+    test(doc(p("..", 0, "👨‍🎤👨‍🎤")), deleteForward, doc(p("..", 0, "👨‍🎤")))
+  })
+
+  it("can delete an image", () => {
+    test(doc(p("a", 0, $img(), "b")), deleteForward, doc(p("a", 0, "b")))
+  })
+
+  it("can delete a horizontal rule", () => {
+    test(doc(p("x"), 0, hr()), deleteForward, doc(p("x"), 0))
+  })
+
+  it("can delete a horizontal rule from inside the next node", () => {
+    test(doc(p("x", 0), hr()), deleteForward, doc(p("x", 0)))
+  })
+
+  it("can delete a horizontal rule inside a wrapping node", () => {
+    test(doc(p(0), ul(li(hr()))), deleteForward, doc(p(0)))
+  })
+
+  it("won't clear wrappers with extra content", () => {
+    test(doc(p("x", 0), ul(li(hr()), li(p("a")))), deleteForward, doc(p("x", 0), ul(li(p("a")))))
+  })
+
+  it("will not clear the document", () => {
+    test(doc(0, hr()), deleteForward)
   })
 })
