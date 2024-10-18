@@ -141,10 +141,10 @@ function joinBlocks(before: Pos, after: Pos): ChangeSpec[] {
   return changes
 }
 
-function clearNonFitting(target: NodePos, type: TagType<any>) {
+function clearNonFitting(node: Node, nodePos: number, type: TagType<any>) {
   let changes: ChangeSpec[] = []
-  for (let i = 0, pos = target.start; i < target.node.children.length; i++) {
-    let child = target.node.children[i], end = pos + child.length
+  for (let i = 0, pos = nodePos + 1; i < node.children.length; i++) {
+    let child = node.children[i], end = pos + child.length
     if (!type.canContain(child.type)) changes.push({from: pos, to: end})
     pos = end
   }
@@ -169,7 +169,8 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
     before = before.children[last]
     pos--
   }
-  let changes = joinBlocks(state.doc.resolve(pos - 1), head).concat(clearNonFitting(head.parent, before.type))
+  let changes = joinBlocks(state.doc.resolve(pos - 1), head)
+    .concat(clearNonFitting(head.parent.node, head.parent.before, before.type))
   if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
@@ -202,7 +203,7 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
     pos++
   }
   let posAfter = state.doc.resolve(pos + 1)
-  let changes = joinBlocks(head, posAfter).concat(clearNonFitting(posAfter.parent, target.type))
+  let changes = joinBlocks(head, posAfter).concat(clearNonFitting(posAfter.parent.node, posAfter.parent.before, target.type))
   if (!target.children.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
     changes.push({
       from: head.parent.before, to: head.parent.start,
@@ -314,6 +315,25 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
     scrollIntoView: true
   }))
   return true
+}
+
+export function setTextblockType(tag: Tag<any>): StateCommand {
+  return ({state, dispatch}) => {
+    let changes: ChangeSpec[] = [], lastBlock = -1
+    for (let {from, to} of state.selection.ranges) {
+      state.doc.iterate(from, to, (node, pos, parent) => {
+        if (node.isTextblock() && pos > lastBlock && !node.tag.eq(tag) && parent && parent.type.canContain(tag.type)) {
+          lastBlock = pos
+          // FIXME more refined handling of props
+          changes.push({from: pos, to: pos + 1, insert: new Slice([new OpenToken(tag)])})
+          for (let ch of clearNonFitting(node, pos, tag.type)) changes.push(ch)
+        }
+      })
+    }
+    if (!changes.length) return false
+    dispatch(state.update({changes, scrollIntoView: true}))
+    return true
+  }
 }
 
 export const defaultEnter: Command = (view: EditorView) => {

@@ -1,7 +1,7 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
-        deleteBackward, deleteForward} from "@willows/view"
-import {Tag, DocNode, basicBuilders, maybeTag, builder} from "@willows/doc"
+        deleteBackward, deleteForward, setTextblockType} from "@willows/view"
+import {Tag, DocNode, Schema, basicBuilders, maybeTag, builder, Paragraph, Heading} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
 
@@ -13,7 +13,9 @@ function selectionFrom(doc: DocNode) {
   let ranges: {from: number, to: number}[] = []
   for (let i = 0;; i += 2) {
     let head = maybeTag(doc, i)
-    if (head == null) return EditorSelection.create({anchor: ranges[0].from, head: ranges[0].to, ranges})
+    if (head == null)
+      return ranges.length ? EditorSelection.create({anchor: ranges[0].from, head: ranges[0].to, ranges})
+        : EditorSelection.near(doc, 0)
     ranges.push({from: head, to: maybeTag(doc, i + 1) ?? head})
   }
 }
@@ -162,6 +164,12 @@ describe("deleteSelection", () => {
   })
 })
 
+let TextOnly = Tag.defineBlock("TextOnly", {
+  inlineContent: "Text",
+  dom: {element: "div"},
+  group: "Block"
+}), to = builder(TextOnly)
+
 describe("joinBackward", () => {
   it("can join two paragraphs", () => {
     test(doc(p("a"), p(0, "b")), joinBackward, doc(p("a", 0, "b")))
@@ -198,12 +206,6 @@ describe("joinBackward", () => {
   it("joins parent nodes after", () => {
     test(doc(ul(li(p("a"))), p(0, "b"), ul(li(p("c")))), joinBackward, doc(ul(li(p("a", 0, "b")), li(p("c")))))
   })
-
-  let TextOnly = Tag.defineBlock("TextOnly", {
-    inlineContent: "Text",
-    dom: {element: "div"},
-    group: "Block"
-  }), to = builder(TextOnly)
 
   it("drops nodes not supported by the new parent", () => {
     test(doc(to("a"), p(0, $img())), joinBackward, doc(to("a", 0)))
@@ -246,12 +248,6 @@ describe("joinForward", () => {
   it("joins parent nodes after", () => {
     test(doc(ul(li(p("a", 0))), p("b"), ul(li(p("c")))), joinForward, doc(ul(li(p("a", 0, "b")), li(p("c")))))
   })
-
-  let TextOnly = Tag.defineBlock("TextOnly", {
-    inlineContent: "Text",
-    dom: {element: "div"},
-    group: "Block"
-  }), to = builder(TextOnly)
 
   it("drops nodes not supported by the new parent", () => {
     test(doc(to("a", 0), p($img())), joinForward, doc(to("a", 0)))
@@ -327,5 +323,37 @@ describe("deleteForward", () => {
 
   it("will not clear the document", () => {
     test(doc(0, hr()), deleteForward)
+  })
+})
+
+describe("setTextblockType", () => {
+  it("can change the type of a paragraph", () => {
+    test(doc(p("a", 0), p("b")), setTextblockType(Heading.of(1)), doc(h1("a", 0), p("b")))
+  })
+
+  it("can change the type of two paragraphs", () => {
+    test(doc(p(0, "a"), p("b", 1)), setTextblockType(Heading.of(1)), doc(h1(0, "a"), h1("b", 1)))
+  })
+
+  it("can change the type of two paragraphs at different depth", () => {
+    test(doc(p(0, "a"), blockquote(p("b", 1))), setTextblockType(Heading.of(1)), doc(h1(0, "a"), blockquote(h1("b", 1))))
+  })
+
+  it("returns false at the top level", () => {
+    let s = Schema.define([Tag.defineDoc({inlineContent: true}), Paragraph])
+    test(s.doc([]), setTextblockType(Paragraph))
+  })
+
+  it("returns false when the node is already of that type", () => {
+    test(doc(p(0)), setTextblockType(Paragraph))
+  })
+
+  it("works on multiple selections", () => {
+    test(doc(h1(0, "h"), p("a", 1), blockquote(p("b"), pre("c", 2)), pre("d", 4)), setTextblockType(Paragraph),
+         doc(p(0, "h"), p("a", 1), blockquote(p("b"), p("c", 2)), p("d", 4)))
+  })
+
+  it("clears disallowed content", () => {
+    test(doc(p("a", 0, $img())), setTextblockType(TextOnly), doc(to("a", 0)))
   })
 })

@@ -127,7 +127,7 @@ export class Tag<Param = unknown> {
     return new TagType<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
   }
 
-  static defineDoc(spec: {inlineContent?: string, blockContent?: string}) {
+  static defineDoc(spec: {inlineContent?: string | true, blockContent?: string}) {
     if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
     let flags = TagFlag.NullParam | TagFlag.Doc
     if (spec.inlineContent) flags |= TagFlag.InlineContent
@@ -255,8 +255,8 @@ export class Node {
   isAtom() { return this.tag.isAtom() }
   isDoc() { return this.tag.isDoc() }
 
-  iterate(from: number, to: number, f: (node: Node, pos: number) => boolean | void) {
-    if (f(this, 0) !== false)
+  iterate(from: number, to: number, f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void) {
+    if (f(this, 0, null, 0) !== false)
       this.iterInner(0, from, to, f)
   }
 
@@ -270,13 +270,14 @@ export class Node {
   }
 
   /// @internal
-  iterInner(contentStart: number, from: number, to: number, f: (node: Node, pos: number) => boolean | void) {
+  iterInner(contentStart: number, from: number, to: number,
+            f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void) {
     for (let pos = contentStart, i = 0; i < this.children.length; i++) {
       if (pos >= to) break
       let child = this.children[i], start = pos
       pos += child.length
       if (pos <= from) continue
-      if (f(child, start) !== false) child.iterInner(start + 1, from, to, f)
+      if (f(child, start, this, i) !== false) child.iterInner(start + 1, from, to, f)
     }
   }
 
