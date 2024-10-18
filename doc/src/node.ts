@@ -366,10 +366,10 @@ export class DocNode extends Node {
   }
 
   contextAt(pos: number, maxDepth?: number): readonly Tag[] {
-    for (let cx = this.resolve(pos), context = [];;) {
-      if (!cx.parent || maxDepth != null && context.length == maxDepth) return context
-      context.push(cx.node.tag)
-      cx = cx.parent
+    for (let {parent} = this.resolveX(pos), context = [];;) {
+      if (!parent.parent || maxDepth != null && context.length == maxDepth) return context
+      context.push(parent.node.tag)
+      parent = parent.parent
     }
   }
 }

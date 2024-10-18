@@ -1,4 +1,4 @@
-import {Schema, DocNode, Node, ChangeDesc, Prop, Context, Pos} from "@willows/doc"
+import {Schema, DocNode, Node, ChangeDesc, Prop, Pos, NodePos} from "@willows/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
 export type SelectionJSON = {
@@ -210,17 +210,17 @@ function isBarrier(node: Node) {
 }
 
 function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: boolean) {
-  let $pos = doc.resolve(from), pastBarrier = false
-  if ($pos.inText) {
+  let pos = doc.resolveX(from), pastBarrier = false
+  if (pos.inText) {
     if (!mustMove) return from
-    let text = $pos.node.children[$pos.index].text!
-    let next = findClusterBreak(text, $pos.inText, forward), nextPos = from - $pos.inText + next
-    if (!next) $pos = new Context($pos.node, $pos.index, nextPos, 0, $pos.parent)
-    else if (next == text.length) $pos = new Context($pos.node, $pos.index + 1, nextPos, 0, $pos.parent)
+    let text = pos.parent.node.children[pos.index].text!
+    let next = findClusterBreak(text, pos.inText, forward), nextPos = from - pos.inText + next
+    if (!next) pos = new Pos(pos.parent, nextPos, pos.index, 0)
+    else if (next == text.length) pos = new Pos(pos.parent, nextPos, pos.index + 1, 0)
     else return nextPos
   } else {
-    pastBarrier = !$pos.parent && $pos.index == (forward ? 0 : $pos.node.children.length)
-    for (let {node, index} = $pos; !pastBarrier && (forward ? index : index < node.children.length);) {
+    pastBarrier = !pos.parent.parent && pos.index == (forward ? 0 : pos.parent.node.children.length)
+    for (let {parent: {node}, index} = pos; !pastBarrier && (forward ? index : index < node.children.length);) {
       let before = node.children[forward ? index - 1 : index]
       if (isBarrier(before)) pastBarrier = true
       if (before.inlineContent() || before.isAtom()) break
@@ -229,45 +229,46 @@ function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: 
     }
   }
 
-  let bottom = $pos.pos, dir = forward ? 1 : -1
-  for (let {parent, index, node} = $pos, pos = $pos.pos;;) {
-    if (node.inlineContent() && (pos != from || !mustMove) &&
+  let bottom = pos.pos, dir = forward ? 1 : -1
+  for (let {parent, index} = pos, p = pos.pos;;) {
+    let {node, parent: next} = parent
+    if (parent.node.inlineContent() && (p != from || !mustMove) &&
         (index && index < node.children.length ||
-         !parent || !parent.node.inlineContent() || node.type.spec.cursorInsideBounds))
-      return pos
+         !next || !next.node.inlineContent() || node.type.spec.cursorInsideBounds))
+      return p
     if (index == (forward ? node.children.length : 0)) {
-      let barrier = !parent || isBarrier(node)
+      let barrier = !next || isBarrier(node)
       if ((bottom != from || !mustMove) && pastBarrier && barrier) return bottom
-      if (!parent) return null
-      ;({parent, index, node} = parent)
-      pos += dir
+      if (!next) return null
+      index = parent.index
+      parent = next
+      p += dir
       if (forward) index++
-      bottom = pos
+      bottom = p
       if (barrier) pastBarrier = true
     } else {
-      let next = node.children[index - (forward ? 0 : 1)]
-      if (next.isText()) {
+      let nextNode = node.children[index - (forward ? 0 : 1)]
+      if (nextNode.isText()) {
         if (forward) {
-          let skip = findClusterBreak(next.text, 0, true)
-          if (skip < next.length) return pos + skip
+          let skip = findClusterBreak(nextNode.text, 0, true)
+          if (skip < nextNode.length) return p + skip
         } else {
-          let skip = findClusterBreak(next.text, next.text.length, false)
-          if (skip) return pos - next.length + skip
+          let skip = findClusterBreak(nextNode.text, nextNode.text.length, false)
+          if (skip) return p - nextNode.length + skip
         }
       }
-      let barrier = isBarrier(next)
+      let barrier = isBarrier(nextNode)
       if (pastBarrier && (bottom != from || !mustMove) && barrier) return bottom
-      if (next.isAtom()) {
+      if (nextNode.isAtom()) {
         index += dir
-        pos += next.length * dir
+        p += nextNode.length * dir
       } else {
         if (!forward) index--
-        parent = new Context(node, index, pos, 0, parent)
-        pos += dir
-        index = forward ? 0 : next.children.length
-        node = next
+        parent = new NodePos(parent, nextNode, p - (forward ? 0 : nextNode.length) + 1, index)
+        p += dir
+        index = forward ? 0 : nextNode.children.length
       }
-      if (barrier) { pastBarrier = true; bottom = pos }
+      if (barrier) { pastBarrier = true; bottom = p }
     }
   }
 }

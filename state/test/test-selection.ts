@@ -72,4 +72,8 @@ describe("normalPosAfter", () => {
 
   it("creates positions inside inline content nodes with inside bounds", () =>
     testNormal(doc(p(0, "a", 1, b(2, "b", 3, "c", 4), 5, "d", 6))))
+
+  it("exits text nodes", () => {
+    testNormal(doc(p(0, "a", 1, "b", 2, $img(), 3, "c", 4, "d", 5)))
+  })
 })

@@ -1,4 +1,4 @@
-import {DocNode, Node, Tag, Prop, Context, Walker, ChangeDesc,
+import {DocNode, Node, Tag, Prop, Walker, ChangeDesc, Pos,
         ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {DOMNode} from "./dom"
 
@@ -244,14 +244,14 @@ function wrappers(props: readonly Prop[]) {
 class ContentUpdate {
   old: ContentPointer
   new: ContentElt
-  cursor: Context
+  cursor: Pos
   toSync: ContentElt[] = []
 
   constructor(readonly doc: DocNode, old: DocElt) {
     this.old = new ContentPointer(old, 0, null)
     this.new = new DocElt(doc, old.dom as HTMLElement)
     this.toSync.push(this.new)
-    this.cursor = doc.resolve(0)
+    this.cursor = doc.resolveX(0)
   }
 
   open(tag: Tag, reuse?: NodeElt) {
