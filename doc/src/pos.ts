@@ -70,6 +70,13 @@ export class Pos {
     }
     return cache[cache.length < cacheSize ? cache.length : cachePos = (cachePos + 1) % cacheSize] = result
   }
+
+  static resolveNode(doc: DocNode, pos: number) {
+    let base = this.resolve(doc, pos)
+    if (base.inText) return null
+    let after = base.nodeAfter
+    return after && !after.isText() ? new NodePos(base.parent, after, pos + 1, base.index) : null
+  }
 }
 
 const posCache = new Map<DocNode, {top: NodePos, cache: Pos[]}>(), cacheSize = 8
@@ -85,21 +92,29 @@ export class NodePos {
   constructor(
     readonly parent: NodePos | null,
     readonly node: Node,
-    readonly start: number,
+    private readonly _start: number,
     readonly index: number
   ) {}
 
   get before() {
     if (!this.parent) throw new Error("Accessing `before` on the top level node")
-    return this.start - 1
+    return this._start - 1
   }
 
   get after() {
     if (!this.parent) throw new Error("Accessing `after` on the top level node")
-    return this.start - 1 + this.node.length
+    return this._start - 1 + this.node.length
   }
 
-  get end() { return this.start + this.node.contentLength }
+  get start() {
+    if (this.node.isLeaf()) throw new Error("Accessing `start` on a leaf node")
+    return this._start
+  }
+
+  get end() {
+    if (this.node.isLeaf()) throw new Error("Accessing `end` on a leaf node")
+    return this._start + this.node.contentLength
+  }
 
   get nextSibling() {
     return !this.parent || this.index == this.parent.node.children.length - 1 ? null

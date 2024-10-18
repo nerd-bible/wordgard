@@ -360,6 +360,10 @@ export class DocNode extends Node {
     return Pos.resolve(this, pos)
   }
 
+  resolveNode(pos: number) {
+    return Pos.resolveNode(this, pos)
+  }
+
   contextAt(pos: number, maxDepth?: number): readonly Tag[] {
     for (let {parent} = this.resolve(pos), context = [];;) {
       if (!parent.parent || maxDepth != null && context.length == maxDepth) return context

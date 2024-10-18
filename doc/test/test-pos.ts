@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Pos, Walker, DocNode, basicBuilders, tag} from "@willows/doc"
-const {doc, p, br, li, ul} = basicBuilders
+const {doc, p, br, li, ul, $img} = basicBuilders
 
 function testPos(name: string, doc: DocNode, ...contexts: ([string, number] | [string, number, number])[]) {
   it(name, () => {
@@ -60,5 +60,18 @@ describe("Context", () => {
     let d = doc(p("abc")), c1 = d.resolve(1), c2 = d.resolve(2)
     ist(d.resolve(1), c1)
     ist(d.resolve(2), c2)
+  })
+
+  it("can represent nodes", () => {
+    let d = doc(p("abc", $img()))
+    ist(d.resolveNode(1), null)
+    ist(d.resolveNode(5), null)
+    let pPos = d.resolveNode(0)!, iPos = d.resolveNode(4)!
+    ist(pPos.before, 0)
+    ist(pPos.start, 1)
+    ist(pPos.after, 6)
+    ist(iPos.before, 4)
+    ist(iPos.after, 5)
+    ist.throws(() => iPos.start, /leaf/)
   })
 })
