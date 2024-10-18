@@ -251,7 +251,7 @@ class ContentUpdate {
     this.old = new ContentPointer(old, 0, null)
     this.new = new DocElt(doc, old.dom as HTMLElement)
     this.toSync.push(this.new)
-    this.cursor = doc.resolveX(0)
+    this.cursor = doc.resolve(0)
   }
 
   open(tag: Tag, reuse?: NodeElt) {

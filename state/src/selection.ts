@@ -23,8 +23,8 @@ export class SelectionPos {
   head: Pos
 
   constructor(doc: DocNode, readonly selection: EditorSelection) {
-    this.anchor = doc.resolveX(selection.anchor)
-    this.head = selection.empty ? this.anchor : doc.resolveX(selection.head)
+    this.anchor = doc.resolve(selection.anchor)
+    this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
   }
 
   get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
@@ -210,7 +210,7 @@ function isBarrier(node: Node) {
 }
 
 function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: boolean) {
-  let pos = doc.resolveX(from), pastBarrier = false
+  let pos = doc.resolve(from), pastBarrier = false
   if (pos.inText) {
     if (!mustMove) return from
     let text = pos.parent.node.children[pos.index].text!

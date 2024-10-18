@@ -169,7 +169,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
     before = before.children[last]
     pos--
   }
-  let changes = joinBlocks(state.doc.resolveX(pos - 1), head).concat(clearNonFitting(head.parent, before.type))
+  let changes = joinBlocks(state.doc.resolve(pos - 1), head).concat(clearNonFitting(head.parent, before.type))
   if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
@@ -221,7 +221,7 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     return true
   }
   let from = pos - before.length, to = pos
-  let parent: NodePos | null = state.doc.resolveX(pos).parent
+  let parent: NodePos | null = state.doc.resolve(pos).parent
   while (parent && parent.node.isBlock() && parent.node.children.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent

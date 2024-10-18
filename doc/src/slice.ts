@@ -1,6 +1,6 @@
 import {TokenType, Node, NodeJSON, TagJSON, Tag} from "./node"
 import {Schema} from "./schema"
-import {Walker} from "./context"
+import {Walker} from "./pos"
 
 export class OpenToken {
   constructor(readonly tag: Tag) { // FIXME only put tag/props in here?

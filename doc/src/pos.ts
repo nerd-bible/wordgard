@@ -1,7 +1,12 @@
-import {Node, TextNode, DocNode} from "./node"
-import {Walker} from "./context" // FIXME move
+import {Tag, Node, TextNode, DocNode} from "./node"
 import {Prop} from "./prop"
 import {none} from "./helper"
+
+export interface Walker {
+  skip(node: Node): void
+  enter(tag: Tag): void
+  leave(): void
+}
 
 export class Pos {
   constructor(

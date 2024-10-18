@@ -4,7 +4,7 @@ const {doc, p, br, li, ul} = basicBuilders
 
 function testPos(name: string, doc: DocNode, ...contexts: ([string, number] | [string, number, number])[]) {
   it(name, () => {
-    let p = tag(doc, 0), pos = doc.resolveX(p)
+    let p = tag(doc, 0), pos = doc.resolve(p)
     ist(pos.pos, p)
     ist(pos.depth, contexts.length - 1)
     for (let i = 0, {parent, index, inText} = pos; i < contexts.length; i++) {
@@ -43,12 +43,11 @@ describe("Context", () => {
   })
 
   it("reports proper node positions", () => {
-    let cx = doc(p(), ul(li(p(br())), li(p("ab"), p())), p()).resolve(11)
+    let cx = doc(p(), ul(li(p(br())), li(p("ab"), p())), p()).resolve(11).parent
     ist(cx.start, 10)
     ist(cx.end, 12)
     ist(cx.before, 9)
     ist(cx.after, 13)
-    ist(cx.depth, 3)
     ist(cx.parent!.start, 9)
     ist(cx.parent!.end, 15)
     ist(cx.parent!.parent!.start, 3)

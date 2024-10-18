@@ -102,12 +102,12 @@ export function rChangeSpec(doc: DocNode) {
 const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Insert a few characters
   doc => {
-    let pos = doc.resolveX(r(doc.length))
+    let pos = doc.resolve(r(doc.length))
     return pos.parent.node.inlineContent() ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
   },
   // Delete some inline content
   doc => {
-    let pos = r(doc.length), cx = doc.resolveX(pos).parent
+    let pos = r(doc.length), cx = doc.resolve(pos).parent
     if (!cx.node.inlineContent() || cx.start == cx.end) return null
     let from = pos > cx.start ? pos - 1 : pos
     return {from, to: pos < cx.end && (from == pos || r(2)) ? pos + 1 : pos}

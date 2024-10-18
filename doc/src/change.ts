@@ -2,8 +2,7 @@ import {Node, DocNode, Tag, TokenType} from "./node"
 import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
 import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
-import {Pos, NodePos} from "./pos"
-import {Walker} from "./context"
+import {Walker, Pos, NodePos} from "./pos"
 import {validate} from "./helper"
 
 class BuildContext {
@@ -478,7 +477,7 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
         if (fit) {
           doCorrect = true
           ;({from, to, slice: insert} =
-            fitReplacement(doc, doc.resolveX(from), doc.resolveX(to), insert, fit === true ? [] : fit))
+            fitReplacement(doc, doc.resolve(from), doc.resolve(to), insert, fit === true ? [] : fit))
         }
         if (insert.length || to != from)
           section(from, to, insert.length, insert)

@@ -1,7 +1,6 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
 import {TagSpec} from "./spec"
 import {Schema} from "./schema"
-import {Context} from "./context"
 import {Pos} from "./pos"
 import {PropType, Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
@@ -358,15 +357,11 @@ export class DocNode extends Node {
   }
 
   resolve(pos: number) {
-    return Context.resolve(this, pos)
-  }
-
-  resolveX(pos: number) {
     return Pos.resolve(this, pos)
   }
 
   contextAt(pos: number, maxDepth?: number): readonly Tag[] {
-    for (let {parent} = this.resolveX(pos), context = [];;) {
+    for (let {parent} = this.resolve(pos), context = [];;) {
       if (!parent.parent || maxDepth != null && context.length == maxDepth) return context
       context.push(parent.node.tag)
       parent = parent.parent

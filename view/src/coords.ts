@@ -227,7 +227,7 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
   }
 
   // FIXME find block/inline status from cView?
-  let cx = view.state.doc.resolveX(cView.elt.posAtStart)
+  let cx = view.state.doc.resolve(cView.elt.posAtStart)
   // Return a horizontal line in block context
   if (!cx.parent.node.inlineContent()) {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
