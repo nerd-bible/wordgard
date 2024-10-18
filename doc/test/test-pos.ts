@@ -1,33 +1,35 @@
 import ist from "ist"
-import {Context, Walker, DocNode, basicBuilders, tag} from "@willows/doc"
+import {Pos, Walker, DocNode, basicBuilders, tag} from "@willows/doc"
 const {doc, p, br, li, ul} = basicBuilders
 
-function testCx(name: string, doc: DocNode, ...contexts: ([string, number] | [string, number, number])[]) {
+function testPos(name: string, doc: DocNode, ...contexts: ([string, number] | [string, number, number])[]) {
   it(name, () => {
-    let pos = tag(doc, 0), cx = doc.resolve(pos)
-    ist(cx.pos, pos)
-    for (let i = 0; i < contexts.length; i++) {
-      let [name, index, inText = 0] = contexts[i]
-      ist(cx.node.name, name)
-      ist(cx.index, index)
-      ist(cx.inText, inText)
-      cx = cx.parent!
+    let p = tag(doc, 0), pos = doc.resolveX(p)
+    ist(pos.pos, p)
+    ist(pos.depth, contexts.length - 1)
+    for (let i = 0, {parent, index, inText} = pos; i < contexts.length; i++) {
+      let [name, idx, txt = 0] = contexts[i]
+      ist(parent.node.name, name)
+      ist(index, idx)
+      ist(inText, txt)
+      index = parent.index
+      inText = 0
+      parent = parent.parent!
     }
-    ist(cx, null)
   })
 }
 
 describe("Context", () => {
-  testCx("can find a top-level position", doc(p("one"), 0, p("two")), ["Doc", 1])
+  testPos("can find a top-level position", doc(p("one"), 0, p("two")), ["Doc", 1])
 
-  testCx("can find a position in text", doc(p("on", 0, "e")), ["Paragraph", 0, 2], ["Doc", 0])
+  testPos("can find a position in text", doc(p("on", 0, "e")), ["Paragraph", 0, 2], ["Doc", 0])
 
-  testCx("can find a position in a nested block", doc(p(), ul(li(p(), p(0)))),
+  testPos("can find a position in a nested block", doc(p(), ul(li(p(), p(0)))),
          ["Paragraph", 0], ["ListItem", 1], ["BulletList", 0], ["Doc", 1])
 
   it("can walk through a document", () => {
     let d = doc(p("one"), ul(li(p("a", br(), "b"), p())))
-    let cx = Context.atStart(d)
+    let cx = Pos.atStart(d)
     let tokens = "OPEN(Paragraph) o n e CLOSE OPEN(BulletList) OPEN(ListItem) OPEN(Paragraph) a LineBreak" +
       " b CLOSE OPEN(Paragraph) CLOSE CLOSE CLOSE"
     let found: string[] = []

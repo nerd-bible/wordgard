@@ -1,4 +1,4 @@
-import {Node, Tag, TagType, Context, Pos, NodePos, Slice, Text, Token,
+import {Node, Tag, TagType, Pos, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken, OpenToken} from "@willows/doc"
 import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
@@ -221,12 +221,12 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     return true
   }
   let from = pos - before.length, to = pos
-  let cx: Context | null = state.doc.resolve(pos)
-  while (cx && cx.node.isBlock() && cx.node.children.length == 1 && cx.parent) {
+  let parent: NodePos | null = state.doc.resolveX(pos).parent
+  while (parent && parent.node.isBlock() && parent.node.children.length == 1) {
+    if (!parent.parent) return false
+    parent = parent.parent
     from--; to++
-    cx = cx.parent
   }
-  if (from == 0 && to == state.doc.length) return false
   dispatch(state.update({
     changes: {from, to},
     scrollIntoView: true

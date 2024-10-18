@@ -524,8 +524,7 @@ handlers.dragend = view => {
 handlers.drop = (view, event: DragEvent) => {
   if (!event.dataTransfer || view.state.readOnly) return true
   // FIXME allow handling of file drops
-  let content = readClipboard(view.state, event.dataTransfer,
-                              view.state.doc.resolve(view.state.selection.head), false)
+  let content = readClipboard(view.state, event.dataTransfer, view.state.selPos.head, false)
   if (content) {
     let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY})
     let {draggedContent} = view.inputState
@@ -548,8 +547,7 @@ handlers.paste = (view: EditorView, event: ClipboardEvent) => {
   if (view.state.readOnly || !event.clipboardData) return true
   view.observer.read()
   let {state} = view
-  let content = readClipboard(state, event.clipboardData,
-                              state.doc.resolve(state.selection.head), view.inputState.shiftKey)
+  let content = readClipboard(state, event.clipboardData, state.selPos.head, view.inputState.shiftKey)
   if (content) { // FIXME proper multi-selection pasting
     view.dispatch({
       changes: {from: state.selection.from, to: state.selection.to, insert: content.slice, fit: content.context},
@@ -613,10 +611,6 @@ observers.contextmenu = view => {
   view.inputState.lastContextMenu = Date.now()
 }
 
-function cursorContext(state: EditorState) {
-  return state.doc.resolve(state.selection.head)
-}
-
 handlers.beforeinput = (view, event: InputEvent) => {
   for (let handler of view.state.facet(inputEventHandler))
     if (handler.event == event.type && handler.run(view)) return true
@@ -627,10 +621,9 @@ handlers.beforeinput = (view, event: InputEvent) => {
       setTimeout(() => observers.compositionend(view, event), 20)
 
     let slice = event.inputType == "insertText"
-      ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "),
-                             view.state.doc.resolve(view.state.selection.from).props())])
+      ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "), view.state.selPos.from.props())])
       // FIXME why is this in a dataTransfer anyway?
-      : readClipboard(view.state, event.dataTransfer!, cursorContext(view.state), true)?.slice
+      : readClipboard(view.state, event.dataTransfer!, view.state.selPos.head, true)?.slice
     let ranges = event.getTargetRanges()
     if (slice && ranges.length) {
       let r = ranges[0]

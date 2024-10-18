@@ -1,4 +1,4 @@
-import {Slice, Text, Node, Context, serializeSlice, parseSlice,
+import {Slice, Text, Node, Pos, serializeSlice, parseSlice,
         OpenSide, Token, CloseToken, OpenToken} from "@willows/doc"
 import {EditorState} from "@willows/state"
 import browser from "./browser"
@@ -40,10 +40,10 @@ function isOpen(elt: HTMLElement) {
 }
 
 // FIXME choice between text and HTML. Check context?
-export function readClipboard(state: EditorState, data: DataTransfer, context: Context, plain: boolean) {
+export function readClipboard(state: EditorState, data: DataTransfer, context: Pos, plain: boolean) {
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
-  if (text && (context.node.type.preserveWhitespace || !html || plain))
+  if (text && (context.parent.node.type.preserveWhitespace || !html || plain))
     return text ? {slice: readClipboardText(state, text, context, plain), context: []} : null
 
   // FIXME transform HTML
@@ -60,14 +60,14 @@ export function readClipboard(state: EditorState, data: DataTransfer, context: C
   return slice
 }
 
-function readClipboardText(state: EditorState, text: string, context: Context, plain: boolean) {
+function readClipboardText(state: EditorState, text: string, context: Pos, plain: boolean) {
   // FIXME text filtering, custom parsers
   let props = plain ? [] : context.props()
-  if (context.node.type.preserveWhitespace) return new Slice([Node.text(text.replace(/\r?\n|\r/g, "\n"), props)])
+  if (context.parent.node.type.preserveWhitespace) return new Slice([Node.text(text.replace(/\r?\n|\r/g, "\n"), props)])
   let lines = text.split(/(?:\r\n?|\n)+/)
   let content: Token[] = lines[0] ? [Node.text(lines[0], props)] : []
   if (lines.length == 1) return new Slice(content)
-  let parent = (context.node.inlineContent() ? context.parent || context : context).node.tag
+  let parent = (context.parent.node.inlineContent() ? context.parent.parent || context.parent : context.parent).node.tag
   let wrapping = state.doc.schema.findWrapping(parent.type, Text)
   if (!wrapping || !wrapping.length) return new Slice([Node.text(text.replace(/\r?\n|\r/g, " "), props)])
   let wrapper = wrapping[wrapping.length - 1]
