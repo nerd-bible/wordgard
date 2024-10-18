@@ -1,5 +1,6 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
-        splitTextblock, deleteSelection, joinBackward, deleteBackward} from "@willows/view"
+        splitTextblock, deleteSelection, joinBackward, joinForward,
+        deleteBackward} from "@willows/view"
 import {Tag, DocNode, basicBuilders, maybeTag, builder} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
@@ -206,6 +207,54 @@ describe("joinBackward", () => {
 
   it("drops nodes not supported by the new parent", () => {
     test(doc(to("a"), p(0, $img())), joinBackward, doc(to("a", 0)))
+  })
+})
+
+describe("joinForward", () => {
+  it("can join two paragraphs", () => {
+    test(doc(p("a", 0), p("b")), joinForward, doc(p("a", 0, "b")))
+  })
+
+  it("can join when the start is deeper than the end", () => {
+    test(doc(blockquote(p("a", 0)), p("b")), joinForward, doc(blockquote(p("a", 0, "b"))))
+  })
+
+  it("can join when the start is much deeper than the end", () => {
+    test(doc(ul(li(blockquote(p("a", 0)))), p("b")), joinForward, doc(ul(li(blockquote(p("a", 0, "b"))))))
+  })
+
+  it("can drop extra tokens after the end", () => {
+    test(doc(ul(li(p("a", 0))), blockquote(p("b"))), joinForward, doc(ul(li(p("a", 0, "b")))))
+  })
+
+  it("can join when the end is deeper than the start", () => {
+    test(doc(p("a", 0), blockquote(p("b"))), joinForward, doc(p("a", 0, "b")))
+  })
+
+  it("can join when the end is much deeper than the start", () => {
+    test(doc(p("a", 0), ul(li(blockquote(p("b"))))), joinForward, doc(p("a", 0, "b")))
+  })
+
+  it("does nothing when not at the end of a textblock", () => {
+    test(doc(p(0, "a"), p("b")), joinForward)
+  })
+
+  it("drops the type of the first block if it's empty", () => {
+    test(doc(h1(0), p("a")), joinForward, doc(p(0, "a")))
+  })
+
+  it("joins parent nodes after", () => {
+    test(doc(ul(li(p("a", 0))), p("b"), ul(li(p("c")))), joinForward, doc(ul(li(p("a", 0, "b")), li(p("c")))))
+  })
+
+  let TextOnly = Tag.defineBlock("TextOnly", {
+    inlineContent: "Text",
+    dom: {element: "div"},
+    group: "Block"
+  }), to = builder(TextOnly)
+
+  it("drops nodes not supported by the new parent", () => {
+    test(doc(to("a", 0), p($img())), joinForward, doc(to("a", 0)))
   })
 })
 

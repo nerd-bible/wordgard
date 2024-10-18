@@ -183,6 +183,38 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   return true
 }
 
+export const joinForward: StateCommand = ({state, dispatch}) => {
+  let {head, empty} = state.selPos
+  if (!empty || !head.parent.node.isTextblock() || head.pos != head.parent.end) return false
+  let scan = head.parent, target = scan.node
+  for (;;) {
+    if (!scan.parent) return false
+    if (scan.index < scan.parent.node.children.length - 1) break
+    scan = scan.parent
+    if (scan.node.type.isolating || !scan.node.isBlock()) return false
+  }
+  let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
+  while (!after.isTextblock()) {
+    if (after.type.isolating || after.isAtom() || !after.isBlock()) return false
+    if (!after.children.length) return false
+    parent = after
+    after = after.children[0]
+    pos++
+  }
+  let posAfter = state.doc.resolve(pos + 1)
+  let changes = joinBlocks(head, posAfter).concat(clearNonFitting(posAfter.parent, target.type))
+  if (!target.children.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
+    changes.push({
+      from: head.parent.before, to: head.parent.start,
+      insert: new Slice([new OpenToken(after.tag)])
+    })
+  dispatch(state.update({
+    changes,
+    scrollIntoView: true
+  }))
+  return true
+}
+
 export const deleteBackward: StateCommand = ({state, dispatch}) => {
   let sel = state.selPos
   if (!sel.empty) return false
@@ -234,6 +266,10 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
   return true
 }
 
+export const deleteForward: StateCommand = ({state, dispatch}) => {
+  return false // FIXME
+}
+
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
     createTextblock(view) ||
@@ -245,4 +281,10 @@ export const defaultBackspace: Command = (view: EditorView) => {
   return deleteSelection(view) ||
     joinBackward(view) ||
     deleteBackward(view)
+}
+
+export const defaultDelete: Command = (view: EditorView) => {
+  return deleteSelection(view) ||
+    joinForward(view) ||
+    deleteForward(view)
 }
