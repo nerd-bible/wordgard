@@ -66,7 +66,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
     else before.push(CloseToken)
     if (index < level.node.children.length - 1) atEnd = false
     if (atEnd) end++
-    else after.unshift(new OpenToken(level.node.tag))
+    else after.unshift(new OpenToken(level.node.tag.split(false)))
   }
   return false
 }
@@ -76,9 +76,12 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
   if (!before.node.isTextblock() || !before.parent) return false
   let after = sel.to.parent, tagAfter = null
   if (after.node.isTextblock()) {
-    let tag = after.node.tag, atEnd = sel.to.pos == after.end
+    let atEnd = sel.to.pos == after.end, tag = after.node.tag.split(atEnd)
     if (tag.type.spec.splitTag) tagAfter = tag.type.spec.splitTag(tag, atEnd)
-    if (atEnd && !tagAfter && after.parent) tagAfter = state.doc.schema.defaultContentType(after.parent.node.type)
+    if (atEnd && !tagAfter && after.parent) {
+      let defaultType = state.doc.schema.defaultContentType(after.parent.node.type)
+      if (defaultType) tagAfter = tag.changeType(defaultType)
+    }
     if (!tagAfter) tagAfter = tag
   }
   let tokens: Token[] = [CloseToken]
@@ -89,9 +92,11 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
   }]
   if (sel.from.pos == before.start && before.parent) {
     let deflt = state.doc.schema.defaultContentType(before.parent.node.type)
-    // FIXME make configurable? Inherit selected props?
     if (deflt && !deflt.eq(before.node.tag))
-      changes.unshift({from: sel.from.pos - 1, to: sel.from.pos, insert: new Slice([new OpenToken(deflt)])})
+      changes.unshift({
+        from: sel.from.pos - 1, to: sel.from.pos,
+        insert: new Slice([new OpenToken(before.node.tag.changeType(deflt))])
+      })
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
   dispatch(state.update({
@@ -174,7 +179,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
-      insert: new Slice([new OpenToken(target.tag)])
+      insert: new Slice([new OpenToken(before.tag.changeType(target.tag))])
     })
   dispatch(state.update({
     changes,
@@ -207,7 +212,7 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
   if (!target.children.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
     changes.push({
       from: head.parent.before, to: head.parent.start,
-      insert: new Slice([new OpenToken(after.tag)])
+      insert: new Slice([new OpenToken(target.tag.changeType(after.tag))])
     })
   dispatch(state.update({
     changes,
@@ -215,6 +220,8 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
   }))
   return true
 }
+
+// FIXME do auto-joining in delete commands
 
 export const deleteBackward: StateCommand = ({state, dispatch}) => {
   let sel = state.selPos
@@ -325,7 +332,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
         if (node.isTextblock() && pos > lastBlock && !node.tag.eq(tag) && parent && parent.type.canContain(tag.type)) {
           lastBlock = pos
           // FIXME more refined handling of props
-          changes.push({from: pos, to: pos + 1, insert: new Slice([new OpenToken(tag)])})
+          changes.push({from: pos, to: pos + 1, insert: new Slice([new OpenToken(node.tag.changeType(tag))])})
           for (let ch of clearNonFitting(node, pos, tag.type)) changes.push(ch)
         }
       })

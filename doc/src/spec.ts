@@ -97,6 +97,13 @@ export type PropSpec<Value> = {
   /// true for specs with an element representation, false
   /// for specs with an attribute representation.
   spanning?: boolean
+  /// Used by `Tag.split` to determine whether to keep this prop in
+  /// the split-off tag. `atEnd` will be true if the split happens at
+  /// the end of the node's content.
+  keepOnSplit?: boolean | ((tag: Tag<unknown>, atEnd: boolean) => boolean)
+  /// Used by `Tag.changeType` to decide whether props of this type
+  /// are preserved after the type change.
+  keepOnTypeChange?: boolean | ((from: Tag<unknown>, to: TagType<unknown>) => boolean)
   /// A function or type name used to validate values of this prop.
   /// See [`TagSpec.validateParam`](#doc.TagSpec.validateParam).
   validate?: string | ((value: Value) => void)

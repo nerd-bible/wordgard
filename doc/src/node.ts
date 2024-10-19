@@ -159,6 +159,28 @@ export class Tag<Param = unknown> {
   removeProp(prop: Prop<any> | PropType<any>) { return this.type.of(this.param, prop.removeFromSet(this.props)) }
   hasProp(prop: Prop<any> | PropType<any>) { return prop.isInSet(this.props) }
 
+  withProps(props: readonly Prop<any>[]) {
+    return eqArray(this.props, props) ? this : this.type.of(this.param, props)
+  }
+
+  split(atEnd: boolean) {
+    return this.props.length ? this.withProps(this.props.filter(p => {
+      let {keepOnSplit} = p.type.spec
+      return keepOnSplit && (keepOnSplit === true || keepOnSplit(this as Tag<any>, atEnd))
+    })) : this
+  }
+
+  changeType(to: Tag<any>) {
+    if (!this.props.length) return to
+    let props = to.props
+    for (let prop of this.props) if (prop.type.set || !prop.isInSet(props)) {
+      let {keepOnTypeChange} = prop.type.spec
+      if (keepOnTypeChange && (keepOnTypeChange === true || keepOnTypeChange(this as Tag<any>, to.type)))
+        props = prop.addToSet(props)
+    }
+    return to.withProps(props)
+  }
+
   isInline() { return this.type.isInline() }
   isText(): this is Tag<string> { return this.type.isText() }
   isBlock() { return this.type.isBlock() }
@@ -317,7 +339,8 @@ export class Node {
   prop<Value>(prop: PropType<Value>): Value | undefined { return this.tag.prop(prop) }
 
   withProps(props: readonly Prop<any>[]) {
-    return eqArray(this.tag.props, props) ? this : new Node(this.type.of(this.tag.param, props), this.children)
+    let tag = this.tag.withProps(props)
+    return tag == this.tag ? this : new Node(tag, this.children)
   }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
