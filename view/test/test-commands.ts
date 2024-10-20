@@ -1,7 +1,8 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
-        deleteBackward, deleteForward, setTextblockType} from "@willows/view"
-import {Tag, Prop, DocNode, Schema, basicBuilders, maybeTag, builder, Paragraph, Heading} from "@willows/doc"
+        deleteBackward, deleteForward, setTextblockType, wrapBlock} from "@willows/view"
+import {Tag, Prop, DocNode, Schema, basicBuilders, maybeTag, builder,
+        Paragraph, Heading, Blockquote, BulletList} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
 
@@ -393,5 +394,36 @@ describe("setTextblockType", () => {
 
   it("drops props when appropriate", () => {
     test(doc(bp(p(0, "a"))), setTextblockType(Heading.of(1)), doc(h1(0, "a")))
+  })
+})
+
+describe("wrapBlock", () => {
+  it("can wrap a paragraph in a blockquote", () => {
+    test(doc(p(0)), wrapBlock(Blockquote), doc(blockquote(p(0))))
+  })
+
+  it("can wrap two paragraphs in a blockquote", () => {
+    test(doc(p(0), p(1)), wrapBlock(Blockquote), doc(blockquote(p(0), p(1))))
+  })
+
+  it("can wrap three paragraphs in a blockquote", () => {
+    test(doc(p(0), p("wow"), p(1)), wrapBlock(Blockquote), doc(blockquote(p(0), p("wow"), p(1))))
+  })
+
+  it("can content inside a blockquote", () => {
+    test(doc(blockquote(p("a"), p(0), p("b"))), wrapBlock(Blockquote), doc(blockquote(p("a"), blockquote(p(0)), p("b"))))
+  })
+
+  it("will expand to cover a partially selected node", () => {
+    test(doc(p(0), blockquote(p(1), p("a"))), wrapBlock(Blockquote), doc(blockquote(p(0), blockquote(p(1), p("a")))))
+  })
+
+  it("will create required wrapper nodes", () => {
+    test(doc(p("a", 0), p("b"), p("c", 1), p("d")), wrapBlock(BulletList),
+         doc(ul(li(p("a", 0)), li(p("b")), li(p("c", 1))), p("d")))
+  })
+
+  it("will pick the innermost valid depth", () => {
+    test(doc(blockquote(p("a", 0))), wrapBlock(BulletList), doc(blockquote(ul(li(p("a", 0))))))
   })
 })

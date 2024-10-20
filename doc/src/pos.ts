@@ -31,11 +31,7 @@ export class Pos {
     return this.index ? this.parent.node.children[this.index - 1] : null
   }
 
-  get depth() {
-    let d = 0
-    for (let n = this.parent; n.parent; n = n.parent) d++
-    return d
-  }
+  get depth() { return this.parent.depth }
 
   props(across?: Pos) {
     if (this.inText && !across) return this.parent.node.children[this.index].tag.props
@@ -114,6 +110,12 @@ export class NodePos {
   get end() {
     if (this.node.isLeaf()) throw new Error("Accessing `end` on a leaf node")
     return this._start + this.node.contentLength
+  }
+
+  get depth() {
+    let d = 0
+    for (let n: NodePos = this; n.parent; n = n.parent) d++
+    return d
   }
 
   get nextSibling() {

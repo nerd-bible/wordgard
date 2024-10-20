@@ -1,4 +1,4 @@
-import {Node, Tag, TagType, Pos, NodePos, Slice, Text, Token,
+import {Node, Tag, TagType, Schema, Pos, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken, OpenToken} from "@willows/doc"
 import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
@@ -336,6 +336,61 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
           for (let ch of clearNonFitting(node, pos, tag.type)) changes.push(ch)
         }
       })
+    }
+    if (!changes.length) return false
+    dispatch(state.update({changes, scrollIntoView: true}))
+    return true
+  }
+}
+
+export function findWrappableLevel(schema: Schema, from: Pos, to: Pos, wrapper: Tag<any>) {
+  let dFrom = from.depth, dTo = to.depth
+  let pFrom = from.parent, pTo = to.parent
+  while (dFrom > dTo) { pFrom = pFrom.parent!; dFrom-- }
+  while (dTo > dFrom) { pTo = pTo.parent!; dTo-- }
+  for (;;) {
+    if (!pFrom.parent) return null
+    if (pFrom.parent.start == pTo.parent!.start && pFrom.parent.node.type.canContain(wrapper.type)) break
+    pFrom = pFrom.parent; pTo = pTo.parent!
+  }
+  for (let i = pFrom.index; i < pTo.index + 1; i++) {
+    let ch = pFrom.parent.node.children[i]
+    if (!schema.findWrapping(wrapper.type, ch.type)) return null
+  }
+  return {from: new Pos(pFrom.parent, pFrom.before, pFrom.index, 0),
+          to: new Pos(pFrom.parent, pTo.after, pTo.index + 1, 0)}
+}
+
+export function wrapBlockRange(schema: Schema, range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
+  let changes: ChangeSpec[] = [], parent = range.from.parent.node
+  for (let i = range.from.index, openWrappers = 0, pos = range.from.pos;; i++) {
+    let tokens: Token[] = []
+    for (let j = 0; j < openWrappers; j++) tokens.push(CloseToken)
+    if (i == range.from.index) {
+      tokens.push(new OpenToken(wrapper))
+    } else if (i == range.to.index) {
+      tokens.push(CloseToken)
+      changes.push({from: pos, insert: new Slice(tokens)})
+      break
+    }
+    let child = parent.children[i]
+    let wrapping = schema.findWrapping(wrapper.type, child.type)!
+    for (let tag of wrapping) tokens.push(new OpenToken(tag))
+    openWrappers = wrapping.length
+    changes.push({from: pos, insert: new Slice(tokens)})
+    pos += child.length
+  }
+  return changes
+}
+
+export function wrapBlock(wrapper: Tag<any>): StateCommand {
+  return ({state, dispatch}) => {
+    let changes: ChangeSpec[] = [], {schema} = state.doc, lastTo = -1
+    for (let {from, to} of state.selection.ranges) {
+      let range = findWrappableLevel(schema, state.doc.resolve(from), state.doc.resolve(to), wrapper)
+      if (!range || range.from.pos < lastTo) continue
+      changes.push(wrapBlockRange(schema, range, wrapper))
+      lastTo = range.to.pos
     }
     if (!changes.length) return false
     dispatch(state.update({changes, scrollIntoView: true}))
