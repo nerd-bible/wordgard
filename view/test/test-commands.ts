@@ -1,7 +1,7 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
         deleteBackward, deleteForward, setTextblockType} from "@willows/view"
-import {Tag, DocNode, Schema, basicBuilders, maybeTag, builder, Paragraph, Heading} from "@willows/doc"
+import {Tag, Prop, DocNode, Schema, basicBuilders, maybeTag, builder, Paragraph, Heading} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
 
@@ -38,6 +38,26 @@ function test(doc: DocNode, command: StateCommand, expect?: DocNode) {
   }
 }
 
+let TextOnly = Tag.defineBlock("TextOnly", {
+  inlineContent: "Text",
+  dom: {element: "div"},
+  group: "Block"
+}), to = builder(TextOnly)
+
+let BlockProp = Prop.define("BlockProp", {
+  keepOnSplit: false,
+  keepOnTypeChange: false,
+  tags: "Block",
+  dom: {element: "prop1"}
+}), bp = builder(BlockProp)
+
+let PreservedProp = Prop.define("PreservedProp", {
+  keepOnSplit: true,
+  keepOnTypeChange: true,
+  tags: "Block",
+  dom: {element: "prop2"}
+}), pp = builder(PreservedProp)
+
 describe("liftEmptyBlock", () => {
   it("can lift a paragraph out of a quote", () => {
     test(doc(blockquote(p(0))), liftEmptyBlock, doc(p(0)))
@@ -65,6 +85,14 @@ describe("liftEmptyBlock", () => {
 
   it("only goes up to the next parent that fits", () => {
     test(doc(blockquote(blockquote(p(0), p("a")))), liftEmptyBlock, doc(blockquote(p(0), blockquote(p("a")))))
+  })
+
+  it("preserves props on nodes it splits", () => {
+    test(doc(pp(blockquote(p("a"), p(0), p("b")))), liftEmptyBlock, doc(pp(blockquote(p("a"))), p(0), pp(blockquote(p("b")))))
+  })
+
+  it("can drop props on nodes it splits", () => {
+    test(doc(bp(blockquote(p("a"), p(0), p("b")))), liftEmptyBlock, doc(bp(blockquote(p("a"))), p(0), blockquote(p("b"))))
   })
 })
 
@@ -132,6 +160,14 @@ describe("splitTextblock", () => {
   it("resets the origin block when splitting at the start", () => {
     test(doc(h1(0, "a")), splitTextblock, doc(p(), h1(0, "a")))
   })
+
+  it("preserves props", () => {
+    test(doc(pp(p("a", 0, "b"))), splitTextblock, doc(pp(p("a")), pp(p(0, "b"))))
+  })
+
+  it("drops props when appropriate", () => {
+    test(doc(bp(p("a", 0, "b"))), splitTextblock, doc(bp(p("a")), p(0, "b")))
+  })
 })
 
 describe("deleteSelection", () => {
@@ -163,12 +199,6 @@ describe("deleteSelection", () => {
     test(doc(p("a", 0, "b", 1, "c", 2, "d", 3, "e")), deleteSelection, doc(p("a", 0, "c", 2, "e")))
   })
 })
-
-let TextOnly = Tag.defineBlock("TextOnly", {
-  inlineContent: "Text",
-  dom: {element: "div"},
-  group: "Block"
-}), to = builder(TextOnly)
 
 describe("joinBackward", () => {
   it("can join two paragraphs", () => {
@@ -355,5 +385,13 @@ describe("setTextblockType", () => {
 
   it("clears disallowed content", () => {
     test(doc(p("a", 0, $img())), setTextblockType(TextOnly), doc(to("a", 0)))
+  })
+
+  it("preserves props when appropriate", () => {
+    test(doc(pp(p(0, "a")), p("b", 1)), setTextblockType(Heading.of(1)), doc(pp(h1(0, "a")), h1("b", 1)))
+  })
+
+  it("drops props when appropriate", () => {
+    test(doc(bp(p(0, "a"))), setTextblockType(Heading.of(1)), doc(h1(0, "a")))
   })
 })
