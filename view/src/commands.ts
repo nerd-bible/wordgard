@@ -1,6 +1,7 @@
-import {Node, Tag, TagType, NodePos, Slice, Text, Token,
+import {Node, Tag, TagType, Prop, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken, OpenToken,
-       joinBlocks, findWrappable, wrapBlockRange, findUnwrappable, unwrapBlock1, clearNonFitting} from "@willows/doc"
+        joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
+        unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "@willows/doc"
 import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
@@ -335,7 +336,7 @@ export function unwrapBlockType(type: TagType<any> | Tag<any> | ((tag: Tag<any>)
         let result = findUnwrappable(state.doc.resolve(from), state.doc.resolve(to), pred)
         if (result) for (let node of result) {
           targets.push(node)
-          changes.push(unwrapBlock1(node, from, to))
+          changes.push(doUnwrapBlock(node, from, to))
         }
       }
     }
@@ -346,6 +347,24 @@ export function unwrapBlockType(type: TagType<any> | Tag<any> | ((tag: Tag<any>)
 }
 
 export const unwrapBlock = unwrapBlockType(() => true)
+
+export function toggleProp(prop: Prop<any>): StateCommand {
+  return ({state, dispatch}) => {
+    let {selection, doc} = state
+    if (selection.empty) {
+      let selProps = selection.props || state.selPos.head.props()
+      let newProps = prop.isInSet(selProps) ? prop.removeFromSet(selProps) : prop.addToSet(selProps)
+      dispatch(state.update({
+        selection: EditorSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newProps)
+      }))
+    } else if (selection.ranges.some(r => canAddPropInRange(doc, r.from, r.to, prop))) {
+      dispatch(state.update({changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: prop}))}))
+    } else {
+      dispatch(state.update({changes: selection.ranges.map(r => ({from: r.from, to: r.to, remove: prop}))}))
+    }
+    return true
+  }
+}
 
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||

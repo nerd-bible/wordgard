@@ -147,7 +147,7 @@ export class Tag<Param = unknown> {
   }
 
   sameProps(other: Tag<any>) {
-    return this == other || eqArray(this.props, other.props)
+    return this == other || Prop.sameSet(this.props, other.props)
   }
 
   prop<Value>(prop: PropType<Value>): Value | undefined {
@@ -160,7 +160,7 @@ export class Tag<Param = unknown> {
   hasProp(prop: Prop<any> | PropType<any>) { return prop.isInSet(this.props) }
 
   withProps(props: readonly Prop<any>[]) {
-    return eqArray(this.props, props) ? this : this.type.of(this.param, props)
+    return Prop.sameSet(this.props, props) ? this : this.type.of(this.param, props)
   }
 
   split(atEnd: boolean) {

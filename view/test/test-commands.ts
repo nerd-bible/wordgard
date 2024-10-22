@@ -1,13 +1,14 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
         deleteBackward, deleteForward, setTextblockType,
-        wrapBlock, unwrapBlock, unwrapBlockType} from "@willows/view"
+        wrapBlock, unwrapBlock, unwrapBlockType, toggleProp} from "@willows/view"
 import {Tag, Prop, DocNode, Schema, basicBuilders, maybeTag, builder,
-        Paragraph, Heading, Blockquote, BulletList} from "@willows/doc"
+        Paragraph, Heading, Blockquote, BulletList,
+        Emphasis, Strong, Link} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
 
-const {doc, p, blockquote, ul, li, pre, br, h1, $img, hr} = basicBuilders
+const {doc, p, blockquote, ul, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -38,6 +39,15 @@ function test(doc: DocNode, command: StateCommand, expect?: DocNode) {
   } else {
     ist(!result)
   }
+}
+
+function testSelProps(before: readonly Prop<any>[] | null, command: StateCommand, expect: readonly Prop<any>[]) {
+  let state = EditorState.create({
+    doc: doc(p()),
+    selection: EditorSelection.cursor(1, 0, null, before)
+  })
+  command({state, dispatch: tr => state = tr.state})
+  ist(state.selection.props!, expect, Prop.sameSet)
 }
 
 let TextOnly = Tag.defineBlock("TextOnly", {
@@ -475,5 +485,39 @@ describe("unwrapBlock", () => {
 
   it("returns false at the top level", () => {
     test(doc(p("a", 0)), unwrapBlock)
+  })
+})
+
+describe("toggleProp", () => {
+  it("can add emphasis to a selection", () => {
+    test(doc(p("a", 0, "bc", 1, "d")), toggleProp(Emphasis), doc(p("a", 0, em("bc"), 1, "d")))
+  })
+
+  it("can remove emphasis from a selection", () => {
+    test(doc(p("a", 0, em("bc"), 1, "d")), toggleProp(Emphasis), doc(p("a", 0, "bc", 1, "d")))
+  })
+
+  it("adds emphasis to a mixed-prop selection", () => {
+    test(doc(p("a", 0, em("bc"), "d", 1)), toggleProp(Emphasis), doc(p("a", 0, em("bcd"), 1)))
+  })
+
+  it("stacks added props with others", () => {
+    test(doc(p("a", 0, strong(em("bc")), "d", 1)), toggleProp(Emphasis), doc(p("a", 0, em(strong("bc"), "d"), 1)))
+  })
+
+  it("adds selection props", () => {
+    testSelProps(null, toggleProp(Emphasis), [Emphasis])
+  })
+
+  it("adds selection props to existing set", () => {
+    testSelProps([Strong], toggleProp(Emphasis), [Emphasis, Strong])
+  })
+
+  it("removes selection props", () => {
+    testSelProps([Emphasis], toggleProp(Emphasis), [])
+  })
+
+  it("replaces props of the same type", () => {
+    testSelProps([Link.of("/")], toggleProp(Link.of("#")), [Link.of("#")])
   })
 })

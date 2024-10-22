@@ -154,7 +154,7 @@ export class EditorSelection {
 
   /// Create a cursor selection range at the given position. You can
   /// safely ignore the optional arguments in most situations.
-  static cursor(pos: number, assoc = 0, goalColumn?: number, props?: readonly Prop<any>[] | null) {
+  static cursor(pos: number, assoc = 0, goalColumn: number | null = null, props?: readonly Prop<any>[] | null) {
     return EditorSelection.createInner(pos, pos, assoc, goalColumn, undefined, props)
   }
 

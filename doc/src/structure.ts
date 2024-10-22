@@ -1,4 +1,4 @@
-import {Tag, TagType, Text} from "./node"
+import {DocNode, Tag, TagType, Text} from "./node"
 import {Pos, NodePos} from "./pos"
 import {Schema} from "./schema"
 import {ChangeSpec} from "./change"
@@ -61,15 +61,18 @@ function textblockChild(schema: Schema, type: TagType<any>) {
   return wrap && wrap.length == 1 ? wrap[0] : null
 }
 
+// FIXME this still doesn't work properly on textblock-item-lists or definition lists
 export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => boolean) {
   let dFrom = from.depth, dTo = to.depth
   let fromStart = from.parent.node.inlineContent() ? from.parent.start : from.pos
+  let fromTextblock = from.parent.node.isTextblock() ? from.parent.node.type : null
   let toEnd = to.parent.node.inlineContent() ? to.parent.end : to.pos
   let innerCandidates: NodePos[] = []
   let outerCandidates: NodePos[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
-    if (node.isBlock() && !node.isAtom() && !node.inlineContent() && parent && textblockChild(doc.schema, parent.type) &&
+    if (node.isBlock() && !node.isAtom() && !node.inlineContent() && parent &&
+        (fromTextblock ? parent.type.canContain(fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!predicate || predicate(node.tag))) {
       let pos = doc.resolveNode(p)!, depth = pos.depth
       if (pos.before >= fromStart - (dFrom - depth + 1) && pos.after <= toEnd + (dTo - depth + 1))
@@ -96,8 +99,7 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => bo
   return candidates
 }
 
-// FIXME move, rename
-export function unwrapBlock1(block: NodePos, from?: number, to?: number): ChangeSpec {
+export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeSpec {
   let changes: ChangeSpec[] = [], {schema} = block.doc
   let outer = block.parent!.node, wrapText = textblockChild(schema, outer.type)
 
@@ -163,7 +165,6 @@ export function unwrapBlock1(block: NodePos, from?: number, to?: number): Change
         pos += next.length
         index++
       } else {
-        // FIXME drop atoms/isolating
         parent = new NodePos(parent, next, pos + 1, index)
         index = 0
         pos++
@@ -200,4 +201,14 @@ export function joinBlocks(before: NodePos, after: NodePos): ChangeSpec[] {
   if (tokensAfter.length || end > posAfter)
     changes.push({from: posAfter, to: end, insert: new Slice(tokensAfter)})
   return changes
+}
+
+export function canAddPropInRange(doc: DocNode, from: number, to: number, prop: Prop<any>) {
+  let found = false
+  doc.iterate(from, to, node => {
+    if (found || prop.isInSet(node.tag.props)) return false
+    if (prop.type.canTarget(node.type)) found = true
+    return true
+  })
+  return found
 }
