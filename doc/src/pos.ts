@@ -33,6 +33,8 @@ export class Pos {
 
   get depth() { return this.parent.depth }
 
+  get doc() { return this.parent.doc }
+
   props(across?: Pos) {
     if (this.inText && !across) return this.parent.node.children[this.index].tag.props
     let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
@@ -116,6 +118,13 @@ export class NodePos {
     let d = 0
     for (let n: NodePos = this; n.parent; n = n.parent) d++
     return d
+  }
+
+  get doc(): DocNode {
+    let n: NodePos = this
+    while (n.parent) n = n.parent
+    if (!(n.node instanceof DocNode)) throw new Error("Outer parent node a document")
+    return n.node
   }
 
   get nextSibling() {

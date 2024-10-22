@@ -1,6 +1,7 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
-        deleteBackward, deleteForward, setTextblockType, wrapBlock} from "@willows/view"
+        deleteBackward, deleteForward, setTextblockType,
+        wrapBlock, unwrapBlock, unwrapBlockType} from "@willows/view"
 import {Tag, Prop, DocNode, Schema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
@@ -425,5 +426,54 @@ describe("wrapBlock", () => {
 
   it("will pick the innermost valid depth", () => {
     test(doc(blockquote(p("a", 0))), wrapBlock(BulletList), doc(blockquote(ul(li(p("a", 0))))))
+  })
+})
+
+describe("unwrapBlock", () => {
+  it("can unwrap a quote", () => {
+    test(doc(blockquote(p("a", 0))), unwrapBlock, doc(p("a", 0)))
+  })
+
+  it("can unwrap multiple children from a quote", () => {
+    test(doc(blockquote(p("a", 0), p("b", 1))), unwrapBlock, doc(p("a", 0), p("b", 1)))
+  })
+
+  it("can partially unwrap quote with content left at end", () => {
+    test(doc(blockquote(p("a", 0), p("b"))), unwrapBlock, doc(p("a", 0), blockquote(p("b"))))
+  })
+
+  it("can partially unwrap quote with content left at start", () => {
+    test(doc(blockquote(p("a"), p("b", 0))), unwrapBlock, doc(blockquote(p("a")), p("b", 0)))
+  })
+
+  it("can partially unwrap quote with content left at both sides", () => {
+    test(doc(blockquote(p("a"), p("b", 0), p("c"))), unwrapBlock, doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))))
+  })
+
+  it("can unwrap a list", () => {
+    test(doc(ul(li(p("a", 0)), li(p("b", 1)))), unwrapBlock, doc(p("a", 0), p("b", 1)))
+  })
+
+  it("can partially unwrap a list", () => {
+    test(doc(ul(li(p("a")), li(p("b", 0)), li(p("c")))), unwrapBlock, doc(ul(li(p("a"))), p("b", 0), ul(li(p("c")))))
+  })
+
+  it("can partially unwrap nested content at start", () => {
+    test(doc(ul(li(p("a")), li(blockquote(p("b", 0))))), unwrapBlockType(BulletList),
+         doc(ul(li(p("a"))), blockquote(p("b", 0))))
+  })
+
+  it("can partially unwrap nested content at end", () => {
+    test(doc(ul(li(blockquote(p("a", 0))), li(p("b")))), unwrapBlockType(BulletList),
+         doc(blockquote(p("a", 0)), ul(li((p("b"))))))
+  })
+
+  it("can unwrap children from multiple parents", () => {
+    test(doc(ul(li(p("a"), p("b", 0))), ul(li(p("c", 1), p("d")))), unwrapBlock,
+         doc(ul(li(p("a"))), p("b", 0), p("c", 1), ul(li(p("d")))))
+  })
+
+  it("returns false at the top level", () => {
+    test(doc(p("a", 0)), unwrapBlock)
   })
 })

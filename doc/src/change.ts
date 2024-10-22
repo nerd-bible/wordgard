@@ -36,7 +36,7 @@ class Builder implements Walker {
 
   leave() {
     if (this.modifications) throw new Error("Invalid modification on close token")
-    if (!this.stack.parent) throw new Error("Surplus close token")
+    if (!this.stack.parent) throw new Error("Surplus close token after " + this.stack.children)
     let top = this.stack
     this.stack = this.stack.parent
     if (!top.children.length && !top.tag.isLeaf() && !top.tag.inlineContent())

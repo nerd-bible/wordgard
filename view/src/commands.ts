@@ -4,6 +4,9 @@ import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
+// FIXME move some of the helper functions to @willows/doc, reconsider
+// their interfaces
+
 /// Command functions are used in key bindings and other types of user
 /// actions. Given an editor view, they check whether their effect can
 /// apply to the editor, and if it can, perform it as a side effect
@@ -289,7 +292,7 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
 
   let {parent: scan, index, pos} = sel.head
   while (index == scan.node.children.length) {
-    if (scan.node.type.isolating || !scan.parent) return console.log("AA"), false
+    if (scan.node.type.isolating || !scan.parent) return false
     index = scan.index + 1
     scan = scan.parent
     pos++
@@ -343,16 +346,17 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
   }
 }
 
-export function findWrappableLevel(schema: Schema, from: Pos, to: Pos, wrapper: Tag<any>) {
+export function findWrappable(from: Pos, to: Pos, wrapper: Tag<any>) {
   let dFrom = from.depth, dTo = to.depth
   let pFrom = from.parent, pTo = to.parent
   while (dFrom > dTo) { pFrom = pFrom.parent!; dFrom-- }
   while (dTo > dFrom) { pTo = pTo.parent!; dTo-- }
   for (;;) {
-    if (!pFrom.parent) return null
+    if (!pFrom.parent || pFrom.node.type.isolating) return null
     if (pFrom.parent.start == pTo.parent!.start && pFrom.parent.node.type.canContain(wrapper.type)) break
     pFrom = pFrom.parent; pTo = pTo.parent!
   }
+  let {schema} = from.doc
   for (let i = pFrom.index; i < pTo.index + 1; i++) {
     let ch = pFrom.parent.node.children[i]
     if (!schema.findWrapping(wrapper.type, ch.type)) return null
@@ -361,7 +365,7 @@ export function findWrappableLevel(schema: Schema, from: Pos, to: Pos, wrapper: 
           to: new Pos(pFrom.parent, pTo.after, pTo.index + 1, 0)}
 }
 
-export function wrapBlockRange(schema: Schema, range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
+export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
   let changes: ChangeSpec[] = [], parent = range.from.parent.node
   for (let i = range.from.index, openWrappers = 0, pos = range.from.pos;; i++) {
     let tokens: Token[] = []
@@ -374,6 +378,7 @@ export function wrapBlockRange(schema: Schema, range: {from: Pos, to: Pos}, wrap
       break
     }
     let child = parent.children[i]
+    let {schema} = range.from.doc
     let wrapping = schema.findWrapping(wrapper.type, child.type)!
     for (let tag of wrapping) tokens.push(new OpenToken(tag))
     openWrappers = wrapping.length
@@ -385,11 +390,11 @@ export function wrapBlockRange(schema: Schema, range: {from: Pos, to: Pos}, wrap
 
 export function wrapBlock(wrapper: Tag<any>): StateCommand {
   return ({state, dispatch}) => {
-    let changes: ChangeSpec[] = [], {schema} = state.doc, lastTo = -1
+    let changes: ChangeSpec[] = [], lastTo = -1
     for (let {from, to} of state.selection.ranges) {
-      let range = findWrappableLevel(schema, state.doc.resolve(from), state.doc.resolve(to), wrapper)
+      let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
       if (!range || range.from.pos < lastTo) continue
-      changes.push(wrapBlockRange(schema, range, wrapper))
+      changes.push(wrapBlockRange(range, wrapper))
       lastTo = range.to.pos
     }
     if (!changes.length) return false
@@ -397,6 +402,146 @@ export function wrapBlock(wrapper: Tag<any>): StateCommand {
     return true
   }
 }
+
+function textblockChild(schema: Schema, type: TagType<any>) {
+  let wrap = schema.findWrapping(type, Text)
+  return wrap && wrap.length == 1 ? wrap[0] : null
+}
+
+export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => boolean) {
+  let dFrom = from.depth, dTo = to.depth
+  let fromStart = from.parent.node.inlineContent() ? from.parent.start : from.pos
+  let toEnd = to.parent.node.inlineContent() ? to.parent.end : to.pos
+  let innerCandidates: NodePos[] = []
+  let outerCandidates: NodePos[] = []
+  let {doc} = from
+  doc.iterate(fromStart, toEnd, (node, p, parent) => {
+    if (node.isBlock() && !node.isAtom() && !node.inlineContent() && parent && textblockChild(doc.schema, parent.type) &&
+        (!predicate || predicate(node.tag))) {
+      let pos = doc.resolveNode(p)!, depth = pos.depth
+      if (pos.before >= fromStart - (dFrom - depth + 1) && pos.after <= toEnd + (dTo - depth + 1))
+        innerCandidates.push(pos)
+      else
+        outerCandidates.push(pos)
+    }
+  })
+  let candidates = innerCandidates.length
+    ? innerCandidates.sort((a, b) => (b.after - b.before) - (a.after - a.before))
+    : outerCandidates.sort((a, b) => (a.after - a.before) - (b.after - b.before))
+  if (!candidates.length) return null
+  // Delete those that overlap earlier nodes
+  for (let i = 1; i < candidates.length; i++) {
+    let cur = candidates[i]
+    for (let j = 0; j < i; j++) {
+      let other = candidates[j]
+      if (cur.after > other.before && cur.before < other.after) {
+        candidates.splice(i--, 1)
+        break
+      }
+    }
+  }
+  return candidates
+}
+
+// FIXME move, rename
+export function unwrapBlock1(block: NodePos, from?: number, to?: number): ChangeSpec {
+  let changes: ChangeSpec[] = [], {schema} = block.doc
+  let outer = block.parent!.node, wrapText = textblockChild(schema, outer.type)
+
+  let parent = block, index = 0, pos = block.start
+  let gapStart = block.before, skippedDepth = 0
+  let replaceGap = (to: number, tokens: Token[]) => {
+    for (let i = 0; i < skippedDepth; i++) tokens.unshift(CloseToken)
+    skippedDepth = 0
+    if (to > gapStart || tokens.length)
+      changes.push({from: gapStart, to, insert: new Slice(tokens)})
+  }
+
+  for (;;) {
+    if (index == parent.node.children.length) {
+      if (parent == block) {
+        let tokens: Token[] = []
+        if (gapStart == block.before && outer.children.length == 1) {
+          let deflt = block.doc.schema.createDefault(outer.type)
+          if (deflt) tokens.push(deflt)
+        }
+        replaceGap(block.after, tokens)
+        break
+      } else {
+        if (gapStart == pos && skippedDepth > 0) {
+          gapStart++
+          skippedDepth--
+        }
+        pos++
+        index = parent.index + 1
+        parent = parent.parent!
+      }
+    } else {
+      let next = parent.node.children[index]
+      if (outer.type.canContain(next.type) || wrapText && next.inlineContent()) {
+        if (from != null && pos + next.length <= from) {
+          pos += next.length
+          gapStart = pos
+          skippedDepth = 1
+          for (let cx = parent; cx != block; cx = cx.parent!) skippedDepth++
+          index++
+        } else if (to != null && pos >= to) {
+          let tokens: Token[] = [], upto = pos
+          for (let cx = parent, i = tokens.length, atStart = !index;; cx = cx.parent!) {
+            if (cx.index > 0) atStart = false
+            if (atStart) upto--
+            else tokens.splice(i, 0, new OpenToken(cx.node.tag.split(false)))
+            if (cx == block) break
+          }
+          replaceGap(upto, tokens)
+          break
+        } else {
+          if (outer.type.canContain(next.type)) {
+            replaceGap(pos, [])
+          } else {
+            replaceGap(pos + 1, [new OpenToken(wrapText!)])
+            changes.push(clearNonFitting(next, pos, wrapText!.type))
+          }
+          pos += next.length
+          index++
+          gapStart = pos
+        }
+      } else if (next.type.isolating || next.isAtom()) {
+        pos += next.length
+        index++
+      } else {
+        // FIXME drop atoms/isolating
+        parent = new NodePos(parent, next, pos + 1, index)
+        index = 0
+        pos++
+      }
+    }
+  }
+  return changes
+}
+
+export function unwrapBlockType(type: TagType<any> | Tag<any> | ((tag: Tag<any>) => boolean)): StateCommand {
+  let pred: (tag: Tag<any>) => boolean = typeof type == "function" ? type
+    : type instanceof Tag ? tag => tag.type == type.type
+    : tag => tag.type == type
+  return ({state, dispatch}) => {
+    let targets: NodePos[] = [], changes: ChangeSpec[] = []
+    for (let {from, to} of state.selection.ranges) {
+      if (!targets.some(t => t.after > from && t.before < to)) {
+        let result = findUnwrappable(state.doc.resolve(from), state.doc.resolve(to), pred)
+        if (result) for (let node of result) {
+          targets.push(node)
+          changes.push(unwrapBlock1(node, from, to))
+        }
+      }
+    }
+    if (!targets.length) return false
+    dispatch(state.update({changes, scrollIntoView: true, normalizeSelection: true}))
+    return true
+  }
+}
+
+export const unwrapBlock = unwrapBlockType(() => true)
 
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
