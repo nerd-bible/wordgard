@@ -132,9 +132,9 @@ export const deleteSelection: StateCommand = ({state, dispatch}) => {
 }
 
 export const joinBackward: StateCommand = ({state, dispatch}) => {
-  let {head, empty} = state.selPos
-  if (!empty || !head.parent.node.isTextblock() || head.pos != head.parent.start) return false
-  let scan = head.parent, target = scan.node
+  let {head, empty} = state.selPos, block = head.textblockParent
+  if (!empty || !block || !head.isAtStart(block)) return false
+  let scan = block, target = scan.node
   while (!scan.index) {
     if (!scan.parent) return false
     scan = scan.parent
@@ -149,25 +149,26 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
     before = before.children[last]
     pos--
   }
-  let changes = joinBlocks(state.doc.resolve(pos - 1).parent, head.parent)
-    .concat(clearNonFitting(head.parent, before.type))
+  let changes = joinBlocks(state.doc.resolve(pos - 1).parent, block)
+    .concat(clearNonFitting(block, before.type))
   if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
       insert: new Slice([new OpenToken(before.tag.changeType(target.tag))])
     })
+  let changeSet = ChangeSet.create(state.doc, changes)
   dispatch(state.update({
-    changes,
-    selection: EditorSelection.cursor(pos - 1, -1),
+    changes: changeSet,
+    selection: EditorSelection.cursor(changeSet.mapPos(head.pos), -1),
     scrollIntoView: true
   }))
   return true
 }
 
 export const joinForward: StateCommand = ({state, dispatch}) => {
-  let {head, empty} = state.selPos
-  if (!empty || !head.parent.node.isTextblock() || head.pos != head.parent.end) return false
-  let scan = head.parent, target = scan.node
+  let {head, empty} = state.selPos, block = head.textblockParent
+  if (!empty || !block || !head.isAtEnd(block)) return false
+  let scan = block, target = scan.node
   for (;;) {
     if (!scan.parent) return false
     if (scan.index < scan.parent.node.children.length - 1) break
@@ -183,11 +184,11 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
     pos++
   }
   let blockAfter = state.doc.resolveNode(pos)!
-  let changes = joinBlocks(head.parent, blockAfter)
+  let changes = joinBlocks(block, blockAfter)
     .concat(clearNonFitting(blockAfter, target.type))
   if (!target.children.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
     changes.push({
-      from: head.parent.before, to: head.parent.start,
+      from: block.before, to: block.start,
       insert: new Slice([new OpenToken(target.tag.changeType(after.tag))])
     })
   dispatch(state.update({

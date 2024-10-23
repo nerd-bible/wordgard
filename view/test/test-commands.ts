@@ -265,6 +265,10 @@ describe("joinBackward", () => {
   it("drops nodes not supported by the new parent", () => {
     test(doc(to("a"), p(0, $img())), joinBackward, doc(to("a", 0)))
   })
+
+  it("can join from inside an inline node", () => {
+    test(doc(p("a"), p(sp(0, "b"))), joinBackward, doc(p("a", sp(0, "b"))))
+  })
 })
 
 describe("joinForward", () => {
@@ -306,6 +310,10 @@ describe("joinForward", () => {
 
   it("drops nodes not supported by the new parent", () => {
     test(doc(to("a", 0), p($img())), joinForward, doc(to("a", 0)))
+  })
+
+  it("can join from the end of an inline node", () => {
+    test(doc(p(sp("a", 0)), p("b")), joinForward, doc(p(sp("a", 0), "b")))
   })
 })
 
