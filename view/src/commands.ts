@@ -49,8 +49,8 @@ export const createTextblock: StateCommand = ({state, dispatch}) => {
 }
 
 export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
-  let sel = state.selPos, block = sel.head.parent
-  if (!sel.empty || !block.node.isTextblock() || block.node.children.length) return false
+  let sel = state.selPos, block = sel.head.textblockParent
+  if (!sel.empty || !block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return false
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
   for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
        level; first = false, index = level.index, level = level.parent) {

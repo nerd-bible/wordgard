@@ -111,6 +111,10 @@ describe("liftEmptyBlock", () => {
   it("can drop props on nodes it splits", () => {
     test(doc(bp(blockquote(p("a"), p(0), p("b")))), liftEmptyBlock, doc(bp(blockquote(p("a"))), p(0), blockquote(p("b"))))
   })
+
+  it("can lift blocks with an inline node", () => {
+    test(doc(blockquote(p(sp(0)))), liftEmptyBlock, doc(p(sp(0))))
+  })
 })
 
 describe("insertLineBreakInCode", () => {
