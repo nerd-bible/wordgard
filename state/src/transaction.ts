@@ -189,6 +189,7 @@ export class Transaction {
     /// transaction is dispatched.
     readonly scrollIntoView: boolean
   ) {
+    changes.validate(startState.doc.schema)
     if (!annotations.some((a: Annotation<any>) => a.type == Transaction.time))
       this.annotations = annotations.concat(Transaction.time.of(Date.now()))
   }

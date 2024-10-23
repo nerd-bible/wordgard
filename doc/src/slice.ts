@@ -98,6 +98,13 @@ export class Slice {
     return new Slice(content)
   }
 
+  validate(schema: Schema) {
+    for (let tok of this.content) {
+      if (tok.tokenType == TokenType.Node) schema.validate(tok)
+      else if (tok.tokenType == TokenType.Open) schema.validateTag(tok.tag)
+    }
+  }
+
   static empty = new Slice([])
 
   toString() {

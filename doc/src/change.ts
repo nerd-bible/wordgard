@@ -358,6 +358,13 @@ export class ChangeSet extends ChangeDesc {
     }
   }
 
+  validate(schema: Schema) {
+    for (let val of this.data) {
+      if (val instanceof Slice) val.validate(schema)
+      else if (val) val.forEach(mod => schema.validateProp((mod as any).add || (mod as any).remove))
+    }
+  }
+
   static create(doc: DocNode, spec: ChangeSpec): ChangeSet {
     return createChangeSet(doc, spec)
   }
@@ -437,8 +444,8 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
           throw new Error(`A Change object cannot both ${add ? "add" : "remove"} a prop and replace a range`)
         if (to == null) to = from + 1
         if (add) {
-          let mods: Modification[] = [{add: add}]
-          markableSections(doc, from, to, (node, from, to) => {
+          let mods: Modification[] = [{add}]
+          markableSections(doc, from, to, add.type.spanning, (node, from, to) => {
             if (!add.type.canTarget(node.type)) return false
             let has = node.tag.hasProp(add.type)
             if (add.type.set) {
@@ -456,8 +463,8 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
           })
         }
         if (remove) {
-          let mods: Modification[] = [{remove: remove}]
-          markableSections(doc, from, to, (node, from, to) => {
+          let mods: Modification[] = [{remove}]
+          markableSections(doc, from, to, remove.type.spanning, (node, from, to) => {
             const has = node.tag.hasProp(remove)
             if (!has || !remove.type.canTarget(node.type)) return false
             let modsHere = mods
@@ -899,9 +906,10 @@ function localSyncPosAfter(pos: Pos) {
   return found
 }
 
-function markableSections(doc: Node, from: number, to: number, f: (n: Node, from: number, to: number) => boolean) {
+function markableSections(doc: Node, from: number, to: number, spanning: boolean,
+                          f: (n: Node, from: number, to: number) => boolean) {
   doc.iterate(from, to, (node, pos) => {
-    if ((pos >= from && pos + node.length <= to) || node.isText()) {
+    if ((pos >= from && pos + (spanning ? node.length : 1) <= to) || node.isText()) {
       if (node.isText() ? f(node, Math.max(pos, from), Math.min(pos + node.length, to)) : f(node, pos, pos + 1))
         return false
     }

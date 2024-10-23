@@ -30,14 +30,22 @@ export class Schema {
     return new DocNode(this.docTag, this.docTag.type.checkChildren(children))
   }
 
-  // FIXME probably don't want to integrate this in document
-  // construction, but rather in the editor state.
   validate(node: Node) {
-    if (!this.tagSet.has(node.type))
-      throw new Error(`Node type ${node.name} not in schema`)
-    for (let prop of node.tag.props) if (!this.propSet.has(prop.type))
-      throw new Error(`Prop type ${prop.name} not in schema`)
+    this.validateTag(node.tag)
     for (let ch of node.children) this.validate(ch)
+  }
+
+  /// @internal
+  validateTag(tag: Tag<any>) {
+    if (!this.tagSet.has(tag.type))
+      throw new Error(`Tag type ${tag.name} not in schema`)
+    for (let prop of tag.props) this.validateProp(prop)
+  }
+
+  /// @internal
+  validateProp(prop: Prop<any>) {
+    if (!this.propSet.has(prop.type))
+      throw new Error(`Prop type ${prop.name} not in schema`)
   }
 
   defaultContentType(parent: TagType<any>) {

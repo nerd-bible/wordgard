@@ -2,13 +2,13 @@ import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlock, unwrapBlockType, toggleProp} from "@willows/view"
-import {Tag, Prop, DocNode, Schema, basicBuilders, maybeTag, builder,
+import {Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList,
         Emphasis, Strong, Link} from "@willows/doc"
 import {EditorState, StateCommand, EditorSelection} from "@willows/state"
 import ist from "ist"
 
-const {doc, p, blockquote, ul, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
+const {p, blockquote, ul, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -75,11 +75,15 @@ let InlineSpan = Tag.defineInline("InlineSpan", {
   dom: {element: "span"}
 }), sp = builder(InlineSpan)
 
-let InlineAtom = Tag.defineInline("InlineSpan", {
+let InlineAtom = Tag.defineInline("InlineAtom", {
   inlineContent: true,
   dom: {element: "var"},
   atom: true
 }), at = builder(InlineAtom)
+
+let schema = Schema.define([...basicSchema.tags, ...basicSchema.props, TextOnly,
+                            BlockProp, PreservedProp, InlineSpan, InlineAtom])
+let doc = builder(schema)
 
 describe("liftEmptyBlock", () => {
   it("can lift a paragraph out of a quote", () => {

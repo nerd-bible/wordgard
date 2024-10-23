@@ -417,6 +417,7 @@ export class EditorState {
   /// @internal
   static fromConfig(config: Configuration, doc: DocNode, selection: EditorSelection) {
     selection.check(doc)
+    doc.schema.validate(doc)
     return new EditorState(config, doc, selection, config.dynamicSlots.map(() => null),
                            (state, slot) => slot.create(state), null)
   }

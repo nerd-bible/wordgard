@@ -1,5 +1,6 @@
 import {DocNode, Tag, TagType, Text} from "./node"
 import {Pos, NodePos} from "./pos"
+import {Prop} from "./prop"
 import {Schema} from "./schema"
 import {ChangeSpec} from "./change"
 import {Slice, Token, OpenToken, CloseToken} from "./slice"
@@ -155,7 +156,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
             replaceGap(pos, [])
           } else {
             replaceGap(pos + 1, [new OpenToken(wrapText!)])
-            changes.push(clearNonFitting(next, pos, wrapText!.type))
+            changes.push(clearNonFitting(new NodePos(parent, next, pos + 1, index), wrapText!.type))
           }
           pos += next.length
           index++

@@ -150,8 +150,8 @@ export class NodePos {
   get doc(): DocNode {
     let n: NodePos = this
     while (n.parent) n = n.parent
-    if (!(n.node instanceof DocNode)) throw new Error("Outer parent node a document")
-    return n.node
+    if (!(n.node.isDoc())) throw new Error("Outer parent node a document")
+    return n.node as DocNode
   }
 
   get nextSibling() {
