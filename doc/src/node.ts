@@ -45,7 +45,7 @@ export class TagType<Param> {
     let groups = this.groups = [name]
     if (flags & TagFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
-    let content = spec.inlineContent === true ? "Inline" : spec.inlineContent  || spec.blockContent
+    let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
     this.contentGroups = content ? splitGroups(content) : none
     this.isolating = !!spec.isolating
     this.defining = !!spec.defining
@@ -56,12 +56,12 @@ export class TagType<Param> {
   }
 
   static defineInline<T>(name: string, spec: TagSpec<T>) {
-    checkReserved(name)
+    checkTagName(name)
     return new TagType<T>(name, flagsFor(spec, true), spec)
   }
 
   static defineBlock<T>(name: string, spec: TagSpec<T>) {
-    checkReserved(name)
+    checkTagName(name)
     return new TagType<T>(name, flagsFor(spec, false), spec)
   }
 
@@ -71,6 +71,12 @@ export class TagType<Param> {
   }
 
   isInGroup(group: string) {
+    let mod = group.indexOf(":")
+    if (mod > -1) {
+      let modName = group.slice(mod + 1)
+      if (modName == "Atom" && !this.isAtom()) return false
+      group = group.slice(0, mod)
+    }
     return group == "_" || this.groups.includes(group)
   }
 
@@ -118,12 +124,12 @@ export class Tag<Param = unknown> {
   get name() { return this.type.name }
 
   static defineInline(name: string, spec: TagSpec<null>) {
-    checkReserved(name)
+    checkTagName(name)
     return new TagType<null>(name, flagsFor(spec, true) | TagFlag.NullParam, spec).default!
   }
 
   static defineBlock(name: string, spec: TagSpec<null>) {
-    checkReserved(name)
+    checkTagName(name)
     return new TagType<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
   }
 
@@ -201,9 +207,10 @@ export class Tag<Param = unknown> {
   }
 }
 
-function checkReserved(name: string) {
+function checkTagName(name: string) {
+  if (/[\s:]/.test(name)) throw new Error(`Tag names may not include space or colon characters (${name})`)
   if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
-    throw new Error(`Node name ${name} is reserved`)
+    throw new Error(`Tag name ${name} is reserved`)
 }
 
 export class Node {

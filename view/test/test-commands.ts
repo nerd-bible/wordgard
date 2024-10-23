@@ -75,6 +75,12 @@ let InlineSpan = Tag.defineInline("InlineSpan", {
   dom: {element: "span"}
 }), sp = builder(InlineSpan)
 
+let InlineAtom = Tag.defineInline("InlineSpan", {
+  inlineContent: true,
+  dom: {element: "var"},
+  atom: true
+}), at = builder(InlineAtom)
+
 describe("liftEmptyBlock", () => {
   it("can lift a paragraph out of a quote", () => {
     test(doc(blockquote(p(0))), liftEmptyBlock, doc(p(0)))
@@ -540,5 +546,25 @@ describe("toggleProp", () => {
 
   it("replaces props of the same type", () => {
     testSelProps([Link.of("/")], toggleProp(Link.of("#")), [Link.of("#")])
+  })
+
+  it("doesn't add the same prop on multiple levels", () => {
+    test(doc(p(0, sp("abc"), "d", 1)), toggleProp(Emphasis), doc(p(0, sp(em("abc")), em("d"), 1)))
+  })
+
+  it("can add a prop inside an inline node", () => {
+    test(doc(p(sp("a", 0, "b", 1, "c"))), toggleProp(Emphasis), doc(p(sp("a", 0, em("b"), 1, "c"))))
+  })
+
+  it("can add a prop to an inline node that partially has it", () => {
+    test(doc(p(0, sp("a", em("b"), "c"), 1)), toggleProp(Emphasis), doc(p(0, sp(em("abc")), 1)))
+  })
+
+  it("will stop adding a prop at inline atom boundary", () => {
+    test(doc(p(0, "a", at("b"), 1)), toggleProp(Emphasis), doc(p(0, em("a", at("b")), 1)))
+  })
+
+  it("will not remove a prop from inside an inline atom", () => {
+    test(doc(p(0, at(em("b")), 1)), toggleProp(Emphasis), doc(p(0, em(at(em("b"))), 1)))
   })
 })

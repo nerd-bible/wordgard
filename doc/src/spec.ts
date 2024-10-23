@@ -79,7 +79,7 @@ export type TagSpec<Param> = {
 
 export type PropSpec<Value> = {
   /// Which node tags this prop may apply to, as a space separated
-  /// string of tag or group names. The default is `"Inline"`.
+  /// string of tag or group names. The default is `"Inline:Atom"`.
   tags?: string
   /// Determines the position of this prop relative to other props.
   /// Props with lower rank appear first in prop set arrays, and are
