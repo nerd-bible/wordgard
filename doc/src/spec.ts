@@ -68,6 +68,7 @@ export type TagSpec<Param> = {
   defining?: boolean
   neutral?: boolean
   autoJoin?: boolean | ((before: Tag, after: Tag) => boolean) // FIXME implement
+  // FIXME should this be integrated in Tag.split? Handling validity in parent may be awkward
   splitTag?: (tag: Tag, atEnd: boolean) => Tag | null
   /// For inline nodes with inline content, this determines whether
   /// there are normalized cursor positions directly inside the node.

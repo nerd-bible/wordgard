@@ -70,6 +70,11 @@ let PreservedProp = Prop.define("PreservedProp", {
   dom: {element: "prop2"}
 }), pp = builder(PreservedProp)
 
+let InlineSpan = Tag.defineInline("InlineSpan", {
+  inlineContent: true,
+  dom: {element: "span"}
+}), sp = builder(InlineSpan)
+
 describe("liftEmptyBlock", () => {
   it("can lift a paragraph out of a quote", () => {
     test(doc(blockquote(p(0))), liftEmptyBlock, doc(p(0)))
@@ -179,6 +184,10 @@ describe("splitTextblock", () => {
 
   it("drops props when appropriate", () => {
     test(doc(bp(p("a", 0, "b"))), splitTextblock, doc(bp(p("a")), p(0, "b")))
+  })
+
+  it("can split inline nodes around the cursor", () => {
+    test(doc(p("a", sp("b", 0, "c"), "d")), splitTextblock, doc(p("a", sp("b")), p(sp(0, "c"), "d")))
   })
 })
 

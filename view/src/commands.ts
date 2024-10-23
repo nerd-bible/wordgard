@@ -6,15 +6,14 @@ import {EditorSelection, StateCommand} from "@willows/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
-// FIXME move some of the helper functions to @willows/doc, reconsider
-// their interfaces
-
 /// Command functions are used in key bindings and other types of user
 /// actions. Given an editor view, they check whether their effect can
 /// apply to the editor, and if it can, perform it as a side effect
 /// (which usually means [dispatching](#view.EditorView.dispatch) a
 /// transaction) and return `true`.
 export type Command = (target: EditorView) => boolean
+
+// FIXME check behavior with inline nodes with content for all of these
 
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
   let {doc, selPos: sel} = state
@@ -77,29 +76,39 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
 }
 
 export const splitTextblock: StateCommand = ({state, dispatch}) => {
-  let sel = state.selPos, before = sel.from.parent
-  if (!before.node.isTextblock() || !before.parent) return false
-  let after = sel.to.parent, tagAfter = null
-  if (after.node.isTextblock()) {
-    let atEnd = sel.to.pos == after.end, tag = after.node.tag.split(atEnd)
-    if (tag.type.spec.splitTag) tagAfter = tag.type.spec.splitTag(tag, atEnd)
-    if (atEnd && !tagAfter && after.parent) {
-      let defaultType = state.doc.schema.defaultContentType(after.parent.node.type)
-      if (defaultType) tagAfter = tag.changeType(defaultType)
-    }
-    if (!tagAfter) tagAfter = tag
+  let sel = state.selPos
+  let before = sel.from.textblockParent
+  if (!before || !before.parent) return false
+  let tokens: Token[] = []
+  for (let p = sel.from.parent;; p = p.parent!) {
+    tokens.push(CloseToken)
+    if (p == before) break
   }
-  let tokens: Token[] = [CloseToken]
-  if (tagAfter) tokens.push(new OpenToken(tagAfter))
+
+  let after = sel.to.textblockParent, tagAfter = null
+  if (after) {
+    let atEnd = true, insert = tokens.length
+    for (let p = sel.to.parent, index = sel.to.index;; index = p.index + 1, p = p.parent!) {
+      if (index < p.node.children.length) atEnd = false
+      let tag = p.node.tag.split(atEnd)
+      if (tag.type.spec.splitTag) tagAfter = tag.type.spec.splitTag(tag, atEnd)
+      if (atEnd && tag.isTextblock() && !tagAfter && p.parent) {
+        let defaultType = state.doc.schema.defaultContentType(p.parent.node.type)
+        if (defaultType) tagAfter = tag.changeType(defaultType)
+      }
+      tokens.splice(insert, 0, new OpenToken(tagAfter || tag))
+      if (p == after) break
+    }
+  }
   let changes: ChangeSpec[] = [{
     from: sel.from.pos, to: sel.to.pos,
-    insert: new Slice(tagAfter ? [CloseToken, new OpenToken(tagAfter)] : [CloseToken])
+    insert: new Slice(tokens)
   }]
-  if (sel.from.pos == before.start && before.parent) {
+  if (sel.from.isAtStart(before)) {
     let deflt = state.doc.schema.defaultContentType(before.parent.node.type)
     if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({
-        from: sel.from.pos - 1, to: sel.from.pos,
+        from: before.before, to: before.start,
         insert: new Slice([new OpenToken(before.node.tag.changeType(deflt))])
       })
   }

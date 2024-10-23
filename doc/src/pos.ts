@@ -31,6 +31,29 @@ export class Pos {
     return this.index ? this.parent.node.children[this.index - 1] : null
   }
 
+  get textblockParent() {
+    for (let p: NodePos | null = this.parent;; p = p.parent) {
+      if (!p || !p.node.inlineContent()) return null
+      if (p.node.isTextblock()) return p
+    }
+  }
+
+  isAtStart(parent: NodePos) {
+    if (this.inText) return false
+    for (let p: NodePos | null = this.parent, index = this.index;; index = p.index, p = p.parent) {
+      if (!p || index) return false
+      if (p == parent) return true
+    }
+  }
+
+  isAtEnd(parent: NodePos) {
+    if (this.inText) return false
+    for (let p: NodePos | null = this.parent, index = this.index;; index = p.index + 1, p = p.parent) {
+      if (!p || index < p.node.children.length) return false
+      if (p == parent) return true
+    }
+  }
+
   get depth() { return this.parent.depth }
 
   get doc() { return this.parent.doc }
@@ -87,12 +110,16 @@ function cacheFor(doc: DocNode) {
 }
 
 export class NodePos {
+  private readonly _start: number
+
   constructor(
     readonly parent: NodePos | null,
     readonly node: Node,
-    private readonly _start: number,
+    start: number,
     readonly index: number
-  ) {}
+  ) {
+    this._start = start
+  }
 
   get before() {
     if (!this.parent) throw new Error("Accessing `before` on the top level node")
