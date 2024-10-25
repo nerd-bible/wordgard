@@ -74,7 +74,7 @@ export type TagSpec<Param> = {
   /// there are normalized cursor positions directly inside the node.
   /// The default is to only have cursor positions right outside the
   /// node.
-  cursorInsideBounds?: boolean
+  cursorInsideBounds?: boolean // FIXME make a node flag?
 }
 
 export type PropSpec<Value> = {

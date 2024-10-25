@@ -383,6 +383,7 @@ export const defaultEnter: Command = (view: EditorView) => {
     splitTextblock(view)
 }
 
+// FIXME join list items
 export const defaultBackspace: Command = (view: EditorView) => {
   return deleteSelection(view) ||
     joinBackward(view) ||

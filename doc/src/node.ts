@@ -24,6 +24,7 @@ function flagsFor(spec: TagSpec<any>, inline: boolean) {
   if (spec.inlineContent) flags |= TagFlag.InlineContent
   else if (!spec.blockContent) flags |= TagFlag.Leaf
   if (spec.atom || (flags & TagFlag.Leaf)) flags |= TagFlag.Atom
+  else if (inline && spec.blockContent) throw new Error("Inline tags with block content must be marked as atoms")
   return flags
 }
 
