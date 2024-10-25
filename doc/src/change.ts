@@ -116,6 +116,7 @@ export type ChangeSpec = Change | {correct: ChangeSpec, local?: boolean} | Chang
 
 type SectionData = Slice | readonly Modification[] | null
 
+// FIXME confirm that this is worth having as a separate class
 export class ChangeDesc {
   private _length = -1
   private _newLength = -1
