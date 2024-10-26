@@ -1,5 +1,6 @@
 import {Schema, DocNode, Node, ChangeDesc, Prop, Pos, NodePos} from "@willows/doc"
-import {findClusterBreak} from "@marijn/find-cluster-break"
+import {TextblockMap} from "./textblock"
+import {Direction} from "./bidi"
 
 export type SelectionJSON = {
   anchor: number
@@ -119,10 +120,9 @@ export class EditorSelection {
   /// normal cursor position.
   normalize(doc: DocNode) {
     if (!this.empty) return this
-    let normal = EditorSelection.normalPositionBefore(doc, this.from, false)
-      ?? EditorSelection.normalPositionAfter(doc, this.from, true)
-    if (normal == null || normal == this.from) return this
-    return EditorSelection.cursor(normal, -1, this.goalColumn ?? undefined, this.props)
+    let normal = this.prevNormalCursor(doc) || this.nextNormalCursor(doc)
+    if (normal == null || normal.head == this.head) return this
+    return EditorSelection.cursor(normal.head, normal.assoc, this.goalColumn ?? undefined, this.props)
   }
 
   resolve(doc: DocNode) { return new SelectionPos(doc, this) }
@@ -139,6 +139,16 @@ export class EditorSelection {
       for (let prop of this.props) result.props[prop.name] = prop.value
     }
     return result
+  }
+
+  nextNormalCursor(doc: DocNode, visualOrder = true) {
+    let found = scanNormalFrom(doc, Direction.LTR/* FIXME */, this.head, this.assoc || -1, true, true, visualOrder)
+    return found && EditorSelection.cursor(found.pos, found.assoc)
+  }
+
+  prevNormalCursor(doc: DocNode, visualOrder = true) {
+    let found = scanNormalFrom(doc, Direction.LTR/* FIXME */, this.head, this.assoc || -1, false, true, visualOrder)
+    return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
   /// Create a selection from a JSON representation.
@@ -176,17 +186,11 @@ export class EditorSelection {
                                        spec.ranges, spec.props)
   }
 
-  static normalPositionAfter(doc: DocNode, from: number, mustMove: boolean = true) {
-    return scanNormalFrom(doc, from, true, mustMove)
-  }
-
-  static normalPositionBefore(doc: DocNode, from: number, mustMove: boolean = true) {
-    return scanNormalFrom(doc, from, false, mustMove)
-  }
-
   static near(doc: DocNode, pos: number, bias: -1 | 1 = 1) {
-    let norm = scanNormalFrom(doc, pos, bias > 0, false) ?? scanNormalFrom(doc, pos, bias < 0, false)!
-    return EditorSelection.cursor(norm)
+    let dir = Direction.LTR/* FIXME */
+    let norm = scanNormalFrom(doc, dir, pos, bias, bias > 0, false, false)
+      ?? scanNormalFrom(doc, dir, pos, -bias as -1 | 1, bias < 0, false, false)!
+    return EditorSelection.cursor(norm.pos, norm.assoc)
   }
 
   static mapRange(change: ChangeDesc, from: number, to: number, assoc = -1) {
@@ -209,15 +213,20 @@ function isBarrier(node: Node) {
     node.isBlock() && node.isAtom() // FIXME allow node specs to enable this?
 }
 
-function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: boolean) {
+function scanNormalFrom(
+  doc: DocNode, dir: Direction, from: number, assoc: -1 | 1,
+  forward: boolean, mustMove: boolean, visualOrder: boolean
+): {pos: number, assoc: -1 | 1} | null {
   let pos = doc.resolve(from), pastBarrier = false
-  if (pos.inText) {
-    if (!mustMove) return from
-    let text = pos.parent.node.children[pos.index].text!
-    let next = findClusterBreak(text, pos.inText, forward), nextPos = from - pos.inText + next
-    if (!next) pos = new Pos(pos.parent, nextPos, pos.index, 0)
-    else if (next == text.length) pos = new Pos(pos.parent, nextPos, pos.index + 1, 0)
-    else return nextPos
+  if (pos.parent.node.inlineContent()) {
+    if (!mustMove) return {pos: pos.pos, assoc: assoc < 0 ? -1 : 1}
+    let block = pos.textblockParent!
+    let map = TextblockMap.get(block.start, block.node, dir)
+    let next = visualOrder ? map.moveVisually(pos.pos, assoc, forward) : map.moveLogically(pos.pos, forward)
+    if (next != null) return next
+    if (!block.parent) return null
+    pos = new Pos(block.parent, forward ? block.after : block.before, block.index + (forward ? 1 : 0), 0)
+    pastBarrier = isBarrier(block.node)
   } else {
     pastBarrier = !pos.parent.parent && pos.index == (forward ? 0 : pos.parent.node.children.length)
     for (let {parent: {node}, index} = pos; !pastBarrier && (forward ? index : index < node.children.length);) {
@@ -229,43 +238,33 @@ function scanNormalFrom(doc: DocNode, from: number, forward: boolean, mustMove: 
     }
   }
 
-  let bottom = pos.pos, dir = forward ? 1 : -1
+  let bottom = pos.pos, step = forward ? 1 : -1
   for (let {parent, index} = pos, p = pos.pos;;) {
     let {node, parent: next} = parent
-    if (parent.node.inlineContent() && (p != from || !mustMove) &&
-        (index && index < node.children.length ||
-         !next || !next.node.inlineContent() || node.type.spec.cursorInsideBounds))
-      return p
+    if (parent.node.inlineContent()) {
+      if (visualOrder) return TextblockMap.get(parent.start, parent.node, dir).visualTextblockSide(forward)
+      return {pos: p, assoc: forward ? 1 : -1}
+    }
     if (index == (forward ? node.children.length : 0)) {
       let barrier = !next || isBarrier(node)
-      if ((bottom != from || !mustMove) && pastBarrier && barrier) return bottom
+      if ((bottom != from || !mustMove) && pastBarrier && barrier) return {pos: bottom, assoc: forward ? -1 : 1}
       if (!next) return null
-      index = parent.index
+      index = parent.index + (forward ? 1 : 0)
       parent = next
-      p += dir
-      if (forward) index++
+      p += step
       bottom = p
       if (barrier) pastBarrier = true
     } else {
       let nextNode = node.children[index - (forward ? 0 : 1)]
-      if (nextNode.isText()) {
-        if (forward) {
-          let skip = findClusterBreak(nextNode.text, 0, true)
-          if (skip < nextNode.length) return p + skip
-        } else {
-          let skip = findClusterBreak(nextNode.text, nextNode.text.length, false)
-          if (skip) return p - nextNode.length + skip
-        }
-      }
       let barrier = isBarrier(nextNode)
-      if (pastBarrier && (bottom != from || !mustMove) && barrier) return bottom
+      if (pastBarrier && (bottom != from || !mustMove) && barrier) return {pos: bottom, assoc: forward ? -1 : 1}
       if (nextNode.isAtom()) {
-        index += dir
-        p += nextNode.length * dir
+        index += step
+        p += nextNode.length * step
       } else {
         if (!forward) index--
         parent = new NodePos(parent, nextNode, p - (forward ? 0 : nextNode.length) + 1, index)
-        p += dir
+        p += step
         index = forward ? 0 : nextNode.children.length
       }
       if (barrier) { pastBarrier = true; bottom = p }

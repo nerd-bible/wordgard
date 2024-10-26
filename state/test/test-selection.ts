@@ -3,7 +3,7 @@ import {DocNode, Tag, basicBuilders, builder, maybeTag} from "@willows/doc"
 import {EditorSelection} from "@willows/state"
 const {doc, p, hr, blockquote, pre, $img} = basicBuilders
 
-describe("normalPosAfter", () => {
+describe("nextNormalCursor", () => {
   function testNormal(doc: DocNode) {
     let expect = [], forward = [], back = []
     for (let i = 0;; i++) {
@@ -11,15 +11,17 @@ describe("normalPosAfter", () => {
       if (next == null) break
       expect.push(next)
     }
-    for (let cur = 0, first = true;; first = false) {
-      let next = EditorSelection.normalPositionAfter(doc, cur, !first)
+    for (let cur = EditorSelection.near(doc, 0);;) {
+      forward.push(cur.head)
+      let next = cur.nextNormalCursor(doc)
       if (next == null) break
-      forward.push(cur = next)
+      cur = next
     }
-    for (let cur = doc.length, first = true;; first = false) {
-      let next = EditorSelection.normalPositionBefore(doc, cur, !first)
+    for (let cur = EditorSelection.near(doc, doc.length);;) {
+      back.push(cur.head)
+      let next = cur.prevNormalCursor(doc)
       if (next == null) break
-      back.push(cur = next)
+      cur = next
     }
     ist(forward.join(), expect.join())
     ist(back.join(), expect.reverse().join())

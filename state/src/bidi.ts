@@ -1,7 +1,3 @@
-import {EditorSelection} from "./selection"
-import {TextblockMap} from "./textblock"
-import {findClusterBreak} from "@marijn/find-cluster-break"
-
 /// Used to indicate [text direction](#view.EditorView.textDirection).
 export enum Direction {
   // (These are chosen to match the base levels, in bidi algorithm
@@ -406,42 +402,4 @@ export function computeOrder(line: string, direction: Direction, isolates: reado
 
 export function trivialOrder(length: number) {
   return [new BidiSpan(0, length, 0)]
-}
-
-export let movedOver = ""
-
-// This implementation moves strictly visually, without concern for a
-// traversal visiting every logical position in the string. It will
-// still do so for simple input, but situations like multiple isolates
-// with the same level next to each other, or text going against the
-// main dir at the end of the line, will make some positions
-// unreachable with this motion. Each visible cursor position will
-// correspond to the lower-level bidi span that touches it.
-//
-// The alternative would be to solve an order globally for a given
-// line, making sure that it includes every position, but that would
-// require associating non-canonical (higher bidi span level)
-// positions with a given visual position, which is likely to confuse
-// people. (And would generally be a lot more complicated.)
-export function moveVisually(block: TextblockMap, dir: Direction, start: EditorSelection, forward: boolean) {
-  let startIndex = block.toIndex(start.head), {order} = block
-  let spanI = BidiSpan.find(order, startIndex, start.assoc)
-  let span = order[spanI], spanEnd = span.side(forward, dir)
-  // End of span
-  if (startIndex == spanEnd) {
-    let nextI = spanI += forward ? 1 : -1
-    if (nextI < 0 || nextI >= order.length) return null
-    span = order[spanI = nextI]
-    startIndex = span.side(!forward, dir)
-    spanEnd = span.side(forward, dir)
-  }
-  let nextIndex = findClusterBreak(block.text, startIndex, span.forward(forward, dir))
-  if (nextIndex < span.from || nextIndex > span.to) nextIndex = spanEnd
-  movedOver = block.text.slice(Math.min(startIndex, nextIndex), Math.max(startIndex, nextIndex))
-
-  let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)]
-  if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level)
-    return EditorSelection.cursor(block.fromIndex(nextSpan.side(!forward, dir)),
-                                  nextSpan.forward(forward, dir) ? 1 : -1)
-  return EditorSelection.cursor(block.fromIndex(nextIndex), span.forward(forward, dir) ? -1 : 1)
 }
