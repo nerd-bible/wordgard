@@ -1,4 +1,4 @@
-import {Schema, DocNode, Node, ChangeDesc, Prop, Pos, NodePos} from "@willows/doc"
+import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "@willows/doc"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 
@@ -34,6 +34,15 @@ export class SelectionPos {
   get empty() { return this.selection.empty }
   get assoc() { return this.selection.assoc } 
 }
+
+export interface SelectionContext {
+  doc: DocNode
+  textDirection?: (tag: Tag) => Direction
+  visualCursorMotion?: boolean
+  selection?: EditorSelection
+}
+
+function alwaysLTR() { return Direction.LTR }
 
 /// An editor selection holds one or more selection ranges.
 export class EditorSelection {
@@ -118,9 +127,11 @@ export class EditorSelection {
 
   /// Make sure, if this is a cursor selection, that it sits at a
   /// normal cursor position.
-  normalize(doc: DocNode) {
+  normalize(cx: SelectionContext) {
     if (!this.empty) return this
-    let normal = this.prevNormalCursor(doc) || this.nextNormalCursor(doc)
+    let pos = cx.doc.resolve(this.head)
+    if (pos.parent.node.isTextblock()) return this
+    let normal = EditorSelection.near(cx, this.head, this.assoc || -1)
     if (normal == null || normal.head == this.head) return this
     return EditorSelection.cursor(normal.head, normal.assoc, this.goalColumn ?? undefined, this.props)
   }
@@ -139,16 +150,6 @@ export class EditorSelection {
       for (let prop of this.props) result.props[prop.name] = prop.value
     }
     return result
-  }
-
-  nextNormalCursor(doc: DocNode, visualOrder = true) {
-    let found = scanNormalFrom(doc, Direction.LTR/* FIXME */, this.head, this.assoc || -1, true, true, visualOrder)
-    return found && EditorSelection.cursor(found.pos, found.assoc)
-  }
-
-  prevNormalCursor(doc: DocNode, visualOrder = true) {
-    let found = scanNormalFrom(doc, Direction.LTR/* FIXME */, this.head, this.assoc || -1, false, true, visualOrder)
-    return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
   /// Create a selection from a JSON representation.
@@ -186,10 +187,24 @@ export class EditorSelection {
                                        spec.ranges, spec.props)
   }
 
-  static near(doc: DocNode, pos: number, bias: -1 | 1 = 1) {
-    let dir = Direction.LTR/* FIXME */
-    let norm = scanNormalFrom(doc, dir, pos, bias, bias > 0, false, false)
-      ?? scanNormalFrom(doc, dir, pos, -bias as -1 | 1, bias < 0, false, false)!
+  static nextNormalCursor(cx: SelectionContext, selection = cx.selection) {
+    if (!selection) throw new Error("No start selection provided to nextNormalCursor")
+    let found = scanNormalFrom(cx.doc, cx.textDirection ?? alwaysLTR, selection.head, selection.assoc || -1,
+                               true, true, cx.visualCursorMotion ?? true)
+    return found && EditorSelection.cursor(found.pos, found.assoc)
+  }
+
+  static prevNormalCursor(cx: SelectionContext, selection = cx.selection) {
+    if (!selection) throw new Error("No start selection provided to prevNormalCursor")
+    let found = scanNormalFrom(cx.doc, cx.textDirection ?? alwaysLTR, selection.head, selection.assoc || -1,
+                               false, true, cx.visualCursorMotion ?? true)
+    return found && EditorSelection.cursor(found.pos, found.assoc)
+  }
+
+  static near(cx: SelectionContext, pos: number, bias: -1 | 1 = 1) {
+    let dir = cx.textDirection || alwaysLTR, vis = cx.visualCursorMotion ?? true
+    let norm = scanNormalFrom(cx.doc, dir, pos, bias, bias > 0, false, vis)
+      ?? scanNormalFrom(cx.doc, dir, pos, -bias as -1 | 1, bias < 0, false, vis)!
     return EditorSelection.cursor(norm.pos, norm.assoc)
   }
 
@@ -214,14 +229,14 @@ function isBarrier(node: Node) {
 }
 
 function scanNormalFrom(
-  doc: DocNode, dir: Direction, from: number, assoc: -1 | 1,
+  doc: DocNode, dir: (tag: Tag) => Direction, from: number, assoc: -1 | 1,
   forward: boolean, mustMove: boolean, visualOrder: boolean
 ): {pos: number, assoc: -1 | 1} | null {
   let pos = doc.resolve(from), pastBarrier = false
   if (pos.parent.node.inlineContent()) {
     if (!mustMove) return {pos: pos.pos, assoc: assoc < 0 ? -1 : 1}
     let block = pos.textblockParent!
-    let map = TextblockMap.get(block.start, block.node, dir)
+    let map = TextblockMap.get(block.start, block.node, dir(block.node.tag))
     let next = visualOrder ? map.moveVisually(pos.pos, assoc, forward) : map.moveLogically(pos.pos, forward)
     if (next != null) return next
     if (!block.parent) return null
@@ -241,8 +256,8 @@ function scanNormalFrom(
   let bottom = pos.pos, step = forward ? 1 : -1
   for (let {parent, index} = pos, p = pos.pos;;) {
     let {node, parent: next} = parent
-    if (parent.node.inlineContent()) {
-      if (visualOrder) return TextblockMap.get(parent.start, parent.node, dir).visualTextblockSide(forward)
+    if (node.inlineContent()) {
+      if (visualOrder) return TextblockMap.get(parent.start, parent.node, dir(parent.node.tag)).visualTextblockSide(forward)
       return {pos: p, assoc: forward ? 1 : -1}
     }
     if (index == (forward ? node.children.length : 0)) {

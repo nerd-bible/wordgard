@@ -1,9 +1,10 @@
-import {Schema, SchemaElement, DocNode, NodeJSON, parseDoc} from "@willows/doc"
+import {Schema, Tag, SchemaElement, DocNode, NodeJSON, parseDoc} from "@willows/doc"
 import {EditorSelection, SelectionSpec, SelectionPos} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
         sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
         transactionFilter, transactionExtender} from "./facet"
+import {Direction} from "./bidi"
 
 export type StateCommand = (target: {state: EditorState, dispatch: (tr: Transaction) => void}) => boolean
 
@@ -407,7 +408,11 @@ export class EditorState {
     let config = Configuration.resolve(spec.extensions || [], new Map)
     let schema = spec.doc instanceof DocNode ? spec.doc.schema : schemaFromConfig(config)
     let doc = readDoc(schema, spec.doc)
-    let selection = !spec.selection ? EditorSelection.near(doc, 0)
+    let selection = !spec.selection ? EditorSelection.near({
+      doc,
+      textDirection: config.staticFacet(EditorState.textDirection),
+      visualCursorMotion: config.staticFacet(EditorState.visualCursorMotion),
+    }, 0)
       : typeof spec.selection == "function" ? spec.selection(doc)
       : spec.selection instanceof EditorSelection ? spec.selection
       : EditorSelection.create(spec.selection)
@@ -469,6 +474,27 @@ export class EditorState {
       return !n || n > insert.length ? m : insert[n - 1]
     })
     return phrase
+  }
+
+  static textDirection = Facet.define<Direction | ((tag: Tag) => Direction), (tag: Tag) => Direction>({
+    combine(values) {
+      let value = !values.length ? Direction.LTR : values[0]
+      return typeof value == "function" ? value : () => value
+    },
+    static: true
+  })
+
+  get textDirection() {
+    return this.facet(EditorState.textDirection)
+  }
+
+  static visualCursorMotion = Facet.define<boolean, boolean>({
+    combine(values) { return !values.length ? true : values[0] },
+    static: true
+  })
+
+  get visualCursorMotion() {
+    return this.facet(EditorState.visualCursorMotion)
   }
 
   /// Facet used to register a hook that gets a chance to update or

@@ -18,7 +18,7 @@ function selectionFrom(doc: DocNode) {
     let head = maybeTag(doc, i)
     if (head == null)
       return ranges.length ? EditorSelection.create({anchor: ranges[0].from, head: ranges[0].to, ranges})
-        : EditorSelection.near(doc, 0)
+        : EditorSelection.near({doc}, 0)
     ranges.push({from: head, to: maybeTag(doc, i + 1) ?? head})
   }
 }

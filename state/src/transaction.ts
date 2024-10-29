@@ -223,7 +223,11 @@ export class Transaction {
   get newSelection() {
     if (!this._selection) {
       let sel = this.selection || this.startState.selection.map(this.changes)
-      this._selection = this.normalizeSelection ? sel.normalize(this.newDoc) : sel
+      this._selection = this.normalizeSelection ? sel.normalize({
+        doc: this.newDoc,
+        textDirection: this.startState.textDirection,
+        visualCursorMotion: this.startState.visualCursorMotion
+      }) : sel
     }
     return this._selection
   }

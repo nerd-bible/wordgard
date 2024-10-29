@@ -151,10 +151,10 @@ export class TextblockMap {
     let pos, assoc: -1 | 1
     if (start) {
       let span = this.order[0]
-      ;[pos, assoc] = span.level % 2 ? [span.to, -1] : [span.from, 1]
+      ;[pos, assoc] = span.dir == this.dir ? [span.from, 1] : [span.to, -1]
     } else {
       let span = this.order[this.order.length - 1]
-      ;[pos, assoc] = span.level % 2 ? [span.from, 1] : [span.to, -1]
+      ;[pos, assoc] = span.dir == this.dir ? [span.to, -1] : [span.from, 1]
     }
     return {pos: this.fromIndex(pos), assoc}
   }
