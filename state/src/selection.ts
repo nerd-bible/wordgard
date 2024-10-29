@@ -189,22 +189,31 @@ export class EditorSelection {
 
   static nextNormalCursor(cx: SelectionContext, selection = cx.selection) {
     if (!selection) throw new Error("No start selection provided to nextNormalCursor")
-    let found = scanNormalFrom(cx.doc, cx.textDirection ?? alwaysLTR, selection.head, selection.assoc || -1,
-                               true, true, cx.visualCursorMotion ?? true)
+    let found = scanNormalFrom(cx, selection.head, selection.assoc || -1, true, true)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
   static prevNormalCursor(cx: SelectionContext, selection = cx.selection) {
     if (!selection) throw new Error("No start selection provided to prevNormalCursor")
-    let found = scanNormalFrom(cx.doc, cx.textDirection ?? alwaysLTR, selection.head, selection.assoc || -1,
-                               false, true, cx.visualCursorMotion ?? true)
+    let found = scanNormalFrom(cx, selection.head, selection.assoc || -1, false, true)
+    return found && EditorSelection.cursor(found.pos, found.assoc)
+  }
+
+  static skipNextWord(cx: SelectionContext, selection = cx.selection) {
+    if (!selection) throw new Error("No start selection provided to skipNextWord")
+    let found = skipWord(cx, selection.head, selection.assoc || -1, true)
+    return found && EditorSelection.cursor(found.pos, found.assoc)
+  }
+
+  static skipPrevWord(cx: SelectionContext, selection = cx.selection) {
+    if (!selection) throw new Error("No start selection provided to skipPrevWord")
+    let found = skipWord(cx, selection.head, selection.assoc || -1, false)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
   static near(cx: SelectionContext, pos: number, bias: -1 | 1 = 1) {
-    let dir = cx.textDirection || alwaysLTR, vis = cx.visualCursorMotion ?? true
-    let norm = scanNormalFrom(cx.doc, dir, pos, bias, bias > 0, false, vis)
-      ?? scanNormalFrom(cx.doc, dir, pos, -bias as -1 | 1, bias < 0, false, vis)!
+    let norm = scanNormalFrom(cx, pos, bias, bias > 0, false)
+      ?? scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false)!
     return EditorSelection.cursor(norm.pos, norm.assoc)
   }
 
@@ -229,10 +238,10 @@ function isBarrier(node: Node) {
 }
 
 function scanNormalFrom(
-  doc: DocNode, dir: (tag: Tag) => Direction, from: number, assoc: -1 | 1,
-  forward: boolean, mustMove: boolean, visualOrder: boolean
+  cx: SelectionContext, from: number, assoc: -1 | 1, forward: boolean, mustMove: boolean
 ): {pos: number, assoc: -1 | 1} | null {
-  let pos = doc.resolve(from), pastBarrier = false
+  let dir = cx.textDirection ?? alwaysLTR, visualOrder = cx.visualCursorMotion !== false
+  let pos = cx.doc.resolve(from), pastBarrier = false
   if (pos.parent.node.inlineContent()) {
     if (!mustMove) return {pos: pos.pos, assoc: assoc < 0 ? -1 : 1}
     let block = pos.textblockParent!
@@ -283,6 +292,26 @@ function scanNormalFrom(
         index = forward ? 0 : nextNode.children.length
       }
       if (barrier) { pastBarrier = true; bottom = p }
+    }
+  }
+}
+
+function skipWord(cx: SelectionContext, start: number, assoc: -1 | 1, forward: boolean) {
+  let last: {pos: number, assoc: -1 | 1} | null = null
+  for (let pos = start, visually = cx.visualCursorMotion !== false;;) {
+    let block = cx.doc.resolve(pos).textblockParent
+    if (!block) {
+      let next = scanNormalFrom(cx, pos, assoc, forward, true)
+      if (!next) return last
+      ;({pos, assoc} = next)
+    } else {
+      let map = TextblockMap.get(block.start, block.node, cx.textDirection ? cx.textDirection(block.node.tag) : Direction.LTR)
+      let next = map.skipWord(pos, assoc, forward, visually)
+      if (next) return next
+      if (!block.parent) return last
+      let end: {pos: number, assoc: -1 | 1} = visually ? map.visualTextblockSide(!forward) : forward ? {pos: block.end, assoc: -1} : {pos: block.start, assoc: 1}
+      if (end.pos != start) last = end
+      pos = forward ? block.after : block.before
     }
   }
 }

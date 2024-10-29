@@ -125,7 +125,7 @@ export class TextblockMap {
   // require associating non-canonical (higher bidi span level)
   // positions with a given visual position, which is likely to confuse
   // people. (And would generally be a lot more complicated.)
-  moveVisually(start: number, assoc: number, forward: boolean): {pos: number, assoc: -1 | 1} | null {
+  moveVisually(start: number, assoc: number, forward: boolean, skipped?: string[]): {pos: number, assoc: -1 | 1} | null {
     let startIndex = this.toIndex(start), {order, dir} = this
     let spanI = BidiSpan.find(order, startIndex, assoc)
     let span = order[spanI], spanEnd = span.side(forward, dir)
@@ -140,11 +140,40 @@ export class TextblockMap {
     let nextIndex = findClusterBreak(this.text, startIndex, span.forward(forward, dir))
     if (nextIndex == startIndex) return null
     if (nextIndex < span.from || nextIndex > span.to) nextIndex = spanEnd
+    if (skipped) skipped[0] = this.text.slice(Math.min(startIndex, nextIndex), Math.max(startIndex, nextIndex))
 
     let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)]
     if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level)
       return {pos: this.fromIndex(nextSpan.side(!forward, dir)), assoc: nextSpan.forward(forward, dir) ? 1 : -1}
     return {pos: this.fromIndex(nextIndex), assoc: span.forward(forward, dir) ? -1 : 1}
+  }
+
+  skipWord(start: number, assoc: number, forward: boolean, visually: boolean): {pos: number, assoc: -1 | 1} | null {
+    let word = "", skipped = [""], cur: {pos: number, assoc: -1 | 1} | null = null
+    let history = new Map<number, {pos: number, assoc: -1 | 1}>()
+    for (;;) {
+      let next, char, from = cur ? cur.pos : start
+      if (visually) {
+        next = this.moveVisually(from, cur ? cur.assoc : assoc, forward, skipped)
+        char = skipped[0]
+      } else {
+        next = this.moveLogically(from, forward)
+        char = next ? this.text.slice(Math.min(next.pos, from), Math.max(next.pos, from)) : ""
+      }
+      if (!next) break
+      if (/\p{L}|\p{N}/u.test(char)) {
+        if (forward) word += char
+        else word = skipped[0] + word
+        history.set(word.length, next)
+      } else if (word) {
+        break
+      }
+      cur = next
+    }
+    if (!word) return null
+    if (!(Intl as any).Segmenter) return cur // FIXME see when TS gets decls for this
+    let segments = [...new (Intl as any).Segmenter(undefined, {granularity: "word"}).segment(word)]
+    return history.get(segments[forward ? 0 : segments.length - 1].segment.length) || cur
   }
 
   visualTextblockSide(start: boolean): {pos: number, assoc: -1 | 1} {

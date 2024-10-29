@@ -142,3 +142,63 @@ describe("nextNormalCursor", () => {
          [0, 1, 3, 2, 4, 5, 7, 6, 8, 9, 10, 11])
   })
 })
+
+describe("skipNextWord", () => {
+  function test(name: string, lines: string | string[], positions: number[]) {
+    it(name, () => {
+      let cx = {doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))}
+      let cur = EditorSelection.near(cx, 0), found = []
+      for (;;) {
+        let next = EditorSelection.skipNextWord(cx, cur)
+        if (!next) break
+        found.push(next.head)
+        cur = next
+      }
+      ist(JSON.stringify(found), JSON.stringify(positions))
+    })
+  }
+
+  test("can skip words", "a bbb c", [2, 6, 8])
+
+  test("skips whitespace", "  a      bbb", [4, 13])
+
+  test("skips punctuation", "a. b??? / c", [2, 5, 12])
+
+  test("can move across blocks", ["abc def", " efg"], [4, 8, 14])
+
+  test("includes extra positions at end", "a b ", [2, 4, 5])
+
+  test("is direction-aware", "a واحد اثنين ثلاثة b", [2, 14, 8, 19, 21])
+
+  test("uses a segmenter", "两只兔子", [2, 3, 5])
+})
+
+describe("skipPrevWord", () => {
+  function test(name: string, lines: string | string[], positions: number[]) {
+    it(name, () => {
+      let cx = {doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))}
+      let cur = EditorSelection.near(cx, cx.doc.length), found = []
+      for (;;) {
+        let prev = EditorSelection.skipPrevWord(cx, cur)
+        if (!prev) break
+        found.push(prev.head)
+        cur = prev
+      }
+      ist(JSON.stringify(found), JSON.stringify(positions))
+    })
+  }
+
+  test("can skip words", "a bbb c", [7, 3, 1])
+
+  test("skips whitespace", "a  bbb ", [4, 1])
+
+  test("skips punctuation", "a. b??? / c", [11, 4, 1])
+
+  test("can move across blocks", ["abc def ", " efg"], [12, 5, 1])
+
+  test("includes extra positions at start", " a b", [4, 2, 1])
+
+  test("is direction-aware", "a واحد اثنين ثلاثة b", [20, 7, 13, 19, 1])
+
+  test("uses a segmenter", "两只兔子", [3, 2, 1])
+})
