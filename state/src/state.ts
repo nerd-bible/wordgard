@@ -476,14 +476,28 @@ export class EditorState {
     return phrase
   }
 
-  static textDirection = Facet.define<Direction | ((tag: Tag) => Direction), (tag: Tag) => Direction>({
+  /// Configure the text direction in the editor. A `Direction` value
+  /// sets the direction for the entire editor. A function is
+  /// consulted for a given textblock tag to determine the direction
+  /// in that block, or given `null` to query the direction outside of
+  /// textblocks. When multiple values are given, they are consulted
+  /// in order of precedence.
+  static textDirection = Facet.define<Direction | ((tag?: Tag) => Direction | null), (tag?: Tag) => Direction>({
     combine(values) {
-      let value = !values.length ? Direction.LTR : values[0]
-      return typeof value == "function" ? value : () => value
+      return (tag?: Tag) => {
+        for (let elt of values) {
+          if (typeof elt != "function") return elt
+          let result = elt(tag)
+          if (result != null) return result
+        }
+        return Direction.LTR
+      }
     },
     static: true
   })
 
+  /// Return the text direction in a given textblock (by tag) or the
+  /// global default direction (when no tag is given).
   get textDirection() {
     return this.facet(EditorState.textDirection)
   }

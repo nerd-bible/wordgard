@@ -1,6 +1,7 @@
 import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "@willows/doc"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
+import {EditorState} from "./state"
 
 export type SelectionJSON = {
   anchor: number
@@ -37,9 +38,8 @@ export class SelectionPos {
 
 export interface SelectionContext {
   doc: DocNode
-  textDirection?: (tag: Tag) => Direction
+  textDirection?: (tag?: Tag) => Direction
   visualCursorMotion?: boolean
-  selection?: EditorSelection
 }
 
 function alwaysLTR() { return Direction.LTR }
@@ -187,26 +187,30 @@ export class EditorSelection {
                                        spec.ranges, spec.props)
   }
 
-  static nextNormalCursor(cx: SelectionContext, selection = cx.selection) {
-    if (!selection) throw new Error("No start selection provided to nextNormalCursor")
+  static nextNormalCursor(cx: EditorState): EditorSelection | null
+  static nextNormalCursor(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
+  static nextNormalCursor(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
     let found = scanNormalFrom(cx, selection.head, selection.assoc || -1, true, true)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
-  static prevNormalCursor(cx: SelectionContext, selection = cx.selection) {
-    if (!selection) throw new Error("No start selection provided to prevNormalCursor")
+  static prevNormalCursor(state: EditorState): EditorSelection | null
+  static prevNormalCursor(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
+  static prevNormalCursor(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
     let found = scanNormalFrom(cx, selection.head, selection.assoc || -1, false, true)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
-  static skipNextWord(cx: SelectionContext, selection = cx.selection) {
-    if (!selection) throw new Error("No start selection provided to skipNextWord")
+  static skipNextWord(state: EditorState): EditorSelection | null
+  static skipNextWord(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
+  static skipNextWord(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
     let found = skipWord(cx, selection.head, selection.assoc || -1, true)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
-  static skipPrevWord(cx: SelectionContext, selection = cx.selection) {
-    if (!selection) throw new Error("No start selection provided to skipPrevWord")
+  static skipPrevWord(state: EditorState): EditorSelection | null
+  static skipPrevWord(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
+  static skipPrevWord(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
     let found = skipWord(cx, selection.head, selection.assoc || -1, false)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }

@@ -2,7 +2,7 @@ import {Node, Tag, TagType, Prop, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken, OpenToken,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
         unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "@willows/doc"
-import {EditorSelection, StateCommand} from "@willows/state"
+import {EditorSelection, StateCommand, EditorState, Transaction, Direction} from "@willows/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
@@ -375,6 +375,83 @@ export function toggleProp(prop: Prop<any>): StateCommand {
     return true
   }
 }
+
+function ltrAtCursor(state: EditorState) {
+  let block = state.selPos.head.textblockParent
+  return state.textDirection(block ? block.node.tag : undefined) == Direction.LTR
+}
+
+function cursorByChar(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
+  let next = (forward ? EditorSelection.nextNormalCursor : EditorSelection.prevNormalCursor)(state)
+  if (!next) return false
+  dispatch(state.update({selection: next, scrollIntoView: true}))
+  return true
+}
+
+function selectByChar(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
+  let next = (forward ? EditorSelection.nextNormalCursor : EditorSelection.prevNormalCursor)(state)
+  if (!next) return false
+  dispatch(state.update({selection: state.selection.extend(next.from, next.to), scrollIntoView: true}))
+  return true
+}
+
+/// Move the selection one character to the left (which is backward in
+/// left-to-right text, forward in right-to-left text).
+export const cursorCharLeft: StateCommand = ({state, dispatch}) => cursorByChar(state, dispatch, !ltrAtCursor(state))
+/// Move the selection one character to the right.
+export const cursorCharRight: StateCommand = ({state, dispatch}) => cursorByChar(state, dispatch, ltrAtCursor(state))
+
+/// Move the selection head one character to the left, while leaving
+/// the anchor in place.
+export const selectCharLeft: StateCommand = ({state, dispatch}) => selectByChar(state, dispatch, !ltrAtCursor(state))
+/// Move the selection head one character to the right.
+export const selectCharRight: StateCommand = ({state, dispatch}) => selectByChar(state, dispatch, ltrAtCursor(state))
+
+/// Move the selection one character forward.
+export const cursorCharForward: StateCommand = ({state, dispatch}) => cursorByChar(state, dispatch, true)
+/// Move the selection one character backward.
+export const cursorCharBackward: StateCommand = ({state, dispatch}) => cursorByChar(state, dispatch, false)
+
+/// Move the selection head one character forward.
+export const selectCharForward: StateCommand = ({state, dispatch}) => selectByChar(state, dispatch, true)
+/// Move the selection head one character backward.
+export const selectCharBackward: StateCommand = ({state, dispatch}) => selectByChar(state, dispatch, false)
+
+function cursorByWord(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
+  let next = (forward ? EditorSelection.skipNextWord : EditorSelection.skipPrevWord)(state)
+  if (!next) return false
+  dispatch(state.update({selection: next, scrollIntoView: true}))
+  return true
+}
+
+function selectByWord(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
+  let next = (forward ? EditorSelection.skipNextWord : EditorSelection.skipPrevWord)(state)
+  if (!next) return false
+  dispatch(state.update({selection: state.selection.extend(next.from, next.to), scrollIntoView: true}))
+  return true
+}
+
+/// Move the selection one word to the left (which is backward in
+/// left-to-right text, forward in right-to-left text).
+export const cursorWordLeft: StateCommand = ({state, dispatch}) => cursorByWord(state, dispatch, !ltrAtCursor(state))
+/// Move the selection one word to the right.
+export const cursorWordRight: StateCommand = ({state, dispatch}) => cursorByWord(state, dispatch, ltrAtCursor(state))
+
+/// Move the selection head one word to the left, while leaving
+/// the anchor in place.
+export const selectWordLeft: StateCommand = ({state, dispatch}) => selectByWord(state, dispatch, !ltrAtCursor(state))
+/// Move the selection head one word to the right.
+export const selectWordRight: StateCommand = ({state, dispatch}) => selectByWord(state, dispatch, ltrAtCursor(state))
+
+/// Move the selection one word forward.
+export const cursorWordForward: StateCommand = ({state, dispatch}) => cursorByWord(state, dispatch, true)
+/// Move the selection one word backward.
+export const cursorWordBackward: StateCommand = ({state, dispatch}) => cursorByWord(state, dispatch, false)
+
+/// Move the selection head one word forward.
+export const selectWordForward: StateCommand = ({state, dispatch}) => selectByWord(state, dispatch, true)
+/// Move the selection head one word backward.
+export const selectWordBackward: StateCommand = ({state, dispatch}) => selectByWord(state, dispatch, false)
 
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
