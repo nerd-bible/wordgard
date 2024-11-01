@@ -14,25 +14,28 @@ const enum Section {
 }
 
 export class TextblockMap {
-  constructor(
+  private constructor(
     readonly start: number,
     readonly node: Node,
     readonly dir: Direction,
     readonly text: string,
-    // FIXME compute lazily?
-    readonly order: readonly BidiSpan[],
+    private _order: readonly BidiSpan[] | null,
     // Describe the correspondence between the indices and document
     // positions. Each number starts with 2 bits holding a Section
     // flag, followed by the length of the section.
     readonly sections: number[]
   ) {}
 
+  get order() {
+    return this._order || (this._order = computeOrder(this.text, this.dir, []))
+  }
+
   // FIXME handle isolates
   static get(start: number, node: Node, dir: Direction) {
     let cached = cache.get(node)
     if (cached && cached.start == start && cached.dir == dir) return cached
     let result = cached && cached.dir == dir
-      ? new TextblockMap(start, node, dir, cached.text, cached.order, cached.sections)
+      ? new TextblockMap(start, node, dir, cached.text, cached._order, cached.sections)
       : TextblockMap.create(start, node, dir)
     cache.set(node, result)
     return result
@@ -71,7 +74,7 @@ export class TextblockMap {
     }
     scan(node, 0)
     flush(node.contentLength)
-    return new TextblockMap(start, node, dir, text, computeOrder(text, dir, []), sections)
+    return new TextblockMap(start, node, dir, text, null, sections)
   }
 
   toIndex(pos: number) {
