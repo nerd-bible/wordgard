@@ -430,18 +430,23 @@ export class DocElt extends ContentElt {
   resolve(pos: number, assoc: -1 | 1) {
     let parent: ContentElt = this, index = 0, off = 0
     for (;;) {
-      if (parent.tag?.isText()) return new ContentPos(parent, pos - off, pos)
       if (off == pos) {
         let before = index ? parent.children[index - 1] : null
         let after = index < parent.children.length ? parent.children[index] : null
         if (before?.boundary) before = null
         if (after?.boundary) after = null
         if (!before && !after) return new ContentPos(parent, index, pos)
-        if (!after || before && assoc < 0) { parent = before!; index = before!.children.length }
-        else { parent = after; index = 0 }
+        if (!after || before && assoc < 0) {
+          if (before instanceof TextElt) return new ContentPos(before, before.length, pos)
+          parent = before!; index = before!.children.length
+        } else {
+          if (after instanceof TextElt) return new ContentPos(after, 0, pos)
+          parent = after; index = 0
+        }
       } else {
         let next = parent.children[index]
         if (off + next.length > pos) {
+          if (next instanceof TextElt) return new ContentPos(next, pos - off, pos)
           parent = next
           index = 0
           off += next.boundary

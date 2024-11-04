@@ -637,6 +637,9 @@ handlers.beforeinput = (view, event: InputEvent) => {
 }
 
 export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {
-  // FIXME define selection replacement
-  view.dispatch({changes: {from, to, insert}})
+  // FIXME define this more robustly
+  view.dispatch({
+    changes: {from, to, insert},
+    selection: {anchor: from + insert.length}
+  })
 }
