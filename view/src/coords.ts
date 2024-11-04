@@ -1,6 +1,7 @@
-import {Rect, textRange, caretFromPoint, maxOffset} from "./dom"
+import {Rect, textRange, caretFromPoint, maxOffset, clientRectsFor} from "./dom"
 import browser from "./browser"
 import {EditorView} from "./editorview"
+import {ContentElt, NodeElt} from "./content"
 
 // FIXME make this aware of node orientation, review
 function findOffsetInNode(node: HTMLElement, coords: {x: number, y: number}): {node: Node, offset: number} {
@@ -271,4 +272,43 @@ function flattenH(rect: DOMRect, top: boolean) {
   if (rect.height == 0) return rect
   let y = top ? rect.top : rect.bottom
   return {top: y, bottom: y, left: rect.left, right: rect.right}
+}
+
+export function findVerticalInTextblock(
+  elt: ContentElt, forward: boolean, x: number, y: number
+): {pos: number, assoc: number} | null {
+  let closest: Rect | null = null, closestX = -1, closestElt = null as NodeElt | null
+  let scan = (elt: ContentElt) => {
+    if (elt instanceof NodeElt && elt.tag.isLeaf()) {
+      let rects = clientRectsFor(elt.dom)
+      for (let i = 0; i < rects.length; i++) {
+        let rect = rects[i]
+        if (forward ? rect.top < y : rect.bottom > y) continue
+        if (closest) {
+          if (forward ? rect.bottom < closest.top : rect.top > closest.bottom) closest = null
+          else if (forward ? rect.top > closest.bottom : rect.bottom < closest.top) continue
+        }
+        let xDist = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
+        if (!closest || closestX > xDist) {
+          closest = rect
+          closestX = xDist
+          closestElt = elt
+        }
+      }
+    } else {
+      for (let ch of elt.children) scan(ch)
+    }
+  }
+  if (!closestElt) return null
+  let {dom} = closestElt, pos = closestElt.posBefore
+  if (closestElt.tag.isText()) {
+    let {offset} = findOffsetInText((dom.nodeType == 3 ? dom : dom.firstChild) as Text, {
+      x: Math.max(closest!.left, Math.min(closest!.right, x)),
+      y: Math.max(closest!.top, Math.min(closest!.bottom, y))
+    })
+    return {pos: pos + offset, assoc: 1} // FIXME properly determine assoc
+  }
+  // FIXME use text direction
+  if (x < (closest!.left + closest!.right) / 2) return {pos, assoc: 1}
+  return {pos: pos + 1, assoc: -1}
 }

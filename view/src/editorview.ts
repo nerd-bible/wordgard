@@ -17,7 +17,7 @@ import {InputState} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
-import {setDOMSelection} from "./selection"
+import {setDOMSelection, moveVertically} from "./selection"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
@@ -470,7 +470,7 @@ export class EditorView {
   /// cursor will have its goal column set to whichever column was
   /// used.
   moveVertically(start: EditorSelection, forward: boolean, distance?: number) {
-  //  return moveVertically(this, start, forward, distance)
+    return moveVertically(this, start, forward, distance)
   }
 
   /// Find the DOM parent node and offset (child offset if `node` is
@@ -728,9 +728,6 @@ export class EditorView {
   /// noticed by screen reader users (such as moving to the next
   /// search match).
   static announce = StateEffect.define<string>()
-
-  static {
-  }
 }
 
 let _wrapElement: {new (view: EditorView): HTMLElement} | null = null

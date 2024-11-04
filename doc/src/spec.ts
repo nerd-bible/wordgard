@@ -65,6 +65,11 @@ export type TagSpec<Param> = {
   /// nodes.
   isLineBreak?: boolean
   isolating?: boolean
+  /// Block containers are, by default, assumed to arrange their
+  /// children vertically below each other (`"row"`). You can set this
+  /// to `"column"` to tell the editor that this container's children
+  /// are horizontally next to each other.
+  orientation?: "row" | "column"
   defining?: boolean
   neutral?: boolean
   autoJoin?: boolean | ((before: Tag, after: Tag) => boolean) // FIXME implement
