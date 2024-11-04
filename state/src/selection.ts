@@ -64,7 +64,7 @@ export class EditorSelection {
     readonly goalColumn: number | null,
     /// The ranges in the selection, for selections that cover more
     /// than one range. Includes the main range.
-    readonly ranges: readonly {from: number, to: number}[],
+    private _ranges: readonly {from: number, to: number}[] | null,
     /// A set of active props that should be applied to content
     /// inserted at this selection (replacing the contextual props).
     /// Used mostly for making the effect of toggling inline styles
@@ -81,6 +81,10 @@ export class EditorSelection {
 
   /// True when `anchor` and `head` are at the same position.
   get empty(): boolean { return this.anchor == this.head }
+
+  get ranges() {
+    return this._ranges || (this._ranges = [{from: this.from, to: this.to}])
+  }
 
   /// Extend this selection to cover at least `from` to `to`.
   extend(from: number, to: number = from) {
@@ -160,7 +164,7 @@ export class EditorSelection {
     let props = json.props ? schema.propsFromJSON(json.props) : null
     let ranges = Array.isArray(json.ranges) && json.ranges.every(r => typeof r.from == "number" && typeof r.to == "number")
     return EditorSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, null,
-                                       ranges ? json.ranges : rangesFor(anchor, head), props)
+                                       ranges ? json.ranges! : undefined, props)
   }
 
   /// Create a cursor selection range at the given position. You can
@@ -177,8 +181,7 @@ export class EditorSelection {
   private static createInner(anchor: number, head: number, assoc?: number, goalColumn?: number | null,
                              ranges?: readonly {from: number, to: number}[], props?: readonly Prop<any>[] | null) {
     return new EditorSelection(anchor, head, !assoc ? 0 : assoc < 0 ? -1 : 1, goalColumn || null,
-                               ranges || [{from: Math.min(anchor, head), to: Math.max(anchor, head)}],
-                               props || null)
+                               ranges || null, props || null)
   }
 
   /// Create a selection.
@@ -230,10 +233,6 @@ export class EditorSelection {
       return {from, to: Math.max(from, change.mapPos(to, -1))}
     }
   }
-}
-
-function rangesFor(anchor: number, head: number) {
-  return [{from: Math.min(anchor, head), to: Math.max(anchor, head)}]
 }
 
 function isBarrier(node: Node) {
