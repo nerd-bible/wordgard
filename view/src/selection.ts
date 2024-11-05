@@ -1,4 +1,4 @@
-import {EditorSelection} from "@willows/state"
+import {EditorSelection, Direction} from "@willows/state"
 import {NodePos} from "@willows/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
@@ -118,4 +118,15 @@ function findTextblockVertically(view: EditorView, from: number, forward: boolea
       }
     }
   }
+}
+
+export function moveToLineBoundary(view: EditorView, start: EditorSelection, forward: boolean) {
+  let block = view.state.doc.resolve(start.head).textblockParent
+  if (!block) return null
+  let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
+  let dir = view.state.textDirection(block.node.tag)
+  let blockRect = (view.docElt.resolve(block.start, 0).node as HTMLElement).getBoundingClientRect()
+  let pos = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
+                              y: (startCoords.top + startCoords.bottom) / 2})
+  return EditorSelection.cursor(pos, forward ? -1 : 1)
 }

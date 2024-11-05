@@ -17,7 +17,7 @@ import {InputState} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
-import {setDOMSelection, moveVertically} from "./selection"
+import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
@@ -431,31 +431,10 @@ export class EditorView {
   /// Provide the CSS transformed scale along the Y axis.
   get scaleY() { return this.viewState.scaleY }
 
-  /// Move a cursor position by one [grapheme
-  /// cluster](#state.findClusterBreak) or structural cursor position.
-  /// `forward` determines whether the motion is away from the line
-  /// start, or towards it. In bidirectional text, a textblock is
-  /// traversed in visual order, using the editor's [text
-  /// direction](#view.EditorView.textDirection). If there is no
-  /// cursor position beyond the given start position, the original
-  /// position is returned.
-  moveHorizontally(start: EditorSelection, forward: boolean) {
-    //return moveByChar(this, start, forward)
-  }
-
-  /// Move a cursor position across the next word or, if there is no
-  /// word ahead of it, move it by a single cursor position.
-  moveByWord(start: EditorSelection, forward: boolean) {
-    //return moveByChar(this, start, forward, initial => byGroup(this, start.head, initial))
-  }
-
-  /// Move to the next line boundary in the given direction. If
-  /// `includeWrap` is true, line wrapping is on, and there is a
-  /// further wrap point on the current line, the wrap point will be
-  /// returned. Otherwise this function will return the start or end
-  /// of the line.
-  moveToLineBoundary(start: EditorSelection, forward: boolean, includeWrap = true) {
-    //return moveToLineBoundary(this, start, forward, includeWrap)
+  /// Move to the end or start of the (wrapped) line. If the given
+  /// position isn't in a textblock, this will return null.
+  moveToLineBoundary(start: EditorSelection, forward: boolean) {
+    return moveToLineBoundary(this, start, forward)
   }
 
   /// Move a cursor position vertically. When `distance` isn't given,
@@ -469,6 +448,7 @@ export class EditorView {
   /// the cursor's own horizontal position is used. The returned
   /// cursor will have its goal column set to whichever column was
   /// used.
+  // FIXME move somewhere else?
   moveVertically(start: EditorSelection, forward: boolean, distance?: number) {
     return moveVertically(this, start, forward, distance)
   }

@@ -517,6 +517,22 @@ export const cursorPageUp: Command = view => cursorVertically(view, false, pageH
 export const selectPageDown: Command = view => selectVertically(view, true, pageHeight(view))
 export const selectPageUp: Command = view => selectVertically(view, false, pageHeight(view))
 
+function cursorLineSide(view: EditorView, forward: boolean) {
+  let pos = view.moveToLineBoundary(view.state.selection, forward)
+  return pos ? setSelection(view.state, view.dispatch, pos) : false
+}
+
+export const cursorLineStart: Command = view => cursorLineSide(view, false)
+export const cursorLineEnd: Command = view => cursorLineSide(view, true)
+
+function selectLineSide(view: EditorView, forward: boolean) {
+  let {selection} = view.state, pos = view.moveToLineBoundary(selection, forward)
+  return pos ? setSelection(view.state, view.dispatch, EditorSelection.range(selection.anchor, pos.head)) : false
+}
+
+export const selectLineStart: Command = view => selectLineSide(view, false)
+export const selectLineEnd: Command = view => selectLineSide(view, true)
+
 export const cursorDocStart: StateCommand = ({state, dispatch}) => {
   let start = EditorSelection.near(state, 0, 1)
   if (state.selection.empty && start.head == state.selection.head) return false
@@ -573,6 +589,8 @@ export const defaultKeymap: readonly KeyBinding[] = [
   {key: "ArrowUp", run: cursorLineUp, shift: selectLineUp},
   {key: "PageDown", run: cursorPageDown, shift: selectPageDown},
   {key: "PageUp", run: cursorPageUp, shift: selectPageUp},
+  {key: "Home", run: cursorLineStart, shift: selectLineStart},
+  {key: "End", run: cursorLineEnd, shift: selectLineEnd},
   {key: "Mod-Home", run: cursorDocStart, shift: selectDocStart},
   {key: "Mod-End", run: cursorDocEnd, shift: selectDocEnd},
   {key: "Mod-ArrowLeft", run: cursorWordLeft, shift: selectWordLeft},
