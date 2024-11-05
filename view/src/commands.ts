@@ -25,7 +25,8 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
     changes: {from: sel.from.pos, to: sel.to.pos,
               insert: new Slice([(doc.schema.lineBreak ? doc.schema.lineBreak.create() : Node.text("\n")).withProps(props)])},
     selection: EditorSelection.cursor(sel.from.pos + 1, -1),
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "input"
   }))
   return true
 }
@@ -44,7 +45,8 @@ export const createTextblock: StateCommand = ({state, dispatch}) => {
     changes: {from: sel.from.pos, to: sel.to.pos, insert: slice, fit: true},
     selection: EditorSelection.cursor(sel.from.pos + slice.length, -1),
     normalizeSelection: true,
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "insert.textblock"
   }))
   return true
 }
@@ -61,7 +63,8 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
           {from: start, to: block.before, insert: new Slice(before)},
           {from: block.after, to: end, insert: new Slice(after)}
         ],
-        scrollIntoView: true
+        scrollIntoView: true,
+        userEvent: "lift.empy"
       }))
       return true
     }
@@ -117,7 +120,8 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
   dispatch(state.update({
     changes: changeSet,
     selection: EditorSelection.cursor(changeSet.mapPos(sel.to.pos, 1)),
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "split.textblock"
   }))
   return true
 }
@@ -127,7 +131,8 @@ export const deleteSelection: StateCommand = ({state, dispatch}) => {
   dispatch(state.update({
     changes: {correct: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})), local: true},
     normalizeSelection: true,
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "delete.selection"
   }))
   return true
 }
@@ -161,7 +166,8 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   dispatch(state.update({
     changes: changeSet,
     selection: EditorSelection.cursor(changeSet.mapPos(head.pos), -1),
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "join.backward"
   }))
   return true
 }
@@ -194,7 +200,8 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
     })
   dispatch(state.update({
     changes,
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "join.forward"
   }))
   return true
 }
@@ -209,7 +216,8 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     let size = before.length - findClusterBreak(before.text!, before.length, false)
     dispatch(state.update({
       changes: {from: sel.head.pos - size, to: sel.head.pos},
-      scrollIntoView: true
+      scrollIntoView: true,
+      userEvent: "delete.backward"
     }))
     return true
   }
@@ -234,7 +242,8 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     let size = before.length - findClusterBreak(before.text, before.length, false)
     dispatch(state.update({
       changes: {from: pos - size, to: pos},
-      scrollIntoView: true
+      scrollIntoView: true,
+      userEvent: "delete.backward"
     }))
     return true
   }
@@ -247,7 +256,8 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
   }
   dispatch(state.update({
     changes: {from, to},
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "delete.backward"
   }))
   return true
 }
@@ -260,7 +270,8 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
     let size = findClusterBreak(after.text!, 0)
     dispatch(state.update({
       changes: {from: sel.head.pos, to: sel.head.pos + size},
-      scrollIntoView: true
+      scrollIntoView: true,
+      userEvent: "delete.forward"
     }))
     return true
   }
@@ -284,7 +295,8 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
     let size = findClusterBreak(after.text, 0)
     dispatch(state.update({
       changes: {from: pos, to: pos + size},
-      scrollIntoView: true
+      scrollIntoView: true,
+      userEvent: "delete.forward"
     }))
     return true
   }
@@ -297,7 +309,8 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   }
   dispatch(state.update({
     changes: {from, to},
-    scrollIntoView: true
+    scrollIntoView: true,
+    userEvent: "delete.forward"
   }))
   return true
 }
@@ -316,7 +329,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
       })
     }
     if (!changes.length) return false
-    dispatch(state.update({changes, scrollIntoView: true}))
+    dispatch(state.update({changes, scrollIntoView: true, userEvent: "settype"}))
     return true
   }
 }
@@ -331,7 +344,7 @@ export function wrapBlock(wrapper: Tag<any>): StateCommand {
       lastTo = range.to.pos
     }
     if (!changes.length) return false
-    dispatch(state.update({changes, scrollIntoView: true}))
+    dispatch(state.update({changes, scrollIntoView: true, userEvent: "wrap"}))
     return true
   }
 }
@@ -352,7 +365,7 @@ export function unwrapBlockType(type: TagType<any> | Tag<any> | ((tag: Tag<any>)
       }
     }
     if (!targets.length) return false
-    dispatch(state.update({changes, scrollIntoView: true, normalizeSelection: true}))
+    dispatch(state.update({changes, scrollIntoView: true, normalizeSelection: true, userEvent: "unwrap"}))
     return true
   }
 }
@@ -363,15 +376,22 @@ export function toggleProp(prop: Prop<any>): StateCommand {
   return ({state, dispatch}) => {
     let {selection, doc} = state
     if (selection.empty) {
-      let selProps = selection.props || state.selPos.head.props()
-      let newProps = prop.isInSet(selProps) ? prop.removeFromSet(selProps) : prop.addToSet(selProps)
+      let selProps = selection.props || state.selPos.head.props(), add = !prop.isInSet(selProps)
+      let newProps = add ? prop.addToSet(selProps) : prop.removeFromSet(selProps)
       dispatch(state.update({
-        selection: EditorSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newProps)
+        selection: EditorSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newProps),
+        userEvent: add ? "prop.add" : "prop.remove"
       }))
     } else if (selection.ranges.some(r => canAddPropInRange(doc, r.from, r.to, prop))) {
-      dispatch(state.update({changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: prop}))}))
+      dispatch(state.update({
+        changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: prop})),
+        userEvent: "prop.add"
+      }))
     } else {
-      dispatch(state.update({changes: selection.ranges.map(r => ({from: r.from, to: r.to, remove: prop}))}))
+      dispatch(state.update({
+        changes: selection.ranges.map(r => ({from: r.from, to: r.to, remove: prop})),
+        userEvent: "prop.remove"
+      }))
     }
     return true
   }

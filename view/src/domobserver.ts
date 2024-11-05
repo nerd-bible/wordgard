@@ -233,7 +233,7 @@ export class DOMObserver {
       let sel = readDOMSelection(view, this.selectionRange)
       if (!sel.eqPos(view.state.selection)) {
         for (let tr of view.viewState.pendingTransactions) sel = sel.map(tr.changes)
-        view.dispatch({selection: sel})
+        view.dispatch({selection: sel, userEvent: "select"})
       }
       this.selectionChanged = false
     }

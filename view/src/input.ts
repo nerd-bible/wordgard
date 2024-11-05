@@ -640,6 +640,7 @@ export function applyTextChange(view: EditorView, from: number, to: number, inse
   // FIXME define this more robustly
   view.dispatch({
     changes: {from, to, insert},
-    selection: {anchor: from + insert.length}
+    selection: {anchor: from + insert.length},
+    userEvent: "input.type"
   })
 }
