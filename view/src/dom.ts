@@ -63,7 +63,7 @@ function scanFor(node: Node, off: number, targetNode: Node, targetOff: number, d
   for (;;) {
     if (node == targetNode && off == targetOff) return true
     if (off == (dir < 0 ? 0 : maxOffset(node))) {
-      if (node.nodeName == "DIV") return false
+      if (isBlockElement(node)) return false
       let parent = node.parentNode
       if (!parent || parent.nodeType != 1) return false
       off = domIndex(node) + (dir < 0 ? 0 : 1)
