@@ -463,7 +463,8 @@ export class DocElt extends ContentElt {
 
   posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
     let elt = this.nearest(dom)
-    if (!elt) throw new RangeError("Trying to find position for a DOM position outside of the document")
+    if (!elt)
+      return this.dom.compareDocumentPosition(dom) | window.Node.DOCUMENT_POSITION_FOLLOWING ? this.length : 0
     return elt.localPosFromDOM(dom, offset, bias)
   }
 
