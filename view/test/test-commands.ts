@@ -41,10 +41,10 @@ function test(doc: DocNode, command: StateCommand, expect?: DocNode) {
   }
 }
 
-function testSelProps(before: readonly Prop<any>[] | null, command: StateCommand, expect: readonly Prop<any>[]) {
+function testSelProps(before: readonly Prop<any>[] | undefined, command: StateCommand, expect: readonly Prop<any>[]) {
   let state = EditorState.create({
     doc: doc(p()),
-    selection: EditorSelection.cursor(1, 0, null, before)
+    selection: EditorSelection.cursor(1, 0, undefined, before)
   })
   command({state, dispatch: tr => state = tr.state})
   ist(state.selection.props!, expect, Prop.sameSet)
@@ -537,7 +537,7 @@ describe("toggleProp", () => {
   })
 
   it("adds selection props", () => {
-    testSelProps(null, toggleProp(Emphasis), [Emphasis])
+    testSelProps(undefined, toggleProp(Emphasis), [Emphasis])
   })
 
   it("adds selection props to existing set", () => {

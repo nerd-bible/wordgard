@@ -39,17 +39,16 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
   let editorRect = view.dom.getBoundingClientRect()
   let coords = view.coordsAtPos(start.head, start.assoc || -1)
   let goalColumn = start.goalColumn ?? coords.left - editorRect.left
-  let x = editorRect.left + goalColumn
-  for (let scan = start.head, y = forward ? coords.bottom + distance : coords.top - distance;;) {
-    let pos = view.state.doc.resolve(start.head), block = pos.textblockParent
+  let x = editorRect.left + goalColumn, y = forward ? coords.bottom + distance : coords.top - distance
+  for (let scan = start.head;;) {
+    let pos = view.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {
-      let elt = view.docElt.resolve(block.start, -1)
+      let elt = view.docElt.resolve(block.start, 0)
       let rect = (elt.elt.dom as HTMLElement).getBoundingClientRect()
       if (forward ? rect.bottom >= y : rect.top <= y) {
         let found = findVerticalInTextblock(elt.elt, forward, x, y)
         if (found) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
       }
-      y = forward ? rect.bottom + 1 : rect.top - 1
       if (!block.parent) return null
       scan = forward ? block.after : block.before
     }
@@ -97,7 +96,7 @@ function findTextblockVertically(view: EditorView, from: number, forward: boolea
         let closest = -1, closestPos = -1, closestDist = -1
         for (let chPos = nextPos + 1, i = 0; i < next.children.length; i++) {
           let ch = next.children[i]
-          let {elt} = view.docElt.resolve(chPos + 1, -1)
+          let {elt} = view.docElt.resolve(chPos + 1, 0)
           let rect = (elt.dom as HTMLElement).getBoundingClientRect()
           let dist = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
           if (closestDist < 0 || dist < closestDist) {

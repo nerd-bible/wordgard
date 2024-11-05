@@ -299,6 +299,7 @@ export function findVerticalInTextblock(
       for (let ch of elt.children) scan(ch)
     }
   }
+  scan(elt)
   if (!closestElt) return null
   let {dom} = closestElt, pos = closestElt.posBefore
   if (closestElt.tag.isText()) {

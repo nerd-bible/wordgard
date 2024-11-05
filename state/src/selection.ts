@@ -61,16 +61,16 @@ export class EditorSelection {
     /// The goal column (stored vertical offset) associated with a
     /// cursor. This is used to preserve the vertical position when
     /// moving across lines of different length.
-    readonly goalColumn: number | null,
+    readonly goalColumn: number | undefined,
     /// The ranges in the selection, for selections that cover more
     /// than one range. Includes the main range.
-    private _ranges: readonly {from: number, to: number}[] | null,
+    private _ranges: readonly {from: number, to: number}[] | undefined,
     /// A set of active props that should be applied to content
     /// inserted at this selection (replacing the contextual props).
     /// Used mostly for making the effect of toggling inline styles
     /// stick until something is inserted. Props that aren't valid for
     /// the inserted content will be ignored.
-    readonly props: readonly Prop[] | null
+    readonly props: readonly Prop[] | undefined
   ) {}
 
   /// The lower boundary of the selected range.
@@ -161,27 +161,26 @@ export class EditorSelection {
     if (!json || typeof json.anchor != "number")
       throw new RangeError("Invalid JSON representation for EditorSelection")
     let anchor = json.anchor, head = typeof json.head == "number" ? json.head : anchor
-    let props = json.props ? schema.propsFromJSON(json.props) : null
+    let props = json.props ? schema.propsFromJSON(json.props) : undefined
     let ranges = Array.isArray(json.ranges) && json.ranges.every(r => typeof r.from == "number" && typeof r.to == "number")
-    return EditorSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, null,
+    return EditorSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, undefined,
                                        ranges ? json.ranges! : undefined, props)
   }
 
   /// Create a cursor selection range at the given position. You can
   /// safely ignore the optional arguments in most situations.
-  static cursor(pos: number, assoc = 0, goalColumn: number | null = null, props?: readonly Prop<any>[] | null) {
+  static cursor(pos: number, assoc = 0, goalColumn?: number, props?: readonly Prop<any>[]) {
     return EditorSelection.createInner(pos, pos, assoc, goalColumn, undefined, props)
   }
 
   /// Create a range selection.
-  static range(anchor: number, head: number, goalColumn?: number, props?: readonly Prop<any>[] | null) {
+  static range(anchor: number, head: number, goalColumn?: number, props?: readonly Prop<any>[]) {
     return EditorSelection.createInner(anchor, head, 0, goalColumn, undefined, props)
   }
 
-  private static createInner(anchor: number, head: number, assoc?: number, goalColumn?: number | null,
-                             ranges?: readonly {from: number, to: number}[], props?: readonly Prop<any>[] | null) {
-    return new EditorSelection(anchor, head, !assoc ? 0 : assoc < 0 ? -1 : 1, goalColumn || null,
-                               ranges || null, props || null)
+  private static createInner(anchor: number, head: number, assoc?: number, goalColumn?: number,
+                             ranges?: readonly {from: number, to: number}[], props?: readonly Prop<any>[]) {
+    return new EditorSelection(anchor, head, !assoc ? 0 : assoc < 0 ? -1 : 1, goalColumn, ranges, props)
   }
 
   /// Create a selection.
@@ -218,6 +217,8 @@ export class EditorSelection {
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
+  // FIXME provide specific docStart/docEnd helpers. This doesn't work
+  // for finding the start in a single-textblock-doc bidi situation.
   static near(cx: SelectionContext, pos: number, bias: -1 | 1 = 1) {
     let norm = scanNormalFrom(cx, pos, bias, bias > 0, false)
       ?? scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false)!

@@ -427,7 +427,8 @@ export class DocElt extends ContentElt {
     }
   }
 
-  resolve(pos: number, assoc: -1 | 1) {
+  // FIXME document or change weird assoc descent behavior
+  resolve(pos: number, assoc: -1 | 0 | 1) {
     let parent: ContentElt = this, index = 0, off = 0
     for (;;) {
       if (off == pos) {
@@ -435,7 +436,7 @@ export class DocElt extends ContentElt {
         let after = index < parent.children.length ? parent.children[index] : null
         if (before?.boundary) before = null
         if (after?.boundary) after = null
-        if (!before && !after) return new ContentPos(parent, index, pos)
+        if (assoc == 0 || !before && !after) return new ContentPos(parent, index, pos)
         if (!after || before && assoc < 0) {
           if (before instanceof TextElt) return new ContentPos(before, before.length, pos)
           parent = before!; index = before!.children.length

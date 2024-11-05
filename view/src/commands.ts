@@ -5,6 +5,7 @@ import {Node, Tag, TagType, Prop, NodePos, Slice, Text, Token,
 import {EditorSelection, StateCommand, EditorState, Transaction, Direction} from "@willows/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
+import {KeyBinding} from "./keymap"
 
 /// Command functions are used in key bindings and other types of user
 /// actions. Given an editor view, they check whether their effect can
@@ -376,6 +377,15 @@ export function toggleProp(prop: Prop<any>): StateCommand {
   }
 }
 
+function setSelection(state: EditorState, dispatch: (tr: Transaction) => void, selection: EditorSelection) {
+  dispatch(state.update({
+    selection,
+    scrollIntoView: true,
+    userEvent: "select"
+  }))
+  return true
+}
+
 function ltrAtCursor(state: EditorState) {
   let block = state.selPos.head.textblockParent
   return state.textDirection(block ? block.node.tag : undefined) == Direction.LTR
@@ -383,16 +393,12 @@ function ltrAtCursor(state: EditorState) {
 
 function cursorByChar(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
   let next = (forward ? EditorSelection.nextNormalCursor : EditorSelection.prevNormalCursor)(state)
-  if (!next) return false
-  dispatch(state.update({selection: next, scrollIntoView: true}))
-  return true
+  return next ? setSelection(state, dispatch, next) : false
 }
 
 function selectByChar(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
   let next = (forward ? EditorSelection.nextNormalCursor : EditorSelection.prevNormalCursor)(state)
-  if (!next) return false
-  dispatch(state.update({selection: state.selection.extend(next.from, next.to), scrollIntoView: true}))
-  return true
+  return next ? setSelection(state, dispatch, state.selection.extend(next.from, next.to)) : false
 }
 
 /// Move the selection one character to the left (which is backward in
@@ -419,16 +425,12 @@ export const selectCharBackward: StateCommand = ({state, dispatch}) => selectByC
 
 function cursorByWord(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
   let next = (forward ? EditorSelection.skipNextWord : EditorSelection.skipPrevWord)(state)
-  if (!next) return false
-  dispatch(state.update({selection: next, scrollIntoView: true}))
-  return true
+  return next ? setSelection(state, dispatch, next) : false
 }
 
 function selectByWord(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
   let next = (forward ? EditorSelection.skipNextWord : EditorSelection.skipPrevWord)(state)
-  if (!next) return false
-  dispatch(state.update({selection: state.selection.extend(next.from, next.to), scrollIntoView: true}))
-  return true
+  return next ? setSelection(state, dispatch, next) : false
 }
 
 /// Move the selection one word to the left (which is backward in
@@ -453,6 +455,74 @@ export const selectWordForward: StateCommand = ({state, dispatch}) => selectByWo
 /// Move the selection head one word backward.
 export const selectWordBackward: StateCommand = ({state, dispatch}) => selectByWord(state, dispatch, false)
 
+function nextVertical(view: EditorView, sel: EditorSelection, forward: boolean, distance?: number) {
+  let next = view.moveVertically(sel, forward, distance)
+  if (next) return next
+  let end = EditorSelection.near(view.state, forward ? view.state.doc.length : 0)
+  return end.head == view.state.selection.head ? null : end
+}
+
+function cursorVertically(view: EditorView, forward: boolean, distance?: number) {
+  let {selection} = view.state
+  let next = selection.empty ? nextVertical(view, selection, forward, distance)
+    : EditorSelection.cursor(forward ? selection.to : selection.from, forward ? -1 : 1, selection.goalColumn)
+  return next ? setSelection(view.state, view.dispatch, next) : false
+}
+
+function selectVertically(view: EditorView, forward: boolean, distance?: number) {
+  let next = nextVertical(view, view.state.selection, forward, distance)
+  return next ? setSelection(view.state, view.dispatch, next) : false
+}
+
+export const cursorLineDown: Command = view => cursorVertically(view, true)
+export const cursorLineUp: Command = view => cursorVertically(view, false)
+
+export const selectLineDown: Command = view => selectVertically(view, true)
+export const selectLineUp: Command = view => selectVertically(view, false)
+
+function pageHeight(view: EditorView) {
+  let marginTop = 0, marginBottom = 0
+  for (let source of view.state.facet(EditorView.scrollMargins)) {
+    let margins = source(view)
+    if (margins?.top) marginTop = Math.max(margins?.top, marginTop)
+    if (margins?.bottom) marginBottom = Math.max(margins?.bottom, marginBottom)
+  }
+  return Math.max(10, Math.min(view.scrollDOM.clientHeight - marginTop - marginBottom,
+                               (view.dom.ownerDocument.defaultView || window).innerHeight) - 10)
+}
+
+export const cursorPageDown: Command = view => cursorVertically(view, true, pageHeight(view))
+export const cursorPageUp: Command = view => cursorVertically(view, false, pageHeight(view))
+
+export const selectPageDown: Command = view => selectVertically(view, true, pageHeight(view))
+export const selectPageUp: Command = view => selectVertically(view, false, pageHeight(view))
+
+export const cursorDocStart: StateCommand = ({state, dispatch}) => {
+  let start = EditorSelection.near(state, 0, 1)
+  if (state.selection.empty && start.head == state.selection.head) return false
+  return setSelection(state, dispatch, start)
+}
+export const cursorDocEnd: StateCommand = ({state, dispatch}) => {
+  let end = EditorSelection.near(state, state.doc.length, -1)
+  if (state.selection.empty && end.head == state.selection.head) return false
+  return setSelection(state, dispatch, end)
+}
+
+export const selectDocStart: StateCommand = ({state, dispatch}) => {
+  return setSelection(state, dispatch, EditorSelection.range(state.selection.anchor, 0))
+}
+export const selectDocEnd: StateCommand = ({state, dispatch}) => {
+  return setSelection(state, dispatch, EditorSelection.range(state.selection.anchor, state.doc.length))
+}
+
+export const selectAll: StateCommand = ({state, dispatch}) => {
+  dispatch(state.update({
+    selection: EditorSelection.range(0, state.doc.length),
+    userEvent: "select.all"
+  }))
+  return true
+}
+
 export const defaultEnter: Command = (view: EditorView) => {
   return insertLineBreakInCode(view) ||
     createTextblock(view) ||
@@ -472,3 +542,20 @@ export const defaultDelete: Command = (view: EditorView) => {
     joinForward(view) ||
     deleteForward(view)
 }
+
+export const defaultKeymap: readonly KeyBinding[] = [
+  {key: "Enter", run: defaultEnter}, // FIXME shift to insert a line break
+  {key: "Backspace", run: defaultBackspace},
+  {key: "Delete", run: defaultDelete},
+  {key: "ArrowLeft", run: cursorCharLeft, shift: selectCharLeft},
+  {key: "ArrowRight", run: cursorCharRight, shift: selectCharRight},
+  {key: "ArrowDown", run: cursorLineDown, shift: selectLineDown},
+  {key: "ArrowUp", run: cursorLineUp, shift: selectLineUp},
+  {key: "PageDown", run: cursorPageDown, shift: selectPageDown},
+  {key: "PageUp", run: cursorPageUp, shift: selectPageUp},
+  {key: "Mod-Home", run: cursorDocStart, shift: selectDocStart},
+  {key: "Mod-End", run: cursorDocEnd, shift: selectDocEnd},
+  {key: "Mod-ArrowLeft", run: cursorWordLeft, shift: selectWordLeft},
+  {key: "Mod-ArrowRight", run: cursorWordRight, shift: selectWordRight},
+  {key: "Mod-a", run: selectAll},
+]
