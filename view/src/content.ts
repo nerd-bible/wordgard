@@ -383,6 +383,7 @@ export class DocElt extends ContentElt {
     return empty.update(doc, new ChangeDesc([0, doc.length]))
   }
 
+  // FIXME draw placeholder <br>s
   update(doc: DocNode, changes: ChangeDesc) {
     if (changes.empty) return this
     let builder = new ContentUpdate(doc, this)

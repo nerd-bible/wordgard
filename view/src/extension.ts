@@ -286,8 +286,12 @@ export class ViewUpdate {
     readonly transactions: readonly Transaction[]
   ) {
     this.startState = view.state
-    this.changes = ChangeSet.empty(startState.doc.length)
-    for (let tr of transactions) this.changes = this.changes.compose(tr.changes)
+    if (transactions.length) {
+      this.changes = transactions[0].changes
+      for (let i = 1; i < transactions.length; i++) this.changes = this.changes.compose(transactions[i].changes)
+    } else {
+      this.changes = ChangeSet.empty(startState.doc.length)
+    }
   }
 
   /// @internal

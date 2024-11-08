@@ -15,26 +15,13 @@ export class ViewState {
   // concrete size)
   scaleX = 1
   scaleY = 1
-
-  // Tracks the last state has has been drawn
-  drawnState: EditorState
-  // Transactions for which the DOM has not been updated yet
-  pendingTransactions: Transaction[] = []
   // A scroll target that hasn't been scrolled to yet
   scrollTarget: ScrollTarget | null = null
 
+  // FIXME propagate this to state somehow
   defaultTextDirection: Direction = Direction.LTR
 
-  constructor(public state: EditorState) {
-    this.drawnState = state
-  }
-
-  takePendingTransactions() {
-    let result = this.pendingTransactions
-    this.pendingTransactions = []
-    this.drawnState = this.state
-    return result
-  }
+  constructor(public state: EditorState) {}
 
   update(transactions: readonly Transaction[]) {
     for (let tr of transactions) {
@@ -46,9 +33,7 @@ export class ViewState {
       }
       for (let e of tr.effects)
         if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)
-      this.pendingTransactions.push(tr)
-      if (tr.startState != this.state)
-        throw new Error("Mismatched transaction")
+      if (tr.startState != this.state) throw new Error("Mismatched transaction")
       this.state = tr.state
     }
   }

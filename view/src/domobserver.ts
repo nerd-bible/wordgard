@@ -195,7 +195,7 @@ export class DOMObserver {
     for (let record of this.takeRecords()) {
       let range = this.findMutation(record)
       if (range) {
-        let sections = range[0] ? [range[0], -1] : [], len = this.view.viewState.drawnState.doc.length
+        let sections = range[0] ? [range[0], -1] : [], len = this.view.state.doc.length
         sections.push(range[1] - range[0], -2)
         if (range[1] < len) sections.push(len - range[1], -1)
         let desc = new ChangeDesc(sections)
@@ -231,10 +231,8 @@ export class DOMObserver {
       this.clear()
     } else if (this.selectionChanged && view.hasFocus && hasSelection(view.contentDOM, this.selectionRange)) {
       let sel = readDOMSelection(view, this.selectionRange)
-      if (!sel.eqPos(view.state.selection)) {
-        for (let tr of view.viewState.pendingTransactions) sel = sel.map(tr.changes)
+      if (!sel.eqPos(view.state.selection))
         view.dispatch({selection: sel, userEvent: "select"})
-      }
       this.selectionChanged = false
     }
   }
