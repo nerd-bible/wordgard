@@ -225,6 +225,19 @@ export class ChangeDesc {
       posA += len
     }
   }
+
+  // Non-overlapping, sorted
+  static createDesc(length: number, ranges: {from: number, to: number, replace?: number}[]) {
+    let sections: number[] = [], pos = 0
+    for (let {from, to, replace} of ranges) {
+      if (from > pos) addSection(sections, null, from - pos, -1, null)
+      if (replace != null) addSection(sections, null, to - from, replace, null)
+      else if (to > from) addSection(sections, null, to - from, -2, null)
+      pos = to
+    }
+    if (pos < length) addSection(sections, null, length - pos, -1, null)
+    return new ChangeDesc(sections)
+  }
 }
 
 export class ChangeSet extends ChangeDesc {

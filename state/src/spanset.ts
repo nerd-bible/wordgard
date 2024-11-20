@@ -12,28 +12,24 @@ export abstract class SpanLabel {
   /// The bias value at the start of the span. Determines how the
   /// span is positioned relative to other spans starting at this
   /// position. Defaults to 0.
-  startSide!: number
+  get startSide() { return 0 }
   /// The bias value at the end of the span. Defaults to 0.
-  endSide!: number
+  get endSide() { return 0 }
 
   /// The mode with which the location of the span should be mapped
   /// when its `from` and `to` are the same, to decide whether a
   /// change deletes the span. Defaults to `MapMode.TrackDel`.
-  mapMode!: MapMode
+  get mapMode() { return MapMode.TrackDel } // FIXME see if this is necessary
   /// Determines whether this label marks a point span. Regular
   /// spans affect the part of the document they cover, and are
   /// meaningless when empty. Point spans have a meaning on their
   /// own. When non-empty, a point span is treated as atomic and
   /// shadows any spans contained in it.
-  point!: boolean
+  get point() { return false }
 
   /// Create a [span](#state.Span) with this label.
   span(from: number, to = from) { return Span.create(from, to, this) }
 }
-
-SpanLabel.prototype.startSide = SpanLabel.prototype.endSide = 0
-SpanLabel.prototype.point = false
-SpanLabel.prototype.mapMode = MapMode.TrackDel
 
 /// A span associates a label with a range of positions.
 export class Span<T extends SpanLabel> {
@@ -85,7 +81,7 @@ export interface SpanIterator<T extends SpanLabel> {
 
 const enum C {
   // The maximum amount of spans to store in a single chunk
-  ChunkSize = 250,
+  ChunkSize = 100,
   // A large (fixnum) value to use for max/min values.
   Far = 1e9
 }

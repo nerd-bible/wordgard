@@ -1,6 +1,8 @@
 import {DocNode, Node, Tag, Prop, Walker, ChangeDesc, Pos,
         ElementRepresentation, AttributeRepresentation} from "@willows/doc"
+import {SpanSet} from "@willows/state"
 import {DOMNode} from "./dom"
+import {DecorationSet} from "./decoration"
 
 declare global {
   interface Node { wsElt?: ContentElt }
@@ -247,9 +249,9 @@ class ContentUpdate {
   cursor: Pos
   toSync: ContentElt[] = []
 
-  constructor(readonly doc: DocNode, old: DocElt) {
+  constructor(readonly doc: DocNode, deco: readonly DecorationSet[], old: DocElt) {
     this.old = new ContentPointer(old, 0, null)
-    this.new = new DocElt(doc, old.dom as HTMLElement)
+    this.new = new DocElt(doc, old.dom as HTMLElement, deco)
     this.toSync.push(this.new)
     this.cursor = doc.resolve(0)
   }
@@ -374,27 +376,28 @@ class ContentUpdate {
 }
 
 export class DocElt extends ContentElt {
-  constructor(readonly doc: DocNode, dom: HTMLElement) {
+  constructor(readonly doc: DocNode, dom: HTMLElement, readonly deco: readonly DecorationSet[]) {
     super(dom, dom)
   }
 
-  static create(doc: DocNode, dom: HTMLElement) {
-    let empty = new DocElt(doc.schema.doc([]), dom)
-    return empty.update(doc, new ChangeDesc([0, doc.length]))
+  static create(doc: DocNode, deco: readonly DecorationSet[], dom: HTMLElement) {
+    let empty = new DocElt(doc.schema.doc([]), dom, [])
+    return empty.update(doc, deco, new ChangeDesc([0, doc.length]))
   }
 
   // FIXME draw placeholder <br>s
-  update(doc: DocNode, changes: ChangeDesc) {
-    if (changes.empty) return this
-    let builder = new ContentUpdate(doc, this)
-    for (let i = 0; i < changes.sections.length;) { // FIXME make this a method on changeSet?
-      let len = changes.sections[i++], ins = changes.sections[i++]
+  update(doc: DocNode, deco: readonly DecorationSet[], changes: ChangeDesc) {
+    let redraw = redrawableRanges(this.deco, deco, changes)
+    if (redraw.empty) return this
+    let builder = new ContentUpdate(doc, deco, this)
+    for (let i = 0; i < redraw.sections.length;) { // FIXME make this a method on changedesc?
+      let len = redraw.sections[i++], ins = redraw.sections[i++]
       if (ins == -1) {
         builder.keep(len)
       } else {
         if (ins < 0) ins = len
-        while (i < changes.sections.length && changes.sections[i + 1] != -1) {
-          let len2 = changes.sections[i++], ins2 = changes.sections[i++]
+        while (i < redraw.sections.length && redraw.sections[i + 1] != -1) {
+          let len2 = redraw.sections[i++], ins2 = redraw.sections[i++]
           len += len2; ins += ins2 < 0 ? len2 : ins2
         }
         builder.replace(len, ins)
@@ -517,4 +520,17 @@ export class WrapperElt extends ContentElt {
   }
 
   get prop() { return this._prop }
+}
+
+function redrawableRanges(old: readonly DecorationSet[], deco: readonly DecorationSet[], changes: ChangeDesc) {
+  let diff: {from: number, to: number}[] = [], last: {from: number, to: number} | null = null
+  function add(from: number, to: number) {
+    if (last && last.to == from) last.to = to
+    else diff.push(last = {from, to})
+  }
+  SpanSet.compare(old, deco, changes, {
+    comparePoint: add,
+    compareSpan: add
+  })
+  return diff.length ? changes.composeDesc(ChangeDesc.createDesc(changes.newLength, diff)) : changes
 }

@@ -9,7 +9,7 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
         exceptionSink, updateListener, logException,
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, MeasureRequest, editable, inputHandler, scrollIntoView,
-        ScrollTarget, scrollHandler} from "./extension"
+        ScrollTarget, scrollHandler, decorations} from "./extension"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
@@ -158,7 +158,7 @@ export class EditorView {
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.docElt = DocElt.create(this.state.doc, this.contentDOM)
+    this.docElt = DocElt.create(this.state.doc, this.state.facet(decorations), this.contentDOM)
 
     this.updateAttrs()
 
@@ -222,7 +222,7 @@ export class EditorView {
       this.updateState = UpdateState.Updating
       let startState = this.state
       let update = ViewUpdate.create(this, startState, this.state, transactions)
-      this.docElt = this.docElt.update(update.state.doc, update.changes)
+      this.docElt = this.docElt.update(update.state.doc, this.state.facet(decorations), update.changes)
       if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
         setDOMSelection(this)
       if (!update.changes.empty) this.requestMeasure()
@@ -411,6 +411,8 @@ export class EditorView {
 
   /// Provide the CSS transformed scale along the Y axis.
   get scaleY() { return this.viewState.scaleY }
+
+  // FIXME check for updating and/or the need to flush a measure
 
   /// Move to the end or start of the (wrapped) line. If the given
   /// position isn't in a textblock, this will return null.

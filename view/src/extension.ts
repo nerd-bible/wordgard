@@ -6,6 +6,7 @@ import {Attrs} from "./attributes"
 import {Rect, ScrollStrategy} from "./dom"
 import {MakeSelectionStyle} from "./input"
 import {Command} from "./commands"
+import {DecorationSet} from "./decoration"
 
 export const clickAddsSelectionRange = Facet.define<(event: MouseEvent) => boolean>()
 
@@ -246,6 +247,8 @@ export type AttrSource = Attrs | ((view: EditorView) => Attrs | null)
 export const editorAttributes = Facet.define<AttrSource>()
 
 export const contentAttributes = Facet.define<AttrSource>()
+
+export const decorations = Facet.define<DecorationSet>()
 
 export const scrollMargins = Facet.define<(view: EditorView) => Partial<Rect> | null>()
 
