@@ -288,7 +288,7 @@ export class Node {
   isDoc() { return this.tag.isDoc() }
 
   iterate(from: number, to: number, f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void) {
-    if (f(this, 0, null, 0) !== false)
+    if (this.isDoc() || f(this, 0, null, 0) !== false)
       this.iterInner(0, from, to, f)
   }
 

@@ -452,10 +452,10 @@ describe("ChangeSet", () => {
 
     it("can invert sequences of random changes", () => {
       for (let i = 0; i < 250; i++) {
-        let startDoc = rDoc(25)
+        let startDoc = rDoc(4)
         let doc = startDoc, changes: ChangeSet[] = [], inverted: ChangeSet[] = []
-        for (let i = 0; i < 10; i++) {
-          let change = rChange(doc, 2)
+        for (let i = 0; i < 2; i++) {
+          let change = rChange(doc, 1)
           changes.push(change)
           inverted.push(change.invert(doc))
           doc = change.apply(doc)

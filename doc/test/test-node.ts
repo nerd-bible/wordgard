@@ -36,15 +36,15 @@ describe("Node", () => {
 
     it("iterates over text", () =>
        iterate(doc(p("foo", 1, "bar", 2, "baz")),
-               "Doc", "Paragraph", "foobarbaz"))
+               "Paragraph", "foobarbaz"))
 
     it("descends multiple levels", () =>
        iterate(doc(blockquote(ul(li(p("f", 1, "oo"))), p("b"), 2), p("c")),
-               "Doc", "Blockquote", "BulletList", "ListItem", "Paragraph", "foo", "Paragraph", "b"))
+               "Blockquote", "BulletList", "ListItem", "Paragraph", "foo", "Paragraph", "b"))
 
     it("iterates over inline nodes", () =>
        iterate(doc(p(em("x"), "f", 1, "oo", em("bar", $img(), strong("baz")), "quux", code("xy", 2, "z"))),
-               "Doc", "Paragraph", "foo", "bar", "Image", "baz", "quux", "xyz"))
+               "Paragraph", "foo", "bar", "Image", "baz", "quux", "xyz"))
   })
 
   describe("textContent", () => {
