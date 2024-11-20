@@ -34,9 +34,9 @@ describe("Context", () => {
       " b CLOSE OPEN(Paragraph) CLOSE CLOSE CLOSE"
     let found: string[] = []
     let walker: Walker = {
-      enter: n => found.push(`OPEN(${n.name})`),
-      skip: n => found.push(n.isText() ? n.text : n.name),
-      leave: () => found.push("CLOSE")
+      enter: n => { found.push(`OPEN(${n.name})`) },
+      skip: n => { found.push(n.isText() ? n.text : n.name) },
+      leave: () => { found.push("CLOSE") }
     }
     for (let i = 0; i < d.length; i++) cx = cx.advance(1, walker)
     ist(found.join(" "), tokens)
