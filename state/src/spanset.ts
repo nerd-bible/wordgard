@@ -1,5 +1,8 @@
 import {ChangeDesc, MapMode} from "@willows/doc"
 
+// FIXME drop open tracking?
+// FIXME generally see what features we don't use
+
 /// Each span is associated with a label, which must inherit from
 /// this class.
 export abstract class SpanLabel {

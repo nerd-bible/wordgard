@@ -4,7 +4,7 @@ import {schemaElement} from "@willows/state"
 
 window.view = new EditorView({
   parent: document.body,
-  doc: "<p>One</p>",
+  doc: "<p>One <strong>Two</strong></p><p>Three</p>",
   extensions: [
     schemaElement.of(basicSchema.tags.concat(basicSchema.props)),
     keymap.of(defaultKeymap)

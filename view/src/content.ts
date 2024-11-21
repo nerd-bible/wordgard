@@ -1,8 +1,8 @@
-import {DocNode, Node, Tag, Prop, Walker, ChangeDesc, Pos,
+import {DocNode, Node, Tag, Prop, ChangeDesc, Pos,
         ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {SpanSet} from "@willows/state"
 import {DOMNode} from "./dom"
-import {DecorationSet} from "./decoration"
+import {DecorationSet, LocalDecoration, iterateDeco} from "./decoration"
 
 declare global {
   interface Node { wsElt?: ContentElt }
@@ -249,14 +249,14 @@ class ContentUpdate {
   cursor: Pos
   toSync: ContentElt[] = []
 
-  constructor(readonly doc: DocNode, deco: readonly DecorationSet[], old: DocElt) {
+  constructor(readonly doc: DocNode, readonly deco: readonly DecorationSet[], old: DocElt) {
     this.old = new ContentPointer(old, 0, null)
     this.new = new DocElt(doc, old.dom as HTMLElement, deco)
     this.toSync.push(this.new)
     this.cursor = doc.resolve(0)
   }
 
-  open(tag: Tag, reuse?: NodeElt) {
+  open(tag: Tag, reuse: NodeElt | null, deco: readonly LocalDecoration[]) {
     this.openWrappers(wrappers(tag.props))
     let dom = reuse?.dom ?? renderNode(tag)
     let elt = new NodeElt(tag, dom, dom as HTMLElement)
@@ -278,7 +278,7 @@ class ContentUpdate {
     return true
   }
 
-  leaf(node: Node) {
+  leaf(node: Node, deco: readonly LocalDecoration[]) {
     if (node.tag.isText() && this.joinText(node.tag)) return
     this.openWrappers(wrappers(node.tag.props))
     let dom = renderNode(node.tag)
@@ -332,9 +332,9 @@ class ContentUpdate {
 
   keep(len: number) {
     this.cursor = this.cursor.advance(len)
-    let walk: ContentWalker = { // FIXME store obj in builder
+    let walk: ContentWalker = { // FIXME store obj in builder, also for .replace
       enter: elt => {
-        if (elt.tag) this.open(elt.tag, elt as NodeElt)
+        if (elt.tag) this.open(elt.tag, elt as NodeElt, []) // FIXME make sure deco is preserved somehow
       },
       leave: elt => {
         if (elt.tag) this.close()
@@ -348,24 +348,20 @@ class ContentUpdate {
 
   replace(len: number, ins: number) {
     if (len) this.old = this.old.advance(len)
-    let walk: Walker = {
-      enter: tag => {
-        this.open(tag)
+    iterateDeco(this.cursor, this.deco, this.cursor.pos, this.cursor.pos + ins, {
+      enter: (tag, deco) => {
+        this.open(tag, null, deco)
       },
       leave: () => {
         this.close()
       },
-      skip: node => {
-        if (node.isLeaf()) {
-          this.leaf(node)
-        } else {
-          this.open(node.tag)
-          for (let ch of node.children) walk.skip(ch)
-          this.close()
-        }
+      skip: (node, deco) => {
+        this.leaf(node, deco)
+      },
+      widget(widget, deco) {
+        // FIXME draw widget
       }
-    }
-    if (ins) this.cursor.advance(ins, walk)
+    })
   }
 
   finish() {
@@ -513,7 +509,6 @@ export class TextElt extends NodeElt {
   }
 }
 
-// FIXME actually create these
 export class WrapperElt extends ContentElt {
   constructor(readonly _prop: Prop, dom: HTMLElement) {
     super(dom, dom)
@@ -522,6 +517,7 @@ export class WrapperElt extends ContentElt {
   get prop() { return this._prop }
 }
 
+// FIXME grow ranges that touch replaced nodes to cover them
 function redrawableRanges(old: readonly DecorationSet[], deco: readonly DecorationSet[], changes: ChangeDesc) {
   let diff: {from: number, to: number}[] = [], last: {from: number, to: number} | null = null
   function add(from: number, to: number) {
