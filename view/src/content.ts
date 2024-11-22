@@ -1,5 +1,4 @@
-import {DocNode, Node, Tag, Prop, ChangeDesc, Pos,
-        ElementRepresentation, AttributeRepresentation} from "@willows/doc"
+import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {SpanSet} from "@willows/state"
 import {DOMNode} from "./dom"
 import {DecorationSet, LocalDecoration, iterateDeco} from "./decoration"
@@ -55,7 +54,9 @@ export abstract class ContentElt {
   }
 
   isSpanning(): this is WrapperElt {
-    return this instanceof WrapperElt && this.prop.type.spanning && this.prop.type.element
+    return this instanceof WrapperElt &&
+      !!(this.wrapper instanceof Prop ? this.wrapper.type.spanning && this.wrapper.type.element
+          : this.wrapper.spanning && this.wrapper.element)
   }
 
   posBeforeChild(child: ContentElt): number {
@@ -158,7 +159,8 @@ class ContentPointer {
             if (index) {
               // FIXME make this easier
               let tag = elt.tag.type.of(elt.tag.param.slice(index), elt.tag.props)
-              walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)), elt.parent)
+              let {deco} = elt as NodeElt
+              walker.skip(new TextElt(tag as Tag<string>, deco, renderNode(tag, deco)), elt.parent)
             } else {
               walker.skip(elt, elt.parent)
             }
@@ -168,7 +170,8 @@ class ContentPointer {
         } else {
           if (walker) {
             let tag = elt.tag.type.of(elt.tag.param.slice(index, index + dist), elt.tag.props)
-            walker.skip(new TextElt(tag as Tag<string>, renderNode(tag)), elt.parent)
+            let {deco} = elt as NodeElt
+            walker.skip(new TextElt(tag as Tag<string>, deco, renderNode(tag, deco)), elt.parent)
           }
           index += dist
           dist = 0
@@ -209,7 +212,16 @@ function drawElement<T>(repr: ElementRepresentation<T>, value: T) {
   return elt
 }
 
-function renderNode(tag: Tag) { // FIXME deduplicate with DOM serializer?
+function drawDecoElement(deco: LocalDecoration) {
+  let elt = document.createElement(deco.element!)
+  if (deco.attributes) for (let name in deco.attributes) {
+    let value = deco.attributes[name]
+    if (value != null) elt.setAttribute(name, String(value))
+  }
+  return elt
+}
+
+function renderNode(tag: Tag, deco: readonly LocalDecoration[]) {
   let text, elt
   if (tag.isText()) {
     text = document.createTextNode(tag.param as string)
@@ -222,25 +234,47 @@ function renderNode(tag: Tag) { // FIXME deduplicate with DOM serializer?
     let value = repr.value == null ? String(prop.value) : typeof repr.value == "string" ? repr.value : repr.value(prop.value)
     if (value != null) {
       if (!elt) {
-        elt = document.createElement("span")
+        elt = document.createElement(tag.isBlock() ? "div" : "span")
         elt.appendChild(text!)
       }
-      if (/^style\//.test(repr.attribute)) elt.style.setProperty(repr.attribute.slice(6), value)
-      else elt.setAttribute(repr.attribute, value)
+      addAttr(elt, repr.attribute, value)
+    }
+  }
+  for (let d of deco) if (!d.element && d.attributes) {
+    for (let attr in d.attributes) {
+      let value = d.attributes[attr]
+      if (value != null) {
+        if (!elt) {
+          elt = document.createElement(tag.isBlock() ? "div" : "span")
+          elt.appendChild(text!)
+        }
+        addAttr(elt, attr, value)
+      }
     }
   }
   return elt || text!
 }
 
+function addAttr(elt: HTMLElement, attr: string, value: string) {
+  if (/^style\//.test(attr)) elt.style.setProperty(attr.slice(6), value)
+  else if (attr == "class") elt.classList.add(value)
+  else elt.setAttribute(attr, value)
+}
+
 const none: any[] = []
 
-function wrappers(props: readonly Prop[]) {
+type Wrapper = Prop | LocalDecoration
+
+function wrappers(props: readonly Prop[], deco: readonly LocalDecoration[]): readonly Wrapper[] {
   let all = true, some = false
   for (let prop of props) {
     if (prop.type.element) some = true
     else all = false
   }
-  return all ? props : some ? props.filter(p => p.type.element) : none
+  let fromProps = all ? props : some ? props.filter(p => p.type.element) : none
+  if (!deco.some(d => d.element)) return fromProps
+  let eltDeco = deco.filter(d => d.element)
+  return some ? (fromProps as readonly Wrapper[]).concat(eltDeco).sort((a, b) => a.rank - b.rank) : eltDeco
 }
 
 class ContentUpdate {
@@ -257,9 +291,9 @@ class ContentUpdate {
   }
 
   open(tag: Tag, reuse: NodeElt | null, deco: readonly LocalDecoration[]) {
-    this.openWrappers(wrappers(tag.props))
-    let dom = reuse?.dom ?? renderNode(tag)
-    let elt = new NodeElt(tag, dom, dom as HTMLElement)
+    this.openWrappers(wrappers(tag.props, deco))
+    let dom = reuse?.dom ?? renderNode(tag, deco)
+    let elt = new NodeElt(tag, deco, dom, dom as HTMLElement)
     this.new.add(elt)
     this.toSync.push(elt)
     this.new = elt
@@ -270,29 +304,29 @@ class ContentUpdate {
     this.closeWrappers()
   }
 
-  joinText(tag: Tag<string>) {
+  joinText(tag: Tag<string>, deco: readonly LocalDecoration[]) {
     let prev = this.new.lastChild
     while (prev && !(prev instanceof NodeElt)) prev = prev.lastChild
-    if (!prev || !(prev instanceof TextElt) || !prev.tag.sameProps(tag)) return false
+    if (!prev || !(prev instanceof TextElt) || !prev.tag.sameProps(tag) || !eqArray(prev.deco, deco)) return false
     prev.addText(tag.param)
     return true
   }
 
   leaf(node: Node, deco: readonly LocalDecoration[]) {
-    if (node.tag.isText() && this.joinText(node.tag)) return
-    this.openWrappers(wrappers(node.tag.props))
-    let dom = renderNode(node.tag)
-    let elt = node.isText() ? new TextElt(node.tag as Tag<string>, dom) : new NodeElt(node.tag, dom, null)
+    if (node.tag.isText() && this.joinText(node.tag, deco)) return
+    this.openWrappers(wrappers(node.tag.props, deco))
+    let dom = renderNode(node.tag, deco)
+    let elt = node.isText() ? new TextElt(node.tag as Tag<string>, deco, dom) : new NodeElt(node.tag, deco, dom, null)
     this.new.add(elt)
     this.closeWrappers()
   }
 
   reuseNodes(elt: ContentElt, parent: ContentElt | null) {
     if (elt.tag) {
-      if (elt.tag.isText() && this.joinText(elt.tag)) {
+      if (elt.tag.isText() && this.joinText(elt.tag, (elt as NodeElt).deco)) {
         // Done
       } else {
-        this.openWrappers(wrappers(elt.tag.props), parent || elt.parent)
+        this.openWrappers(wrappers(elt.tag.props, (elt as NodeElt).deco), parent || elt.parent)
         this.new.add(elt)
         this.closeWrappers()
       }
@@ -301,24 +335,27 @@ class ContentUpdate {
     }
   }
 
-  openWrappers(props: readonly Prop[], reuse: ContentElt | null = null) {
+  openWrappers(wrappers: readonly Wrapper[], reuse: ContentElt | null = null) {
     let prev = this.new.lastChild
     let canSpan = true
-    for (let prop of props) {
-      if (canSpan && prop.type.spanning && prev?.prop && prev.prop.eq(prop)) {
+    for (let wrap of wrappers) {
+      if (canSpan && (wrap instanceof Prop ? wrap.type.spanning : wrap.spanning) &&
+          prev && prev.isSpanning() && prev.eq(wrap)) {
         this.new = prev
         prev = this.new.lastChild
       } else {
         canSpan = false
         let dom
         if (reuse) for (let scan = reuse; scan instanceof WrapperElt; scan = scan.parent!) {
-          if (scan.prop.eq(prop) && !this.toSync.some(e => e.dom == scan.dom)) {
+          if (scan.eq(wrap) && !this.toSync.some(e => e.dom == scan.dom)) {
             dom = scan.dom as HTMLElement
             break
           }
         }
-        if (!dom) dom = drawElement(prop.type.spec.dom as ElementRepresentation<any>, prop.value)
-        let elt = new WrapperElt(prop, dom)
+        if (!dom)
+          dom = wrap instanceof Prop ? drawElement(wrap.type.spec.dom as ElementRepresentation<any>, wrap.value)
+            : drawDecoElement(wrap)
+        let elt = new WrapperElt(wrap, dom)
         this.new.add(elt)
         this.toSync.push(elt)
         this.new = elt
@@ -478,7 +515,7 @@ export class DocElt extends ContentElt {
 }
 
 export class NodeElt extends ContentElt {
-  constructor(public _tag: Tag<any>, dom: DOMNode, contentDOM: HTMLElement | null) {
+  constructor(public _tag: Tag<any>, public deco: readonly LocalDecoration[], dom: DOMNode, contentDOM: HTMLElement | null) {
     super(dom, contentDOM)
   }
 
@@ -488,8 +525,8 @@ export class NodeElt extends ContentElt {
 }
 
 export class TextElt extends NodeElt {
-  constructor(_tag: Tag<string>, dom: DOMNode) {
-    super(_tag, dom, null)
+  constructor(_tag: Tag<string>, deco: readonly LocalDecoration[], dom: DOMNode) {
+    super(_tag, deco, dom, null)
     this.length = _tag.param.length
   }
   
@@ -510,11 +547,13 @@ export class TextElt extends NodeElt {
 }
 
 export class WrapperElt extends ContentElt {
-  constructor(readonly _prop: Prop, dom: HTMLElement) {
+  constructor(readonly wrapper: Wrapper, dom: HTMLElement) {
     super(dom, dom)
   }
 
-  get prop() { return this._prop }
+  eq(other: Wrapper) {
+    return this.wrapper.constructor == other.constructor && this.wrapper.eq(other as any)
+  }
 }
 
 // FIXME grow ranges that touch replaced nodes to cover them
@@ -529,4 +568,10 @@ function redrawableRanges(old: readonly DecorationSet[], deco: readonly Decorati
     compareSpan: add
   })
   return diff.length ? changes.composeDesc(ChangeDesc.createDesc(changes.newLength, diff)) : changes
+}
+
+function eqArray<T extends {eq(b: T): boolean}>(a: readonly T[], b: readonly T[]) {
+  if (a.length != b.length) return false
+  for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
+  return true
 }

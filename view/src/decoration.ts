@@ -17,11 +17,24 @@ export abstract class WidgetDecoration extends SpanLabel {
 }
 
 export class InlineDecoration extends SpanLabel {
-  constructor(readonly attributes: Record<string, string>, readonly element?: string) {
+  attributes: Record<string, string> | undefined
+  element: string | undefined
+  rank: number
+
+  constructor(spec: {
+    attributes?: Record<string, string>,
+    element?: string,
+    rank?: number
+  }) {
     super()
+    this.attributes = spec.attributes
+    this.element = spec.element
+    this.rank = Math.max(0, Math.min(100, spec.rank ?? 100))
   }
 
   range(from: number, to: number) { return Span.create(from, to, this) }
+
+  get spanning() { return true }
 }
 
 export type Decoration = InlineDecoration | WidgetDecoration
@@ -50,9 +63,8 @@ export function iterateDeco(pos: Pos, deco: readonly DecorationSet[], from: numb
       pos = pos.advance(to - from)
     },
     span(from, to, local) {
-      console.log("got span", from, to)
       active = local as LocalDecoration[]
-      pos.walk(to - from, wrap)
+      pos = pos.walk(to - from, wrap)
     }
   })
 }

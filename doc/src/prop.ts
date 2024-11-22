@@ -98,6 +98,8 @@ export class Prop<Value = unknown> {
 
   get name() { return this.type.name }
 
+  get rank() { return this.type.rank }
+
   get schemaElement() { return this.type }
 
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }

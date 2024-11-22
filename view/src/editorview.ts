@@ -572,6 +572,8 @@ export class EditorView {
     return ViewPlugin.define(() => ({}), {eventObservers: observers})
   }
 
+  static decorations = decorations
+
   /// An input handler can override the way changes to the editable
   /// DOM content are handled. Handlers are passed the document
   /// positions between which the change was found, and the new

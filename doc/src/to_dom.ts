@@ -114,6 +114,7 @@ function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, in
   let value = repr.value == null ? String(input) : typeof repr.value == "string" ? repr.value : repr.value(input)
   if (value != null) {
     if (/^style\//.test(repr.attribute)) elt.style.setProperty(repr.attribute.slice(6), value)
+    else if (repr.attribute == "class") elt.classList.add(value)
     else elt.setAttribute(repr.attribute, value)
   }
 }
