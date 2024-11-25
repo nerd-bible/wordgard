@@ -1,7 +1,6 @@
 import {ChangeDesc, MapMode} from "@willows/doc"
 
-// FIXME drop open tracking?
-// FIXME generally see what features we don't use
+// FIXME see what features we don't use
 
 /// Each span is associated with a label, which must inherit from
 /// this class.
@@ -70,16 +69,12 @@ export interface SpanComparator<T extends SpanLabel> {
 export interface SpanIterator<T extends SpanLabel> {
   /// Called for any spans not covered by point decorations. `active`
   /// holds the labels that the span is marked with (and may be
-  /// empty). `openStart` indicates how many of those spans are open
-  /// (continued) at the start of the span.
-  span(from: number, to: number, active: readonly T[], openStart: number): void
+  /// empty).
+  span(from: number, to: number, active: readonly T[]): void
   /// Called when going over a point decoration. The active span
   /// decorations that cover the point and have a higher precedence
-  /// are provided in `active`. The open count in `openStart` counts
-  /// the number of those spans that started before the point and. If
-  /// the point started before the iterated span, `openStart` will be
-  /// `active.length + 1` to signal this.
-  point(from: number, to: number, label: T, active: readonly T[], openStart: number, index: number): void
+  /// are provided in `active`.
+  point(from: number, to: number, label: T, active: readonly T[], index: number): void
 }
 
 const enum C {
@@ -352,29 +347,21 @@ export class SpanSet<T extends SpanLabel> {
 
   /// Iterate over a group of span sets at the same time, notifying
   /// the iterator about the spans covering every given piece of
-  /// content. Returns the open count (see
-  /// [`SpanIterator.span`](#state.SpanIterator.span)) at the end
-  /// of the iteration.
+  /// content.
   static fragments<T extends SpanLabel>(
     sets: readonly SpanSet<T>[], from: number, to: number,
     iterator: SpanIterator<T>
-  ): number {
+  ) {
     let cursor = new FragmentCursor(sets, null).goto(from), pos = from
-    let openSpans = cursor.openStart
     for (;;) {
       let curTo = Math.min(cursor.to, to)
       if (cursor.point) {
         let active = cursor.activeForPoint(cursor.to)
-        let openCount = cursor.pointFrom < from ? active.length + 1
-          : cursor.point.startSide < 0 ? active.length
-          : Math.min(active.length, openSpans)
-        iterator.point(pos, curTo, cursor.point, active, openCount, cursor.pointRank)
-        openSpans = Math.min(cursor.openEnd(curTo), active.length)
+        iterator.point(pos, curTo, cursor.point, active, cursor.pointRank)
       } else if (curTo > pos) {
-        iterator.span(pos, curTo, cursor.active, openSpans)
-        openSpans = cursor.openEnd(curTo)
+        iterator.span(pos, curTo, cursor.active)
       }
-      if (cursor.to > to) return openSpans + (cursor.point && cursor.to > to ? 1 : 0)
+      if (cursor.to > to) break
       pos = cursor.to
       cursor.next()
     }
@@ -674,9 +661,6 @@ class FragmentCursor<T extends SpanLabel> {
 
   to = -C.Far
   endSide = 0
-  // The amount of open active spans at the start of the iterator.
-  // Not including points.
-  openStart = -1
 
   constructor(sets: readonly SpanSet<T>[],
               skip: Set<Chunk<T>> | null) {
@@ -689,7 +673,6 @@ class FragmentCursor<T extends SpanLabel> {
     this.minActive = -1
     this.to = pos
     this.endSide = side
-    this.openStart = -1
     this.next()
     return this
   }
@@ -707,14 +690,13 @@ class FragmentCursor<T extends SpanLabel> {
     this.minActive = findMinIndex(this.active, this.activeTo)
   }
 
-  addActive(trackOpen: number[] | null) {
+  addActive() {
     let i = 0, {label, to, rank} = this.cursor
     // Organize active marks by rank first, then by size
     while (i < this.activeRank.length && (rank - this.activeRank[i] || to - this.activeTo[i]) > 0) i++
     insert(this.active, i, label)
     insert(this.activeTo, i, to)
     insert(this.activeRank, i, rank)
-    if (trackOpen) insert(trackOpen, i, this.cursor.from)
     this.minActive = findMinIndex(this.active, this.activeTo)
   }
 
@@ -723,7 +705,6 @@ class FragmentCursor<T extends SpanLabel> {
   next() {
     let from = this.to, wasPoint = this.point
     this.point = null
-    let trackOpen = this.openStart < 0 ? [] : null
     for (;;) {
       let a = this.minActive
       if (a > -1 && (this.activeTo[a] - this.cursor.from || this.active[a].endSide - this.cursor.startSide) < 0) {
@@ -733,7 +714,6 @@ class FragmentCursor<T extends SpanLabel> {
           break
         }
         this.removeActive(a)
-        if (trackOpen) remove(trackOpen, a)
       } else if (!this.cursor.label) {
         this.to = this.endSide = C.Far
         break
@@ -744,7 +724,7 @@ class FragmentCursor<T extends SpanLabel> {
       } else {
         let nextVal = this.cursor.label
         if (!nextVal.point) { // Opening a span
-          this.addActive(trackOpen)
+          this.addActive()
           this.cursor.next()
         } else if (wasPoint && this.cursor.to == this.to && this.cursor.from < this.cursor.to) {
           // Ignore any non-empty points that end precisely at the end of the prev point
@@ -761,10 +741,6 @@ class FragmentCursor<T extends SpanLabel> {
         }
       }
     }
-    if (trackOpen) {
-      this.openStart = 0
-      for (let i = trackOpen.length - 1; i >= 0 && trackOpen[i] < from; i--) this.openStart++
-    }
   }
 
   activeForPoint(to: number) {
@@ -776,12 +752,6 @@ class FragmentCursor<T extends SpanLabel> {
         active.push(this.active[i])
     }
     return active.reverse()
-  }
-
-  openEnd(to: number) {
-    let open = 0
-    for (let i = this.activeTo.length - 1; i >= 0 && this.activeTo[i] > to; i--) open++
-    return open
   }
 }
 
