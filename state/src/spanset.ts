@@ -59,7 +59,7 @@ export interface SpanComparator<T extends SpanLabel> {
   /// Notifies the comparator that a span (in positions in the new
   /// document) has the given sets of labels associated with it, which
   /// are different in the old (A) and new (B) sets.
-  compareSpan(from: number, to: number, activeA: readonly T[], activeB: readonly T[]): void
+  compareSpan(from: number, to: number, activeA: T[], activeB: T[]): void
   /// Notification for a changed (or inserted, or deleted) point span.
   comparePoint(from: number, to: number, pointA: T | null, pointB: T | null): void
 }
@@ -662,7 +662,7 @@ function heapBubble<T extends SpanLabel>(heap: LayerCursor<T>[], index: number) 
 class FragmentCursor<T extends SpanLabel> {
   cursor: HeapCursor<T> | LayerCursor<T>
 
-  active: readonly T[] = []
+  active: T[] = []
   activeTo: number[] = []
   activeRank: number[] = []
   minActive = -1
@@ -685,8 +685,7 @@ class FragmentCursor<T extends SpanLabel> {
 
   goto(pos: number, side: number = -C.Far) {
     this.cursor.goto(pos, side)
-    if (this.active.length) this.active = []
-    this.activeTo.length = this.activeRank.length = 0
+    this.active.length = this.activeTo.length = this.activeRank.length = 0
     this.minActive = -1
     this.to = pos
     this.endSide = side
@@ -702,7 +701,7 @@ class FragmentCursor<T extends SpanLabel> {
   }
 
   removeActive(index: number) {
-    this.active = this.active.slice(0, index).concat(this.active.slice(index + 1))
+    remove(this.active, index)
     remove(this.activeTo, index)
     remove(this.activeRank, index)
     this.minActive = findMinIndex(this.active, this.activeTo)
@@ -712,7 +711,7 @@ class FragmentCursor<T extends SpanLabel> {
     let i = 0, {label, to, rank} = this.cursor
     // Organize active marks by rank first, then by size
     while (i < this.activeRank.length && (rank - this.activeRank[i] || to - this.activeTo[i]) > 0) i++
-    this.active = [...this.active.slice(0, i), label!, ...this.active.slice(i)]
+    insert(this.active, i, label)
     insert(this.activeTo, i, to)
     insert(this.activeRank, i, rank)
     if (trackOpen) insert(trackOpen, i, this.cursor.from)
@@ -811,7 +810,7 @@ function compare<T extends SpanLabel>(a: FragmentCursor<T>, startA: number,
   }
 }
 
-function sameLabels<T extends SpanLabel>(a: readonly T[], b: readonly T[]) {
+function sameLabels<T extends SpanLabel>(a: T[], b: T[]) {
   if (a.length != b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] != b[i] && !a[i].eq(b[i])) return false
   return true
@@ -827,7 +826,7 @@ function insert<T>(array: T[], index: number, label: T) {
   array[index] = label
 }
 
-function findMinIndex(label: readonly SpanLabel[], array: number[]) {
+function findMinIndex(label: SpanLabel[], array: number[]) {
   let found = -1, foundPos = C.Far
   for (let i = 0; i < array.length; i++)
     if ((array[i] - foundPos || label[i].endSide - label[found].endSide) < 0) {
