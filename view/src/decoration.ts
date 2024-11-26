@@ -65,7 +65,7 @@ export function iterateDeco(pos: Pos, deco: readonly DecorationSet[], from: numb
       if (label instanceof WidgetDecoration) walker.widget(label, active as LocalDecoration[])
       pos = pos.advance(to - from)
     },
-    span(from, to, local) {
+    fragment(from, to, local) {
       active = local as LocalDecoration[]
       pos = pos.walk(to - from, wrap)
     }

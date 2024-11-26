@@ -67,18 +67,18 @@ export interface SpanComparator<T extends SpanLabel> {
   comparePoint(from: number, to: number, pointA: T | null, pointB: T | null): void
 }
 
-/// Methods used when iterating over the spans created by a set of
-/// spans. The entire iterated span will be covered with either
-/// `span` or `point` calls.
-export interface SpanIterator<T extends SpanLabel> {
+/// Methods used when iterating over the fragments created by a set of
+/// spans. The entire iterated range will be covered with either
+/// `fragment` or `point` calls.
+export interface FragmentIterator<T extends SpanLabel> {
   /// Called for any spans not covered by point decorations. `active`
   /// holds the labels that the span is marked with, ordered from low
   /// to high rank (and may be empty).
-  span(from: number, to: number, active: readonly T[]): void
+  fragment(from: number, to: number, active: readonly T[], start: readonly number[]): void
   /// Called when going over a point decoration. The active span
   /// decorations that cover the point and have a higher precedence
   /// are provided in `active`.
-  point(from: number, to: number, label: T, active: readonly T[]): void
+  point(from: number, to: number, label: T, active: readonly T[], start: readonly number[]): void
 }
 
 const enum C {
@@ -354,16 +354,16 @@ export class SpanSet<T extends SpanLabel> {
   /// content.
   static fragments<T extends SpanLabel>(
     sets: readonly SpanSet<T>[], from: number, to: number,
-    iterator: SpanIterator<T>
+    iterator: FragmentIterator<T>
   ) {
     let cursor = new FragmentCursor(sets, null).goto(from), pos = from
     for (;;) {
       let curTo = Math.min(cursor.to, to)
       if (cursor.point) {
-        let active = cursor.activeForPoint(cursor.to)
-        iterator.point(pos, curTo, cursor.point, active)
+        let [active, start] = cursor.activeForPoint(cursor.to)
+        iterator.point(pos, curTo, cursor.point, active, start)
       } else if (curTo > pos) {
-        iterator.span(pos, curTo, cursor.active)
+        iterator.fragment(pos, curTo, cursor.active, cursor.activeFrom)
       }
       if (cursor.to > to) break
       pos = cursor.to
@@ -575,9 +575,7 @@ class LayerCursor<T extends SpanLabel> {
   }
 
   compare(other: LayerCursor<T>) {
-    return this.from - other.from || this.startSide - other.startSide ||
-      (!this.label ? 1 : !other.label ? -1 : this.label.rank - other.label.rank) ||
-      this.to - other.to || this.endSide - other.endSide
+    return this.from - other.from || this.startSide - other.startSide || this.to - other.to || this.endSide - other.endSide
   }
 }
 
@@ -651,6 +649,7 @@ class FragmentCursor<T extends SpanLabel> {
   cursor: HeapCursor<T> | LayerCursor<T>
 
   active: T[] = []
+  activeFrom: number[] = []
   activeTo: number[] = []
   minActive = -1
 
@@ -668,7 +667,8 @@ class FragmentCursor<T extends SpanLabel> {
 
   goto(pos: number, side: number = -C.Far) {
     this.cursor.goto(pos, side)
-    this.active.length = this.activeTo.length = 0
+    if (this.active.length)
+      this.active.length = this.activeFrom.length = this.activeTo.length = 0
     this.minActive = -1
     this.to = pos
     this.endSide = side
@@ -684,16 +684,18 @@ class FragmentCursor<T extends SpanLabel> {
 
   removeActive(index: number) {
     remove(this.active, index)
+    remove(this.activeFrom, index)
     remove(this.activeTo, index)
     this.minActive = findMinIndex(this.active, this.activeTo)
   }
 
   addActive() {
-    let i = 0, {label, to} = this.cursor
+    let i = 0, {label, to, from} = this.cursor
     // Organize active marks by rank first, then by size
     while (i < this.active.length && (label!.rank - this.active[i].rank || to - this.activeTo[i]) > 0) i++
     insert(this.active, i, label)
     insert(this.activeTo, i, to)
+    insert(this.activeFrom, i, from)
     this.minActive = findMinIndex(this.active, this.activeTo)
   }
 
@@ -739,15 +741,17 @@ class FragmentCursor<T extends SpanLabel> {
     }
   }
 
-  activeForPoint(to: number) {
-    if (!this.active.length) return this.active
-    let active = []
+  activeForPoint(to: number): [T[], number[]] {
+    if (!this.active.length) return [this.active, this.activeFrom]
+    let active = [], start = []
     for (let i = this.active.length - 1; i >= 0; i--) {
       if (this.active[i].rank < this.point!.rank) break
-      if (this.activeTo[i] > to || this.activeTo[i] == to && this.active[i].endSide >= this.point!.endSide)
+      if (this.activeTo[i] > to || this.activeTo[i] == to && this.active[i].endSide >= this.point!.endSide) {
         active.push(this.active[i])
+        start.push(this.activeFrom[i])
+      }
     }
-    return active.reverse()
+    return [active.reverse(), start.reverse()]
   }
 }
 
@@ -764,7 +768,7 @@ function compare<T extends SpanLabel>(a: FragmentCursor<T>, startA: number,
     let end = diff < 0 ? a.to + dPos : b.to, clipEnd = Math.min(end, endB)
     if (a.point || b.point) {
       if (!(a.point && b.point && (a.point == b.point || a.point.eq(b.point)) &&
-            sameLabels(a.activeForPoint(a.to), b.activeForPoint(b.to))))
+            sameLabels(a.activeForPoint(a.to)[0], b.activeForPoint(b.to)[0])))
         comparator.comparePoint(pos, clipEnd, a.point, b.point)
     } else {
       if (clipEnd > pos && !sameLabels(a.active, b.active)) comparator.compareSpan(pos, clipEnd, a.active, b.active)
