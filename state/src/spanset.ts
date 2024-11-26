@@ -18,6 +18,10 @@ export abstract class SpanLabel {
   /// The bias value at the end of the span. Defaults to 0.
   get endSide() { return 0 }
 
+  /// A label's rank determines its precedence relative to other
+  /// labels. FIXME be clearer
+  get rank() { return 0 }
+
   /// The mode with which the location of the span should be mapped
   /// when its `from` and `to` are the same, to decide whether a
   /// change deletes the span. Defaults to `MapMode.TrackDel`.
@@ -68,13 +72,13 @@ export interface SpanComparator<T extends SpanLabel> {
 /// `span` or `point` calls.
 export interface SpanIterator<T extends SpanLabel> {
   /// Called for any spans not covered by point decorations. `active`
-  /// holds the labels that the span is marked with (and may be
-  /// empty).
+  /// holds the labels that the span is marked with, ordered from low
+  /// to high rank (and may be empty).
   span(from: number, to: number, active: readonly T[]): void
   /// Called when going over a point decoration. The active span
   /// decorations that cover the point and have a higher precedence
   /// are provided in `active`.
-  point(from: number, to: number, label: T, active: readonly T[], index: number): void
+  point(from: number, to: number, label: T, active: readonly T[]): void
 }
 
 const enum C {
@@ -357,7 +361,7 @@ export class SpanSet<T extends SpanLabel> {
       let curTo = Math.min(cursor.to, to)
       if (cursor.point) {
         let active = cursor.activeForPoint(cursor.to)
-        iterator.point(pos, curTo, cursor.point, active, cursor.pointRank)
+        iterator.point(pos, curTo, cursor.point, active)
       } else if (curTo > pos) {
         iterator.span(pos, curTo, cursor.active)
       }
@@ -506,8 +510,7 @@ class LayerCursor<T extends SpanLabel> {
   spanIndex!: number
 
   constructor(readonly layer: SpanSet<T>,
-              readonly skip: Set<Chunk<T>> | null,
-              readonly rank = 0) {}
+              readonly skip: Set<Chunk<T>> | null) {}
 
   get startSide() { return this.label ? this.label.startSide : 0 }
   get endSide() { return this.label ? this.label.endSide : 0 }
@@ -572,7 +575,8 @@ class LayerCursor<T extends SpanLabel> {
   }
 
   compare(other: LayerCursor<T>) {
-    return this.from - other.from || this.startSide - other.startSide || this.rank - other.rank ||
+    return this.from - other.from || this.startSide - other.startSide ||
+      (!this.label ? 1 : !other.label ? -1 : this.label.rank - other.label.rank) ||
       this.to - other.to || this.endSide - other.endSide
   }
 }
@@ -581,7 +585,6 @@ class HeapCursor<T extends SpanLabel> {
   from!: number
   to!: number
   label!: T | null
-  rank!: number
   
   constructor(readonly heap: LayerCursor<T>[]) {}
 
@@ -592,7 +595,7 @@ class HeapCursor<T extends SpanLabel> {
     let heap = []
     for (let i = 0; i < sets.length; i++) {
       for (let cur = sets[i]; !cur.isEmpty; cur = cur.nextLayer) {
-        heap.push(new LayerCursor(cur, skip, i))
+        heap.push(new LayerCursor(cur, skip))
       }
     }
     return heap.length == 1 ? heap[0] : new HeapCursor(heap)
@@ -617,13 +620,11 @@ class HeapCursor<T extends SpanLabel> {
     if (this.heap.length == 0) {
       this.from = this.to = C.Far
       this.label = null
-      this.rank = -1
     } else {
       let top = this.heap[0]
       this.from = top.from
       this.to = top.to
       this.label = top.label
-      this.rank = top.rank
       if (top.label) top.next()
       heapBubble(this.heap, 0)
     }
@@ -651,13 +652,11 @@ class FragmentCursor<T extends SpanLabel> {
 
   active: T[] = []
   activeTo: number[] = []
-  activeRank: number[] = []
   minActive = -1
 
   // A currently active point span, if any
   point: T | null = null
   pointFrom = 0
-  pointRank = 0
 
   to = -C.Far
   endSide = 0
@@ -669,7 +668,7 @@ class FragmentCursor<T extends SpanLabel> {
 
   goto(pos: number, side: number = -C.Far) {
     this.cursor.goto(pos, side)
-    this.active.length = this.activeTo.length = this.activeRank.length = 0
+    this.active.length = this.activeTo.length = 0
     this.minActive = -1
     this.to = pos
     this.endSide = side
@@ -686,17 +685,15 @@ class FragmentCursor<T extends SpanLabel> {
   removeActive(index: number) {
     remove(this.active, index)
     remove(this.activeTo, index)
-    remove(this.activeRank, index)
     this.minActive = findMinIndex(this.active, this.activeTo)
   }
 
   addActive() {
-    let i = 0, {label, to, rank} = this.cursor
+    let i = 0, {label, to} = this.cursor
     // Organize active marks by rank first, then by size
-    while (i < this.activeRank.length && (rank - this.activeRank[i] || to - this.activeTo[i]) > 0) i++
+    while (i < this.active.length && (label!.rank - this.active[i].rank || to - this.activeTo[i]) > 0) i++
     insert(this.active, i, label)
     insert(this.activeTo, i, to)
-    insert(this.activeRank, i, rank)
     this.minActive = findMinIndex(this.active, this.activeTo)
   }
 
@@ -732,7 +729,6 @@ class FragmentCursor<T extends SpanLabel> {
         } else { // New point
           this.point = nextVal
           this.pointFrom = this.cursor.from
-          this.pointRank = this.cursor.rank
           this.to = this.cursor.to
           this.endSide = nextVal.endSide
           this.cursor.next()
@@ -747,7 +743,7 @@ class FragmentCursor<T extends SpanLabel> {
     if (!this.active.length) return this.active
     let active = []
     for (let i = this.active.length - 1; i >= 0; i--) {
-      if (this.activeRank[i] < this.pointRank) break
+      if (this.active[i].rank < this.point!.rank) break
       if (this.activeTo[i] > to || this.activeTo[i] == to && this.active[i].endSide >= this.point!.endSide)
         active.push(this.active[i])
     }

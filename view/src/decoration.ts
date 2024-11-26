@@ -12,6 +12,7 @@ export abstract class WidgetDecoration extends SpanLabel {
   get startSide() { return this.side }
   get endSide() { return this.side }
   get point() { return true }
+  get rank() { return 0 }
 
   at(pos: number) { return Span.create(pos, pos, this) }
 }
@@ -19,7 +20,7 @@ export abstract class WidgetDecoration extends SpanLabel {
 export class InlineDecoration extends SpanLabel {
   attributes: Record<string, string> | undefined
   element: string | undefined
-  rank: number
+  private _rank: number
 
   constructor(spec: {
     attributes?: Record<string, string>,
@@ -29,12 +30,14 @@ export class InlineDecoration extends SpanLabel {
     super()
     this.attributes = spec.attributes
     this.element = spec.element
-    this.rank = Math.max(0, Math.min(100, spec.rank ?? 100))
+    this._rank = Math.max(0, Math.min(100, spec.rank ?? 100))
   }
 
   range(from: number, to: number) { return Span.create(from, to, this) }
 
   get spanning() { return true }
+
+  get rank() { return this._rank }
 }
 
 export type Decoration = InlineDecoration | WidgetDecoration
