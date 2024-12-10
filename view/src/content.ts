@@ -1,7 +1,7 @@
 import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, AttributeRepresentation} from "@willows/doc"
 import {SpanSet} from "@willows/state"
 import {DOMNode} from "./dom"
-import {DecorationSet, LocalDecoration, iterateDeco} from "./decoration"
+import {DecorationSet, Decoration, DecorationType, iterateDeco} from "./decoration"
 
 declare global {
   interface Node { wsElt?: ContentElt }
@@ -56,7 +56,7 @@ export abstract class ContentElt {
   isSpanning(): this is WrapperElt {
     return this instanceof WrapperElt &&
       !!(this.wrapper instanceof Prop ? this.wrapper.type.spanning && this.wrapper.type.element
-          : this.wrapper.spanning && this.wrapper.element)
+          : this.wrapper.type == DecorationType.Spanning && this.wrapper.element)
   }
 
   posBeforeChild(child: ContentElt): number {
@@ -212,7 +212,7 @@ function drawElement<T>(repr: ElementRepresentation<T>, value: T) {
   return elt
 }
 
-function drawDecoElement(deco: LocalDecoration) {
+function drawDecoElement(deco: Decoration) {
   let elt = document.createElement(deco.element!)
   if (deco.attributes) for (let name in deco.attributes) {
     let value = deco.attributes[name]
@@ -221,7 +221,7 @@ function drawDecoElement(deco: LocalDecoration) {
   return elt
 }
 
-function renderNode(tag: Tag, deco: readonly LocalDecoration[]) {
+function renderNode(tag: Tag, deco: readonly Decoration[]) {
   let text, elt
   if (tag.isText()) {
     text = document.createTextNode(tag.param as string)
@@ -263,9 +263,10 @@ function addAttr(elt: HTMLElement, attr: string, value: string) {
 
 const none: any[] = []
 
-type Wrapper = Prop | LocalDecoration
+// FIXME define a shared interface to make interaction easier
+type Wrapper = Prop | Decoration
 
-function wrappers(props: readonly Prop[], deco: readonly LocalDecoration[]): readonly Wrapper[] {
+function wrappers(props: readonly Prop[], deco: readonly Decoration[]): readonly Wrapper[] {
   let all = true, some = false
   for (let prop of props) {
     if (prop.type.element) some = true
@@ -290,7 +291,7 @@ class ContentUpdate {
     this.cursor = doc.resolve(0)
   }
 
-  open(tag: Tag, reuse: NodeElt | null, deco: readonly LocalDecoration[]) {
+  open(tag: Tag, reuse: NodeElt | null, deco: readonly Decoration[]) {
     this.openWrappers(wrappers(tag.props, deco))
     let dom = reuse?.dom ?? renderNode(tag, deco)
     let elt = new NodeElt(tag, deco, dom, dom as HTMLElement)
@@ -304,7 +305,7 @@ class ContentUpdate {
     this.closeWrappers()
   }
 
-  joinText(tag: Tag<string>, deco: readonly LocalDecoration[]) {
+  joinText(tag: Tag<string>, deco: readonly Decoration[]) {
     let prev = this.new.lastChild
     while (prev && !(prev instanceof NodeElt)) prev = prev.lastChild
     if (!prev || !(prev instanceof TextElt) || !prev.tag.sameProps(tag) || !eqArray(prev.deco, deco)) return false
@@ -312,7 +313,7 @@ class ContentUpdate {
     return true
   }
 
-  leaf(node: Node, deco: readonly LocalDecoration[]) {
+  leaf(node: Node, deco: readonly Decoration[]) {
     if (node.tag.isText() && this.joinText(node.tag, deco)) return
     this.openWrappers(wrappers(node.tag.props, deco))
     let dom = renderNode(node.tag, deco)
@@ -339,7 +340,7 @@ class ContentUpdate {
     let prev = this.new.lastChild
     let canSpan = true
     for (let wrap of wrappers) {
-      if (canSpan && (wrap instanceof Prop ? wrap.type.spanning : wrap.spanning) &&
+      if (canSpan && (wrap instanceof Prop ? wrap.type.spanning : wrap.type == DecorationType.Spanning) &&
           prev && prev.isSpanning() && prev.eq(wrap)) {
         this.new = prev
         prev = this.new.lastChild
@@ -515,7 +516,7 @@ export class DocElt extends ContentElt {
 }
 
 export class NodeElt extends ContentElt {
-  constructor(public _tag: Tag<any>, public deco: readonly LocalDecoration[], dom: DOMNode, contentDOM: HTMLElement | null) {
+  constructor(public _tag: Tag<any>, public deco: readonly Decoration[], dom: DOMNode, contentDOM: HTMLElement | null) {
     super(dom, contentDOM)
   }
 
@@ -525,7 +526,7 @@ export class NodeElt extends ContentElt {
 }
 
 export class TextElt extends NodeElt {
-  constructor(_tag: Tag<string>, deco: readonly LocalDecoration[], dom: DOMNode) {
+  constructor(_tag: Tag<string>, deco: readonly Decoration[], dom: DOMNode) {
     super(_tag, deco, dom, null)
     this.length = _tag.param.length
   }
