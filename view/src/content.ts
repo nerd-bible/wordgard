@@ -386,7 +386,7 @@ class ContentUpdate {
 
   replace(len: number, ins: number) {
     if (len) this.old = this.old.advance(len)
-    iterateDeco(this.cursor, this.deco, this.cursor.pos, this.cursor.pos + ins, {
+    this.cursor = iterateDeco(this.cursor, this.deco, this.cursor.pos, this.cursor.pos + ins, {
       enter: (tag, deco) => {
         this.open(tag, null, deco)
       },

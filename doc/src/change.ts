@@ -209,7 +209,8 @@ export class ChangeDesc {
   /// unchanged or which have only prop changes. `posA` provides the
   /// position of the range in the original document, `posB` the
   /// position in the changed document.
-  iterGaps(f: (posA: number, posB: number, length: number) => void) {
+  iterGaps(gap: (fromA: number, toA: number, fromB: number, toB: number) => void,
+           change?: (fromA: number, toA: number, fromB: number, toB: number) => void) {
     for (let i = 0, posA = 0, posB = 0; i < this.sections.length;) {
       let len = this.sections[i++], ins = this.sections[i++]
       if (ins < 0) {
@@ -217,9 +218,14 @@ export class ChangeDesc {
           len += this.sections[i]
           i += 2
         }
-        f(posA, posB, len)
+        gap(posA, posA + len, posB, posB + len)
         posB += len
       } else {
+        while (i < this.sections.length && this.sections[i + 1] >= 0) {
+          len += this.sections[i++]
+          ins += this.sections[i++]
+        }
+        if (change) change(posA, posA + len, posB, posB + ins)
         posB += ins
       }
       posA += len
