@@ -55,31 +55,33 @@ export class TagDecorationSource {
 
 export class RangeDecorationSource<T> {
   tag: (tag: Tag) => boolean
-  ranges: (state: EditorState) => RangeSet<T>
+  set: (state: EditorState) => RangeSet<T>
   deco: (value: T) => Decoration
   extension: Extension
 
   constructor(config: {
     tag?: TagSelector,
-    ranges: (state: EditorState) => RangeSet<T>
+    set: (state: EditorState) => RangeSet<T>
   } & (T extends Decoration ? {} : {deco: (value: T) => Decoration})) {
     this.tag = tagPredicate(config.tag)
-    this.ranges = config.ranges
+    this.set = config.set
     this.deco = (config as any).deco || (d => d)
     this.extension = decorations.of(this)
   }
 }
 
+// FIXME implement a point node decoration source
+
 export class WidgetSource<T> {
   // FIXME names
-  widgets: (state: EditorState) => PointSet<T>
+  set: (state: EditorState) => PointSet<T>
   widget: (value: T) => Widget
   extension: Extension
 
   constructor(config: {
-    widgets: (state: EditorState) => PointSet<T>,
+    set: (state: EditorState) => PointSet<T>,
   } & (T extends Widget ? {} : {widget: (value: T) => Widget})) {
-    this.widgets = config.widgets
+    this.set = config.set
     this.widget = (config as any).widget || (w => w)
     this.extension = decorations.of(this)
   }
@@ -133,10 +135,13 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
+// FIXME put side back onto values somehow?
 export class PointSet<Value> {
   private constructor(readonly positions: readonly number[],
                       readonly values: readonly Value[],
                       readonly side: number) {}
+
+  get length() { return this.positions.length }
 
   map(changes: ChangeDesc) {
     if (changes.empty) return this
@@ -165,6 +170,30 @@ export class PointSet<Value> {
     return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values), this.side)
   }
 
+  merge(other: PointSet<Value>) {
+    let posA = this.positions, posB = other.positions
+    let pos: number[] = new Array(posA.length, posB.length), values: Value[] = new Array(pos.length)
+    for (let i = 0, a = 0, b = 0;;) {
+      let nextA = a < posA.length ? posA[a] : 1e9
+      let nextB = b < posB.length ? posB[b] : 1e9
+      if (nextA < nextB) {
+        pos[i] = posA[a]
+        values[i++] = this.values[a++]
+      } else if (nextB < 1e9) {
+        pos[i] = posB[b]
+        values[i++] = other.values[b++]
+      } else {
+        return new PointSet<Value>(pos, values, this.side)
+      }
+    }
+  }
+
+  iter(from?: number): PointIterator<Value>
+  iter<Result>(from: number, transform: (value: Value) => Result): PointIterator<Result>
+  iter<Result>(from = 0, transform?: (value: Value) => Result): PointIterator<Result> {
+    return new PointIterator<Result>(this, from, transform || ((a: any) => a))
+  }
+
   static create<Value>(positions: readonly number[], values: readonly Value[], side: number = 0) {
     return new PointSet(positions, values, side)
   }
@@ -175,13 +204,54 @@ export class PointSet<Value> {
 export class PointBuilder<Value> {
   positions: number[] = []
   values: Value[] = []
+  cur = 0
 
   add(pos: number, value: Value) {
+    if (pos < this.cur) throw new RangeError("Point positions must be added in order")
+    this.cur = pos
     this.positions.push(pos)
     this.values.push(value)
   }
 
   finish(side = 0) { return PointSet.create(this.positions, this.values, side) }
+}
+
+interface DecoIterator<Result> { // FIXME name
+  value: Result | null
+  from: number
+  to: number
+  order: number
+  endOrder: number
+  next(): void
+}
+
+export class PointIterator<Result> implements DecoIterator<Result> {
+  value!: Result | null
+  from!: number
+  i!: number
+
+  get to() { return this.from }
+  get order() { return 0 }
+  get endOrder() { return 0 }
+
+  constructor(readonly set: PointSet<any>, from: number, readonly transform: (value: any) => Result) {
+    this.fill(findAbove(set.positions, 0, from - 1))
+  }
+
+  fill(i: number) {
+    this.i = i
+    if (i < this.set.positions.length) {
+      this.from = this.set.positions[i]
+      this.value = this.transform(this.set.values[i])
+    } else {
+      this.from = 1e8
+      this.value = null
+    }
+  }
+
+  next() {
+    if (this.value) this.fill(this.i + 1)
+  }
 }
 
 function addDel(deleted: number[], i: number) {
@@ -211,6 +281,8 @@ export class RangeSet<Value> {
     readonly side: RangeSide
   ) {}
 
+  get length() { return this.from.length }
+
   map(changes: ChangeDesc) {
     if (changes.empty) return this
     let from = this.from.slice(), to = this.to.slice()
@@ -239,6 +311,12 @@ export class RangeSet<Value> {
                                applyDel(deleted, deletions, this.values), this.side)
   }
 
+  iter(from?: number): RangeIterator<Value>
+  iter<Result>(from: number, transform: (value: Value) => Result): RangeIterator<Result>
+  iter<Result>(from = 0, transform?: (value: Value) => Result): RangeIterator<Result> {
+    return new RangeIterator<Result>(this, from, transform || ((a: any) => a))
+  }
+
   static create<Value>(
     from: readonly number[], to: readonly number[],
     values: readonly Value[],
@@ -255,8 +333,12 @@ export class RangeBuilder<Value> {
   from: number[] = []
   to: number[] = []
   values: Value[] = []
+  cur = 0
 
   add(from: number, to: number, value: Value) {
+    if (from >= to) throw new Error("Ranges cannot be empty")
+    if (from < this.cur) throw new Error("Ranges must be added in order and cannot overlap")
+    this.cur = to
     this.from.push(from)
     this.to.push(to)
     this.values.push(value)
@@ -267,6 +349,36 @@ export class RangeBuilder<Value> {
   }
 }
 
+export class RangeIterator<Result> implements DecoIterator<Result> {
+  value!: Result | null
+  from!: number
+  to!: number
+  i!: number
+
+  constructor(readonly set: RangeSet<any>, from: number, readonly transform: (value: any) => Result) {
+    this.fill(findAbove(set.to, 0, from))
+  }
+
+  get order() { return this.set.side & RangeSide.StartInclusive ? -1 : 1 }
+  get endOrder() { return this.set.side & RangeSide.EndInclusive ? 1 : -1 }
+
+  fill(i: number) {
+    this.i = i
+    if (i < this.set.from.length) {
+      this.from = this.set.from[i]
+      this.to = this.set.to[i]
+      this.value = this.transform(this.set.values[i])
+    } else {
+      this.from = this.to = 1e8
+      this.value = null
+    }
+  }
+
+  next() {
+    if (this.value) this.fill(this.i + 1)
+  }
+}
+
 export interface DecoWalker {
   skip(node: Node, deco: readonly Decoration[]): void
   enter(tag: Tag, deco: readonly Decoration[]): void | boolean
@@ -274,22 +386,107 @@ export interface DecoWalker {
   widgets(widgets: readonly Widget[], deco: readonly Decoration[]): void
 }
 
-export function iterateDeco(pos: Pos, deco: readonly DecorationSource[], from: number, to: number, walker: DecoWalker) {
-  let active: readonly Decoration[] = []
+const EmptyIterator: DecoIterator<any> = {
+  value: null,
+  from: 1e9, to: 1e9,
+  order: 0,
+  endOrder: 0,
+  next: () => {}
+}
+
+class HeapIterator<Value> implements DecoIterator<Value> {
+  constructor(readonly heap: DecoIterator<Value>[]) {
+    for (let i = heap.length >> 1; i >= 0; i--) this.bubble(i)
+  }
+
+  get value() { return this.heap[0].value }
+  get from() { return this.heap[0].from }
+  get to() { return this.heap[0].to }
+  get order() { return this.heap[0].order }
+  get endOrder() { return this.heap[0].endOrder }
+
+  next() {
+    if (this.value) {
+      this.heap[0].next()
+      this.bubble(0)
+    }
+  }
+
+  bubble(index: number) {
+    for (let {heap} = this, cur = heap[index];;) {
+      let childIndex = (index << 1) + 1
+      if (childIndex >= heap.length) break
+      let child = heap[childIndex]
+      if (childIndex + 1 < heap.length && HeapIterator.cmp(child, heap[childIndex + 1]) >= 0) {
+        child = heap[childIndex + 1]
+        childIndex++
+      }
+      if (HeapIterator.cmp(cur, child) < 0) break
+      heap[childIndex] = cur
+      heap[index] = child
+      index = childIndex
+    }
+  }
+
+  static cmp(a: DecoIterator<any>, b: DecoIterator<any>) {
+    return a.from - b.from || a.order - b.order
+  }
+}
+
+export function iterateDeco(pos: Pos, state: EditorState, from: number, to: number, walker: DecoWalker) {
+  let iters: DecoIterator<Decoration | Widget>[] = []
+  let global: (TagWidgetSource | TagDecorationSource)[] = []
+  for (let d of state.facet(decorations)) {
+    if (d instanceof TagWidgetSource || d instanceof TagDecorationSource) {
+      global.push(d)
+    } else if (d instanceof RangeDecorationSource) {
+      iters.push(d.set(state).iter<Decoration>(from, d.deco))
+    } else {
+      iters.push(d.set(state).iter<Widget>(from, d.widget))
+    }
+  }
+
+  let iter = !iters.length ? EmptyIterator : iters.length == 1 ? iters[0] : new HeapIterator<Decoration | Widget>(iters)
+  let active: Decoration[] = [], activeTo: number[] = [], nextActiveEnd = 1e9
   let wrap: Walker = {
     skip(node) { walker.skip(node, active) },
     enter(tag) { walker.enter(tag, active) },
     leave() { walker.leave() }
   }
-  SpanSet.fragments(deco, from, to, {
-    point(from, to, label, active) {
-      if (label instanceof Widget) walker.widget(label, active as Decoration[])
-      pos = pos.advance(to - from)
-    },
-    fragment(from, to, local) {
-      active = local as Decoration[]
-      pos = pos.walk(to - from, wrap)
+  for (;;) {
+    let next = Math.min(iter.from, to, nextActiveEnd >> 1)
+    if (next > pos.pos) {
+      pos = pos.advance(next - pos.pos, wrap)
+    } else if (next == (nextActiveEnd >> 1) && !((nextActiveEnd & 1) && iter.value instanceof Widget)) {
+      let nextEnd = 1e9
+      for (let i = 0; i < active.length; i++) {
+        if (activeTo[i] == nextActiveEnd) {
+          active.splice(i, 1)
+          activeTo.splice(i--, 1)
+        } else {
+          nextEnd = Math.min(nextEnd, activeTo[i])
+        }
+      }
+      nextActiveEnd = nextEnd
+    } else if (iter.value instanceof Widget) { // FIXME handle point decorations
+      let widgets = [iter.value]
+      for (;;) {
+        iter.next()
+        if (iter.from > pos.pos || !(iter.value instanceof Widget)) break
+        let i = 0
+        while (i < widgets.length && widgets[i].rank < iter.value.rank) i++
+        widgets.splice(i, 0, iter.value)
+        walker.widgets(widgets, active)
+      }
+    } else {
+      let i = 0
+      while (i < active.length && active[i].rank < iter.value.rank) i++
+      active.splice(i, 0, iter.value as Decoration)
+      let to = (iter.to << 1) + (iter.endOrder < 0 ? 0 : 1)
+      activeTo.splice(i, 0, to)
+      nextActiveEnd = Math.min(nextActiveEnd, to)
+      iter.next()
     }
-  })
+  }
   return pos
 }
