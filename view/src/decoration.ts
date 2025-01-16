@@ -18,6 +18,15 @@ function tagPredicate(selector?: TagSelector): (tag: Tag<any>) => boolean {
     : selector ? t => selector.includes(t.type) : () => true
 }
 
+function memo<T>(f: (tag: Tag<any>) => T | null) {
+  let map = new WeakMap<Tag<any>, T | null>()
+  return (tag: Tag) => {
+    let found = map.get(tag)
+    if (found === undefined) map.set(tag, found = f(tag))
+    return found
+  }
+}
+
 export class TagWidgetSource {
   place: WidgetPlace
   tag: (tag: Tag) => boolean
@@ -32,14 +41,14 @@ export class TagWidgetSource {
     let {tag, side, widget} = config
     this.place = typeof side == "string" ? WidgetPlace[side] : side
     this.tag = tagPredicate(tag)
-    this.widget = typeof widget == "function" ? widget : () => widget
+    this.widget = typeof widget == "function" ? memo(widget) : () => widget
     this.extension = decorations.of(this)
   }
 }
 
 export class TagDecorationSource {
   tag: (tag: Tag) => boolean
-  deco: (tag: Tag) => Decoration | null
+  deco: (tag: Tag) => Decoration | null // FIXME memoize
   extension: Extension
 
   constructor(config: {
@@ -48,7 +57,7 @@ export class TagDecorationSource {
   }) {
     let {tag, deco} = config
     this.tag = tagPredicate(tag)
-    this.deco = typeof deco == "function" ? deco : () => deco
+    this.deco = typeof deco == "function" ? memo(deco) : () => deco
     this.extension = decorations.of(this)
   }
 }
@@ -433,12 +442,27 @@ class HeapIterator<Value> implements DecoIterator<Value> {
   }
 }
 
+function addGlobalDeco(deco: readonly Decoration[], tag: Tag<any>, global: TagDecorationSource[]) {
+  let copy: Decoration[] | undefined
+  for (let src of global) if (src.tag(tag)) {
+    if (!copy) copy = deco.slice()
+    let i = 0, add = src.deco(tag)
+    if (!add) continue
+    while (i < deco.length && deco[i].rank < add.rank) i++
+    copy.splice(i, 0, add)
+  }
+  return copy || deco
+}
+
 export function iterateDeco(pos: Pos, state: EditorState, from: number, to: number, walker: DecoWalker) {
   let iters: DecoIterator<Decoration | Widget>[] = []
-  let global: (TagWidgetSource | TagDecorationSource)[] = []
+  let globalDeco: TagDecorationSource[] = [], globalWidgets: TagWidgetSource[] = []
+  // FIXME should put these in different facets rather than collecting them here
   for (let d of state.facet(decorations)) {
-    if (d instanceof TagWidgetSource || d instanceof TagDecorationSource) {
-      global.push(d)
+    if (d instanceof TagWidgetSource) {
+      globalWidgets.push(d)
+    } else if (d instanceof TagDecorationSource) {
+      globalDeco.push(d)
     } else if (d instanceof RangeDecorationSource) {
       iters.push(d.set(state).iter<Decoration>(from, d.deco))
     } else {
@@ -446,17 +470,49 @@ export function iterateDeco(pos: Pos, state: EditorState, from: number, to: numb
     }
   }
 
+  let widgets = (tag: Tag, place: WidgetPlace) => {
+    let found: Widget[] | undefined
+    for (let src of globalWidgets) {
+      if (src.place == place && src.tag(tag)) {
+        let i = 0, widget = src.widget(tag)
+        if (widget) {
+          if (!found) found = []
+          while (i < found.length && found[i].rank < widget.rank) i++
+          found.splice(i, 0, widget)
+        }
+      }
+    }
+    if (found) walker.widgets(found, active)
+  }
+
   let iter = !iters.length ? EmptyIterator : iters.length == 1 ? iters[0] : new HeapIterator<Decoration | Widget>(iters)
   let active: Decoration[] = [], activeTo: number[] = [], nextActiveEnd = 1e9
   let wrap: Walker = {
-    skip(node) { walker.skip(node, active) },
-    enter(tag) { walker.enter(tag, active) },
-    leave() { walker.leave() }
+    skip(node) {
+      widgets(node.tag, WidgetPlace.Before)
+      walker.skip(node, addGlobalDeco(active, node.tag, globalDeco))
+      widgets(node.tag, WidgetPlace.After)
+    },
+    enter(tag) {
+      widgets(tag, WidgetPlace.Before)
+      walker.enter(tag, addGlobalDeco(active, tag, globalDeco))
+      widgets(tag, WidgetPlace.Start)
+    },
+    leave(tag) {
+      widgets(tag!, WidgetPlace.End)
+      walker.leave()
+      widgets(tag!, WidgetPlace.After)
+    }
   }
+
+  let before = pos.nodeBefore
+  if (before) widgets(before.tag, WidgetPlace.After)
+  else widgets(pos.parent.node.tag, WidgetPlace.Start)
+
   for (;;) {
     let next = Math.min(iter.from, to, nextActiveEnd >> 1)
     if (next > pos.pos) {
-      pos = pos.advance(next - pos.pos, wrap)
+      pos = pos.walk(next - pos.pos, wrap)
     } else if (next == (nextActiveEnd >> 1) && !((nextActiveEnd & 1) && iter.value instanceof Widget)) {
       let nextEnd = 1e9
       for (let i = 0; i < active.length; i++) {
@@ -488,5 +544,10 @@ export function iterateDeco(pos: Pos, state: EditorState, from: number, to: numb
       iter.next()
     }
   }
+
+  let after = pos.nodeAfter
+  if (after) widgets(after!.tag, WidgetPlace.Before)
+  else widgets(pos.parent.node.tag, WidgetPlace.End)
+
   return pos
 }

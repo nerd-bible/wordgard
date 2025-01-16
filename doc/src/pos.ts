@@ -5,7 +5,7 @@ import {none} from "./helper"
 export interface Walker {
   skip(node: Node): void
   enter(tag: Tag): void | boolean
-  leave(): void
+  leave(tag?: Tag): void
 }
 
 export class Pos {
@@ -183,7 +183,7 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
   while (pos < target) {
     if (index == node.children.length) {
       if (!parent.parent) throw new Error("Moving past end of document")
-      if (walk) walk.leave()
+      if (walk) walk.leave(node.tag)
       ;({index, parent} = parent)
       node = parent.node
       index++
