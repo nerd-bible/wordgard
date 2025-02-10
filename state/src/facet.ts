@@ -1,4 +1,4 @@
-import {SchemaElement} from "@willows/doc"
+import {SchemaElement} from "@wordgard/doc"
 import {Transaction, TransactionSpec} from "./transaction"
 import {EditorState, Extension, DynamicSlot} from "./state"
 

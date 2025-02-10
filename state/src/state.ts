@@ -1,4 +1,4 @@
-import {Schema, Tag, SchemaElement, DocNode, NodeJSON, parseDoc} from "@willows/doc"
+import {Schema, Tag, SchemaElement, DocNode, NodeJSON, parseDoc} from "@wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,

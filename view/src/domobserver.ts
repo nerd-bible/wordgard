@@ -1,4 +1,4 @@
-import {ChangeDesc} from "@willows/doc"
+import {ChangeDesc} from "@wordgard/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
 import {editable, ViewUpdate} from "./extension"

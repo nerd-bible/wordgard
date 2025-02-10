@@ -1,11 +1,11 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
         deleteBackward, deleteForward, setTextblockType,
-        wrapBlock, unwrapBlock, unwrapBlockType, toggleProp} from "@willows/view"
+        wrapBlock, unwrapBlock, unwrapBlockType, toggleProp} from "@wordgard/view"
 import {Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList,
-        Emphasis, Strong, Link} from "@willows/doc"
-import {EditorState, StateCommand, EditorSelection} from "@willows/state"
+        Emphasis, Strong, Link} from "@wordgard/doc"
+import {EditorState, StateCommand, EditorSelection} from "@wordgard/state"
 import ist from "ist"
 
 const {p, blockquote, ul, li, pre, br, h1, $img, hr, em, strong} = basicBuilders

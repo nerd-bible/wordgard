@@ -103,7 +103,7 @@ export class Schema {
         propNames.add(elt.name)
         props.push(elt as any)
       } else {
-        throw new Error("Unexpected schema element type. You may have multiple versions of @willows/doc loaded")
+        throw new Error("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
     }
     let docTag: TagType<Schema> | null = null

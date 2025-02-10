@@ -1,6 +1,6 @@
-import {EditorView, keymap, defaultKeymap, InlineDecoration} from "@willows/view"
-import {basicSchema} from "@willows/doc"
-import {schemaElement, SpanSet} from "@willows/state"
+import {EditorView, keymap, defaultKeymap, InlineDecoration} from "@wordgard/view"
+import {basicSchema} from "@wordgard/doc"
+import {schemaElement, SpanSet} from "@wordgard/state"
 
 window.view = new EditorView({
   parent: document.body,

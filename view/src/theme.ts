@@ -1,4 +1,4 @@
-import {Facet} from "@willows/state"
+import {Facet} from "@wordgard/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
 export const theme = Facet.define<string, string>({combine: strs => strs.join(" ")})

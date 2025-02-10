@@ -1,5 +1,5 @@
-import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, AttributeRepresentation} from "@willows/doc"
-import {SpanSet} from "@willows/state"
+import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
+import {SpanSet} from "@wordgard/state"
 import {DOMNode} from "./dom"
 import {DecorationSet, Decoration, DecorationType, iterateDeco} from "./decoration"
 

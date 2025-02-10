@@ -1,6 +1,6 @@
 import {Slice, Text, Node, Pos, serializeSlice, parseSlice,
-        OpenSide, Token, CloseToken, OpenToken} from "@willows/doc"
-import {EditorState} from "@willows/state"
+        OpenSide, Token, CloseToken, OpenToken} from "@wordgard/doc"
+import {EditorState} from "@wordgard/state"
 import browser from "./browser"
 
 export function writeClipboard(state: EditorState, slice: Slice, data: DataTransfer) {

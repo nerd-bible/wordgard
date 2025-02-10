@@ -1,5 +1,5 @@
-import {EditorState, Transaction, Facet, StateEffect, Extension, EditorSelection} from "@willows/state"
-import {ChangeSet, ChangeDesc} from "@willows/doc"
+import {EditorState, Transaction, Facet, StateEffect, Extension, EditorSelection} from "@wordgard/state"
+import {ChangeSet, ChangeDesc} from "@wordgard/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"

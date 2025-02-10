@@ -1,6 +1,6 @@
 import {EditorView} from "./editorview"
-import {EditorState, Facet, Extension} from "@willows/state"
-import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode} from "@willows/doc"
+import {EditorState, Facet, Extension} from "@wordgard/state"
+import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode} from "@wordgard/doc"
 
 enum WidgetPlace { Before, After, Start, End }
 
@@ -45,7 +45,7 @@ export const tagWidgets = Facet.define<TagWidgetSource>()
 
 export class TagDecorationSource {
   tag: (tag: Tag) => boolean
-  deco: (tag: Tag) => Decoration | null // FIXME memoize
+  deco: (tag: Tag) => Decoration | null
   extension: Extension
 
   constructor(config: {
@@ -65,7 +65,7 @@ export enum DecorationScope {
   Leaf = 1,
   InlineLeaf = 2,
   All = 4,
-//  StartDepth
+//  StartDepth FIXME add support
 }
 
 // FIXME this should associate decorators with ranges, which determine

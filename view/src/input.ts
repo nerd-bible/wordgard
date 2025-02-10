@@ -1,5 +1,5 @@
-import {EditorSelection, EditorState} from "@willows/state"
-import {Slice, Node, ChangeSet} from "@willows/doc"
+import {EditorSelection, EditorState} from "@wordgard/state"
+import {Slice, Node, ChangeSet} from "@wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"

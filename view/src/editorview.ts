@@ -1,5 +1,5 @@
 import {EditorState, Transaction, TransactionSpec, Extension, Prec,
-        EditorSelection, StateEffect, Facet, EditorStateSpec} from "@willows/state"
+        EditorSelection, StateEffect, Facet, EditorStateSpec} from "@wordgard/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocElt} from "./content"
@@ -707,7 +707,7 @@ function wrapElementConstructor() {
   // custom element. Try multiple names in case multiple versions of
   // the library are loaded.
   for (let i = 0;; i++) {
-    let name = "willows-editor" + (i ? "-" + i : "")
+    let name = "wordgard-editor" + (i ? "-" + i : "")
     if (!customElements.get(name)) {
       customElements.define(name, ctor)
       break

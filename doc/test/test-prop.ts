@@ -1,4 +1,4 @@
-import {PropType, Prop, Emphasis, Strong, Link, Code} from "@willows/doc"
+import {PropType, Prop, Emphasis, Strong, Link, Code} from "@wordgard/doc"
 import ist from "ist"
 
 let Tag = PropType.define<readonly number[]>("Tag", {

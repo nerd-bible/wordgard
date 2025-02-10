@@ -11,9 +11,9 @@
     "newLine": "lf",
     "moduleResolution": "node",
     "paths": {
-      "@willows/doc": ["./doc/src/index.ts"],
-      "@willows/state": ["./state/src/index.ts"],
-      "@willows/view": ["./view/src/index.ts"]
+      "@wordgard/doc": ["./doc/src/index.ts"],
+      "@wordgard/state": ["./state/src/index.ts"],
+      "@wordgard/view": ["./view/src/index.ts"]
     }
   },
   "include": ["*/src/*.ts", "*/test/*.ts"],

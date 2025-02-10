@@ -1,4 +1,4 @@
-import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "@willows/doc"
+import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "@wordgard/doc"
 import {EditorState, Extension} from "./state"
 import {transactionFilter, transactionExtender} from "./facet"
 import {EditorSelection, SelectionSpec} from "./selection"

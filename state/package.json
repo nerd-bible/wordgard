@@ -1,5 +1,5 @@
 {
-  "name": "@willows/state",
+  "name": "@wordgard/state",
   "version": "0.0.1",
   "description": "Editor state data structures for the Willow editor",
   "keywords": [
@@ -22,7 +22,7 @@
   "sideEffects": false,
   "license": "MIT",
   "dependencies": {
-    "@willows/doc": "^0.0.1",
+    "@wordgard/doc": "^0.0.1",
     "@marijn/find-cluster-break": "^1.0.0"
   },
   "devDependencies": {

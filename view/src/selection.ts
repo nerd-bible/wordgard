@@ -1,5 +1,5 @@
-import {EditorSelection, Direction} from "@willows/state"
-import {NodePos} from "@willows/doc"
+import {EditorSelection, Direction} from "@wordgard/state"
+import {NodePos} from "@wordgard/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 import {findVerticalInTextblock} from "./coords"

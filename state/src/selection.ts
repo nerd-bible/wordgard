@@ -1,4 +1,4 @@
-import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "@willows/doc"
+import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "@wordgard/doc"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 import {EditorState} from "./state"

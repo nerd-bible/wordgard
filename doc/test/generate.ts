@@ -2,7 +2,7 @@ import {Node, Tag, Prop, DocNode, TextNode, PropType,
         Slice, Token, OpenToken, CloseToken, ChangeSet,
         basicBuilders, ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
-        Emphasis, Strong, Code, Link} from "@willows/doc"
+        Emphasis, Strong, Code, Link} from "@wordgard/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
 export const Comment = PropType.define<readonly number[]>("Comment", {
