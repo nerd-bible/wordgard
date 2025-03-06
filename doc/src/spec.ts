@@ -1,7 +1,7 @@
 import {Node, Tag, TagType} from "./node"
 import {Prop, PropType} from "./prop"
 
-export type Attrs = {[name: string]: string | number | undefined}
+export type Attrs = Record<string, string>
 
 export const Reject: unique symbol = Symbol("reject")
 export type Reject = typeof Reject

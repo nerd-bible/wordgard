@@ -1,7 +1,7 @@
 import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
-import {SpanSet} from "@wordgard/state"
+import {EditorState} from "@wordgard/state"
 import {DOMNode} from "./dom"
-import {DecorationSet, Decoration, DecorationType, iterateDeco} from "./decoration"
+import {Decoration, DecorationType, iterateDeco} from "./decoration"
 
 declare global {
   interface Node { wsElt?: ContentElt }
@@ -29,6 +29,7 @@ export abstract class ContentElt {
     dom.wsElt = this
   }
 
+  // Check this.contentDOM.childNodes and this.length against this.children
   sync() {
     if (this.contentDOM) {
       let len = this.boundary * 2
@@ -221,6 +222,7 @@ function drawDecoElement(deco: Decoration) {
   return elt
 }
 
+// Render a node, including its non-element attributes and decorations
 function renderNode(tag: Tag, deco: readonly Decoration[]) {
   let text, elt
   if (tag.isText()) {
@@ -284,11 +286,11 @@ class ContentUpdate {
   cursor: Pos
   toSync: ContentElt[] = []
 
-  constructor(readonly doc: DocNode, readonly deco: readonly DecorationSet[], old: DocElt) {
+  constructor(readonly state: EditorState, old: DocElt) {
     this.old = new ContentPointer(old, 0, null)
-    this.new = new DocElt(doc, old.dom as HTMLElement, deco)
+    this.new = new DocElt(state.doc, old.dom as HTMLElement)
     this.toSync.push(this.new)
-    this.cursor = doc.resolve(0)
+    this.cursor = state.doc.resolve(0)
   }
 
   open(tag: Tag, reuse: NodeElt | null, deco: readonly Decoration[]) {
@@ -386,7 +388,7 @@ class ContentUpdate {
 
   replace(len: number, ins: number) {
     if (len) this.old = this.old.advance(len)
-    this.cursor = iterateDeco(this.cursor, this.deco, this.cursor.pos, this.cursor.pos + ins, {
+    this.cursor = iterateDeco(this.cursor, this.state, this.cursor.pos, this.cursor.pos + ins, {
       enter: (tag, deco) => {
         this.open(tag, null, deco)
       },
@@ -396,7 +398,7 @@ class ContentUpdate {
       skip: (node, deco) => {
         this.leaf(node, deco)
       },
-      widget(widget, deco) {
+      widgets(widgets) {
         // FIXME draw widget
       }
     })

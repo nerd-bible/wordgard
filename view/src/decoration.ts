@@ -1,6 +1,9 @@
-import {EditorView} from "./editorview"
 import {EditorState, Facet, Extension} from "@wordgard/state"
-import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode} from "@wordgard/doc"
+import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode, AttributeRepresentation} from "@wordgard/doc"
+import {Elt, Widget, TextWidget, pushAttribute, E, mergeAttributes} from "./shape"
+
+// FIXME support some kind of dependency tracking on decoration
+// sources
 
 enum WidgetPlace { Before, After, Start, End }
 
@@ -22,16 +25,40 @@ function memo<T>(f: (tag: Tag<any>) => T | null) {
   }
 }
 
+const tagBaseElt = memo((tag: Tag<any>) => {
+  let {dom} = tag.type.spec, elt: Widget<any> | Elt | undefined
+  if (tag.isText()) {
+    elt = TextWidget.of(tag.param)
+  } else {
+    if (typeof dom == "function") throw new Error("FIXME")
+    if (!dom.attributes) elt = E(dom.element, 0)
+    // FIXME somehow make this cast unnecessary
+    else elt = E(dom.element, typeof dom.attributes == "function" ? dom.attributes((tag as any).param) : dom.attributes, 0)
+  }
+  let attrs: string[] | undefined
+  for (let prop of tag.props) if (!prop.type.element) {
+    let dom = prop.type.spec.dom as AttributeRepresentation<any>
+    let value = dom.value == null ? String(prop.value) : typeof dom.value == "string" ? dom.value : dom.value(prop.value)
+    if (value != null)
+      pushAttribute(attrs || (attrs = []), dom.attribute, value)
+  }
+  if (attrs) {
+    if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.children)
+    else elt = E(tag.isBlock() ? "div" : "span", attrs, elt)
+  }
+  return elt
+})
+
 export class TagWidgetSource {
   place: WidgetPlace
   tag: (tag: Tag) => boolean
-  widget: (tag: Tag) => Widget | null
+  widget: (tag: Tag) => Widget<any> | null
   extension: Extension
 
   constructor(config: {
     tag?: TagSelector,
     side: keyof typeof WidgetPlace | WidgetPlace,
-    widget: Widget | ((tag: Tag) => Widget | null)
+    widget: Widget<any> | ((tag: Tag) => Widget<any> | null)
   }) {
     let {tag, side, widget} = config
     this.place = typeof side == "string" ? WidgetPlace[side] : side
@@ -68,10 +95,7 @@ export enum DecorationScope {
 //  StartDepth FIXME add support
 }
 
-// FIXME this should associate decorators with ranges, which determine
-// what type of nodes (potentially at what depth) to decorate, rather
-// like TagWidgetSource.
-export class RangeDecorationSource<T> {
+export class RangeDecorationSource<T extends RangeValue> {
   tag: (tag: Tag) => boolean
   scope: DecorationScope
   set: (state: EditorState) => RangeSet<T>
@@ -95,15 +119,15 @@ export const rangeDecorations = Facet.define<RangeDecorationSource<any>>()
 
 // FIXME implement a point node decoration source
 
-export class WidgetSource<T> {
+export class WidgetSource<T extends PointValue> {
   // FIXME names
   set: (state: EditorState) => PointSet<T>
-  widget: (value: T) => Widget
+  widget: (value: T) => Widget<any>
   extension: Extension
 
   constructor(config: {
     set: (state: EditorState) => PointSet<T>,
-  } & (T extends Widget ? {} : {widget: (value: T) => Widget})) {
+  } & (T extends Widget<any> ? {} : {widget: (value: T) => Widget<any>})) {
     this.set = config.set
     this.widget = (config as any).widget || (w => w)
     this.extension = widgets.of(this)
@@ -111,21 +135,6 @@ export class WidgetSource<T> {
 }
 
 export const widgets = Facet.define<WidgetSource<any>>()
-
-// FIXME define event handling and update mechanisms
-// FIXME avoid subclassing interface
-export abstract class Widget {
-  render: (view: EditorView) => HTMLElement
-  rank: number
-
-  constructor(config: {
-    render: (view: EditorView) => HTMLElement,
-    rank?: number
-  }) {
-    this.render = config.render
-    this.rank = config.rank ?? 0
-  }
-}
 
 export enum DecorationType { Spanning, Atom }
 
@@ -160,11 +169,13 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
-// FIXME put side back onto values somehow?
-export class PointSet<Value> {
+export interface PointValue {
+  side: number
+}
+
+export class PointSet<Value extends PointValue> {
   private constructor(readonly positions: readonly number[],
-                      readonly values: readonly Value[],
-                      readonly side: number) {}
+                      readonly values: readonly Value[]) {}
 
   get length() { return this.positions.length }
 
@@ -184,18 +195,20 @@ export class PointSet<Value> {
     }, (fromA, toA) => {
       let nextI = findAbove(positions, i, toA + 1)
       for (; i < nextI; i++) {
-        let mapped = this.side < 0 ? changes.mapPos(positions[i], -1, MapMode.TrackBefore)
+        let mapped = this.values[i].side < 0 ? changes.mapPos(positions[i], -1, MapMode.TrackBefore)
           : changes.mapPos(positions[i], 1, MapMode.TrackAfter)
         if (mapped == null) { addDel(deleted, i); deletions++ }
         else positions[i] = mapped
       }
       pos = toA + 1
     })
-    if (!deletions) return new PointSet<Value>(positions, this.values, this.side)
-    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values), this.side)
+    if (!deletions) return new PointSet<Value>(positions, this.values)
+    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values))
   }
 
   merge(other: PointSet<Value>) {
+    if (!this.length) return other
+    if (!other.length) return this
     let posA = this.positions, posB = other.positions
     let pos: number[] = new Array(posA.length, posB.length), values: Value[] = new Array(pos.length)
     for (let i = 0, a = 0, b = 0;;) {
@@ -208,13 +221,14 @@ export class PointSet<Value> {
         pos[i] = posB[b]
         values[i++] = other.values[b++]
       } else {
-        return new PointSet<Value>(pos, values, this.side)
+        return new PointSet<Value>(pos, values)
       }
     }
   }
 
   compare(old: PointSet<Value>, change: ChangeDesc) {
     let ranges: number[] = [], a = old, b = this
+    if (change.empty && a == b) return ranges
     let iA = 0, iB = 0, lA = a.positions.length, lB = b.positions.length
     change.iterGaps((fromA, toA, fromB, toB) => {
       if (fromA) iA = findAbove(a.positions, iA, fromA - 1)
@@ -248,16 +262,16 @@ export class PointSet<Value> {
     return new PointIterator<Value, Source>(this, from, source!)
   }
 
-  static create<Value>(positions: readonly number[], values: readonly Value[], side: number = 0) {
-    return new PointSet(positions, values, side)
+  static create<Value extends PointValue>(positions: readonly number[], values: readonly Value[], side: number = 0) {
+    return new PointSet(positions, values)
   }
 
-  static builder<Value>() { return new PointBuilder<Value>() }
+  static builder<Value extends PointValue>() { return new PointBuilder<Value>() }
 
-  static empty = new PointSet([], [], 0)
+  static empty = new PointSet([], [])
 }
 
-export class PointBuilder<Value> {
+export class PointBuilder<Value extends PointValue> {
   positions: number[] = []
   values: Value[] = []
   cur = 0
@@ -269,10 +283,10 @@ export class PointBuilder<Value> {
     this.values.push(value)
   }
 
-  finish(side = 0) { return PointSet.create(this.positions, this.values, side) }
+  finish(side = 0) { return PointSet.create(this.positions, this.values) }
 }
 
-export class PointIterator<Value, Source> {
+export class PointIterator<Value extends PointValue, Source> {
   value!: Value | null
   pos!: number
   i!: number
@@ -314,20 +328,24 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
-const enum RangeSide { StartInclusive = 1, EndInclusive = 2 }
+// FIXME find a better way to associate these? This is annoying if
+// you're trying to put non-deco values into this
+export interface RangeValue {
+  inclusiveStart: boolean
+  inclusiveEnd: boolean
+}
 
-export class RangeSet<Value> {
+export class RangeSet<Value extends RangeValue> {
   private constructor(
     readonly from: readonly number[],
     readonly to: readonly number[],
-    readonly values: readonly Value[],
-    readonly side: RangeSide // FIXME move to source
+    readonly values: readonly Value[]
   ) {}
 
   get length() { return this.from.length }
 
   map(changes: ChangeDesc) {
-    if (changes.empty) return this
+    if (changes.empty || !this.length) return this
     let from = this.from.slice(), to = this.to.slice()
     let pos = 0, i = 0
     let deleted: number[] = [], deletions = 0
@@ -342,16 +360,17 @@ export class RangeSet<Value> {
     }, (fromA, toA) => {
       let nextI = findAbove(to, i, toA + 1)
       for (; i < nextI; i++) {
-        let mappedFrom = changes.mapPos(from[i], this.side & RangeSide.StartInclusive ? -1 : 1)
-        let mappedTo = changes.mapPos(to[i], this.side & RangeSide.EndInclusive ? 1 : -1)
+        let value = this.values[i]
+        let mappedFrom = changes.mapPos(from[i], value.inclusiveStart ? -1 : 1)
+        let mappedTo = changes.mapPos(to[i], value.inclusiveEnd ? 1 : -1)
         if (mappedFrom >= mappedTo) { addDel(deleted, i); deletions++ }
         else { from[i] = mappedFrom; to[i] = mappedTo }
       }
       pos = toA + 1
     })
-    if (!deletions) return new RangeSet<Value>(from, to, this.values, this.side)
+    if (!deletions) return new RangeSet<Value>(from, to, this.values)
     return new RangeSet<Value>(applyDel(deleted, deletions, from), applyDel(deleted, deletions, to),
-                               applyDel(deleted, deletions, this.values), this.side)
+                               applyDel(deleted, deletions, this.values))
   }
 
   iter(from?: number): RangeIterator<Value, undefined>
@@ -362,6 +381,7 @@ export class RangeSet<Value> {
 
   compare(old: RangeSet<Value>, change: ChangeDesc) {
     let ranges: number[] = [], a = old, b = this
+    if (change.empty && a == b) return ranges
     let iA = 0, iB = 0, lA = a.from.length, lB = b.from.length
     change.iterGaps((fromA, toA, fromB, toB) => {
       if (fromA) iA = findAbove(a.from, iA, fromA - 1)
@@ -389,21 +409,18 @@ export class RangeSet<Value> {
     return ranges
   }
 
-  static create<Value>(
-    from: readonly number[], to: readonly number[],
-    values: readonly Value[],
-    startSide: number = 1, endSide: number = -1
+  static create<Value extends RangeValue>(
+    from: readonly number[], to: readonly number[], values: readonly Value[],
   ) {
-    let side = (startSide < 0 ? RangeSide.StartInclusive : 0) | (endSide < 0 ? 0 : RangeSide.EndInclusive)
-    return new RangeSet(from, to, values, side)
+    return new RangeSet(from, to, values)
   }
 
-  static builder<Value>() { return new RangeBuilder<Value>() }
+  static builder<Value extends RangeValue>() { return new RangeBuilder<Value>() }
 
-  static empty = new RangeSet([], [], [], 0 as RangeSide)
+  static empty = new RangeSet<any>([], [], [])
 }
 
-export class RangeBuilder<Value> {
+export class RangeBuilder<Value extends RangeValue> {
   from: number[] = []
   to: number[] = []
   values: Value[] = []
@@ -418,12 +435,12 @@ export class RangeBuilder<Value> {
     this.values.push(value)
   }
 
-  finish(startSide: number = 1, endSide: number = -1) {
-    return RangeSet.create<Value>(this.from, this.to, this.values, startSide, endSide)
+  finish() {
+    return RangeSet.create<Value>(this.from, this.to, this.values)
   }
 }
 
-export class RangeIterator<Value, Source> {
+export class RangeIterator<Value extends RangeValue, Source> {
   value!: Value | null
   from!: number
   to!: number
@@ -432,9 +449,6 @@ export class RangeIterator<Value, Source> {
   constructor(readonly set: RangeSet<any>, from: number, readonly source: Source) {
     this.fill(findAbove(set.to, 0, from))
   }
-
-  get startSide() { return this.set.side & RangeSide.StartInclusive ? -1 : 1 }
-  get endSide() { return this.set.side & RangeSide.EndInclusive ? 1 : -1 }
 
   fill(i: number) {
     this.i = i
@@ -459,7 +473,6 @@ function addRange(ranges: number[], from: number, to: number) {
   else ranges[last] = Math.max(to, ranges[last])
 }
 
-// FIXME make sure empty sets are dropped by caller
 function joinRanges(ranges: number[][]) {
   if (ranges.length == 1) return ranges[0]
   let result: number[] = [], index = ranges.map(() => 0)
@@ -512,10 +525,11 @@ export interface DecoWalker {
   skip(node: Node, deco: readonly Decoration[]): void
   enter(tag: Tag, deco: readonly Decoration[]): void | boolean
   leave(): void
-  widgets(widgets: readonly Widget[]): void
+  // FIXME pass wrapping decorations
+  widgets(widgets: readonly Widget<any>[]): void
 }
 
-class HeapIterator<R, RS, P, PS> {
+class HeapIterator<R extends RangeValue, RS, P extends PointValue, PS> {
   active: RangeIterator<R, RS>[] = []
   rangeHeap: RangeIterator<R, RS>[]
   pointHeap: PointIterator<P, PS>[]
@@ -541,8 +555,10 @@ class HeapIterator<R, RS, P, PS> {
     if (this.done) return this
     let {rangeHeap, pointHeap, active} = this
     while (true) {
-      let [startPos, startSide] = rangeHeap.length ? [rangeHeap[0].from, rangeHeap[0].startSide] : [1e9, 0]
-      let [endPos, endSide] = active.length ? [active[0].to, active[0].endSide] : [1e9, 0]
+      let [startPos, startSide] = rangeHeap.length
+        ? [rangeHeap[0].from, rangeHeap[0].value!.inclusiveStart ? -1 : 1]
+        : [1e9, 0]
+      let [endPos, endSide] = active.length ? [active[0].to, active[0].value!.inclusiveEnd ? 1 : -1] : [1e9, 0]
       let pointPos = pointHeap.length ? pointHeap[0].pos : 1e9
       let nextPos = Math.min(startPos, endPos, pointPos)
       if (nextPos == 1e9 || nextPos > this.to && this.to == this.end) {
@@ -617,11 +633,11 @@ function popHeap<T>(heap: T[], cmp: (a: T, b: T) => number) {
 }
 
 function cmpRangeFrom(a: RangeIterator<any, any>, b: RangeIterator<any, any>) {
-  return a.from - b.from || a.startSide - b.startSide
+  return a.from - b.from || b.value!.inclusiveStart - a.value!.inclusiveStart
 }
 
 function cmpRangeTo(a: RangeIterator<any, any>, b: RangeIterator<any, any>) {
-  return a.to - b.to || a.endSide - b.endSide
+  return a.to - b.to || a.value!.inclusiveEnd - b.value!.inclusiveEnd
 }
 
 function cmpPoint(a: PointIterator<any, any>, b: PointIterator<any, any>) {
@@ -633,6 +649,7 @@ function computeDeco(
   active: readonly RangeIterator<any, RangeDecorationSource<any>>[],
   global: readonly TagDecorationSource[]
 ) {
+  // FIXME optimize empty case?
   let deco: Decoration[] = []
   let scope = DecorationScope.All |
     (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
@@ -652,20 +669,25 @@ function computeDeco(
   return deco
 }
 
+// FIXME keep prepared state in some object, reuse (needs iterator skip operation)
 export function iterateDeco(pos: Pos, state: EditorState, from: number, to: number, walker: DecoWalker) {
   let globalWidgets = state.facet(tagWidgets)
   let globalDeco = state.facet(tagDecorations)
-  let points = state.facet(widgets)
-  let ranges = state.facet(rangeDecorations)
 
-  // FIXME drop empty
-  let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any>>(
-    ranges.map(s => s.set(state).iter(from, s)),
-    points.map(s => s.set(state).iter(from, s)),
-    from, to)
+  let rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
+  let pointIter: PointIterator<any, WidgetSource<any>>[] = []
+  for (let s of state.facet(rangeDecorations)) {
+    let set = s.set(state)
+    if (set.length) rangeIter.push(set.iter(from, s))
+  }
+  for (let s of state.facet(widgets)) {
+    let set = s.set(state)
+    if (set.length) pointIter.push(set.iter(from, s))
+  }
+  let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any>>(rangeIter, pointIter, from, to)
 
   let mkWidgets = (tag: Tag, place: WidgetPlace) => {
-    let found: Widget[] | undefined
+    let found: Widget<any>[] | undefined
     for (let src of globalWidgets) {
       if (src.place == place && src.tag(tag)) {
         let widget = src.widget(tag)
