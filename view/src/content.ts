@@ -1,6 +1,7 @@
 import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import {DOMNode} from "./dom"
+import {eqArray} from "./shape"
 import {Decoration, DecorationType, iterateDeco} from "./decoration"
 
 declare global {
@@ -571,10 +572,4 @@ function redrawableRanges(old: readonly DecorationSet[], deco: readonly Decorati
     compareSpan: add
   })
   return diff.length ? changes.composeDesc(ChangeDesc.createDesc(changes.newLength, diff)) : changes
-}
-
-function eqArray<T extends {eq(b: T): boolean}>(a: readonly T[], b: readonly T[]) {
-  if (a.length != b.length) return false
-  for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
-  return true
 }

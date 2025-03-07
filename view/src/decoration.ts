@@ -1,6 +1,6 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
-import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode, AttributeRepresentation} from "@wordgard/doc"
-import {Elt, Widget, TextWidget, pushAttribute, E, mergeAttributes} from "./shape"
+import {Pos, Tag, Walker, TagType, ChangeDesc, MapMode, AttributeRepresentation} from "@wordgard/doc"
+import {Elt, Widget, TextWidget, pushAttribute, E, EltFlag, mergeAttributes, Shape} from "./shape"
 
 // FIXME support some kind of dependency tracking on decoration
 // sources
@@ -16,8 +16,8 @@ function tagPredicate(selector?: TagSelector): (tag: Tag<any>) => boolean {
     : selector ? t => selector.includes(t.type) : () => true
 }
 
-function memo<T>(f: (tag: Tag<any>) => T | null) {
-  let map = new WeakMap<Tag<any>, T | null>()
+function memo<T>(f: (tag: Tag<any>) => T) {
+  let map = new WeakMap<Tag<any>, T>()
   return (tag: Tag) => {
     let found = map.get(tag)
     if (found === undefined) map.set(tag, found = f(tag))
@@ -25,7 +25,7 @@ function memo<T>(f: (tag: Tag<any>) => T | null) {
   }
 }
 
-const tagBaseElt = memo((tag: Tag<any>) => {
+const tagShape = memo((tag: Tag<any>): Shape => {
   let {dom} = tag.type.spec, elt: Widget<any> | Elt | undefined
   if (tag.isText()) {
     elt = TextWidget.of(tag.param)
@@ -43,8 +43,8 @@ const tagBaseElt = memo((tag: Tag<any>) => {
       pushAttribute(attrs || (attrs = []), dom.attribute, value)
   }
   if (attrs) {
-    if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.children)
-    else elt = E(tag.isBlock() ? "div" : "span", attrs, elt)
+    if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.flags, elt.children)
+    else elt = new Elt(tag.isBlock() ? "div" : "span", attrs, elt.hasHole ? EltFlag.Hole : 0, [elt])
   }
   return elt
 })
@@ -72,12 +72,12 @@ export const tagWidgets = Facet.define<TagWidgetSource>()
 
 export class TagDecorationSource {
   tag: (tag: Tag) => boolean
-  deco: (tag: Tag) => Decoration | null
+  deco: (tag: Tag) => Elt | null
   extension: Extension
 
   constructor(config: {
     tag?: TagSelector,
-    deco: Decoration | ((tag: Tag) => Decoration | null)
+    deco: Elt | ((tag: Tag) => Elt | null)
   }) {
     let {tag, deco} = config
     this.tag = tagPredicate(tag)
@@ -99,14 +99,14 @@ export class RangeDecorationSource<T extends RangeValue> {
   tag: (tag: Tag) => boolean
   scope: DecorationScope
   set: (state: EditorState) => RangeSet<T>
-  deco: (value: T) => Decoration
+  deco: (value: T) => Elt
   extension: Extension
 
   constructor(config: {
     tag?: TagSelector,
     scope?: DecorationScope,
     set: (state: EditorState) => RangeSet<T>
-  } & (T extends Decoration ? {} : {deco: (value: T) => Decoration})) {
+  } & (T extends Elt ? {} : {deco: (value: T) => Elt})) {
     this.tag = tagPredicate(config.tag)
     this.scope = config.scope ?? DecorationScope.InlineLeaf
     this.set = config.set
@@ -136,28 +136,7 @@ export class WidgetSource<T extends PointValue> {
 
 export const widgets = Facet.define<WidgetSource<any>>()
 
-export enum DecorationType { Spanning, Atom }
-
 export const noAttrs: Record<string, string> = {}
-
-export class Decoration {
-  attributes: Record<string, string>
-  element: string | undefined
-  rank: number
-  type: DecorationType
-
-  constructor(spec: {
-    attributes?: Record<string, string>,
-    element?: string,
-    rank?: number,
-    atoms?: boolean
-  }, readonly leaf: boolean) {
-    this.attributes = spec.attributes || noAttrs
-    this.element = spec.element
-    this.rank = Math.max(0, Math.min(100, spec.rank ?? 100))
-    this.type = spec.atoms ? DecorationType.Atom : DecorationType.Spanning
-  }
-}
 
 function findAbove(array: readonly number[], start: number, n: number) {
   let from = start, to = array.length
@@ -522,11 +501,11 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
 }
 
 export interface DecoWalker {
-  skip(node: Node, deco: readonly Decoration[]): void
-  enter(tag: Tag, deco: readonly Decoration[]): void | boolean
+  skip(tag: Tag, shape: Shape): void
+  enter(tag: Tag, shape: Shape): void | boolean
   leave(): void
-  // FIXME pass wrapping decorations
-  widgets(widgets: readonly Widget<any>[]): void
+  // FIXME wrap in decorations?
+  widgets(widgets: readonly Shape[]): void
 }
 
 class HeapIterator<R extends RangeValue, RS, P extends PointValue, PS> {
@@ -644,29 +623,27 @@ function cmpPoint(a: PointIterator<any, any>, b: PointIterator<any, any>) {
   return a.pos - b.pos
 }
 
-function computeDeco(
-  tag: Tag<any>,
+function addDeco(
+  tag: Tag,
+  shape: Shape,
   active: readonly RangeIterator<any, RangeDecorationSource<any>>[],
   global: readonly TagDecorationSource[]
 ) {
-  // FIXME optimize empty case?
-  let deco: Decoration[] = []
   let scope = DecorationScope.All |
     (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
-  for (let elt of active) {
-    let {source} = elt
+  for (let src of global) if (src.tag(tag)) {
+    let elt = src.deco(tag)
+    if (!elt) continue
+    shape = elt.wrap([shape])
+  }
+  for (let cur of active) {
+    let {source} = cur
     if ((source.scope & scope) && source.tag(tag)) {
-      let add = source.deco(elt.value!)
-      if (add) deco.push(add)
+      let elt = source.deco(cur.value!)
+      if (elt) shape = elt.wrap([shape])
     }
   }
-  for (let src of global) if (src.tag(tag)) {
-    let add = src.deco(tag)
-    if (!add) continue
-    deco.push(add)
-  }
-  // FIXME sort, somehow
-  return deco
+  return shape
 }
 
 // FIXME keep prepared state in some object, reuse (needs iterator skip operation)
@@ -701,15 +678,20 @@ export function iterateDeco(pos: Pos, state: EditorState, from: number, to: numb
   }
 
   let wrap: Walker = {
-    skip(node) {
+    skip(node) { // Only done for leaf nodes
       mkWidgets(node.tag, WidgetPlace.Before)
-      walker.skip(node, computeDeco(node.tag, iter.active, globalDeco))
+      let shape = tagShape(node.tag)
+      if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node")
+      walker.skip(node.tag, addDeco(node.tag, shape, iter.active, globalDeco))
       mkWidgets(node.tag, WidgetPlace.After)
     },
     enter(tag) {
       mkWidgets(tag, WidgetPlace.Before)
-      walker.enter(tag, computeDeco(tag, iter.active, globalDeco))
+      let shape = tagShape(tag), full = addDeco(tag, shape, iter.active, globalDeco)
+      if (shape.hasHole) walker.enter(tag, full)
+      else walker.skip(tag, full)
       mkWidgets(tag, WidgetPlace.Start)
+      return shape.hasHole
     },
     leave(tag) {
       mkWidgets(tag!, WidgetPlace.End)

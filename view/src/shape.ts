@@ -4,26 +4,63 @@ export class Elt {
   constructor(
     readonly tagName: string,
     readonly attrs: Attributes,
-    readonly flags: number
+    readonly flags: number,
+    readonly children: readonly Shape[]
   ) {}
 
   get hasHole() { return !!(this.flags & EltFlag.Hole) }
   get spanning() { return !!(this.flags & EltFlag.Spanning) }
+
+  eqTag(elt: Elt) {
+    return elt.tagName == this.tagName && sameAttributes(this.attrs, elt.attrs)
+  }
+
+  eq(shape: Shape) {
+    return shape instanceof Elt && this.eqTag(shape) && eqArray(this.children, shape.children) &&
+      this.spanning == shape.spanning
+  }
+
+  wrap(children: readonly Shape[]): Elt {
+    if (!this.hasHole) throw new Error("Trying to use a shape without hole to wrap content")
+    let holeIndex = -1
+    for (let i = 0; i < children.length; i++) if (children[i].hasHole) {
+      if (holeIndex > -1) throw new Error("Multiple children with hole passed to wrap")
+      holeIndex = i
+    }
+    let flags = (this.flags & ~EltFlag.Hole) | (holeIndex < 0 ? 0 : EltFlag.Hole)
+    if (!this.children.length) return new Elt(this.tagName, this.attrs, flags, children)
+    return new Elt(this.tagName, this.attrs, flags,
+                   this.children.map((ch, i) => i == holeIndex ? (ch as Elt).wrap(children) : ch))
+  }
 }
 
-export type Structure = Elt | Widget<any> | readonly [Elt, ...Structure[]]
+const noChildren: readonly Shape[] = []
 
-export type EltChild = Structure | string | 0
+export type Shape = Elt | Widget<any>
+
+export type EltChild = Shape | string | 0
 
 export function E(name: string, attrs: Record<string, string>, ...children: EltChild[]): Elt
 export function E(name: string, ...children: EltChild[]): Elt
 export function E(name: string, ...args: (EltChild | Record<string, string>)[]) {
-  let children: Structure[] = [], attrs = noAttributes, i = 0
+  return makeElt(name, 0, args)
+}
+
+function spanE(name: string, attrs: Record<string, string>, ...children: EltChild[]): Elt
+function spanE(name: string, ...children: EltChild[]): Elt
+function spanE(name: string, ...args: (EltChild | Record<string, string>)[]) {
+  return makeElt(name, EltFlag.Spanning, args)
+}
+
+E.span = spanE
+
+function makeElt(name: string, flags: number, args: (EltChild | Record<string, string>)[]) {
+  let children: Shape[] = [], attrs = noAttributes
+  let i = 0, directHole = false
   if (args.length && typeof args[0] == "object" && !Array.isArray(args[0]) && !(args[0] instanceof Elt)) {
     i++
     attrs = readAttributes(args[0] as Record<string, string>)
   }
-  let flags = 0, directHole = false
   while (i < args.length) {
     let elt = args[i++]
     if (elt === 0) {
@@ -32,8 +69,8 @@ export function E(name: string, ...args: (EltChild | Record<string, string>)[]) 
     } else if (typeof elt == "string") {
       children.push(TextWidget.of(elt))
     } else {
-      children.push(elt as Structure)
-      if (Array.isArray(elt) && (elt[0] as Elt).hasHole || elt instanceof Elt && elt.hasHole) {
+      children.push(elt as Shape)
+      if (elt.hasHole) {
         if (flags & EltFlag.Hole) throw new Error("Multiple holes in elt")
         flags |= EltFlag.Hole
       }
@@ -41,30 +78,37 @@ export function E(name: string, ...args: (EltChild | Record<string, string>)[]) 
   }
   if (directHole && children.length)
     throw new Error("An element can either have a hole or children, not both")
-  let result = new Elt(name, attrs, flags)
-  return children.length ? [result, ...children] : result
+  return new Elt(name, attrs, flags, children.length ? children : noChildren)
 }
 
 export type WidgetSpec<T> = {
-  render: (value: T) => Node,
+  render: (value: T) => Node
+  eq?: (a: T, b: T) => boolean
   rank?: number
 }
 
 export class WidgetType<T> {
   render: (value: T) => Node
   rank: number
+  eq: (a: T, b: T) => boolean
 
   constructor(spec: WidgetSpec<T>) {
     this.render = spec.render
     this.rank = spec.rank || 0
+    this.eq = spec.eq || ((a, b) => a === b)
   }
 
   of(value: T) { return new Widget(this, value) }
 }
 
 export class Widget<T> {
-  constructor(readonly type: WidgetType<T>, value: T) {}
+  constructor(readonly type: WidgetType<T>, readonly value: T) {}
+
   get rank() { return this.type.rank }
+
+  eq(other: Shape) {
+    return other instanceof Widget && other.type == this.type && this.type.eq(this.value, other.value)
+  }
 
   static define<T>(spec: WidgetSpec<T>) {
     return new WidgetType(spec)
@@ -73,6 +117,9 @@ export class Widget<T> {
   static create(spec: WidgetSpec<null>) {
     return new WidgetType<null>(spec).of(null)
   }
+
+  get hasHole() { return false }
+  get spanning() { return false }
 }
 
 export const TextWidget = Widget.define<string>({
@@ -141,4 +188,10 @@ export function readAttributes(obj: Record<string, string>) {
   let result: string[] = []
   for (let prop in obj) pushAttribute(result, prop, obj[prop])
   return result.length ? result : noAttributes
+}
+
+export function eqArray<T extends {eq(b: T): boolean}>(a: readonly T[], b: readonly T[]) {
+  if (a.length != b.length) return false
+  for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
+  return true
 }
