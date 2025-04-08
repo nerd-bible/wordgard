@@ -2,66 +2,30 @@ import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, Attrib
 import {EditorState} from "@wordgard/state"
 import {DOMNode} from "./dom"
 import {eqArray} from "./shape"
-import {Decoration, DecorationType, iterateDeco} from "./decoration"
-
-declare global {
-  interface Node { wsElt?: ContentElt }
-}
+import {DecoIterator} from "./decoration"
+import {Elt, Widget} from "./shape"
 
 export class ContentPos {
   constructor(
-    readonly elt: ContentElt,
+    readonly node: ViewNode,
     readonly offset: number,
     readonly pos: number
   ) {}
-
-  get node(): DOMNode { return this.elt.contentDOM || this.elt.dom }
 }
 
-export abstract class ContentElt {
-  parent: ContentElt | null = null
-  readonly children: ContentElt[] = []
-  public length = 2 * this.boundary
+export abstract class ViewNode {
+  parent: DocViewNode | EltViewNode | null = null
+  abstract children: ViewNode[]
+  abstract tag: Tag | null
+  length = 2 * this.boundary
 
-  constructor(
-    readonly dom: DOMNode,
-    readonly contentDOM: HTMLElement | null
-  ) {
+  constructor(readonly dom: DOMNode) {
     dom.wsElt = this
   }
 
-  // Check this.contentDOM.childNodes and this.length against this.children
-  sync() {
-    if (this.contentDOM) {
-      let len = this.boundary * 2
-      let prev: DOMNode | null = null, next: DOMNode | null = this.contentDOM.firstChild
-      for (let child of this.children) {
-        len += child.length
-        if (child.dom.parentNode == this.contentDOM) {
-          while (next && next != child.dom) next = rm(next)
-        } else {
-          this.contentDOM.insertBefore(child.dom, next)
-        }
-        prev = child.dom
-        next = prev.nextSibling
-      }
-      while (next) next = rm(next)
-      this.length = len
-    }
-  }
+  sync() {}
 
-  add(child: ContentElt) {
-    this.children.push(child)
-    child.parent = this
-  }
-
-  isSpanning(): this is WrapperElt {
-    return this instanceof WrapperElt &&
-      !!(this.wrapper instanceof Prop ? this.wrapper.type.spanning && this.wrapper.type.element
-          : this.wrapper.type == DecorationType.Spanning && this.wrapper.element)
-  }
-
-  posBeforeChild(child: ContentElt): number {
+  posBeforeChild(child: ViewNode): number {
     for (let i = 0, pos = this.posAtStart;; i++) {
       let cur = this.children[i]
       if (cur == child) return pos
@@ -85,25 +49,34 @@ export abstract class ContentElt {
     return this.posAtStart + this.length - 2 * this.boundary
   }
 
+  get boundary(): 0 | 1 { return 0 }
+
+  get lastChild(): ViewNode | null {
+    let last = this.children.length - 1
+    return last < 0 ? null : this.children[last]
+  }
+
+  // FIXME review for new approach
   localPosFromDOM(dom: DOMNode, offset: number, bias: -1 | 1): number {
     // If the DOM position is in the content, use the child desc after
     // it to figure out a position.
-    if (this.contentDOM && this.contentDOM.contains(dom.nodeType == 1 ? dom : dom.parentNode)) {
-      let domBefore, elt: ContentElt | undefined
-      if (dom == this.contentDOM) {
+    if (this.dom.contains(dom)) {
+      let domBefore, elt: ViewNode | undefined
+      if (dom == this.dom) {
         domBefore = dom.childNodes[offset - 1]
       } else {
-        while (dom.parentNode != this.contentDOM) dom = dom.parentNode!
+        while (dom.parentNode != this.dom) dom = dom.parentNode!
         domBefore = dom.previousSibling
       }
-      while (domBefore && !((elt = domBefore.wsElt) && elt.parent == this)) domBefore = domBefore.previousSibling
+      while (domBefore && !((elt = domBefore.wsElt) && elt.parent == this as ViewNode))
+        domBefore = domBefore.previousSibling
       return domBefore ? this.posBeforeChild(elt!) + elt!.length : this.posAtStart
     }
     // Otherwise, use various heuristics, falling back on the bias
     // parameter, to determine whether to return the position at the
     // start or at the end of this content element.
-    if (this.contentDOM && this.contentDOM != this.dom) {
-      let cmp = dom.compareDocumentPosition(this.contentDOM)
+    if (this.dom && this.dom != this.dom) {
+      let cmp = dom.compareDocumentPosition(this.dom)
       if (cmp & 2) return this.posAtEnd
       else if (cmp & 4) return this.posAtStart
     } else if (this.dom.firstChild) {
@@ -119,21 +92,162 @@ export abstract class ContentElt {
     return bias > 0 ? this.posAtEnd : this.posAtStart
   }
 
-  get lastChild(): ContentElt | null {
-    let last = this.children.length - 1
-    return last < 0 ? null : this.children[last]
-  }
-
-  get boundary() { return 0 }
-  get tag(): Tag | null { return null }
-  get prop(): Prop | null { return null }
-
   ignoreEvent(event: Event) { return false } // FIXME implement or redesign
 
   get ignoreMutations() { return false }
 
   toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
 }
+
+export class DocViewNode extends ViewNode {
+  children: ViewNode[] = []
+
+  constructor(readonly doc: DocNode, dom: HTMLElement) {
+    super(dom)
+  }
+
+  get tag() { return null }
+
+  static create(doc: DocNode, dom: HTMLElement) {
+    let empty = new DocViewNode(doc.schema.doc([]), dom)
+    return empty.update(doc, new ChangeDesc([0, doc.length]))
+  }
+
+  // FIXME draw placeholder <br>s
+  update(doc: DocNode, changes: ChangeDesc) {
+    /* FIXME
+    let redraw = redrawableRanges(this.deco, deco, changes)
+    if (redraw.empty) return this
+    let builder = new ContentUpdate(doc, deco, this)
+    for (let i = 0; i < redraw.sections.length;) { // FIXME make this a method on changedesc?
+      let len = redraw.sections[i++], ins = redraw.sections[i++]
+      if (ins == -1) {
+        builder.keep(len)
+      } else {
+        if (ins < 0) ins = len
+        while (i < redraw.sections.length && redraw.sections[i + 1] != -1) {
+          let len2 = redraw.sections[i++], ins2 = redraw.sections[i++]
+          len += len2; ins += ins2 < 0 ? len2 : ins2
+        }
+        builder.replace(len, ins)
+      }
+    }
+    return builder.finish()
+    */
+  }
+
+  nearest(dom: DOMNode, requireTag = true) {
+    for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
+      let elt = cur.wsElt
+      if (elt && (!requireTag || elt.tag) && this.owns(elt)) return elt
+    }
+    return null
+  }
+
+  owns(elt: ViewNode) {
+    for (;;) {
+      let {parent} = elt
+      if (parent == this) return true
+      if (!parent) return false
+      elt = parent
+    }
+  }
+
+  // FIXME document or change weird assoc descent behavior
+  resolve(pos: number, assoc: -1 | 0 | 1) {
+    let parent: ViewNode = this, index = 0, off = 0
+    for (;;) {
+      if (off == pos) {
+        let before = index ? parent.children[index - 1] : null
+        let after = index < parent.children.length ? parent.children[index] : null
+        if (before?.boundary) before = null
+        if (after?.boundary) after = null
+        if (assoc == 0 || !before && !after) return new ContentPos(parent, index, pos)
+        if (!after || before && assoc < 0) {
+          if (before instanceof TextElt) return new ContentPos(before, before.length, pos)
+          parent = before!; index = before!.children.length
+        } else {
+          if (after instanceof TextElt) return new ContentPos(after, 0, pos)
+          parent = after; index = 0
+        }
+      } else {
+        let next = parent.children[index]
+        if (off + next.length > pos) {
+          if (next instanceof TextElt) return new ContentPos(next, pos - off, pos)
+          parent = next
+          index = 0
+          off += next.boundary
+        } else {
+          if (index == parent.children.length)
+            throw new Error(`Invalid position ${pos} in document of size ${this.doc.length}`)
+          index++
+          off += next.length
+        }
+      }
+    }
+  }
+
+  posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
+    let elt = this.nearest(dom)
+    if (!elt)
+      return this.dom.compareDocumentPosition(dom) | window.Node.DOCUMENT_POSITION_FOLLOWING ? this.length : 0
+    return elt.localPosFromDOM(dom, offset, bias)
+  }
+
+  connect() {
+    // FIXME
+  }
+
+  disconnect() {
+    // FIXME must determine disconnected elements during update
+  }
+}
+
+function syncChildren(node: DocViewNode | EltViewNode) {
+  let prev: DOMNode | null = null, next: DOMNode | null = node.dom.firstChild
+  for (let child of node.children) {
+    if (child.dom.parentNode == node.dom) {
+      while (next && next != child.dom) next = rm(next)
+    } else {
+      node.dom.insertBefore(child.dom, next)
+    }
+    prev = child.dom
+    next = prev.nextSibling
+  }
+  while (next) next = rm(next)
+}
+
+export class EltViewNode extends ViewNode {
+  declare dom: HTMLElement
+  declare parent: EltViewNode | DocViewNode
+  children: ViewNode[] = []
+
+  constructor(readonly elt: Elt, readonly tag: Tag | null) {
+    let dom = document.createElement(elt.tagName)
+    // FIXME add attrs
+    super(dom)
+  }
+
+  add(child: ViewNode) { // FIXME rename addChild
+    this.children.push(child)
+    this.length += child.length
+    child.parent = this
+  }
+
+  get boundary() { return this.tag ? 1 : 0 }
+}
+
+export class WidgetViewNode extends ViewNode {
+  constructor(widget: Widget<any>, readonly node: Node | null) {
+    super(widget.type.render(widget.value))
+    this.length = node ? node.length : 0
+  }
+
+  get children() { return noChildren }
+  get tag() { return this.node ? this.node.tag : null }
+}
+
+const noChildren: ViewNode[] = []
 
 function rm(dom: DOMNode): DOMNode | null {
   let next = dom.nextSibling
@@ -142,13 +256,13 @@ function rm(dom: DOMNode): DOMNode | null {
 }
 
 interface ContentWalker {
-  enter(elt: ContentElt): void
-  skip(elt: ContentElt, parent: ContentElt | null): void
-  leave(elt: ContentElt): void
+  enter(elt: ViewNode): void
+  skip(elt: ViewNode, parent: ViewNode | null): void
+  leave(elt: ViewNode): void
 }
 
 class ContentPointer {
-  constructor(readonly elt: ContentElt, public index: number, readonly parent: ContentPointer | null) {}
+  constructor(readonly elt: ViewNode, public index: number, readonly parent: ContentPointer | null) {}
 
   advance(dist: number, walker?: ContentWalker) {
     let {elt, index, parent} = this
@@ -283,9 +397,9 @@ function wrappers(props: readonly Prop[], deco: readonly Decoration[]): readonly
 
 class ContentUpdate {
   old: ContentPointer
-  new: ContentElt
+  new: ViewNode
   cursor: Pos
-  toSync: ContentElt[] = []
+  toSync: ViewNode[] = []
 
   constructor(readonly state: EditorState, old: DocElt) {
     this.old = new ContentPointer(old, 0, null)
@@ -325,7 +439,7 @@ class ContentUpdate {
     this.closeWrappers()
   }
 
-  reuseNodes(elt: ContentElt, parent: ContentElt | null) {
+  reuseNodes(elt: ViewNode, parent: ViewNode | null) {
     if (elt.tag) {
       if (elt.tag.isText() && this.joinText(elt.tag, (elt as NodeElt).deco)) {
         // Done
@@ -339,7 +453,7 @@ class ContentUpdate {
     }
   }
 
-  openWrappers(wrappers: readonly Wrapper[], reuse: ContentElt | null = null) {
+  openWrappers(wrappers: readonly Wrapper[], reuse: ViewNode | null = null) {
     let prev = this.new.lastChild
     let canSpan = true
     for (let wrap of wrappers) {
@@ -412,122 +526,6 @@ class ContentUpdate {
   }
 }
 
-export class DocElt extends ContentElt {
-  constructor(readonly doc: DocNode, dom: HTMLElement, readonly deco: readonly DecorationSet[]) {
-    super(dom, dom)
-  }
-
-  static create(doc: DocNode, deco: readonly DecorationSet[], dom: HTMLElement) {
-    let empty = new DocElt(doc.schema.doc([]), dom, [])
-    return empty.update(doc, deco, new ChangeDesc([0, doc.length]))
-  }
-
-  // FIXME draw placeholder <br>s
-  update(doc: DocNode, deco: readonly DecorationSet[], changes: ChangeDesc) {
-    let redraw = redrawableRanges(this.deco, deco, changes)
-    if (redraw.empty) return this
-    let builder = new ContentUpdate(doc, deco, this)
-    for (let i = 0; i < redraw.sections.length;) { // FIXME make this a method on changedesc?
-      let len = redraw.sections[i++], ins = redraw.sections[i++]
-      if (ins == -1) {
-        builder.keep(len)
-      } else {
-        if (ins < 0) ins = len
-        while (i < redraw.sections.length && redraw.sections[i + 1] != -1) {
-          let len2 = redraw.sections[i++], ins2 = redraw.sections[i++]
-          len += len2; ins += ins2 < 0 ? len2 : ins2
-        }
-        builder.replace(len, ins)
-      }
-    }
-    return builder.finish()
-  }
-
-  nearestNodeElt(dom: DOMNode) {
-    for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
-      let elt = cur.wsElt
-      if (elt instanceof NodeElt && this.owns(elt)) return elt
-    }
-    return null
-  }
-
-  nearest(dom: DOMNode) {
-    for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
-      let elt = cur.wsElt
-      if (elt && this.owns(elt)) return elt
-    }
-    return null
-  }
-
-  owns(elt: ContentElt) {
-    for (;;) {
-      let {parent} = elt
-      if (parent == this) return true
-      if (!parent) return false
-      elt = parent
-    }
-  }
-
-  // FIXME document or change weird assoc descent behavior
-  resolve(pos: number, assoc: -1 | 0 | 1) {
-    let parent: ContentElt = this, index = 0, off = 0
-    for (;;) {
-      if (off == pos) {
-        let before = index ? parent.children[index - 1] : null
-        let after = index < parent.children.length ? parent.children[index] : null
-        if (before?.boundary) before = null
-        if (after?.boundary) after = null
-        if (assoc == 0 || !before && !after) return new ContentPos(parent, index, pos)
-        if (!after || before && assoc < 0) {
-          if (before instanceof TextElt) return new ContentPos(before, before.length, pos)
-          parent = before!; index = before!.children.length
-        } else {
-          if (after instanceof TextElt) return new ContentPos(after, 0, pos)
-          parent = after; index = 0
-        }
-      } else {
-        let next = parent.children[index]
-        if (off + next.length > pos) {
-          if (next instanceof TextElt) return new ContentPos(next, pos - off, pos)
-          parent = next
-          index = 0
-          off += next.boundary
-        } else {
-          if (index == parent.children.length)
-            throw new Error(`Invalid position ${pos} in document of size ${this.doc.length}`)
-          index++
-          off += next.length
-        }
-      }
-    }
-  }
-
-  posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
-    let elt = this.nearest(dom)
-    if (!elt)
-      return this.dom.compareDocumentPosition(dom) | window.Node.DOCUMENT_POSITION_FOLLOWING ? this.length : 0
-    return elt.localPosFromDOM(dom, offset, bias)
-  }
-
-  connect() {
-    // FIXME
-  }
-
-  disconnect() {
-    // FIXME must determine disconnected elements during update
-  }
-}
-
-export class NodeElt extends ContentElt {
-  constructor(public _tag: Tag<any>, public deco: readonly Decoration[], dom: DOMNode, contentDOM: HTMLElement | null) {
-    super(dom, contentDOM)
-  }
-
-  get boundary() { return 1 }
-
-  get tag(): Tag<unknown> { return this._tag }
-}
-
 export class TextElt extends NodeElt {
   constructor(_tag: Tag<string>, deco: readonly Decoration[], dom: DOMNode) {
     super(_tag, deco, dom, null)
@@ -550,7 +548,7 @@ export class TextElt extends NodeElt {
   }
 }
 
-export class WrapperElt extends ContentElt {
+export class WrapperElt extends ViewNode {
   constructor(readonly wrapper: Wrapper, dom: HTMLElement) {
     super(dom, dom)
   }

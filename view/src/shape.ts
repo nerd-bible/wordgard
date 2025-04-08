@@ -1,15 +1,19 @@
-export enum EltFlag { Hole = 1, Spanning = 2 }
+export enum EltFlag { Hole = 1, Spanning = 2, RankShift = 2 }
 
 export class Elt {
   constructor(
     readonly tagName: string,
     readonly attrs: Attributes,
-    readonly flags: number,
+    /// @internal
+    public flags: number,
     readonly children: readonly Shape[]
   ) {}
 
   get hasHole() { return !!(this.flags & EltFlag.Hole) }
   get spanning() { return !!(this.flags & EltFlag.Spanning) }
+
+  get rank() { return this.flags >> EltFlag.RankShift }
+  set rank(value: number) { this.flags = (this.flags & 3) + (value << EltFlag.RankShift) }
 
   eqTag(elt: Elt) {
     return elt.tagName == this.tagName && sameAttributes(this.attrs, elt.attrs)
@@ -18,19 +22,6 @@ export class Elt {
   eq(shape: Shape) {
     return shape instanceof Elt && this.eqTag(shape) && eqArray(this.children, shape.children) &&
       this.spanning == shape.spanning
-  }
-
-  wrap(children: readonly Shape[]): Elt {
-    if (!this.hasHole) throw new Error("Trying to use a shape without hole to wrap content")
-    let holeIndex = -1
-    for (let i = 0; i < children.length; i++) if (children[i].hasHole) {
-      if (holeIndex > -1) throw new Error("Multiple children with hole passed to wrap")
-      holeIndex = i
-    }
-    let flags = (this.flags & ~EltFlag.Hole) | (holeIndex < 0 ? 0 : EltFlag.Hole)
-    if (!this.children.length) return new Elt(this.tagName, this.attrs, flags, children)
-    return new Elt(this.tagName, this.attrs, flags,
-                   this.children.map((ch, i) => i == holeIndex ? (ch as Elt).wrap(children) : ch))
   }
 }
 
@@ -89,7 +80,7 @@ export type WidgetSpec<T> = {
 
 export class WidgetType<T> {
   render: (value: T) => Node
-  rank: number
+  rank: number // FIXME use a word that more directly suggests the order used
   eq: (a: T, b: T) => boolean
 
   constructor(spec: WidgetSpec<T>) {

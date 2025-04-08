@@ -1,5 +1,6 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
-import {Pos, Tag, Walker, TagType, ChangeDesc, MapMode, AttributeRepresentation} from "@wordgard/doc"
+import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
+        AttributeRepresentation, ElementRepresentation} from "@wordgard/doc"
 import {Elt, Widget, TextWidget, pushAttribute, E, EltFlag, mergeAttributes, Shape} from "./shape"
 
 // FIXME support some kind of dependency tracking on decoration
@@ -70,18 +71,22 @@ export class TagWidgetSource {
 
 export const tagWidgets = Facet.define<TagWidgetSource>()
 
+// FIXME support attribute-only deco?
 export class TagDecorationSource {
   tag: (tag: Tag) => boolean
   deco: (tag: Tag) => Elt | null
+  rank: number
   extension: Extension
 
   constructor(config: {
     tag?: TagSelector,
     deco: Elt | ((tag: Tag) => Elt | null)
+    rank?: number
   }) {
     let {tag, deco} = config
     this.tag = tagPredicate(tag)
     this.deco = typeof deco == "function" ? memo(deco) : () => deco
+    this.rank = config.rank ?? 50
     this.extension = tagDecorations.of(this)
   }
 }
@@ -100,17 +105,20 @@ export class RangeDecorationSource<T extends RangeValue> {
   scope: DecorationScope
   set: (state: EditorState) => RangeSet<T>
   deco: (value: T) => Elt
+  rank: number
   extension: Extension
 
   constructor(config: {
     tag?: TagSelector,
     scope?: DecorationScope,
-    set: (state: EditorState) => RangeSet<T>
+    set: (state: EditorState) => RangeSet<T>,
+    rank?: number
   } & (T extends Elt ? {} : {deco: (value: T) => Elt})) {
     this.tag = tagPredicate(config.tag)
     this.scope = config.scope ?? DecorationScope.InlineLeaf
     this.set = config.set
     this.deco = (config as any).deco || (d => d)
+    this.rank = config.rank || 50
     this.extension = rangeDecorations.of(this)
   }
 }
@@ -235,10 +243,10 @@ export class PointSet<Value extends PointValue> {
     return ranges
   }
 
-  iter(from?: number): PointIterator<Value, undefined>
-  iter<Source>(from: number, source: Source): PointIterator<Value, Source>
-  iter<Source>(from = 0, source?: Source): PointIterator<Value, Source> {
-    return new PointIterator<Value, Source>(this, from, source!)
+  iter(): PointIterator<Value, undefined>
+  iter<Source>(source: Source): PointIterator<Value, Source>
+  iter<Source>(source?: Source): PointIterator<Value, Source> {
+    return new PointIterator<Value, Source>(this, source!)
   }
 
   static create<Value extends PointValue>(positions: readonly number[], values: readonly Value[], side: number = 0) {
@@ -270,8 +278,8 @@ export class PointIterator<Value extends PointValue, Source> {
   pos!: number
   i!: number
 
-  constructor(readonly set: PointSet<any>, from: number, readonly source: Source) {
-    this.fill(findAbove(set.positions, 0, from - 1))
+  constructor(readonly set: PointSet<any>, readonly source: Source) {
+    this.fill(0)
   }
 
   fill(i: number) {
@@ -288,6 +296,10 @@ export class PointIterator<Value extends PointValue, Source> {
   next() {
     if (this.value) this.fill(this.i + 1)
   }
+
+  goto(pos: number) {
+    this.fill(findAbove(this.set.positions, 0, pos - 1))
+  }    
 }
 
 function addDel(deleted: number[], i: number) {
@@ -352,10 +364,10 @@ export class RangeSet<Value extends RangeValue> {
                                applyDel(deleted, deletions, this.values))
   }
 
-  iter(from?: number): RangeIterator<Value, undefined>
-  iter<Source>(from: number, source: Source): RangeIterator<Value, Source>
-  iter<Source>(from = 0, source?: Source): RangeIterator<Value, Source> {
-    return new RangeIterator<Value, Source>(this, from, source!)
+  iter(): RangeIterator<Value, undefined>
+  iter<Source>(source: Source): RangeIterator<Value, Source>
+  iter<Source>(source?: Source): RangeIterator<Value, Source> {
+    return new RangeIterator<Value, Source>(this, source!)
   }
 
   compare(old: RangeSet<Value>, change: ChangeDesc) {
@@ -425,8 +437,8 @@ export class RangeIterator<Value extends RangeValue, Source> {
   to!: number
   i!: number
 
-  constructor(readonly set: RangeSet<any>, from: number, readonly source: Source) {
-    this.fill(findAbove(set.to, 0, from))
+  constructor(readonly set: RangeSet<any>, readonly source: Source) {
+    this.fill(0)
   }
 
   fill(i: number) {
@@ -443,6 +455,10 @@ export class RangeIterator<Value extends RangeValue, Source> {
 
   next() {
     if (this.value) this.fill(this.i + 1)
+  }
+
+  goto(pos: number) {
+    this.fill(findAbove(this.set.to, 0, pos))
   }
 }
 
@@ -501,31 +517,25 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
 }
 
 export interface DecoWalker {
-  skip(tag: Tag, shape: Shape): void
-  enter(tag: Tag, shape: Shape): void | boolean
+  enter(tag: Tag, shape: Shape, wrappers: readonly Elt[]): void
   leave(): void
-  // FIXME wrap in decorations?
-  widgets(widgets: readonly Shape[]): void
+  node(node: Node, shape: Shape, wrappers: readonly Elt[]): void
+  widget(widget: Shape): void
 }
 
 class HeapIterator<R extends RangeValue, RS, P extends PointValue, PS> {
   active: RangeIterator<R, RS>[] = []
-  rangeHeap: RangeIterator<R, RS>[]
-  pointHeap: PointIterator<P, PS>[]
-
   from: number
   to: number
   points: PointIterator<P, PS>[] | null = null
   done = false
 
-  constructor(ranges: RangeIterator<R, RS>[],
-              points: PointIterator<P, PS>[],
-              readonly start: number,
+  constructor(readonly rangeHeap: RangeIterator<R, RS>[],
+              readonly pointHeap: PointIterator<P, PS>[],
+              start: number,
               readonly end: number) {
-    this.rangeHeap = ranges.slice()
-    this.pointHeap = points.slice()
-    for (let i = ranges.length >> 1; i >= 0; i--) bubble(this.rangeHeap, i, cmpRangeFrom)
-    for (let i = points.length >> 1; i >= 0; i--) bubble(this.pointHeap, i, cmpPoint)
+    for (let i = rangeHeap.length >> 1; i >= 0; i--) bubble(rangeHeap, i, cmpRangeFrom)
+    for (let i = pointHeap.length >> 1; i >= 0; i--) bubble(pointHeap, i, cmpPoint)
     this.from = this.to = start
     this.next()
   }
@@ -623,49 +633,88 @@ function cmpPoint(a: PointIterator<any, any>, b: PointIterator<any, any>) {
   return a.pos - b.pos
 }
 
-function addDeco(
+const none: readonly any[] = []
+
+class NodeWrappers {
+  wrappers = none as Elt[]
+  spanningWrappers = none as Elt[]
+
+  add(elt: Elt, rank: number) {
+    elt.rank = rank
+    if (elt.spanning) {
+      if (this.spanningWrappers == none) this.spanningWrappers = []
+      this.spanningWrappers.push(elt)
+    } else {
+      if (this.wrappers == none) this.wrappers = []
+      this.wrappers.push(elt)
+    }
+  }
+
+  finish() {
+    if (this.wrappers.length > 1) this.wrappers.sort(byRank)
+    if (this.spanningWrappers.length > 1) this.spanningWrappers.sort(byRank)
+    return !this.wrappers.length ? this.spanningWrappers :
+      !this.spanningWrappers.length ? this.wrappers : this.spanningWrappers.concat(this.wrappers)
+  }
+}
+
+// Enumerate all wrapper elements for a given node. Spanning wrappers
+// are always moved to the front of the result. Within the
+// spanning/non-spanning wrappers, the ordering is determined by rank.
+function nodeWrappers(
   tag: Tag,
-  shape: Shape,
   active: readonly RangeIterator<any, RangeDecorationSource<any>>[],
   global: readonly TagDecorationSource[]
 ) {
+  let result = new NodeWrappers
+
+  for (let prop of tag.props) if (prop.type.element) {
+    let dom = prop.type.spec.dom as ElementRepresentation<any>
+    let attrs = typeof dom.attributes == "function" ? dom.attributes(prop.value) : dom.attributes || noAttrs
+    result.add((prop.type.spanning ? E.span : E)(dom.element, attrs, 0), prop.type.rank)
+  }
+  
   let scope = DecorationScope.All |
     (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
   for (let src of global) if (src.tag(tag)) {
     let elt = src.deco(tag)
-    if (!elt) continue
-    shape = elt.wrap([shape])
+    if (elt) result.add(elt, src.rank)
   }
   for (let cur of active) {
     let {source} = cur
     if ((source.scope & scope) && source.tag(tag)) {
       let elt = source.deco(cur.value!)
-      if (elt) shape = elt.wrap([shape])
+      if (elt) result.add(elt, cur.source.rank)
     }
   }
-  return shape
+  return result.finish()
 }
 
-// FIXME keep prepared state in some object, reuse (needs iterator skip operation)
-export function iterateDeco(pos: Pos, state: EditorState, from: number, to: number, walker: DecoWalker) {
-  let globalWidgets = state.facet(tagWidgets)
-  let globalDeco = state.facet(tagDecorations)
 
-  let rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
-  let pointIter: PointIterator<any, WidgetSource<any>>[] = []
-  for (let s of state.facet(rangeDecorations)) {
-    let set = s.set(state)
-    if (set.length) rangeIter.push(set.iter(from, s))
+export class DecoIterator {
+  globalWidgets: readonly TagWidgetSource[]
+  globalDeco: readonly TagDecorationSource[]
+  pos: Pos
+  rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
+  pointIter: PointIterator<any, WidgetSource<any>>[] = []
+  
+  constructor(readonly state: EditorState) {
+    this.globalWidgets = state.facet(tagWidgets)
+    this.globalDeco = state.facet(tagDecorations)
+    this.pos = state.doc.resolve(0)
+    for (let s of state.facet(rangeDecorations)) {
+      let set = s.set(state)
+      if (set.length) this.rangeIter.push(set.iter(s))
+    }
+    for (let s of state.facet(widgets)) {
+      let set = s.set(state)
+      if (set.length) this.pointIter.push(set.iter(s))
+    }
   }
-  for (let s of state.facet(widgets)) {
-    let set = s.set(state)
-    if (set.length) pointIter.push(set.iter(from, s))
-  }
-  let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any>>(rangeIter, pointIter, from, to)
 
-  let mkWidgets = (tag: Tag, place: WidgetPlace) => {
+  widgets(tag: Tag, place: WidgetPlace, walker: DecoWalker) {
     let found: Widget<any>[] | undefined
-    for (let src of globalWidgets) {
+    for (let src of this.globalWidgets) {
       if (src.place == place && src.tag(tag)) {
         let widget = src.widget(tag)
         if (widget) {
@@ -674,53 +723,77 @@ export function iterateDeco(pos: Pos, state: EditorState, from: number, to: numb
         }
       }
     }
-    if (found) walker.widgets(found)
-  }
-
-  let wrap: Walker = {
-    skip(node) { // Only done for leaf nodes
-      mkWidgets(node.tag, WidgetPlace.Before)
-      let shape = tagShape(node.tag)
-      if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node")
-      walker.skip(node.tag, addDeco(node.tag, shape, iter.active, globalDeco))
-      mkWidgets(node.tag, WidgetPlace.After)
-    },
-    enter(tag) {
-      mkWidgets(tag, WidgetPlace.Before)
-      let shape = tagShape(tag), full = addDeco(tag, shape, iter.active, globalDeco)
-      if (shape.hasHole) walker.enter(tag, full)
-      else walker.skip(tag, full)
-      mkWidgets(tag, WidgetPlace.Start)
-      return shape.hasHole
-    },
-    leave(tag) {
-      mkWidgets(tag!, WidgetPlace.End)
-      walker.leave()
-      mkWidgets(tag!, WidgetPlace.After)
+    if (found) {
+      if (found.length > 1) found.sort(byRank)
+      for (let widget of found) walker.widget(widget)
     }
   }
 
-  let before = pos.nodeBefore
-  if (before) mkWidgets(before.tag, WidgetPlace.After)
-  else mkWidgets(pos.parent.node.tag, WidgetPlace.Start)
+  walk(from: number, to: number, walker: DecoWalker) {
+    for (let i of this.rangeIter) i.goto(from)
+    for (let i of this.pointIter) i.goto(from)
+    let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any>>(this.rangeIter, this.pointIter, from, to)
+    let pos = this.pos.advance(from - this.pos.pos)
 
-  for (; !iter.next().done;) {
-    if (iter.points) {
-      walker.widgets(iter.points.map(i => i.source.widget(i.value!)))
-    } else {
-      pos = pos.walk(iter.to - iter.from, wrap)
+    let wrap: Walker = {
+      skip: node => { // Only done for leaf nodes.
+        this.widgets(node.tag, WidgetPlace.Before, walker)
+        let shape = tagShape(node.tag)
+        if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node")
+        walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalDeco))
+        this.widgets(node.tag, WidgetPlace.After, walker)
+      },
+      enter: (tag, node) => {
+        this.widgets(tag, WidgetPlace.Before, walker)
+        let shape = tagShape(tag), wrappers = nodeWrappers(tag, iter.active, this.globalDeco)
+        if (tag.isAtom()) {
+          if (shape.hasHole) throw new Error(`Shape for atom ${tag.name} has a hole`)
+          walker.node(node!, shape, wrappers)
+        } else {
+          if (!shape.hasHole) throw new Error(`Shape for tag ${tag.name} does not have a hole`)
+          walker.enter(tag, shape, wrappers)
+        }
+        this.widgets(tag, WidgetPlace.Start, walker)
+        return tag.isAtom()
+      },
+      leave: tag => {
+        this.widgets(tag!, WidgetPlace.End, walker)
+        walker.leave()
+        this.widgets(tag!, WidgetPlace.After, walker)
+      }
     }
+
+    let before = pos.nodeBefore
+    if (before) this.widgets(before.tag, WidgetPlace.After, walker)
+    else this.widgets(pos.parent.node.tag, WidgetPlace.Start, walker)
+
+    for (; !iter.next().done;) {
+      if (iter.points) {
+        if (iter.points.length == 1) {
+          let it = iter.points[0]
+          walker.widget(it.source.widget(it.value!))
+        } else {
+          let widgets = iter.points.map(i => i.source.widget(i.value!)).sort(byRank)
+          for (let widget of widgets) walker.widget(widget)
+        }
+      } else {
+        pos = pos.walk(iter.to - iter.from, wrap)
+      }
+    }
+
+    let after = pos.nodeAfter
+    if (after) this.widgets(after!.tag, WidgetPlace.Before, walker)
+    else this.widgets(pos.parent.node.tag, WidgetPlace.End, walker)
+    this.pos = pos
   }
-
-  let after = pos.nodeAfter
-  if (after) mkWidgets(after!.tag, WidgetPlace.Before)
-  else mkWidgets(pos.parent.node.tag, WidgetPlace.End)
-
-  return pos
 }
 
 function rankIndex<T extends {rank: number}>(array: T[], value: T): number {
   let i = 0, {rank} = value
   while (i < array.length && array[i].rank < rank) i++
   return i
+}
+
+function byRank<T extends {rank: number}>(a: T, b: T) {
+  return a.rank - b.rank
 }

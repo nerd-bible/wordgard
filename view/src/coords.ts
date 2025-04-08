@@ -1,7 +1,7 @@
 import {Rect, textRange, caretFromPoint, maxOffset, clientRectsFor} from "./dom"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {ContentElt, NodeElt} from "./content"
+import {EltNode, NodeElt} from "./content"
 
 // FIXME make this aware of node orientation, review
 function findOffsetInNode(node: HTMLElement, coords: {x: number, y: number}): {node: Node, offset: number} {
@@ -275,10 +275,10 @@ function flattenH(rect: DOMRect, top: boolean) {
 }
 
 export function findVerticalInTextblock(
-  elt: ContentElt, forward: boolean, x: number, y: number
+  elt: EltNode, forward: boolean, x: number, y: number
 ): {pos: number, assoc: number} | null {
   let closest: Rect | null = null, closestX = -1, closestElt = null as NodeElt | null
-  let scan = (elt: ContentElt) => {
+  let scan = (elt: EltNode) => {
     if (elt instanceof NodeElt && elt.tag.isLeaf()) {
       let rects = clientRectsFor(elt.dom)
       for (let i = 0; i < rects.length; i++) {

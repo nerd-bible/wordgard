@@ -4,7 +4,8 @@ import {none} from "./helper"
 
 export interface Walker {
   skip(node: Node): void
-  enter(tag: Tag): void | boolean
+  // FIXME weird interface
+  enter(tag: Tag, node?: Node): void | boolean
   leave(tag?: Tag): void
 }
 
@@ -20,7 +21,7 @@ export class Pos {
     return distance ? advancePos(distance, this.parent, this.pos, this.index, this.inText, walk) : this
   }
 
-  walk(distance: number, walk?: Walker) {
+  walk(distance: number, walk: Walker) {
     return distance ? advancePos(distance, this.parent, this.pos, this.index, this.inText, walk, true) : this
   }
 
@@ -197,7 +198,7 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
       } else if (next.isText()) {
         if (walk) walk.skip(next.cutText(0, target - pos))
         return new Pos(parent, target, index, target - pos)
-      } else if (walk && walk.enter(next.tag) == false) {
+      } else if (walk && walk.enter(next.tag, next) == false) {
         pos = end
         index++
       } else {
