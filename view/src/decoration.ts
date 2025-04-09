@@ -213,19 +213,17 @@ export class PointSet<Value extends PointValue> {
     }
   }
 
-  compare(old: PointSet<Value>, change: ChangeDesc) {
-    let ranges: number[] = [], a = old, b = this
-    if (change.empty && a == b) return ranges
-    let iA = 0, iB = 0, lA = a.positions.length, lB = b.positions.length
-    change.iterGaps((fromA, toA, fromB, toB) => {
-      if (fromA) iA = findAbove(a.positions, iA, fromA - 1)
-      if (fromB) iB = findAbove(b.positions, iB, fromB - 1)
+  compareRange(fromA: number, b: PointSet<Value>, fromB: number, len: number) {
+    let a = this, ranges: number[] = [], endB = fromB + len
+    if (a != b || fromA != fromB) {
+      let iA = findAbove(a.positions, 0, fromA - 1), lA = a.positions.length
+      let iB = findAbove(b.positions, 0, fromB - 1), lB = b.positions.length
       let off = fromB - fromA
       for (;;) {
         let nextA = iA < lA ? a.positions[iA] + off : 1e9
         let nextB = iB < lB ? b.positions[iB] : 1e9
         let next = Math.min(nextA, nextB)
-        if (next > toB) break
+        if (next > endB) break
         if (nextA == nextB) {
           // FIXME .eq
           if (a.values[iA] != b.values[iB]) addRange(ranges, next, next)
@@ -239,7 +237,7 @@ export class PointSet<Value extends PointValue> {
           iB++
         }
       }
-    })
+    }
     return ranges
   }
 
@@ -370,13 +368,11 @@ export class RangeSet<Value extends RangeValue> {
     return new RangeIterator<Value, Source>(this, source!)
   }
 
-  compare(old: RangeSet<Value>, change: ChangeDesc) {
-    let ranges: number[] = [], a = old, b = this
-    if (change.empty && a == b) return ranges
-    let iA = 0, iB = 0, lA = a.from.length, lB = b.from.length
-    change.iterGaps((fromA, toA, fromB, toB) => {
-      if (fromA) iA = findAbove(a.from, iA, fromA - 1)
-      if (fromB) iB = findAbove(b.from, iB, fromB - 1)
+  compareRange(fromA: number, b: RangeSet<Value>, fromB: number, len: number) {
+    let a = this, ranges: number[] = [], toB = fromB + len
+    if (a != b || fromA != fromB) {
+      let iA = findAbove(a.from, 0, fromA - 1), lA = a.from.length
+      let iB = findAbove(b.from, 0, fromB - 1), lB = b.from.length
       let off = fromB - fromA
       for (;;) {
         let [startA, endA] = iA < lA ? [a.from[iA] + off, a.to[iA] + off] : [1e9, 1e9]
@@ -396,7 +392,7 @@ export class RangeSet<Value extends RangeValue> {
           iB++
         }
       }
-    })
+    }
     return ranges
   }
 
@@ -488,32 +484,77 @@ function joinRanges(ranges: number[][]) {
 }
 
 function compareFacet<
-  T extends {compare: (old: T, change: ChangeDesc) => number[]},
+  T extends {compareRange: (fromA: number, b: T, fromB: number, len: number) => number[]},
   U extends {set: (state: EditorState) => T}
 >(
   stateA: EditorState, stateB: EditorState, change: ChangeDesc,
   facet: Facet<U>, 
-  empty: T, addDiff: (diff: number[]) => void
+  empty: T,
+  fromA: number, fromB: number, len: number,
+  addRanges: (ranges: number[]) => void
 ) {
   let a = stateA.facet(facet), b = stateB.facet(facet), iB = 0
   for (let eltA of a) {
     let idx = b.indexOf(eltA, iB)
     if (idx < 0) {
-      addDiff(empty.compare(eltA.set(stateA), change))
+      addRanges(eltA.set(stateA).compareRange(fromA, empty, fromB, len))
     } else {
-      while (iB < idx) addDiff(b[iB++].set(stateB).compare(empty, change))
-      addDiff(b[iB++].set(stateB).compare(eltA.set(stateA), change))
+      while (iB < idx)
+        addRanges(empty.compareRange(fromA, b[iB++].set(stateB), fromB, len))
+      addRanges(eltA.set(stateA).compareRange(fromA, b[iB++].set(stateB), fromB, len))
     }
   }
-  while (iB < b.length) addDiff(b[iB++].set(stateB).compare(empty, change))
+  while (iB < b.length) addRanges(empty.compareRange(fromA, b[iB++].set(stateB), fromB, len))
 }
 
+// Compare ranges and points in decoration facets for unchanged ranges
+// in the given change desc. Returns an array using the section format
+// used in change descs.
 export function findChangedRanges(prev: EditorState, state: EditorState, change: ChangeDesc) {
-  let ranges: number[][] = []
-  let add = (diff: number[]) => { if (add.length) ranges.push(diff) }
-  compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, change, rangeDecorations, RangeSet.empty, add)
-  compareFacet<PointSet<any>, WidgetSource<any>>(prev, state,change, widgets, PointSet.empty, add)
-  return joinRanges(ranges)
+  let result: number[] = []
+  for (let sections = change.sections, i = 0, posA = 0, posB = 0; i < sections.length; i++) {
+    let len = sections[i++], ins = sections[i++]
+    if (ins == -1) {
+      // Unchanged section. See which parts have potentially updated
+      // decorations, and tag those as changed
+      let local: number[][] = []
+      let add = (ranges: number[]) => { if (ranges.length) local.push(ranges) }
+      compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, change, rangeDecorations, RangeSet.empty,
+                                                              posA, posB, len, add)
+      compareFacet<PointSet<any>, WidgetSource<any>>(prev, state,change, widgets, PointSet.empty,
+                                                     posA, posB, len, add)
+      let joined = joinRanges(local), pos = posB, end = pos + len
+      for (let i = 0; i < joined.length;) {
+        let from = Math.max(pos, joined[i++]), to = Math.min(end, joined[i++])
+        if (from > pos) addSection(result, from - pos, -1)
+        addSection(result, to - from, -2)
+      }
+      if (pos < end) addSection(result, end - pos, -1)
+      posA + len; posB += len
+    } else {
+      posA += len
+      posB += ins < 0 ? len : ins
+      addSection(result, len, ins)
+    }
+  }
+  return result
+}
+
+function addSection(sections: number[], len: number, ins: number) {
+  let last = sections.length - 1
+  if (last >= 0) {
+    let lastIns = sections[last]
+    if (lastIns >= 0 && ins >= 0) {
+      sections[last - 1] += len
+      sections[last] += ins
+      return
+    }
+    if (lastIns < 0 && lastIns == ins) {
+      sections[last - 1] += len
+      return
+    }
+  }
+  sections.push(len, ins)
 }
 
 export interface DecoWalker {

@@ -2,7 +2,7 @@ import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, Attrib
 import {EditorState} from "@wordgard/state"
 import {DOMNode} from "./dom"
 import {eqArray} from "./shape"
-import {DecoIterator} from "./decoration"
+import {DecoIterator, findChangedRanges} from "./decoration"
 import {Elt, Widget} from "./shape"
 
 export class ContentPos {
@@ -102,24 +102,29 @@ export abstract class ViewNode {
 export class DocViewNode extends ViewNode {
   children: ViewNode[] = []
 
-  constructor(readonly doc: DocNode, dom: HTMLElement) {
+  constructor(public state: EditorState, dom: HTMLElement) {
     super(dom)
   }
 
   get tag() { return null }
 
-  static create(doc: DocNode, dom: HTMLElement) {
-    let empty = new DocViewNode(doc.schema.doc([]), dom)
-    return empty.update(doc, new ChangeDesc([0, doc.length]))
+  static create(state: EditorState, dom: HTMLElement) {
+    return new DocViewNode(state, dom).updateRanges(state, [0, doc.length])
+  }
+
+  update(state: EditorState, changes: ChangeDesc) {
+    return this.updateRanges(state, findChangedRanges(this.state, state, changes))
   }
 
   // FIXME draw placeholder <br>s
-  update(doc: DocNode, changes: ChangeDesc) {
-    /* FIXME
-    let redraw = redrawableRanges(this.deco, deco, changes)
-    if (redraw.empty) return this
+  update(state: EditorState, changedRanges: readonly number[]) {
+    if (!changedRanges.length) return this
+    let iter = new DecoIterator(state)
     let builder = new ContentUpdate(doc, deco, this)
-    for (let i = 0; i < redraw.sections.length;) { // FIXME make this a method on changedesc?
+    for (let i = 0, pos = 0; i < changedRanges.length; i += 2) {
+      let from = changedRanges[i], to = changedRanges[i + 1]
+      if (from > pos) builder.keep(from - pos)
+      builder.replace(to - from
       let len = redraw.sections[i++], ins = redraw.sections[i++]
       if (ins == -1) {
         builder.keep(len)
@@ -546,28 +551,4 @@ export class TextElt extends NodeElt {
     let textNode = this.dom.nodeType == 3 ? this.dom : this.dom.firstChild!
     textNode.nodeValue = this._tag.param
   }
-}
-
-export class WrapperElt extends ViewNode {
-  constructor(readonly wrapper: Wrapper, dom: HTMLElement) {
-    super(dom, dom)
-  }
-
-  eq(other: Wrapper) {
-    return this.wrapper.constructor == other.constructor && this.wrapper.eq(other as any)
-  }
-}
-
-// FIXME grow ranges that touch replaced nodes to cover them
-function redrawableRanges(old: readonly DecorationSet[], deco: readonly DecorationSet[], changes: ChangeDesc) {
-  let diff: {from: number, to: number}[] = [], last: {from: number, to: number} | null = null
-  function add(from: number, to: number) {
-    if (last && last.to == from) last.to = to
-    else diff.push(last = {from, to})
-  }
-  SpanSet.compare(old, deco, changes, {
-    comparePoint: add,
-    compareSpan: add
-  })
-  return diff.length ? changes.composeDesc(ChangeDesc.createDesc(changes.newLength, diff)) : changes
 }
