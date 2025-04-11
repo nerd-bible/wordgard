@@ -1,9 +1,18 @@
-import {DocNode, Node, Tag, Prop, ChangeDesc, Pos, ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
+import {Node, Tag, Prop, ChangeDesc, ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import {DOMNode} from "./dom"
 import {eqArray} from "./shape"
 import {DecoIterator, findChangedRanges} from "./decoration"
 import {Elt, Widget} from "./shape"
+
+export const enum ViewNodeFlag {
+  NodeOuter = 1,
+  NodeInner = 2,
+  Node = 3,
+  Atom = 4,
+  Text = 8,
+  Spanning = 16,
+}
 
 export class ContentPos {
   constructor(
@@ -16,12 +25,18 @@ export class ContentPos {
 export abstract class ViewNode {
   parent: DocViewNode | EltViewNode | null = null
   abstract children: ViewNode[]
-  abstract tag: Tag | null
   length = 2 * this.boundary
 
-  constructor(readonly dom: DOMNode) {
+  constructor(readonly dom: DOMNode, readonly flags: number) {
     dom.wsElt = this
   }
+
+  get isAtom() { return (this.flags & ViewNodeFlag.Atom) > 0 }
+  get isSpanning() { return (this.flags & ViewNodeFlag.Spanning) > 0 }
+  get isNodeOuter() { return (this.flags & ViewNodeFlag.NodeOuter) > 0 }
+  get isNodeInner() { return (this.flags & ViewNodeFlag.NodeInner) > 0 }
+  get isNode() { return (this.flags & ViewNodeFlag.Node) > 0 }
+  get isText() { return (this.flags & ViewNodeFlag.Text) > 0 }
 
   sync() {}
 
@@ -50,6 +65,10 @@ export abstract class ViewNode {
   }
 
   get boundary(): 0 | 1 { return 0 }
+
+  get firstChild(): ViewNode | null {
+    return this.children.length ? this.children[0] : null
+  }
 
   get lastChild(): ViewNode | null {
     let last = this.children.length - 1
@@ -103,13 +122,11 @@ export class DocViewNode extends ViewNode {
   children: ViewNode[] = []
 
   constructor(public state: EditorState, dom: HTMLElement) {
-    super(dom)
+    super(dom, 0)
   }
 
-  get tag() { return null }
-
   static create(state: EditorState, dom: HTMLElement) {
-    return new DocViewNode(state, dom).updateRanges(state, [0, doc.length])
+    return new DocViewNode(state, dom).updateRanges(state, [0, state.doc.length])
   }
 
   update(state: EditorState, changes: ChangeDesc) {
@@ -117,28 +134,19 @@ export class DocViewNode extends ViewNode {
   }
 
   // FIXME draw placeholder <br>s
-  update(state: EditorState, changedRanges: readonly number[]) {
-    if (!changedRanges.length) return this
-    let iter = new DecoIterator(state)
-    let builder = new ContentUpdate(doc, deco, this)
-    for (let i = 0, pos = 0; i < changedRanges.length; i += 2) {
-      let from = changedRanges[i], to = changedRanges[i + 1]
-      if (from > pos) builder.keep(from - pos)
-      builder.replace(to - from
-      let len = redraw.sections[i++], ins = redraw.sections[i++]
+  updateRanges(state: EditorState, sections: readonly number[]) {
+    if (sections.length == 2 && sections[1] == -1) return this
+    let builder = new ContentUpdate(state.doc, this, new DecoIterator(state))
+    for (let i = 0; i < sections.length;) {
+      let len = sections[i++], ins = sections[i++]
       if (ins == -1) {
         builder.keep(len)
       } else {
-        if (ins < 0) ins = len
-        while (i < redraw.sections.length && redraw.sections[i + 1] != -1) {
-          let len2 = redraw.sections[i++], ins2 = redraw.sections[i++]
-          len += len2; ins += ins2 < 0 ? len2 : ins2
-        }
-        builder.replace(len, ins)
+        // FIXME handle in-place updates differently to reuse elements
+        builder.replace(len, ins < 0 ? len : ins)
       }
     }
     return builder.finish()
-    */
   }
 
   nearest(dom: DOMNode, requireTag = true) {
@@ -184,7 +192,7 @@ export class DocViewNode extends ViewNode {
           off += next.boundary
         } else {
           if (index == parent.children.length)
-            throw new Error(`Invalid position ${pos} in document of size ${this.doc.length}`)
+            throw new Error(`Invalid position ${pos} in document of size ${this.length}`)
           index++
           off += next.length
         }
@@ -227,10 +235,10 @@ export class EltViewNode extends ViewNode {
   declare parent: EltViewNode | DocViewNode
   children: ViewNode[] = []
 
-  constructor(readonly elt: Elt, readonly tag: Tag | null) {
+  constructor(readonly elt: Elt, flags: number) {
     let dom = document.createElement(elt.tagName)
     // FIXME add attrs
-    super(dom)
+    super(dom, flags)
   }
 
   add(child: ViewNode) { // FIXME rename addChild
@@ -239,17 +247,25 @@ export class EltViewNode extends ViewNode {
     child.parent = this
   }
 
-  get boundary() { return this.tag ? 1 : 0 }
+  get boundary() { return this.flags & ViewNodeFlag.NodeOuter && !(this.flags & ViewNodeFlag.Atom) ? 1 : 0 }
 }
 
 export class WidgetViewNode extends ViewNode {
-  constructor(widget: Widget<any>, readonly node: Node | null) {
-    super(widget.type.render(widget.value))
-    this.length = node ? node.length : 0
+  constructor(widget: Widget<any>, isNode: boolean, length: number = 0) {
+    super(widget.type.render(widget.value), ViewNodeFlag.Atom | (isNode ? ViewNodeFlag.NodeOuter : 0))
+    this.length = length
   }
 
   get children() { return noChildren }
-  get tag() { return this.node ? this.node.tag : null }
+}
+
+export class TextViewNode extends ViewNode {
+  constructor(public text: string) {
+    super(document.createTextNode(text), ViewNodeFlag.Text)
+    this.length = text.length
+  }
+
+  get children() { return noChildren }
 }
 
 const noChildren: ViewNode[] = []
@@ -269,51 +285,54 @@ interface ContentWalker {
 class ContentPointer {
   constructor(readonly elt: ViewNode, public index: number, readonly parent: ContentPointer | null) {}
 
-  advance(dist: number, walker?: ContentWalker) {
-    let {elt, index, parent} = this
-    while (dist > 0) {
-      if (elt.tag?.isText()) {
+  copy(len: number, target: ViewNode) {
+    
+  }
+
+  walk(dist: number, side: -1 | 1, walker?: ContentWalker) {
+    let {elt, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
+    for (;;) {
+      if (elt.isText) {
+        if (!dist) break
         let left = elt.length - index
         if (dist >= left) {
           dist -= left
-          if (left && walker) {
-            if (index) {
-              // FIXME make this easier
-              let tag = elt.tag.type.of(elt.tag.param.slice(index), elt.tag.props)
-              let {deco} = elt as NodeElt
-              walker.skip(new TextElt(tag as Tag<string>, deco, renderNode(tag, deco)), elt.parent)
-            } else {
-              walker.skip(elt, elt.parent)
-            }
-          }
+          if (left && walker)
+            walker.skip(index ? new TextViewNode((elt as TextViewNode).text.slice(index)) : elt, elt.parent)
           ;({elt, index, parent} = parent!)
           index++
         } else {
-          if (walker) {
-            let tag = elt.tag.type.of(elt.tag.param.slice(index, index + dist), elt.tag.props)
-            let {deco} = elt as NodeElt
-            walker.skip(new TextElt(tag as Tag<string>, deco, renderNode(tag, deco)), elt.parent)
-          }
+          if (walker)
+            walker.skip(new TextViewNode((elt as TextViewNode).text.slice(index, index + dist)), elt.parent)
           index += dist
           dist = 0
         }
       } else if (index == elt.children.length) {
+        if (!dist && (nodeBoundary != 2 && elt.isNode || side < 0 && elt.isSpanning)) break
         if (walker) walker.leave(elt)
+        nodeBoundary = elt.isNodeInner ? 2 : 0
         dist -= elt.boundary
         ;({elt, index, parent} = parent!)
         index++
       } else {
         let next = elt.children[index]
         if (next.length <= dist) {
+          if (!next.length && // Non-node widget
+              (next.isNodeInner ? nodeBoundary : side < 0))
+            break
           if (walker) walker.skip(next, next.parent)
           dist -= next.length
           index++
+          if (!next.isNodeInner) nodeBoundary = 0
         } else {
-          if (walker && !next.tag?.isText()) walker.enter(next)
+          if (next.isNode && (!dist || next.isAtom)) break
+          if (!dist && next.isSpanning && side < 0) break
+          if (walker && !next.isText) walker.enter(next)
           dist -= next.boundary
           parent = new ContentPointer(elt, index, parent)
           elt = next
           index = 0
+          nodeBoundary = next.isNode ? 1 : 0
         }
       }
     }
@@ -403,15 +422,20 @@ function wrappers(props: readonly Prop[], deco: readonly Decoration[]): readonly
 class ContentUpdate {
   old: ContentPointer
   new: ViewNode
-  cursor: Pos
   toSync: ViewNode[] = []
+  pos = 0
 
-  constructor(readonly state: EditorState, old: DocElt) {
+  constructor(readonly state: EditorState, old: DocViewNode, readonly deco: DecoIterator) {
     this.old = new ContentPointer(old, 0, null)
-    this.new = new DocElt(state.doc, old.dom as HTMLElement)
+    this.new = new DocViewNode(state, old.dom as HTMLElement)
     this.toSync.push(this.new)
-    this.cursor = state.doc.resolve(0)
   }
+
+  keep(len: number) {
+    this.pos += len
+    this.old.copy(len, this.new)
+  }
+
 
   open(tag: Tag, reuse: NodeElt | null, deco: readonly Decoration[]) {
     this.openWrappers(wrappers(tag.props, deco))
@@ -490,35 +514,19 @@ class ContentUpdate {
     while (this.new instanceof WrapperElt) this.new = this.new.parent!
   }
 
-  keep(len: number) {
-    this.cursor = this.cursor.advance(len)
-    let walk: ContentWalker = { // FIXME store obj in builder, also for .replace
-      enter: elt => {
-        if (elt.tag) this.open(elt.tag, elt as NodeElt, []) // FIXME make sure deco is preserved somehow
-      },
-      leave: elt => {
-        if (elt.tag) this.close()
-      },
-      skip: (elt, parent) => {
-        this.reuseNodes(elt, parent)
-      }
-    }
-    this.old = this.old.advance(len, walk)
-  }
-
   replace(len: number, ins: number) {
     if (len) this.old = this.old.advance(len)
-    this.cursor = iterateDeco(this.cursor, this.state, this.cursor.pos, this.cursor.pos + ins, {
-      enter: (tag, deco) => {
+    this.deco.walk(this.pos, this.pos + ins, {
+      enter: (tag, shape, wrappers) => {
         this.open(tag, null, deco)
       },
       leave: () => {
         this.close()
       },
-      skip: (node, deco) => {
+      node: (node, shape, wrappers) => {
         this.leaf(node, deco)
       },
-      widgets(widgets) {
+      widget: widget => {
         // FIXME draw widget
       }
     })
