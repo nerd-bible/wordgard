@@ -558,7 +558,7 @@ function addSection(sections: number[], len: number, ins: number) {
 }
 
 export interface DecoWalker {
-  enter(tag: Tag, shape: Shape, wrappers: readonly Elt[]): void
+  enter(tag: Tag, shape: Elt, wrappers: readonly Elt[]): void
   leave(): void
   node(node: Node, shape: Shape, wrappers: readonly Elt[]): void
   widget(widget: Shape): void
@@ -792,7 +792,7 @@ export class DecoIterator {
           walker.node(node!, shape, wrappers)
         } else {
           if (!shape.hasHole) throw new Error(`Shape for tag ${tag.name} does not have a hole`)
-          walker.enter(tag, shape, wrappers)
+          walker.enter(tag, shape as Elt, wrappers)
         }
         this.widgets(tag, WidgetPlace.Start, walker)
         return tag.isAtom()
