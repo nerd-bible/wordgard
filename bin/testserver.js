@@ -13,7 +13,7 @@ let staticserver = serveStatic(root)
 createServer((req, resp) => {
   let m
   if (/^\/test\/?($|\?)/.test(req.url)) {
-    let {browserTests} = gatherTests([join(base, "doc")])
+    let {browserTests} = gatherTests(["doc", "state", "view"].map(p => join(base, p)))
     resp.writeHead(200, {"content-type": "text/html"})
     resp.end(testHTML(browserTests.map(f => relative(root, f)), {
       html: `<title>Wordgard tests</title><h1>Wordgard tests</h1>`

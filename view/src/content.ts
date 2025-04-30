@@ -134,6 +134,8 @@ export class CompositeViewNode extends ViewNode {
 }
 
 export class DocViewNode extends CompositeViewNode {
+  declare dom: HTMLElement
+
   constructor(public state: EditorState, dom: HTMLElement) {
     super(dom, 0)
   }
@@ -304,8 +306,20 @@ export class TextViewNode extends ViewNode {
     this.dom.nodeValue = this.text
   }
 
+  toString() { return JSON.stringify(this.text) }
+
   static of(text: string) {
     return new TextViewNode(text, document.createTextNode(text))
+  }
+}
+
+function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
+  if (shape instanceof Elt) {
+    let outer = EltViewNode.of(shape, node && node.tag, nodeInner ? ViewNodeFlag.NodeInner : 0)
+    for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
+    return outer
+  } else {
+    return new WidgetViewNode(shape, node, node ? node.length : 0)
   }
 }
 
@@ -326,56 +340,35 @@ interface ContentWalker {
 // Used to track the previous tree during an update. Stays inside of
 // spanning nodes. (FIXME what does that mean, precisely?)
 class ContentPointer {
-  constructor(readonly elt: ViewNode, public index: number, readonly parent: ContentPointer | null) {}
-
-  copy(dist: number, target: CompositeViewNode) {
-    this.walk(dist, -1, {
-      enter(node) {
-        if (node.isSpanning && target.lastChild?.isSpanning && node.elt.eq((target.lastChild as EltViewNode).elt)) {
-          target = target.lastChild as EltViewNode
-        } else {
-          let inner = new EltViewNode(node.elt, node.tag, node.flags, node.dom)
-          target.addChild(inner)
-          target = inner
-        }
-      },
-      leave() {
-        target = target.parent!
-      },
-      skip(node) {
-        if (node instanceof TextViewNode) target.addText(node.text)
-        else target.addChild(node)
-      }
-    })
-  }
+  constructor(readonly node: ViewNode, public index: number, readonly parent: ContentPointer | null) {}
 
   walk(dist: number, side: -1 | 1, walker?: ContentWalker) {
-    let {elt, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
+    let {node, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
     for (;;) {
-      if (elt.isText) {
+      if (node.isText) {
         if (!dist) break
-        let left = elt.length - index
+        let left = node.length - index
         if (dist >= left) {
           dist -= left
           if (left && walker)
-            walker.skip(index ? TextViewNode.of((elt as TextViewNode).text.slice(index)) : elt, elt.parent)
-          ;({elt, index, parent} = parent!)
+            walker.skip(index ? TextViewNode.of((node as TextViewNode).text.slice(index)) : node, node.parent)
+          ;({node, index, parent} = parent!)
           index++
         } else {
           if (walker)
-            walker.skip(TextViewNode.of((elt as TextViewNode).text.slice(index, index + dist)), elt.parent)
+            walker.skip(TextViewNode.of((node as TextViewNode).text.slice(index, index + dist)), node.parent)
           index += dist
           dist = 0
         }
-      } else if (index == elt.children.length) {
-        if (!dist && (nodeBoundary != 2 && elt.isNode || side < 0 && elt.isSpanning)) break
-        if (walker) walker.leave(elt as EltViewNode)
-        nodeBoundary = elt.isNodeInner ? 2 : 0
-        dist -= elt.boundary
-        ;({elt, index, parent} = parent!)
+      } else if (index == node.children.length) {
+        if (!dist && (node.isDoc || nodeBoundary != 2 && node.isNode || side < 0 && node.isSpanning)) break
+        if (walker) walker.leave(node as EltViewNode)
+        nodeBoundary = node.isNodeInner ? 2 : 0
+        dist -= node.boundary
+        ;({node, index, parent} = parent!)
         index++
       } else {
-        let next = elt.children[index]
+        let next = node.children[index]
         if (next.length <= dist) {
           if (!next.length && // Non-node widget
               (next.isNodeInner ? nodeBoundary : side < 0))
@@ -389,14 +382,14 @@ class ContentPointer {
           if (!dist && next.isSpanning && side < 0) break
           if (walker && !next.isText) walker.enter(next as EltViewNode)
           dist -= next.boundary
-          parent = new ContentPointer(elt, index, parent)
-          elt = next
+          parent = new ContentPointer(node, index, parent)
+          node = next
           index = 0
           nodeBoundary = next.isNode ? 1 : 0
         }
       }
     }
-    return new ContentPointer(elt, index, parent)
+    return new ContentPointer(node, index, parent)
   }
 }
 
@@ -412,7 +405,27 @@ class ContentUpdate {
 
   keep(len: number) {
     this.pos += len
-    this.old.copy(len, this.new)
+    let cur = this.new
+    this.old = this.old.walk(len, -1, {
+      enter(node) {
+        if (node.isSpanning && cur.lastChild?.isSpanning && node.elt.eq((cur.lastChild as EltViewNode).elt)) {
+          cur = cur.lastChild as EltViewNode
+        } else {
+          let inner = new EltViewNode(node.elt, node.tag, node.flags, node.dom)
+          cur.addChild(inner)
+          cur = inner
+        }
+      },
+      leave(n) {
+        if (cur instanceof EltViewNode) syncChildren(cur)
+        cur = cur.parent!
+      },
+      skip(node) {
+        if (node instanceof TextViewNode) cur.addText(node.text)
+        else cur.addChild(node)
+      }
+    })
+    this.new = cur
   }
 
   replace(len: number, ins: number) {
@@ -469,15 +482,5 @@ class ContentUpdate {
     while (!(this.new instanceof DocViewNode)) this.up()
     syncChildren(this.new)
     return this.new as DocViewNode
-  }
-}
-
-function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
-  if (shape instanceof Elt) {
-    let outer = EltViewNode.of(shape, node && node.tag, nodeInner ? ViewNodeFlag.NodeInner : 0)
-    for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
-    return outer
-  } else {
-    return new WidgetViewNode(shape, node, node ? node.length : 0)
   }
 }

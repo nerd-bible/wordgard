@@ -26,15 +26,14 @@ function memo<T>(f: (tag: Tag<any>) => T) {
   }
 }
 
-const tagShape = memo((tag: Tag<any>): Shape => {
+const tagShape = memo((tag: Tag<unknown>): Shape => {
   let {dom} = tag.type.spec, elt: Widget<any> | Elt | undefined
   if (tag.isText()) {
     elt = TextWidget.of(tag.param)
   } else {
     if (typeof dom == "function") throw new Error("FIXME")
-    if (!dom.attributes) elt = E(dom.element, 0)
-    // FIXME somehow make this cast unnecessary
-    else elt = E(dom.element, typeof dom.attributes == "function" ? dom.attributes((tag as any).param) : dom.attributes, 0)
+    let attrs = !dom.attributes ? noAttrs : typeof dom.attributes == "function" ? dom.attributes(tag.param) : dom.attributes
+    elt = tag.isAtom() ? E(dom.element, attrs) : E(dom.element, attrs, 0)
   }
   let attrs: string[] | undefined
   for (let prop of tag.props) if (!prop.type.element) {
@@ -512,7 +511,7 @@ function compareFacet<
 // used in change descs.
 export function findChangedRanges(prev: EditorState, state: EditorState, change: ChangeDesc) {
   let result: number[] = []
-  for (let sections = change.sections, i = 0, posA = 0, posB = 0; i < sections.length; i++) {
+  for (let sections = change.sections, i = 0, posA = 0, posB = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++]
     if (ins == -1) {
       // Unchanged section. See which parts have potentially updated
@@ -780,7 +779,7 @@ export class DecoIterator {
       skip: node => { // Only done for leaf nodes.
         this.widgets(node.tag, WidgetPlace.Before, walker)
         let shape = tagShape(node.tag)
-        if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node")
+        if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node " + node)
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalDeco))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
@@ -795,7 +794,7 @@ export class DecoIterator {
           walker.enter(tag, shape as Elt, wrappers)
         }
         this.widgets(tag, WidgetPlace.Start, walker)
-        return tag.isAtom()
+        return !tag.isAtom()
       },
       leave: tag => {
         this.widgets(tag!, WidgetPlace.End, walker)
@@ -821,6 +820,7 @@ export class DecoIterator {
         pos = pos.walk(iter.to - iter.from, wrap)
       }
     }
+    if (pos.pos < to) pos = pos.walk(to - pos.pos, wrap)
 
     let after = pos.nodeAfter
     if (after) this.widgets(after!.tag, WidgetPlace.Before, walker)
