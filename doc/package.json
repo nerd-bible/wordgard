@@ -1,7 +1,7 @@
 {
   "name": "@wordgard/doc",
   "version": "0.0.1",
-  "description": "Document model for the Willow editor",
+  "description": "Document model for the Wordgard editor",
   "keywords": [
     "editor",
     "document"

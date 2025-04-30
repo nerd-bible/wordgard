@@ -136,11 +136,11 @@ export class EditorView {
 
     this.scrollDOM = document.createElement("div")
     this.scrollDOM.tabIndex = -1
-    this.scrollDOM.className = "ws-scroller"
+    this.scrollDOM.className = "wg-scroller"
     this.scrollDOM.appendChild(this.contentDOM)
 
     this.announceDOM = document.createElement("div")
-    this.announceDOM.className = "ws-announced"
+    this.announceDOM.className = "wg-announced"
     this.announceDOM.setAttribute("aria-live", "polite")
 
     this.dom.appendChild(this.announceDOM)
@@ -330,7 +330,7 @@ export class EditorView {
 
   private updateAttrs() {
     let editorAttrs = attrsFromFacet(this, editorAttributes, {
-      class: "ws-editor" + (this.hasFocus ? " ws-focused " : " ") + this.themeClasses
+      class: "wg-editor" + (this.hasFocus ? " wg-focused " : " ") + this.themeClasses
     })
     let contentAttrs: Attrs = {
       spellcheck: "false",
@@ -338,7 +338,7 @@ export class EditorView {
       autocapitalize: "off",
       translate: "no",
       contenteditable: !this.state.facet(editable) ? "false" : "true",
-      class: "ws-content",
+      class: "wg-content",
       role: "textbox",
       "aria-multiline": "true"
     }
@@ -643,7 +643,7 @@ export class EditorView {
   /// element](#view.EditorView.dom)—to which the scope class will be
   /// added—need to be explicitly differentiated by adding an `&` to
   /// the selector for that element—for example
-  /// `&.ws-focused`.
+  /// `&.wg-focused`.
   ///
   /// When `dark` is set to true, the theme will be marked as dark,
   /// which will cause the `&dark` rules from [base
@@ -691,6 +691,9 @@ export class EditorView {
   /// noticed by screen reader users (such as moving to the next
   /// search match).
   static announce = StateEffect.define<string>()
+
+  /// @internal for testing
+  static DocViewNode = DocViewNode
 }
 
 let _wrapElement: {new (view: EditorView): HTMLElement} | null = null

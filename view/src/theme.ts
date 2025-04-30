@@ -25,7 +25,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   "&": {
     position: "relative !important",
     boxSizing: "border-box",
-    "&.ws-focused": {
+    "&.wg-focused": {
       // Provide a simple default outline to make sure a focused
       // editor is visually distinct. Can't leave the default behavior
       // because that will apply to the content element, which is
@@ -40,14 +40,14 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     flexDirection: "column"
   },
 
-  ".ws-scroller": {
+  ".wg-scroller": {
     height: "100%",
     overflowX: "auto",
     position: "relative",
     zIndex: 0,
   },
 
-  ".ws-content": {
+  ".wg-content": {
     margin: 0,
     whiteSpace: "pre-wrap",
     boxSizing: "border-box",
@@ -56,10 +56,10 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     outline: "none",
   },
 
-  "&light .ws-content": { caretColor: "black" },
-  "&dark .ws-content": { caretColor: "white" },
+  "&light .wg-content": { caretColor: "black" },
+  "&dark .wg-content": { caretColor: "white" },
 
-  ".ws-layer": {
+  ".wg-layer": {
     position: "absolute",
     left: 0,
     top: 0,
@@ -69,60 +69,60 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     }
   },
 
-  "&light .ws-selectionBackground": {
+  "&light .wg-selectionBackground": {
     background: "#d9d9d9"
   },
-  "&dark .ws-selectionBackground": {
+  "&dark .wg-selectionBackground": {
     background: "#222"
   },
-  "&light.ws-focused > .ws-scroller > .ws-selectionLayer .ws-selectionBackground": {
+  "&light.wg-focused > .wg-scroller > .wg-selectionLayer .wg-selectionBackground": {
     background: "#d7d4f0"
   },
-  "&dark.ws-focused > .ws-scroller > .ws-selectionLayer .ws-selectionBackground": {
+  "&dark.wg-focused > .wg-scroller > .wg-selectionLayer .wg-selectionBackground": {
     background: "#233"
   },
 
-  ".ws-cursorLayer": {
+  ".wg-cursorLayer": {
     pointerEvents: "none"
   },
-  "&.ws-focused > .ws-scroller > .ws-cursorLayer": {
-    animation: "steps(1) ws-blink 1.2s infinite"
+  "&.wg-focused > .wg-scroller > .wg-cursorLayer": {
+    animation: "steps(1) wg-blink 1.2s infinite"
   },
 
   // Two animations defined so that we can switch between them to
   // restart the animation without forcing another style
   // recomputation.
-  "@keyframes ws-blink": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
-  "@keyframes ws-blink2": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
+  "@keyframes wg-blink": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
+  "@keyframes wg-blink2": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
 
-  ".ws-cursor, .ws-dropCursor": {
+  ".wg-cursor, .wg-dropCursor": {
     borderLeft: "1.2px solid black",
     marginLeft: "-0.6px",
     pointerEvents: "none",
   },
-  ".ws-cursor": {
+  ".wg-cursor": {
     display: "none"
   },
-  "&dark .ws-cursor": {
+  "&dark .wg-cursor": {
     borderLeftColor: "#444"
   },
-  ".ws-dropCursor": {
+  ".wg-dropCursor": {
     position: "absolute"
   },
 
-  "&.ws-focused > .ws-scroller > .ws-cursorLayer .ws-cursor": {
+  "&.wg-focused > .wg-scroller > .wg-cursorLayer .wg-cursor": {
     display: "block"
   },
 
-  ".ws-announced": {
+  ".wg-announced": {
     position: "fixed",
     top: "-10000px"
   },
   "@media print": {
-    ".ws-announced": { display: "none" }
+    ".wg-announced": { display: "none" }
   },
 
-  ".ws-placeholder": {
+  ".wg-placeholder": {
     color: "#888",
     display: "inline-block",
     verticalAlign: "top",

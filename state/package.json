@@ -1,7 +1,7 @@
 {
   "name": "@wordgard/state",
   "version": "0.0.1",
-  "description": "Editor state data structures for the Willow editor",
+  "description": "Editor state data structures for the Wordgard editor",
   "keywords": [
     "editor",
     "state"

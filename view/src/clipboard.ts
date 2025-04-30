@@ -10,7 +10,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
     document: doc,
     schema: state.doc.schema,
     markOpen: (elt, open) => {
-      elt.setAttribute("ws-open", open == OpenSide.Start ? "start" : open == OpenSide.End ? "end" : "start end")
+      elt.setAttribute("wg-open", open == OpenSide.Start ? "start" : open == OpenSide.End ? "end" : "start end")
     }
   })
 
@@ -18,7 +18,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   while (dom.firstChild && dom.firstChild.nodeType == 1 && (needsWrap = wrapMap[dom.firstChild.nodeName.toLowerCase()])) {
     for (let i = needsWrap.length - 1; i >= 0; i--) {
       let wrapper = doc.createElement(needsWrap[i])
-      wrapper.setAttribute("ws-wrap", "true")
+      wrapper.setAttribute("wg-wrap", "true")
       while (dom.firstChild) wrapper.appendChild(dom.firstChild)
       dom.appendChild(wrapper)
       wrappers++
@@ -26,7 +26,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   }
 
   if (dom.firstChild && dom.firstChild.nodeType == 1)
-    (dom.firstChild as HTMLElement).setAttribute("ws-content", "true")
+    (dom.firstChild as HTMLElement).setAttribute("wg-content", "true")
 
   let wrap = doc.createElement("div")
   wrap.appendChild(dom)
@@ -35,7 +35,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
 }
 
 function isOpen(elt: HTMLElement) {
-  let value = elt.getAttribute("ws-open")
+  let value = elt.getAttribute("wg-open")
   return value == "start" ? OpenSide.Start : value == "end" ? OpenSide.End : value ? OpenSide.Both : OpenSide.None
 }
 
@@ -50,10 +50,10 @@ export function readClipboard(state: EditorState, data: DataTransfer, context: P
   let dom = readHTML(html)
   if (browser.webkit) restoreReplacedSpaces(dom)
 
-  let fromWillows = !!dom.querySelector("[ws-content=true]")
+  let fromWordgard = !!dom.querySelector("[wg-content=true]")
   let slice = parseSlice(state.doc.schema, dom, {
-    collapseWhiteSpace: !fromWillows,
-    isOpen: fromWillows ? isOpen : undefined
+    collapseWhiteSpace: !fromWordgard,
+    isOpen: fromWordgard ? isOpen : undefined
     // FIXME strip suspicious trailing <br>s somehow
   })
   // FIXME transform slice

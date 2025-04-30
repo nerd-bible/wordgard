@@ -583,7 +583,7 @@ observers.focus = view => {
     view.scrollDOM.scrollTop = view.inputState.lastScrollTop
     view.scrollDOM.scrollLeft = view.inputState.lastScrollLeft
   }
-  // FIXME make sure ws-focused class is added
+  // FIXME make sure wg-focused class is added
 }
 
 observers.blur = view => {

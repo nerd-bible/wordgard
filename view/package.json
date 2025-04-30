@@ -1,7 +1,7 @@
 {
   "name": "@wordgard/view",
   "version": "0.0.1",
-  "description": "UI component for the Willow editor",
+  "description": "UI component for the Wordgard editor",
   "keywords": [
     "editor",
     "view",
