@@ -2,14 +2,14 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
         EditorSelection, StateEffect, Facet, EditorStateSpec} from "@wordgard/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
-import {DocElt} from "./content"
+import {DocViewNode} from "./content"
 import {posAtCoords, coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
         exceptionSink, updateListener, logException,
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, MeasureRequest, editable, inputHandler, scrollIntoView,
-        ScrollTarget, scrollHandler, decorations} from "./extension"
+        ScrollTarget, scrollHandler} from "./extension"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
@@ -107,7 +107,7 @@ export class EditorView {
   /// @internal
   viewState: ViewState
   /// @internal
-  docElt: DocElt
+  docElt: DocViewNode
 
   /// @internal
   plugins: PluginInstance[] = []
@@ -158,7 +158,7 @@ export class EditorView {
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.docElt = DocElt.create(this.state.doc, this.state.facet(decorations), this.contentDOM)
+    this.docElt = DocViewNode.create(this.state, this.contentDOM)
 
     this.updateAttrs()
 
@@ -222,7 +222,7 @@ export class EditorView {
       this.updateState = UpdateState.Updating
       let startState = this.state
       let update = ViewUpdate.create(this, startState, this.state, transactions)
-      this.docElt = this.docElt.update(update.state.doc, this.state.facet(decorations), update.changes)
+      this.docElt = this.docElt.update(update.state, update.changes)
       if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
         setDOMSelection(this)
       if (!update.changes.empty) this.requestMeasure()
@@ -441,7 +441,7 @@ export class EditorView {
   /// given document position.
   domAtPos(pos: number, assoc: -1 | 1 = -1): {node: DOMNode, offset: number} {
     let viewPos = this.docElt.resolve(pos, assoc)
-    return {node: viewPos.node, offset: viewPos.offset}
+    return {node: viewPos.node.dom, offset: viewPos.offset}
   }
 
   /// Find the document position at the given DOM node. Can be useful
@@ -571,8 +571,6 @@ export class EditorView {
   static domEventObservers(observers: DOMEventHandlers<any>): Extension {
     return ViewPlugin.define(() => ({}), {eventObservers: observers})
   }
-
-  static decorations = decorations
 
   /// An input handler can override the way changes to the editable
   /// DOM content are handled. Handlers are passed the document

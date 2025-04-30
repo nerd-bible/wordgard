@@ -1,7 +1,7 @@
 import {Rect, textRange, caretFromPoint, maxOffset, clientRectsFor} from "./dom"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {EltNode, NodeElt} from "./content"
+import {ViewNode, EltViewNode} from "./content"
 
 // FIXME make this aware of node orientation, review
 function findOffsetInNode(node: HTMLElement, coords: {x: number, y: number}): {node: Node, offset: number} {
@@ -92,9 +92,9 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
   let outsideBlock = -1
   for (let cur = node, sawBlock = false;;) {
     if (cur == view.contentDOM) break
-    let cView = view.docElt.nearestNodeElt(cur)
+    let cView = view.docElt.nearest(cur, true)
     if (!cView) return null
-    if (cView.dom.nodeType == 1 && (cView.tag.isBlock() && cView.parent || !cView.contentDOM)) {
+    if (cView instanceof EltViewNode && cView.tag && (cView.tag.isBlock() && cView.parent || cView.isAtom)) {
       let rect = (cView.dom as HTMLElement).getBoundingClientRect()
       if (cView.tag.isBlock() && cView.parent) {
         // Only apply the horizontal test to the innermost block. Vertical for any parent.
@@ -102,7 +102,7 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
         else if (!sawBlock && rect.right < coords.x || rect.bottom < coords.y) outsideBlock = cView.posAfter
         sawBlock = true
       }
-      if (!cView.contentDOM && outsideBlock < 0 && !cView.tag.isText()) {
+      if (cView.isAtom && outsideBlock < 0) {
         // If we are inside a leaf, return the side of the leaf closer to the coords
         let before = cView.tag.isBlock() ? coords.y < (rect.top + rect.bottom) / 2
           : coords.x < (rect.left + rect.right) / 2
@@ -198,7 +198,7 @@ const BIDI = /[\u0590-\u05f4\u0600-\u06ff\u0700-\u08ac]/
 // character at that position, relative to the window.
 export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect {
   let cView = view.docElt.resolve(pos, assoc < 0 ? -1 : 1)
-  let node = cView.elt.contentDOM || cView.elt.dom, {offset} = cView
+  let node = cView.dom, {offset} = cView
 
   if (node.nodeType == 3) {
     // These browsers support querying empty text ranges. Prefer that in
@@ -228,7 +228,7 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
   }
 
   // FIXME find block/inline status from cView?
-  let cx = view.state.doc.resolve(cView.elt.posAtStart)
+  let cx = view.state.doc.resolve(cView.node.posAtStart)
   // Return a horizontal line in block context
   if (!cx.parent.node.inlineContent()) {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
@@ -275,11 +275,11 @@ function flattenH(rect: DOMRect, top: boolean) {
 }
 
 export function findVerticalInTextblock(
-  elt: EltNode, forward: boolean, x: number, y: number
+  elt: ViewNode, forward: boolean, x: number, y: number
 ): {pos: number, assoc: number} | null {
-  let closest: Rect | null = null, closestX = -1, closestElt = null as NodeElt | null
-  let scan = (elt: EltNode) => {
-    if (elt instanceof NodeElt && elt.tag.isLeaf()) {
+  let closest: Rect | null = null, closestX = -1, closestElt = null as ViewNode | null
+  let scan = (elt: ViewNode) => {
+    if (elt.isNode && elt.isAtom) {
       let rects = clientRectsFor(elt.dom)
       for (let i = 0; i < rects.length; i++) {
         let rect = rects[i]
@@ -302,7 +302,7 @@ export function findVerticalInTextblock(
   scan(elt)
   if (!closestElt) return null
   let {dom} = closestElt, pos = closestElt.posBefore
-  if (closestElt.tag.isText()) {
+  if (closestElt.isText) {
     let {offset} = findOffsetInText((dom.nodeType == 3 ? dom : dom.firstChild) as Text, {
       x: Math.max(closest!.left, Math.min(closest!.right, x)),
       y: Math.max(closest!.top, Math.min(closest!.bottom, y))

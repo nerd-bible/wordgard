@@ -1,12 +1,6 @@
 // FIXME prune unused functions when stuff is more stable
 
-import {type ContentNode} from "./content.js"
-
 export type DOMNode = Node
-
-declare global {
-  interface Node { wsElt?: ContentNode }
-}
 
 export function getSelection(root: DocumentOrShadowRoot): Selection | null {
   let target

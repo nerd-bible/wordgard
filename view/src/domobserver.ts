@@ -4,7 +4,7 @@ import {EditorView} from "./editorview"
 import {editable, ViewUpdate} from "./extension"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
         isEquivalentPosition, atElementStart} from "./dom"
-import {EltNode} from "./content"
+import {ViewNode} from "./content"
 import {setDOMSelection, readDOMSelection} from "./selection"
 
 const observeOptions = {
@@ -160,8 +160,8 @@ export class DOMObserver {
     return true
   }
 
-  setSelectionRange(anchor: {node: DOMNode, offset: number}, head: {node: DOMNode, offset: number}) {
-    this.selectionRange.set(anchor.node, anchor.offset, head.node, head.offset)
+  setSelectionRange(anchor: {dom: DOMNode, offset: number}, head: {dom: DOMNode, offset: number}) {
+    this.selectionRange.set(anchor.dom, anchor.offset, head.dom, head.offset)
     this.selectionChanged = false
   }
 
@@ -226,7 +226,7 @@ export class DOMObserver {
     let changed = this.processRecords(), {view} = this
     if (changed) {
       // FIXME reuse path of regular updates, somehow
-      view.docElt = view.docElt.update(this.view.state.doc, this.view.docElt.deco, changed)
+      view.docElt = view.docElt.update(this.view.state, changed)
       setDOMSelection(this.view)
       this.clear()
     } else if (this.selectionChanged && view.hasFocus && hasSelection(view.contentDOM, this.selectionRange)) {
@@ -242,7 +242,7 @@ export class DOMObserver {
   }
 }
 
-function findChild(elt: EltNode, dom: Node | null, dir: number): EltNode | null {
+function findChild(elt: ViewNode, dom: Node | null, dir: number): ViewNode | null {
   while (dom) {
     let cur = dom.wsElt
     if (cur && cur.parent == elt) return cur
@@ -259,7 +259,7 @@ function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
   // Since such a range doesn't distinguish between anchor and head,
   // use a heuristic that flips it around if its end matches the
   // current anchor.
-  if (isEquivalentPosition(curAnchor.node, curAnchor.offset, focusNode, focusOffset))
+  if (isEquivalentPosition(curAnchor.dom, curAnchor.offset, focusNode, focusOffset))
     [anchorNode, anchorOffset, focusNode, focusOffset] = [focusNode, focusOffset, anchorNode, anchorOffset]
   return {anchorNode, anchorOffset, focusNode, focusOffset}
 }
