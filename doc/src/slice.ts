@@ -3,8 +3,11 @@ import {Schema} from "./schema"
 import {Walker} from "./pos"
 
 export class OpenToken {
-  constructor(readonly tag: Tag) { // FIXME only put tag/props in here?
+  readonly tag: Tag
+
+  constructor(tag: Tag<any>) { // FIXME only put tag/props in here?
     if (tag.isLeaf()) throw new Error("Cannot create an opening token for a leaf node")
+    this.tag = tag
   }
 
   get tokenType(): TokenType.Open { return TokenType.Open }

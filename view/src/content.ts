@@ -26,7 +26,7 @@ export class ContentPos {
 export abstract class ViewNode {
   parent: CompositeViewNode | null = null
   abstract children: ViewNode[]
-  length = 2 * this.boundary
+  length = 0
 
   constructor(readonly dom: Node, readonly flags: number) {
     dom.wsElt = this
@@ -253,6 +253,8 @@ export class EltViewNode extends CompositeViewNode {
 
   constructor(readonly elt: Elt, readonly tag: Tag | null, flags: number, dom: HTMLElement) {
     super(dom, flags)
+    // FIXME get correct length for non-leaf atoms
+    this.length = tag && tag.isAtom() ? 1 : 2 * this.boundary
   }
 
   get isSpanning() { return this.elt.spanning }
@@ -270,7 +272,7 @@ export class EltViewNode extends CompositeViewNode {
 
   static of(elt: Elt, tag: Tag | null, flags: number) {
     let dom = document.createElement(elt.tagName)
-    for (let i = 0; i < elt.attrs.length; i++) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
+    for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
     return new EltViewNode(elt, tag, flags, dom)
   }
 }
@@ -339,8 +341,8 @@ interface ContentWalker {
 
 // Used to track the previous tree during an update. Stays inside of
 // spanning nodes. (FIXME what does that mean, precisely?)
-class ContentPointer {
-  constructor(readonly node: ViewNode, public index: number, readonly parent: ContentPointer | null) {}
+class ViewTreePointer {
+  constructor(readonly node: ViewNode, public index: number, readonly parent: ViewTreePointer | null) {}
 
   walk(dist: number, side: -1 | 1, walker?: ContentWalker) {
     let {node, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
@@ -382,24 +384,24 @@ class ContentPointer {
           if (!dist && next.isSpanning && side < 0) break
           if (walker && !next.isText) walker.enter(next as EltViewNode)
           dist -= next.boundary
-          parent = new ContentPointer(node, index, parent)
+          parent = new ViewTreePointer(node, index, parent)
           node = next
           index = 0
           nodeBoundary = next.isNode ? 1 : 0
         }
       }
     }
-    return new ContentPointer(node, index, parent)
+    return new ViewTreePointer(node, index, parent)
   }
 }
 
 class ContentUpdate {
-  old: ContentPointer
+  old: ViewTreePointer
   new: CompositeViewNode
   pos = 0
 
   constructor(readonly state: EditorState, old: DocViewNode, readonly deco: DecoIterator) {
-    this.old = new ContentPointer(old, 0, null)
+    this.old = new ViewTreePointer(old, 0, null)
     this.new = new DocViewNode(state, old.dom as HTMLElement)
   }
 
@@ -452,6 +454,7 @@ class ContentUpdate {
         this.new.addChild(buildFromShape(widget, null))
       }
     })
+    this.pos += ins
   }
 
   up() {
