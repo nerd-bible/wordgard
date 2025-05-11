@@ -1,3 +1,5 @@
+// FIXME move most of this into doc
+
 export enum EltFlag { Hole = 1, Spanning = 2, RankShift = 2 }
 
 export class Elt {
@@ -94,8 +96,6 @@ export class WidgetType<T> {
 
 export class Widget<T> {
   constructor(readonly type: WidgetType<T>, readonly value: T) {}
-
-  get rank() { return this.type.rank }
 
   eq(other: Shape) {
     return other instanceof Widget && other.type == this.type && this.type.eq(this.value, other.value)

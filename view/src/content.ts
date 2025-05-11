@@ -372,7 +372,7 @@ class ViewTreePointer {
       } else {
         let next = node.children[index]
         if (next.length <= dist) {
-          if (!next.length && // Non-node widget
+          if (!dist && !next.length && // Non-node widget
               (next.isNodeInner ? nodeBoundary : side < 0))
             break
           if (walker) walker.skip(next, next.parent)
@@ -431,7 +431,7 @@ class ContentUpdate {
   }
 
   replace(len: number, ins: number) {
-    if (len) this.old = this.old.walk(len, -1)
+    this.old = this.old.walk(len, 1)
     this.deco.walk(this.pos, this.pos + ins, {
       enter: (tag, elt, wrappers) => {
         for (let wrap of wrappers) this.openWrapper(wrap)
@@ -450,7 +450,7 @@ class ContentUpdate {
         else this.new.addChild(buildFromShape(shape, node))
         for (let _ of wrappers) this.up()
       },
-      widget: widget => {
+      widget: (widget, side) => { // FIXME store side
         this.new.addChild(buildFromShape(widget, null))
       }
     })
