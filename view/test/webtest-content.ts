@@ -95,7 +95,7 @@ describe("ViewNode", () => {
       })
       let src = new WidgetSource<string>({
         set: s => s.field(f),
-        widget: n => inlineWidget.of(n)
+        widget: inlineWidget
       })
       let node = render(doc(p("a"), p("b")), f, src)
       let tr = node.state.update({})
@@ -109,11 +109,20 @@ describe("ViewNode", () => {
       })
       let src = new WidgetSource<string>({
         set: s => s.field(f),
-        widget: n => inlineWidget.of(n)
+        widget: inlineWidget
       })
       let node = render(doc(p("a")), f, src)
       let tr = node.state.update({})
       ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><span>y</span>a</p>")
+    })
+
+    it("orders widgets by side", () => {
+      let src = (l: string, s: number) => new WidgetSource<string>({
+        set: () => PointSet.create([2], [l], s),
+        widget: inlineWidget
+      })
+      ist(render(doc(p("xy")), src("a", 1), src("b", -2), src("c", -1)).dom.innerHTML,
+          "<p>x<span>b</span><span>c</span><span>a</span>y</p>")
     })
   })
 })

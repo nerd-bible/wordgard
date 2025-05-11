@@ -1,7 +1,7 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
 import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
         AttributeRepresentation, ElementRepresentation} from "@wordgard/doc"
-import {Elt, Widget, TextWidget, pushAttribute, E, EltFlag, mergeAttributes, Shape} from "./shape"
+import {Elt, Widget, WidgetType, TextWidget, pushAttribute, E, EltFlag, mergeAttributes, Shape} from "./shape"
 
 // FIXME support some kind of dependency tracking on decoration
 // sources
@@ -134,9 +134,12 @@ export class WidgetSource<T> {
 
   constructor(config: {
     set: (state: EditorState) => PointSet<T>,
-  } & (T extends Widget<any> ? {} : {widget: (value: T) => Widget<any>})) {
+  } & (T extends Widget<any> ? {} : {
+    widget: WidgetType<T> | ((value: T) => Widget<any>)
+  })) {
     this.set = config.set
-    this.widget = (config as any).widget || (w => w)
+    let widget = (config as any).widget || ((w: any) => w)
+    this.widget = widget instanceof WidgetType ? v => widget.of(v) : widget
     this.extension = widgets.of(this)
   }
 }
