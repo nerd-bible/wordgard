@@ -69,7 +69,16 @@ describe("ViewNode", () => {
     ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><img alt=\"a1\" src=\"test.png\"> <img src=\"test.png\"></p>")
   })
 
-  // FIXME test reconnecting of spanning props on edits
+  it("can draw spanning props", () => {
+    ist(render(doc(p(strong("a", $img(), "b"), "c"))).dom.innerHTML,
+        "<p><strong>a<img src=\"test.png\">b</strong>c</p>")
+  })
+
+  it("can join spanning props in updates", () => {
+    let node = render(doc(p(strong("a"), "b", strong("c"))))
+    let tr = node.state.update({changes: {from: 2, to: 3}})
+    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><strong>ac</strong></p>")
+  })
 
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {

@@ -40,6 +40,12 @@ export abstract class ViewNode {
   get isDoc() { return false }
   get isSpanning() { return false }
 
+  get depth() {
+    let depth = 0
+    for (let n: ViewNode | null = this; n; n = n.parent) if (n.isNodeOuter) depth++
+    return depth
+  }
+
   posBeforeChild(child: ViewNode): number {
     for (let i = 0, pos = this.posAtStart;; i++) {
       let cur = this.children[i]
@@ -342,7 +348,7 @@ interface ContentWalker {
 // Used to track the previous tree during an update. Stays inside of
 // spanning nodes. (FIXME what does that mean, precisely?)
 class ViewTreePointer {
-  constructor(readonly node: ViewNode, public index: number, readonly parent: ViewTreePointer | null) {}
+  constructor(readonly node: ViewNode, readonly index: number, readonly parent: ViewTreePointer | null) {}
 
   walk(dist: number, side: -1 | 1, walker?: ContentWalker) {
     let {node, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
@@ -395,6 +401,15 @@ class ViewTreePointer {
   }
 }
 
+function syncParents(node: ViewNode, nodeDepth: number, targetDepth: number, walker: ContentWalker) {
+  if (node.isNodeOuter || node.isDoc) {
+    if (nodeDepth <= targetDepth) return
+    nodeDepth--
+  }
+  syncParents(node.parent!, nodeDepth, targetDepth, walker)
+  if (node instanceof EltViewNode) walker.enter(node)
+}
+
 class ContentUpdate {
   old: ViewTreePointer
   new: CompositeViewNode
@@ -408,7 +423,7 @@ class ContentUpdate {
 
   keep(len: number, last: boolean) {
     let cur = this.new
-    this.old = this.old.walk(len, last ? 1 : -1, {
+    let walker: ContentWalker = {
       enter(node) {
         if (node.isSpanning && cur.lastChild?.isSpanning && node.elt.eq((cur.lastChild as EltViewNode).elt)) {
           cur = cur.lastChild as EltViewNode
@@ -426,7 +441,9 @@ class ContentUpdate {
         if (node instanceof TextViewNode) cur.addText(node.text)
         else cur.addChild(node)
       }
-    })
+    }
+    syncParents(this.old.node, this.old.node.depth, cur.depth, walker)
+    this.old = this.old.walk(len, last ? 1 : -1, walker)
     this.new = cur
     this.posB += len
   }
