@@ -157,7 +157,7 @@ export class DocViewNode extends CompositeViewNode {
     for (let i = 0; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
       if (ins == -1) {
-        builder.keep(len)
+        builder.keep(len, i == sections.length)
       } else {
         // FIXME handle in-place updates differently to reuse elements
         builder.replace(len, ins < 0 ? len : ins)
@@ -398,17 +398,17 @@ class ViewTreePointer {
 class ContentUpdate {
   old: ViewTreePointer
   new: CompositeViewNode
-  pos = 0
+  // Current position in the new document
+  posB = 0
 
   constructor(readonly state: EditorState, old: DocViewNode, readonly deco: DecoIterator) {
     this.old = new ViewTreePointer(old, 0, null)
     this.new = new DocViewNode(state, old.dom as HTMLElement)
   }
 
-  keep(len: number) {
-    this.pos += len
+  keep(len: number, last: boolean) {
     let cur = this.new
-    this.old = this.old.walk(len, -1, {
+    this.old = this.old.walk(len, last ? 1 : -1, {
       enter(node) {
         if (node.isSpanning && cur.lastChild?.isSpanning && node.elt.eq((cur.lastChild as EltViewNode).elt)) {
           cur = cur.lastChild as EltViewNode
@@ -428,11 +428,11 @@ class ContentUpdate {
       }
     })
     this.new = cur
+    this.posB += len
   }
 
   replace(len: number, ins: number) {
-    this.old = this.old.walk(len, 1)
-    this.deco.walk(this.pos, this.pos + ins, {
+    this.deco.walk(this.posB, this.posB + ins, {
       enter: (tag, elt, wrappers) => {
         for (let wrap of wrappers) this.openWrapper(wrap)
         let node = EltViewNode.of(elt, tag, 0)
@@ -454,7 +454,8 @@ class ContentUpdate {
         this.new.addChild(buildFromShape(widget, null))
       }
     })
-    this.pos += ins
+    this.old = this.old.walk(len, 1)
+    this.posB += ins
   }
 
   up() {
