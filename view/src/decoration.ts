@@ -99,7 +99,7 @@ export enum DecorationScope {
 //  StartDepth FIXME add support
 }
 
-export class RangeDecorationSource<T extends RangeValue> {
+export class RangeDecorationSource<T> {
   tag: (tag: Tag) => boolean
   scope: DecorationScope
   set: (state: EditorState) => RangeSet<T>
@@ -321,18 +321,12 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
-// FIXME find a better way to associate these? This is annoying if
-// you're trying to put non-deco values into this
-export interface RangeValue {
-  inclusiveStart: boolean
-  inclusiveEnd: boolean
-}
-
-export class RangeSet<Value extends RangeValue> {
+export class RangeSet<Value> {
   private constructor(
     readonly from: readonly number[],
     readonly to: readonly number[],
-    readonly values: readonly Value[]
+    readonly values: readonly Value[],
+    readonly inclusive: (value: Value, side: -1 | 1) => boolean
   ) {}
 
   get length() { return this.from.length }
@@ -354,16 +348,16 @@ export class RangeSet<Value extends RangeValue> {
       let nextI = findAbove(to, i, toA + 1)
       for (; i < nextI; i++) {
         let value = this.values[i]
-        let mappedFrom = changes.mapPos(from[i], value.inclusiveStart ? -1 : 1)
-        let mappedTo = changes.mapPos(to[i], value.inclusiveEnd ? 1 : -1)
+        let mappedFrom = changes.mapPos(from[i], this.inclusive(value, -1) ? -1 : 1)
+        let mappedTo = changes.mapPos(to[i], this.inclusive(value, 1) ? 1 : -1)
         if (mappedFrom >= mappedTo) { addDel(deleted, i); deletions++ }
         else { from[i] = mappedFrom; to[i] = mappedTo }
       }
       pos = toA + 1
     })
-    if (!deletions) return new RangeSet<Value>(from, to, this.values)
+    if (!deletions) return new RangeSet<Value>(from, to, this.values, this.inclusive)
     return new RangeSet<Value>(applyDel(deleted, deletions, from), applyDel(deleted, deletions, to),
-                               applyDel(deleted, deletions, this.values))
+                               applyDel(deleted, deletions, this.values), this.inclusive)
   }
 
   iter(): RangeIterator<Value, undefined>
@@ -400,18 +394,19 @@ export class RangeSet<Value extends RangeValue> {
     return ranges
   }
 
-  static create<Value extends RangeValue>(
+  static create<Value>(
     from: readonly number[], to: readonly number[], values: readonly Value[],
+    inclusive: boolean | ((value: Value, side: -1 | 1) => boolean) = false
   ) {
-    return new RangeSet(from, to, values)
+    return new RangeSet(from, to, values, typeof inclusive == "function" ? inclusive : () => inclusive)
   }
 
-  static builder<Value extends RangeValue>() { return new RangeBuilder<Value>() }
+  static builder<Value>() { return new RangeBuilder<Value>() }
 
-  static empty = new RangeSet<any>([], [], [])
+  static empty = RangeSet.create<any>([], [], [])
 }
 
-export class RangeBuilder<Value extends RangeValue> {
+export class RangeBuilder<Value> {
   from: number[] = []
   to: number[] = []
   values: Value[] = []
@@ -431,7 +426,7 @@ export class RangeBuilder<Value extends RangeValue> {
   }
 }
 
-export class RangeIterator<Value extends RangeValue, Source> {
+export class RangeIterator<Value, Source> {
   declare value: Value | null // FIXME handle null being part of value
   declare from: number
   declare to: number
@@ -569,7 +564,7 @@ export interface DecoWalker {
   widget(widget: Shape, side: number): void
 }
 
-class HeapIterator<R extends RangeValue, RS, P, PS> {
+class HeapIterator<R, RS, P, PS> {
   active: RangeIterator<R, RS>[] = []
   from: number
   to: number
@@ -596,9 +591,9 @@ class HeapIterator<R extends RangeValue, RS, P, PS> {
     let {rangeHeap, pointHeap, active} = this
     while (true) {
       let [startPos, startSide] = rangeHeap.length
-        ? [rangeHeap[0].from, rangeHeap[0].value!.inclusiveStart ? -1 : 1]
+        ? [rangeHeap[0].from, rangeHeap[0].set.inclusive(rangeHeap[0].value!, -1) ? -1 : 1]
         : [1e9, 0]
-      let [endPos, endSide] = active.length ? [active[0].to, active[0].value!.inclusiveEnd ? 1 : -1] : [1e9, 0]
+      let [endPos, endSide] = active.length ? [active[0].to, active[0].set.inclusive(active[0].value!, 1) ? 1 : -1] : [1e9, 0]
       let {pos: pointPos, side: pointSide} = pointHeap.length ? pointHeap[0] : {pos: 1e9, side: 1}
       let nextPos = Math.min(startPos, endPos, pointPos)
       if (this.to == this.end && nextPos > this.to) {

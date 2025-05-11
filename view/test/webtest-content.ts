@@ -1,7 +1,7 @@
-import {EditorView, TagWidgetSource, Widget, PointSet, WidgetSource} from "@wordgard/view"
+import {EditorView, TagWidgetSource, TagDecorationSource, Widget, PointSet, WidgetSource, RangeSet, RangeDecorationSource, E } from "@wordgard/view"
 import {EditorState, Extension, StateField} from "@wordgard/state"
 import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
-        Emphasis, Strong, ImageAlt, Paragraph} from "@wordgard/doc"
+        Emphasis, Strong, ImageAlt, Paragraph, Image} from "@wordgard/doc"
 import ist from "ist"
 
 const {DocViewNode} = EditorView
@@ -69,6 +69,8 @@ describe("ViewNode", () => {
     ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><img alt=\"a1\" src=\"test.png\"> <img src=\"test.png\"></p>")
   })
 
+  // FIXME test reconnecting of spanning props on edits
+
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {
       let src = (side: string) => new TagWidgetSource({
@@ -123,6 +125,30 @@ describe("ViewNode", () => {
       })
       ist(render(doc(p("xy")), src("a", 1), src("b", -2), src("c", -1)).dom.innerHTML,
           "<p>x<span>b</span><span>c</span><span>a</span>y</p>")
+    })
+
+    it("can decorate tags", () => {
+      ist(render(doc(p("a", $img())), new TagDecorationSource({
+        tag: Paragraph,
+        deco: E("div", {class: "pwrap"})
+      }), new TagDecorationSource({
+        tag: Image,
+        deco: E("image")
+      })).dom.innerHTML, "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
+    })
+
+    it("can make tag decorations spanning", () => {
+      ist(render(doc(p($img(), $img())), new TagDecorationSource({
+        tag: Image,
+        deco: E.span("image")
+      })).dom.innerHTML, "<p><image><img src=\"test.png\"><img src=\"test.png\"></image></p>")
+    })
+
+    it("can take decorations from spans", () => {
+      ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
+        set: () => RangeSet.create([2], [5], ["a"]),
+        deco: v => E.span("span", {class: v})
+      })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
   })
 })
