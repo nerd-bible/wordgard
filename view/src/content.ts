@@ -1,6 +1,6 @@
 import {Node as WGNode, Tag, ChangeDesc} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
-import {Shape} from "./shape"
+import {Shape, TextWidget} from "./shape"
 import {DecoIterator, findChangedRanges} from "./decoration"
 import {Elt, Widget} from "./shape"
 
@@ -164,9 +164,10 @@ export class DocViewNode extends CompositeViewNode {
       let len = sections[i++], ins = sections[i++]
       if (ins == -1) {
         builder.keep(len, i == sections.length)
+      } else if (ins == -2) {
+        builder.update(len)
       } else {
-        // FIXME handle in-place updates differently to reuse elements
-        builder.replace(len, ins < 0 ? len : ins)
+        builder.replace(len, ins)
       }
     }
     return builder.finish()
@@ -284,7 +285,7 @@ export class EltViewNode extends CompositeViewNode {
 }
 
 export class WidgetViewNode extends ViewNode {
-  constructor(widget: Widget<any>, readonly node: WGNode | null, length: number = 0) {
+  constructor(readonly widget: Widget<any>, readonly node: WGNode | null, length: number = 0) {
     super(widget.type.render(widget.value), 0)
     this.length = length
   }
@@ -399,6 +400,43 @@ class ViewTreePointer {
     }
     return new ViewTreePointer(node, index, parent)
   }
+
+  findMatch(shape: Shape, isNode: boolean) {
+    let {node, index, parent} = this
+    for (;;) {
+      if (node.isText) {
+        if (index < node.length) {
+          if (isNode && index == 0 && shape instanceof Widget && shape.type == TextWidget &&
+              shape.value == (node as TextViewNode).text)
+            return node
+          break
+        }
+        ;({node, index, parent} = parent!)
+        index++
+      } else if (index == node.children.length) {
+        if (node.isNodeOuter) break
+        ;({node, index, parent} = parent!)
+        index++
+      } else {
+        let next = node.children[index]
+        if (next.isNode && !isNode) break
+        if (next instanceof EltViewNode) {
+          let match = shape instanceof Elt && next.elt.eq(shape)
+          if (!match && next.isNode) break
+          if (match) return next
+          parent = node == this.node && index == this.index ? this : new ViewTreePointer(node, index, parent)
+          node = next
+          index = 0
+        } else {
+          let match = next instanceof WidgetViewNode && next.widget.eq(shape)
+          if (match) return next
+          if (next.isNode) break
+          index++
+        }
+      }
+    }
+    return null
+  }
 }
 
 function syncParents(node: ViewNode, nodeDepth: number, targetDepth: number, walker: ContentWalker) {
@@ -419,6 +457,7 @@ class ContentUpdate {
   constructor(readonly state: EditorState, old: DocViewNode, readonly deco: DecoIterator) {
     this.old = new ViewTreePointer(old, 0, null)
     this.new = new DocViewNode(state, old.dom as HTMLElement)
+    // FIXME pre-allocate walkers?
   }
 
   keep(len: number, last: boolean) {
@@ -449,34 +488,46 @@ class ContentUpdate {
   }
 
   replace(len: number, ins: number) {
-    this.deco.walk(this.posB, this.posB + ins, {
+    this.build(ins, null)
+    this.old = this.old.walk(len, 1)
+  }
+
+  update(len: number) { // FIXME need a last flag?
+    this.build(len, new Set)
+    this.old = this.old.walk(0, 1)
+  }
+
+  build(len: number, reuse: Set<ViewNode> | null) {
+    this.deco.walk(this.posB, this.posB + len, {
       enter: (tag, elt, wrappers) => {
-        for (let wrap of wrappers) this.openWrapper(wrap)
+        for (let wrap of wrappers) this.openWrapper(wrap, reuse)
         let node = EltViewNode.of(elt, tag, 0)
         for (let ch of elt.children) node.addChild(buildFromShape(ch, null))
         this.new.addChild(node)
         this.new = node.contentNode!
         if (!this.new) throw new Error("Non-atom node rendered without hole")
+        if (reuse) this.old = this.old.walk(1, -1)
       },
       leave: () => {
         this.leaveNode()
+        if (reuse) this.old = this.old.walk(1, -1)
       },
       node: (node, shape, wrappers) => {
-        for (let wrap of wrappers) this.openWrapper(wrap)
+        for (let wrap of wrappers) this.openWrapper(wrap, reuse)
         if (node.isText()) this.new.addText(node.text!)
         else this.new.addChild(buildFromShape(shape, node))
         for (let _ of wrappers) this.up()
+        if (reuse) this.old = this.old.walk(node.length, -1)
       },
       widget: (widget, side) => { // FIXME store side
         this.new.addChild(buildFromShape(widget, null))
       }
     })
-    this.old = this.old.walk(len, 1)
-    this.posB += ins
+    this.posB += len
   }
 
   up() {
-    // FIXME this will run multiple time for spanning nodes
+    // FIXME this will run multiple times for spanning nodes
     syncChildren(this.new)
     this.new = this.new.parent!
   }
@@ -489,13 +540,23 @@ class ContentUpdate {
     }
   }
 
-  openWrapper(elt: Elt) {
+  openWrapper(elt: Elt, reuse: Set<ViewNode> | null) {
     if (elt.spanning && this.new.lastChild?.isSpanning && elt.eq((this.new.lastChild as EltViewNode).elt)) {
       this.new = this.new.lastChild as EltViewNode
     } else {
-      let inner = EltViewNode.of(elt, null, 0)
+      let inner = this.getEltNode(elt, null, reuse)
       this.new.addChild(inner)
       this.new = inner
+    }
+  }
+
+  getEltNode(elt: Elt, tag: Tag | null, reuse: Set<ViewNode> | null) {
+    let found = reuse && this.old.findMatch(elt, !!tag)
+    if (found && !reuse!.has(found)) {
+      reuse!.add(found)
+      return new EltViewNode(elt, tag, 0, (found as EltViewNode).dom)
+    } else {
+      return EltViewNode.of(elt, tag, 0)
     }
   }
 
