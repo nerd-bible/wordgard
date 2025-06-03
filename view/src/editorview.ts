@@ -2,7 +2,7 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
         EditorSelection, StateEffect, Facet, EditorStateSpec} from "@wordgard/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
-import {DocViewNode} from "./content"
+import {DocTile} from "./content"
 import {posAtCoords, coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
@@ -107,7 +107,7 @@ export class EditorView {
   /// @internal
   viewState: ViewState
   /// @internal
-  docElt: DocViewNode
+  docElt: DocTile
 
   /// @internal
   plugins: PluginInstance[] = []
@@ -158,7 +158,7 @@ export class EditorView {
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.docElt = DocViewNode.create(this.state, this.contentDOM)
+    this.docElt = DocTile.create(this.state, this.contentDOM)
 
     this.updateAttrs()
 
@@ -441,7 +441,7 @@ export class EditorView {
   /// given document position.
   domAtPos(pos: number, assoc: -1 | 1 = -1): {node: DOMNode, offset: number} {
     let viewPos = this.docElt.resolve(pos, assoc)
-    return {node: viewPos.node.dom, offset: viewPos.offset}
+    return {node: viewPos.tile.dom, offset: viewPos.offset}
   }
 
   /// Find the document position at the given DOM node. Can be useful
@@ -693,7 +693,7 @@ export class EditorView {
   static announce = StateEffect.define<string>()
 
   /// @internal for testing
-  static DocViewNode = DocViewNode
+  static DocViewNode = DocTile
 }
 
 let _wrapElement: {new (view: EditorView): HTMLElement} | null = null

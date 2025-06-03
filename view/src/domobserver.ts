@@ -4,7 +4,7 @@ import {EditorView} from "./editorview"
 import {editable, ViewUpdate} from "./extension"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
         isEquivalentPosition, atElementStart} from "./dom"
-import {ViewNode} from "./content"
+import {Tile} from "./content"
 import {setDOMSelection, readDOMSelection} from "./selection"
 
 const observeOptions = {
@@ -242,7 +242,7 @@ export class DOMObserver {
   }
 }
 
-function findChild(elt: ViewNode, dom: Node | null, dir: number): ViewNode | null {
+function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
   while (dom) {
     let cur = dom.wsElt
     if (cur && cur.parent == elt) return cur

@@ -5,27 +5,31 @@ import {DecoIterator, findChangedRanges} from "./decoration"
 import {Elt, Widget} from "./shape"
 
 declare global {
-  interface Node { wsElt?: ViewNode }
+  interface Node { wsElt?: Tile }
 }
 
 // FIXME does having these still make sense?
-export const enum ViewNodeFlag {
+export const enum TileFlag {
   NodeInner = 1,
 }
 
 export class ContentPos {
   constructor(
-    readonly node: ViewNode,
+    readonly tile: Tile,
     readonly offset: number,
     readonly pos: number
   ) {}
 
-  get dom() { return this.node.dom }
+  get dom() { return this.tile.dom }
 }
 
-export abstract class ViewNode {
-  parent: CompositeViewNode | null = null
-  abstract children: ViewNode[]
+// Nodes in the view tree are called tiles. We're already using "node"
+// for too many things. I know tiles don't generally nest recursively,
+// but these do.
+
+export abstract class Tile {
+  parent: CompositeTile | null = null
+  abstract children: Tile[]
   length = 0
 
   constructor(readonly dom: Node, readonly flags: number) {
@@ -34,19 +38,19 @@ export abstract class ViewNode {
 
   get isAtom() { return false }
   get isNodeOuter() { return false }
-  get isNodeInner() { return (this.flags & ViewNodeFlag.NodeInner) > 0 }
-  get isNode() { return this.isNodeOuter || (this.flags & ViewNodeFlag.NodeInner) > 0 }
+  get isNodeInner() { return (this.flags & TileFlag.NodeInner) > 0 }
+  get isNode() { return this.isNodeOuter || (this.flags & TileFlag.NodeInner) > 0 }
   get isText() { return false }
   get isDoc() { return false }
   get isSpanning() { return false }
 
   get depth() {
     let depth = 0
-    for (let n: ViewNode | null = this; n; n = n.parent) if (n.isNodeOuter) depth++
+    for (let n: Tile | null = this; n; n = n.parent) if (n.isNodeOuter) depth++
     return depth
   }
 
-  posBeforeChild(child: ViewNode): number {
+  posBeforeChild(child: Tile): number {
     for (let i = 0, pos = this.posAtStart;; i++) {
       let cur = this.children[i]
       if (cur == child) return pos
@@ -72,11 +76,11 @@ export abstract class ViewNode {
 
   get boundary(): 0 | 1 { return 0 }
 
-  get firstChild(): ViewNode | null {
+  get firstChild(): Tile | null {
     return this.children.length ? this.children[0] : null
   }
 
-  get lastChild(): ViewNode | null {
+  get lastChild(): Tile | null {
     let last = this.children.length - 1
     return last < 0 ? null : this.children[last]
   }
@@ -86,14 +90,14 @@ export abstract class ViewNode {
     // If the DOM position is in the content, use the child desc after
     // it to figure out a position.
     if (this.dom.contains(dom)) {
-      let domBefore, elt: ViewNode | undefined
+      let domBefore, elt: Tile | undefined
       if (dom == this.dom) {
         domBefore = dom.childNodes[offset - 1]
       } else {
         while (dom.parentNode != this.dom) dom = dom.parentNode!
         domBefore = dom.previousSibling
       }
-      while (domBefore && !((elt = domBefore.wsElt) && elt.parent == this as ViewNode))
+      while (domBefore && !((elt = domBefore.wsElt) && elt.parent == this as Tile))
         domBefore = domBefore.previousSibling
       return domBefore ? this.posBeforeChild(elt!) + elt!.length : this.posAtStart
     }
@@ -124,22 +128,22 @@ export abstract class ViewNode {
   toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
 }
 
-export class CompositeViewNode extends ViewNode {
-  children: ViewNode[] = []
+export class CompositeTile extends Tile {
+  children: Tile[] = []
 
-  addChild(child: ViewNode) {
+  addChild(child: Tile) {
     this.children.push(child)
     child.parent = this
     this.length += child.length
   }
 
   addText(text: string) {
-    if (this.lastChild instanceof TextViewNode) this.lastChild.addText(text)
-    else this.addChild(TextViewNode.of(text))
+    if (this.lastChild instanceof TextTile) this.lastChild.addText(text)
+    else this.addChild(TextTile.of(text))
   }
 }
 
-export class DocViewNode extends CompositeViewNode {
+export class DocTile extends CompositeTile {
   declare dom: HTMLElement
 
   constructor(public state: EditorState, dom: HTMLElement) {
@@ -147,7 +151,7 @@ export class DocViewNode extends CompositeViewNode {
   }
 
   static create(state: EditorState, dom: HTMLElement) {
-    return new DocViewNode(state, dom).updateRanges(state, [0, state.doc.length])
+    return new DocTile(state, dom).updateRanges(state, [0, state.doc.length])
   }
 
   get isDoc() { return true }
@@ -181,7 +185,7 @@ export class DocViewNode extends CompositeViewNode {
     return null
   }
 
-  owns(elt: ViewNode) {
+  owns(elt: Tile) {
     for (;;) {
       let {parent} = elt
       if (parent == this) return true
@@ -192,7 +196,7 @@ export class DocViewNode extends CompositeViewNode {
 
   // FIXME document or change weird assoc descent behavior
   resolve(pos: number, assoc: -1 | 0 | 1) {
-    let parent: ViewNode = this, index = 0, off = 0
+    let parent: Tile = this, index = 0, off = 0
     for (;;) {
       if (off == pos) {
         let before = index ? parent.children[index - 1] : null
@@ -201,16 +205,16 @@ export class DocViewNode extends CompositeViewNode {
         if (after?.boundary) after = null
         if (assoc == 0 || !before && !after) return new ContentPos(parent, index, pos)
         if (!after || before && assoc < 0) {
-          if (before instanceof TextViewNode) return new ContentPos(before, before.length, pos)
+          if (before instanceof TextTile) return new ContentPos(before, before.length, pos)
           parent = before!; index = before!.children.length
         } else {
-          if (after instanceof TextViewNode) return new ContentPos(after, 0, pos)
+          if (after instanceof TextTile) return new ContentPos(after, 0, pos)
           parent = after; index = 0
         }
       } else {
         let next = parent.children[index]
         if (off + next.length > pos) {
-          if (next instanceof TextViewNode) return new ContentPos(next, pos - off, pos)
+          if (next instanceof TextTile) return new ContentPos(next, pos - off, pos)
           parent = next
           index = 0
           off += next.boundary
@@ -240,13 +244,13 @@ export class DocViewNode extends CompositeViewNode {
   }
 }
 
-function syncChildren(node: CompositeViewNode) {
-  let prev: Node | null = null, next: Node | null = node.dom.firstChild
-  for (let child of node.children) {
-    if (child.dom.parentNode == node.dom) {
+function syncChildren(tile: CompositeTile) {
+  let prev: Node | null = null, next: Node | null = tile.dom.firstChild
+  for (let child of tile.children) {
+    if (child.dom.parentNode == tile.dom) {
       while (next && next != child.dom) next = rm(next)
     } else {
-      node.dom.insertBefore(child.dom, next)
+      tile.dom.insertBefore(child.dom, next)
     }
     prev = child.dom
     next = prev.nextSibling
@@ -254,9 +258,9 @@ function syncChildren(node: CompositeViewNode) {
   while (next) next = rm(next)
 }
 
-export class EltViewNode extends CompositeViewNode {
+export class EltTile extends CompositeTile {
   declare dom: HTMLElement
-  declare parent: CompositeViewNode
+  declare parent: CompositeTile
 
   constructor(readonly elt: Elt, readonly tag: Tag | null, flags: number, dom: HTMLElement) {
     super(dom, flags)
@@ -272,19 +276,19 @@ export class EltViewNode extends CompositeViewNode {
 
   get boundary() { return this.tag && !this.tag.isAtom() ? 1 : 0 }
 
-  get contentNode(): EltViewNode | null {
-    for (let ch of this.children) if (ch.isNodeInner && (ch as EltViewNode).elt.hasHole) return (ch as EltViewNode).contentNode
+  get contentNode(): EltTile | null {
+    for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasHole) return (ch as EltTile).contentNode
     return this.elt.hasHole ? this : null
   }
 
   static of(elt: Elt, tag: Tag | null, flags: number) {
     let dom = document.createElement(elt.tagName)
     for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
-    return new EltViewNode(elt, tag, flags, dom)
+    return new EltTile(elt, tag, flags, dom)
   }
 }
 
-export class WidgetViewNode extends ViewNode {
+export class WidgetTile extends Tile {
   constructor(readonly widget: Widget<any>, readonly node: WGNode | null, length: number = 0) {
     super(widget.type.render(widget.value), 0)
     this.length = length
@@ -297,7 +301,7 @@ export class WidgetViewNode extends ViewNode {
   get children() { return noChildren }
 }
 
-export class TextViewNode extends ViewNode {
+export class TextTile extends Tile {
   constructor(public text: string, dom: Text) {
     super(dom, 0)
     this.length = text.length
@@ -318,21 +322,21 @@ export class TextViewNode extends ViewNode {
   toString() { return JSON.stringify(this.text) }
 
   static of(text: string) {
-    return new TextViewNode(text, document.createTextNode(text))
+    return new TextTile(text, document.createTextNode(text))
   }
 }
 
 function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   if (shape instanceof Elt) {
-    let outer = EltViewNode.of(shape, node && node.tag, nodeInner ? ViewNodeFlag.NodeInner : 0)
+    let outer = EltTile.of(shape, node && node.tag, nodeInner ? TileFlag.NodeInner : 0)
     for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
     return outer
   } else {
-    return new WidgetViewNode(shape, node, node ? node.length : 0)
+    return new WidgetTile(shape, node, node ? node.length : 0)
   }
 }
 
-const noChildren: ViewNode[] = []
+const noChildren: Tile[] = []
 
 function rm(dom: Node): Node | null {
   let next = dom.nextSibling
@@ -341,43 +345,42 @@ function rm(dom: Node): Node | null {
 }
 
 interface ContentWalker {
-  enter(node: EltViewNode): void
-  skip(node: ViewNode, parent: ViewNode | null): void
-  leave(node: EltViewNode): void
+  enter(tile: EltTile): void
+  skip(tile: Tile, parent: Tile | null): void
+  leave(tile: EltTile): void
 }
 
-// Used to track the previous tree during an update. Stays inside of
-// spanning nodes. (FIXME what does that mean, precisely?)
+// Used to track the previous tree during an update.
 class ViewTreePointer {
-  constructor(readonly node: ViewNode, readonly index: number, readonly parent: ViewTreePointer | null) {}
+  constructor(readonly tile: Tile, readonly index: number, readonly parent: ViewTreePointer | null) {}
 
   walk(dist: number, side: -1 | 1, walker?: ContentWalker) {
-    let {node, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
+    let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
     for (;;) {
-      if (node.isText) {
+      if (tile.isText) {
         if (!dist) break
-        let left = node.length - index
+        let left = tile.length - index
         if (dist >= left) {
           dist -= left
           if (left && walker)
-            walker.skip(index ? TextViewNode.of((node as TextViewNode).text.slice(index)) : node, node.parent)
-          ;({node, index, parent} = parent!)
+            walker.skip(index ? TextTile.of((tile as TextTile).text.slice(index)) : tile, tile.parent)
+          ;({tile, index, parent} = parent!)
           index++
         } else {
           if (walker)
-            walker.skip(TextViewNode.of((node as TextViewNode).text.slice(index, index + dist)), node.parent)
+            walker.skip(TextTile.of((tile as TextTile).text.slice(index, index + dist)), tile.parent)
           index += dist
           dist = 0
         }
-      } else if (index == node.children.length) {
-        if (!dist && (node.isDoc || nodeBoundary != 2 && node.isNode || side < 0 && node.isSpanning)) break
-        if (walker) walker.leave(node as EltViewNode)
-        nodeBoundary = node.isNodeInner ? 2 : 0
-        dist -= node.boundary
-        ;({node, index, parent} = parent!)
+      } else if (index == tile.children.length) {
+        if (!dist && (tile.isDoc || nodeBoundary != 2 && tile.isNode || side < 0 && tile.isSpanning)) break
+        if (walker) walker.leave(tile as EltTile)
+        nodeBoundary = tile.isNodeInner ? 2 : 0
+        dist -= tile.boundary
+        ;({tile, index, parent} = parent!)
         index++
       } else {
-        let next = node.children[index]
+        let next = tile.children[index]
         if (next.length <= dist) {
           if (!dist && !next.length && // Non-node widget
               (next.isNodeInner ? nodeBoundary : side < 0))
@@ -389,46 +392,46 @@ class ViewTreePointer {
         } else {
           if (next.isNode && !next.isText && (!dist || next.isAtom)) break
           if (!dist && next.isSpanning && side < 0) break
-          if (walker && !next.isText) walker.enter(next as EltViewNode)
+          if (walker && !next.isText) walker.enter(next as EltTile)
           dist -= next.boundary
-          parent = new ViewTreePointer(node, index, parent)
-          node = next
+          parent = new ViewTreePointer(tile, index, parent)
+          tile = next
           index = 0
           nodeBoundary = next.isNode ? 1 : 0
         }
       }
     }
-    return new ViewTreePointer(node, index, parent)
+    return new ViewTreePointer(tile, index, parent)
   }
 
   findMatch(shape: Shape, isNode: boolean) {
-    let {node, index, parent} = this
+    let {tile, index, parent} = this
     for (;;) {
-      if (node.isText) {
-        if (index < node.length) {
+      if (tile.isText) {
+        if (index < tile.length) {
           if (isNode && index == 0 && shape instanceof Widget && shape.type == TextWidget &&
-              shape.value == (node as TextViewNode).text)
-            return node
+              shape.value == (tile as TextTile).text)
+            return tile
           break
         }
-        ;({node, index, parent} = parent!)
+        ;({tile, index, parent} = parent!)
         index++
-      } else if (index == node.children.length) {
-        if (node.isNodeOuter) break
-        ;({node, index, parent} = parent!)
+      } else if (index == tile.children.length) {
+        if (tile.isNodeOuter) break
+        ;({tile, index, parent} = parent!)
         index++
       } else {
-        let next = node.children[index]
+        let next = tile.children[index]
         if (next.isNode && !isNode) break
-        if (next instanceof EltViewNode) {
+        if (next instanceof EltTile) {
           let match = shape instanceof Elt && next.elt.eq(shape)
           if (!match && next.isNode) break
           if (match) return next
-          parent = node == this.node && index == this.index ? this : new ViewTreePointer(node, index, parent)
-          node = next
+          parent = tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
+          tile = next
           index = 0
         } else {
-          let match = next instanceof WidgetViewNode && next.widget.eq(shape)
+          let match = next instanceof WidgetTile && next.widget.eq(shape)
           if (match) return next
           if (next.isNode) break
           index++
@@ -439,24 +442,24 @@ class ViewTreePointer {
   }
 }
 
-function syncParents(node: ViewNode, nodeDepth: number, targetDepth: number, walker: ContentWalker) {
-  if (node.isNodeOuter || node.isDoc) {
+function syncParents(tile: Tile, nodeDepth: number, targetDepth: number, walker: ContentWalker) {
+  if (tile.isNodeOuter || tile.isDoc) {
     if (nodeDepth <= targetDepth) return
     nodeDepth--
   }
-  syncParents(node.parent!, nodeDepth, targetDepth, walker)
-  if (node instanceof EltViewNode) walker.enter(node)
+  syncParents(tile.parent!, nodeDepth, targetDepth, walker)
+  if (tile instanceof EltTile) walker.enter(tile)
 }
 
 class ContentUpdate {
   old: ViewTreePointer
-  new: CompositeViewNode
+  new: CompositeTile
   // Current position in the new document
   posB = 0
 
-  constructor(readonly state: EditorState, old: DocViewNode, readonly deco: DecoIterator) {
+  constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator) {
     this.old = new ViewTreePointer(old, 0, null)
-    this.new = new DocViewNode(state, old.dom as HTMLElement)
+    this.new = new DocTile(state, old.dom as HTMLElement)
     // FIXME pre-allocate walkers?
   }
 
@@ -464,24 +467,24 @@ class ContentUpdate {
     let cur = this.new
     let walker: ContentWalker = {
       enter(node) {
-        if (node.isSpanning && cur.lastChild?.isSpanning && node.elt.eq((cur.lastChild as EltViewNode).elt)) {
-          cur = cur.lastChild as EltViewNode
+        if (node.isSpanning && cur.lastChild?.isSpanning && node.elt.eq((cur.lastChild as EltTile).elt)) {
+          cur = cur.lastChild as EltTile
         } else {
-          let inner = new EltViewNode(node.elt, node.tag, node.flags, node.dom)
+          let inner = new EltTile(node.elt, node.tag, node.flags, node.dom)
           cur.addChild(inner)
           cur = inner
         }
       },
       leave(n) {
-        if (cur instanceof EltViewNode) syncChildren(cur)
+        if (cur instanceof EltTile) syncChildren(cur)
         cur = cur.parent!
       },
       skip(node) {
-        if (node instanceof TextViewNode) cur.addText(node.text)
+        if (node instanceof TextTile) cur.addText(node.text)
         else cur.addChild(node)
       }
     }
-    syncParents(this.old.node, this.old.node.depth, cur.depth, walker)
+    syncParents(this.old.tile, this.old.tile.depth, cur.depth, walker)
     this.old = this.old.walk(len, last ? 1 : -1, walker)
     this.new = cur
     this.posB += len
@@ -497,11 +500,11 @@ class ContentUpdate {
     this.old = this.old.walk(0, 1)
   }
 
-  build(len: number, reuse: Set<ViewNode> | null) {
+  build(len: number, reuse: Set<Tile> | null) {
     this.deco.walk(this.posB, this.posB + len, {
       enter: (tag, elt, wrappers) => {
         for (let wrap of wrappers) this.openWrapper(wrap, reuse)
-        let node = EltViewNode.of(elt, tag, 0)
+        let node = EltTile.of(elt, tag, 0)
         for (let ch of elt.children) node.addChild(buildFromShape(ch, null))
         this.new.addChild(node)
         this.new = node.contentNode!
@@ -540,9 +543,9 @@ class ContentUpdate {
     }
   }
 
-  openWrapper(elt: Elt, reuse: Set<ViewNode> | null) {
-    if (elt.spanning && this.new.lastChild?.isSpanning && elt.eq((this.new.lastChild as EltViewNode).elt)) {
-      this.new = this.new.lastChild as EltViewNode
+  openWrapper(elt: Elt, reuse: Set<Tile> | null) {
+    if (elt.spanning && this.new.lastChild?.isSpanning && elt.eq((this.new.lastChild as EltTile).elt)) {
+      this.new = this.new.lastChild as EltTile
     } else {
       let inner = this.getEltNode(elt, null, reuse)
       this.new.addChild(inner)
@@ -550,19 +553,19 @@ class ContentUpdate {
     }
   }
 
-  getEltNode(elt: Elt, tag: Tag | null, reuse: Set<ViewNode> | null) {
+  getEltNode(elt: Elt, tag: Tag | null, reuse: Set<Tile> | null) {
     let found = reuse && this.old.findMatch(elt, !!tag)
     if (found && !reuse!.has(found)) {
       reuse!.add(found)
-      return new EltViewNode(elt, tag, 0, (found as EltViewNode).dom)
+      return new EltTile(elt, tag, 0, (found as EltTile).dom)
     } else {
-      return EltViewNode.of(elt, tag, 0)
+      return EltTile.of(elt, tag, 0)
     }
   }
 
   finish() {
-    while (!(this.new instanceof DocViewNode)) this.up()
+    while (!(this.new instanceof DocTile)) this.up()
     syncChildren(this.new)
-    return this.new as DocViewNode
+    return this.new as DocTile
   }
 }

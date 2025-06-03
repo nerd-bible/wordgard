@@ -1,7 +1,7 @@
 import {Rect, textRange, caretFromPoint, maxOffset, clientRectsFor} from "./dom"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {ViewNode, EltViewNode} from "./content"
+import {Tile, EltTile} from "./content"
 
 // FIXME make this aware of node orientation, review
 function findOffsetInNode(node: HTMLElement, coords: {x: number, y: number}): {node: Node, offset: number} {
@@ -94,7 +94,7 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
     if (cur == view.contentDOM) break
     let cView = view.docElt.nearest(cur, true)
     if (!cView) return null
-    if (cView instanceof EltViewNode && cView.tag && (cView.tag.isBlock() && cView.parent || cView.isAtom)) {
+    if (cView instanceof EltTile && cView.tag && (cView.tag.isBlock() && cView.parent || cView.isAtom)) {
       let rect = (cView.dom as HTMLElement).getBoundingClientRect()
       if (cView.tag.isBlock() && cView.parent) {
         // Only apply the horizontal test to the innermost block. Vertical for any parent.
@@ -228,7 +228,7 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
   }
 
   // FIXME find block/inline status from cView?
-  let cx = view.state.doc.resolve(cView.node.posAtStart)
+  let cx = view.state.doc.resolve(cView.tile.posAtStart)
   // Return a horizontal line in block context
   if (!cx.parent.node.inlineContent()) {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
@@ -275,10 +275,10 @@ function flattenH(rect: DOMRect, top: boolean) {
 }
 
 export function findVerticalInTextblock(
-  elt: ViewNode, forward: boolean, x: number, y: number
+  elt: Tile, forward: boolean, x: number, y: number
 ): {pos: number, assoc: number} | null {
-  let closest: Rect | null = null, closestX = -1, closestElt = null as ViewNode | null
-  let scan = (elt: ViewNode) => {
+  let closest: Rect | null = null, closestX = -1, closestElt = null as Tile | null
+  let scan = (elt: Tile) => {
     if (elt.isNode && elt.isAtom) {
       let rects = clientRectsFor(elt.dom)
       for (let i = 0; i < rects.length; i++) {
