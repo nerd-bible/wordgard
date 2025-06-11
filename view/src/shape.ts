@@ -21,9 +21,12 @@ export class Elt {
     return elt.tagName == this.tagName && sameAttributes(this.attrs, elt.attrs)
   }
 
+  eqChildren(elt: Elt) {
+    return eqArray(this.children, elt.children) 
+  }
+
   eq(shape: Shape) {
-    return shape instanceof Elt && this.eqTag(shape) && eqArray(this.children, shape.children) &&
-      this.spanning == shape.spanning
+    return shape instanceof Elt && this.eqTag(shape) && this.eqChildren(shape) && this.spanning == shape.spanning
   }
 }
 
@@ -136,6 +139,23 @@ export function sameAttributes(a: Attributes, b: Attributes) {
   if (a.length != b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] != b[i]) return false
   return true
+}
+
+export function compareAttributes(a: Attributes, b: Attributes) {
+  for (let iA = 0, iB = 0, score = 0;;) {
+    if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
+      if (a[iA + 1] != b[iB + 1]) score--
+      iA += 2; iB += 2
+    } else if (iA < a.length && (iB == b.length || a[iA] < b[iB])) {
+      score--
+      iA += 2
+    } else if (iB < b.length && iA < a.length) {
+      score--
+      iB += 2
+    } else {
+      return score
+    }
+  }
 }
 
 // Combine two attribute sets, with b having higher precedence when

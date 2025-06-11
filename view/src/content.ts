@@ -1,8 +1,9 @@
 import {Node as WGNode, Tag, ChangeDesc} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
-import {Shape, TextWidget} from "./shape"
+import {Shape} from "./shape"
 import {DecoIterator, findChangedRanges} from "./decoration"
 import {Elt, Widget} from "./shape"
+import {compareAttributes, Attributes} from "./shape"
 
 declare global {
   interface Node { wsElt?: Tile }
@@ -276,8 +277,8 @@ export class EltTile extends CompositeTile {
 
   get boundary() { return this.tag && !this.tag.isAtom() ? 1 : 0 }
 
-  get contentNode(): EltTile | null {
-    for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasHole) return (ch as EltTile).contentNode
+  get contentTile(): EltTile | null {
+    for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasHole) return (ch as EltTile).contentTile
     return this.elt.hasHole ? this : null
   }
 
@@ -289,8 +290,8 @@ export class EltTile extends CompositeTile {
 }
 
 export class WidgetTile extends Tile {
-  constructor(readonly widget: Widget<any>, readonly node: WGNode | null, length: number = 0) {
-    super(widget.type.render(widget.value), 0)
+  constructor(readonly widget: Widget<any>, readonly node: WGNode | null, length: number = 0, dom?: Node) {
+    super(dom || widget.type.render(widget.value), 0)
     this.length = length
   }
 
@@ -336,6 +337,22 @@ function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   }
 }
 
+function copyEltShape(tile: EltTile, tag: Tag | null): EltTile {
+  let outer = new EltTile(tile.elt, tag, tile.flags, tile.dom)
+  if (!tile.elt.hasHole) {
+    for (let ch of tile.children) outer.addChild(copyShape(ch as EltTile | WidgetTile))
+  }
+  return outer
+}
+
+function copyWidgetShape(tile: WidgetTile, node: WGNode | null): WidgetTile {
+  return new WidgetTile(tile.widget, node, tile.flags, tile.dom)
+}
+
+function copyShape(tile: EltTile | WidgetTile): EltTile | WidgetTile {
+  return tile instanceof EltTile ? copyEltShape(tile, tile.tag) : copyWidgetShape(tile, tile.node)
+}
+
 const noChildren: Tile[] = []
 
 function rm(dom: Node): Node | null {
@@ -350,15 +367,20 @@ interface ContentWalker {
   leave(tile: EltTile): void
 }
 
+const enum Alignment { WrapStart, NodeStart }
+
 // Used to track the previous tree during an update.
 class ViewTreePointer {
   constructor(readonly tile: Tile, readonly index: number, readonly parent: ViewTreePointer | null) {}
 
-  walk(dist: number, side: -1 | 1, walker?: ContentWalker) {
+  walk(dist: number, side: -1 | 1, walker?: ContentWalker, align?: Alignment) {
     let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
+    if (align) console.log("Align to", align, "start from", tile, index)
     for (;;) {
+      if (align) console.log("going", tile, index)
       if (tile.isText) {
         if (!dist) break
+        if (align == Alignment.NodeStart || align == Alignment.WrapStart) break
         let left = tile.length - index
         if (dist >= left) {
           dist -= left
@@ -381,7 +403,9 @@ class ViewTreePointer {
         index++
       } else {
         let next = tile.children[index]
-        if (next.length <= dist) {
+        if ((align == Alignment.NodeStart || align == Alignment.WrapStart) && next.isNodeOuter) break
+        if (align == Alignment.WrapStart && !next.isNode && next.length) break
+        if (next.length <= dist && !align) {
           if (!dist && !next.length && // Non-node widget
               (next.isNodeInner ? nodeBoundary : side < 0))
             break
@@ -394,53 +418,40 @@ class ViewTreePointer {
           if (!dist && next.isSpanning && side < 0) break
           if (walker && !next.isText) walker.enter(next as EltTile)
           dist -= next.boundary
-          parent = new ViewTreePointer(tile, index, parent)
+          parent = tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
           tile = next
           index = 0
           nodeBoundary = next.isNode ? 1 : 0
         }
       }
     }
-    return new ViewTreePointer(tile, index, parent)
+    return tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
   }
 
-  findMatch(shape: Shape, isNode: boolean) {
-    let {tile, index, parent} = this
-    for (;;) {
-      if (tile.isText) {
-        if (index < tile.length) {
-          if (isNode && index == 0 && shape instanceof Widget && shape.type == TextWidget &&
-              shape.value == (tile as TextTile).text)
-            return tile
-          break
-        }
-        ;({tile, index, parent} = parent!)
-        index++
-      } else if (index == tile.children.length) {
-        if (tile.isNodeOuter) break
-        ;({tile, index, parent} = parent!)
-        index++
-      } else {
-        let next = tile.children[index]
-        if (next.isNode && !isNode) break
-        if (next instanceof EltTile) {
-          let match = shape instanceof Elt && next.elt.eq(shape)
-          if (!match && next.isNode) break
-          if (match) return next
-          parent = tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
-          tile = next
-          index = 0
-        } else {
-          let match = next instanceof WidgetTile && next.widget.eq(shape)
-          if (match) return next
-          if (next.isNode) break
-          index++
-        }
-      }
+  align(to: Alignment) {
+    return this.walk(1e8, 1, undefined, to)
+  }
+
+  tileAfter() {
+    let {tile, index} = this
+    return index < tile.children.length ? tile.children[index] : null
+  }
+
+  wrappersHere() { // FIXME return spanning parents?
+    let {tile, index} = this
+    let found: EltTile[] | undefined
+    for (; index < tile.children.length;) {
+      let next = tile.children[index]
+      if (next.isNode || !(next instanceof EltTile)) break
+      ;(found || (found = [])).push(next)
+      tile = next
+      index = 0
     }
-    return null
+    return found || none
   }
 }
+
+const none: readonly any[] = []
 
 function syncParents(tile: Tile, nodeDepth: number, targetDepth: number, walker: ContentWalker) {
   if (tile.isNodeOuter || tile.isDoc) {
@@ -456,6 +467,7 @@ class ContentUpdate {
   new: CompositeTile
   // Current position in the new document
   posB = 0
+  reused = new Set<Tile>()
 
   constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator) {
     this.old = new ViewTreePointer(old, 0, null)
@@ -491,23 +503,39 @@ class ContentUpdate {
   }
 
   replace(len: number, ins: number) {
-    this.build(ins, null)
+    this.build(ins, false)
     this.old = this.old.walk(len, 1)
   }
 
   update(len: number) { // FIXME need a last flag?
-    this.build(len, new Set)
+    this.build(len, true)
     this.old = this.old.walk(0, 1)
   }
 
-  build(len: number, reuse: Set<Tile> | null) {
+  build(len: number, reuse: boolean) {
     this.deco.walk(this.posB, this.posB + len, {
       enter: (tag, elt, wrappers) => {
-        for (let wrap of wrappers) this.openWrapper(wrap, reuse)
-        let node = EltTile.of(elt, tag, 0)
-        for (let ch of elt.children) node.addChild(buildFromShape(ch, null))
-        this.new.addChild(node)
-        this.new = node.contentNode!
+        if (reuse) this.old = this.old.align(Alignment.WrapStart)
+        this.openWrappers(wrappers, reuse)
+        let tile: EltTile | undefined
+        if (reuse) {
+          this.old = this.old.align(Alignment.NodeStart)
+          let nodeTile = this.old.tileAfter!
+          if (nodeTile instanceof EltTile && !this.reused.has(nodeTile) &&
+              nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
+            this.reused.add(nodeTile)
+            updateAttributes(nodeTile.dom, nodeTile.elt.attrs, elt.attrs)
+            tile = copyEltShape(nodeTile, tag)
+          }
+        }
+        if (!tile) {
+          tile = EltTile.of(elt, tag, 0)
+          for (let ch of elt.children) {
+            tile.addChild(buildFromShape(ch, null)) // FIXME reuse inner shapes
+          }
+        }
+        this.new.addChild(tile)
+        this.new = tile.contentTile!
         if (!this.new) throw new Error("Non-atom node rendered without hole")
         if (reuse) this.old = this.old.walk(1, -1)
       },
@@ -516,9 +544,32 @@ class ContentUpdate {
         if (reuse) this.old = this.old.walk(1, -1)
       },
       node: (node, shape, wrappers) => {
-        for (let wrap of wrappers) this.openWrapper(wrap, reuse)
-        if (node.isText()) this.new.addText(node.text!)
-        else this.new.addChild(buildFromShape(shape, node))
+        if (reuse) this.old = this.old.align(Alignment.WrapStart)
+        this.openWrappers(wrappers, reuse)
+        let tile: Tile | undefined
+        if (reuse) {
+          this.old = this.old.align(Alignment.NodeStart)
+          let nodeTile = this.old.tileAfter()!
+          if (!this.reused.has(nodeTile)) {
+            if (shape instanceof Elt && nodeTile instanceof EltTile &&
+                nodeTile.elt.tagName == shape.tagName && nodeTile.elt.eqChildren(shape)) {
+              this.reused.add(nodeTile)
+              updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
+              tile = copyEltShape(nodeTile, node.tag)
+            } else if (node.isText() && nodeTile instanceof TextTile && nodeTile.text == node.text &&
+                       !(this.new.lastChild instanceof TextTile)) {
+//              tile = nodeTile FIXME
+            } else if (shape instanceof Widget && nodeTile instanceof WidgetTile &&
+                       nodeTile.widget.eq(shape)) {
+              tile = copyWidgetShape(nodeTile, node)
+            }
+          }
+        }
+        if (!tile) {
+          if (node.isText()) this.new.addText(node.text!)
+          else tile = buildFromShape(shape, node)
+        }
+        if (tile) this.new.addChild(tile)
         for (let _ of wrappers) this.up()
         if (reuse) this.old = this.old.walk(node.length, -1)
       },
@@ -543,23 +594,17 @@ class ContentUpdate {
     }
   }
 
-  openWrapper(elt: Elt, reuse: Set<Tile> | null) {
-    if (elt.spanning && this.new.lastChild?.isSpanning && elt.eq((this.new.lastChild as EltTile).elt)) {
-      this.new = this.new.lastChild as EltTile
-    } else {
-      let inner = this.getEltNode(elt, null, reuse)
-      this.new.addChild(inner)
-      this.new = inner
-    }
-  }
-
-  getEltNode(elt: Elt, tag: Tag | null, reuse: Set<Tile> | null) {
-    let found = reuse && this.old.findMatch(elt, !!tag)
-    if (found && !reuse!.has(found)) {
-      reuse!.add(found)
-      return new EltTile(elt, tag, 0, (found as EltTile).dom)
-    } else {
-      return EltTile.of(elt, tag, 0)
+  openWrappers(wrappers: readonly Elt[], reuse: boolean) {
+    let reusable = reuse ? this.old.wrappersHere() : none
+    for (let elt of wrappers) {
+      if (elt.spanning && this.new.lastChild?.isSpanning && elt.eq((this.new.lastChild as EltTile).elt)) {
+        this.new = this.new.lastChild as EltTile
+      } else {
+        let match = reuse && matchingWrapper(elt, reusable, this.reused)
+        let tile = match ? new EltTile(elt, null, 0, match) : EltTile.of(elt, null, 0)
+        this.new.addChild(tile)
+        this.new = tile
+      }
     }
   }
 
@@ -567,5 +612,39 @@ class ContentUpdate {
     while (!(this.new instanceof DocTile)) this.up()
     syncChildren(this.new)
     return this.new as DocTile
+  }
+}
+
+function matchingWrapper(elt: Elt, wrappers: readonly EltTile[], reuse: Set<Tile>) {
+  let best: EltTile | undefined, bestScore = 0
+  for (let wrap of wrappers) {
+    if (wrap.elt.tagName == elt.tagName && wrap.elt.spanning == elt.spanning && !reuse.has(wrap)) {
+      let score = compareAttributes(wrap.elt.attrs, elt.attrs)
+      if (!best || bestScore < score) {
+        best = wrap
+        bestScore = score
+      }
+    }
+  }
+  if (!best) return null
+  if (bestScore < 0) updateAttributes(best.dom, best.elt.attrs, elt.attrs)
+  reuse.add(best)
+  return best.dom
+}
+
+function updateAttributes(dom: HTMLElement, a: Attributes, b: Attributes) {
+  for (let iA = 0, iB = 0;;) {
+    if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
+      if (a[iA + 1] != b[iB + 1]) dom.setAttribute(b[iB], b[iB + 1])
+      iA += 2; iB += 2
+    } else if (iA < a.length && (iB == b.length || a[iA] < b[iB])) {
+      dom.removeAttribute(a[iA])
+      iA += 2
+    } else if (iB < b.length && iA < a.length) {
+      dom.setAttribute(b[iB], b[iB + 1])
+      iB += 2
+    } else {
+      break
+    }
   }
 }

@@ -66,7 +66,7 @@ describe("ViewNode", () => {
   it("can update node props", () => {
     let node = render(doc(p($img(), " ", imgAlt("a2", $img()))))
     let tr = node.state.update({changes: [{from: 1, add: ImageAlt.of("a1")}, {from: 3, remove: ImageAlt.of("a2")}]})
-    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><img alt=\"a1\" src=\"test.png\"> <img src=\"test.png\"></p>")
+    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><img src=\"test.png\" alt=\"a1\"> <img src=\"test.png\"></p>")
   })
 
   it("can draw spanning props", () => {
@@ -78,6 +78,9 @@ describe("ViewNode", () => {
     let node = render(doc(p(strong("a"), "b", strong("c"))))
     let tr = node.state.update({changes: {from: 2, to: 3}})
     ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><strong>ac</strong></p>")
+  })
+
+  it(" with changed props", () => {
   })
 
   describe("decoration", () => {
