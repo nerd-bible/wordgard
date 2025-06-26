@@ -9,9 +9,9 @@ declare global {
   interface Node { wsElt?: Tile }
 }
 
-// FIXME does having these still make sense?
-export const enum TileFlag {
+export const enum TileFlag { // FIXME use for widget side
   NodeInner = 1,
+  Synced = 2,
 }
 
 export class ContentPos {
@@ -32,8 +32,10 @@ export abstract class Tile {
   parent: CompositeTile | null = null
   abstract children: Tile[]
   length = 0
+  flags: TileFlag
 
-  constructor(readonly dom: Node, readonly flags: number) {
+  constructor(readonly dom: Node, flags: number) {
+    this.flags = flags & ~TileFlag.Synced
     dom.wsElt = this
   }
 
@@ -127,22 +129,53 @@ export abstract class Tile {
   get ignoreMutations() { return false }
 
   toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
+
+  sync() {}
 }
 
 export class CompositeTile extends Tile {
   children: Tile[] = []
 
   addChild(child: Tile) {
+    if (this.flags & TileFlag.Synced) throw new Error("Cannot add to a synced tile")
     this.children.push(child)
     child.parent = this
-    this.length += child.length
   }
 
   addText(text: string) {
+    if (this.flags & TileFlag.Synced) throw new Error("Cannot add to a synced tile")
     if (this.lastChild instanceof TextTile) this.lastChild.addText(text)
     else this.addChild(TextTile.of(text))
   }
+
+  sync() {
+    if (this.flags & TileFlag.Synced) return
+    this.flags |= TileFlag.Synced
+    let len = 0
+    for (let ch of this.children) {
+      ch.sync()
+      len += ch.length
+    }
+    this.length += len
+    this.syncChildren()
+  }
+
+  syncChildren() {
+    let prev: Node | null = null, next: Node | null = this.dom.firstChild
+    for (let child of this.children) {
+      if (child.dom.parentNode == this.dom) {
+        while (next && next != child.dom) next = rm(next)
+      } else {
+        this.dom.insertBefore(child.dom, next)
+      }
+      prev = child.dom
+      next = prev.nextSibling
+    }
+    while (next) next = rm(next)
+  }
 }
+
+const enum Bound { Start = 1, End = 2 }
 
 export class DocTile extends CompositeTile {
   declare dom: HTMLElement
@@ -166,13 +199,14 @@ export class DocTile extends CompositeTile {
     if (sections.length == 2 && sections[1] == -1) return this
     let builder = new ContentUpdate(state, this, new DecoIterator(state))
     for (let i = 0; i < sections.length;) {
+      let bound = (i == 0 ? Bound.Start : 0) | (i == sections.length - 2 ? Bound.End : 0)
       let len = sections[i++], ins = sections[i++]
       if (ins == -1) {
-        builder.keep(len, i == sections.length)
+        builder.keep(len, bound)
       } else if (ins == -2) {
-        builder.update(len)
+        builder.update(len, bound)
       } else {
-        builder.replace(len, ins)
+        builder.replace(len, ins, bound)
       }
     }
     return builder.finish()
@@ -243,20 +277,6 @@ export class DocTile extends CompositeTile {
   disconnect() {
     // FIXME must determine disconnected elements during update
   }
-}
-
-function syncChildren(tile: CompositeTile) {
-  let prev: Node | null = null, next: Node | null = tile.dom.firstChild
-  for (let child of tile.children) {
-    if (child.dom.parentNode == tile.dom) {
-      while (next && next != child.dom) next = rm(next)
-    } else {
-      tile.dom.insertBefore(child.dom, next)
-    }
-    prev = child.dom
-    next = prev.nextSibling
-  }
-  while (next) next = rm(next)
 }
 
 export class EltTile extends CompositeTile {
@@ -361,26 +381,22 @@ function rm(dom: Node): Node | null {
   return next
 }
 
-interface ContentWalker {
+interface TileWalker {
   enter(tile: EltTile): void
   skip(tile: Tile, parent: Tile | null): void
   leave(tile: EltTile): void
 }
 
-const enum Alignment { WrapStart, NodeStart }
-
 // Used to track the previous tree during an update.
 class ViewTreePointer {
   constructor(readonly tile: Tile, readonly index: number, readonly parent: ViewTreePointer | null) {}
 
-  walk(dist: number, side: -1 | 1, walker?: ContentWalker, align?: Alignment) {
-    let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
-    if (align) console.log("Align to", align, "start from", tile, index)
+  walk(dist: number, side: -1 | 1, walker?: TileWalker) {
+    let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving FIXME properly handle atoms at node start/end
     for (;;) {
-      if (align) console.log("going", tile, index)
+      if (!dist && side < 0) break
       if (tile.isText) {
         if (!dist) break
-        if (align == Alignment.NodeStart || align == Alignment.WrapStart) break
         let left = tile.length - index
         if (dist >= left) {
           dist -= left
@@ -395,7 +411,7 @@ class ViewTreePointer {
           dist = 0
         }
       } else if (index == tile.children.length) {
-        if (!dist && (tile.isDoc || nodeBoundary != 2 && tile.isNode || side < 0 && tile.isSpanning)) break
+        if (!dist && (tile.isDoc || nodeBoundary != 2 && tile.isNode)) break
         if (walker) walker.leave(tile as EltTile)
         nodeBoundary = tile.isNodeInner ? 2 : 0
         dist -= tile.boundary
@@ -403,19 +419,13 @@ class ViewTreePointer {
         index++
       } else {
         let next = tile.children[index]
-        if ((align == Alignment.NodeStart || align == Alignment.WrapStart) && next.isNodeOuter) break
-        if (align == Alignment.WrapStart && !next.isNode && next.length) break
-        if (next.length <= dist && !align) {
-          if (!dist && !next.length && // Non-node widget
-              (next.isNodeInner ? nodeBoundary : side < 0))
-            break
+        if (next.length <= dist) {
           if (walker) walker.skip(next, next.parent)
           dist -= next.length
           index++
           if (!next.isNodeInner) nodeBoundary = 0
         } else {
           if (next.isNode && !next.isText && (!dist || next.isAtom)) break
-          if (!dist && next.isSpanning && side < 0) break
           if (walker && !next.isText) walker.enter(next as EltTile)
           dist -= next.boundary
           parent = tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
@@ -428,39 +438,38 @@ class ViewTreePointer {
     return tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
   }
 
-  align(to: Alignment) {
-    return this.walk(1e8, 1, undefined, to)
-  }
-
   tileAfter() {
     let {tile, index} = this
     return index < tile.children.length ? tile.children[index] : null
   }
 
-  wrappersHere() { // FIXME return spanning parents?
-    let {tile, index} = this
-    let found: EltTile[] | undefined
-    for (; index < tile.children.length;) {
-      let next = tile.children[index]
-      if (next.isNode || !(next instanceof EltTile)) break
-      ;(found || (found = [])).push(next)
-      tile = next
-      index = 0
+  matchingWrapper(elt: Elt, reuse: Set<Tile>) {
+    let best: EltTile | undefined, bestScore = 0
+    for (let {parent} = this; parent && !(parent.tile.isNode || parent.tile.isDoc); parent = parent.parent) {
+      let wrap = parent.tile as EltTile
+      if (reuse.has(wrap) || wrap.elt.tagName != elt.tagName || wrap.elt.spanning != elt.spanning) continue
+      let score = compareAttributes(wrap.elt.attrs, elt.attrs)
+      if (!best || bestScore < score) {
+        best = wrap
+        bestScore = score
+      }
     }
-    return found || none
+    if (!best) return null
+    if (bestScore < 0) updateAttributes(best.dom, best.elt.attrs, elt.attrs)
+    reuse.add(best)
+    return best.dom
+  }
+
+  get wrappers() {
+    let result: Elt[] | null = null
+    for (let {parent} = this; parent && !(parent.tile.isNode || parent.tile.isDoc); parent = parent.parent) {
+      ;(result || (result = [])).push((parent.tile as EltTile).elt)
+    }
+    return result ? result.reverse() : none
   }
 }
 
 const none: readonly any[] = []
-
-function syncParents(tile: Tile, nodeDepth: number, targetDepth: number, walker: ContentWalker) {
-  if (tile.isNodeOuter || tile.isDoc) {
-    if (nodeDepth <= targetDepth) return
-    nodeDepth--
-  }
-  syncParents(tile.parent!, nodeDepth, targetDepth, walker)
-  if (tile instanceof EltTile) walker.enter(tile)
-}
 
 class ContentUpdate {
   old: ViewTreePointer
@@ -475,51 +484,59 @@ class ContentUpdate {
     // FIXME pre-allocate walkers?
   }
 
-  keep(len: number, last: boolean) {
-    let cur = this.new
-    let walker: ContentWalker = {
-      enter(node) {
-        if (node.isSpanning && cur.lastChild?.isSpanning && node.elt.eq((cur.lastChild as EltTile).elt)) {
-          cur = cur.lastChild as EltTile
+  keep(len: number, bound: Bound) {
+    console.log("start keep", len, "@", this.new + "", "and " + this.old.tile + "@" + this.old.index)
+    let walker: TileWalker = {
+      enter: tile => {
+        let span = tile.isSpanning && this.enterSpanning(tile.elt)
+        if (span) {
+          this.new = span
         } else {
-          let inner = new EltTile(node.elt, node.tag, node.flags, node.dom)
-          cur.addChild(inner)
-          cur = inner
+          this.reused.add(tile)
+          let inner = new EltTile(tile.elt, tile.tag, tile.flags, tile.dom)
+          this.new.addChild(inner)
+          this.new = inner
         }
+        console.log("enter " + tile, ":: " + this.new)
       },
-      leave(n) {
-        if (cur instanceof EltTile) syncChildren(cur)
-        cur = cur.parent!
+      leave: tile => {
+        console.log("leave " + tile, "and " + this.new)
+        this.new = this.new.parent!
+        console.log("==> ", this.new)
       },
-      skip(node) {
-        if (node instanceof TextTile) cur.addText(node.text)
-        else cur.addChild(node)
+      skip: tile => {
+        console.log("ksip " + tile, "this.new=", this.new + "", this.new.flags)
+        if (tile instanceof TextTile) this.new.addText(tile.text)
+        else this.new.addChild(tile)
       }
     }
-    syncParents(this.old.tile, this.old.tile.depth, cur.depth, walker)
-    this.old = this.old.walk(len, last ? 1 : -1, walker)
-    this.new = cur
+    if (!(bound & Bound.Start)) {
+      this.old = this.old.walk(0, 1) 
+      this.openWrappers(this.old.wrappers, true)
+    }
+    this.old = this.old.walk(len, (bound & Bound.End) ? 1 : -1, walker)
     this.posB += len
+    console.log("end keep", len, "@", this.new + "")
   }
 
-  replace(len: number, ins: number) {
+  replace(len: number, ins: number, bound: Bound) {
+    console.log("start repl", len, "/", ins, "@", this.new + "", this.new.parent + "")
     this.build(ins, false)
     this.old = this.old.walk(len, 1)
+    console.log("end repl", len, "/", ins, "@", this.new + "", this.new.parent + "")
   }
 
-  update(len: number) { // FIXME need a last flag?
-    this.build(len, true)
+  update(len: number, bound: Bound) { // FIXME need a last flag?
     this.old = this.old.walk(0, 1)
+    this.build(len, true)
   }
 
   build(len: number, reuse: boolean) {
     this.deco.walk(this.posB, this.posB + len, {
       enter: (tag, elt, wrappers) => {
-        if (reuse) this.old = this.old.align(Alignment.WrapStart)
         this.openWrappers(wrappers, reuse)
         let tile: EltTile | undefined
         if (reuse) {
-          this.old = this.old.align(Alignment.NodeStart)
           let nodeTile = this.old.tileAfter!
           if (nodeTile instanceof EltTile && !this.reused.has(nodeTile) &&
               nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
@@ -537,18 +554,17 @@ class ContentUpdate {
         this.new.addChild(tile)
         this.new = tile.contentTile!
         if (!this.new) throw new Error("Non-atom node rendered without hole")
-        if (reuse) this.old = this.old.walk(1, -1)
+        if (reuse) this.old = this.old.walk(1, 1)
       },
       leave: () => {
         this.leaveNode()
-        if (reuse) this.old = this.old.walk(1, -1)
+        if (reuse) this.old = this.old.walk(1, 1)
       },
       node: (node, shape, wrappers) => {
-        if (reuse) this.old = this.old.align(Alignment.WrapStart)
         this.openWrappers(wrappers, reuse)
         let tile: Tile | undefined
         if (reuse) {
-          this.old = this.old.align(Alignment.NodeStart)
+          // FIXME review handling of text 
           let nodeTile = this.old.tileAfter()!
           if (!this.reused.has(nodeTile)) {
             if (shape instanceof Elt && nodeTile instanceof EltTile &&
@@ -558,7 +574,7 @@ class ContentUpdate {
               tile = copyEltShape(nodeTile, node.tag)
             } else if (node.isText() && nodeTile instanceof TextTile && nodeTile.text == node.text &&
                        !(this.new.lastChild instanceof TextTile)) {
-//              tile = nodeTile FIXME
+              tile = nodeTile
             } else if (shape instanceof Widget && nodeTile instanceof WidgetTile &&
                        nodeTile.widget.eq(shape)) {
               tile = copyWidgetShape(nodeTile, node)
@@ -571,9 +587,9 @@ class ContentUpdate {
         }
         if (tile) this.new.addChild(tile)
         for (let _ of wrappers) this.up()
-        if (reuse) this.old = this.old.walk(node.length, -1)
+        if (reuse) this.old = this.old.walk(node.length, 1)
       },
-      widget: (widget, side) => { // FIXME store side
+      widget: (widget, side) => { // FIXME reuse, store side
         this.new.addChild(buildFromShape(widget, null))
       }
     })
@@ -581,8 +597,6 @@ class ContentUpdate {
   }
 
   up() {
-    // FIXME this will run multiple times for spanning nodes
-    syncChildren(this.new)
     this.new = this.new.parent!
   }
 
@@ -595,12 +609,12 @@ class ContentUpdate {
   }
 
   openWrappers(wrappers: readonly Elt[], reuse: boolean) {
-    let reusable = reuse ? this.old.wrappersHere() : none
     for (let elt of wrappers) {
-      if (elt.spanning && this.new.lastChild?.isSpanning && elt.eq((this.new.lastChild as EltTile).elt)) {
-        this.new = this.new.lastChild as EltTile
+      let span = elt.spanning && this.enterSpanning(elt)
+      if (span) {
+        this.new = span
       } else {
-        let match = reuse && matchingWrapper(elt, reusable, this.reused)
+        let match = reuse && this.old.matchingWrapper(elt, this.reused)
         let tile = match ? new EltTile(elt, null, 0, match) : EltTile.of(elt, null, 0)
         this.new.addChild(tile)
         this.new = tile
@@ -608,28 +622,25 @@ class ContentUpdate {
     }
   }
 
+  enterSpanning(elt: Elt) {
+    let cur = this.new, prev = cur.children.length - 1, last: EltTile | undefined
+    if (prev >= 0 && (last = cur.children[prev] as EltTile).isSpanning && last.elt.eq(elt)) {
+      if (last.flags & TileFlag.Synced) {
+        let copy = cur.children[prev] = new EltTile(elt, null, last.flags, last.dom)
+        for (let ch of last.children) copy.addChild(ch)
+        last = copy
+        last.parent = cur
+      }
+      return last
+    }
+    return null
+  }
+
   finish() {
     while (!(this.new instanceof DocTile)) this.up()
-    syncChildren(this.new)
+    this.new.sync()
     return this.new as DocTile
   }
-}
-
-function matchingWrapper(elt: Elt, wrappers: readonly EltTile[], reuse: Set<Tile>) {
-  let best: EltTile | undefined, bestScore = 0
-  for (let wrap of wrappers) {
-    if (wrap.elt.tagName == elt.tagName && wrap.elt.spanning == elt.spanning && !reuse.has(wrap)) {
-      let score = compareAttributes(wrap.elt.attrs, elt.attrs)
-      if (!best || bestScore < score) {
-        best = wrap
-        bestScore = score
-      }
-    }
-  }
-  if (!best) return null
-  if (bestScore < 0) updateAttributes(best.dom, best.elt.attrs, elt.attrs)
-  reuse.add(best)
-  return best.dom
 }
 
 function updateAttributes(dom: HTMLElement, a: Attributes, b: Attributes) {

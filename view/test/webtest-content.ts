@@ -76,11 +76,33 @@ describe("ViewNode", () => {
 
   it("can join spanning props in updates", () => {
     let node = render(doc(p(strong("a"), "b", strong("c"))))
+    console.log("---")
     let tr = node.state.update({changes: {from: 2, to: 3}})
     ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><strong>ac</strong></p>")
   })
 
-  it(" with changed props", () => {
+  it("preserves DOM nodes with changed wrappers props", () => {
+    let node = render(doc(p(strong($img()))))
+    let img = node.dom.querySelector("img")
+    let tr = node.state.update({changes: {from: 1, remove: Strong, add: Emphasis}})
+    let updated = node.update(tr.state, tr.changes)
+    ist(updated.dom.querySelector("img"), img)
+  })
+
+  it("preserves DOM nodes with changed attribute props", () => {
+    let node = render(doc(p($img())))
+    let img = node.dom.querySelector("img")
+    let tr = node.state.update({changes: {from: 1, add: ImageAlt.of("text")}})
+    let updated = node.update(tr.state, tr.changes)
+    ist(updated.dom.querySelector("img"), img)
+  })
+
+  it("preserves prop wrapper nodes", () => {
+    let node = render(doc(p(strong("ab"))))
+    let str = node.dom.querySelector("strong")
+    let tr = node.state.update({changes: {from: 2, insert: new Slice([Node.text("!")])}})
+    let updated = node.update(tr.state, tr.changes)
+    ist(updated.dom.querySelector("strong"), str)
   })
 
   describe("decoration", () => {
