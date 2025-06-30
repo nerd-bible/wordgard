@@ -159,6 +159,7 @@ function findAbove(array: readonly number[], start: number, n: number) {
 }
 
 export class PointSet<Value> {
+  // FIXME make `side` an argument to `map` (also in range sets)?
   private constructor(readonly positions: readonly number[],
                       readonly values: readonly Value[],
                       readonly side: (value: Value) => number) {}

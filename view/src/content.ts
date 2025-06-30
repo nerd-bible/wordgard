@@ -46,6 +46,7 @@ export abstract class Tile {
   get isText() { return false }
   get isDoc() { return false }
   get isSpanning() { return false }
+  get isPoint() { return this.length == 0 }
 
   get depth() {
     let depth = 0
@@ -460,6 +461,25 @@ class ViewTreePointer {
     return best.dom
   }
 
+  matchingWidget(widget: Shape, reuse: Set<Tile>) {
+    let {index, tile, parent} = this
+    for (;;) {
+      if (!index) {
+        if (!parent || (tile instanceof EltTile ? tile.tag : !(tile instanceof TextTile))) break
+        ;({index, tile, parent} = parent)
+      } else {
+        if (tile instanceof TextTile) break
+        let before = tile.children[--index]
+        if (!before.isPoint) break
+        if (!reuse.has(before) && (widget instanceof Widget
+              ? before instanceof WidgetTile && before.widget.eq(widget)
+              : before instanceof EltTile && before.elt.eq(widget)))
+          return before
+      }
+    }
+    return null
+  }
+
   get wrappers() {
     let result: Elt[] | null = null
     for (let {parent} = this; parent && !(parent.tile.isNode || parent.tile.isDoc); parent = parent.parent) {
@@ -485,7 +505,6 @@ class ContentUpdate {
   }
 
   keep(len: number, bound: Bound) {
-    console.log("start keep", len, "@", this.new + "", "and " + this.old.tile + "@" + this.old.index)
     let walker: TileWalker = {
       enter: tile => {
         let span = tile.isSpanning && this.enterSpanning(tile.elt)
@@ -497,15 +516,11 @@ class ContentUpdate {
           this.new.addChild(inner)
           this.new = inner
         }
-        console.log("enter " + tile, ":: " + this.new)
       },
       leave: tile => {
-        console.log("leave " + tile, "and " + this.new)
         this.new = this.new.parent!
-        console.log("==> ", this.new)
       },
       skip: tile => {
-        console.log("ksip " + tile, "this.new=", this.new + "", this.new.flags)
         if (tile instanceof TextTile) this.new.addText(tile.text)
         else this.new.addChild(tile)
       }
@@ -516,23 +531,21 @@ class ContentUpdate {
     }
     this.old = this.old.walk(len, (bound & Bound.End) ? 1 : -1, walker)
     this.posB += len
-    console.log("end keep", len, "@", this.new + "")
   }
 
   replace(len: number, ins: number, bound: Bound) {
-    console.log("start repl", len, "/", ins, "@", this.new + "", this.new.parent + "")
-    this.build(ins, false)
-    this.old = this.old.walk(len, 1)
-    console.log("end repl", len, "/", ins, "@", this.new + "", this.new.parent + "")
+    let start = this.old.walk(0, 1), end = this.old = start.walk(len, 1)
+    this.build(ins, false, start, end)
   }
 
-  update(len: number, bound: Bound) { // FIXME need a last flag?
+  update(len: number, bound: Bound) {
     this.old = this.old.walk(0, 1)
     this.build(len, true)
   }
 
-  build(len: number, reuse: boolean) {
-    this.deco.walk(this.posB, this.posB + len, {
+  build(len: number, reuse: boolean, startOld?: ViewTreePointer, endOld?: ViewTreePointer) {
+    let start = this.posB, end = this.posB + len
+    this.deco.walk(start, end, {
       enter: (tag, elt, wrappers) => {
         this.openWrappers(wrappers, reuse)
         let tile: EltTile | undefined
@@ -555,10 +568,12 @@ class ContentUpdate {
         this.new = tile.contentTile!
         if (!this.new) throw new Error("Non-atom node rendered without hole")
         if (reuse) this.old = this.old.walk(1, 1)
+        this.posB++
       },
       leave: () => {
         this.leaveNode()
         if (reuse) this.old = this.old.walk(1, 1)
+        this.posB++
       },
       node: (node, shape, wrappers) => {
         this.openWrappers(wrappers, reuse)
@@ -588,12 +603,16 @@ class ContentUpdate {
         if (tile) this.new.addChild(tile)
         for (let _ of wrappers) this.up()
         if (reuse) this.old = this.old.walk(node.length, 1)
+        this.posB += node.length
       },
       widget: (widget, side) => { // FIXME reuse, store side
-        this.new.addChild(buildFromShape(widget, null))
+        let found = reuse ? this.old.matchingWidget(widget, this.reused)
+          : startOld && this.posB == start ? startOld.matchingWidget(widget, this.reused)
+          : endOld && this.posB == end ? endOld.matchingWidget(widget, this.reused)
+          : null
+        this.new.addChild(found || buildFromShape(widget, null))
       }
     })
-    this.posB += len
   }
 
   up() {

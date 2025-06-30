@@ -1,14 +1,19 @@
-import {EditorView, TagWidgetSource, TagDecorationSource, Widget, PointSet, WidgetSource, RangeSet, RangeDecorationSource, E } from "@wordgard/view"
-import {EditorState, Extension, StateField} from "@wordgard/state"
+import {EditorView, TagWidgetSource, TagDecorationSource, Widget, PointSet, WidgetSource, RangeSet, RangeDecorationSource, E, DocTile} from "@wordgard/view"
+import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image} from "@wordgard/doc"
 import ist from "ist"
 
 const {DocViewNode} = EditorView
-const {doc, p, blockquote, ul, li, $img, imgAlt, hr, strong, em} = basicBuilders
+const {doc, p, blockquote, ul, li, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
 function render(doc: DocNode, ...extensions: Extension[]) {
   return DocViewNode.create(EditorState.create({doc, extensions}), document.createElement("div"))
+}
+
+function update(node: DocTile, spec: TransactionSpec) {
+  let tr = node.state.update(spec)
+  return node.update(tr.state, tr.changes)
 }
 
 const inlineWidget = Widget.define<string>({
@@ -40,33 +45,32 @@ describe("ViewNode", () => {
   })
 
   it("can update for a text change", () => {
-    let node = render(doc(p("123")))
-    let tr = node.state.update({changes: {from: 2, insert: new Slice([Node.text("..")])}})
-    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p>1..23</p>")
+    let node = update(render(doc(p("123"))), {changes: {from: 2, insert: new Slice([Node.text("..")])}})
+    ist(node.dom.innerHTML, "<p>1..23</p>")
   })
 
   it("can update for a tag change", () => {
-    let node = render(doc(p("a")))
-    let tr = node.state.update({changes: {from: 0, to: 1, insert: new Slice([new OpenToken(CodeBlock)])}})
-    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<pre>a</pre>")
+    let node = update(render(doc(p("a"))), {changes: {from: 0, to: 1, insert: new Slice([new OpenToken(CodeBlock)])}})
+    ist(node.dom.innerHTML, "<pre>a</pre>")
   })
 
   it("can make multiple changes", () => {
-    let node = render(doc(p("ab"), p("cd")))
-    let tr = node.state.update({changes: [{from: 1, insert: new Slice([Node.text("..")])}, {from: 2, to: 6}]})
-    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p>..ad</p>")
+    let node = update(render(doc(p("ab"), p("cd"))), {changes: [{from: 1, insert: new Slice([Node.text("..")])}, {from: 2, to: 6}]})
+    ist(node.dom.innerHTML, "<p>..ad</p>")
   })
 
   it("can update text props", () => {
-    let node = render(doc(p("one ", em("two"))))
-    let tr = node.state.update({changes: [{from: 1, to: 4, add: Strong}, {from: 5, to: 8, remove: Emphasis}]})
-    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><strong>one</strong> two</p>")
+    let node = update(render(doc(p("one ", em("two")))), {
+      changes: [{from: 1, to: 4, add: Strong}, {from: 5, to: 8, remove: Emphasis}]
+    })
+    ist(node.dom.innerHTML, "<p><strong>one</strong> two</p>")
   })
 
   it("can update node props", () => {
-    let node = render(doc(p($img(), " ", imgAlt("a2", $img()))))
-    let tr = node.state.update({changes: [{from: 1, add: ImageAlt.of("a1")}, {from: 3, remove: ImageAlt.of("a2")}]})
-    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><img src=\"test.png\" alt=\"a1\"> <img src=\"test.png\"></p>")
+    let node = update(render(doc(p($img(), " ", imgAlt("a2", $img())))), {
+      changes: [{from: 1, add: ImageAlt.of("a1")}, {from: 3, remove: ImageAlt.of("a2")}]
+    })
+    ist(node.dom.innerHTML, "<p><img src=\"test.png\" alt=\"a1\"> <img src=\"test.png\"></p>")
   })
 
   it("can draw spanning props", () => {
@@ -75,34 +79,29 @@ describe("ViewNode", () => {
   })
 
   it("can join spanning props in updates", () => {
-    let node = render(doc(p(strong("a"), "b", strong("c"))))
-    console.log("---")
-    let tr = node.state.update({changes: {from: 2, to: 3}})
-    ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><strong>ac</strong></p>")
+    let node = update(render(doc(p(strong("a"), "b", strong("c")))), {changes: {from: 2, to: 3}})
+    ist(node.dom.innerHTML, "<p><strong>ac</strong></p>")
   })
 
   it("preserves DOM nodes with changed wrappers props", () => {
     let node = render(doc(p(strong($img()))))
     let img = node.dom.querySelector("img")
-    let tr = node.state.update({changes: {from: 1, remove: Strong, add: Emphasis}})
-    let updated = node.update(tr.state, tr.changes)
-    ist(updated.dom.querySelector("img"), img)
+    node = update(node, {changes: {from: 1, remove: Strong, add: Emphasis}})
+    ist(node.dom.querySelector("img"), img)
   })
 
   it("preserves DOM nodes with changed attribute props", () => {
     let node = render(doc(p($img())))
     let img = node.dom.querySelector("img")
-    let tr = node.state.update({changes: {from: 1, add: ImageAlt.of("text")}})
-    let updated = node.update(tr.state, tr.changes)
-    ist(updated.dom.querySelector("img"), img)
+    node = update(node, {changes: {from: 1, add: ImageAlt.of("text")}})
+    ist(node.dom.querySelector("img"), img)
   })
 
   it("preserves prop wrapper nodes", () => {
     let node = render(doc(p(strong("ab"))))
     let str = node.dom.querySelector("strong")
-    let tr = node.state.update({changes: {from: 2, insert: new Slice([Node.text("!")])}})
-    let updated = node.update(tr.state, tr.changes)
-    ist(updated.dom.querySelector("strong"), str)
+    node = update(node, {changes: {from: 2, insert: new Slice([Node.text("!")])}})
+    ist(node.dom.querySelector("strong"), str)
   })
 
   describe("decoration", () => {
@@ -114,6 +113,21 @@ describe("ViewNode", () => {
       })
       let node = render(doc(p("xyz"), hr()), src("Before"), src("Start"), src("End"), src("After"))
       ist(node.dom.innerHTML, "<span>Before</span><p><span>Start</span>xyz<span>End</span></p><span>After</span><hr>")
+    })
+
+    it("can reuse widgets when updating next to them", () => {
+      let src = (side: string) => new TagWidgetSource({
+        tag: Image,
+        side: side as any,
+        widget: inlineWidget.of(side)
+      })
+      let node = render(doc(p("x", $img(), "y")), src("Before"), src("After"))
+      let widgets = node.dom.querySelectorAll("span")
+      node = update(node, {changes: {from: 2, to: 3, insert: new Slice([img("/x.webp")])}})
+      let newWidgets = node.dom.querySelectorAll("span")
+      ist(newWidgets.length, 2)
+      ist(newWidgets[0], widgets[0])
+      ist(newWidgets[1], widgets[1])
     })
 
     it("can draw widgets from a point set", () => {
@@ -133,9 +147,8 @@ describe("ViewNode", () => {
         set: s => s.field(f),
         widget: inlineWidget
       })
-      let node = render(doc(p("a"), p("b")), f, src)
-      let tr = node.state.update({})
-      ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p>a</p><p><span>y</span>b</p>")
+      let node = update(render(doc(p("a"), p("b")), f, src), {})
+      ist(node.dom.innerHTML, "<p>a</p><p><span>y</span>b</p>")
     })
 
     it("can update widgets in place", () => {
@@ -147,9 +160,8 @@ describe("ViewNode", () => {
         set: s => s.field(f),
         widget: inlineWidget
       })
-      let node = render(doc(p("a")), f, src)
-      let tr = node.state.update({})
-      ist(node.update(tr.state, tr.changes).dom.innerHTML, "<p><span>y</span>a</p>")
+      let node = update(render(doc(p("a")), f, src), {})
+      ist(node.dom.innerHTML, "<p><span>y</span>a</p>")
     })
 
     it("orders widgets by side", () => {
