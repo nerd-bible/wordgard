@@ -149,12 +149,12 @@ export class CompositeTile extends Tile {
   sync() {
     if (this.flags & TileFlag.Synced) return
     this.flags |= TileFlag.Synced
-    let len = 0
+    let len = this.boundary * 2
     for (let ch of this.children) {
       ch.sync()
       len += ch.length
     }
-    this.length += len
+    this.length = len
     this.syncChildren()
   }
 
@@ -280,10 +280,9 @@ export class EltTile extends CompositeTile {
   declare dom: HTMLElement
   declare parent: CompositeTile
 
-  constructor(readonly elt: Elt, readonly tag: Tag | null, flags: number, dom: HTMLElement) {
+  constructor(readonly elt: Elt, readonly tag: Tag | null, flags: number, length: number, dom: HTMLElement) {
     super(dom, flags)
-    // FIXME get correct length for non-leaf atoms
-    this.length = tag && tag.isAtom() ? 1 : 2 * this.boundary
+    this.length = length
   }
 
   get isSpanning() { return this.elt.spanning }
@@ -294,15 +293,22 @@ export class EltTile extends CompositeTile {
 
   get boundary() { return this.tag && !this.tag.isAtom() ? 1 : 0 }
 
+  sync() {
+    if (this.tag && this.tag.isAtom()) this.flags |= TileFlag.Synced
+    else super.sync()
+  }
+
   get contentTile(): EltTile | null {
     for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasHole) return (ch as EltTile).contentTile
     return this.elt.hasHole ? this : null
   }
 
-  static of(elt: Elt, tag: Tag | null, flags: number) {
-    let dom = document.createElement(elt.tagName)
-    for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
-    return new EltTile(elt, tag, flags, dom)
+  static of(elt: Elt, tag: Tag | null, flags: number, length: number, dom?: HTMLElement | null) {
+    if (!dom) {
+      dom = document.createElement(elt.tagName)
+      for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
+    }
+    return new EltTile(elt, tag, flags, length, dom)
   }
 }
 
@@ -349,7 +355,8 @@ export class TextTile extends Tile {
 function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   if (shape instanceof Elt) {
     let outer = EltTile.of(shape, node && node.tag,
-                           (nodeInner ? TileFlag.NodeInner : 0) | (node || shape.hasHole ? 0 : TileFlag.Point))
+                           (nodeInner ? TileFlag.NodeInner : 0) | (node || shape.hasHole ? 0 : TileFlag.Point),
+                           node ? node.length : 0)
     for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
     return outer
   } else {
@@ -358,7 +365,7 @@ function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
 }
 
 function copyEltShape(tile: EltTile, tag: Tag | null): EltTile {
-  let outer = new EltTile(tile.elt, tag, tile.flags, tile.dom)
+  let outer = EltTile.of(tile.elt, tag, tile.flags, tile.length, tile.dom)
   if (!tile.elt.hasHole) {
     for (let ch of tile.children) outer.addChild(copyShape(ch as EltTile | WidgetTile))
   }
@@ -511,7 +518,7 @@ class ContentUpdate {
           this.new = span
         } else {
           this.reused.add(tile)
-          let inner = new EltTile(tile.elt, tile.tag, tile.flags, tile.dom)
+          let inner = EltTile.of(tile.elt, tile.tag, tile.flags, tile.boundary * 2, tile.dom)
           this.new.addChild(inner)
           this.new = inner
         }
@@ -568,7 +575,7 @@ class ContentUpdate {
           }
         }
         if (!tile) {
-          tile = EltTile.of(elt, tag, 0)
+          tile = EltTile.of(elt, tag, 0, 2)
           for (let ch of elt.children) {
             tile.addChild(buildFromShape(ch, null)) // FIXME reuse inner shapes
           }
@@ -658,8 +665,8 @@ class ContentUpdate {
       if (span) {
         this.new = span
       } else {
-        let match = reuse && this.old.matchingWrapper(elt, this.reused)
-        let tile = match ? new EltTile(elt, null, 0, match) : EltTile.of(elt, null, 0)
+        let match = reuse ? this.old.matchingWrapper(elt, this.reused) : null
+        let tile = EltTile.of(elt, null, 0, 0, match)
         this.new.addChild(tile)
         this.new = tile
       }
@@ -674,7 +681,7 @@ class ContentUpdate {
       if (!prev.isSpanning || !prev.elt.eq(elt)) break
       // If this is a node from the old tree, copy it
       if (prev.flags & TileFlag.Synced) {
-        let copy = cur.children[i] = new EltTile(elt, null, prev.flags, prev.dom)
+        let copy = cur.children[i] = EltTile.of(elt, null, prev.flags, 0, prev.dom)
         for (let ch of prev.children) copy.addChild(ch)
         prev = copy
         prev.parent = cur
