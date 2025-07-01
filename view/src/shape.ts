@@ -80,17 +80,17 @@ function makeElt(name: string, flags: number, args: (EltChild | Record<string, s
 export type WidgetSpec<T> = {
   render: (value: T) => Node
   eq?: (a: T, b: T) => boolean
-  rank?: number
+  side?: number
 }
 
 export class WidgetType<T> {
   render: (value: T) => Node
-  rank: number // FIXME use a word that more directly suggests the order used
+  side: number
   eq: (a: T, b: T) => boolean
 
   constructor(spec: WidgetSpec<T>) {
     this.render = spec.render
-    this.rank = spec.rank || 0
+    this.side = spec.side || 0
     this.eq = spec.eq || ((a, b) => a === b)
   }
 
@@ -114,6 +114,7 @@ export class Widget<T> {
 
   get hasHole() { return false }
   get spanning() { return false }
+  get side() { return this.type.side }
 }
 
 export const TextWidget = Widget.define<string>({

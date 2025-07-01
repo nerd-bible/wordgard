@@ -16,13 +16,13 @@ function update(node: DocTile, spec: TransactionSpec) {
   return node.update(tr.state, tr.changes)
 }
 
-const inlineWidget = Widget.define<string>({
-  render: value => {
-    let s = document.createElement("span")
-    s.textContent = value
-    return s
-  }
-})
+function span(text: string) {
+  let s = document.createElement("span")
+  s.textContent = text
+  return s
+}
+
+const inlineWidget = Widget.define<string>({render: span})
 
 describe("ViewNode", () => {
   it("can draw a simple document", () => {
@@ -237,12 +237,19 @@ describe("ViewNode", () => {
     })
 
     it("orders widgets by side", () => {
-      let src = (l: string, s: number) => new WidgetSource<string>({
-        set: () => PointSet.create([2], [l], s),
-        widget: inlineWidget
+      let w = (n: number) => Widget.create({
+        render: () => span(n + ""),
+        side: n
       })
-      ist(render(doc(p("xy")), src("a", 1), src("b", -2), src("c", -1)).dom.innerHTML,
-          "<p>x<span>b</span><span>c</span><span>a</span>y</p>")
+      let src = (s: number) => {
+        let widget = w(s)
+        return new WidgetSource<number>({
+          set: () => PointSet.create([2], [0]),
+          widget: () => widget
+        })
+      }
+      ist(render(doc(p("xy")), src(1), src(-2), src(-1)).dom.innerHTML,
+          "<p>x<span>-2</span><span>-1</span><span>1</span>y</p>")
     })
 
     it("can decorate tags", () => {

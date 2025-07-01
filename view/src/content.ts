@@ -14,7 +14,8 @@ export const enum TileFlag { // FIXME use for widget side
   Synced = 2,
   Point = 4,
   PointBefore = 8,
-  PointAfter = 16
+  PointAfter = 16,
+  PointSide = PointBefore | PointAfter
 }
 
 export class ContentPos {
@@ -355,12 +356,12 @@ export class TextTile extends Tile {
 function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   if (shape instanceof Elt) {
     let outer = EltTile.of(shape, node && node.tag,
-                           (nodeInner ? TileFlag.NodeInner : 0) | (node || shape.hasHole ? 0 : TileFlag.Point),
+                           (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasHole ? TileFlag.Point : 0),
                            node ? node.length : 0)
     for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
     return outer
   } else {
-    return new WidgetTile(shape, node, node ? 0 as TileFlag : TileFlag.Point, node ? node.length : 0)
+    return new WidgetTile(shape, node, nodeInner ? TileFlag.Point : 0 as TileFlag, node ? node.length : 0)
   }
 }
 
@@ -466,7 +467,7 @@ class TilePointer {
     return best.dom
   }
 
-  matchingWidget(widget: Shape, reuse: Set<Tile>) {
+  matchingWidget(widget: Widget<any>, sideFlag: number, reuse: Set<Tile>) {
     let {index, tile, parent} = this
     for (;;) {
       if (!index) {
@@ -476,9 +477,8 @@ class TilePointer {
         if (tile instanceof TextTile) break
         let before = tile.children[--index]
         if (!before.isPoint) break
-        if (!reuse.has(before) && (widget instanceof Widget
-              ? before instanceof WidgetTile && before.widget.eq(widget)
-              : before instanceof EltTile && before.elt.eq(widget)))
+        if (!reuse.has(before) && before instanceof WidgetTile && before.widget.eq(widget) &&
+            (before.flags & TileFlag.PointSide) == sideFlag)
           return before
       }
     }
@@ -626,12 +626,13 @@ class ContentUpdate {
         if (reuse) this.old = this.old.walk(node.length, 1)
         this.posB += node.length
       },
-      widget: (widget, side) => { // FIXME don't pass side here
-        let found = reuse ? this.old.matchingWidget(widget, this.reused)
-          : startOld && this.posB == start ? startOld.matchingWidget(widget, this.reused)
-          : endOld && this.posB == end ? endOld.matchingWidget(widget, this.reused)
+      widget: (widget, side) => {
+        let sideFlag = side < 0 ? TileFlag.PointBefore : side > 0 ? TileFlag.PointAfter : 0
+        let found = reuse ? this.old.matchingWidget(widget, sideFlag, this.reused)
+          : startOld && this.posB == start ? startOld.matchingWidget(widget, sideFlag, this.reused)
+          : endOld && this.posB == end ? endOld.matchingWidget(widget, sideFlag, this.reused)
           : null
-        this.new.addChild(found || buildFromShape(widget, null))
+        this.new.addChild(found || new WidgetTile(widget, null, TileFlag.Point | sideFlag, 0))
       }
     })
   }

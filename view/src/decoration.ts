@@ -159,14 +159,14 @@ function findAbove(array: readonly number[], start: number, n: number) {
 }
 
 export class PointSet<Value> {
-  // FIXME make `side` an argument to `map` (also in range sets)?
   private constructor(readonly positions: readonly number[],
-                      readonly values: readonly Value[],
-                      readonly side: (value: Value) => number) {}
+                      readonly values: readonly Value[]) {}
 
   get length() { return this.positions.length }
 
-  map(changes: ChangeDesc) {
+  map(changes: Value extends {side: number} ? ChangeDesc : never): PointSet<Value>
+  map(changes: ChangeDesc, side: number | ((value: Value) => number)): PointSet<Value>
+  map(changes: ChangeDesc, side?: number | ((value: Value) => number)) {
     if (changes.empty) return this
     let positions = this.positions.slice()
     let pos = 0, i = 0
@@ -182,15 +182,16 @@ export class PointSet<Value> {
     }, (fromA, toA) => {
       let nextI = findAbove(positions, i, toA + 1)
       for (; i < nextI; i++) {
-        let mapped = this.side(this.values[i]) < 0 ? changes.mapPos(positions[i], -1, MapMode.TrackBefore)
+        let s = side == null ? (this.values[i] as any).side : typeof side == "number" ? side : side(this.values[i])
+        let mapped = s < 0 ? changes.mapPos(positions[i], -1, MapMode.TrackBefore)
           : changes.mapPos(positions[i], 1, MapMode.TrackAfter)
         if (mapped == null) { addDel(deleted, i); deletions++ }
         else positions[i] = mapped
       }
       pos = toA + 1
     })
-    if (!deletions) return new PointSet<Value>(positions, this.values, this.side)
-    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values), this.side)
+    if (!deletions) return new PointSet<Value>(positions, this.values)
+    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values))
   }
 
   merge(other: PointSet<Value>) {
@@ -208,7 +209,7 @@ export class PointSet<Value> {
         pos[i] = posB[b]
         values[i++] = other.values[b++]
       } else {
-        return new PointSet<Value>(pos, values, this.side)
+        return new PointSet<Value>(pos, values)
       }
     }
   }
@@ -241,15 +242,15 @@ export class PointSet<Value> {
     return ranges
   }
 
-  iter(): PointIterator<Value, undefined>
-  iter<Source>(source: Source): PointIterator<Value, Source>
-  iter<Source>(source?: Source): PointIterator<Value, Source> {
-    return new PointIterator<Value, Source>(this, source!)
+  iter(this: Value extends Widget<any> ? this : never): PointIterator<Value>
+  iter(get: (value: Value) => Widget<any>): PointIterator<Value>
+  iter(get?: (value: Value) => Widget<any>): PointIterator<Value> {
+    return new PointIterator<Value>(this, get || (x => x as Widget<any>))
   }
 
   // FIXME provide more ergonomic version
-  static create<Value>(positions: readonly number[], values: readonly Value[], side?: number | ((value: Value) => number)) {
-    return new PointSet(positions, values, typeof side == "number" ? () => side : side || (() => 1))
+  static create<Value>(positions: readonly number[], values: readonly Value[]) {
+    return new PointSet(positions, values)
   }
 
   static builder<Value>() { return new PointBuilder<Value>() }
@@ -272,14 +273,12 @@ export class PointBuilder<Value> {
   finish(side = 0) { return PointSet.create(this.positions, this.values) }
 }
 
-export class PointIterator<Value, Source> {
-  declare value: Value | null // FIXME what if null is part of Value?
+export class PointIterator<Value> {
+  declare value: Widget<any> | null
   declare pos: number
-  // < 0 is before, >= 0 is after
-  declare side: number
   declare i: number
 
-  constructor(readonly set: PointSet<any>, readonly source: Source) {
+  constructor(readonly set: PointSet<Value>, readonly get: (value: Value) => Widget<any>) {
     this.fill(0)
   }
 
@@ -287,11 +286,9 @@ export class PointIterator<Value, Source> {
     this.i = i
     if (i < this.set.positions.length) {
       this.pos = this.set.positions[i]
-      this.value = this.set.values[i]
-      this.side = this.set.side(this.value)
+      this.value = this.get(this.set.values[i])
     } else {
       this.pos = 1e8
-      this.side = 1
       this.value = null
     }
   }
@@ -299,6 +296,8 @@ export class PointIterator<Value, Source> {
   next() {
     if (this.value) this.fill(this.i + 1)
   }
+
+  get side() { return this.value ? this.value.type.side : 1 }
 
   goto(pos: number) {
     this.fill(findAbove(this.set.positions, 0, pos - 1))
@@ -322,6 +321,7 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
+// FIXME make inclusive an argument to .map
 export class RangeSet<Value> {
   private constructor(
     readonly from: readonly number[],
@@ -562,18 +562,18 @@ export interface DecoWalker {
   enter(tag: Tag, shape: Elt, wrappers: readonly Elt[]): void
   leave(): void
   node(node: Node, shape: Shape, wrappers: readonly Elt[]): void
-  widget(widget: Shape, side: number): void
+  widget(widget: Widget<any>, side: number): void
 }
 
-class HeapIterator<R, RS, P, PS> {
+class HeapIterator<R, RS, P> {
   active: RangeIterator<R, RS>[] = []
   from: number
   to: number
-  point: PointIterator<P, PS> | null = null
+  point: PointIterator<P> | null = null
   done = false
 
   constructor(readonly rangeHeap: RangeIterator<R, RS>[],
-              readonly pointHeap: PointIterator<P, PS>[],
+              readonly pointHeap: PointIterator<P>[],
               start: number,
               readonly end: number) {
     for (let i = rangeHeap.length >> 1; i >= 0; i--) bubble(rangeHeap, i, cmpRangeFrom)
@@ -667,7 +667,7 @@ function cmpRangeTo(a: RangeIterator<any, any>, b: RangeIterator<any, any>) {
   return a.to - b.to || a.value!.inclusiveEnd - b.value!.inclusiveEnd
 }
 
-function cmpPoint(a: PointIterator<any, any>, b: PointIterator<any, any>) {
+function cmpPoint(a: PointIterator<any>, b: PointIterator<any>) {
   return a.pos - b.pos || a.side - b.side
 }
 
@@ -734,7 +734,7 @@ export class DecoIterator {
   globalDeco: readonly TagDecorationSource[]
   pos: Pos
   rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
-  pointIter: PointIterator<any, WidgetSource<any>>[] = []
+  pointIter: PointIterator<any>[] = []
   
   constructor(readonly state: EditorState) {
     this.globalWidgets = state.facet(tagWidgets)
@@ -746,7 +746,7 @@ export class DecoIterator {
     }
     for (let s of state.facet(widgets)) {
       let set = s.set(state)
-      if (set.length) this.pointIter.push(set.iter(s))
+      if (set.length) this.pointIter.push(set.iter(s.widget))
     }
   }
 
@@ -762,7 +762,7 @@ export class DecoIterator {
   walk(from: number, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(from)
-    let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any>>(this.rangeIter, this.pointIter, from, to)
+    let iter = new HeapIterator<any, RangeDecorationSource<any>, any>(this.rangeIter, this.pointIter, from, to)
     let pos = this.pos.advance(from - this.pos.pos)
 
     let wrap: Walker = {
@@ -799,7 +799,7 @@ export class DecoIterator {
 
     for (; !iter.next().done;) {
       if (iter.point) {
-        walker.widget(iter.point.source.widget(iter.point.value!), iter.point.side)
+        walker.widget(iter.point.value!, iter.point.side)
       } else {
         pos = pos.walk(iter.to - iter.from, wrap)
       }
