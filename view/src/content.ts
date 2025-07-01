@@ -198,7 +198,6 @@ export class DocTile extends CompositeTile {
     return this.updateRanges(state, findChangedRanges(this.state, state, changes))
   }
 
-  // FIXME draw placeholder <br>s
   updateRanges(state: EditorState, sections: readonly number[]) {
     if (sections.length == 2 && sections[1] == -1) return this
     let builder = new ContentUpdate(state, this, new DecoIterator(state))
@@ -524,7 +523,7 @@ class ContentUpdate {
         }
       },
       leave: tile => {
-        this.new = this.new.parent!
+        this.up()
       },
       skip: tile => {
         if (tile instanceof TextTile) this.new.addText(tile.text)
@@ -622,6 +621,17 @@ class ContentUpdate {
   }
 
   up() {
+    if (this.new instanceof EltTile && this.new.tag && this.new.tag.isTextblock()) {
+      let i = this.new.children.length - 1
+      let last = i < 0 ? null : this.new.children[i]
+      if (last instanceof WidgetTile && last.widget.type == brHack.type) {
+        let prev = i ? this.new.children[i - 1] : null
+        if (prev && prev.dom.nodeName != "BR")
+          this.new.children.pop()
+      } else if (!last || last.dom.nodeName == "BR") {
+        this.new.addChild(buildFromShape(brHack, null, true))
+      }
+    }
     this.new = this.new.parent!
   }
 
@@ -691,3 +701,7 @@ function updateAttributes(dom: HTMLElement, a: Attributes, b: Attributes) {
     }
   }
 }
+
+const brHack = Widget.create({
+  render() { return document.createElement("br") }
+})

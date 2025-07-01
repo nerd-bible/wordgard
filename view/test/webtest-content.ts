@@ -5,7 +5,7 @@ import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
 import ist from "ist"
 
 const {DocViewNode} = EditorView
-const {doc, p, blockquote, ul, li, $img, img, imgAlt, hr, strong, em} = basicBuilders
+const {doc, p, blockquote, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
 function render(doc: DocNode, ...extensions: Extension[]) {
   return DocViewNode.create(EditorState.create({doc, extensions}), document.createElement("div"))
@@ -102,6 +102,17 @@ describe("ViewNode", () => {
     let str = node.dom.querySelector("strong")
     node = update(node, {changes: {from: 2, insert: new Slice([Node.text("!")])}})
     ist(node.dom.querySelector("strong"), str)
+  })
+
+  it("adds breaks for empty textblocks and those ending in breaks", () => {
+    let node = render(doc(p(), p("a"), p("b", br())))
+    ist(node.dom.innerHTML, "<p><br></p><p>a</p><p>b<br><br></p>")
+  })
+
+  it("fixes textblock breaks on changes", () => {
+    let node = render(doc(p(), p("a")))
+    ist(update(node, {changes: [{from: 1, insert: new Slice([Node.text("x")])}, {from: 3, to: 4}]}).dom.innerHTML,
+        "<p>x</p><p><br></p>")
   })
 
   describe("decoration", () => {
