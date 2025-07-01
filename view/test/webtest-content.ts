@@ -115,6 +115,30 @@ describe("ViewNode", () => {
         "<p>x</p><p><br></p>")
   })
 
+  it("reuses text nodes when changing their start", () => {
+    let node = render(doc(p("abc"), p("def")))
+    let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
+    node = update(node, {changes: [{from: 1, insert: new Slice([Node.text("..")])}, {from: 6, to: 7}]})
+    ist(abc.nodeValue, "..abc")
+    ist(def.nodeValue, "ef")
+  })
+
+  it("reuses text nodes when changing their end", () => {
+    let node = render(doc(p("abc"), p("def")))
+    let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
+    node = update(node, {changes: [{from: 4, insert: new Slice([Node.text("..")])}, {from: 8, to: 9}]})
+    ist(abc.nodeValue, "abc..")
+    ist(def.nodeValue, "de")
+  })
+
+  it("reuses text nodes when changing their middle", () => {
+    let node = render(doc(p("abc"), p("def")))
+    let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
+    node = update(node, {changes: [{from: 2, insert: new Slice([Node.text("..")])}, {from: 7, to: 8}]})
+    ist(abc.nodeValue, "a..bc")
+    ist(def.nodeValue, "df")
+  })
+
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {
       let src = (side: string) => new TagWidgetSource({

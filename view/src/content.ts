@@ -146,12 +146,6 @@ export class CompositeTile extends Tile {
     child.parent = this
   }
 
-  addText(text: string) {
-    if (this.flags & TileFlag.Synced) throw new Error("Cannot add to a synced tile")
-    if (this.lastChild instanceof TextTile) this.lastChild.addText(text)
-    else this.addChild(TextTile.of(text))
-  }
-
   sync() {
     if (this.flags & TileFlag.Synced) return
     this.flags |= TileFlag.Synced
@@ -326,6 +320,8 @@ export class WidgetTile extends Tile {
 }
 
 export class TextTile extends Tile {
+  declare dom: Text
+
   constructor(public text: string, dom: Text) {
     super(dom, 0)
     this.length = text.length
@@ -337,10 +333,10 @@ export class TextTile extends Tile {
   get isNodeOuter() { return true }
   get isAtom() { return true }
 
-  addText(text: string) {
-    this.text += text
-    this.length += text.length
-    this.dom.nodeValue = this.text
+  sync() {
+    if (this.flags & TileFlag.Synced) return
+    this.flags |= TileFlag.Synced
+    if (this.dom.nodeValue != this.text) this.dom.nodeValue = this.text
   }
 
   toString() { return JSON.stringify(this.text) }
@@ -387,7 +383,7 @@ function rm(dom: Node): Node | null {
 
 interface TileWalker {
   enter(tile: EltTile): void
-  skip(tile: Tile, parent: Tile | null): void
+  skip(tile: Tile, from: number, to: number): void
   leave(tile: EltTile): void
 }
 
@@ -404,13 +400,11 @@ class TilePointer {
         let left = tile.length - index
         if (dist >= left) {
           dist -= left
-          if (left && walker)
-            walker.skip(index ? TextTile.of((tile as TextTile).text.slice(index)) : tile, tile.parent)
+          if (left && walker) walker.skip(tile, index, tile.length)
           ;({tile, index, parent} = parent!)
           index++
         } else {
-          if (walker)
-            walker.skip(TextTile.of((tile as TextTile).text.slice(index, index + dist)), tile.parent)
+          if (walker) walker.skip(tile, index, index + dist)
           index += dist
           dist = 0
         }
@@ -424,7 +418,7 @@ class TilePointer {
       } else {
         let next = tile.children[index]
         if (next.length <= dist) {
-          if (walker) walker.skip(next, next.parent)
+          if (walker) walker.skip(next, 0, next.length)
           dist -= next.length
           index++
           if (!next.isNodeInner) nodeBoundary = 0
@@ -525,9 +519,19 @@ class ContentUpdate {
       leave: tile => {
         this.up()
       },
-      skip: tile => {
-        if (tile instanceof TextTile) this.new.addText(tile.text)
-        else this.new.addChild(tile)
+      skip: (tile, from, to) => {
+        if (!(tile instanceof TextTile)) {
+          this.new.addChild(tile)
+        } else if (this.new.lastChild instanceof TextTile) {
+          this.addText(tile.text.slice(from, to))
+        } else if (!from && to == tile.text.length) {
+          this.new.addChild(tile)
+        } else if (!this.reused.has(tile)) {
+          this.reused.add(tile)
+          this.new.addChild(new TextTile(tile.text.slice(from, to), tile.dom))
+        } else {
+          this.new.addChild(TextTile.of(tile.text.slice(from, to)))
+        }
       }
     }
     if (!(bound & Bound.Start)) {
@@ -583,8 +587,7 @@ class ContentUpdate {
       node: (node, shape, wrappers) => {
         this.openWrappers(wrappers, reuse)
         let tile: Tile | undefined
-        if (reuse) {
-          // FIXME review handling of text 
+        if (reuse || node.isText() && this.posB == start) {
           let nodeTile = this.old.tileAfter()!
           if (!this.reused.has(nodeTile)) {
             if (shape instanceof Elt && nodeTile instanceof EltTile &&
@@ -592,9 +595,15 @@ class ContentUpdate {
               this.reused.add(nodeTile)
               updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
               tile = copyEltShape(nodeTile, node.tag)
-            } else if (node.isText() && nodeTile instanceof TextTile && nodeTile.text == node.text &&
-                       !(this.new.lastChild instanceof TextTile)) {
-              tile = nodeTile
+            } else if (node.isText() && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
+                       (reuse || this.posB == start)) {
+              this.reused.add(nodeTile)
+              if (nodeTile.text != node.text) {
+                nodeTile.dom.nodeValue = node.text
+                tile = new TextTile(node.text, nodeTile.dom)
+              } else {
+                tile = nodeTile
+              }
             } else if (shape instanceof Widget && nodeTile instanceof WidgetTile &&
                        nodeTile.widget.eq(shape)) {
               tile = copyWidgetShape(nodeTile, node)
@@ -602,7 +611,7 @@ class ContentUpdate {
           }
         }
         if (!tile) {
-          if (node.isText()) this.new.addText(node.text!)
+          if (node.isText()) this.addText(node.text!)
           else tile = buildFromShape(shape, node)
         }
         if (tile) this.new.addChild(tile)
@@ -676,6 +685,20 @@ class ContentUpdate {
       return prev
     }
     return null
+  }
+
+  addText(text: string) {
+    let last = this.new.lastChild
+    if (!(last instanceof TextTile)) {
+      this.new.addChild(TextTile.of(text))
+    } else if (last.flags & TileFlag.Synced) {
+      this.new.children.pop()
+      this.new.addChild(this.reused.has(last) ? TextTile.of(last.text + text) : new TextTile(last.text + text, last.dom))
+      this.reused.add(last)
+    } else {
+      last.text += text
+      last.length += text.length
+    }
   }
 
   finish() {
