@@ -426,7 +426,7 @@ class ViewTreePointer {
           index++
           if (!next.isNodeInner) nodeBoundary = 0
         } else {
-          if (next.isNode && !next.isText && (!dist || next.isAtom)) break
+          if (next.isNode && (!dist || next.isAtom && !next.isText)) break
           if (walker && !next.isText) walker.enter(next as EltTile)
           dist -= next.boundary
           parent = tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
@@ -446,8 +446,9 @@ class ViewTreePointer {
 
   matchingWrapper(elt: Elt, reuse: Set<Tile>) {
     let best: EltTile | undefined, bestScore = 0
-    for (let {parent} = this; parent && !(parent.tile.isNode || parent.tile.isDoc); parent = parent.parent) {
-      let wrap = parent.tile as EltTile
+    let start = this.tile.isText ? this.parent! : this
+    for (let {tile, parent} = start; !(tile.isNode || tile.isDoc); {tile, parent} = parent!) {
+      let wrap = tile as EltTile
       if (reuse.has(wrap) || wrap.elt.tagName != elt.tagName || wrap.elt.spanning != elt.spanning) continue
       let score = compareAttributes(wrap.elt.attrs, elt.attrs)
       if (!best || bestScore < score) {
@@ -482,8 +483,9 @@ class ViewTreePointer {
 
   get wrappers() {
     let result: Elt[] | null = null
-    for (let {parent} = this; parent && !(parent.tile.isNode || parent.tile.isDoc); parent = parent.parent) {
-      ;(result || (result = [])).push((parent.tile as EltTile).elt)
+    let start = this.tile.isText ? this.parent! : this
+    for (let {tile, parent} = start; !tile.isNode && !tile.isDoc; {tile, parent} = parent!) {
+      ;(result || (result = [])).push((tile as EltTile).elt)
     }
     return result ? result.reverse() : none
   }
@@ -526,7 +528,7 @@ class ContentUpdate {
       }
     }
     if (!(bound & Bound.Start)) {
-      this.old = this.old.walk(0, 1) 
+      this.old = this.old.walk(0, 1)
       this.openWrappers(this.old.wrappers, true)
     }
     this.old = this.old.walk(len, (bound & Bound.End) ? 1 : -1, walker)

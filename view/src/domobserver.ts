@@ -364,8 +364,6 @@ class EditContextManager {
         let style = `text-decoration: underline ${
           lineStyle == "Dashed" ? "dashed " : lineStyle == "Squiggle" ? "wavy " : ""
         }${thickness == "Thin" ? 1 : 2}px`
-        console.log("mark", {attributes: {style}}, "for",
-                    this.toEditorPos(format.rangeStart), this.toEditorPos(format.rangeEnd))
       }
     }
     // FIXME actually add decorations

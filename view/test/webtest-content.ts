@@ -115,7 +115,7 @@ describe("ViewNode", () => {
       ist(node.dom.innerHTML, "<span>Before</span><p><span>Start</span>xyz<span>End</span></p><span>After</span><hr>")
     })
 
-    it("can reuse widgets when updating next to them", () => {
+    it("can reuse widgets when replacing next to them", () => {
       let src = (side: string) => new TagWidgetSource({
         tag: Image,
         side: side as any,
@@ -126,8 +126,35 @@ describe("ViewNode", () => {
       node = update(node, {changes: {from: 2, to: 3, insert: new Slice([img("/x.webp")])}})
       let newWidgets = node.dom.querySelectorAll("span")
       ist(newWidgets.length, 2)
-      ist(newWidgets[0], widgets[0])
-      ist(newWidgets[1], widgets[1])
+      for (let i = 0; i < widgets.length; i++) ist(newWidgets[i], widgets[i])
+    })
+
+    it("can reuse widgets when updating across them", () => {
+      let src = (side: string) => new TagWidgetSource({
+        tag: Image,
+        side: side as any,
+        widget: inlineWidget.of(side)
+      })
+      let node = render(doc(p(strong("x", $img(), "y"), em("z", $img()))), src("Before"), src("After"))
+      let widgets = node.dom.querySelectorAll("span")
+      node = update(node, {changes: [
+        {from: 1, to: 4, remove: Strong, add: Emphasis},
+        {from: 4, to: 6, remove: Emphasis}
+      ]})
+      let newWidgets = node.dom.querySelectorAll("span")
+      ist(newWidgets.length, 4)
+      for (let i = 0; i < widgets.length; i++) ist(newWidgets[i], widgets[i])
+    })
+
+    it("keeps structure entirely the same on a no-change update", () => {
+      let node = render(doc(p(strong("one", em("two"), $img(), "three")), hr()))
+      let elts = node.dom.querySelectorAll("*")
+      let tr1 = node.state.update({changes: {from: 1, to: 12, remove: Strong}})
+      let tr2 = tr1.state.update({changes: {from: 1, to: 12, add: Strong}})
+      node = node.update(tr2.state, tr1.changes.compose(tr2.changes))
+      let newElts = node.dom.querySelectorAll("*")
+      ist(newElts.length, elts.length)
+      for (let i = 0; i < elts.length; i++) ist(newElts[i], elts[i])
     })
 
     it("can draw widgets from a point set", () => {
