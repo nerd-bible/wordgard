@@ -392,8 +392,8 @@ interface TileWalker {
 }
 
 // Used to track the previous tree during an update.
-class ViewTreePointer {
-  constructor(readonly tile: Tile, readonly index: number, readonly parent: ViewTreePointer | null) {}
+class TilePointer {
+  constructor(readonly tile: Tile, readonly index: number, readonly parent: TilePointer | null) {}
 
   walk(dist: number, side: -1 | 1, walker?: TileWalker) {
     let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving FIXME properly handle atoms at node start/end
@@ -432,14 +432,14 @@ class ViewTreePointer {
           if (next.isNode && (!dist || next.isAtom && !next.isText)) break
           if (walker && !next.isText) walker.enter(next as EltTile)
           dist -= next.boundary
-          parent = tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
+          parent = tile == this.tile && index == this.index ? this : new TilePointer(tile, index, parent)
           tile = next
           index = 0
           nodeBoundary = next.isNode ? 1 : 0
         }
       }
     }
-    return tile == this.tile && index == this.index ? this : new ViewTreePointer(tile, index, parent)
+    return tile == this.tile && index == this.index ? this : new TilePointer(tile, index, parent)
   }
 
   tileAfter() {
@@ -497,14 +497,14 @@ class ViewTreePointer {
 const none: readonly any[] = []
 
 class ContentUpdate {
-  old: ViewTreePointer
+  old: TilePointer
   new: CompositeTile
   // Current position in the new document
   posB = 0
   reused = new Set<Tile>()
 
   constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator) {
-    this.old = new ViewTreePointer(old, 0, null)
+    this.old = new TilePointer(old, 0, null)
     this.new = new DocTile(state, old.dom as HTMLElement)
     // FIXME pre-allocate walkers?
   }
@@ -548,7 +548,7 @@ class ContentUpdate {
     this.build(len, true)
   }
 
-  build(len: number, reuse: boolean, startOld?: ViewTreePointer, endOld?: ViewTreePointer) {
+  build(len: number, reuse: boolean, startOld?: TilePointer, endOld?: TilePointer) {
     let start = this.posB, end = this.posB + len
     this.deco.walk(start, end, {
       enter: (tag, elt, wrappers) => {
