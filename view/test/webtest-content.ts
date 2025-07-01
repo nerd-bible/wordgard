@@ -139,6 +139,8 @@ describe("ViewNode", () => {
     ist(def.nodeValue, "df")
   })
 
+  // FIXME test nodes with inner structure
+
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {
       let src = (side: string) => new TagWidgetSource({

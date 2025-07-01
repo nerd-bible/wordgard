@@ -321,7 +321,7 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
-// FIXME make inclusive an argument to .map
+// FIXME make inclusive an argument to .map?
 export class RangeSet<Value> {
   private constructor(
     readonly from: readonly number[],

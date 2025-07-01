@@ -9,7 +9,7 @@ declare global {
   interface Node { wsElt?: Tile }
 }
 
-export const enum TileFlag { // FIXME use for widget side
+export const enum TileFlag {
   NodeInner = 1,
   Synced = 2,
   Point = 4,
@@ -51,11 +51,34 @@ export abstract class Tile {
   get isDoc() { return false }
   get isSpanning() { return false }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
+  get side() { return this.flags & TileFlag.PointBefore ? -1 : this.flags & TileFlag.PointAfter ? 1 : 0 }
 
-  get depth() {
-    let depth = 0
-    for (let n: Tile | null = this; n; n = n.parent) if (n.isNodeOuter) depth++
-    return depth
+  resolveInner(pos: number, off: number, assoc: -1 | 0 | 1): ContentPos {
+    let index = 0
+    for (; index < this.children.length;) {
+      let next = this.children[index]
+      if (off && off < next.length) {
+        if (next.isAtom && !next.isText) {
+          if (off > (next.length >> 1)) index++
+          break
+        }
+        return next.resolveInner(pos, off - next.boundary, assoc)
+      }
+      if (!off && (!next.isPoint || (next.flags & TileFlag.PointAfter) || (assoc < 0 && !(next.flags & TileFlag.PointSide))))
+        break
+      index++
+      off -= next.length
+    }
+    if (assoc < 0) {
+      let before = index ? this.children[index - 1] : null
+      if (before && before.isText) return new ContentPos(before, before.length, pos)
+      if (before && !before.boundary && !before.isAtom) return before.resolveInner(pos, before.length, assoc)
+    } else {
+      let after = index < this.children.length ? this.children[index] : null
+      if (after && after.isText) return new ContentPos(after, 0, pos)
+      if (after && !after.boundary && !after.isPoint) return after.resolveInner(pos, 0, assoc)
+    }
+    return new ContentPos(this, index, pos)
   }
 
   posBeforeChild(child: Tile): number {
@@ -93,7 +116,7 @@ export abstract class Tile {
     return last < 0 ? null : this.children[last]
   }
 
-  // FIXME review for new approach
+  // FIXME include side in output?
   localPosFromDOM(dom: Node, offset: number, bias: -1 | 1): number {
     // If the DOM position is in the content, use the child desc after
     // it to figure out a position.
@@ -227,38 +250,8 @@ export class DocTile extends CompositeTile {
     }
   }
 
-  // FIXME document or change weird assoc descent behavior
   resolve(pos: number, assoc: -1 | 0 | 1) {
-    let parent: Tile = this, index = 0, off = 0
-    for (;;) {
-      if (off == pos) {
-        let before = index ? parent.children[index - 1] : null
-        let after = index < parent.children.length ? parent.children[index] : null
-        if (before?.boundary) before = null
-        if (after?.boundary) after = null
-        if (assoc == 0 || !before && !after) return new ContentPos(parent, index, pos)
-        if (!after || before && assoc < 0) {
-          if (before instanceof TextTile) return new ContentPos(before, before.length, pos)
-          parent = before!; index = before!.children.length
-        } else {
-          if (after instanceof TextTile) return new ContentPos(after, 0, pos)
-          parent = after; index = 0
-        }
-      } else {
-        let next = parent.children[index]
-        if (off + next.length > pos) {
-          if (next instanceof TextTile) return new ContentPos(next, pos - off, pos)
-          parent = next
-          index = 0
-          off += next.boundary
-        } else {
-          if (index == parent.children.length)
-            throw new Error(`Invalid position ${pos} in document of size ${this.length}`)
-          index++
-          off += next.length
-        }
-      }
-    }
+    return this.resolveInner(pos, pos, assoc)
   }
 
   posFromDOM(dom: Node, offset: number, bias: -1 | 1 = -1) {
