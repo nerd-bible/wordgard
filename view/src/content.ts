@@ -12,6 +12,9 @@ declare global {
 export const enum TileFlag { // FIXME use for widget side
   NodeInner = 1,
   Synced = 2,
+  Point = 4,
+  PointBefore = 8,
+  PointAfter = 16
 }
 
 export class ContentPos {
@@ -46,7 +49,7 @@ export abstract class Tile {
   get isText() { return false }
   get isDoc() { return false }
   get isSpanning() { return false }
-  get isPoint() { return this.length == 0 }
+  get isPoint() { return (this.flags & TileFlag.Point) > 0 }
 
   get depth() {
     let depth = 0
@@ -311,8 +314,8 @@ export class EltTile extends CompositeTile {
 }
 
 export class WidgetTile extends Tile {
-  constructor(readonly widget: Widget<any>, readonly node: WGNode | null, length: number = 0, dom?: Node) {
-    super(dom || widget.type.render(widget.value), 0)
+  constructor(readonly widget: Widget<any>, readonly node: WGNode | null, flags: TileFlag, length: number = 0, dom?: Node) {
+    super(dom || widget.type.render(widget.value), flags)
     this.length = length
   }
 
@@ -350,11 +353,12 @@ export class TextTile extends Tile {
 
 function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   if (shape instanceof Elt) {
-    let outer = EltTile.of(shape, node && node.tag, nodeInner ? TileFlag.NodeInner : 0)
+    let outer = EltTile.of(shape, node && node.tag,
+                           (nodeInner ? TileFlag.NodeInner : 0) | (node || shape.hasHole ? 0 : TileFlag.Point))
     for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
     return outer
   } else {
-    return new WidgetTile(shape, node, node ? node.length : 0)
+    return new WidgetTile(shape, node, node ? 0 as TileFlag : TileFlag.Point, node ? node.length : 0)
   }
 }
 
@@ -367,7 +371,7 @@ function copyEltShape(tile: EltTile, tag: Tag | null): EltTile {
 }
 
 function copyWidgetShape(tile: WidgetTile, node: WGNode | null): WidgetTile {
-  return new WidgetTile(tile.widget, node, tile.flags, tile.dom)
+  return new WidgetTile(tile.widget, node, tile.flags, tile.length, tile.dom)
 }
 
 function copyShape(tile: EltTile | WidgetTile): EltTile | WidgetTile {
@@ -607,7 +611,7 @@ class ContentUpdate {
         if (reuse) this.old = this.old.walk(node.length, 1)
         this.posB += node.length
       },
-      widget: (widget, side) => { // FIXME reuse, store side
+      widget: (widget, side) => { // FIXME don't pass side here
         let found = reuse ? this.old.matchingWidget(widget, this.reused)
           : startOld && this.posB == start ? startOld.matchingWidget(widget, this.reused)
           : endOld && this.posB == end ? endOld.matchingWidget(widget, this.reused)
@@ -644,15 +648,22 @@ class ContentUpdate {
   }
 
   enterSpanning(elt: Elt) {
-    let cur = this.new, prev = cur.children.length - 1, last: EltTile | undefined
-    if (prev >= 0 && (last = cur.children[prev] as EltTile).isSpanning && last.elt.eq(elt)) {
-      if (last.flags & TileFlag.Synced) {
-        let copy = cur.children[prev] = new EltTile(elt, null, last.flags, last.dom)
-        for (let ch of last.children) copy.addChild(ch)
-        last = copy
-        last.parent = cur
+    let cur = this.new
+    for (let i = cur.children.length - 1; i >= 0; i--) {
+      let prev = cur.children[i] as EltTile
+      if (prev.isPoint) continue
+      if (!prev.isSpanning || !prev.elt.eq(elt)) break
+      // If this is a node from the old tree, copy it
+      if (prev.flags & TileFlag.Synced) {
+        let copy = cur.children[i] = new EltTile(elt, null, prev.flags, prev.dom)
+        for (let ch of prev.children) copy.addChild(ch)
+        prev = copy
+        prev.parent = cur
       }
-      return last
+      // Move any point tiles after the wrapper into it
+      for (let j = i + 1; j < cur.children.length; j++) prev.addChild(cur.children[j])
+      cur.children.length = i + 1
+      return prev
     }
     return null
   }

@@ -146,6 +146,16 @@ describe("ViewNode", () => {
       for (let i = 0; i < widgets.length; i++) ist(newWidgets[i], widgets[i])
     })
 
+    it("doesn't break spanning wrappers on widgets", () => {
+      let src = (side: string) => new TagWidgetSource({
+        tag: Image,
+        side: side as any,
+        widget: inlineWidget.of(side)
+      })
+      let node = render(doc(p(strong("x", $img(), "y"))), src("Before"), src("After"))
+      ist(node.dom.querySelectorAll("strong").length, 1)
+    })
+
     it("keeps structure entirely the same on a no-change update", () => {
       let node = render(doc(p(strong("one", em("two"), $img(), "three")), hr()))
       let elts = node.dom.querySelectorAll("*")
