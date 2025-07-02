@@ -80,18 +80,14 @@ function makeElt(name: string, flags: number, args: (EltChild | Record<string, s
 export type WidgetSpec<T> = {
   render: (value: T) => Node
   eq?: (a: T, b: T) => boolean
-  side?: number | ((value: T) => number)
 }
 
 export class WidgetType<T> {
   render: (value: T) => Node
-  side: (value: T) => number
   eq: (a: T, b: T) => boolean
 
   constructor(spec: WidgetSpec<T>) {
     this.render = spec.render
-    const {side} = spec
-    this.side = typeof side == "function" ? side : side == null ? () => 0 : () => side
     this.eq = spec.eq || ((a, b) => a === b)
   }
 
@@ -115,7 +111,6 @@ export class Widget<T> {
 
   get hasHole() { return false }
   get spanning() { return false }
-  get side() { return this.type.side(this.value) }
 }
 
 export const TextWidget = Widget.define<string>({

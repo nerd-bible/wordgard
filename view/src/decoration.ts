@@ -158,11 +158,10 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
-// FIXME how do we ensure points are in the correct order if side
-// isn't intrinsic?
 export class PointSet<Value> {
-  private constructor(readonly positions: readonly number[],
-                      readonly values: readonly Value[]) {}
+  constructor(readonly positions: readonly number[],
+              readonly values: readonly Value[],
+              readonly side: (value: Value) => number) {}
 
   get length() { return this.positions.length }
 
@@ -192,9 +191,12 @@ export class PointSet<Value> {
       }
       pos = toA + 1
     })
-    if (!deletions) return new PointSet<Value>(positions, this.values)
-    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values))
+    if (!deletions) return new PointSet<Value>(positions, this.values, this.side)
+    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values), this.side)
   }
+
+  /// @internal
+  sideFor(i: number) { return i < this.values.length ? this.side(this.values[i]) : 1 }
 
   merge(other: PointSet<Value>) {
     if (!this.length) return other
@@ -204,14 +206,15 @@ export class PointSet<Value> {
     for (let i = 0, a = 0, b = 0;;) {
       let nextA = a < posA.length ? posA[a] : 1e9
       let nextB = b < posB.length ? posB[b] : 1e9
-      if (nextA < nextB) {
+      let cmp = nextA - nextB || this.sideFor(a) - other.sideFor(b)
+      if (cmp < 0) {
         pos[i] = posA[a]
         values[i++] = this.values[a++]
       } else if (nextB < 1e9) {
         pos[i] = posB[b]
         values[i++] = other.values[b++]
       } else {
-        return new PointSet<Value>(pos, values)
+        return new PointSet<Value>(pos, values, this.side)
       }
     }
   }
@@ -250,20 +253,37 @@ export class PointSet<Value> {
     return new PointIterator<Value>(this, get || (x => x as Widget<any>))
   }
 
-  // FIXME provide more ergonomic version
-  static create<Value>(positions: readonly number[], values: readonly Value[]) {
-    return new PointSet(positions, values)
+  static create<Value extends {side: number}>(source: Iterable<[number, Value]>): PointSet<Value>
+  static create<Value>(source: Iterable<[number, Value]>, side: number | ((value: Value) => number)): PointSet<Value>
+  static create<Value>(source: Iterable<[number, Value]>, side?: number | ((value: Value) => number)): PointSet<Value> {
+    // FIXME check order?
+    let positions: number[] = [], values: Value[] = []
+    for (let [pos, val] of source) {
+      positions.push(pos)
+      values.push(val)
+    }
+    return new PointSet(positions, values, ensureSide(side))
   }
 
-  static builder<Value>() { return new PointBuilder<Value>() }
+  static builder<Value extends {side: number}>(): PointBuilder<Value>
+  static builder<Value>(side: number | ((value: Value) => number)): PointBuilder<Value>
+  static builder<Value>(side?: number | ((value: Value) => number)) {
+    return new PointBuilder<Value>(ensureSide(side))
+  }
 
-  static empty = PointSet.create<any>([], [])
+  static empty = PointSet.create<any>([])
+}
+
+function ensureSide<Value>(side?: number | ((value: Value) => number)): (value: Value) => number {
+  return typeof side == "function" ? side : typeof side == "number" ? () => side : (value: any) => value.side
 }
 
 export class PointBuilder<Value> {
   positions: number[] = []
   values: Value[] = []
   cur = 0
+
+  constructor(readonly side: (value: Value) => number) {}
 
   add(pos: number, value: Value) {
     if (pos < this.cur) throw new RangeError("Point positions must be added in order")
@@ -272,11 +292,12 @@ export class PointBuilder<Value> {
     this.values.push(value)
   }
 
-  finish(side = 0) { return PointSet.create(this.positions, this.values) }
+  finish(side = 0) { return new PointSet(this.positions, this.values, this.side) }
 }
 
 export class PointIterator<Value> {
-  declare value: Widget<any> | null
+  declare value: Value | null
+  done = false
   declare pos: number
   declare i: number
 
@@ -288,18 +309,21 @@ export class PointIterator<Value> {
     this.i = i
     if (i < this.set.positions.length) {
       this.pos = this.set.positions[i]
-      this.value = this.get(this.set.values[i])
+      this.value = this.set.values[i]
     } else {
       this.pos = 1e8
       this.value = null
+      this.done = true
     }
   }
 
   next() {
-    if (this.value) this.fill(this.i + 1)
+    if (!this.done) this.fill(this.i + 1)
   }
 
-  get side() { return this.value ? this.value.side : 1 }
+  get side() {
+    return this.done ? 1 : this.set.side(this.value!)
+  }
 
   goto(pos: number) {
     this.fill(findAbove(this.set.positions, 0, pos - 1))
@@ -587,7 +611,7 @@ class HeapIterator<R, RS, P> {
     if (this.done) return this
     if (this.point) {
       this.point.next()
-      if (!this.point.value) popHeap(this.pointHeap, cmpPoint)
+      if (this.point.done) popHeap(this.pointHeap, cmpPoint)
       else bubble(this.pointHeap, 0, cmpPoint)
       this.point = null
     }
@@ -801,7 +825,7 @@ export class DecoIterator {
 
     for (; !iter.next().done;) {
       if (iter.point) {
-        walker.widget(iter.point.value!, iter.point.side)
+        walker.widget(iter.point.get(iter.point.value!), iter.point.side)
       } else {
         pos = pos.walk(iter.to - iter.from, wrap)
       }

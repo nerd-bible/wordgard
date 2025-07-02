@@ -207,7 +207,7 @@ describe("DocTile", () => {
 
     it("can draw widgets from a point set", () => {
       let node = render(doc(p("abc")), new WidgetSource<string>({
-        set: _ => PointSet.create([1, 3], ["x", "y"]),
+        set: _ => PointSet.create([[1, "x"], [3, "y"]], 1),
         widget: n => inlineWidget.of(n)
       }))
       ist(node.dom.innerHTML, "<p><span>x</span>ab<span>y</span>c</p>")
@@ -215,8 +215,8 @@ describe("DocTile", () => {
 
     it("can update widgets from a point set", () => {
       let f = StateField.define({
-        create: () => PointSet.create([1], ["x"]),
-        update: () => PointSet.create([4], ["y"]),
+        create: () => PointSet.create([[1, "x"]], 1),
+        update: () => PointSet.create([[4, "y"]], 1),
       })
       let src = new WidgetSource<string>({
         set: s => s.field(f),
@@ -228,8 +228,8 @@ describe("DocTile", () => {
 
     it("can update widgets in place", () => {
       let f = StateField.define({
-        create: () => PointSet.create([1], ["x"]),
-        update: () => PointSet.create([1], ["y"]),
+        create: () => PointSet.create([[1, "x"]], 0),
+        update: () => PointSet.create([[1, "y"]], 0),
       })
       let src = new WidgetSource<string>({
         set: s => s.field(f),
@@ -242,12 +242,11 @@ describe("DocTile", () => {
     it("orders widgets by side", () => {
       let w = (n: number) => Widget.create({
         render: () => span(n + ""),
-        side: n
       })
       let src = (s: number) => {
         let widget = w(s)
         return new WidgetSource<number>({
-          set: () => PointSet.create([2], [0]),
+          set: () => PointSet.create([[2, 0]], s),
           widget: () => widget
         })
       }

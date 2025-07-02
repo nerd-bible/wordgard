@@ -115,7 +115,7 @@ export abstract class Tile {
     return last < 0 ? null : this.children[last]
   }
 
-  // FIXME include side in output?
+   // FIXME include side in output?
   localPosFromDOM(dom: Node, offset: number, bias: -1 | 1): number {
     // If the DOM position is in the content, use the child desc after
     // it to figure out a position.

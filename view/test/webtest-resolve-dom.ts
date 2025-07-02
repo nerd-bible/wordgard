@@ -21,7 +21,6 @@ const testWidget = Widget.define<{name: string, side: number}>({
     span.setAttribute("data-name", value.name)
     return span
   },
-  side(value) { return value.side }
 })
 
 describe("DocTile.resolve", () => {
@@ -48,8 +47,10 @@ describe("DocTile.resolve", () => {
   })
 
   it("resolves properly between widgets", () => {
-    let set = PointSet.create([3, 3, 3, 3], [{name: "A", side: -1}, {name: "B", side: 0},
-                                             {name: "C", side: 0}, {name: "D", side: 1}])
+    let set = PointSet.create([[3, {name: "A", side: -1}],
+                               [3, {name: "B", side: 0}],
+                               [3, {name: "C", side: 0}],
+                               [3, {name: "D", side: 1}]])
     let node = render(doc(p("abcd")), new WidgetSource({
       set: () => set,
       widget: v => testWidget.of(v)
