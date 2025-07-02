@@ -158,6 +158,8 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
+// FIXME how do we ensure points are in the correct order if side
+// isn't intrinsic?
 export class PointSet<Value> {
   private constructor(readonly positions: readonly number[],
                       readonly values: readonly Value[]) {}
@@ -297,7 +299,7 @@ export class PointIterator<Value> {
     if (this.value) this.fill(this.i + 1)
   }
 
-  get side() { return this.value ? this.value.type.side : 1 }
+  get side() { return this.value ? this.value.side : 1 }
 
   goto(pos: number) {
     this.fill(findAbove(this.set.positions, 0, pos - 1))

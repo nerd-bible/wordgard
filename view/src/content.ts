@@ -51,7 +51,6 @@ export abstract class Tile {
   get isDoc() { return false }
   get isSpanning() { return false }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
-  get side() { return this.flags & TileFlag.PointBefore ? -1 : this.flags & TileFlag.PointAfter ? 1 : 0 }
 
   resolveInner(pos: number, off: number, assoc: -1 | 0 | 1): ContentPos {
     let index = 0
@@ -73,10 +72,10 @@ export abstract class Tile {
       let before = index ? this.children[index - 1] : null
       if (before && before.isText) return new ContentPos(before, before.length, pos)
       if (before && !before.boundary && !before.isAtom) return before.resolveInner(pos, before.length, assoc)
-    } else {
+    } else if (assoc > 0) {
       let after = index < this.children.length ? this.children[index] : null
       if (after && after.isText) return new ContentPos(after, 0, pos)
-      if (after && !after.boundary && !after.isPoint) return after.resolveInner(pos, 0, assoc)
+      if (after && !after.boundary && !after.isAtom) return after.resolveInner(pos, 0, assoc)
     }
     return new ContentPos(this, index, pos)
   }
@@ -250,7 +249,7 @@ export class DocTile extends CompositeTile {
     }
   }
 
-  resolve(pos: number, assoc: -1 | 0 | 1) {
+  resolve(pos: number, assoc: -1 | 0 | 1 = 0) {
     return this.resolveInner(pos, pos, assoc)
   }
 
@@ -337,6 +336,10 @@ export class TextTile extends Tile {
     if (this.flags & TileFlag.Synced) return
     this.flags |= TileFlag.Synced
     if (this.dom.nodeValue != this.text) this.dom.nodeValue = this.text
+  }
+
+  resolveInner(pos: number, off: number): ContentPos {
+    return new ContentPos(this, off, pos)
   }
 
   toString() { return JSON.stringify(this.text) }

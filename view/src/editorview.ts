@@ -693,7 +693,7 @@ export class EditorView {
   static announce = StateEffect.define<string>()
 
   /// @internal for testing
-  static DocViewNode = DocTile
+  static DocTile = DocTile
 }
 
 let _wrapElement: {new (view: EditorView): HTMLElement} | null = null

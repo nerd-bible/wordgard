@@ -1,17 +1,18 @@
-import {EditorView, TagWidgetSource, TagDecorationSource, Widget, PointSet, WidgetSource, RangeSet, RangeDecorationSource, E, DocTile} from "@wordgard/view"
+import {EditorView, TagWidgetSource, TagDecorationSource, Widget, PointSet, WidgetSource,
+        RangeSet, RangeDecorationSource, E} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image} from "@wordgard/doc"
 import ist from "ist"
 
-const {DocViewNode} = EditorView
+const {DocTile} = EditorView
 const {doc, p, blockquote, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
 function render(doc: DocNode, ...extensions: Extension[]) {
-  return DocViewNode.create(EditorState.create({doc, extensions}), document.createElement("div"))
+  return DocTile.create(EditorState.create({doc, extensions}), document.createElement("div"))
 }
 
-function update(node: DocTile, spec: TransactionSpec) {
+function update(node: InstanceType<typeof DocTile>, spec: TransactionSpec) {
   let tr = node.state.update(spec)
   return node.update(tr.state, tr.changes)
 }
@@ -24,7 +25,7 @@ function span(text: string) {
 
 const inlineWidget = Widget.define<string>({render: span})
 
-describe("ViewNode", () => {
+describe("DocTile", () => {
   it("can draw a simple document", () => {
     ist(render(doc(p("one"), p("two"))).dom.innerHTML, "<p>one</p><p>two</p>")
   })
