@@ -12,6 +12,36 @@ enum WidgetPlace { Before, After, Start, End }
 
 export type TagSelector = Tag<any> | TagType<any> | readonly TagType<any>[] | string
 
+export type WrapperDeco<Param> = {
+  element: string
+  attributes?: Attrs | ((param: Param) => Attrs)
+  rank?: number
+  spanning?: boolean
+}
+
+export type AttributeDeco<Param> = {
+  attribute: string
+  value?: string | ((param: Param) => string | null)
+}
+
+export type WidgetDeco<Param> = {
+  widget: Widget<any> | ((param: Param) => Widget<any>)
+  place: keyof typeof WidgetPlace | WidgetPlace
+}
+
+export function tagDecoration(spec: {
+  tag: TagSelector
+  deco: WrapperDeco<Tag> | AttributeDeco<Tag> | WidgetDeco<Tag>
+}): Extension {
+  if ((spec.deco as WrapperDeco<Tag>).element) {
+    return new TagWrapperSource(spec.tag, spec.deco as WrapperDeco<Tag>)
+  } else if ((spec.deco as WidgetDeco<any>).widget) {
+    return new TagWidgetSource(spec.tag, spec.deco as WidgetDeco<Tag>)
+  } else {
+    return [] // FIXME
+  }
+}
+
 function tagPredicate(selector?: TagSelector): (tag: Tag<any>) => boolean {
   return typeof selector == "string" ? t => t.type.isInGroup(selector)
     : selector instanceof TagType ? t => t.type == selector
@@ -51,19 +81,15 @@ const tagShape = memo((tag: Tag<unknown>): Shape => {
   return elt
 })
 
-export class TagWidgetSource {
+class TagWidgetSource {
   place: WidgetPlace
   tag: (tag: Tag) => boolean
-  widget: (tag: Tag) => Widget<any> | null
+  widget: (tag: Tag) => Widget<any>
   extension: Extension
 
-  constructor(config: {
-    tag?: TagSelector,
-    side: keyof typeof WidgetPlace | WidgetPlace,
-    widget: Widget<any> | ((tag: Tag) => Widget<any> | null)
-  }) {
-    let {tag, side, widget} = config
-    this.place = typeof side == "string" ? WidgetPlace[side] : side
+  constructor(tag: TagSelector, deco: WidgetDeco<Tag>) {
+    let {place, widget} = deco
+    this.place = typeof place == "string" ? WidgetPlace[place] : place
     this.tag = tagPredicate(tag)
     this.widget = typeof widget == "function" ? memo(widget) : () => widget
     this.extension = tagWidgets.of(this)
@@ -71,34 +97,6 @@ export class TagWidgetSource {
 }
 
 export const tagWidgets = Facet.define<TagWidgetSource>()
-
-export type WrapperDeco<Param> = {
-  element: string
-  attributes?: Attrs | ((param: Param) => Attrs)
-  rank?: number
-  spanning?: boolean
-}
-
-export type AttributeDeco<Param> = {
-  attribute: string
-  value?: string | ((param: Param) => string | null)
-}
-
-export type WidgetDeco<Param> = {
-  widget: Widget<Param> | ((param: Param) => Widget<any>)
-  place: keyof typeof WidgetPlace | WidgetPlace
-}
-
-export function tagDecoration(spec: {
-  tag: TagSelector
-  deco: WrapperDeco<Tag> | AttributeDeco<Tag> | WidgetDeco<Tag>
-}): Extension {
-  if ((spec.deco as WrapperDeco<Tag>).element) {
-    return new TagWrapperSource(spec.tag, spec.deco as WrapperDeco<Tag>)
-  } else {
-    return [] // FIXME
-  }
-}
 
 export class TagWrapperSource {
   tag: (tag: Tag) => boolean

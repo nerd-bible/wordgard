@@ -1,4 +1,4 @@
-import {EditorView, TagWidgetSource, tagDecoration, Widget, PointSet, WidgetSource,
+import {EditorView, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, E} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
@@ -144,20 +144,24 @@ describe("DocTile", () => {
 
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {
-      let src = (side: string) => new TagWidgetSource({
+      let src = (side: string) => tagDecoration({
         tag: Paragraph,
-        side: side as any,
-        widget: inlineWidget.of(side)
+        deco: {
+          widget: inlineWidget.of(side),
+          place: side as any
+        }
       })
       let node = render(doc(p("xyz"), hr()), src("Before"), src("Start"), src("End"), src("After"))
       ist(node.dom.innerHTML, "<span>Before</span><p><span>Start</span>xyz<span>End</span></p><span>After</span><hr>")
     })
 
     it("can reuse widgets when replacing next to them", () => {
-      let src = (side: string) => new TagWidgetSource({
+      let src = (side: string) => tagDecoration({
         tag: Image,
-        side: side as any,
-        widget: inlineWidget.of(side)
+        deco: {
+          widget: inlineWidget.of(side),
+          place: side as any
+        }
       })
       let node = render(doc(p("x", $img(), "y")), src("Before"), src("After"))
       let widgets = node.dom.querySelectorAll("span")
@@ -168,10 +172,12 @@ describe("DocTile", () => {
     })
 
     it("can reuse widgets when updating across them", () => {
-      let src = (side: string) => new TagWidgetSource({
+      let src = (side: string) => tagDecoration({
         tag: Image,
-        side: side as any,
-        widget: inlineWidget.of(side)
+        deco: {
+          widget: inlineWidget.of(side),
+          place: side as any
+        }
       })
       let node = render(doc(p(strong("x", $img(), "y"), em("z", $img()))), src("Before"), src("After"))
       let widgets = node.dom.querySelectorAll("span")
@@ -185,10 +191,12 @@ describe("DocTile", () => {
     })
 
     it("doesn't break spanning wrappers on widgets", () => {
-      let src = (side: string) => new TagWidgetSource({
+      let src = (side: string) => tagDecoration({
         tag: Image,
-        side: side as any,
-        widget: inlineWidget.of(side)
+        deco: {
+          widget: inlineWidget.of(side),
+          place: side as any
+        }
       })
       let node = render(doc(p(strong("x", $img(), "y"))), src("Before"), src("After"))
       ist(node.dom.querySelectorAll("strong").length, 1)
