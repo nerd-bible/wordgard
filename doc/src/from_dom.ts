@@ -23,10 +23,10 @@ class RuleSet {
   static fromSchema(schema: Schema) {
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
-      let {dom, parseRules} = tag.spec
-      if (typeof dom != "function" && dom.element) rules.push({
-        selector: dom.selector || dom.element,
-        readElement: dom.readElement,
+      let {repr, spec: {parseRules}} = tag
+      if (!Array.isArray(repr) && repr.element) rules.push({
+        selector: repr.selector || repr.element,
+        readElement: repr.readElement,
         tag
       })
       if (parseRules) for (let rule of parseRules) rules.push({...rule, tag: rule.tag || tag})

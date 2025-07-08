@@ -2,7 +2,7 @@ import {DocNode, Node, Tag, TokenType} from "./node"
 import {Schema} from "./schema"
 import {Slice, CloseToken} from "./slice"
 import {Prop} from "./prop"
-import {Attrs, ElementRepresentation, AttributeRepresentation,
+import {Attrs, ElementRepresentation, AttributeRepresentation, StructureRepresentation,
         isElementRepresentation, isAttributeRepresentation} from "./spec"
 import {OpenSide} from "./from_dom"
 
@@ -65,22 +65,27 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
         children = lineBreaksToNewlines(children, options.schema.lineBreak)
       serializeChildren(children, top, opts, next.isInline())
     } else if (next.tokenType == TokenType.Open) {
-      let wrap = serializeNodeMarkup(next.tag, opts) as HTMLElement
-      top.appendChild(wrap)
-      top = wrap
+      let {outer, content} = serializeNodeMarkup(next.tag, opts)
+      top.appendChild(outer)
+      if (!content) throw new Error("Cannot serialize an open token for an atom node")
+      top = content
       stack.push(next.tag)
     } else if (top.parentNode) {
       if (i == slice.content.length && options.markOpen) options.markOpen(top as HTMLElement, OpenSide.End)
       top = top.parentNode as DocumentFragment | HTMLElement
       stack.pop()
     } else {
-      let wrap = context.length < contextDepth ? opts.document.createElement("div")
-        : serializeNodeMarkup(context[contextDepth++], opts) as HTMLElement
-      wrap.appendChild(top)
+      let outer, content
+      if (context.length < contextDepth) {
+        outer = content = opts.document.createElement("div")
+      } else {
+        ;({outer, content} = serializeNodeMarkup(context[contextDepth++], opts))
+      }
+      content!.appendChild(top)
       if (options.markOpen)
-        options.markOpen(wrap, OpenSide.Start | (i == slice.content.length ? OpenSide.End : 0))
+        options.markOpen(outer as HTMLElement, OpenSide.Start | (i == slice.content.length ? OpenSide.End : 0))
       result = top = opts.document.createDocumentFragment()
-      top.appendChild(wrap)
+      top.appendChild(outer)
       stack.pop()
     }
   }
@@ -119,36 +124,64 @@ function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, in
   }
 }
 
+function renderStructure<T>(repr: StructureRepresentation<T>, param: T, document: Document) {
+  let content: HTMLElement | undefined
+  function scan(repr: StructureRepresentation<T>) {
+    let elt = document.createElement(typeof repr[0] == "function" ? repr[0](param) : repr[0])
+    for (let i = 1; i < repr.length; i++) {
+      let val = repr[i]
+      if (typeof val == "function") val = val(param)
+      if (i == 1 && typeof val == "object" && !Array.isArray(val)) {
+        applyAttributes(val, elt)
+      } else if (typeof val == "string") {
+        elt.appendChild(document.createTextNode(val))
+      } else if (val === 0) {
+        if (i < repr.length - 1 || elt.firstChild) throw new Error("Hole markers can only appear as the only child of an element")
+        if (content) throw new Error("Multiple holes found")
+        content = elt
+      } else {
+        elt.appendChild(scan(val as StructureRepresentation<T>))
+      }
+    }
+    return elt
+  }
+  return {outer: scan(repr), content}
+}
+
 function serializeNodeMarkup(tag: Tag, options: FullOptions) {
-  let {dom} = tag.type.spec, elt: HTMLElement | undefined, text: Text | undefined
+  let {dom} = tag.type.spec, elt: HTMLElement | undefined, content: HTMLElement | undefined, text: Text | undefined
   if (tag.isText()) {
     text = options.document.createTextNode(tag.param as string)
-  } else if (typeof dom == "function") {
-    elt = dom(tag.param) // FIXME include dangling parents
+  } else if (Array.isArray(dom)) {
+    let struct = renderStructure(dom, tag.param, options.document)
+    elt = struct.outer
+    content = struct.content
   } else {
     elt = options.document.createElement(dom.element)
     if (dom.attributes)
       applyAttributes(typeof dom.attributes == "function" ? dom.attributes(tag.param) : dom.attributes, elt)
+    content = elt
   }
-  for (let {type, value} of tag.props) if (isAttributeRepresentation(type.spec.dom)) {
+  for (let {type, value} of tag.props) if (isAttributeRepresentation(type.repr)) {
     if (!elt) {
       elt = document.createElement("span")
       elt.appendChild(text!)
     }
-    applyAttribute(type.spec.dom, elt, value)
+    applyAttribute(type.repr, elt, value)
   }
-  return elt || text!
+  return {outer: elt || text!, content}
 }
 
 function serializeNodeInner(node: Node, options: FullOptions) {
-  let dom = serializeNodeMarkup(node.tag, options)
-  if (!node.isLeaf()) {
+  let {outer, content} = serializeNodeMarkup(node.tag, options)
+  if (!node.isAtom()) {
+    if (!content) throw new Error("Non-atom node without a content hole in its representation")
     let {children} = node
     if (options.emitNewlines && node.type.preserveWhitespace && options.schema.lineBreak)
       children = lineBreaksToNewlines(children, options.schema.lineBreak)
-    serializeChildren(children, dom as HTMLElement, options, node.tag.inlineContent())
+    serializeChildren(children, content, options, node.tag.inlineContent())
   }
-  return dom
+  return outer
 }
 
 function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Tag<any>) {
@@ -168,10 +201,10 @@ function serializeChildren(
   let top = target, active: Prop[] = []
   for (let child of children) {
     let childDOM = serializeNodeInner(child, options)
-    if (active.length || child.tag.props.some(p => isElementRepresentation(p.type.spec.dom))) {
+    if (active.length || child.tag.props.some(p => isElementRepresentation(p.type.repr))) {
       let keep = 0, rendered = 0, eltProps = []
       for (let prop of child.tag.props)
-        if (isElementRepresentation(prop.type.spec.dom)) eltProps.push(prop)
+        if (isElementRepresentation(prop.type.repr)) eltProps.push(prop)
       while (keep < active.length && rendered < eltProps.length) {
         let next = eltProps[rendered]
         if (!next.eq(active[keep]) || !next.type.spanning) break
@@ -183,7 +216,7 @@ function serializeChildren(
       }
       while (rendered < eltProps.length) {
         let add = eltProps[rendered++]
-        let markDOM = createElement(add.type.spec.dom as ElementRepresentation<any>,
+        let markDOM = createElement(add.type.repr as ElementRepresentation<any>,
                                     add.value, options.document)
         active.push(add)
         top.appendChild(markDOM)

@@ -11,7 +11,7 @@ type ChangeData = (Token | string)[] | {add: Prop<any>} | {remove: Prop<any>}
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
 function mk(doc: DocNode, changes: readonly ChangeData[]) {
-  let i = ChangeSet.create(doc, changes.map((ch, i): ChangeSpec => {
+  return ChangeSet.create(doc, changes.map((ch, i): ChangeSpec => {
     let from = tag(doc, i * 2)
     if (from == null) throw new Error(`No start position defined for change ${i}`)
     let to = maybeTag(doc, i * 2 + 1) ?? from
@@ -19,8 +19,6 @@ function mk(doc: DocNode, changes: readonly ChangeData[]) {
     let {add, remove} = ch as {add?: Prop, remove?: Prop}
     return add ? {from, to, add: add} : {from, to, remove: remove}
   }))
-  console.log(i)
-  return i
 }
 
 function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }
@@ -28,7 +26,6 @@ function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }
 describe("ChangeSet", () => {
   describe("apply", () => {
     function testApply(doc: DocNode, changes: ChangeData[], expect: Node) {
-      console.log("+> " + mk(doc, changes).apply(doc), " vs " + expect)
       ist(mk(doc, changes).apply(doc), expect, eq)
     }
 

@@ -1,5 +1,6 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
-import {TagSpec} from "./spec"
+import {TagSpec, ElementRepresentation, StructureRepresentation,
+        checkStructureRepresentation, isStructureRepresentation} from "./spec"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {PropType, Prop} from "./prop"
@@ -38,6 +39,7 @@ export class TagType<Param> {
   readonly preserveWhitespace: boolean
   readonly orientation: "row" | "column"
   readonly default: Tag<Param> | null
+  readonly repr: ElementRepresentation<Param> | StructureRepresentation<Param>
 
   constructor(
     readonly name: string,
@@ -54,6 +56,8 @@ export class TagType<Param> {
     this.neutral = spec.neutral ?? !this.defining
     this.preserveWhitespace = !!spec.preserveWhitespace
     this.orientation = spec.orientation || "row"
+    this.repr = spec.dom
+    if (isStructureRepresentation(this.repr)) checkStructureRepresentation(this.repr, this.isAtom())
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
   }

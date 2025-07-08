@@ -59,20 +59,20 @@ function memo<T>(f: (tag: Tag<any>) => T) {
 }
 
 const tagShape = memo((tag: Tag<unknown>): Shape => {
-  let {dom} = tag.type.spec, elt: Widget<any> | Elt | undefined
+  let {repr} = tag.type, elt: Widget<any> | Elt | undefined
   if (tag.isText()) {
     elt = TextWidget.of(tag.param)
   } else {
-    if (typeof dom == "function") throw new Error("FIXME")
-    let attrs = !dom.attributes ? noAttrs : typeof dom.attributes == "function" ? dom.attributes(tag.param) : dom.attributes
-    elt = tag.isAtom() ? E(dom.element, attrs) : E(dom.element, attrs, 0)
+    if (Array.isArray(repr)) throw new Error("FIXME")
+    let attrs = !repr.attributes ? noAttrs : typeof repr.attributes == "function" ? repr.attributes(tag.param) : repr.attributes
+    elt = tag.isAtom() ? E(repr.element, attrs) : E(repr.element, attrs, 0)
   }
   let attrs: string[] | undefined
   for (let prop of tag.props) if (!prop.type.element) {
-    let dom = prop.type.spec.dom as AttributeRepresentation<any>
-    let value = dom.value == null ? String(prop.value) : typeof dom.value == "string" ? dom.value : dom.value(prop.value)
+    let repr = prop.type.repr as AttributeRepresentation<any>
+    let value = repr.value == null ? String(prop.value) : typeof repr.value == "string" ? repr.value : repr.value(prop.value)
     if (value != null)
-      pushAttribute(attrs || (attrs = []), dom.attribute, value)
+      pushAttribute(attrs || (attrs = []), repr.attribute, value)
   }
   if (attrs) {
     if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.flags, elt.children)
@@ -806,9 +806,9 @@ export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
   if (src instanceof TagWrapperSource) return src.wrapper(tag)
   if (src instanceof RangeIterator) return src.source.wrapper!(src.value)
   // FIXME memoize this
-  let dom = src.type.spec.dom as ElementRepresentation<any>
-  let attrs = typeof dom.attributes == "function" ? dom.attributes(src.value) : dom.attributes || noAttrs
-  return E(dom.element, attrs)
+  let repr = src.type.repr as ElementRepresentation<any>
+  let attrs = typeof repr.attributes == "function" ? repr.attributes(src.value) : repr.attributes || noAttrs
+  return E(repr.element, attrs)
 }
 
 export class DecoIterator {
