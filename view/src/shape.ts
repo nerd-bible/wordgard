@@ -1,6 +1,6 @@
-// FIXME move most of this into doc
+// FIXME move Elt into doc, use it for describing nested node structure
 
-export enum EltFlag { Hole = 1, Spanning = 2, RankShift = 2 }
+export enum EltFlag { Hole = 1 }
 
 export class Elt {
   constructor(
@@ -12,10 +12,6 @@ export class Elt {
   ) {}
 
   get hasHole() { return !!(this.flags & EltFlag.Hole) }
-  get spanning() { return !!(this.flags & EltFlag.Spanning) }
-
-  get rank() { return this.flags >> EltFlag.RankShift }
-  set rank(value: number) { this.flags = (this.flags & 3) + (value << EltFlag.RankShift) }
 
   eqTag(elt: Elt) {
     return elt.tagName == this.tagName && sameAttributes(this.attrs, elt.attrs)
@@ -26,7 +22,7 @@ export class Elt {
   }
 
   eq(shape: Shape) {
-    return shape instanceof Elt && this.eqTag(shape) && this.eqChildren(shape) && this.spanning == shape.spanning
+    return shape instanceof Elt && this.eqTag(shape) && this.eqChildren(shape)
   }
 }
 
@@ -41,14 +37,6 @@ export function E(name: string, ...children: EltChild[]): Elt
 export function E(name: string, ...args: (EltChild | Record<string, string>)[]) {
   return makeElt(name, 0, args)
 }
-
-function spanE(name: string, attrs: Record<string, string>, ...children: EltChild[]): Elt
-function spanE(name: string, ...children: EltChild[]): Elt
-function spanE(name: string, ...args: (EltChild | Record<string, string>)[]) {
-  return makeElt(name, EltFlag.Spanning, args)
-}
-
-E.span = spanE
 
 function makeElt(name: string, flags: number, args: (EltChild | Record<string, string>)[]) {
   let children: Shape[] = [], attrs = noAttributes
@@ -110,7 +98,6 @@ export class Widget<T> {
   }
 
   get hasHole() { return false }
-  get spanning() { return false }
 }
 
 export const TextWidget = Widget.define<string>({

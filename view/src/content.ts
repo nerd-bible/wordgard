@@ -1,7 +1,7 @@
 import {Node as WGNode, Tag, ChangeDesc} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import {Shape} from "./shape"
-import {DecoIterator, findChangedRanges} from "./decoration"
+import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper} from "./decoration"
 import {Elt, Widget} from "./shape"
 import {compareAttributes, Attributes} from "./shape"
 
@@ -11,11 +11,12 @@ declare global {
 
 export const enum TileFlag {
   NodeInner = 1,
-  Synced = 2,
+  Spanning = 2,
   Point = 4,
   PointBefore = 8,
   PointAfter = 16,
-  PointSide = PointBefore | PointAfter
+  PointSide = PointBefore | PointAfter,
+  Synced = 32,
 }
 
 export class ContentPos {
@@ -115,7 +116,7 @@ export abstract class Tile {
     return last < 0 ? null : this.children[last]
   }
 
-   // FIXME include side in output?
+  // FIXME include side in output?
   localPosFromDOM(dom: Node, offset: number, bias: -1 | 1): number {
     // If the DOM position is in the content, use the child desc after
     // it to figure out a position.
@@ -278,7 +279,7 @@ export class EltTile extends CompositeTile {
     this.length = length
   }
 
-  get isSpanning() { return this.elt.spanning }
+  get isSpanning() { return (this.flags & TileFlag.Spanning) > 0 }
 
   get isNodeOuter() { return !!this.tag }
 
@@ -445,12 +446,12 @@ class TilePointer {
     return index < tile.children.length ? tile.children[index] : null
   }
 
-  matchingWrapper(elt: Elt, reuse: Set<Tile>) {
+  matchingWrapper(elt: Elt, spanning: boolean, reuse: Set<Tile>) {
     let best: EltTile | undefined, bestScore = 0
     let start = this.tile.isText ? this.parent! : this
     for (let {tile, parent} = start; !(tile.isNode || tile.isDoc); {tile, parent} = parent!) {
       let wrap = tile as EltTile
-      if (reuse.has(wrap) || wrap.elt.tagName != elt.tagName || wrap.elt.spanning != elt.spanning) continue
+      if (reuse.has(wrap) || wrap.elt.tagName != elt.tagName || wrap.isSpanning != spanning) continue
       let score = compareAttributes(wrap.elt.attrs, elt.attrs)
       if (!best || bestScore < score) {
         best = wrap
@@ -480,18 +481,7 @@ class TilePointer {
     }
     return null
   }
-
-  get wrappers() {
-    let result: Elt[] | null = null
-    let start = this.tile.isText ? this.parent! : this
-    for (let {tile, parent} = start; !tile.isNode && !tile.isDoc; {tile, parent} = parent!) {
-      ;(result || (result = [])).push((tile as EltTile).elt)
-    }
-    return result ? result.reverse() : none
-  }
 }
-
-const none: readonly any[] = []
 
 class ContentUpdate {
   old: TilePointer
@@ -539,7 +529,7 @@ class ContentUpdate {
     }
     if (!(bound & Bound.Start)) {
       this.old = this.old.walk(0, 1)
-      this.openWrappers(this.old.wrappers, true)
+      this.openOldWrappers() // FIXME
     }
     this.old = this.old.walk(len, (bound & Bound.End) ? 1 : -1, walker)
     this.posB += len
@@ -559,7 +549,7 @@ class ContentUpdate {
     let start = this.posB, end = this.posB + len
     this.deco.walk(start, end, {
       enter: (tag, elt, wrappers) => {
-        this.openWrappers(wrappers, reuse)
+        this.openWrappers(wrappers, tag, reuse)
         let tile: EltTile | undefined
         if (reuse) {
           let nodeTile = this.old.tileAfter!
@@ -588,7 +578,7 @@ class ContentUpdate {
         this.posB++
       },
       node: (node, shape, wrappers) => {
-        this.openWrappers(wrappers, reuse)
+        this.openWrappers(wrappers, node.tag, reuse)
         let tile: Tile | undefined
         if (reuse || node.isText() && this.posB == start) {
           let nodeTile = this.old.tileAfter()!
@@ -656,17 +646,32 @@ class ContentUpdate {
     }
   }
 
-  openWrappers(wrappers: readonly Elt[], reuse: boolean) {
-    for (let elt of wrappers) {
-      let span = elt.spanning && this.enterSpanning(elt)
-      if (span) {
-        this.new = span
-      } else {
-        let match = reuse ? this.old.matchingWrapper(elt, this.reused) : null
-        let tile = EltTile.of(elt, null, 0, 0, match)
-        this.new.addChild(tile)
-        this.new = tile
-      }
+  openWrappers(wrappers: readonly WrapperSource[], tag: Tag, reuse: boolean) {
+    for (let src of wrappers) {
+      this.openWrapper(renderWrapper(src, tag), src.spanning, reuse)
+    }
+  }
+
+  openOldWrappers() {
+    let found: EltTile[] | undefined
+    let start = this.old.tile.isText ? this.old.parent! : this.old
+    for (let {tile, parent} = start; !tile.isNode && !tile.isDoc; {tile, parent} = parent!) {
+      ;(found || (found = [])).push(tile as EltTile)
+    }
+    if (found) for (let i = found.length - 1; i >= 0; i--) {
+      this.openWrapper(found[i].elt, found[i].isSpanning, true)
+    }
+  }
+
+  openWrapper(elt: Elt, spanning: boolean, reuse: boolean) {
+    let span = spanning && this.enterSpanning(elt)
+    if (span) {
+      this.new = span
+    } else {
+      let match = reuse ? this.old.matchingWrapper(elt, spanning, this.reused) : null
+      let tile = EltTile.of(elt, null, spanning ? TileFlag.Spanning : 0, 0, match)
+      this.new.addChild(tile)
+      this.new = tile
     }
   }
 

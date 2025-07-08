@@ -100,6 +100,8 @@ export class Prop<Value = unknown> {
 
   get rank() { return this.type.rank }
 
+  get spanning() { return this.type.spanning }
+
   get schemaElement() { return this.type }
 
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }

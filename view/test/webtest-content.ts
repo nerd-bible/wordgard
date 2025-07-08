@@ -1,4 +1,4 @@
-import {EditorView, TagWidgetSource, TagDecorationSource, Widget, PointSet, WidgetSource,
+import {EditorView, TagWidgetSource, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, E} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
@@ -255,26 +255,27 @@ describe("DocTile", () => {
     })
 
     it("can decorate tags", () => {
-      ist(render(doc(p("a", $img())), new TagDecorationSource({
+      ist(render(doc(p("a", $img())), tagDecoration({
         tag: Paragraph,
-        deco: E("div", {class: "pwrap"})
-      }), new TagDecorationSource({
+        deco: {element: "div", attributes: {class: "pwrap"}}
+      }), tagDecoration({
         tag: Image,
-        deco: E("image")
+        deco: {element: "image"}
       })).dom.innerHTML, "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
     })
 
     it("can make tag decorations spanning", () => {
-      ist(render(doc(p($img(), $img())), new TagDecorationSource({
+      ist(render(doc(p($img(), $img())), tagDecoration({
         tag: Image,
-        deco: E.span("image")
+        deco: {element: "image", spanning: true}
       })).dom.innerHTML, "<p><image><img src=\"test.png\"><img src=\"test.png\"></image></p>")
     })
 
     it("can take decorations from spans", () => {
       ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
         set: () => RangeSet.create([2], [5], ["a"]),
-        deco: v => E.span("span", {class: v})
+        deco: v => E("span", {class: v}),
+        spanning: true
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
   })

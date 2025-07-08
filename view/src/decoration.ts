@@ -1,7 +1,9 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
+import {Prop} from "@wordgard/doc"
 import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
-        AttributeRepresentation, ElementRepresentation} from "@wordgard/doc"
+        ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
 import {Elt, Widget, WidgetType, TextWidget, pushAttribute, E, EltFlag, mergeAttributes, Shape} from "./shape"
+import {Attrs} from "./attributes"
 
 // FIXME support some kind of dependency tracking on decoration
 // sources
@@ -70,27 +72,57 @@ export class TagWidgetSource {
 
 export const tagWidgets = Facet.define<TagWidgetSource>()
 
-// FIXME support attribute-only deco?
-export class TagDecorationSource {
-  tag: (tag: Tag) => boolean
-  deco: (tag: Tag) => Elt | null
-  rank: number
-  extension: Extension
+export type WrapperDeco<Param> = {
+  element: string
+  attributes?: Attrs | ((param: Param) => Attrs)
+  rank?: number
+  spanning?: boolean
+}
 
-  constructor(config: {
-    tag?: TagSelector,
-    deco: Elt | ((tag: Tag) => Elt | null)
-    rank?: number
-  }) {
-    let {tag, deco} = config
-    this.tag = tagPredicate(tag)
-    this.deco = typeof deco == "function" ? memo(deco) : () => deco
-    this.rank = config.rank ?? 50
-    this.extension = tagDecorations.of(this)
+export type AttributeDeco<Param> = {
+  attribute: string
+  value?: string | ((param: Param) => string | null)
+}
+
+export type WidgetDeco<Param> = {
+  widget: Widget<Param> | ((param: Param) => Widget<any>)
+  place: keyof typeof WidgetPlace | WidgetPlace
+}
+
+export function tagDecoration(spec: {
+  tag: TagSelector
+  deco: WrapperDeco<Tag> | AttributeDeco<Tag> | WidgetDeco<Tag>
+}): Extension {
+  if ((spec.deco as WrapperDeco<Tag>).element) {
+    return new TagWrapperSource(spec.tag, spec.deco as WrapperDeco<Tag>)
+  } else {
+    return [] // FIXME
   }
 }
 
-export const tagDecorations = Facet.define<TagDecorationSource>()
+export class TagWrapperSource {
+  tag: (tag: Tag) => boolean
+  wrapper: (tag: Tag) => Elt
+  rank: number
+  spanning: boolean
+  extension: Extension
+
+  constructor(tag: TagSelector, deco: WrapperDeco<Tag>) {
+    this.tag = tagPredicate(tag)
+    const {element, attributes, rank, spanning} = deco
+    if (typeof attributes != "function") {
+      let elt = attributes ? E(element, attributes) : E(element)
+      this.wrapper = () => elt
+    } else {
+      this.wrapper = memo(tag => E(deco.element, attributes(tag)))
+    }
+    this.rank = rank ?? 50
+    this.spanning = !!spanning
+    this.extension = tagWrappers.of(this)
+  }
+}
+
+export const tagWrappers = Facet.define<TagWrapperSource>()
 
 export enum DecorationScope {
   Leaf = 1,
@@ -105,10 +137,12 @@ export class RangeDecorationSource<T> {
   set: (state: EditorState) => RangeSet<T>
   deco: (value: T) => Elt
   rank: number
+  spanning: boolean
   extension: Extension
 
   constructor(config: {
     tag?: TagSelector,
+    spanning?: boolean,
     scope?: DecorationScope,
     set: (state: EditorState) => RangeSet<T>,
     rank?: number
@@ -118,6 +152,7 @@ export class RangeDecorationSource<T> {
     this.set = config.set
     this.deco = (config as any).deco || (d => d)
     this.rank = config.rank || 50
+    this.spanning = !!config.spanning
     this.extension = rangeDecorations.of(this)
   }
 }
@@ -452,7 +487,7 @@ export class RangeBuilder<Value> {
     return RangeSet.create<Value>(this.from, this.to, this.values)
   }
 }
-
+ 
 export class RangeIterator<Value, Source> {
   declare value: Value | null // FIXME handle null being part of value
   declare from: number
@@ -461,6 +496,13 @@ export class RangeIterator<Value, Source> {
 
   constructor(readonly set: RangeSet<any>, readonly source: Source) {
     this.fill(0)
+  }
+
+  get rank(): Source extends {rank: number} ? number : never {
+    return (this.source as any).rank
+  }
+  get spanning(): Source extends {spanning: boolean} ? boolean : never {
+    return (this.source as any).spanning
   }
 
   fill(i: number) {
@@ -585,9 +627,9 @@ function addSection(sections: number[], len: number, ins: number) {
 }
 
 export interface DecoWalker {
-  enter(tag: Tag, shape: Elt, wrappers: readonly Elt[]): void
+  enter(tag: Tag, shape: Elt, wrappers: readonly WrapperSource[]): void
   leave(): void
-  node(node: Node, shape: Shape, wrappers: readonly Elt[]): void
+  node(node: Node, shape: Shape, wrappers: readonly WrapperSource[]): void
   widget(widget: Widget<any>, side: number): void
 }
 
@@ -699,72 +741,56 @@ function cmpPoint(a: PointIterator<any>, b: PointIterator<any>) {
 
 const none: readonly any[] = []
 
-class NodeWrappers {
-  wrappers = none as Elt[]
-  spanningWrappers = none as Elt[]
-
-  add(elt: Elt, rank: number) {
-    elt.rank = rank
-    if (elt.spanning) {
-      if (this.spanningWrappers == none) this.spanningWrappers = []
-      this.spanningWrappers.push(elt)
-    } else {
-      if (this.wrappers == none) this.wrappers = []
-      this.wrappers.push(elt)
-    }
-  }
-
-  finish() {
-    if (this.wrappers.length > 1) this.wrappers.sort(byRank)
-    if (this.spanningWrappers.length > 1) this.spanningWrappers.sort(byRank)
-    return !this.wrappers.length ? this.spanningWrappers :
-      !this.spanningWrappers.length ? this.wrappers : this.spanningWrappers.concat(this.wrappers)
-  }
-}
+export type WrapperSource = Prop<any> | TagWrapperSource | RangeIterator<any, RangeDecorationSource<any>>
 
 // Enumerate all wrapper elements for a given node. Spanning wrappers
 // are always moved to the front of the result. Within the
 // spanning/non-spanning wrappers, the ordering is determined by rank.
+//
+// Note that the return value contains range iterators, and those will
+// become invalid as soon as they are advanced further.
 function nodeWrappers(
   tag: Tag,
   active: readonly RangeIterator<any, RangeDecorationSource<any>>[],
-  global: readonly TagDecorationSource[]
-) {
-  let result = new NodeWrappers
+  global: readonly TagWrapperSource[]
+): readonly WrapperSource[] {
+  let wrappers: WrapperSource[] | undefined
 
-  for (let prop of tag.props) if (prop.type.element) {
-    let dom = prop.type.spec.dom as ElementRepresentation<any>
-    let attrs = typeof dom.attributes == "function" ? dom.attributes(prop.value) : dom.attributes || noAttrs
-    result.add((prop.type.spanning ? E.span : E)(dom.element, attrs, 0), prop.type.rank)
-  }
-  
-  let scope = DecorationScope.All |
-    (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
-  for (let src of global) if (src.tag(tag)) {
-    let elt = src.deco(tag)
-    if (elt) result.add(elt, src.rank)
-  }
-  for (let cur of active) {
-    let {source} = cur
-    if ((source.scope & scope) && source.tag(tag)) {
-      let elt = source.deco(cur.value!)
-      if (elt) result.add(elt, cur.source.rank)
+  for (let prop of tag.props) if (prop.type.element) (wrappers || (wrappers = [])).push(prop)
+  for (let src of global) if (src.tag(tag)) (wrappers || (wrappers = [])).push(src)
+  if (active.length) {
+    let scope = DecorationScope.All |
+      (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
+    for (let cur of active) {
+      let {source} = cur
+      if ((source.scope & scope) && source.tag(tag)) (wrappers || (wrappers = [])).push(cur)
     }
   }
-  return result.finish()
+
+  if (!wrappers) return none
+  if (wrappers.length > 1) wrappers.sort((a, b) => (a.spanning == b.spanning ? 0 : a.spanning ? -1 : 1) || a.rank - b.rank)
+  return wrappers
 }
 
+export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
+  if (src instanceof TagWrapperSource) return src.wrapper(tag)
+  if (src instanceof RangeIterator) return src.source.deco(src.value)
+  // FIXME memoize this
+  let dom = src.type.spec.dom as ElementRepresentation<any>
+  let attrs = typeof dom.attributes == "function" ? dom.attributes(src.value) : dom.attributes || noAttrs
+  return E(dom.element, attrs)
+}
 
 export class DecoIterator {
   globalWidgets: readonly TagWidgetSource[]
-  globalDeco: readonly TagDecorationSource[]
+  globalWrappers: readonly TagWrapperSource[]
   pos: Pos
   rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
   pointIter: PointIterator<any>[] = []
   
   constructor(readonly state: EditorState) {
     this.globalWidgets = state.facet(tagWidgets)
-    this.globalDeco = state.facet(tagDecorations)
+    this.globalWrappers = state.facet(tagWrappers)
     this.pos = state.doc.resolve(0)
     for (let s of state.facet(rangeDecorations)) {
       let set = s.set(state)
@@ -796,12 +822,12 @@ export class DecoIterator {
         this.widgets(node.tag, WidgetPlace.Before, walker)
         let shape = tagShape(node.tag)
         if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node " + node)
-        walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalDeco))
+        walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enter: (tag, node) => {
         this.widgets(tag, WidgetPlace.Before, walker)
-        let shape = tagShape(tag), wrappers = nodeWrappers(tag, iter.active, this.globalDeco)
+        let shape = tagShape(tag), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
         if (tag.isAtom()) {
           if (shape.hasHole) throw new Error(`Shape for atom ${tag.name} has a hole`)
           walker.node(node!, shape, wrappers)
@@ -837,8 +863,4 @@ export class DecoIterator {
     else this.widgets(pos.parent.node.tag, WidgetPlace.End, walker)
     this.pos = pos
   }
-}
-
-function byRank<T extends {rank: number}>(a: T, b: T) {
-  return a.rank - b.rank
 }
