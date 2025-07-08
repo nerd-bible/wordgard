@@ -1,5 +1,5 @@
 import {EditorView, tagDecoration, Widget, PointSet, WidgetSource,
-        RangeSet, RangeDecorationSource, E} from "@wordgard/view"
+        RangeSet, RangeDecorationSource} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image} from "@wordgard/doc"
@@ -286,12 +286,19 @@ describe("DocTile", () => {
       })).dom.innerHTML, "<p lang=\"nl\">?</p>")
     })
 
-    it("can take decorations from spans", () => {
+    it("can take wrappers from spans", () => {
       ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
         set: () => RangeSet.create([2], [5], ["a"]),
-        deco: v => E("span", {class: v}),
-        spanning: true
+        deco: {element: "span", attributes: val => ({class: val}), spanning: true},
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
+    })
+
+    it("can take attributes from spans", () => {
+      ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
+        tag: Image,
+        set: () => RangeSet.create([2], [5], ["a"]),
+        deco: {attribute: "alt", value: "a test"},
+      })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
   })
 })

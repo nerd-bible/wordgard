@@ -148,25 +148,36 @@ export enum DecorationScope {
 export class RangeDecorationSource<T> {
   tag: (tag: Tag) => boolean
   scope: DecorationScope
+  wrapper: ((value: T) => Elt) | null = null
+  rank: number = 0
+  spanning: boolean = false
+  attr: AttributeDeco<T> | null = null
   set: (state: EditorState) => RangeSet<T>
-  deco: (value: T) => Elt
-  rank: number
-  spanning: boolean
   extension: Extension
 
   constructor(config: {
-    tag?: TagSelector,
-    spanning?: boolean,
-    scope?: DecorationScope,
-    set: (state: EditorState) => RangeSet<T>,
+    tag?: TagSelector
+    scope?: DecorationScope
+    deco: WrapperDeco<T> | AttributeDeco<T>
+    set: (state: EditorState) => RangeSet<T>
     rank?: number
-  } & (T extends Elt ? {} : {deco: (value: T) => Elt})) {
+  }) {
     this.tag = tagPredicate(config.tag)
     this.scope = config.scope ?? DecorationScope.InlineLeaf
     this.set = config.set
-    this.deco = (config as any).deco || (d => d)
-    this.rank = config.rank || 50
-    this.spanning = !!config.spanning
+    if ((config.deco as WrapperDeco<T>).element) {
+      const {element, attributes, spanning, rank} = config.deco as WrapperDeco<T>
+      this.spanning = !!spanning
+      this.rank = rank ?? 50
+      if (typeof attributes == "function") {
+        this.wrapper = (value: T) => E(element, attributes(value))
+      } else {
+        let elt = attributes ? E(element, attributes) : E(element)
+        this.wrapper = () => elt
+      }
+    } else {
+      this.attr = config.deco as AttributeDeco<T>
+    }
     this.extension = rangeDecorations.of(this)
   }
 }
@@ -470,6 +481,7 @@ export class RangeSet<Value> {
     return ranges
   }
 
+  // FIXME better interface
   static create<Value>(
     from: readonly number[], to: readonly number[], values: readonly Value[],
     inclusive: boolean | ((value: Value, side: -1 | 1) => boolean) = false
@@ -773,11 +785,10 @@ function nodeWrappers(
   for (let prop of tag.props) if (prop.type.element) (wrappers || (wrappers = [])).push(prop)
   for (let src of global) if (src.tag(tag)) (wrappers || (wrappers = [])).push(src)
   if (active.length) {
-    let scope = DecorationScope.All |
-      (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
+    let scope = tagScope(tag)
     for (let cur of active) {
       let {source} = cur
-      if ((source.scope & scope) && source.tag(tag)) (wrappers || (wrappers = [])).push(cur)
+      if (source.wrapper && (source.scope & scope) && source.tag(tag)) (wrappers || (wrappers = [])).push(cur)
     }
   }
 
@@ -786,9 +797,14 @@ function nodeWrappers(
   return wrappers
 }
 
+function tagScope(tag: Tag): DecorationScope {
+  return DecorationScope.All |
+    (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
+}
+
 export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
   if (src instanceof TagWrapperSource) return src.wrapper(tag)
-  if (src instanceof RangeIterator) return src.source.deco(src.value)
+  if (src instanceof RangeIterator) return src.source.wrapper!(src.value)
   // FIXME memoize this
   let dom = src.type.spec.dom as ElementRepresentation<any>
   let attrs = typeof dom.attributes == "function" ? dom.attributes(src.value) : dom.attributes || noAttrs
@@ -836,14 +852,14 @@ export class DecoIterator {
     let wrap: Walker = {
       skip: node => { // Only done for leaf nodes.
         this.widgets(node.tag, WidgetPlace.Before, walker)
-        let shape = this.tagShape(node.tag)
+        let shape = this.tagShape(node.tag, iter.active)
         if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node " + node)
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enter: (tag, node) => {
         this.widgets(tag, WidgetPlace.Before, walker)
-        let shape = this.tagShape(tag), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
+        let shape = this.tagShape(tag, iter.active), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
         if (tag.isAtom()) {
           if (shape.hasHole) throw new Error(`Shape for atom ${tag.name} has a hole`)
           walker.node(node!, shape, wrappers)
@@ -881,12 +897,17 @@ export class DecoIterator {
   }
 
 
-  tagShape(tag: Tag) {
+  tagShape(tag: Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape = tagShape(tag)
     let add: string[] | undefined
     for (let src of this.globalAttrs) {
       if (src.tag(tag))
         pushAttribute(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
+    }
+    for (let iter of active) {
+      let {attr} = iter.source
+      if (attr && iter.source.tag(tag) && (iter.source.scope & tagScope(tag)))
+        pushAttribute(add || (add = []), attr.attribute, typeof attr.value == "function" ? attr.value(iter.value) : attr.value)
     }
     if (add) {
       if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.flags, shape.children)
