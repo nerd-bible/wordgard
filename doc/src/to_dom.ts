@@ -130,7 +130,10 @@ function renderStructure<T>(repr: StructureRepresentation<T>, param: T, document
     let elt = document.createElement(typeof repr[0] == "function" ? repr[0](param) : repr[0])
     for (let i = 1; i < repr.length; i++) {
       let val = repr[i]
-      if (typeof val == "function") val = val(param)
+      if (typeof val == "function") {
+        val = val(param)
+        if (Array.isArray(val)) throw new Error("Dynamic parts of a structure representation may not return arrays")
+      }
       if (i == 1 && typeof val == "object" && !Array.isArray(val)) {
         applyAttributes(val, elt)
       } else if (typeof val == "string") {
@@ -139,8 +142,10 @@ function renderStructure<T>(repr: StructureRepresentation<T>, param: T, document
         if (i < repr.length - 1 || elt.firstChild) throw new Error("Hole markers can only appear as the only child of an element")
         if (content) throw new Error("Multiple holes found")
         content = elt
+      } else if (Array.isArray(val)) {
+        elt.appendChild(scan(val))
       } else {
-        elt.appendChild(scan(val as StructureRepresentation<T>))
+        throw new Error("Invalid value in structure representation: " + val)
       }
     }
     return elt

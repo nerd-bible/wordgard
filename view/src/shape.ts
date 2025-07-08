@@ -1,4 +1,4 @@
-// FIXME move Elt into doc, use it for describing nested node structure
+// FIXME get rid of Elt altogether?
 
 export enum EltFlag { Hole = 1 }
 

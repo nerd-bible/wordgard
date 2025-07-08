@@ -1,8 +1,8 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
 import {Prop} from "@wordgard/doc"
 import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
-        ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
-import {Elt, Widget, WidgetType, TextWidget, pushAttribute, E, mergeAttributes, Shape} from "./shape"
+        ElementRepresentation, AttributeRepresentation, StructureRepresentation} from "@wordgard/doc"
+import {Elt, EltChild, Widget, WidgetType, TextWidget, pushAttribute, E, mergeAttributes, Shape} from "./shape"
 import {Attrs} from "./attributes"
 
 // FIXME support some kind of dependency tracking on decoration
@@ -58,12 +58,33 @@ function memo<T>(f: (tag: Tag<any>) => T) {
   }
 }
 
+function renderStructure<T>(repr: StructureRepresentation<T>, param: T) {
+  let tag = typeof repr[0] == "function" ? repr[0](param) : repr[0], attrs: Attrs | undefined
+  let children: EltChild[] = []
+  for (let i = 1; i < repr.length; i++) {
+    let val = repr[i]
+    if (typeof val == "function") {
+      val = val(param)
+      if (Array.isArray(val)) throw new Error("Dynamic parts of a structure representation may not return arrays")
+    }
+    if (i == 1 && typeof val == "object" && !Array.isArray(val)) {
+      attrs = val
+    } else if (typeof val == "string" || val === 0) {
+      children.push(val)
+    } else if (Array.isArray(val)) {
+      children.push(renderStructure(val, param))
+    }
+  }
+  return E(tag, attrs || noAttrs, ...children)
+}
+
 const tagShape = memo((tag: Tag<unknown>): Shape => {
   let {repr} = tag.type, elt: Widget<any> | Elt | undefined
   if (tag.isText()) {
     elt = TextWidget.of(tag.param)
+  } else if (Array.isArray(repr)) {
+    elt = renderStructure(repr, tag.param)
   } else {
-    if (Array.isArray(repr)) throw new Error("FIXME")
     let attrs = !repr.attributes ? noAttrs : typeof repr.attributes == "function" ? repr.attributes(tag.param) : repr.attributes
     elt = tag.isAtom() ? E(repr.element, attrs) : E(repr.element, attrs, 0)
   }

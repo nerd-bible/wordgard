@@ -6,7 +6,7 @@ import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
 import ist from "ist"
 
 const {DocTile} = EditorView
-const {doc, p, blockquote, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
+const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
 function render(doc: DocNode, ...extensions: Extension[]) {
   return DocTile.create(EditorState.create({doc, extensions}), document.createElement("div"))
@@ -38,6 +38,10 @@ describe("DocTile", () => {
   it("can draw props on text", () => {
     ist(render(doc(p(em("ab", strong("cd")), "ef"))).dom.innerHTML,
         "<p><em>ab<strong>cd</strong></em>ef</p>")
+  })
+
+  it("can draw nodes with structure representation", () => {
+    ist(render(doc(h2("head"))).dom.innerHTML, "<h2>head</h2>")
   })
 
   it("can draw props on nodes", () => {
