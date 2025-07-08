@@ -279,6 +279,13 @@ describe("DocTile", () => {
       })).dom.innerHTML, "<p><image><img src=\"test.png\"><img src=\"test.png\"></image></p>")
     })
 
+    it("can add attributes to tags", () => {
+      ist(render(doc(p("?")), tagDecoration({
+        tag: Paragraph,
+        deco: {attribute: "lang", value: "nl"}
+      })).dom.innerHTML, "<p lang=\"nl\">?</p>")
+    })
+
     it("can take decorations from spans", () => {
       ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
         set: () => RangeSet.create([2], [5], ["a"]),

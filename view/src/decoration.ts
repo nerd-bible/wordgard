@@ -2,7 +2,7 @@ import {EditorState, Facet, Extension} from "@wordgard/state"
 import {Prop} from "@wordgard/doc"
 import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
         ElementRepresentation, AttributeRepresentation} from "@wordgard/doc"
-import {Elt, Widget, WidgetType, TextWidget, pushAttribute, E, EltFlag, mergeAttributes, Shape} from "./shape"
+import {Elt, Widget, WidgetType, TextWidget, pushAttribute, E, mergeAttributes, Shape} from "./shape"
 import {Attrs} from "./attributes"
 
 // FIXME support some kind of dependency tracking on decoration
@@ -21,7 +21,7 @@ export type WrapperDeco<Param> = {
 
 export type AttributeDeco<Param> = {
   attribute: string
-  value?: string | ((param: Param) => string | null)
+  value: string | ((param: Param) => string)
 }
 
 export type WidgetDeco<Param> = {
@@ -38,7 +38,7 @@ export function tagDecoration(spec: {
   } else if ((spec.deco as WidgetDeco<any>).widget) {
     return new TagWidgetSource(spec.tag, spec.deco as WidgetDeco<Tag>)
   } else {
-    return [] // FIXME
+    return new TagAttributeSource(spec.tag, spec.deco as AttributeDeco<Tag>)
   }
 }
 
@@ -76,7 +76,7 @@ const tagShape = memo((tag: Tag<unknown>): Shape => {
   }
   if (attrs) {
     if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.flags, elt.children)
-    else elt = new Elt(tag.isBlock() ? "div" : "span", attrs, elt.hasHole ? EltFlag.Hole : 0, [elt])
+    else elt = new Elt(tag.isBlock() ? "div" : "span", attrs, 0, [elt])
   }
   return elt
 })
@@ -121,6 +121,22 @@ export class TagWrapperSource {
 }
 
 export const tagWrappers = Facet.define<TagWrapperSource>()
+
+export class TagAttributeSource {
+  tag: (tag: Tag) => boolean
+  attribute: string
+  value: string | ((tag: Tag) => string)
+  extension: Extension
+
+  constructor(tag: TagSelector, deco: AttributeDeco<Tag>) {
+    this.tag = tagPredicate(tag)
+    this.attribute = deco.attribute
+    this.value = deco.value
+    this.extension = tagAttributes.of(this)
+  }
+}
+
+export const tagAttributes = Facet.define<TagAttributeSource>()
 
 export enum DecorationScope {
   Leaf = 1,
@@ -782,6 +798,7 @@ export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
 export class DecoIterator {
   globalWidgets: readonly TagWidgetSource[]
   globalWrappers: readonly TagWrapperSource[]
+  globalAttrs: readonly TagAttributeSource[]
   pos: Pos
   rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
   pointIter: PointIterator<any>[] = []
@@ -789,6 +806,7 @@ export class DecoIterator {
   constructor(readonly state: EditorState) {
     this.globalWidgets = state.facet(tagWidgets)
     this.globalWrappers = state.facet(tagWrappers)
+    this.globalAttrs = state.facet(tagAttributes)
     this.pos = state.doc.resolve(0)
     for (let s of state.facet(rangeDecorations)) {
       let set = s.set(state)
@@ -818,14 +836,14 @@ export class DecoIterator {
     let wrap: Walker = {
       skip: node => { // Only done for leaf nodes.
         this.widgets(node.tag, WidgetPlace.Before, walker)
-        let shape = tagShape(node.tag)
+        let shape = this.tagShape(node.tag)
         if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node " + node)
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enter: (tag, node) => {
         this.widgets(tag, WidgetPlace.Before, walker)
-        let shape = tagShape(tag), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
+        let shape = this.tagShape(tag), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
         if (tag.isAtom()) {
           if (shape.hasHole) throw new Error(`Shape for atom ${tag.name} has a hole`)
           walker.node(node!, shape, wrappers)
@@ -860,5 +878,20 @@ export class DecoIterator {
     if (after) this.widgets(after!.tag, WidgetPlace.Before, walker)
     else this.widgets(pos.parent.node.tag, WidgetPlace.End, walker)
     this.pos = pos
+  }
+
+
+  tagShape(tag: Tag) {
+    let shape = tagShape(tag)
+    let add: string[] | undefined
+    for (let src of this.globalAttrs) {
+      if (src.tag(tag))
+        pushAttribute(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
+    }
+    if (add) {
+      if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.flags, shape.children)
+      else shape = new Elt(tag.isBlock() ? "div" : "span", add, 0, [shape])
+    }
+    return shape
   }
 }
