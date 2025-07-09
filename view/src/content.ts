@@ -397,11 +397,12 @@ class TilePointer {
   constructor(readonly tile: Tile, readonly index: number, readonly parent: TilePointer | null) {}
 
   walk(dist: number, side: -1 | 1, walker?: TileWalker) {
-    let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving FIXME properly handle atoms at node start/end
+    let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
     for (;;) {
-      if (!dist && side < 0) break
+      if (!dist && side < 0 && !nodeBoundary) break
       if (tile.isText) {
         if (!dist) break
+        nodeBoundary = 0
         let left = tile.length - index
         if (dist >= left) {
           dist -= left
@@ -422,13 +423,18 @@ class TilePointer {
         index++
       } else {
         let next = tile.children[index]
+        if (nodeBoundary == 1 && !next.isNodeInner) {
+          nodeBoundary = 0
+          if (side < 0 && !dist) break
+        }
+        if (!dist && next.isNodeInner && !nodeBoundary) break
         if (next.length <= dist) {
           if (walker) walker.skip(next, 0, next.length)
           dist -= next.length
           index++
           if (!next.isNodeInner) nodeBoundary = 0
         } else {
-          if (next.isNode && (!dist || next.isAtom && !next.isText)) break
+          if (next.isNodeOuter && (!dist || next.isAtom && !next.isText)) break
           if (walker && !next.isText) walker.enter(next as EltTile)
           dist -= next.boundary
           parent = tile == this.tile && index == this.index ? this : new TilePointer(tile, index, parent)
@@ -562,9 +568,7 @@ class ContentUpdate {
         }
         if (!tile) {
           tile = EltTile.of(elt, tag, 0, 2)
-          for (let ch of elt.children) {
-            tile.addChild(buildFromShape(ch, null)) // FIXME reuse inner shapes
-          }
+          for (let ch of elt.children) tile.addChild(buildFromShape(ch, null, true))
         }
         this.new.addChild(tile)
         this.new = tile.contentTile!

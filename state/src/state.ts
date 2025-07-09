@@ -422,7 +422,7 @@ export class EditorState {
   /// @internal
   static fromConfig(config: Configuration, doc: DocNode, selection: EditorSelection) {
     selection.check(doc)
-    doc.schema.validate(doc)
+    if (config.staticFacet(EditorState.validateDoc)) doc.schema.validate(doc)
     return new EditorState(config, doc, selection, config.dynamicSlots.map(() => null),
                            (state, slot) => slot.create(state), null)
   }
@@ -440,6 +440,11 @@ export class EditorState {
   /// thus focusable).
   static readOnly = Facet.define<boolean, boolean>({
     combine: values => values.length ? values[0] : false
+  })
+
+  static validateDoc = Facet.define<boolean, boolean>({
+    combine: values => values.length ? values[0] : true,
+    static: true
   })
 
   /// Returns true when the editor is

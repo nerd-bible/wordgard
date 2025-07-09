@@ -1,7 +1,7 @@
 import {EditorView, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
-import {DocNode, basicBuilders, CodeBlock, Slice, OpenToken, Node,
+import {DocNode, Tag, basicBuilders, CodeBlock, Slice, OpenToken, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image} from "@wordgard/doc"
 import ist from "ist"
 
@@ -42,6 +42,22 @@ describe("DocTile", () => {
 
   it("can draw nodes with structure representation", () => {
     ist(render(doc(h2("head"))).dom.innerHTML, "<h2>head</h2>")
+  })
+
+  it("can draw nodes with complicated structure", () => {
+    let FancyBlock = Tag.defineBlock("FancyBlock", {
+      group: "Block",
+      inlineContent: "Inline",
+      dom: ["div", {class: "c"}, ["span", "before"], ["span", {class: "content"}, 0], ["span", "after"]]
+    })
+    let tile = render(doc(FancyBlock.create([Node.text("!")])), EditorState.validateDoc.of(false))
+    ist(tile.dom.innerHTML,
+        "<div class=\"c\"><span>before</span><span class=\"content\">!</span><span>after</span></div>")
+    tile = update(tile, {changes: [{from: 0, insert: new Slice([p("(")])},
+                                   {from: 1, to: 2, insert: new Slice([Node.text("?")])},
+                                   {from: 3, insert: new Slice([p(")")])}]})
+    ist(tile.dom.innerHTML,
+        "<p>(</p><div class=\"c\"><span>before</span><span class=\"content\">?</span><span>after</span></div><p>)</p>")
   })
 
   it("can draw props on nodes", () => {
