@@ -243,9 +243,11 @@ class PointSetType<Value> {
   constructor(readonly side: (value: Value) => number, readonly eq: (a: Value, b: Value) => boolean) {}
 
   create(source: Iterable<[number, Value]>): PointSet<Value> {
-    // FIXME check order?
-    let positions: number[] = [], values: Value[] = []
+    let positions: number[] = [], values: Value[] = [], prev = -1
     for (let [pos, val] of source) {
+      if (pos < prev || pos == prev && this.side(values[values.length - 1]) > this.side(val))
+        throw new Error("Points provided in the wrong order to PointSetType.create")
+      prev = pos
       positions.push(pos)
       values.push(val)
     }
@@ -437,11 +439,16 @@ export class RangeSetType<Value> {
   constructor(readonly inclusive: (value: Value, side: -1 | 1) => boolean,
               readonly eq: (a: Value, b: Value) => boolean) {}
 
-  // FIXME interface
-  create(
-    from: readonly number[], to: readonly number[], values: readonly Value[],
-  ) {
-    return new RangeSet(from, to, values, this)
+  create(source: Iterable<[number, number, Value]>): RangeSet<Value> {
+    let from: number[] = [], to: number[] = [], values: Value[] = [], prev = -1
+    for (let [f, t, val] of source) {
+      if (f < prev) throw new Error("Range provided to RangeSetType.create are in the wrong order or overlap")
+      prev = t
+      from.push(f)
+      to.push(t)
+      values.push(val)
+    }
+    return new RangeSet<Value>(from, to, values, this)
   }
 
   builder() { return new RangeBuilder<Value>(this) }
