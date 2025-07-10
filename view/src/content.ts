@@ -535,7 +535,7 @@ class ContentUpdate {
     }
     if (!(bound & Bound.Start)) {
       this.old = this.old.walk(0, 1)
-      this.openOldWrappers() // FIXME
+      this.openOldWrappers()
     }
     this.old = this.old.walk(len, (bound & Bound.End) ? 1 : -1, walker)
     this.posB += len

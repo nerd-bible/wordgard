@@ -239,16 +239,38 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
+class PointSetType<Value> {
+  constructor(readonly side: (value: Value) => number, readonly eq: (a: Value, b: Value) => boolean) {}
+
+  create(source: Iterable<[number, Value]>): PointSet<Value> {
+    // FIXME check order?
+    let positions: number[] = [], values: Value[] = []
+    for (let [pos, val] of source) {
+      positions.push(pos)
+      values.push(val)
+    }
+    return new PointSet<Value>(positions, values, this)
+  }
+
+  builder() {
+    return new PointBuilder<Value>(this)
+  }
+
+  private _empty: PointSet<Value> | null = null
+
+  get empty() {
+    return this._empty || (this._empty = new PointSet<Value>(none, none, this))
+  }
+}
+
 export class PointSet<Value> {
   constructor(readonly positions: readonly number[],
               readonly values: readonly Value[],
-              readonly side: (value: Value) => number) {}
+              readonly type: PointSetType<Value>) {}
 
   get length() { return this.positions.length }
 
-  map(changes: Value extends {side: number} ? ChangeDesc : never): PointSet<Value>
-  map(changes: ChangeDesc, side: number | ((value: Value) => number)): PointSet<Value>
-  map(changes: ChangeDesc, side?: number | ((value: Value) => number)) {
+  map(changes: ChangeDesc, side?: (value: Value) => number) {
     if (changes.empty) return this
     let positions = this.positions.slice()
     let pos = 0, i = 0
@@ -264,20 +286,19 @@ export class PointSet<Value> {
     }, (fromA, toA) => {
       let nextI = findAbove(positions, i, toA + 1)
       for (; i < nextI; i++) {
-        let s = side == null ? (this.values[i] as any).side : typeof side == "number" ? side : side(this.values[i])
-        let mapped = s < 0 ? changes.mapPos(positions[i], -1, MapMode.TrackBefore)
+        let mapped = (side || this.type.side)(this.values[i]) < 0 ? changes.mapPos(positions[i], -1, MapMode.TrackBefore)
           : changes.mapPos(positions[i], 1, MapMode.TrackAfter)
         if (mapped == null) { addDel(deleted, i); deletions++ }
         else positions[i] = mapped
       }
       pos = toA + 1
     })
-    if (!deletions) return new PointSet<Value>(positions, this.values, this.side)
-    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values), this.side)
+    if (!deletions) return new PointSet<Value>(positions, this.values, this.type)
+    return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values), this.type)
   }
 
   /// @internal
-  sideFor(i: number) { return i < this.values.length ? this.side(this.values[i]) : 1 }
+  sideFor(i: number) { return i < this.values.length ? this.type.side(this.values[i]) : 1 }
 
   merge(other: PointSet<Value>) {
     if (!this.length) return other
@@ -295,7 +316,7 @@ export class PointSet<Value> {
         pos[i] = posB[b]
         values[i++] = other.values[b++]
       } else {
-        return new PointSet<Value>(pos, values, this.side)
+        return new PointSet<Value>(pos, values, this.type)
       }
     }
   }
@@ -312,8 +333,7 @@ export class PointSet<Value> {
         let next = Math.min(nextA, nextB)
         if (next > endB) break
         if (nextA == nextB) {
-          // FIXME .eq
-          if (a.values[iA] != b.values[iB]) addRange(ranges, next, next)
+          if (!this.type.eq(a.values[iA], b.values[iB])) addRange(ranges, next, next)
           iA++
           iB++
         } else if (nextA < nextB) {
@@ -334,29 +354,14 @@ export class PointSet<Value> {
     return new PointIterator<Value>(this, get || (x => x as Widget<any>))
   }
 
-  static create<Value extends {side: number}>(source: Iterable<[number, Value]>): PointSet<Value>
-  static create<Value>(source: Iterable<[number, Value]>, side: number | ((value: Value) => number)): PointSet<Value>
-  static create<Value>(source: Iterable<[number, Value]>, side?: number | ((value: Value) => number)): PointSet<Value> {
-    // FIXME check order?
-    let positions: number[] = [], values: Value[] = []
-    for (let [pos, val] of source) {
-      positions.push(pos)
-      values.push(val)
-    }
-    return new PointSet(positions, values, ensureSide(side))
+  static for<Value>(ops: {
+    side?: number | ((value: Value) => number)
+    eq?: (a: Value, b: Value) => boolean
+  } = {}) {
+    let {side, eq} = ops
+    if (side == null) side = 1
+    return new PointSetType<Value>(typeof side == "number" ? () => side : side, eq || ((a, b) => a === b))
   }
-
-  static builder<Value extends {side: number}>(): PointBuilder<Value>
-  static builder<Value>(side: number | ((value: Value) => number)): PointBuilder<Value>
-  static builder<Value>(side?: number | ((value: Value) => number)) {
-    return new PointBuilder<Value>(ensureSide(side))
-  }
-
-  static empty = PointSet.create<any>([])
-}
-
-function ensureSide<Value>(side?: number | ((value: Value) => number)): (value: Value) => number {
-  return typeof side == "function" ? side : typeof side == "number" ? () => side : (value: any) => value.side
 }
 
 export class PointBuilder<Value> {
@@ -364,7 +369,7 @@ export class PointBuilder<Value> {
   values: Value[] = []
   cur = 0
 
-  constructor(readonly side: (value: Value) => number) {}
+  constructor(readonly type: PointSetType<Value>) {}
 
   add(pos: number, value: Value) {
     if (pos < this.cur) throw new RangeError("Point positions must be added in order")
@@ -373,7 +378,7 @@ export class PointBuilder<Value> {
     this.values.push(value)
   }
 
-  finish(side = 0) { return new PointSet(this.positions, this.values, this.side) }
+  finish(side = 0) { return new PointSet(this.positions, this.values, this.type) }
 }
 
 export class PointIterator<Value> {
@@ -403,7 +408,7 @@ export class PointIterator<Value> {
   }
 
   get side() {
-    return this.done ? 1 : this.set.side(this.value!)
+    return this.done ? 1 : this.set.type.side(this.value!)
   }
 
   goto(pos: number) {
@@ -428,13 +433,33 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
+export class RangeSetType<Value> {
+  constructor(readonly inclusive: (value: Value, side: -1 | 1) => boolean,
+              readonly eq: (a: Value, b: Value) => boolean) {}
+
+  // FIXME interface
+  create(
+    from: readonly number[], to: readonly number[], values: readonly Value[],
+  ) {
+    return new RangeSet(from, to, values, this)
+  }
+
+  builder() { return new RangeBuilder<Value>(this) }
+
+  private _empty: RangeSet<Value> | null = null
+
+  get empty() {
+    return this._empty || (this._empty = new RangeSet<Value>(none, none, none, this))
+  }
+}
+
 // FIXME make inclusive an argument to .map?
 export class RangeSet<Value> {
-  private constructor(
+  constructor(
     readonly from: readonly number[],
     readonly to: readonly number[],
     readonly values: readonly Value[],
-    readonly inclusive: (value: Value, side: -1 | 1) => boolean
+    readonly type: RangeSetType<Value>
   ) {}
 
   get length() { return this.from.length }
@@ -456,16 +481,16 @@ export class RangeSet<Value> {
       let nextI = findAbove(to, i, toA + 1)
       for (; i < nextI; i++) {
         let value = this.values[i]
-        let mappedFrom = changes.mapPos(from[i], this.inclusive(value, -1) ? -1 : 1)
-        let mappedTo = changes.mapPos(to[i], this.inclusive(value, 1) ? 1 : -1)
+        let mappedFrom = changes.mapPos(from[i], this.type.inclusive(value, -1) ? -1 : 1)
+        let mappedTo = changes.mapPos(to[i], this.type.inclusive(value, 1) ? 1 : -1)
         if (mappedFrom >= mappedTo) { addDel(deleted, i); deletions++ }
         else { from[i] = mappedFrom; to[i] = mappedTo }
       }
       pos = toA + 1
     })
-    if (!deletions) return new RangeSet<Value>(from, to, this.values, this.inclusive)
+    if (!deletions) return new RangeSet<Value>(from, to, this.values, this.type)
     return new RangeSet<Value>(applyDel(deleted, deletions, from), applyDel(deleted, deletions, to),
-                               applyDel(deleted, deletions, this.values), this.inclusive)
+                               applyDel(deleted, deletions, this.values), this.type)
   }
 
   iter(): RangeIterator<Value, undefined>
@@ -486,8 +511,7 @@ export class RangeSet<Value> {
         let start = Math.min(startA, startB)
         if (start > toB) break
         if (startA == startB) {
-          // FIXME .eq
-          if (a.values[iA] != b.values[iB] || endA != endB) addRange(ranges, start, Math.max(endA, endB))
+          if (endA != endB || !a.type.eq(a.values[iA], b.values[iB])) addRange(ranges, start, Math.max(endA, endB))
           iA++
           iB++
         } else if (startA < startB) {
@@ -502,17 +526,15 @@ export class RangeSet<Value> {
     return ranges
   }
 
-  // FIXME better interface
-  static create<Value>(
-    from: readonly number[], to: readonly number[], values: readonly Value[],
-    inclusive: boolean | ((value: Value, side: -1 | 1) => boolean) = false
-  ) {
-    return new RangeSet(from, to, values, typeof inclusive == "function" ? inclusive : () => inclusive)
+  static for<Value>(ops: {
+    inclusive?: boolean | ((value: Value, side: -1 | 1) => boolean),
+    eq?: (a: Value, b: Value) => boolean
+  } = {}) {
+    let {inclusive, eq} = ops
+    if (inclusive == null) inclusive = false
+    return new RangeSetType(typeof inclusive == "boolean" ? () => inclusive : inclusive,
+                            eq || ((a, b) => a === b))
   }
-
-  static builder<Value>() { return new RangeBuilder<Value>() }
-
-  static empty = RangeSet.create<any>([], [], [])
 }
 
 export class RangeBuilder<Value> {
@@ -520,6 +542,8 @@ export class RangeBuilder<Value> {
   to: number[] = []
   values: Value[] = []
   cur = 0
+
+  constructor(readonly type: RangeSetType<Value>) {}
 
   add(from: number, to: number, value: Value) {
     if (from >= to) throw new Error("Ranges cannot be empty")
@@ -531,7 +555,7 @@ export class RangeBuilder<Value> {
   }
 
   finish() {
-    return RangeSet.create<Value>(this.from, this.to, this.values)
+    return new RangeSet<Value>(this.from, this.to, this.values, this.type)
   }
 }
  
@@ -599,12 +623,11 @@ function joinRanges(ranges: number[][]) {
 }
 
 function compareFacet<
-  T extends {compareRange: (fromA: number, b: T, fromB: number, len: number) => number[]},
+  T extends {compareRange: (fromA: number, b: T, fromB: number, len: number) => number[], type: {empty: T}},
   U extends {set: (state: EditorState) => T}
 >(
   stateA: EditorState, stateB: EditorState, change: ChangeDesc,
   facet: Facet<U>, 
-  empty: T,
   fromA: number, fromB: number, len: number,
   addRanges: (ranges: number[]) => void
 ) {
@@ -612,14 +635,20 @@ function compareFacet<
   for (let eltA of a) {
     let idx = b.indexOf(eltA, iB)
     if (idx < 0) {
-      addRanges(eltA.set(stateA).compareRange(fromA, empty, fromB, len))
+      let set = eltA.set(stateA)
+      addRanges(set.compareRange(fromA, set.type.empty, fromB, len))
     } else {
-      while (iB < idx)
-        addRanges(empty.compareRange(fromA, b[iB++].set(stateB), fromB, len))
+      while (iB < idx) {
+        let set = b[iB++].set(stateB)
+        addRanges(set.type.empty.compareRange(fromA, set, fromB, len))
+      }
       addRanges(eltA.set(stateA).compareRange(fromA, b[iB++].set(stateB), fromB, len))
     }
   }
-  while (iB < b.length) addRanges(empty.compareRange(fromA, b[iB++].set(stateB), fromB, len))
+  while (iB < b.length) {
+    let set = b[iB++].set(stateB)
+    addRanges(set.type.empty.compareRange(fromA, set, fromB, len))
+  }
 }
 
 // Compare ranges and points in decoration facets for unchanged ranges
@@ -634,9 +663,9 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
       // decorations, and tag those as changed
       let local: number[][] = []
       let add = (ranges: number[]) => { if (ranges.length) local.push(ranges) }
-      compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, change, rangeDecorations, RangeSet.empty,
+      compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, change, rangeDecorations,
                                                               posA, posB, len, add)
-      compareFacet<PointSet<any>, WidgetSource<any>>(prev, state,change, widgets, PointSet.empty,
+      compareFacet<PointSet<any>, WidgetSource<any>>(prev, state,change, widgets,
                                                      posA, posB, len, add)
       let joined = joinRanges(local), pos = posB, end = pos + len
       for (let i = 0; i < joined.length;) {
@@ -707,9 +736,9 @@ class HeapIterator<R, RS, P> {
     let {rangeHeap, pointHeap, active} = this
     while (true) {
       let [startPos, startSide] = rangeHeap.length
-        ? [rangeHeap[0].from, rangeHeap[0].set.inclusive(rangeHeap[0].value!, -1) ? -1 : 1]
+        ? [rangeHeap[0].from, rangeHeap[0].set.type.inclusive(rangeHeap[0].value!, -1) ? -1 : 1]
         : [1e9, 0]
-      let [endPos, endSide] = active.length ? [active[0].to, active[0].set.inclusive(active[0].value!, 1) ? 1 : -1] : [1e9, 0]
+      let [endPos, endSide] = active.length ? [active[0].to, active[0].set.type.inclusive(active[0].value!, 1) ? 1 : -1] : [1e9, 0]
       let {pos: pointPos, side: pointSide} = pointHeap.length ? pointHeap[0] : {pos: 1e9, side: 1}
       let nextPos = Math.min(startPos, endPos, pointPos)
       if (this.to == this.end && nextPos > this.to) {

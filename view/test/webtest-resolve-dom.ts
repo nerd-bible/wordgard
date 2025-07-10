@@ -47,10 +47,12 @@ describe("DocTile.resolve", () => {
   })
 
   it("resolves properly between widgets", () => {
-    let set = PointSet.create([[3, {name: "A", side: -1}],
-                               [3, {name: "B", side: 0}],
-                               [3, {name: "C", side: 0}],
-                               [3, {name: "D", side: 1}]])
+    let set = PointSet.for<{name: string, side: number}>({side: v => v.side}).create([
+      [3, {name: "A", side: -1}],
+      [3, {name: "B", side: 0}],
+      [3, {name: "C", side: 0}],
+      [3, {name: "D", side: 1}]
+    ])
     let node = render(doc(p("abcd")), new WidgetSource({
       set: () => set,
       widget: v => testWidget.of(v)

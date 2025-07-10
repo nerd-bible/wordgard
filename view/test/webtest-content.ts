@@ -235,16 +235,17 @@ describe("DocTile", () => {
 
     it("can draw widgets from a point set", () => {
       let node = render(doc(p("abc")), new WidgetSource<string>({
-        set: _ => PointSet.create([[1, "x"], [3, "y"]], 1),
+        set: _ => PointSet.for<string>({side: 1}).create([[1, "x"], [3, "y"]]),
         widget: n => inlineWidget.of(n)
       }))
       ist(node.dom.innerHTML, "<p><span>x</span>ab<span>y</span>c</p>")
     })
 
     it("can update widgets from a point set", () => {
+      let strSet = PointSet.for<string>({side: 1})
       let f = StateField.define({
-        create: () => PointSet.create([[1, "x"]], 1),
-        update: () => PointSet.create([[4, "y"]], 1),
+        create: () => strSet.create([[1, "x"]]),
+        update: () => strSet.create([[4, "y"]]),
       })
       let src = new WidgetSource<string>({
         set: s => s.field(f),
@@ -255,9 +256,10 @@ describe("DocTile", () => {
     })
 
     it("can update widgets in place", () => {
+      let strSet = PointSet.for<string>({side: 0})
       let f = StateField.define({
-        create: () => PointSet.create([[1, "x"]], 0),
-        update: () => PointSet.create([[1, "y"]], 0),
+        create: () => strSet.create([[1, "x"]]),
+        update: () => strSet.create([[1, "y"]]),
       })
       let src = new WidgetSource<string>({
         set: s => s.field(f),
@@ -274,7 +276,7 @@ describe("DocTile", () => {
       let src = (s: number) => {
         let widget = w(s)
         return new WidgetSource<number>({
-          set: () => PointSet.create([[2, 0]], s),
+          set: () => PointSet.for<number>({side: s}).create([[2, 0]]),
           widget: () => widget
         })
       }
@@ -308,7 +310,7 @@ describe("DocTile", () => {
 
     it("can take wrappers from spans", () => {
       ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
-        set: () => RangeSet.create([2], [5], ["a"]),
+        set: () => RangeSet.for<string>().create([2], [5], ["a"]),
         deco: {element: "span", attributes: val => ({class: val}), spanning: true},
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
@@ -316,7 +318,7 @@ describe("DocTile", () => {
     it("can take attributes from spans", () => {
       ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
         tag: Image,
-        set: () => RangeSet.create([2], [5], ["a"]),
+        set: () => RangeSet.for<string>().create([2], [5], ["a"]),
         deco: {attribute: "alt", value: "a test"},
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
