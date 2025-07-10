@@ -414,6 +414,7 @@ export class PointIterator<Value> {
   }
 
   goto(pos: number) {
+    this.done = false
     this.fill(findAbove(this.set.positions, 0, pos - 1))
   }    
 }
@@ -460,7 +461,6 @@ export class RangeSetType<Value> {
   }
 }
 
-// FIXME make inclusive an argument to .map?
 export class RangeSet<Value> {
   constructor(
     readonly from: readonly number[],
@@ -567,9 +567,10 @@ export class RangeBuilder<Value> {
 }
  
 export class RangeIterator<Value, Source> {
-  declare value: Value | null // FIXME handle null being part of value
+  declare value: Value | null
   declare from: number
   declare to: number
+  declare done = false
   declare i: number
 
   constructor(readonly set: RangeSet<any>, readonly source: Source) {
@@ -592,14 +593,16 @@ export class RangeIterator<Value, Source> {
     } else {
       this.from = this.to = 1e8
       this.value = null
+      this.done = true
     }
   }
 
   next() {
-    if (this.value) this.fill(this.i + 1)
+    if (!this.done) this.fill(this.i + 1)
   }
 
   goto(pos: number) {
+    this.done = false
     this.fill(findAbove(this.set.to, 0, pos))
   }
 }
@@ -766,7 +769,7 @@ class HeapIterator<R, RS, P> {
       } else {
         let first = active[0]
         first.next()
-        if (first.value)
+        if (!first.done)
           sink(rangeHeap, rangeHeap.push(first) - 1, cmpRangeFrom)
         popHeap(active, cmpRangeTo)
       }
