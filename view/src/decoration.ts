@@ -570,7 +570,7 @@ export class RangeIterator<Value, Source> {
   declare value: Value | null
   declare from: number
   declare to: number
-  declare done = false
+  done = false
   declare i: number
 
   constructor(readonly set: RangeSet<any>, readonly source: Source) {

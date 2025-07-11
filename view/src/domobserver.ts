@@ -1,7 +1,7 @@
 import {ChangeDesc} from "@wordgard/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {editable, ViewUpdate} from "./extension"
+import {editable} from "./extension"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
         isEquivalentPosition, atElementStart} from "./dom"
 import {Tile} from "./content"
@@ -21,8 +21,6 @@ export class DOMObserver {
 
   observer: MutationObserver
   active: boolean = false
-
-  editContext: EditContextManager | null = null
 
   // The known selection. Kept in our own object, as opposed to just
   // directly accessing the selection because:
@@ -47,12 +45,6 @@ export class DOMObserver {
       for (let mut of mutations) this.queue.push(mut)
       this.read()
     })
-
-    if (window.EditContext &&
-        // Chrome <126 doesn't support inverted selections in edit context (#1392)
-        !(browser.chrome && browser.chrome_version < 126)) {
-      //this.editContext = new EditContextManager(view)
-    }
 
     this.onSelectionChange = this.onSelectionChange.bind(this)
     this.onResize = this.onResize.bind(this)
@@ -80,7 +72,6 @@ export class DOMObserver {
         break
       }
     }
-    this.editContext?.connect(this.view)
     let win = this.win = this.view.win
     win.addEventListener("resize", this.onResize)
     win.addEventListener("scroll", this.onScroll)
@@ -92,7 +83,6 @@ export class DOMObserver {
     this.resizeScroll?.disconnect()
     for (let dom of this.scrollTargets) dom.removeEventListener("scroll", this.onScroll)
     this.scrollTargets = []
-    this.editContext?.disconnect(this.view)
     clearTimeout(this.resizeTimeout)
     if (this.win) {
       this.win.removeEventListener("scroll", this.onScroll)
@@ -103,7 +93,6 @@ export class DOMObserver {
   }
 
   onScroll(e: Event) {
-    if (this.editContext) this.view.requestMeasure(this.editContext.measureReq)
     this.view.inputState.runHandlers("scroll", e)
   }
 
@@ -236,10 +225,6 @@ export class DOMObserver {
       this.selectionChanged = false
     }
   }
-
-  update(update: ViewUpdate) {
-    if (this.editContext) this.editContext.update(update)
-  }
 }
 
 function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
@@ -263,205 +248,3 @@ function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
     [anchorNode, anchorOffset, focusNode, focusOffset] = [focusNode, focusOffset, anchorNode, anchorOffset]
   return {anchorNode, anchorOffset, focusNode, focusOffset}
 }
-
-// FIXME work in terms of textblocks instead of text documents
-type EditContextManager = any
-/*
-class EditContextManager {
-  editContext: EditContext
-  measureReq: MeasureRequest<void>
-  // The document window for which the text in the context is
-  // maintained. For large documents, this may be smaller than the
-  // editor document. This window always includes the selection head.
-  from: number = 0
-  to: number = 0
-  // When applying a transaction, this is used to compare the change
-  // made to the context content to the change in the transaction in
-  // order to make the minimal changes to the context (since touching
-  // that sometimes breaks series of multiple edits made for a single
-  // user action on some Android keyboards)
-  pendingContextChange: {from: number, to: number, insert: string} | null = null
-  connected = false
-  handlers: Record<string, (event: any) => void>
-
-  constructor(readonly view: EditorView) {
-    this.resetRange(view.state)
-
-    this.editContext = new window.EditContext({
-      text: view.state.doc.textContent(), // FIXME
-      selectionStart: this.toContextPos(Math.max(this.from, Math.min(this.to, view.state.selection.main.anchor))),
-      selectionEnd: this.toContextPos(view.state.selection.main.head)
-    })
-    this.handlers = {
-      textupdate: this.onTextUpdate.bind(this, view),
-      characterboundsupdate: this.onCharacterBoundsUpdate.bind(this, view),
-      textformatupdate: this.onTextFormatUpdate.bind(this, view),
-      compositionstart: this.onCompositionStart.bind(this, view),
-      compositionend: this.onCompositionEnd.bind(this, view)
-    }
-
-    this.measureReq = {read: view => {
-      this.editContext.updateControlBounds(view.contentDOM.getBoundingClientRect())
-      let sel = getSelection(view.root)
-      if (sel && sel.rangeCount)
-        this.editContext.updateSelectionBounds(sel.getRangeAt(0).getBoundingClientRect())
-    }}
-  }
-
-  connect(view: EditorView) {
-    this.connected = true
-    if (view.state.facet(editable)) view.contentDOM.editContext = this.editContext
-    for (let event of Object.keys(this.handlers))
-      this.editContext.addEventListener(event as any, this.handlers[event])
-  }
-
-  disconnect(view: EditorView) {
-    this.connected = false
-    view.contentDOM.editContext = null
-    for (let event of Object.keys(this.handlers))
-      this.editContext.removeEventListener(event as any, this.handlers[event])
-  }
-
-  onTextUpdate(view: EditorView, e: TextUpdateEvent) {
-    let {anchor} = view.state.selection.main
-    let change = {from: this.toEditorPos(e.updateRangeStart),
-                  to: this.toEditorPos(e.updateRangeEnd),
-                  insert: e.text}
-    // If the window doesn't include the anchor, assume changes
-    // adjacent to a side go up to the anchor.
-    if (change.from == this.from && anchor < this.from) change.from = anchor
-    else if (change.to == this.to && anchor > this.to) change.to = anchor
-
-    // Edit contexts sometimes fire empty changes
-    if (change.from == change.to && !change.insert.length) return
-
-    this.pendingContextChange = change
-    if (!view.state.readOnly)
-      applyTextChange(view, change.from, change.to, new Slice([Node.text(change.insert)]))
-    // If the transaction didn't flush our change, revert it so
-    // that the context is in sync with the editor state again.
-    if (this.pendingContextChange) {
-      this.revertPending(view.state)
-      this.setSelection(view.state)
-    }
-  }
-
-  onCharacterBoundsUpdate(view: EditorView, e: CharacterBoundsUpdateEvent) {
-    let rects: DOMRect[] = [], prev: DOMRect | null = null
-    for (let i = this.toEditorPos(e.rangeStart), end = this.toEditorPos(e.rangeEnd); i < end; i++) {
-      let rect = view.coordsForChar(i)
-      prev = (rect && new DOMRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top))
-        || prev || new DOMRect
-      rects.push(prev)
-    }
-    this.editContext.updateCharacterBounds(e.rangeStart, rects)
-  }
-
-  onTextFormatUpdate(view: EditorView, e: TextFormatUpdateEvent) {
-    for (let format of e.getTextFormats()) {
-      let lineStyle = format.underlineStyle, thickness = format.underlineThickness
-      if (lineStyle != "None" && thickness != "None") {
-        let style = `text-decoration: underline ${
-          lineStyle == "Dashed" ? "dashed " : lineStyle == "Squiggle" ? "wavy " : ""
-        }${thickness == "Thin" ? 1 : 2}px`
-      }
-    }
-    // FIXME actually add decorations
-  }
-
-  onCompositionStart(view: EditorView) {
-    if (view.inputState.composing < 0) {
-      view.inputState.composing = 0
-      view.inputState.compositionFirstChange = true
-    }
-  }
-  
-  onCompositionEnd(view: EditorView) {
-    view.inputState.composing = -1
-    view.inputState.compositionFirstChange = null
-  }
-
-  applyEdits(update: ViewUpdate) {
-    let off = 0, abort = false, pending = this.pendingContextChange
-    update.changes.iterChanges((fromA, toA, _fromB, _toB, insert) => {
-      if (abort) return
-
-      let dLen = insert.length - (toA - fromA)
-      if (pending && toA >= pending.to) {
-        if (pending.from == fromA && pending.to == toA && pending.insert == insert) {
-          pending = this.pendingContextChange = null // Match
-          off += dLen
-          this.to += dLen
-          return
-        } else { // Mismatch, revert
-          pending = null
-          this.revertPending(update.state)
-        }
-      }
-
-      fromA += off; toA += off
-      if (toA <= this.from) { // Before the window
-        this.from += dLen; this.to += dLen
-      } else if (fromA < this.to) { // Overlaps with window
-        if (fromA < this.from || toA > this.to || (this.to - this.from) + insert.length > CxVp.MaxSize) {
-          abort = true
-          return
-        } 
-        this.editContext.updateText(this.toContextPos(fromA), this.toContextPos(toA), insert.toString())
-        this.to += dLen
-      }
-      off += dLen
-    })
-    if (pending && !abort) this.revertPending(update.state)
-    return !abort
-  }
-
-  update(update: ViewUpdate) {
-    let reverted = this.pendingContextChange
-    if (!this.applyEdits(update) || !this.rangeIsValid(update.state)) {
-      this.pendingContextChange = null
-      this.resetRange(update.state)
-      this.editContext.updateText(0, this.editContext.text.length, update.state.doc.sliceString(this.from, this.to))
-      this.setSelection(update.state)
-    } else if (update.docChanged || update.selectionSet || reverted) {
-      this.setSelection(update.state)
-    }
-    if (update.geometryChanged || update.docChanged || update.selectionSet)
-      update.view.requestMeasure(this.measureReq)
-    if (this.connected && update.startState.facet(editable) != update.state.facet(editable))
-      update.view.contentDOM.editContext = update.state.facet(editable) ? this.editContext : null
-  }
-
-  resetRange(state: EditorState) {
-    let {head} = state.selection.main
-    this.from = Math.max(0, head - CxVp.Margin)
-    this.to = Math.min(state.doc.length, head + CxVp.Margin)
-  }
-
-  revertPending(state: EditorState) {
-    let pending = this.pendingContextChange!
-    this.pendingContextChange = null
-    this.editContext.updateText(this.toContextPos(pending.from),
-                                this.toContextPos(pending.from + pending.insert.length),
-                                state.doc.sliceString(pending.from, pending.to))
-  }
-
-  setSelection(state: EditorState) {
-    let {main} = state.selection
-    let start = this.toContextPos(Math.max(this.from, Math.min(this.to, main.anchor)))
-    let end = this.toContextPos(main.head)
-    if (this.editContext.selectionStart != start || this.editContext.selectionEnd != end)
-      this.editContext.updateSelection(start, end)
-  }
-
-  rangeIsValid(state: EditorState) {
-    let {head} = state.selection.main
-    return !(this.from > 0 && head - this.from < CxVp.MinMargin ||
-             this.to < state.doc.length && this.to - head < CxVp.MinMargin ||
-             this.to - this.from > CxVp.Margin * 3)
-  }
-
-  toEditorPos(contextPos: number) { return contextPos + this.from }
-  toContextPos(editorPos: number) { return editorPos - this.from }
-}
-*/
