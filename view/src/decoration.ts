@@ -239,6 +239,7 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
+// FIXME rename to something like PointSetConfig?
 class PointSetType<Value> {
   constructor(readonly side: (value: Value) => number, readonly eq: (a: Value, b: Value) => boolean) {}
 

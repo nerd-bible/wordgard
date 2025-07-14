@@ -345,6 +345,10 @@ export class TextTile extends Tile {
 
   toString() { return JSON.stringify(this.text) }
 
+  localPosFromDOM(dom: Node, offset: number): number {
+    return this.posAtStart + Math.min(offset, this.length)
+  }
+
   static of(text: string) {
     return new TextTile(text, document.createTextNode(text))
   }
