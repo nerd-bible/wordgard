@@ -228,6 +228,14 @@ describe("ChangeSet", () => {
       ist(ChangeSet.create(d, {from: 1, to: 2, insert: src.slice(2, 4), fit: src.contextAt(2)}).apply(d),
           doc(ul(li(p("c"))), p("b")), eq)
     })
+
+    it("wraps text at the top level in a textblock", () => {
+      let d = doc(p("ab"), p("cd"))
+      ist(ChangeSet.create(d, [
+        {from: 0, insert: slice(".."), fit: true},
+        {from: 8, insert: slice(".."), fit: true},
+      ]).apply(d), doc(p(".."), p("ab"), p("cd"), p("..")), eq)
+    })
   })
 
   describe("compose", () => {

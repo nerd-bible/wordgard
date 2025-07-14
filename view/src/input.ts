@@ -415,6 +415,7 @@ function eventBelongsToEditor(view: EditorView, event: Event): boolean {
   return true
 }
 
+// FIXME use something less messy?
 const handlers: {[key: string]: (view: EditorView, event: any) => boolean} = Object.create(null)
 const observers: {[key: string]: (view: EditorView, event: any) => undefined} = Object.create(null)
 
@@ -557,6 +558,7 @@ handlers.paste = (view: EditorView, event: ClipboardEvent) => {
     view.dispatch({
       changes,
       selection: EditorSelection.cursor(changes.mapPos(state.selection.from, 1), -1),
+      normalizeSelection: true,
       userEvent: "input.paste",
       scrollIntoView: true
     })
@@ -643,7 +645,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
 export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {
   // FIXME define this more robustly
   view.dispatch({
-    changes: {from, to, insert},
+    changes: {from, to, insert, fit: true},
     selection: {anchor: from + insert.length},
     userEvent: "input.type"
   })

@@ -362,7 +362,7 @@ function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
     for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
     return outer
   } else {
-    return new WidgetTile(shape, node, nodeInner ? TileFlag.Point : 0 as TileFlag, node ? node.length : 0)
+    return new WidgetTile(shape, node, nodeInner ? TileFlag.Point | TileFlag.NodeInner : 0 as TileFlag, node ? node.length : 0)
   }
 }
 
@@ -641,7 +641,7 @@ class ContentUpdate {
         if (prev && prev.dom.nodeName != "BR")
           this.new.children.pop()
       } else if (!last || last.dom.nodeName == "BR") {
-        this.new.addChild(buildFromShape(brHack, null, true))
+        this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, 0))
       }
     }
     this.new = this.new.parent!
