@@ -556,6 +556,7 @@ class ContentUpdate {
   }
 
   build(len: number, reuse: boolean, startOld?: TilePointer, endOld?: TilePointer) {
+    this.leaveWrappers()
     let start = this.posB, end = this.posB + len
     this.deco.walk(start, end, {
       enter: (tag, elt, wrappers) => {
@@ -652,6 +653,10 @@ class ContentUpdate {
       if (inNode && this.new.isNodeOuter) inNode = false
       this.up()
     }
+  }
+
+  leaveWrappers() {
+    while (!(this.new.isNode || this.new.isDoc)) this.up()
   }
 
   openWrappers(wrappers: readonly WrapperSource[], tag: Tag, reuse: boolean) {

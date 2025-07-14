@@ -111,6 +111,12 @@ describe("DocTile", () => {
     ist(node.dom.querySelector("img"), img)
   })
 
+  it("properly syncs replacements inside wrappers", () => {
+    let node = render(doc(p(strong("abc")), p("def")))
+    ist(update(node, {changes: {from: 2, insert: new Slice([Node.text("..", [Strong])])}}).dom.innerHTML,
+        "<p><strong>a..bc</strong></p><p>def</p>")
+  })
+
   it("preserves DOM nodes with changed attribute props", () => {
     let node = render(doc(p($img())))
     let img = node.dom.querySelector("img")
