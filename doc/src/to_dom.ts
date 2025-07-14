@@ -76,7 +76,7 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
       stack.pop()
     } else {
       let outer, content
-      if (context.length < contextDepth) {
+      if (contextDepth <= context.length) {
         outer = content = opts.document.createElement("div")
       } else {
         ;({outer, content} = serializeNodeMarkup(context[contextDepth++], opts))
