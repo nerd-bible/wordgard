@@ -491,7 +491,7 @@ function cursorVertically(view: EditorView, forward: boolean, distance?: number)
 
 function selectVertically(view: EditorView, forward: boolean, distance?: number) {
   let next = nextVertical(view, view.state.selection, forward, distance)
-  return next ? setSelection(view.state, view.dispatch, next) : false
+  return next ? setSelection(view.state, view.dispatch, view.state.selection.extend(next.from, next.to)) : false
 }
 
 export const cursorLineDown: Command = view => cursorVertically(view, true)
