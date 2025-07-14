@@ -548,8 +548,15 @@ handlers.paste = (view: EditorView, event: ClipboardEvent) => {
   let {state} = view
   let content = readClipboard(state, event.clipboardData, state.selPos.head, view.inputState.shiftKey)
   if (content) { // FIXME proper multi-selection pasting
+    let changes = ChangeSet.create(view.state.doc, {
+      from: state.selection.from,
+      to: state.selection.to,
+      insert: content.slice,
+      fit: content.context
+    })
     view.dispatch({
-      changes: {from: state.selection.from, to: state.selection.to, insert: content.slice, fit: content.context},
+      changes,
+      selection: EditorSelection.cursor(changes.mapPos(state.selection.from, 1), -1),
       userEvent: "input.paste",
       scrollIntoView: true
     })
