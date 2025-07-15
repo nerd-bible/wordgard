@@ -199,6 +199,8 @@ export class CompositeTile extends Tile {
 
 const enum Bound { Start = 1, End = 2 }
 
+export type CompositionRange = {fromA: number, toA: number, fromB: number, toB: number}
+
 export class DocTile extends CompositeTile {
   declare dom: HTMLElement
 
@@ -212,25 +214,36 @@ export class DocTile extends CompositeTile {
 
   get isDoc() { return true }
 
-  update(state: EditorState, changes: ChangeDesc) {
-    return this.updateRanges(state, findChangedRanges(this.state, state, changes))
+  update(state: EditorState, changes: ChangeDesc, composition?: CompositionRange) {
+    return this.updateRanges(state, findChangedRanges(this.state, state, changes), composition)
   }
 
-  updateRanges(state: EditorState, sections: readonly number[]) {
+  updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionRange) {
     if (sections.length == 2 && sections[1] == -1) return this
+    let compositionTile = composition &&
+      getCompositionTile(this, composition, state.doc.textContent({from: composition.fromB, to: composition.toB}))
+    if (compositionTile) {
+      let separated = separateComposition(sections, composition!)
+      if (!separated) compositionTile = null
+      else sections = separated
+    }
     let builder = new ContentUpdate(state, this, new DecoIterator(state))
-    for (let i = 0; i < sections.length;) {
+    for (let i = 0, posA = 0; i < sections.length;) {
       let bound = (i == 0 ? Bound.Start : 0) | (i == sections.length - 2 ? Bound.End : 0)
       let len = sections[i++], ins = sections[i++]
-      if (ins == -1) {
+      if (compositionTile && posA == composition!.fromA)
+        builder.composition(compositionTile, composition!)
+      else if (ins == -1)
         builder.keep(len, bound)
-      } else if (ins == -2) {
+      else if (ins == -2)
         builder.update(len, bound)
-      } else {
+      else
         builder.replace(len, ins, bound)
-      }
+      posA += len
     }
-    return builder.finish()
+    let result = builder.finish()
+    result.sync()
+    return result
   }
 
   nearest(dom: Node, requireTag = true) {
@@ -723,9 +736,13 @@ class ContentUpdate {
     }
   }
 
+  composition(target: TextTile, compostions: CompositionRange) {
+    if (this.old.tileAfter() != target) throw new Error("Unexpected composition tile mismatch")
+    // FIXME
+  }
+
   finish() {
     while (!(this.new instanceof DocTile)) this.up()
-    this.new.sync()
     return this.new as DocTile
   }
 }
@@ -750,3 +767,34 @@ function updateAttributes(dom: HTMLElement, a: Attributes, b: Attributes) {
 const brHack = Widget.create({
   render() { return document.createElement("br") }
 })
+
+function getCompositionTile(docTile: DocTile, composition: CompositionRange, compare: string) {
+  let target = docTile.resolve(composition.fromA, 1)
+  if (!target.tile.isText || target.offset || target.dom.nodeValue != compare) return null
+  return target.tile as TextTile
+}
+
+function separateComposition(sections: readonly number[], comp: CompositionRange) {
+  let result: number[] = [], diff = 0
+  let {fromA, toA} = comp, compIns = comp.toB - comp.fromB
+  for (let posA = 0, done = false, i = 0; i < sections.length;) {
+    let len = sections[i++], ins = sections[i++], endA = posA + len
+    if (fromA >= endA || toA <= posA) {
+      result.push(len, ins)
+    } else {
+      if (ins >= 0) {
+        if (posA < fromA || endA > toA) return null
+        diff += ins - len
+      }
+      if (posA < fromA) result.push(fromA - posA, ins)
+      if (!done) {
+        result.push(toA - fromA, compIns)
+        done = true
+      }
+      if (endA > toA) result.push(endA - toA, ins)
+    }
+    posA = endA
+  }
+  if (diff != compIns - (toA - fromA)) return null
+  return result
+}
