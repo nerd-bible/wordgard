@@ -6,7 +6,7 @@ import {Elt, Widget} from "./shape"
 import {compareAttributes, Attributes} from "./shape"
 
 declare global {
-  interface Node { wsElt?: Tile }
+  interface Node { wgTile?: Tile }
 }
 
 export const enum TileFlag {
@@ -41,7 +41,7 @@ export abstract class Tile {
 
   constructor(readonly dom: Node, flags: number) {
     this.flags = flags & ~TileFlag.Synced
-    dom.wsElt = this
+    dom.wgTile = this
   }
 
   get isAtom() { return false }
@@ -128,7 +128,7 @@ export abstract class Tile {
         while (dom.parentNode != this.dom) dom = dom.parentNode!
         domBefore = dom.previousSibling
       }
-      while (domBefore && !((elt = domBefore.wsElt) && elt.parent == this as Tile))
+      while (domBefore && !((elt = domBefore.wgTile) && elt.parent == this as Tile))
         domBefore = domBefore.previousSibling
       return domBefore ? this.posBeforeChild(elt!) + elt!.length : this.posAtStart
     }
@@ -235,7 +235,7 @@ export class DocTile extends CompositeTile {
 
   nearest(dom: Node, requireTag = true) {
     for (let cur: Node | null = dom; cur; cur = cur.parentNode) {
-      let elt = cur.wsElt
+      let elt = cur.wgTile
       if (elt && (!requireTag || elt.isNode) && this.owns(elt)) return elt
     }
     return null

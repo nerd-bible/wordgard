@@ -229,7 +229,7 @@ export class DOMObserver {
 
 function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
   while (dom) {
-    let cur = dom.wsElt
+    let cur = dom.wgTile
     if (cur && cur.parent == elt) return cur
     let parent = dom.parentNode
     dom = parent != elt.dom ? parent : dir > 0 ? dom.nextSibling : dom.previousSibling
