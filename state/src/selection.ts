@@ -1,4 +1,5 @@
 import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "@wordgard/doc"
+import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 import {EditorState} from "./state"
@@ -318,4 +319,43 @@ function skipWord(cx: SelectionContext, start: number, assoc: -1 | 1, forward: b
       pos = forward ? block.after : block.before
     }
   }
+}
+
+export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
+  let res = state.doc.resolve(pos)
+  if (!res.parent.node.inlineContent()) return EditorSelection.cursor(pos, bias)
+  let start = pos, end = pos, text = ""
+  scanBack: for (let i = res.index, cur = res.nodeBefore; cur;) {
+    if (!cur.isText()) break
+    for (let j = cur.length; j > 0;) {
+      let next = findClusterBreak(cur.text, j, false)
+      let ch = cur.text.slice(next, j)
+      if (!/\p{L}|\p{N}/u.test(ch)) break scanBack
+      text = ch + text
+      start -= (j - next)
+      j = next
+    }
+    if (!i) break
+    cur = res.parent.node.children[--i]
+  }
+  scanForward: for (let i = res.index + 1, cur = res.nodeAfter; cur;) {
+    if (!cur.isText()) break
+    for (let j = 0; j < cur.length;) {
+      let next = findClusterBreak(cur.text, j, true)
+      let ch = cur.text.slice(j, next)
+      if (!/\p{L}|\p{N}/u.test(ch)) break scanForward
+      text += ch
+      end += (next - j)
+      j = next
+    }
+    if (i == res.parent.node.children.length) break
+    cur = res.parent.node.children[i++]
+  }
+  if (!(Intl as any).Segmenter) return EditorSelection.range(start, end)
+  let best: any = null, local = pos - start
+  for (let segment of new (Intl as any).Segmenter(undefined, {granularity: "word"}).segment(text)) {
+    if (segment.isWordLike && segment.index <= local && segment.index + segment.segment.length >= local && (!best || bias > 0))
+      best = segment
+  }
+  return best ? EditorSelection.range(start + best.index, start + best.index + best.segment.length) : EditorSelection.cursor(pos, bias)
 }

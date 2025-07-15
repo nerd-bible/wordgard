@@ -1,5 +1,5 @@
 import {Schema, Tag, SchemaElement, DocNode, NodeJSON, parseDoc} from "@wordgard/doc"
-import {EditorSelection, SelectionSpec, SelectionPos} from "./selection"
+import {EditorSelection, SelectionSpec, SelectionPos, wordAt} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
         sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
@@ -514,6 +514,10 @@ export class EditorState {
 
   get visualCursorMotion() {
     return this.facet(EditorState.visualCursorMotion)
+  }
+
+  wordAt(pos: number, bias: -1 | 1 = 1) {
+    return wordAt(this, pos, bias)
   }
 
   /// Facet used to register a hook that gets a chance to update or

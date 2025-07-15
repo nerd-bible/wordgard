@@ -401,7 +401,7 @@ function isInPrimarySelection(view: EditorView, event: MouseEvent) {
   for (let i = 0; i < rects.length; i++) {
     let rect = rects[i]
     if (rect.left <= event.clientX && rect.right >= event.clientX &&
-        rect.top <= event.clientY && rect.bottom >= event.clientY) return true
+      rect.top <= event.clientY && rect.bottom >= event.clientY) return true
   }
   return false
 }
@@ -478,8 +478,20 @@ function queryPos(view: EditorView, event: MouseEvent): {pos: number, bias: 1 | 
   return {pos, bias: findPositionSide(view, pos, event.clientX, event.clientY)}
 }
 
+function rangeForClick(view: EditorView, pos: {pos: number, bias: -1 | 1}, type: number): EditorSelection {
+  if (type == 1) { // Single click
+    return EditorSelection.cursor(pos.pos, pos.bias)
+  } else if (type == 2) { // Double click
+    return view.state.wordAt(pos.pos, pos.bias)
+  } else { // Triple click
+    let cx = view.state.doc.resolve(pos.pos), block = cx.textblockParent
+    if (block) return EditorSelection.range(block.start, block.end)
+    else return EditorSelection.cursor(pos.pos, pos.bias)
+  }
+}
+
 function basicMouseSelection(view: EditorView, event: MouseEvent) {
-  let start = queryPos(view, event)
+  let start = queryPos(view, event), type = event.detail
   let startSel = view.state.selection
   return {
     update(update) {
@@ -489,14 +501,16 @@ function basicMouseSelection(view: EditorView, event: MouseEvent) {
       }
     },
     get(event, extend) {
-      // FIXME use click type (event.detail)
-      let cur = queryPos(view, event), from = cur.pos, to = cur.pos
+      let cur = queryPos(view, event), {from, to} = rangeForClick(view, cur, type)
       if (start.pos != cur.pos && !extend) {
-        from = Math.min(start.pos, from)
-        to = Math.max(start.pos, to)
+        let startRange = rangeForClick(view, start, type)
+        from = Math.min(startRange.from, from)
+        to = Math.max(startRange.to, to)
       }
       if (extend)
         return startSel.extend(from, to)
+      else if (from == to)
+        return EditorSelection.cursor(from, cur.bias)
       else
         return EditorSelection.range(from, to)
     }
@@ -628,7 +642,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
 
     let slice = event.inputType == "insertText"
       ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "), view.state.selPos.from.props())])
-      // FIXME why is this in a dataTransfer anyway?
+      // FIXME why is this in a dataTransfer anyway? Spec says it shouldn't be...
       : readClipboard(view.state, event.dataTransfer!, view.state.selPos.head, true)?.slice
     let ranges = event.getTargetRanges()
     if (slice && ranges.length) {
