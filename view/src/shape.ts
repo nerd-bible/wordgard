@@ -66,12 +66,12 @@ function makeElt(name: string, flags: number, args: (EltChild | Record<string, s
 }
 
 export type WidgetSpec<T> = {
-  render: (value: T) => Node
+  render: (value: T) => HTMLElement | Text
   eq?: (a: T, b: T) => boolean
 }
 
 export class WidgetType<T> {
-  render: (value: T) => Node
+  render: (value: T) => HTMLElement | Text
   eq: (a: T, b: T) => boolean
 
   constructor(spec: WidgetSpec<T>) {

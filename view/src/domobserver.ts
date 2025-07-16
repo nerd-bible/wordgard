@@ -6,6 +6,7 @@ import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
         isEquivalentPosition, atElementStart} from "./dom"
 import {Tile} from "./content"
 import {setDOMSelection, readDOMSelection} from "./selection"
+import {findComposition} from "./content"
 
 const observeOptions = {
   childList: true,
@@ -215,7 +216,7 @@ export class DOMObserver {
     let changed = this.processRecords(), {view} = this
     if (changed) {
       // FIXME reuse path of regular updates, somehow
-      view.docElt = view.docElt.update(this.view.state, changed)
+      view.docElt = view.docElt.update(this.view.state, changed, findComposition(view))
       setDOMSelection(this.view)
       this.clear()
     } else if (this.selectionChanged && view.hasFocus && hasSelection(view.contentDOM, this.selectionRange)) {

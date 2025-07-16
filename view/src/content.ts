@@ -4,6 +4,8 @@ import {Shape} from "./shape"
 import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper} from "./decoration"
 import {Elt, Widget} from "./shape"
 import {compareAttributes, Attributes} from "./shape"
+import {type EditorView} from "./editorview"
+import {textNodeBefore, textNodeAfter} from "./dom"
 
 declare global {
   interface Node { wgTile?: Tile }
@@ -16,7 +18,8 @@ export const enum TileFlag {
   PointBefore = 8,
   PointAfter = 16,
   PointSide = PointBefore | PointAfter,
-  Synced = 32,
+  Composition = 32,
+  Synced = 64,
 }
 
 export class ContentPos {
@@ -39,7 +42,7 @@ export abstract class Tile {
   length = 0
   flags: TileFlag
 
-  constructor(readonly dom: Node, flags: number) {
+  constructor(public dom: HTMLElement | Text, flags: number) {
     this.flags = flags & ~TileFlag.Synced
     dom.wgTile = this
   }
@@ -51,6 +54,7 @@ export abstract class Tile {
   get isText() { return false }
   get isDoc() { return false }
   get isSpanning() { return false }
+  get isComposition() { return (this.flags & TileFlag.Composition) > 0 }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
 
   resolveInner(pos: number, off: number, assoc: -1 | 0 | 1): ContentPos {
@@ -197,7 +201,7 @@ export class CompositeTile extends Tile {
   }
 }
 
-export type CompositionRange = {fromA: number, toA: number, fromB: number, toB: number}
+export type CompositionRange = {fromA: number, toA: number, fromB: number, toB: number, text: string}
 
 export class DocTile extends CompositeTile {
   declare dom: HTMLElement
@@ -212,14 +216,14 @@ export class DocTile extends CompositeTile {
 
   get isDoc() { return true }
 
-  update(state: EditorState, changes: ChangeDesc, composition?: CompositionRange) {
+  update(state: EditorState, changes: ChangeDesc, composition?: CompositionRange | null) {
     return this.updateRanges(state, findChangedRanges(this.state, state, changes), composition)
   }
 
-  updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionRange) {
+  updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionRange | null) {
     if (sections.length == 2 && sections[1] == -1) return this
     let compositionTile = composition &&
-      getCompositionTile(this, composition, state.doc.textContent({from: composition.fromB, to: composition.toB}))
+      getCompositionTile(this, composition)
     if (compositionTile) {
       let separated = separateComposition(sections, composition!)
       if (!separated) compositionTile = null
@@ -314,16 +318,24 @@ export class EltTile extends CompositeTile {
   }
 
   static of(elt: Elt, tag: Tag | null, flags: number, length: number, dom?: HTMLElement | null) {
-    if (!dom) {
-      dom = document.createElement(elt.tagName)
-      for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
-    }
-    return new EltTile(elt, tag, flags, length, dom)
+    return new EltTile(elt, tag, flags, length, dom || eltDOM(elt))
   }
 }
 
+function eltDOM(elt: Elt) {
+  let dom = document.createElement(elt.tagName)
+  for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
+  return dom
+}
+
 export class WidgetTile extends Tile {
-  constructor(readonly widget: Widget<any>, readonly node: WGNode | null, flags: TileFlag, length: number = 0, dom?: Node) {
+  constructor(
+    readonly widget: Widget<any>,
+    readonly node: WGNode | null,
+    flags: TileFlag,
+    length: number = 0,
+    dom?: HTMLElement | Text
+  ) {
     super(dom || widget.type.render(widget.value), flags)
     this.length = length
   }
@@ -338,8 +350,8 @@ export class WidgetTile extends Tile {
 export class TextTile extends Tile {
   declare dom: Text
 
-  constructor(public text: string, dom: Text) {
-    super(dom, 0)
+  constructor(public text: string, dom: Text, flags: TileFlag = 0 as TileFlag) {
+    super(dom, flags)
     this.length = text.length
   }
 
@@ -469,15 +481,16 @@ class TilePointer {
 
   tileAfter() {
     let {tile, index} = this
+    if (tile.isText) return tile
     return index < tile.children.length ? tile.children[index] : null
   }
 
-  matchingWrapper(elt: Elt, spanning: boolean, reuse: Set<Tile>) {
+  matchingWrapper(elt: Elt, spanning: boolean, reused: Set<HTMLElement | Text>) {
     let best: EltTile | undefined, bestScore = 0
     let start = this.tile.isText ? this.parent! : this
     for (let {tile, parent} = start; !(tile.isNode || tile.isDoc); {tile, parent} = parent!) {
       let wrap = tile as EltTile
-      if (reuse.has(wrap) || wrap.elt.tagName != elt.tagName || wrap.isSpanning != spanning) continue
+      if (reused.has(wrap.dom) || wrap.elt.tagName != elt.tagName || wrap.isSpanning != spanning) continue
       let score = compareAttributes(wrap.elt.attrs, elt.attrs)
       if (!best || bestScore < score) {
         best = wrap
@@ -486,11 +499,11 @@ class TilePointer {
     }
     if (!best) return null
     if (bestScore < 0) updateAttributes(best.dom, best.elt.attrs, elt.attrs)
-    reuse.add(best)
+    reused.add(best.dom)
     return best.dom
   }
 
-  matchingWidget(widget: Widget<any>, sideFlag: number, reuse: Set<Tile>) {
+  matchingWidget(widget: Widget<any>, sideFlag: number, reused: Set<HTMLElement | Text>) {
     let {index, tile, parent} = this
     for (;;) {
       if (!index) {
@@ -500,7 +513,7 @@ class TilePointer {
         if (tile instanceof TextTile) break
         let before = tile.children[--index]
         if (!before.isPoint) break
-        if (!reuse.has(before) && before instanceof WidgetTile && before.widget.eq(widget) &&
+        if (!reused.has(before.dom) && before instanceof WidgetTile && before.widget.eq(widget) &&
             (before.flags & TileFlag.PointSide) == sideFlag)
           return before
       }
@@ -514,7 +527,7 @@ class ContentUpdate {
   new: CompositeTile
   // Current position in the new document
   posB = 0
-  reused = new Set<Tile>()
+  reused = new Set<HTMLElement | Text>()
 
   constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator) {
     this.old = new TilePointer(old, 0, null)
@@ -529,7 +542,7 @@ class ContentUpdate {
         if (span) {
           this.new = span
         } else {
-          this.reused.add(tile)
+          this.reused.add(tile.dom)
           let inner = EltTile.of(tile.elt, tile.tag, tile.flags, tile.boundary * 2, tile.dom)
           this.new.addChild(inner)
           this.new = inner
@@ -541,12 +554,12 @@ class ContentUpdate {
       skip: (tile, from, to) => {
         if (!(tile instanceof TextTile)) {
           this.new.addChild(tile)
-        } else if (this.new.lastChild instanceof TextTile) {
+        } else if (this.new.lastChild instanceof TextTile && !this.new.lastChild.isComposition) {
           this.addText(tile.text.slice(from, to))
         } else if (!from && to == tile.text.length) {
           this.new.addChild(tile)
-        } else if (!this.reused.has(tile)) {
-          this.reused.add(tile)
+        } else if (!this.reused.has(tile.dom)) {
+          this.reused.add(tile.dom)
           this.new.addChild(new TextTile(tile.text.slice(from, to), tile.dom))
         } else {
           this.new.addChild(TextTile.of(tile.text.slice(from, to)))
@@ -571,6 +584,31 @@ class ContentUpdate {
     this.build(len, true, includeStart)
   }
 
+  composition(target: TextTile, composition: CompositionRange) {
+    if (this.old.tileAfter() != target) throw new Error("Unexpected composition tile mismatch")
+    this.leaveWrappers()
+    let found: EltTile[] = []
+    for (let {tile, parent} = this.old; !tile.isNode && !tile.isDoc; {tile, parent} = parent!)
+      found.push(tile as EltTile)
+    for (let i = found.length - 1; i >= 0; i--) {
+      let tile = found[i]
+      if (tile.isSpanning && this.enterSpanning(tile.elt)) {
+      } else {
+        if (tile.isSpanning && this.reused.has(tile.dom)) {
+          let owner = tile.dom.wgTile
+          if (owner && owner != tile) owner.dom = eltDOM((owner as EltTile).elt)
+        } else {
+          this.reused.add(tile.dom)
+        }
+        this.new.addChild(EltTile.of(tile.elt, null, tile.flags, 0, tile.dom))
+      }
+    }
+    this.new.addChild(new TextTile(composition.text, target.dom, TileFlag.Composition))
+    this.reused.add(target.dom)
+    this.old = this.old.walk(composition.text.length, 1)
+    this.posB += composition.text.length
+  }
+
   build(len: number, reuse: boolean, includeStart: boolean, startOld?: TilePointer, endOld?: TilePointer) {
     this.leaveWrappers()
     let start = this.posB, end = this.posB + len
@@ -579,10 +617,10 @@ class ContentUpdate {
         this.openWrappers(wrappers, tag, reuse)
         let tile: EltTile | undefined
         if (reuse) {
-          let nodeTile = this.old.tileAfter!
-          if (nodeTile instanceof EltTile && !this.reused.has(nodeTile) &&
+          let nodeTile = this.old.tileAfter
+          if (nodeTile instanceof EltTile && !this.reused.has(nodeTile.dom) &&
               nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
-            this.reused.add(nodeTile)
+            this.reused.add(nodeTile.dom)
             updateAttributes(nodeTile.dom, nodeTile.elt.attrs, elt.attrs)
             tile = copyEltShape(nodeTile, tag)
           }
@@ -606,16 +644,16 @@ class ContentUpdate {
         this.openWrappers(wrappers, node.tag, reuse)
         let tile: Tile | undefined
         if (reuse || node.isText() && this.posB == start) {
-          let nodeTile = this.old.tileAfter()!
-          if (!this.reused.has(nodeTile)) {
+          let nodeTile = this.old.tileAfter()
+          if (nodeTile && !this.reused.has(nodeTile.dom)) {
             if (shape instanceof Elt && nodeTile instanceof EltTile &&
                 nodeTile.elt.tagName == shape.tagName && nodeTile.elt.eqChildren(shape)) {
-              this.reused.add(nodeTile)
+              this.reused.add(nodeTile.dom)
               updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
               tile = copyEltShape(nodeTile, node.tag)
             } else if (node.isText() && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
                        (reuse || this.posB == start)) {
-              this.reused.add(nodeTile)
+              this.reused.add(nodeTile.dom)
               if (nodeTile.text != node.text) {
                 nodeTile.dom.nodeValue = node.text
                 tile = new TextTile(node.text, nodeTile.dom)
@@ -727,26 +765,21 @@ class ContentUpdate {
 
   addText(text: string) {
     let last = this.new.lastChild
-    if (!(last instanceof TextTile)) {
+    if (!(last instanceof TextTile) || last.isComposition) {
       this.new.addChild(TextTile.of(text))
     } else if (last.flags & TileFlag.Synced) {
       this.new.children.pop()
-      this.new.addChild(this.reused.has(last) ? TextTile.of(last.text + text) : new TextTile(last.text + text, last.dom))
-      this.reused.add(last)
+      this.new.addChild(this.reused.has(last.dom) ? TextTile.of(last.text + text) : new TextTile(last.text + text, last.dom))
+      this.reused.add(last.dom)
     } else {
       last.text += text
       last.length += text.length
     }
   }
 
-  composition(target: TextTile, compostions: CompositionRange) {
-    if (this.old.tileAfter() != target) throw new Error("Unexpected composition tile mismatch")
-    // FIXME
-  }
-
   finish() {
     while (!(this.new instanceof DocTile)) this.up()
-    return this.new as DocTile
+    return this.new
   }
 }
 
@@ -771,9 +804,9 @@ const brHack = Widget.create({
   render() { return document.createElement("br") }
 })
 
-function getCompositionTile(docTile: DocTile, composition: CompositionRange, compare: string) {
+function getCompositionTile(docTile: DocTile, composition: CompositionRange) {
   let target = docTile.resolve(composition.fromA, 1)
-  if (!target.tile.isText || target.offset || target.dom.nodeValue != compare) return null
+  if (!target.tile.isText || target.offset || target.dom.nodeValue != composition.text) return null
   return target.tile as TextTile
 }
 
@@ -800,4 +833,25 @@ function separateComposition(sections: readonly number[], comp: CompositionRange
   }
   if (diff != compIns - (toA - fromA)) return null
   return result
+}
+
+function findCompositionNode(view: EditorView) {
+  if (!view.compositionStarted) return null
+  let {focusNode, focusOffset} = view.observer.selectionRange
+  if (!focusNode) return null
+  let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
+  if (!before || !after || before == after) return before || after
+  // FIXME make sticky somehow
+  let tile = view.docElt.nearest(before.node)
+  return !tile || (tile as TextTile).text != before.node.nodeValue ? before : after
+}
+
+export function findComposition(view: EditorView) {
+  let text = findCompositionNode(view)
+  if (!text) return null
+  let tile = view.docElt.nearest(text.node), value = text.node.nodeValue!
+  if (!(tile instanceof TextTile)) return null
+  let from = tile.posBefore
+  // FIXME use queued transaction mappings
+  return {fromA: from, toA: from + tile.length, fromB: from, toB: from + value.length, text: value}
 }

@@ -2,7 +2,7 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
         EditorSelection, StateEffect, Facet, EditorStateSpec} from "@wordgard/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
-import {DocTile} from "./content"
+import {DocTile, findComposition} from "./content"
 import {posAtCoords, coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
@@ -222,7 +222,7 @@ export class EditorView {
       this.updateState = UpdateState.Updating
       let startState = this.state
       let update = ViewUpdate.create(this, startState, this.state, transactions)
-      this.docElt = this.docElt.update(update.state, update.changes)
+      this.docElt = this.docElt.update(update.state, update.changes, findComposition(this))
       if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
         setDOMSelection(this)
       if (!update.changes.empty) this.requestMeasure()
