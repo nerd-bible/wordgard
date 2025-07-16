@@ -290,6 +290,17 @@ describe("DocTile", () => {
           "<p>x<span>-2</span><span>-1</span><span>1</span>y</p>")
     })
 
+    it("doesn't duplicate widgets on section boundaries", () => {
+      let node = render(doc(p(strong("a"), $img())),
+                        tagDecoration({tag: "Image", deco: {widget: inlineWidget.of("!"), place: "Before"}}))
+      ist(node.dom.innerHTML, "<p><strong>a</strong><span>!</span><img src=\"test.png\"></p>")
+      node = update(node, {changes: [
+        {from: 1, to: 2, remove: Strong},
+        {from: 2, to: 3, insert: new Slice([$img()])}
+      ]})
+      ist(node.dom.innerHTML, "<p>a<span>!</span><img src=\"test.png\"></p>")
+    })
+
     it("can decorate tags", () => {
       ist(render(doc(p("a", $img())), tagDecoration({
         tag: Paragraph,

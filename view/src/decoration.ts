@@ -904,22 +904,24 @@ export class DecoIterator {
     }
   }
 
-  walk(from: number, to: number, walker: DecoWalker) {
+  walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
-    for (let i of this.pointIter) i.goto(from)
+    for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
     let iter = new HeapIterator<any, RangeDecorationSource<any>, any>(this.rangeIter, this.pointIter, from, to)
-    let pos = this.pos.advance(from - this.pos.pos)
+    let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
     let wrap: Walker = {
       skip: node => { // Only done for leaf nodes.
-        this.widgets(node.tag, WidgetPlace.Before, walker)
+        if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
+        else started = true
         let shape = this.tagShape(node.tag, iter.active)
         if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node " + node)
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enter: (tag, node) => {
-        this.widgets(tag, WidgetPlace.Before, walker)
+        if (started) this.widgets(tag, WidgetPlace.Before, walker)
+        else started = true
         let shape = this.tagShape(tag, iter.active), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
         if (tag.isAtom()) {
           if (shape.hasHole) throw new Error(`Shape for atom ${tag.name} has a hole`)
@@ -932,15 +934,18 @@ export class DecoIterator {
         return !tag.isAtom()
       },
       leave: tag => {
-        this.widgets(tag!, WidgetPlace.End, walker)
+        if (started) this.widgets(tag!, WidgetPlace.End, walker)
+        else started = true
         walker.leave()
         this.widgets(tag!, WidgetPlace.After, walker)
       }
     }
 
-    let before = pos.nodeBefore
-    if (before) this.widgets(before.tag, WidgetPlace.After, walker)
-    else this.widgets(pos.parent.node.tag, WidgetPlace.Start, walker)
+    if (inclusiveStart) {
+      let before = pos.nodeBefore
+      if (before) this.widgets(before.tag, WidgetPlace.After, walker)
+      else this.widgets(pos.parent.node.tag, WidgetPlace.Start, walker)
+    }
 
     for (; !iter.next().done;) {
       if (iter.point) {

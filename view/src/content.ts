@@ -197,8 +197,6 @@ export class CompositeTile extends Tile {
   }
 }
 
-const enum Bound { Start = 1, End = 2 }
-
 export type CompositionRange = {fromA: number, toA: number, fromB: number, toB: number}
 
 export class DocTile extends CompositeTile {
@@ -228,17 +226,22 @@ export class DocTile extends CompositeTile {
       else sections = separated
     }
     let builder = new ContentUpdate(state, this, new DecoIterator(state))
-    for (let i = 0, posA = 0; i < sections.length;) {
-      let bound = (i == 0 ? Bound.Start : 0) | (i == sections.length - 2 ? Bound.End : 0)
+    for (let i = 0, posA = 0, startCovered = false; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
-      if (compositionTile && posA == composition!.fromA)
+      if (compositionTile && posA == composition!.fromA) {
+        if (!startCovered) builder.update(0, false)
         builder.composition(compositionTile, composition!)
-      else if (ins == -1)
-        builder.keep(len, bound)
-      else if (ins == -2)
-        builder.update(len, bound)
-      else
-        builder.replace(len, ins, bound)
+        if (startCovered = i == sections.length || sections[i + 1] == -1) builder.update(0, false)
+      } else if (ins == -1) {
+        builder.keep(len, !startCovered, i == sections.length)
+        startCovered = false
+      } else if (ins == -2) {
+        builder.update(len, !startCovered)
+        startCovered = true
+      } else {
+        builder.replace(len, ins, !startCovered)
+        startCovered = true
+      }
       posA += len
     }
     let result = builder.finish()
@@ -519,7 +522,7 @@ class ContentUpdate {
     // FIXME pre-allocate walkers?
   }
 
-  keep(len: number, bound: Bound) {
+  keep(len: number, includeStart: boolean, includeEnd: boolean) {
     let walker: TileWalker = {
       enter: tile => {
         let span = tile.isSpanning && this.enterSpanning(tile.elt)
@@ -550,28 +553,28 @@ class ContentUpdate {
         }
       }
     }
-    if (!(bound & Bound.Start)) {
+    if (!includeStart) {
       this.old = this.old.walk(0, 1)
       this.openOldWrappers()
     }
-    this.old = this.old.walk(len, (bound & Bound.End) ? 1 : -1, walker)
+    this.old = this.old.walk(len, includeEnd ? 1 : -1, walker)
     this.posB += len
   }
 
-  replace(len: number, ins: number, bound: Bound) {
+  replace(len: number, ins: number, includeStart: boolean) {
     let start = this.old.walk(0, 1), end = this.old = start.walk(len, 1)
-    this.build(ins, false, start, end)
+    this.build(ins, false, includeStart, start, end)
   }
 
-  update(len: number, bound: Bound) {
+  update(len: number, includeStart: boolean) {
     this.old = this.old.walk(0, 1)
-    this.build(len, true)
+    this.build(len, true, includeStart)
   }
 
-  build(len: number, reuse: boolean, startOld?: TilePointer, endOld?: TilePointer) {
+  build(len: number, reuse: boolean, includeStart: boolean, startOld?: TilePointer, endOld?: TilePointer) {
     this.leaveWrappers()
     let start = this.posB, end = this.posB + len
-    this.deco.walk(start, end, {
+    this.deco.walk(start, includeStart, end, {
       enter: (tag, elt, wrappers) => {
         this.openWrappers(wrappers, tag, reuse)
         let tile: EltTile | undefined
