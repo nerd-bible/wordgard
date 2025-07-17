@@ -641,19 +641,32 @@ handlers.beforeinput = (view, event: InputEvent) => {
       setTimeout(() => observers.compositionend(view, event), 20)
 
     let slice = event.inputType == "insertText"
-      ? new Slice([Node.text(event.data!.replace(/\r\n?|\n/g, " "), view.state.selPos.from.props())])
+      ? textSlice(event.data!, view.state)
       // FIXME why is this in a dataTransfer anyway? Spec says it shouldn't be...
       : readClipboard(view.state, event.dataTransfer!, view.state.selPos.head, true)?.slice
-    let ranges = event.getTargetRanges()
-    if (slice && ranges.length) {
-      let r = ranges[0]
-      let from = view.posAtDOM(r.startContainer, r.startOffset), to = view.posAtDOM(r.endContainer, r.endOffset)
+    if (slice) {
+      let {from, to} = inputEventRange(event, view)
       applyTextChange(view, from, to, slice)
       return true
     }
+  } else if (event.inputType == "insertCompositionText") {
+    let {from, to} = inputEventRange(event, view)
+    // FIXME must flush async
+    applyTextChange(view, from, to, textSlice(event.data!, view.state))
+    return false
   }
 
   return false
+}
+
+function textSlice(text: string, state: EditorState) {
+  return new Slice([Node.text(text.replace(/\r\n?|\n/g, " "), state.selPos.from.props())])
+}
+
+function inputEventRange(event: InputEvent, view: EditorView) {
+  let range = event.getTargetRanges()[0]
+  return {from: view.posAtDOM(range.startContainer, range.startOffset),
+          to: view.posAtDOM(range.endContainer, range.endOffset)}
 }
 
 export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {
