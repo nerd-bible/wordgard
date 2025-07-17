@@ -600,12 +600,14 @@ class ContentUpdate {
         } else {
           this.reused.add(tile.dom)
         }
-        this.new.addChild(EltTile.of(tile.elt, null, tile.flags, 0, tile.dom))
+        tile = EltTile.of(tile.elt, null, tile.flags, 0, tile.dom)
+        this.new.addChild(tile)
+        this.new = tile
       }
     }
     this.new.addChild(new TextTile(composition.text, target.dom, TileFlag.Composition))
     this.reused.add(target.dom)
-    this.old = this.old.walk(composition.text.length, 1)
+    this.old = this.old.walk(target.length, 1)
     this.posB += composition.text.length
   }
 

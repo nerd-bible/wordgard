@@ -54,6 +54,7 @@ export class InputState {
   // considered part of the composition on Safari, which fires events
   // in the wrong order
   compositionPendingKey = false
+  currentComposition: {from: number, to: number, text: string} | null = null
 
   mouseSelection: MouseSelection | null = null
   // When a drag from the editor is active, this points at the range
@@ -650,12 +651,27 @@ handlers.beforeinput = (view, event: InputEvent) => {
       return true
     }
   } else if (event.inputType == "insertCompositionText") {
-    let {from, to} = inputEventRange(event, view)
-    // FIXME must flush async
-    applyTextChange(view, from, to, textSlice(event.data!, view.state))
-    return false
+    view.inputState.currentComposition = {...inputEventRange(event, view), text: event.data!}
   }
 
+  return false
+}
+
+handlers.input = (view, event: InputEvent) => {
+  // FIXME do this somewhere else?
+  if (event.inputType == "insertCompositionText" && view.inputState.currentComposition) {
+    let {from, to, text} = view.inputState.currentComposition
+    view.inputState.currentComposition = null
+    view.observer.readSelectionRange()
+    let sel = view.observer.selectionRange
+    view.dispatch({
+      changes: {from, to, insert: textSlice(text, view.state), fit: true},
+      // FIXME read anchor/head separately?
+      // FIXME relying on this is very hacky
+      selection: {anchor: view.docElt.posFromDOM(sel.focusNode!, sel.focusOffset)},
+      userEvent: "input.type"
+    })
+  }
   return false
 }
 
