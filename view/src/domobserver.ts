@@ -1,12 +1,10 @@
 import {ChangeDesc} from "@wordgard/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {editable} from "./extension"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
         isEquivalentPosition, atElementStart} from "./dom"
 import {Tile} from "./content"
 import {setDOMSelection, readDOMSelection} from "./selection"
-import {findComposition} from "./content"
 
 const observeOptions = {
   childList: true,
@@ -16,6 +14,7 @@ const observeOptions = {
   characterDataOldValue: true
 }
 
+// FIXME split observer and selection tracker
 export class DOMObserver {
   dom: HTMLElement
   win: Window | null = null
@@ -30,8 +29,6 @@ export class DOMObserver {
   //  - This way, we can ignore selectionchange events if we have
   //    already seen the 'new' selection
   selectionRange: DOMSelectionState = new DOMSelectionState
-  // Set when a selection change is detected, cleared on read
-  selectionChanged = false
 
   resizeTimeout = -1
   queue: MutationRecord[] = []
@@ -44,7 +41,7 @@ export class DOMObserver {
     this.dom = view.contentDOM
     this.observer = new MutationObserver(mutations => {
       for (let mut of mutations) this.queue.push(mut)
-      this.read()
+      this.view.scheduleFlush()
     })
 
     this.onSelectionChange = this.onSelectionChange.bind(this)
@@ -100,24 +97,17 @@ export class DOMObserver {
   onResize() {
     if (this.resizeTimeout < 0) this.resizeTimeout = setTimeout(() => {
       this.resizeTimeout = -1
-      this.view.requestMeasure()
+      this.view.scheduleFlush()
     }, 50)
   }
 
   onSelectionChange(event: Event) {
-    let wasChanged = this.selectionChanged
-    if (!this.readSelectionRange()) return
-    let {view} = this, sel = this.selectionRange
-    if (view.state.facet(editable) ? view.root.activeElement != this.dom : !hasSelection(this.dom, sel))
-      return
-
-    let context = sel.anchorNode && view.docElt.nearest(sel.anchorNode)
-    if (context && context.ignoreEvent(event)) {
-      if (!wasChanged) this.selectionChanged = false
-      return
+    // FIXME ignore while waiting for composition
+    if (this.readSelectionRange()) {
+      let sel = readDOMSelection(this.view, this.selectionRange)
+      if (!sel.eqPos(this.view.state.selection))
+        this.view.dispatch({selection: sel, userEvent: "select"})
     }
-
-    this.read(false)
   }
 
   readSelectionRange() {
@@ -137,22 +127,20 @@ export class DOMObserver {
     // Detect the situation where the browser has, on focus, moved the
     // selection to the start of the content element. Reset it to the
     // position from the editor state.
-    if (local && !this.selectionChanged &&
+    if (local &&
         view.inputState.lastFocusTime > Date.now() - 200 &&
         view.inputState.lastTouchTime < Date.now() - 300 &&
         atElementStart(this.dom, range)) {
       this.view.inputState.lastFocusTime = 0
-      // view.docView.updateSelection() // FIXME
+      setDOMSelection(view)
       return false
     }
     this.selectionRange.setRange(range)
-    if (local) this.selectionChanged = true
     return true
   }
 
   setSelectionRange(anchor: {dom: DOMNode, offset: number}, head: {dom: DOMNode, offset: number}) {
     this.selectionRange.set(anchor.dom, anchor.offset, head.dom, head.offset)
-    this.selectionChanged = false
   }
 
   clearSelectionRange() {
@@ -168,9 +156,7 @@ export class DOMObserver {
   // Throw away any pending changes
   clear() {
     this.takeRecords()
-    this.queue.length = 0
     this.readSelectionRange()
-    this.selectionChanged = false
   }
 
   takeRecords() {
@@ -180,12 +166,13 @@ export class DOMObserver {
     return records
   }
 
-  processRecords() {
-    let change: ChangeDesc | undefined
-    for (let record of this.takeRecords()) {
+  // FIXME ignore composition node
+  processRecords(records: readonly MutationRecord[]) {
+    let change: ChangeDesc | null = null
+    for (let record of records) {
       let range = this.findMutation(record)
       if (range) {
-        let sections = range[0] ? [range[0], -1] : [], len = this.view.state.doc.length
+        let sections = range[0] ? [range[0], -1] : [], len = this.view.flushedState.doc.length
         sections.push(range[1] - range[0], -2)
         if (range[1] < len) sections.push(len - range[1], -1)
         let desc = new ChangeDesc(sections)
@@ -196,7 +183,7 @@ export class DOMObserver {
   }
 
   findMutation(record: MutationRecord): [number, number] | null {
-    let elt = this.view.docElt.nearest(record.target)
+    let elt = this.view.docTile.nearest(record.target)
     if (!elt || elt.ignoreMutations) return null
     if (record.type == "attributes" || record.type == "characterData") {
       return [elt.posBefore, elt.posAfter]
@@ -210,21 +197,8 @@ export class DOMObserver {
     }
   }
 
-  // Apply pending changes, if any
-  read(readSelection = true) {
-    if (readSelection) this.readSelectionRange()
-    let changed = this.processRecords(), {view} = this
-    if (changed) {
-      // FIXME reuse path of regular updates, somehow
-      view.docElt = view.docElt.update(this.view.state, changed, findComposition(view))
-      setDOMSelection(this.view)
-      this.clear()
-    } else if (this.selectionChanged && view.hasFocus && hasSelection(view.contentDOM, this.selectionRange)) {
-      let sel = readDOMSelection(view, this.selectionRange)
-      if (!sel.eqPos(view.state.selection))
-        view.dispatch({selection: sel, userEvent: "select"})
-      this.selectionChanged = false
-    }
+  touchedRanges() {
+    return this.processRecords(this.takeRecords())
   }
 }
 
@@ -241,7 +215,7 @@ function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
 function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
   let anchorNode = range.startContainer, anchorOffset = range.startOffset
   let focusNode = range.endContainer, focusOffset = range.endOffset
-  let curAnchor = view.docElt.resolve(view.state.selection.anchor, -1)
+  let curAnchor = view.docTile.resolve(view.state.selection.anchor, -1)
   // Since such a range doesn't distinguish between anchor and head,
   // use a heuristic that flips it around if its end matches the
   // current anchor.

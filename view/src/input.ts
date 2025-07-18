@@ -54,6 +54,7 @@ export class InputState {
   // considered part of the composition on Safari, which fires events
   // in the wrong order
   compositionPendingKey = false
+  // FIXME add a timeout to guard against this leaking?
   currentComposition: {from: number, to: number, text: string} | null = null
 
   mouseSelection: MouseSelection | null = null
@@ -134,7 +135,6 @@ export class InputState {
       setTimeout(() => this.flushIOSKey(), 250)
       return true
     }
-    if (event.keyCode != 229) this.view.observer.read()
     return false
   }
 
@@ -442,7 +442,6 @@ observers.touchmove = view => {
 
 handlers.mousedown = (view, event: MouseEvent) => {
   view.inputState.shiftKey = event.shiftKey
-  view.observer.read()
   if (view.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
   let style: MouseSelectionStyle | null = null
   for (let makeStyle of view.state.facet(mouseSelectionStyle)) {
@@ -560,7 +559,6 @@ handlers.drop = (view, event: DragEvent) => {
 
 handlers.paste = (view: EditorView, event: ClipboardEvent) => {
   if (view.state.readOnly || !event.clipboardData) return true
-  view.observer.read()
   let {state} = view
   let content = readClipboard(state, event.clipboardData, state.selPos.head, view.inputState.shiftKey)
   if (content) { // FIXME proper multi-selection pasting
@@ -668,7 +666,7 @@ handlers.input = (view, event: InputEvent) => {
       changes: {from, to, insert: textSlice(text, view.state), fit: true},
       // FIXME read anchor/head separately?
       // FIXME relying on this is very hacky
-      selection: {anchor: view.docElt.posFromDOM(sel.focusNode!, sel.focusOffset)},
+      selection: {anchor: view.docTile.posFromDOM(sel.focusNode!, sel.focusOffset)},
       userEvent: "input.type"
     })
   }

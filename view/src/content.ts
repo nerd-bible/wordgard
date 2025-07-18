@@ -844,14 +844,14 @@ function findCompositionNode(view: EditorView) {
   let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
   if (!before || !after || before == after) return before || after
   // FIXME make sticky somehow
-  let tile = view.docElt.nearest(before.node)
+  let tile = view.docTile.nearest(before.node)
   return !tile || (tile as TextTile).text != before.node.nodeValue ? before : after
 }
 
 export function findComposition(view: EditorView) {
   let text = findCompositionNode(view)
   if (!text) return null
-  let tile = view.docElt.nearest(text.node), value = text.node.nodeValue!
+  let tile = view.docTile.nearest(text.node), value = text.node.nodeValue!
   if (!(tile instanceof TextTile)) return null
   let from = tile.posBefore
   // FIXME use queued transaction mappings

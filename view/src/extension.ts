@@ -229,18 +229,6 @@ export class PluginInstance {
   }
 }
 
-export interface MeasureRequest<T> {
-  /// Called in a DOM read phase to gather information that requires
-  /// DOM layout. Should _not_ mutate the document.
-  read(view: EditorView): T
-  /// Called in a DOM write phase to update the document. Should _not_
-  /// do anything that triggers DOM layout.
-  write?(measure: T, view: EditorView): void
-  /// When multiple requests with the same key are scheduled, only the
-  /// last one will actually be run.
-  key?: any
-}
-
 export type AttrSource = Attrs | ((view: EditorView) => Attrs | null)
 
 export const editorAttributes = Facet.define<AttrSource>()
@@ -272,8 +260,6 @@ export const enum UpdateFlag { Focus = 1, Geometry = 2 }
 export class ViewUpdate {
   /// The changes made to the document by this update.
   readonly changes: ChangeSet
-  /// @internal
-  flags = 0
 
   private constructor(
     /// The editor view that the update is associated with.
@@ -283,9 +269,10 @@ export class ViewUpdate {
     /// The new editor state.
     readonly state: EditorState,
     /// The transactions involved in the update. May be empty.
-    readonly transactions: readonly Transaction[]
+    readonly transactions: readonly Transaction[],
+    /// @internal
+    public flags: number
   ) {
-    this.startState = view.state
     if (transactions.length) {
       this.changes = transactions[0].changes
       for (let i = 1; i < transactions.length; i++) this.changes = this.changes.compose(transactions[i].changes)
@@ -295,8 +282,9 @@ export class ViewUpdate {
   }
 
   /// @internal
-  static create(view: EditorView, startState: EditorState, state: EditorState, transactions: readonly Transaction[]) {
-    return new ViewUpdate(view, startState, state, transactions)
+  static create(view: EditorView, startState: EditorState, state: EditorState,
+                transactions: readonly Transaction[], flags = 0) {
+    return new ViewUpdate(view, startState, state, transactions, flags)
   }
 
   /// Returns true when the document was modified or the size of the

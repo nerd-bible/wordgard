@@ -6,8 +6,8 @@ import {findVerticalInTextblock} from "./coords"
 
 export function setDOMSelection(view: EditorView) {
   let {anchor, head, assoc} = view.state.selection
-  let anchorDOM = view.docElt.resolve(anchor, anchor == head ? assoc || 1 : anchor < head ? 1 : -1)
-  let headDOM = head == anchor ? anchorDOM : view.docElt.resolve(head, head < anchor ? 1 : -1)
+  let anchorDOM = view.docTile.resolve(anchor, anchor == head ? assoc || 1 : anchor < head ? 1 : -1)
+  let headDOM = head == anchor ? anchorDOM : view.docTile.resolve(head, head < anchor ? 1 : -1)
   let domSel = getSelection(view.root)
   if (!domSel) return
   if (domSel.focusNode &&
@@ -29,9 +29,9 @@ export function setDOMSelection(view: EditorView) {
 }
 
 export function readDOMSelection(view: EditorView, range: SelectionRange) {
-  let anchor = view.docElt.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
+  let anchor = view.docTile.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
-    : view.docElt.posFromDOM(range.focusNode!, range.focusOffset, -1)
+    : view.docTile.posFromDOM(range.focusNode!, range.focusOffset, -1)
   return EditorSelection.range(anchor, head)
 }
 
@@ -43,7 +43,7 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
   for (let scan = start.head;;) {
     let pos = view.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {
-      let elt = view.docElt.resolve(block.start, 0)
+      let elt = view.docTile.resolve(block.start, 0)
       let rect = (elt.dom as HTMLElement).getBoundingClientRect()
       if (forward ? rect.bottom >= y : rect.top <= y) {
         let found = findVerticalInTextblock(elt.tile, forward, x, y)
@@ -96,7 +96,7 @@ function findTextblockVertically(view: EditorView, from: number, forward: boolea
         let closest = -1, closestPos = -1, closestDist = -1
         for (let chPos = nextPos + 1, i = 0; i < next.children.length; i++) {
           let ch = next.children[i]
-          let {tile} = view.docElt.resolve(chPos + 1, 0)
+          let {tile} = view.docTile.resolve(chPos + 1, 0)
           let rect = (tile.dom as HTMLElement).getBoundingClientRect()
           let dist = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
           if (closestDist < 0 || dist < closestDist) {
@@ -125,7 +125,7 @@ export function moveToLineBoundary(view: EditorView, start: EditorSelection, for
   if (!block) return null
   let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
   let dir = view.state.textDirection(block.node.tag)
-  let blockRect = (view.docElt.resolve(block.start, 0).dom as HTMLElement).getBoundingClientRect()
+  let blockRect = (view.docTile.resolve(block.start, 0).dom as HTMLElement).getBoundingClientRect()
   let pos = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
                               y: (startCoords.top + startCoords.bottom) / 2})
   return EditorSelection.cursor(pos, forward ? -1 : 1)

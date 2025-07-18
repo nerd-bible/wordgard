@@ -21,21 +21,30 @@ export class ViewState {
   // FIXME propagate this to state somehow
   defaultTextDirection: Direction = Direction.LTR
 
-  constructor(public state: EditorState) {}
+  flushedState: EditorState
+  pending: Transaction[] = []
 
-  update(transactions: readonly Transaction[]) {
-    for (let tr of transactions) {
-      if (this.scrollTarget) this.scrollTarget = this.scrollTarget.map(tr.changes)
-      if (tr.scrollIntoView) {
-        let {selection} = tr.state
-        this.scrollTarget = new ScrollTarget(
-          selection.empty ? selection : EditorSelection.cursor(selection.head, selection.head > selection.anchor ? -1 : 1))
-      }
-      for (let e of tr.effects)
-        if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)
-      if (tr.startState != this.state) throw new Error("Mismatched transaction")
-      this.state = tr.state
+  constructor(public state: EditorState) {
+    this.flushedState = state
+  }
+
+  update(tr: Transaction) {
+    if (this.scrollTarget) this.scrollTarget = this.scrollTarget.map(tr.changes)
+    if (tr.scrollIntoView) {
+      let {selection} = tr.state
+      this.scrollTarget = new ScrollTarget(
+        selection.empty ? selection : EditorSelection.cursor(selection.head, selection.head > selection.anchor ? -1 : 1))
     }
+    for (let e of tr.effects)
+      if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)
+    if (tr.startState != this.state) throw new Error("Mismatched transaction")
+    this.pending.push(tr)
+    this.state = tr.state
+  }
+
+  flush() {
+    this.flushedState = this.state
+    this.pending = []
   }
 
   measure(view: EditorView) {

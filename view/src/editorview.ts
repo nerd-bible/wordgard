@@ -1,5 +1,6 @@
 import {EditorState, Transaction, TransactionSpec, Extension, Prec,
         EditorSelection, StateEffect, Facet, EditorStateSpec} from "@wordgard/state"
+import {ChangeDesc} from "@wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocTile, findComposition} from "./content"
@@ -8,7 +9,7 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
         exceptionSink, updateListener, logException,
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
-        scrollMargins, MeasureRequest, editable, inputHandler, scrollIntoView,
+        scrollMargins, editable, inputHandler, scrollIntoView,
         ScrollTarget, scrollHandler} from "./extension"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
@@ -38,26 +39,6 @@ export interface EditorViewSpec extends Partial<EditorStateSpec> {
   scrollTo?: StateEffect<any>,
 }
 
-export const enum UpdateState {
-  Idle, // Not updating
-  Measuring, // In the layout-reading phase of a layout check
-  Updating // Updating/drawing, either directly via the `update` method, or as a result of a layout check
-}
-
-// The editor's update state machine looks something like this:
-//
-//     Idle → Updating ⇆ Idle (unchecked) → Measuring → Idle
-//                                         ↑      ↓
-//                                         Updating (measure)
-//
-// The difference between 'Idle' and 'Idle (unchecked)' lies in
-// whether a layout check has been scheduled. A regular update through
-// the `update` method updates the DOM in a write-only fashion, and
-// relies on a check (scheduled with `requestAnimationFrame`) to make
-// sure everything is where it should be and the viewport covers the
-// visible code. That check continues to measure and then optionally
-// update until it reaches a coherent state.
-
 // FIXME less generic name?
 
 /// An editor view represents the editor's user interface. It holds
@@ -67,6 +48,9 @@ export const enum UpdateState {
 export class EditorView {
   /// The current editor state.
   get state() { return this.viewState.state }
+
+  /// @internal
+  get flushedState() { return this.viewState.flushedState }
 
   /// Indicates whether the user is currently composing text via
   /// [IME](https://en.wikipedia.org/wiki/Input_method), and at least
@@ -83,7 +67,7 @@ export class EditorView {
   root: DocumentOrShadowRoot = document
 
   /// @internal
-  get win() { return this.dom.ownerDocument.defaultView || window }
+  get win() { return this.dom.ownerDocument.defaultView || window } // FIXME make public?
 
   /// The outer DOM element that represents the editor.
   readonly dom: HTMLElement
@@ -107,7 +91,7 @@ export class EditorView {
   /// @internal
   viewState: ViewState
   /// @internal
-  docElt: DocTile
+  docTile: DocTile
 
   /// @internal
   plugins: PluginInstance[] = []
@@ -115,21 +99,26 @@ export class EditorView {
   private editorAttrs: Attrs = {}
   private contentAttrs: Attrs = {}
   private styleModules!: readonly StyleModule[]
+
   private connected = false
-  private updateState = UpdateState.Updating
-  private scheduledMeasure = -1
-  private measuring = false
+  private flushing = false
+  private willFlush = false
 
   /// @internal
   observer: DOMObserver
 
   /// @internal
-  measureRequests: MeasureRequest<any>[] = []
+  readRequests: ((view: EditorView) => void)[] = []
+  /// @internal
+  writeRequests: ((view: EditorView) => void)[] = []
 
   /// Construct a new view. You'll want to either provide a `parent`
   /// option, or put `view.dom` into your document after creating a
   /// view, so that the user can see the editor.
   constructor(spec: EditorViewSpec) {
+    this.flush = this.flush.bind(this)
+    this.dispatch = this.dispatch.bind(this)
+
     this.dom = createWrapElement(this)
 
     this.contentDOM = document.createElement("div")
@@ -146,9 +135,6 @@ export class EditorView {
     this.dom.appendChild(this.announceDOM)
     this.dom.appendChild(this.scrollDOM)
 
-    this.dispatch = this.dispatch.bind(this)
-    this.measure = this.measure.bind(this)
-
     if (!spec.state && !spec.doc)
       throw new Error("When EditorViewSpec.state isn't given, the doc field must be present")
     this.viewState = new ViewState(spec.state || EditorState.create(spec as EditorStateSpec))
@@ -158,7 +144,7 @@ export class EditorView {
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.docElt = DocTile.create(this.state, this.contentDOM)
+    this.docTile = DocTile.create(this.state, this.contentDOM)
 
     this.updateAttrs()
 
@@ -171,72 +157,102 @@ export class EditorView {
     if (value) {
       this.root = getRoot(this.dom.parentNode!) || document
       this.mountStyles()
-      this.docElt.connect()
+      this.docTile.connect()
       this.inputState.connect()
       for (let plugin of this.plugins) plugin.connect(this)
       this.observer.connect()
-      this.requestMeasure()
+      this.scheduleFlush()
     } else {
       this.root = document
       this.observer.disconnect()
       for (let plugin of this.plugins) plugin.disconnect(this)
       this.inputState.disconnect()
-      this.docElt.disconnect()
-      if (this.scheduledMeasure > -1) this.win.cancelAnimationFrame(this.scheduledMeasure)
+      this.docTile.disconnect()
     }
   }
 
-  /// All editor state updates go through this. It takes a
-  /// transaction, array of transactions, or transaction spec and
-  /// updates the view to show the new state produced by that
-  /// transaction. This function is bound to the view instance, so it
-  /// does not have to be called as a method.
+  /// All editor state updates go through this. It takes a transaction
+  /// or transaction spec and updates the view to show the new state
+  /// produced by that transaction. This function is bound to the view
+  /// instance, so it does not have to be called as a method.
   ///
-  /// Note that when multiple `TransactionSpec` arguments are
-  /// provided, these define a single transaction (the specs will be
-  /// merged), not a sequence of transactions.
+  /// Note that when multiple `TransactionSpec` values are provided,
+  /// these define a single transaction (the specs will be merged),
+  /// not a sequence of transactions.
   dispatch(tr: Transaction): void
-  dispatch(trs: readonly Transaction[]): void
   dispatch(...specs: TransactionSpec[]): void
-  dispatch(...input: (Transaction | readonly Transaction[] | TransactionSpec)[]) {
-    if (this.updateState != UpdateState.Idle)
-      throw new Error("Cannot dispatching a transaction during an editor update")
-    this.update(input.length == 1 && input[0] instanceof Transaction ? input as readonly Transaction[]
-      : input.length == 1 && Array.isArray(input[0]) ? input[0] as readonly Transaction[]
-      : [this.state.update(...input as TransactionSpec[])])
+  dispatch(...input: (Transaction | TransactionSpec)[]) {
+    if (input.length == 1 && input[0] instanceof Transaction) this.update(input[0])
+    else this.update(this.state.update(...input as TransactionSpec[]))
   }
 
-  /// Update the view for the given array of transactions. Updates
+  /// Update the view for the given transaction. Updates
   /// will be immediately be reflected in the object's `state`
   /// property, but updating the DOM will be deferred to the next
   /// display update.
   ///
   /// You should usually call [`dispatch`](#view.EditorView.dispatch)
   /// instead, which uses this as a primitive.
-  update(transactions: readonly Transaction[]) {
-    this.viewState.update(transactions)
+  update(transaction: Transaction) {
+    if (this.flushing) throw new Error("Cannot dispatch new updates during the editor flush phase")
+    this.viewState.update(transaction)
+    this.scheduleFlush()
+  }
 
-    // FIXME force full redraw on phrase facet change
+  scheduleFlush() {
+    if (!this.willFlush && !this.flushing) {
+      this.win.queueMicrotask(this.flush)
+      this.willFlush = true
+    }
+  }
+
+  flush() {
+    if (!this.connected || this.inputState.currentComposition) return
+    this.willFlush = false
+    this.flushing = true
+    let domChanges = this.observer.touchedRanges()
     // FIXME avoid unnecessary work
+    let {flushedState, state, pending} = this.viewState
+    this.viewState.flush()
+    let mainUpdate = ViewUpdate.create(this, flushedState, state, pending)
     try {
-      this.updateState = UpdateState.Updating
-      let startState = this.state
-      let update = ViewUpdate.create(this, startState, this.state, transactions)
-      this.docElt = this.docElt.update(update.state, update.changes, findComposition(this))
-      if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
-        setDOMSelection(this)
-      if (!update.changes.empty) this.requestMeasure()
-      this.observer.clear()
-      this.updatePlugins(update)
-      this.inputState.update(update)
-      this.showAnnouncements(update.transactions)
-      if (this.state.facet(styleModule) != this.styleModules) this.mountStyles()
-      this.updateAttrs()
-      for (let listener of this.state.facet(updateListener)) {
-        try { listener(update) }
-        catch (e) { logException(this.state, e, "update listener") }
+      this.runUpdate(mainUpdate, domChanges)
+      domChanges = null
+      for (let i = 0;; i++) {
+        if (i > 5) {
+          console.warn("Editor flush loop restarted more than 5 times")
+          break
+        }
+        let write = this.writeRequests
+        this.writeRequests = []
+        for (let f of write) f(this)
+        let flags = this.viewState.measure(this)
+        let read = this.readRequests
+        this.readRequests = []
+        for (let f of read) f(this)
+        if (!flags && !this.writeRequests.length) break
+        mainUpdate.flags |= flags
+        if (flags) this.runUpdate(ViewUpdate.create(this, state, state, [], flags), null)
       }
-    } finally { this.updateState = UpdateState.Idle }
+    } finally { this.flushing = false }
+    if (!mainUpdate.empty) for (let listener of this.state.facet(updateListener)) {
+      try { listener(mainUpdate) }
+      catch (e) { logException(this.state, e, "update listener") }
+    }
+  }
+
+  private runUpdate(update: ViewUpdate, domChanges: ChangeDesc | null) {
+    this.docTile = this.docTile.update(update.state, domChanges ? domChanges.composeDesc(update.changes) : update.changes,
+                                       findComposition(this))
+    if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
+      setDOMSelection(this)
+    this.observer.clear()
+    if (update.empty) return
+    this.updatePlugins(update)
+    this.inputState.update(update)
+    this.showAnnouncements(update.transactions)
+    if (this.state.facet(styleModule) != this.styleModules) this.mountStyles()
+    this.updateAttrs()
   }
 
   private updatePlugins(update: ViewUpdate) {
@@ -263,62 +279,6 @@ export class EditorView {
     }
     for (let i = 0; i < this.plugins.length; i++) this.plugins[i].update(this)
     if (prevSpecs != specs) this.inputState.ensureHandlers(this.plugins)
-  }
-
-  /// @internal
-  measure() {
-    if (this.scheduledMeasure > -1) {
-      this.win.cancelAnimationFrame(this.scheduledMeasure) // FIXME sometimes superfluous
-      this.scheduledMeasure = -1
-    }
-
-    try {
-      this.measuring = true
-      // FIXME figure out how, precisely, plugins participate in measurement. Do we still need a loop?
-      let updated: ViewUpdate | null = null
-      for (let i = 0;; i++) {
-        let changed = this.viewState.measure(this)
-        if (!changed && !this.measureRequests.length && this.viewState.scrollTarget == null) break
-        this.updateState = UpdateState.Measuring
-        if (i > 5) {
-          console.warn(this.measureRequests.length, "Measure loop restarted more than 5 times")
-          break
-        }
-        let measuring: MeasureRequest<any>[] = []
-        ;[this.measureRequests, measuring] = [measuring, this.measureRequests]
-        let measured = measuring.map(m => {
-          try { return m.read(this) }
-          catch(e) { logException(this.state, e); return BadMeasure }
-        })
-        this.updateState = UpdateState.Updating
-        let update = ViewUpdate.create(this, this.state, this.state, []), redrawn = false
-        update.flags |= changed
-        if (!updated) updated = update
-        else updated.flags |= changed
-        if (!update.empty) {
-          this.updatePlugins(update)
-          this.inputState.update(update)
-          this.updateAttrs()
-          // FIXME this cannot currently cause doc view changes
-          // redrawn = this.docView.update(update)
-        }
-        for (let i = 0; i < measuring.length; i++) if (measured[i] != BadMeasure) {
-          try {
-            let m = measuring[i]
-            if (m.write) m.write(measured[i], this)
-          } catch(e) { logException(this.state, e) }
-        }
-        // FIXME if (redrawn) this.docView.updateSelection(true)
-        if (!redrawn && this.measureRequests.length == 0) break
-      }
-      if (updated && !updated.empty) {
-        this.updateState = UpdateState.Updating
-        for (let listener of this.state.facet(updateListener)) listener(updated)
-      }
-    } finally {
-      this.updateState = UpdateState.Idle
-      this.measuring = false
-    }
   }
 
   /// Get the CSS classes for the currently active editor themes.
@@ -371,26 +331,15 @@ export class EditorView {
     StyleModule.mount(this.root, this.styleModules.concat(baseTheme).reverse(), nonce ? {nonce} : undefined)
   }
 
-  /// Schedule a layout measurement, optionally providing callbacks to
-  /// do custom DOM measuring followed by a DOM write phase. Using
-  /// this is preferable reading DOM layout directly from, for
-  /// example, an event handler, because it'll make sure measuring and
-  /// drawing done by other components is synchronized, avoiding
-  /// unnecessary DOM layout computations.
-  requestMeasure<T>(request?: MeasureRequest<T>) {
-    if (this.scheduledMeasure < 0 && !this.measuring)
-      this.scheduledMeasure = this.win.requestAnimationFrame(this.measure)
+  /// Schedule a function that needs to read from the (flushed) DOM.
+  requestDOMRead(read: (view: EditorView) => void) { // FIXME naming
+    this.scheduleFlush()
+    if (this.readRequests.indexOf(read) < 0) this.readRequests.push(read)
+  }
 
-    if (request) {
-      if (this.measureRequests.indexOf(request) > -1) return
-      if (request.key != null) for (let i = 0; i < this.measureRequests.length; i++) {
-        if (this.measureRequests[i].key === request.key) {
-          this.measureRequests[i] = request
-          return
-        }
-      }
-      this.measureRequests.push(request)
-    }
+  requestDOMWrite(write: (view: EditorView) => void) {
+    this.scheduleFlush()
+    if (this.writeRequests.indexOf(write) < 0) this.writeRequests.push(write)
   }
 
   /// Get the value of a specific plugin, if present. Note that
@@ -412,11 +361,14 @@ export class EditorView {
   /// Provide the CSS transformed scale along the Y axis.
   get scaleY() { return this.viewState.scaleY }
 
-  // FIXME check for updating and/or the need to flush a measure
+  private checkFlushed() {
+    if (this.willFlush) throw new Error("Trying to read from unflushed editor DOM")
+  }
 
   /// Move to the end or start of the (wrapped) line. If the given
   /// position isn't in a textblock, this will return null.
   moveToLineBoundary(start: EditorSelection, forward: boolean) {
+    this.checkFlushed()
     return moveToLineBoundary(this, start, forward)
   }
 
@@ -433,6 +385,7 @@ export class EditorView {
   /// used.
   // FIXME move somewhere else?
   moveVertically(start: EditorSelection, forward: boolean, distance?: number) {
+    this.checkFlushed()
     return moveVertically(this, start, forward, distance)
   }
 
@@ -440,7 +393,8 @@ export class EditorView {
   /// an element, character offset when it is a text node) at the
   /// given document position.
   domAtPos(pos: number, assoc: -1 | 1 = -1): {node: DOMNode, offset: number} {
-    let viewPos = this.docElt.resolve(pos, assoc)
+    this.checkFlushed()
+    let viewPos = this.docTile.resolve(pos, assoc)
     return {node: viewPos.tile.dom, offset: viewPos.offset}
   }
 
@@ -448,11 +402,13 @@ export class EditorView {
   /// for associating positions with DOM events. Will raise an error
   /// when `node` isn't part of the editor content.
   posAtDOM(node: DOMNode, offset: number = 0) {
-    return this.docElt.posFromDOM(node, offset, 1)
+    this.checkFlushed()
+    return this.docTile.posFromDOM(node, offset, 1)
   }
 
   /// Get the document position at the given screen coordinates.
   posAtCoords(coords: {x: number, y: number}): number {
+    this.checkFlushed()
     return posAtCoords(this, coords)
   }
 
@@ -462,6 +418,7 @@ export class EditorView {
   /// available on the given side, the method will transparently use
   /// another strategy to get reasonable coordinates).
   coordsAtPos(pos: number, assoc: -1 | 1 = -1): Rect {
+    this.checkFlushed()
     return coordsAtPos(this, pos, assoc)
   }
 
@@ -470,7 +427,8 @@ export class EditorView {
   /// characters that are a line wrap point, this will return the
   /// position before the line break.
   coordsForChar(pos: number) {
-    // return this.docView.coordsForChar(pos)
+    this.checkFlushed()
+    // return this.docView.coordsForChar(pos) FIXME
   }
 
   /// The text direction
@@ -736,8 +694,6 @@ export interface DOMEventMap extends HTMLElementEventMap {
 export type DOMEventHandlers<This> = {
   [event in keyof DOMEventMap]?: (this: This, event: DOMEventMap[event], view: EditorView) => boolean | void
 }
-
-const BadMeasure = {}
 
 function attrsFromFacet(view: EditorView, facet: Facet<AttrSource>, base: Attrs) {
   for (let sources = view.state.facet(facet), i = sources.length - 1; i >= 0; i--) {
