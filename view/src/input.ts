@@ -4,7 +4,7 @@ import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
 import browser from "./browser"
-import {getSelection, dispatchKey, scrollableParents, DOMNode} from "./dom"
+import {getSelection, scrollableParents, DOMNode} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 
 export class InputState {
@@ -15,11 +15,6 @@ export class InputState {
   lastFocusTime = 0
   lastScrollTop = 0
   lastScrollLeft = 0
-
-  // On iOS, some keys need to have their default behavior happen
-  // (after which we retroactively handle them and reset the DOM) to
-  // avoid messing up the virtual keyboard state.
-  pendingIOSKey: undefined | {key: string, keyCode: number} | KeyboardEvent = undefined
 
   /// When enabled (>-1), tab presses are not given to key handlers,
   /// leaving the browser's default behavior. If >0, the mode expires
@@ -121,30 +116,7 @@ export class InputState {
       return true
     if (this.tabFocusMode > 0 && event.keyCode != 27 && modifierCodes.indexOf(event.keyCode) < 0)
       this.tabFocusMode = -1
-
-    // Preventing the default behavior of Enter on iOS makes the
-    // virtual keyboard get stuck in the wrong (lowercase)
-    // state. So we let it go through, and then, in
-    // applyDOMChange, notify key handlers of it and reset to
-    // the state they produce.
-    let pending
-    if (browser.ios && !(event as any).synthetic && !event.altKey && !event.metaKey &&
-        ((pending = PendingKeys.find(key => key.keyCode == event.keyCode)) && !event.ctrlKey ||
-         EmacsyPendingKeys.indexOf(event.key) > -1 && event.ctrlKey && !event.shiftKey)) {
-      this.pendingIOSKey = pending || event
-      setTimeout(() => this.flushIOSKey(), 250)
-      return true
-    }
     return false
-  }
-
-  flushIOSKey(change?: {from: number, to: number, insert: Text}) {
-    let key = this.pendingIOSKey
-    if (!key) return false
-    // This looks like an autocorrection before Enter
-    if (key.key == "Enter" && change && change.from < change.to && /^\S+$/.test(change.insert.toString())) return false
-    this.pendingIOSKey = undefined
-    return dispatchKey(this.view.contentDOM, key.key, key.keyCode, key instanceof KeyboardEvent ? key : undefined)
   }
 
   ignoreDuringComposition(event: Event): boolean {
@@ -221,15 +193,6 @@ function computeHandlers(plugins: readonly PluginInstance[]) {
   for (let type in observers) record(type).observers.push(observers[type])
   return result
 }
-
-const PendingKeys = [
-  {key: "Backspace", keyCode: 8, inputType: "deleteContentBackward"},
-  {key: "Enter", keyCode: 13, inputType: "insertParagraph"},
-  {key: "Enter", keyCode: 13, inputType: "insertLineBreak"},
-  {key: "Delete", keyCode: 46, inputType: "deleteContentForward"}
-]
-
-const EmacsyPendingKeys = "dthko"
 
 // Key codes for modifier keys
 export const modifierCodes = [16, 17, 18, 20, 91, 92, 224, 225]
