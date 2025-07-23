@@ -5,6 +5,8 @@ import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper} from "./d
 import {Elt, Widget} from "./shape"
 import {compareAttributes, Attributes} from "./shape"
 
+const LOG_update = false
+
 declare global {
   interface Node { wgTile?: Tile }
 }
@@ -220,14 +222,17 @@ export class DocTile extends CompositeTile {
 
   updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionRange | null) {
     if (sections.length == 2 && sections[1] == -1) return this
+    LOG_update && console.log(`updateRanges(${state.doc},`, sections, composition, ")")
     if (composition) {
       let separated = separateComposition(sections, composition)
+      LOG_update && !separated && console.log("separateComposition failed")
       if (!separated) composition = null
       else sections = separated
     }
     let builder = new ContentUpdate(state, this, new DecoIterator(state))
     for (let i = 0, posA = 0, startCovered = false; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
+      LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
       if (composition && posA == composition.fromA && ins >= 0) {
         if (!startCovered) builder.update(0, false)
         builder.composition(composition!)
@@ -246,6 +251,7 @@ export class DocTile extends CompositeTile {
     }
     let result = builder.finish()
     result.sync()
+    LOG_update && console.log("/updateRanges " + result + " : " + result.dom.innerHTML)
     return result
   }
 
@@ -274,7 +280,7 @@ export class DocTile extends CompositeTile {
   posFromDOM(dom: Node, offset: number, bias: -1 | 1 = -1) {
     let elt = this.nearest(dom)
     if (!elt)
-      return this.dom.compareDocumentPosition(dom) | window.Node.DOCUMENT_POSITION_FOLLOWING ? this.length : 0
+      return this.dom.compareDocumentPosition(dom) & 4 /* following */ ? 0 : this.length
     return elt.localPosFromDOM(dom, offset, bias)
   }
 
@@ -283,7 +289,7 @@ export class DocTile extends CompositeTile {
     if (!tile) return null
     let pos = tile.posAtStart
     if (tile.dom != dom) for (let ch of tile.children) {
-      if (tile.dom.compareDocumentPosition(dom) & 4 /* following */) break
+      if (ch.dom.compareDocumentPosition(dom) & 2 /* preceding */) break
       pos += ch.length
     }
     return pos

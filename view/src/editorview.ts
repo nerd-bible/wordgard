@@ -209,9 +209,10 @@ export class EditorView {
 
   flush() {
     if (!this.connected || this.inputState.currentComposition) return
+    this.observer.pollSelection()
     this.willFlush = false
     this.flushing = true
-    let domChanges = this.observer.touchedRanges()
+    let domChanges = this.observer.takeDirty()
     // FIXME avoid unnecessary work
     let {flushedState, state, pending} = this.viewState
     this.viewState.flush()
@@ -244,7 +245,7 @@ export class EditorView {
 
   private runUpdate(update: ViewUpdate, domChanges: ChangeDesc | null) {
     this.docTile = this.docTile.update(update.state, domChanges ? domChanges.composeDesc(update.changes) : update.changes,
-                                       findComposition(this))
+                                       this.composing ? findComposition(this) : null)
     if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
       setDOMSelection(this)
     this.observer.clear()

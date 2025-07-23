@@ -1,5 +1,5 @@
 import {EditorSelection, EditorState} from "@wordgard/state"
-import {Slice, Node, ChangeSet} from "@wordgard/doc"
+import {Slice, Node, ChangeSet, Prop} from "@wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
@@ -579,8 +579,14 @@ observers.compositionstart = observers.compositionupdate = view => {
 }
 
 observers.compositionend = view => {
+  let target = view.inputState.composing?.target
   view.inputState.composing = null
   view.inputState.compositionEndedAt = Date.now()
+  if (target) {
+    let pos = view.docTile.posBeforeDOM(target)
+    if (pos != null) view.observer.addDirtyRange(pos, pos + target.nodeValue!.length)
+    view.flush()
+  }
 }
 
 function findCompositionTarget(view: EditorView, prev: Text | null) {
@@ -623,7 +629,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
     if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
 
     let slice = event.inputType == "insertText"
-      ? textSlice(event.data!, view.state)
+      ? textSlice(event.data!, view.state.selection.props || view.state.selPos.from.props())
       // FIXME why is this in a dataTransfer anyway? Spec says it shouldn't be...
       : readClipboard(view.state, event.dataTransfer!, view.state.selPos.head, true)?.slice
     if (slice) {
@@ -658,8 +664,9 @@ handlers.input = (view, event: InputEvent) => {
       from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
       if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
     }
+    let props = view.state.selection.props || view.state.doc.resolve(from).props(view.state.doc.resolve(to))
     view.dispatch({
-      changes: {from, to, insert: textSlice(text, view.state), fit: true},
+      changes: {from, to, insert: textSlice(text, props), fit: true},
       selection: anchor > -1 ? {anchor, head} : undefined,
       userEvent: "input.type.compose"
     })
@@ -667,14 +674,14 @@ handlers.input = (view, event: InputEvent) => {
   return false
 }
 
-function textSlice(text: string, state: EditorState) {
-  return new Slice([Node.text(text.replace(/\r\n?|\n/g, " "), state.selPos.from.props())])
+function textSlice(text: string, props: readonly Prop<any>[]) {
+  return new Slice([Node.text(text.replace(/\r\n?|\n/g, " "), props)])
 }
 
 function inputEventRange(event: InputEvent, view: EditorView) {
   let range = event.getTargetRanges()[0]
-  return {from: view.posAtDOM(range.startContainer, range.startOffset),
-          to: view.posAtDOM(range.endContainer, range.endOffset)}
+  return {from: view.docTile.posFromDOM(range.startContainer, range.startOffset, -1),
+          to: view.docTile.posFromDOM(range.endContainer, range.endOffset, 1)}
 }
 
 export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {

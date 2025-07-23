@@ -32,7 +32,10 @@ export class DOMObserver {
 
   resizeTimeout = -1
   queue: MutationRecord[] = []
-  lastChange = 0
+
+  // Ranges (refering to positions in the flushed document) that need
+  // to be re-checked because their DOM changed, if any are known.
+  dirty: ChangeDesc | null = null
 
   scrollTargets: HTMLElement[] = []
   resizeScroll: ResizeObserver | null = null
@@ -44,7 +47,7 @@ export class DOMObserver {
       this.view.scheduleFlush()
     })
 
-    this.onSelectionChange = this.onSelectionChange.bind(this)
+    this.pollSelection = this.pollSelection.bind(this)
     this.onResize = this.onResize.bind(this)
     this.onScroll = this.onScroll.bind(this)
 
@@ -73,7 +76,7 @@ export class DOMObserver {
     let win = this.win = this.view.win
     win.addEventListener("resize", this.onResize)
     win.addEventListener("scroll", this.onScroll)
-    win.document.addEventListener("selectionchange", this.onSelectionChange)
+    win.document.addEventListener("selectionchange", this.pollSelection)
   }
 
   disconnect() {
@@ -85,7 +88,7 @@ export class DOMObserver {
     if (this.win) {
       this.win.removeEventListener("scroll", this.onScroll)
       this.win.removeEventListener("resize", this.onResize)
-      this.win.document.removeEventListener("selectionchange", this.onSelectionChange)
+      this.win.document.removeEventListener("selectionchange", this.pollSelection)
       this.win = null
     }
   }
@@ -101,9 +104,8 @@ export class DOMObserver {
     }, 50)
   }
 
-  onSelectionChange(event: Event) {
-    // FIXME ignore while waiting for composition
-    if (this.readSelectionRange()) {
+  pollSelection() {
+    if (!this.view.inputState.currentComposition && this.readSelectionRange()) {
       let sel = readDOMSelection(this.view, this.selectionRange)
       if (!sel.eqPos(this.view.state.selection))
         this.view.dispatch({selection: sel, userEvent: "select"})
@@ -166,20 +168,19 @@ export class DOMObserver {
     return records
   }
 
-  // FIXME ignore composition node
+  addDirtyRange(from: number, to: number) {
+    let sections = from ? [from, -1] : [], len = this.view.flushedState.doc.length
+    sections.push(to - from, -2)
+    if (to < len) sections.push(len - to, -1)
+    let desc = new ChangeDesc(sections)
+    this.dirty = this.dirty ? this.dirty.composeDesc(desc) : desc
+  }
+
   processRecords(records: readonly MutationRecord[]) {
-    let change: ChangeDesc | null = null
     for (let record of records) {
       let range = this.findMutation(record)
-      if (range) {
-        let sections = range[0] ? [range[0], -1] : [], len = this.view.flushedState.doc.length
-        sections.push(range[1] - range[0], -2)
-        if (range[1] < len) sections.push(len - range[1], -1)
-        let desc = new ChangeDesc(sections)
-        change = change ? change.composeDesc(desc) : desc
-      }
+      if (range) this.addDirtyRange(range[0], range[1])
     }
-    return change
   }
 
   findMutation(record: MutationRecord): [number, number] | null {
@@ -198,8 +199,11 @@ export class DOMObserver {
     }
   }
 
-  touchedRanges() {
-    return this.processRecords(this.takeRecords())
+  takeDirty() {
+    this.processRecords(this.takeRecords())
+    let {dirty} = this
+    this.dirty = null
+    return dirty
   }
 }
 
