@@ -16,7 +16,8 @@ createServer((req, resp) => {
     let {browserTests} = gatherTests(["doc", "state", "view"].map(p => join(base, p)))
     resp.writeHead(200, {"content-type": "text/html"})
     resp.end(testHTML(browserTests.map(f => relative(root, f)), {
-      html: `<title>Wordgard tests</title><h1>Wordgard tests</h1>`
+      html: `<title>Wordgard tests</title><h1>Wordgard tests</h1>
+<div id="workspace" style="opacity: 0; position: fixed; top: 0; left: 0; width: 20em;"></div>`
     }))
   } else if (m = /^\/test\/mocha\.(css|js)($|\?)/.exec(req.url)) {
     send(req, join(base, "node_modules", "mocha", "mocha." + m[1])).pipe(resp)

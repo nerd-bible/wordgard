@@ -240,6 +240,8 @@ export class DOMSelectionState implements SelectionRange {
       this.focusNode == domSel.focusNode && this.focusOffset == domSel.focusOffset
   }
 
+  get empty() { return this.anchorNode == this.focusNode && this.anchorOffset == this.focusOffset }
+
   setRange(range: SelectionRange) {
     let {anchorNode, focusNode} = range
     // Clip offsets to node size to avoid crashes when Safari reports bogus offsets (#1152)
@@ -308,10 +310,10 @@ export function atElementStart(doc: HTMLElement, selection: SelectionRange) {
   }
 }
 
-export function textNodeBefore(startNode: Node, startOffset: number): {node: Text, offset: number} | null {
+export function textNodeBefore(startNode: Node, startOffset: number): Text | null {
   for (let node = startNode, offset = startOffset;;) {
     if (node.nodeType == 3 && offset > 0) {
-      return {node: node as Text, offset: offset}
+      return node as Text
     } else if (node.nodeType == 1 && offset > 0) {
       if ((node as HTMLElement).contentEditable == "false") return null
       node = node.childNodes[offset - 1]
@@ -325,10 +327,10 @@ export function textNodeBefore(startNode: Node, startOffset: number): {node: Tex
   }
 }
 
-export function textNodeAfter(startNode: Node, startOffset: number): {node: Text, offset: number} | null {
+export function textNodeAfter(startNode: Node, startOffset: number): Text | null {
   for (let node = startNode, offset = startOffset;;) {
     if (node.nodeType == 3 && offset < node.nodeValue!.length) {
-      return {node: node as Text, offset: offset}
+      return node as Text
     } else if (node.nodeType == 1 && offset < node.childNodes.length) {
       if ((node as HTMLElement).contentEditable == "false") return null
       node = node.childNodes[offset]

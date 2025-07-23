@@ -4,7 +4,7 @@ import {schemaElement} from "@wordgard/state"
 
 window.view = new EditorView({
   parent: document.body,
-  doc: "<p>One <strong>Two</strong></p><p>Three</p>",
+  doc: "<p>-</p>",
   extensions: [
     schemaElement.of(basicSchema.tags.concat(basicSchema.props)),
     keymap.of(defaultKeymap)

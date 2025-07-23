@@ -3,7 +3,7 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
 import {ChangeDesc} from "@wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
-import {DocTile, findComposition} from "./content"
+import {DocTile} from "./content"
 import {posAtCoords, coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
@@ -14,7 +14,7 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
-import {InputState} from "./input"
+import {InputState, findComposition} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
@@ -55,13 +55,13 @@ export class EditorView {
   /// Indicates whether the user is currently composing text via
   /// [IME](https://en.wikipedia.org/wiki/Input_method), and at least
   /// one change has been made in the current composition.
-  get composing() { return this.inputState.composing > 0 }
+  get composing() { return !!this.inputState.composing }
 
   /// Indicates whether the user is currently in composing state. Note
   /// that on some platforms, like Android, this will be the case a
   /// lot, since just putting the cursor on a word starts a
   /// composition there.
-  get compositionStarted() { return this.inputState.composing >= 0 }
+  get compositionStarted() { return this.inputState.composing && this.inputState.composing.changes > 0 }
   
   /// The document or shadow root that the view lives in.
   root: DocumentOrShadowRoot = document
@@ -161,7 +161,8 @@ export class EditorView {
       this.inputState.connect()
       for (let plugin of this.plugins) plugin.connect(this)
       this.observer.connect()
-      this.scheduleFlush()
+      if (this.viewState.pending.length || this.readRequests.length || this.writeRequests.length)
+        this.scheduleFlush()
     } else {
       this.root = document
       this.observer.disconnect()
@@ -200,7 +201,7 @@ export class EditorView {
   }
 
   scheduleFlush() {
-    if (!this.willFlush && !this.flushing) {
+    if (!this.willFlush && !this.flushing && this.connected) {
       this.win.queueMicrotask(this.flush)
       this.willFlush = true
     }

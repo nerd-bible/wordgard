@@ -183,15 +183,16 @@ export class DOMObserver {
   }
 
   findMutation(record: MutationRecord): [number, number] | null {
-    let elt = this.view.docTile.nearest(record.target)
-    if (!elt || elt.ignoreMutations) return null
+    let tile = this.view.docTile.nearest(record.target)
+    if (!tile || tile.ignoreMutations) return null
     if (record.type == "attributes" || record.type == "characterData") {
-      return [elt.posBefore, elt.posAfter]
+      if (tile.dom == record.target) {
+        return [tile.posBefore, tile.posAfter]
+      } else {
+        return childRange(tile, record)
+      }
     } else if (record.type == "childList") {
-      let childBefore = findChild(elt, record.previousSibling || record.target.previousSibling, -1)
-      let childAfter = findChild(elt, record.nextSibling || record.target.nextSibling, 1)
-      return [childBefore ? elt.posBeforeChild(childBefore) + childBefore.length : elt.posAtStart,
-              childAfter ? elt.posBeforeChild(childAfter) : elt.posAtEnd]
+      return childRange(tile, record)
     } else {
       return null
     }
@@ -201,6 +202,14 @@ export class DOMObserver {
     return this.processRecords(this.takeRecords())
   }
 }
+
+function childRange(tile: Tile, record: MutationRecord): [number, number] {
+  let childBefore = findChild(tile, record.previousSibling || record.target.previousSibling, -1)
+  let childAfter = findChild(tile, record.nextSibling || record.target.nextSibling, 1)
+  return [childBefore ? tile.posBeforeChild(childBefore) + childBefore.length : tile.posAtStart,
+          childAfter ? tile.posBeforeChild(childAfter) : tile.posAtEnd]
+}
+
 
 function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
   while (dom) {

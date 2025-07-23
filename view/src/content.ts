@@ -4,8 +4,6 @@ import {Shape} from "./shape"
 import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper} from "./decoration"
 import {Elt, Widget} from "./shape"
 import {compareAttributes, Attributes} from "./shape"
-import {type EditorView} from "./editorview"
-import {textNodeBefore, textNodeAfter} from "./dom"
 
 declare global {
   interface Node { wgTile?: Tile }
@@ -201,7 +199,7 @@ export class CompositeTile extends Tile {
   }
 }
 
-export type CompositionRange = {fromA: number, toA: number, fromB: number, toB: number, text: string}
+export type CompositionRange = {fromA: number, toA: number, fromB: number, toB: number, text: string, target: Text}
 
 export class DocTile extends CompositeTile {
   declare dom: HTMLElement
@@ -222,19 +220,17 @@ export class DocTile extends CompositeTile {
 
   updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionRange | null) {
     if (sections.length == 2 && sections[1] == -1) return this
-    let compositionTile = composition &&
-      getCompositionTile(this, composition)
-    if (compositionTile) {
-      let separated = separateComposition(sections, composition!)
-      if (!separated) compositionTile = null
+    if (composition) {
+      let separated = separateComposition(sections, composition)
+      if (!separated) composition = null
       else sections = separated
     }
     let builder = new ContentUpdate(state, this, new DecoIterator(state))
     for (let i = 0, posA = 0, startCovered = false; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
-      if (compositionTile && posA == composition!.fromA) {
+      if (composition && posA == composition.fromA && ins >= 0) {
         if (!startCovered) builder.update(0, false)
-        builder.composition(compositionTile, composition!)
+        builder.composition(composition!)
         if (startCovered = i == sections.length || sections[i + 1] == -1) builder.update(0, false)
       } else if (ins == -1) {
         builder.keep(len, !startCovered, i == sections.length)
@@ -261,6 +257,7 @@ export class DocTile extends CompositeTile {
     return null
   }
 
+  // FIXME this will follow stale parent pointers. Need to clear those somehow
   owns(elt: Tile) {
     for (;;) {
       let {parent} = elt
@@ -279,6 +276,17 @@ export class DocTile extends CompositeTile {
     if (!elt)
       return this.dom.compareDocumentPosition(dom) | window.Node.DOCUMENT_POSITION_FOLLOWING ? this.length : 0
     return elt.localPosFromDOM(dom, offset, bias)
+  }
+
+  posBeforeDOM(dom: Node) {
+    let tile = this.nearest(dom)
+    if (!tile) return null
+    let pos = tile.posAtStart
+    if (tile.dom != dom) for (let ch of tile.children) {
+      if (tile.dom.compareDocumentPosition(dom) & 4 /* following */) break
+      pos += ch.length
+    }
+    return pos
   }
 
   connect() {
@@ -584,9 +592,9 @@ class ContentUpdate {
     this.build(len, true, includeStart)
   }
 
-  composition(target: TextTile, composition: CompositionRange) {
-    if (this.old.tileAfter() != target) throw new Error("Unexpected composition tile mismatch")
+  composition(composition: CompositionRange) {
     this.leaveWrappers()
+    // FIXME somehow sync this.old to position of target
     let found: EltTile[] = []
     for (let {tile, parent} = this.old; !tile.isNode && !tile.isDoc; {tile, parent} = parent!)
       found.push(tile as EltTile)
@@ -605,9 +613,9 @@ class ContentUpdate {
         this.new = tile
       }
     }
-    this.new.addChild(new TextTile(composition.text, target.dom, TileFlag.Composition))
-    this.reused.add(target.dom)
-    this.old = this.old.walk(target.length, 1)
+    this.new.addChild(new TextTile(composition.text, composition.target, TileFlag.Composition))
+    this.reused.add(composition.target)
+    this.old = this.old.walk(composition.toA - composition.fromA, 1)
     this.posB += composition.text.length
   }
 
@@ -619,7 +627,7 @@ class ContentUpdate {
         this.openWrappers(wrappers, tag, reuse)
         let tile: EltTile | undefined
         if (reuse) {
-          let nodeTile = this.old.tileAfter
+          let nodeTile = this.old.tileAfter()
           if (nodeTile instanceof EltTile && !this.reused.has(nodeTile.dom) &&
               nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
             this.reused.add(nodeTile.dom)
@@ -806,18 +814,12 @@ const brHack = Widget.create({
   render() { return document.createElement("br") }
 })
 
-function getCompositionTile(docTile: DocTile, composition: CompositionRange) {
-  let target = docTile.resolve(composition.fromA, 1)
-  if (!target.tile.isText || target.offset || target.dom.nodeValue != composition.text) return null
-  return target.tile as TextTile
-}
-
 function separateComposition(sections: readonly number[], comp: CompositionRange) {
   let result: number[] = [], diff = 0
   let {fromA, toA} = comp, compIns = comp.toB - comp.fromB
   for (let posA = 0, done = false, i = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++], endA = posA + len
-    if (fromA >= endA || toA <= posA) {
+    if (fromA > endA || toA < posA) {
       result.push(len, ins)
     } else {
       if (ins >= 0) {
@@ -835,25 +837,4 @@ function separateComposition(sections: readonly number[], comp: CompositionRange
   }
   if (diff != compIns - (toA - fromA)) return null
   return result
-}
-
-function findCompositionNode(view: EditorView) {
-  if (!view.compositionStarted) return null
-  let {focusNode, focusOffset} = view.observer.selectionRange
-  if (!focusNode) return null
-  let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
-  if (!before || !after || before == after) return before || after
-  // FIXME make sticky somehow
-  let tile = view.docTile.nearest(before.node)
-  return !tile || (tile as TextTile).text != before.node.nodeValue ? before : after
-}
-
-export function findComposition(view: EditorView) {
-  let text = findCompositionNode(view)
-  if (!text) return null
-  let tile = view.docTile.nearest(text.node), value = text.node.nodeValue!
-  if (!(tile instanceof TextTile)) return null
-  let from = tile.posBefore
-  // FIXME use queued transaction mappings
-  return {fromA: from, toA: from + tile.length, fromB: from, toB: from + value.length, text: value}
 }

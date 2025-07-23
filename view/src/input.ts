@@ -4,7 +4,7 @@ import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
 import browser from "./browser"
-import {getSelection, scrollableParents, DOMNode} from "./dom"
+import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 
 export class InputState {
@@ -33,16 +33,10 @@ export class InputState {
     handlers: readonly HandlerFunction[]
   }} = Object.create(null)
 
-  // -1 means not in a composition. Otherwise, this counts the number
-  // of changes made during the composition. The count is used to
-  // avoid treating the start state of the composition, before any
-  // changes have been made, as part of the composition.
-  composing = -1
-  // Tracks whether the next change should be marked as starting the
-  // composition (null means no composition, true means next is the
-  // first, false means first has already been marked for this
-  // composition)
-  compositionFirstChange: boolean | null = null
+  // Track the current composition. Count changes to determine whether
+  // a given change is the first one, and track the text node that
+  // composition is happening in.
+  composing: null | {changes: number, target: Text | null} = null
   // End time of the previous composition
   compositionEndedAt = 0
   // Used in a kludge to detect when an Enter keypress should be
@@ -121,7 +115,7 @@ export class InputState {
 
   ignoreDuringComposition(event: Event): boolean {
     if (!/^key/.test(event.type)) return false
-    if (this.composing > 0) return true
+    if (this.composing && this.composing.changes) return true
     // See https://www.stum.de/2016/06/24/handling-ime-events-in-javascript/.
     // On some input method editors (IMEs), the Enter key is used to
     // confirm character selection. On Safari, when Enter is pressed,
@@ -144,6 +138,11 @@ export class InputState {
     if (this.mouseSelection) this.mouseSelection.update(update)
     if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes)
     if (update.transactions.length) this.lastKeyCode = this.lastSelectionTime = 0
+  }
+
+  compositionTarget() {
+    if (!this.composing) return null
+    return this.composing.target = findCompositionTarget(this.view, this.composing.target)
   }
 
   connect() {
@@ -575,18 +574,40 @@ observers.blur = view => {
 }
 
 observers.compositionstart = observers.compositionupdate = view => {
-  if (view.inputState.compositionFirstChange == null)
-    view.inputState.compositionFirstChange = true
-  if (view.inputState.composing < 0)
-    view.inputState.composing = 0
-  // FIXME move the cursor into a hidden node
+  if (!view.inputState.composing)
+    view.inputState.composing = {changes: 0, target: null}
 }
 
 observers.compositionend = view => {
-  view.inputState.composing = -1
+  view.inputState.composing = null
   view.inputState.compositionEndedAt = Date.now()
-  view.inputState.compositionFirstChange = null
-  // FIXME put cursor back in the regular content
+}
+
+function findCompositionTarget(view: EditorView, prev: Text | null) {
+  let {focusNode, focusOffset} = view.observer.selectionRange
+  if (!focusNode) return null
+  let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
+  if (!before || !after || before == after) return before || after
+  let tile = view.docTile.nearest(before)
+  return !tile || (tile as any).text != before.nodeValue || before == prev ? before : after
+}
+
+export function findComposition(view: EditorView) {
+  let target = view.inputState.compositionTarget()
+  if (!target) return null
+  let from = view.docTile.posBeforeDOM(target)
+  if (from == null) return null
+  let value = target.nodeValue!
+  let oldTile = view.docTile.nearest(target)
+  let oldLen = oldTile && oldTile.dom == target ? oldTile.length : 0
+  // FIXME use queued transaction mappings
+  return {fromA: from, toA: from + oldLen, fromB: from, toB: from + value.length, text: value, target}
+}
+
+function findCompositionSelection(node: DOMNode, offset: number, target: Text, targetPos: number) {
+  if (node == target) return targetPos + offset
+  if (node.compareDocumentPosition(target) & 4 /* following */) return targetPos + target.nodeValue!.length
+  return targetPos
 }
 
 observers.contextmenu = view => {
@@ -599,8 +620,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
 
   if (event.inputType == "insertReplacementText" || event.inputType == "insertText") {
     // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
-    if (browser.safari && view.inputState.composing >= 0)
-      setTimeout(() => observers.compositionend(view, event), 20)
+    if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
 
     let slice = event.inputType == "insertText"
       ? textSlice(event.data!, view.state)
@@ -623,14 +643,25 @@ handlers.input = (view, event: InputEvent) => {
   if (event.inputType == "insertCompositionText" && view.inputState.currentComposition) {
     let {from, to, text} = view.inputState.currentComposition
     view.inputState.currentComposition = null
+    view.inputState.composing!.changes++
     view.observer.readSelectionRange()
     let sel = view.observer.selectionRange
+    if (!sel.focusNode) return false
+    let anchor = -1, head = -1
+    let target = view.inputState.compositionTarget(), targetPos = target && view.docTile.posBeforeDOM(target)
+    if (targetPos != null && sel.focusNode) {
+      anchor = findCompositionSelection(sel.anchorNode!, sel.anchorOffset, target!, targetPos)
+      head = sel.empty ? anchor : findCompositionSelection(sel.focusNode, sel.focusOffset, target!, targetPos)
+    }
+    if (head < 0) anchor = -1
+    for (let tr of view.viewState.pending) {
+      from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
+      if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
+    }
     view.dispatch({
       changes: {from, to, insert: textSlice(text, view.state), fit: true},
-      // FIXME read anchor/head separately?
-      // FIXME relying on this is very hacky
-      selection: {anchor: view.docTile.posFromDOM(sel.focusNode!, sel.focusOffset)},
-      userEvent: "input.type"
+      selection: anchor > -1 ? {anchor, head} : undefined,
+      userEvent: "input.type.compose"
     })
   }
   return false
