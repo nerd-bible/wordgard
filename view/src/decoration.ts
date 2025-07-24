@@ -866,9 +866,13 @@ function tagScope(tag: Tag): DecorationScope {
 export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
   if (src instanceof TagWrapperSource) return src.wrapper(tag)
   if (src instanceof RangeIterator) return src.source.wrapper!(src.value)
+  return renderPropWrapper(src)
+}
+
+export function renderPropWrapper(prop: Prop<any>) {
   // FIXME memoize this
-  let repr = src.type.repr as ElementRepresentation<any>
-  let attrs = typeof repr.attributes == "function" ? repr.attributes(src.value) : repr.attributes || noAttrs
+  let repr = prop.type.repr as ElementRepresentation<any>
+  let attrs = typeof repr.attributes == "function" ? repr.attributes(prop.value) : repr.attributes || noAttrs
   return E(repr.element, attrs)
 }
 

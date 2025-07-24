@@ -14,7 +14,7 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
-import {InputState, findComposition} from "./input"
+import {InputState, getCompositionInfo} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
@@ -245,7 +245,7 @@ export class EditorView {
 
   private runUpdate(update: ViewUpdate, domChanges: ChangeDesc | null) {
     this.docTile = this.docTile.update(update.state, domChanges ? domChanges.composeDesc(update.changes) : update.changes,
-                                       this.composing ? findComposition(this) : null)
+                                       this.composing ? getCompositionInfo(this) : null)
     if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
       setDOMSelection(this)
     this.observer.clear()
@@ -364,7 +364,8 @@ export class EditorView {
   get scaleY() { return this.viewState.scaleY }
 
   private checkFlushed() {
-    if (this.willFlush) throw new Error("Trying to read from unflushed editor DOM")
+    if (this.willFlush && (this.viewState.pending.some(tr => tr.docChanged) || this.observer.dirty))
+      throw new Error("Trying to read from unflushed editor DOM")
   }
 
   /// Move to the end or start of the (wrapped) line. If the given

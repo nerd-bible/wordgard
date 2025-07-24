@@ -1,6 +1,7 @@
 import {EditorSelection, EditorState} from "@wordgard/state"
 import {Slice, Node, ChangeSet, Prop} from "@wordgard/doc"
 import {EditorView} from "./editorview"
+import {eqArray} from "./shape"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
 import browser from "./browser"
@@ -45,6 +46,7 @@ export class InputState {
   compositionPendingKey = false
   // FIXME add a timeout to guard against this leaking?
   currentComposition: {from: number, to: number, text: string} | null = null
+  wrappingComposition: readonly Prop<any>[] | null = null
 
   mouseSelection: MouseSelection | null = null
   // When a drag from the editor is active, this points at the range
@@ -598,16 +600,39 @@ function findCompositionTarget(view: EditorView, prev: Text | null) {
   return !tile || (tile as any).text != before.nodeValue || before == prev ? before : after
 }
 
-export function findComposition(view: EditorView) {
+export type CompositionInfo = {
+  fromA: number, toA: number,
+  text: string, target: Text,
+  wrapCursor?: readonly Prop<any>[] | null
+}
+
+export function getCompositionInfo(view: EditorView): CompositionInfo | null {
   let target = view.inputState.compositionTarget()
+
+  let wrap = view.inputState.wrappingComposition
+  if (wrap) {
+    let sel = view.state.selection.head
+    return {
+      fromA: sel, toA: sel,
+      text: "",
+      target: target!, // FIXME eww
+      wrapCursor: wrap
+    }
+  }
+
   if (!target) return null
   let from = view.docTile.posBeforeDOM(target)
   if (from == null) return null
   let value = target.nodeValue!
   let oldTile = view.docTile.nearest(target)
   let oldLen = oldTile && oldTile.dom == target ? oldTile.length : 0
-  // FIXME use queued transaction mappings
-  return {fromA: from, toA: from + oldLen, fromB: from, toB: from + value.length, text: value, target}
+
+  // FIXME use queued transaction mappings?
+  return {
+    fromA: from, toA: from + oldLen,
+    text: value,
+    target
+  }
 }
 
 function findCompositionSelection(node: DOMNode, offset: number, target: Text, targetPos: number) {
@@ -621,7 +646,7 @@ observers.contextmenu = view => {
 }
 
 handlers.beforeinput = (view, event: InputEvent) => {
-  for (let handler of view.state.facet(inputEventHandler))
+  for (let handler of view.state.facet(inputEventHandler)) // FIXME only do this for some types
     if (handler.event == event.type && handler.run(view)) return true
 
   if (event.inputType == "insertReplacementText" || event.inputType == "insertText") {
@@ -638,6 +663,22 @@ handlers.beforeinput = (view, event: InputEvent) => {
       return true
     }
   } else if (event.inputType == "insertCompositionText") {
+    if (!view.inputState.composing)
+      view.inputState.composing = {changes: 0, target: null}
+
+    let wrap: readonly Prop<any>[] | null = null
+    if (!view.inputState.composing.changes) {
+      let sel = view.state.selPos, props = sel.props || sel.from.props()
+      if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
+          !eqArray((sel.head.nodeBefore?.tag.props || []), props))
+        wrap = props
+    }
+
+    if (wrap) try {
+      view.inputState.wrappingComposition = wrap
+      view.flush()
+    } finally { view.inputState.wrappingComposition = null }
+
     view.inputState.currentComposition = {...inputEventRange(event, view), text: event.data!}
   }
 

@@ -16,45 +16,63 @@ function inputEvent(cm: EditorView, type: string, init: InputEventInit) {
   cm.contentDOM.dispatchEvent(new InputEvent(type, init))
 }
 
-type UpdateResult = {range: [Node, number] | [Node, number, Node, number], data: string | null, node: Text}
+type CompositionUpdate = [number, number, string, () => Text] | [number, number, string]
   
-function edit(node: Node, text: string = "", from = node.nodeValue!.length, to = from): UpdateResult {
-  if (node.nodeType != 3) throw new Error("Non-text node passed to add")
-  let val = node.nodeValue!
-  let change = from != to || text != ""
-  if (change) node.nodeValue = val.slice(0, from) + text + val.slice(to)
-  document.getSelection()!.collapse(node, from + text.length)
-  return {range: [node, from, node, to], data: change ? text : null, node: node as Text}
+function selEnd(node: Node) {
+  document.getSelection()!.collapse(node, node.nodeValue!.length)
+  return node as Text
 }
 
-function compose(view: EditorView, start: () => UpdateResult,
-                 update: ((node: Text) => UpdateResult)[],
-                 options: {end?: (node: Text) => void, cancel?: boolean} = {}) {
+function compose(view: EditorView, start: CompositionUpdate | (() => Text),
+                 ...args: (CompositionUpdate | {end?: (node: Text) => void, cancel?: boolean})[]) {
+  let last = args[args.length - 1]
+  let [updates, options] = Array.isArray(last)
+    ? [args as CompositionUpdate[], {}]
+    : [args.slice(0, args.length - 1) as CompositionUpdate[], last as any]
+
   ist(!view.composing)
   compositionEvent(view, "compositionstart")
   ist(view.composing)
   let node!: Text, sel = document.getSelection()!
-  for (let i = -1; i < update.length; i++) {
-    let result = i < 0 ? start(): update[i](node)
-    node = result.node
+  for (let i = -1; i < updates.length; i++) {
+    let update: CompositionUpdate | undefined
+    if (i < 0) {
+      if (typeof start == "function") node = start()
+      else update = start
+    } else {
+      update = updates[i]
+    }
+    if (update) {
+      compositionEvent(view, "compositionupdate")
+      let [from, to, text] = update
+      let fromDOM = view.domAtPos(from, -1)
+      if (fromDOM.node.nodeType != 3 || node && node != fromDOM.node) fromDOM = view.domAtPos(from, 1)
+      let toDOM = from == to ? fromDOM : view.domAtPos(to, -1)
+      inputEvent(view, "beforeinput", {
+        inputType: "insertCompositionText",
+        data: text,
+        isComposing: true,
+        targetRanges: [new StaticRange({startContainer: fromDOM.node, startOffset: fromDOM.offset,
+                                        endContainer: toDOM.node, endOffset: toDOM.offset})]
+      })
+      if (update.length == 4) {
+        node = update[3]()
+      } else {
+        node = fromDOM.node as Text
+        if (node.nodeType != 3) throw new Error("Didn't find a composition text node")
+        node.nodeValue = node.nodeValue!.slice(0, fromDOM.offset) + text + node.nodeValue!.slice(fromDOM.offset + (to - from))
+        sel.collapse(node, fromDOM.offset + text.length)
+      }
+      inputEvent(view, "input", {inputType: "insertCompositionText", data: text, isComposing: true})
+    }      
+
     let {focusNode, focusOffset} = sel
     let stack = []
     for (let p = node.parentNode; p && p != view.contentDOM; p = p.parentNode) stack.push(p)
 
-    if (result.data != null) {
-      compositionEvent(view, "compositionupdate")
-      let [startContainer, startOffset, endContainer = startContainer, endOffset = startOffset] = result.range
-      inputEvent(view, "beforeinput", {
-        inputType: "insertCompositionText",
-        data: result.data,
-        isComposing: true,
-        targetRanges: [new StaticRange({startContainer, startOffset, endContainer, endOffset})]
-      })
-      inputEvent(view, "input", {inputType: "insertCompositionText", data: "FIXME", isComposing: true})
-    }
     view.flush()
 
-    if (options.cancel && i == update.length - 1) {
+    if (options.cancel && i == updates.length - 1) {
       // FIXME verify a canceled composition
     } else {
       for (let p = node.parentNode, i = 0; p && p != view.contentDOM && i < stack.length; p = p.parentNode, i++)
@@ -62,7 +80,7 @@ function compose(view: EditorView, start: () => UpdateResult,
       ist(node.parentNode && view.contentDOM.contains(node.parentNode))
       ist(sel.focusNode, focusNode)
       ist(sel.focusOffset, focusOffset)
-      if (result.data != null) ist(view.compositionStarted)
+      if (update) ist(view.compositionStarted)
     }
   }
   compositionEvent(view, "compositionend")
@@ -73,119 +91,94 @@ function compose(view: EditorView, start: () => UpdateResult,
 
 describe("composition", () => {
   it("supports composition inside existing text", () => {
-    let view = requireFocus(tempView(doc(p("ab"))))
-    compose(view, () => edit(view.domAtPos(2).node, "-", 1), [
-      n => edit(n, "/", 1, 2),
-      n => edit(n, "*", 1, 2)
-    ])
+    let view = requireFocus(tempView(doc(p("a", 0, "b"))))
+    compose(view, [2, 2, "-"], [2, 3, "/"], [2, 3, "*"])
     ist(view.state.doc, doc(p("a*b")), eq)
   })
 
   it("supports composition on an empty line", () => {
-    let view = requireFocus(tempView(doc(p("."), p())))
-    compose(view, () => edit(view.domAtPos(4).node.appendChild(document.createTextNode("")), "a"), [
-      n => edit(n, "b"),
-      n => edit(n, "c")
-    ])
+    let view = requireFocus(tempView(doc(p("."), p(0))))
+    compose(view,
+            [4, 4, "a", () => selEnd(view.domAtPos(4).node.appendChild(document.createTextNode("a")))],
+            [5, 5, "b"],
+            [6, 6, "c"])
     ist(view.state.doc, doc(p("."), p("abc")), eq)
   })
 
   it("supports composition at end of block in existing node", () => {
-    let view = requireFocus(tempView(doc(p("foo"))))
-    compose(view, () => edit(view.domAtPos(2).node), [
-      n => edit(n, "!"),
-      n => edit(n, "?")
-    ])
+    let view = requireFocus(tempView(doc(p("foo", 0))))
+    compose(view, [4, 4, "!"], [5, 5, "?"])
     ist(view.state.doc, doc(p("foo!?")), eq)
   })
 
   it("supports composition at end of block in a new node", () => {
-    let view = requireFocus(tempView(doc(p("foo"))))
-    compose(view, () => edit(view.contentDOM.firstChild!.appendChild(document.createTextNode("")), "!"), [
-      n => edit(n, "?")
-    ])
+    let view = requireFocus(tempView(doc(p("foo", 0))))
+    compose(view, [4, 4, "!", () => selEnd(view.contentDOM.firstChild!.appendChild(document.createTextNode("!")))], [5, 5, "?"])
     ist(view.state.doc, doc(p("foo!?")), eq)
   })
 
   it("supports composition at start of block in a new node", () => {
     let view = requireFocus(tempView(doc(p("foo"))))
-    compose(view, () => {
+    compose(view, [1, 1, "!", () => {
       let p = view.contentDOM.firstChild!
-      return edit(p.insertBefore(document.createTextNode(""), p.firstChild), "!")
-    }, [
-      n => edit(n, "?")
-    ])
+      return selEnd(p.insertBefore(document.createTextNode("!"), p.firstChild))
+    }], [2, 2, "?"])
     ist(view.state.doc, doc(p("!?foo")), eq)
   })
 
   it("supports composition at start of line", () => {
     let view = requireFocus(tempView(doc(p("c"))))
-    compose(view, () => edit(view.domAtPos(1, 1).node), [
-      n => edit(n, "b", 0),
-      n => edit(n, "a", 0)
-    ])
+    compose(view, [1, 1, "b"], [1, 1, "a"])
     ist(view.state.doc, doc(p("abc")), eq)
   })
 
   it("handles replacement of existing words", () => {
     let view = requireFocus(tempView(doc(p("one two three"))))
-    compose(view, () => edit(view.domAtPos(2).node, "five", 4, 7), [
-      n => edit(n, "seven", 4, 8),
-      n => edit(n, "zero", 4, 9)
-    ])
+    compose(view, [5, 8, "five"], [5, 9, "seven"], [5, 10, "zero"])
     ist(view.state.doc, doc(p("one zero three")), eq)
   })
 
   it("can compose inside a wrapping prop", () => {
-    let view = requireFocus(tempView(doc(p("a", strong("bc")))))
-    compose(view, () => edit(view.domAtPos(3).node), [
-      n => edit(n, "-", 1),
-      n => edit(n, "$", 2)
-    ])
+    let view = requireFocus(tempView(doc(p("a", strong("b", 0, "c")))))
+    compose(view, [3, 3, "-"], [4, 4, "$"])
     ist(view.contentDOM.innerHTML, "<p>a<strong>b-$c</strong></p>")
     ist(view.state.doc, doc(p("a", strong("b-$c"))), eq)
   })
 
   it("can compose at the end of a wrapping prop", () => {
-    let view = requireFocus(tempView(doc(p("a", strong("bc"), "d"))))
-    compose(view, () => edit(view.domAtPos(3).node), [
-      n => edit(n, "-", 2),
-      n => edit(n, "$", 3)
-    ])
+    let view = requireFocus(tempView(doc(p("a", strong("bc"), 0, "d"))))
+    compose(view, () => selEnd(view.domAtPos(3).node), [4, 4, "-"], [5, 5, "$"])
     ist(view.contentDOM.innerHTML, "<p>a<strong>bc-$</strong>d</p>")
     ist(view.state.doc, doc(p("a", strong("bc-$"), "d")), eq)
   })
 
   it("can compose at the start of a wrapping prop", () => {
-    let view = requireFocus(tempView(doc(p("a", strong("bc"), "d"))))
-    compose(view, () => edit(view.domAtPos(3).node), [
-      n => edit(n, "-", 0),
-      n => edit(n, "$", 1)
-    ])
+    let view = requireFocus(tempView(doc(p("a", 0, strong("bc"), "d"))))
+    compose(view, () => selEnd(view.domAtPos(3).node), [2, 2, "-"], [3, 3, "$"])
     ist(view.contentDOM.innerHTML, "<p>a-$<strong>bc</strong>d</p>")
     ist(view.state.doc, doc(p("a-$", strong("bc"), "d")), eq)
   })
 
   it("handles composition in a wrapper that has multiple children", () => {
-    let view = requireFocus(tempView(doc(p("one ", em("two", strong(" three"))))))
-    compose(view, () => edit(view.domAtPos(6).node, "o"), [
-      n => edit(n, "o"),
-      n => edit(n, "w")
-    ])
+    let view = requireFocus(tempView(doc(p("one ", em("two", 0, strong(" three"))))))
+    compose(view, [8, 8, "o"], [9, 9, "o"], [10, 10, "w"])
     ist(view.state.doc, doc(p("one ", em("twooow", strong(" three")))), eq)
   })
 
   it("supports composition in a cursor wrapper", () => {
-    let view = requireFocus(tempView(doc(p())))
+    let view = requireFocus(tempView(doc(p(0))))
     view.dispatch({selection: EditorSelection.cursor(1, undefined, undefined, [Strong])})
-    compose(view, () => edit(view.contentDOM.firstChild!.appendChild(document.createTextNode("")), "a"), [
-      n => edit(n, "b"),
-      n => edit(n, "c")
-    ])
+    compose(view, [1, 1, "a", () => {
+      ist(view.contentDOM.innerHTML, "<p><strong><img></strong></p>")
+      let sel = window.getSelection()!
+      ist(sel.getRangeAt(0).comparePoint(view.contentDOM.firstChild!.firstChild!, 1), -1)
+      return selEnd(view.contentDOM.firstChild!.appendChild(document.createTextNode("a")))
+    }], [2, 2, "b"], [3, 3, "c"])
     ist(view.contentDOM.innerHTML, "<p><strong>abc</strong></p>")
     ist(view.state.doc, doc(p(strong("abc"))), eq)
   })
 
+  // FIXME text composition next to widgets
 
   // FIXME test enter-at-end-of-selection situation (especially on Android)
 })

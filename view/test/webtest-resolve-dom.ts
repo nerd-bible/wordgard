@@ -58,7 +58,7 @@ describe("DocTile.resolve", () => {
       widget: v => testWidget.of(v)
     }))
     isIn(node.resolve(3, -1), "P", 2)
-    isIn(node.resolve(3, 0), "P", 4)
+    isIn(node.resolve(3, 0), "P", 2)
     isIn(node.resolve(3, 1), "P", 4)
     isIn(node.resolve(4, 1), "cd", 1)
   })

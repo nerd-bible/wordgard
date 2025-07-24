@@ -2,7 +2,7 @@
 
 import {EditorView} from "@wordgard/view"
 import {Extension} from "@wordgard/state"
-import {DocNode} from "@wordgard/doc"
+import {DocNode, maybeTag} from "@wordgard/doc"
 
 const workspace: HTMLElement = document.querySelector("#workspace")! as HTMLElement
 
@@ -17,7 +17,11 @@ export function tempView(doc: string | DocNode, extensions: Extension = []): Edi
     currentTempView = null
   }
 
-  currentTempView = new EditorView({doc, extensions})
+  let t0, t1
+  if (typeof doc != "string") {
+    t0 = maybeTag(doc, 0); t1 = maybeTag(doc, 1)
+  }
+  currentTempView = new EditorView({doc, selection: t0 != null ? {anchor: t0, head: t1} : undefined, extensions})
   workspace.appendChild(currentTempView.dom)
   workspace.style.pointerEvents = ""
   if (hide == null) hide = setTimeout(() => {

@@ -1,5 +1,7 @@
 // FIXME prune unused functions when stuff is more stable
 
+import {TileFlag} from "./content"
+
 export type DOMNode = Node
 
 export function getSelection(root: DocumentOrShadowRoot): Selection | null {
@@ -56,7 +58,14 @@ export function domIndex(node: Node): number {
 }
 
 export function isBlockElement(node: Node): boolean {
+  // FIXME inspect tiles?
   return node.nodeType == 1 && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName)
+}
+
+export function isBlocking(node: Node) {
+  let tile = node.wgTile
+  if (tile) return !tile.isText && (tile.isNodeOuter || (tile.isPoint && (tile.flags & TileFlag.PointSide)))
+  return node.nodeType == 1 && (node as HTMLElement).contentEditable == "false"
 }
 
 function scanFor(node: Node, off: number, targetNode: Node, targetOff: number, dir: -1 | 1): boolean {
@@ -70,7 +79,7 @@ function scanFor(node: Node, off: number, targetNode: Node, targetOff: number, d
       node = parent
     } else if (node.nodeType == 1) {
       node = node.childNodes[off + (dir < 0 ? -1 : 0)]
-      if (node.nodeType == 1 && (node as HTMLElement).contentEditable == "false") return false
+      if (isBlocking(node)) return false
       off = dir < 0 ? maxOffset(node) : 0
     } else {
       return false

@@ -35,6 +35,7 @@ export class SelectionPos {
 
   get empty() { return this.selection.empty }
   get assoc() { return this.selection.assoc } 
+  get props() { return this.selection.props }
 }
 
 export interface SelectionContext {

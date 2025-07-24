@@ -1,7 +1,8 @@
 import {Node as WGNode, Tag, ChangeDesc} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import {Shape} from "./shape"
-import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper} from "./decoration"
+import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper, renderPropWrapper} from "./decoration"
+import {type CompositionInfo} from "./input"
 import {Elt, Widget} from "./shape"
 import {compareAttributes, Attributes} from "./shape"
 
@@ -47,7 +48,7 @@ export abstract class Tile {
     dom.wgTile = this
   }
 
-  get isAtom() { return false }
+  get isAtom() { return false } // FIXME make text nodes return false?
   get isNodeOuter() { return false }
   get isNodeInner() { return (this.flags & TileFlag.NodeInner) > 0 }
   get isNode() { return this.isNodeOuter || (this.flags & TileFlag.NodeInner) > 0 }
@@ -56,34 +57,6 @@ export abstract class Tile {
   get isSpanning() { return false }
   get isComposition() { return (this.flags & TileFlag.Composition) > 0 }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
-
-  resolveInner(pos: number, off: number, assoc: -1 | 0 | 1): ContentPos {
-    let index = 0
-    for (; index < this.children.length;) {
-      let next = this.children[index]
-      if (off && off < next.length) {
-        if (next.isAtom && !next.isText) {
-          if (off > (next.length >> 1)) index++
-          break
-        }
-        return next.resolveInner(pos, off - next.boundary, assoc)
-      }
-      if (!off && (!next.isPoint || (next.flags & TileFlag.PointAfter) || (assoc < 0 && !(next.flags & TileFlag.PointSide))))
-        break
-      index++
-      off -= next.length
-    }
-    if (assoc < 0) {
-      let before = index ? this.children[index - 1] : null
-      if (before && before.isText) return new ContentPos(before, before.length, pos)
-      if (before && !before.boundary && !before.isAtom) return before.resolveInner(pos, before.length, assoc)
-    } else if (assoc > 0) {
-      let after = index < this.children.length ? this.children[index] : null
-      if (after && after.isText) return new ContentPos(after, 0, pos)
-      if (after && !after.boundary && !after.isAtom) return after.resolveInner(pos, 0, assoc)
-    }
-    return new ContentPos(this, index, pos)
-  }
 
   posBeforeChild(child: Tile): number {
     for (let i = 0, pos = this.posAtStart;; i++) {
@@ -201,8 +174,6 @@ export class CompositeTile extends Tile {
   }
 }
 
-export type CompositionRange = {fromA: number, toA: number, fromB: number, toB: number, text: string, target: Text}
-
 export class DocTile extends CompositeTile {
   declare dom: HTMLElement
 
@@ -216,12 +187,12 @@ export class DocTile extends CompositeTile {
 
   get isDoc() { return true }
 
-  update(state: EditorState, changes: ChangeDesc, composition?: CompositionRange | null) {
+  update(state: EditorState, changes: ChangeDesc, composition?: CompositionInfo | null) {
     return this.updateRanges(state, findChangedRanges(this.state, state, changes), composition)
   }
 
-  updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionRange | null) {
-    if (sections.length == 2 && sections[1] == -1) return this
+  updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionInfo | null) {
+    if (sections.length == 2 && sections[1] == -1 && !composition) return this
     LOG_update && console.log(`updateRanges(${state.doc},`, sections, composition, ")")
     if (composition) {
       let separated = separateComposition(sections, composition)
@@ -234,9 +205,10 @@ export class DocTile extends CompositeTile {
       let len = sections[i++], ins = sections[i++]
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
       if (composition && posA == composition.fromA && ins >= 0) {
+        LOG_update && console.log("(composition)")
         if (!startCovered) builder.update(0, false)
         builder.composition(composition!)
-        if (startCovered = i == sections.length || sections[i + 1] == -1) builder.update(0, false)
+        if (len && (startCovered = i == sections.length || sections[i + 1] == -1)) builder.update(0, false)
       } else if (ins == -1) {
         builder.keep(len, !startCovered, i == sections.length)
         startCovered = false
@@ -274,7 +246,30 @@ export class DocTile extends CompositeTile {
   }
 
   resolve(pos: number, assoc: -1 | 0 | 1 = 0) {
-    return this.resolveInner(pos, pos, assoc)
+    let found: Tile | undefined, foundDepth = 0, offset = 0
+    let scan = (tile: Tile, off: number, depth: number) => {
+      for (let i = 0;; i++) {
+        if (!off && (!found || assoc > 0 || !assoc && foundDepth > depth)) { found = tile; offset = i; foundDepth = depth }
+        if (i == tile.children.length) break
+        let ch = tile.children[i]
+        if (ch.isPoint && !off) {
+          if (ch.flags & TileFlag.PointBefore) found = undefined
+          else if ((ch.flags & TileFlag.PointAfter) || assoc < 0) return true
+        }
+        if (ch.boundary ? off && off < ch.length : off <= ch.length) {
+          if (ch.isText && (!off ? assoc > 0 : off == ch.length ? assoc < 0 : true)) {
+            found = ch; offset = off; foundDepth = depth + 1
+          }
+          else if (!ch.isAtom && scan(ch, off - ch.boundary, depth + 1)) return true
+        }
+        off -= ch.length
+        if (off < 0) return true
+      }
+      return false
+    }
+    scan(this, pos, 0)
+    if (!found) throw new Error(`Failed to resolve ${pos} in doc of size ${this.length}`)
+    return new ContentPos(found, offset, pos)
   }
 
   posFromDOM(dom: Node, offset: number, bias: -1 | 1 = -1) {
@@ -379,10 +374,6 @@ export class TextTile extends Tile {
     if (this.flags & TileFlag.Synced) return
     this.flags |= TileFlag.Synced
     if (this.dom.nodeValue != this.text) this.dom.nodeValue = this.text
-  }
-
-  resolveInner(pos: number, off: number): ContentPos {
-    return new ContentPos(this, off, pos)
   }
 
   toString() { return JSON.stringify(this.text) }
@@ -598,8 +589,15 @@ class ContentUpdate {
     this.build(len, true, includeStart)
   }
 
-  composition(composition: CompositionRange) {
+  composition(composition: CompositionInfo) {
     this.leaveWrappers()
+    if (composition.wrapCursor) {
+      for (let prop of composition.wrapCursor) if (prop.type.element) {
+        this.openWrapper(renderPropWrapper(prop), prop.spanning, false)
+      }
+      this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointBefore))
+      return
+    }
     // FIXME somehow sync this.old to position of target
     let found: EltTile[] = []
     for (let {tile, parent} = this.old; !tile.isNode && !tile.isDoc; {tile, parent} = parent!)
@@ -820,9 +818,13 @@ const brHack = Widget.create({
   render() { return document.createElement("br") }
 })
 
-function separateComposition(sections: readonly number[], comp: CompositionRange) {
+const imgHack = Widget.create({
+  render() { return document.createElement("img") }
+})
+
+function separateComposition(sections: readonly number[], comp: CompositionInfo) {
   let result: number[] = [], diff = 0
-  let {fromA, toA} = comp, compIns = comp.toB - comp.fromB
+  let {fromA, toA} = comp, compIns = comp.text.length
   for (let posA = 0, done = false, i = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++], endA = posA + len
     if (fromA > endA || toA < posA) {
