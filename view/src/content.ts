@@ -1,9 +1,8 @@
 import {Node as WGNode, Tag, ChangeDesc} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
-import {Shape} from "./shape"
 import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper, renderPropWrapper} from "./decoration"
 import {type CompositionInfo} from "./input"
-import {Elt, Widget} from "./shape"
+import {Shape, takeAttributes, Elt, Widget} from "./shape"
 import {compareAttributes, Attributes} from "./shape"
 
 const LOG_update = false
@@ -112,7 +111,7 @@ export abstract class Tile {
     // Otherwise, use various heuristics, falling back on the bias
     // parameter, to determine whether to return the position at the
     // start or at the end of this content element.
-    if (this.dom && this.dom != this.dom) {
+    if (this.dom && this.dom != dom) {
       let cmp = dom.compareDocumentPosition(this.dom)
       if (cmp & 2) return this.posAtEnd
       else if (cmp & 4) return this.posAtStart
@@ -192,6 +191,7 @@ export class DocTile extends CompositeTile {
   }
 
   updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionInfo | null) {
+    // FIXME somehow avoid redraws when composition didn't change from last call and no content changes
     if (sections.length == 2 && sections[1] == -1 && !composition) return this
     LOG_update && console.log(`updateRanges(${state.doc},`, sections, composition, ")")
     if (composition) {
@@ -208,7 +208,7 @@ export class DocTile extends CompositeTile {
         LOG_update && console.log("(composition)")
         if (!startCovered) builder.update(0, false)
         builder.composition(composition!)
-        if (len && (startCovered = i == sections.length || sections[i + 1] == -1)) builder.update(0, false)
+        if (ins && (startCovered = i == sections.length || sections[i + 1] == -1)) builder.update(0, false)
       } else if (ins == -1) {
         builder.keep(len, !startCovered, i == sections.length)
         startCovered = false
@@ -275,7 +275,7 @@ export class DocTile extends CompositeTile {
   posFromDOM(dom: Node, offset: number, bias: -1 | 1 = -1) {
     let elt = this.nearest(dom)
     if (!elt)
-      return this.dom.compareDocumentPosition(dom) & 4 /* following */ ? 0 : this.length
+      return this.dom.compareDocumentPosition(dom) & 4 /* following */ ? this.length : 0
     return elt.localPosFromDOM(dom, offset, bias)
   }
 
@@ -591,17 +591,24 @@ class ContentUpdate {
 
   composition(composition: CompositionInfo) {
     this.leaveWrappers()
-    if (composition.wrapCursor) {
-      for (let prop of composition.wrapCursor) if (prop.type.element) {
+    if (!composition.target) {
+      for (let prop of composition.wrapCursor!) if (prop.type.element) {
         this.openWrapper(renderPropWrapper(prop), prop.spanning, false)
       }
       this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointBefore))
       return
     }
-    // FIXME somehow sync this.old to position of target
     let found: EltTile[] = []
-    for (let {tile, parent} = this.old; !tile.isNode && !tile.isDoc; {tile, parent} = parent!)
+    for (let parent = composition.target.parentNode; parent; parent = parent.parentNode) {
+      let tile = parent.wgTile
+      if (!tile) {
+        let elt = new Elt(parent.nodeName.toLowerCase(), takeAttributes(parent as HTMLElement), 0, [])
+        tile = new EltTile(elt, null, 0, 0, parent as HTMLElement)
+      } else if (tile.isNode || tile.isDoc) {
+        break
+      }
       found.push(tile as EltTile)
+    }
     for (let i = found.length - 1; i >= 0; i--) {
       let tile = found[i]
       if (tile.isSpanning && this.enterSpanning(tile.elt)) {

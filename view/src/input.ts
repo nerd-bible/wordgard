@@ -575,9 +575,23 @@ observers.blur = view => {
   view.observer.clearSelectionRange()
 }
 
-observers.compositionstart = observers.compositionupdate = view => {
-  if (!view.inputState.composing)
+observers.compositionstart = observers.compositionupdate = (view, event: CompositionEvent) => {
+  if (!view.inputState.composing) {
     view.inputState.composing = {changes: 0, target: null}
+
+    let wrap: readonly Prop<any>[] | null = null
+    if (!view.inputState.composing.changes && !event.data) {
+      let sel = view.state.selPos, props = sel.props || sel.from.props()
+      if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
+          !eqArray((sel.head.nodeBefore?.tag.props || []), props))
+        wrap = props
+    }
+
+    if (wrap) try {
+      view.inputState.wrappingComposition = wrap
+      view.flush()
+    } finally { view.inputState.wrappingComposition = null }
+  }
 }
 
 observers.compositionend = view => {
@@ -596,13 +610,16 @@ function findCompositionTarget(view: EditorView, prev: Text | null) {
   if (!focusNode) return null
   let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
   if (!before || !after || before == after) return before || after
-  let tile = view.docTile.nearest(before)
-  return !tile || (tile as any).text != before.nodeValue || before == prev ? before : after
+  let tileBefore = before.wgTile, tileAfter = after.wgTile
+  if (!tileBefore || (tileBefore as any).text != before.nodeValue) return before
+  if (!tileAfter || (tileAfter as any).text != after.nodeValue) return after
+  return prev == after ? after : before
 }
 
 export type CompositionInfo = {
   fromA: number, toA: number,
-  text: string, target: Text,
+  text: string,
+  target: Text | null,
   wrapCursor?: readonly Prop<any>[] | null
 }
 
@@ -615,7 +632,7 @@ export function getCompositionInfo(view: EditorView): CompositionInfo | null {
     return {
       fromA: sel, toA: sel,
       text: "",
-      target: target!, // FIXME eww
+      target: null,
       wrapCursor: wrap
     }
   }
@@ -637,7 +654,7 @@ export function getCompositionInfo(view: EditorView): CompositionInfo | null {
 
 function findCompositionSelection(node: DOMNode, offset: number, target: Text, targetPos: number) {
   if (node == target) return targetPos + offset
-  if (node.compareDocumentPosition(target) & 4 /* following */) return targetPos + target.nodeValue!.length
+  if (node.compareDocumentPosition(target) & 2 /* preceding */) return targetPos + target.nodeValue!.length
   return targetPos
 }
 
@@ -665,20 +682,6 @@ handlers.beforeinput = (view, event: InputEvent) => {
   } else if (event.inputType == "insertCompositionText") {
     if (!view.inputState.composing)
       view.inputState.composing = {changes: 0, target: null}
-
-    let wrap: readonly Prop<any>[] | null = null
-    if (!view.inputState.composing.changes) {
-      let sel = view.state.selPos, props = sel.props || sel.from.props()
-      if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
-          !eqArray((sel.head.nodeBefore?.tag.props || []), props))
-        wrap = props
-    }
-
-    if (wrap) try {
-      view.inputState.wrappingComposition = wrap
-      view.flush()
-    } finally { view.inputState.wrappingComposition = null }
-
     view.inputState.currentComposition = {...inputEventRange(event, view), text: event.data!}
   }
 
@@ -705,7 +708,7 @@ handlers.input = (view, event: InputEvent) => {
       from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
       if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
     }
-    let props = view.state.selection.props || view.state.doc.resolve(from).props(view.state.doc.resolve(to))
+    let props = view.state.selection.props || view.state.doc.resolve(to).props()
     view.dispatch({
       changes: {from, to, insert: textSlice(text, props), fit: true},
       selection: anchor > -1 ? {anchor, head} : undefined,

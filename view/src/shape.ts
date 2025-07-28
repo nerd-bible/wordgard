@@ -179,6 +179,15 @@ export function pushAttribute(a: string[], name: string, value: string) {
   }
 }
 
+export function takeAttributes(elt: HTMLElement): Attributes {
+  let attrs: string[] = []
+  for (let i = 0; i < elt.attributes.length; i++) {
+    let {name, value} = elt.attributes[i]
+    pushAttribute(attrs, name, value)
+  }
+  return attrs.length ? attrs : noAttributes
+}
+
 export function readAttributes(obj: Record<string, string>) {
   let result: string[] = []
   for (let prop in obj) pushAttribute(result, prop, obj[prop])

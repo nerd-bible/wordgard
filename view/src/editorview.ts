@@ -244,9 +244,10 @@ export class EditorView {
   }
 
   private runUpdate(update: ViewUpdate, domChanges: ChangeDesc | null) {
-    this.docTile = this.docTile.update(update.state, domChanges ? domChanges.composeDesc(update.changes) : update.changes,
-                                       this.composing ? getCompositionInfo(this) : null)
-    if ((!update.changes.empty || update.selectionSet) && this.hasFocus)
+    let composition = this.composing ? getCompositionInfo(this) : null
+    let changes = domChanges ? domChanges.composeDesc(update.changes) : update.changes
+    this.docTile = this.docTile.update(update.state, changes, composition)
+    if ((composition?.wrapCursor || !composition && (!changes.empty || update.selectionSet)) && this.hasFocus)
       setDOMSelection(this)
     this.observer.clear()
     if (update.empty) return
