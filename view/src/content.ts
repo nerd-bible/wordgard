@@ -392,7 +392,7 @@ function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
     let outer = EltTile.of(shape, node && node.tag,
                            (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasHole ? TileFlag.Point : 0),
                            node ? node.length : 0)
-    for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
+    if (shape.children) for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
     return outer
   } else {
     return new WidgetTile(shape, node, nodeInner ? TileFlag.Point | TileFlag.NodeInner : 0 as TileFlag, node ? node.length : 0)
@@ -602,7 +602,7 @@ class ContentUpdate {
     for (let parent = composition.target.parentNode; parent; parent = parent.parentNode) {
       let tile = parent.wgTile
       if (!tile) {
-        let elt = new Elt(parent.nodeName.toLowerCase(), takeAttributes(parent as HTMLElement), 0, [])
+        let elt = new Elt(parent.nodeName.toLowerCase(), takeAttributes(parent as HTMLElement), null)
         tile = new EltTile(elt, null, 0, 0, parent as HTMLElement)
       } else if (tile.isNode || tile.isDoc) {
         break
@@ -648,7 +648,7 @@ class ContentUpdate {
         }
         if (!tile) {
           tile = EltTile.of(elt, tag, 0, 2)
-          for (let ch of elt.children) tile.addChild(buildFromShape(ch, null, true))
+          if (elt.children) for (let ch of elt.children) tile.addChild(buildFromShape(ch, null, true))
         }
         this.new.addChild(tile)
         this.new = tile.contentTile!

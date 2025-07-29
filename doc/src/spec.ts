@@ -13,6 +13,8 @@ export type ElementRepresentation<Param> = {
   readElement?: (element: HTMLElement) => Param | Reject
 }
 
+// FIXME should check validity of this at tag/prop definition, rather than at render time
+
 export type StructureRepresentation<Param> =
   [string | ((param: Param) => string), Attrs | ((param: Param) => Attrs), ...StructureChild<Param>[]] |
   [string | ((param: Param) => string), ...StructureChild<Param>[]]
@@ -62,6 +64,7 @@ export type TagSpec<Param> = {
   blockContent?: string
   inlineContent?: string | true
   defaultParam?: Param extends null ? never : Param
+  // FIXME should this be part of the representation spec?
   atom?: boolean
   /// A function or type name used to validate this tag's parameter
   /// value. This will be used when deserializing the attribute from

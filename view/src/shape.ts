@@ -1,24 +1,19 @@
-// FIXME get rid of Elt altogether?
-
-export enum EltFlag { Hole = 1 }
-
 export class Elt {
   constructor(
     readonly tagName: string,
     readonly attrs: Attributes,
-    /// @internal
-    public flags: number,
-    readonly children: readonly Shape[]
+    // Null means a hole
+    readonly children: readonly Shape[] | null
   ) {}
 
-  get hasHole() { return !!(this.flags & EltFlag.Hole) }
+  get hasHole(): boolean { return this.children == null || this.children.some(ch => ch.hasHole) }
 
   eqTag(elt: Elt) {
     return elt.tagName == this.tagName && sameAttributes(this.attrs, elt.attrs)
   }
 
   eqChildren(elt: Elt) {
-    return eqArray(this.children, elt.children) 
+    return !elt.children || !this.children ? elt.children == this.children : eqArray(this.children, elt.children) 
   }
 
   eq(shape: Shape) {
@@ -26,44 +21,9 @@ export class Elt {
   }
 }
 
-const noChildren: readonly Shape[] = []
+export const noChildren: readonly Shape[] = []
 
 export type Shape = Elt | Widget<any>
-
-export type EltChild = Shape | string | 0
-
-export function E(name: string, attrs: Record<string, string>, ...children: EltChild[]): Elt
-export function E(name: string, ...children: EltChild[]): Elt
-export function E(name: string, ...args: (EltChild | Record<string, string>)[]) {
-  return makeElt(name, 0, args)
-}
-
-function makeElt(name: string, flags: number, args: (EltChild | Record<string, string>)[]) {
-  let children: Shape[] = [], attrs = noAttributes
-  let i = 0, directHole = false
-  if (args.length && typeof args[0] == "object" && !Array.isArray(args[0]) && !(args[0] instanceof Elt)) {
-    i++
-    attrs = readAttributes(args[0] as Record<string, string>)
-  }
-  while (i < args.length) {
-    let elt = args[i++]
-    if (elt === 0) {
-      directHole = true
-      flags |= EltFlag.Hole
-    } else if (typeof elt == "string") {
-      children.push(TextWidget.of(elt))
-    } else {
-      children.push(elt as Shape)
-      if (elt.hasHole) {
-        if (flags & EltFlag.Hole) throw new Error("Multiple holes in elt")
-        flags |= EltFlag.Hole
-      }
-    }
-  }
-  if (directHole && children.length)
-    throw new Error("An element can either have a hole or children, not both")
-  return new Elt(name, attrs, flags, children.length ? children : noChildren)
-}
 
 export type WidgetSpec<T> = {
   render: (value: T) => HTMLElement | Text
@@ -188,7 +148,8 @@ export function takeAttributes(elt: HTMLElement): Attributes {
   return attrs.length ? attrs : noAttributes
 }
 
-export function readAttributes(obj: Record<string, string>) {
+export function readAttributes(obj: Record<string, string> | null | undefined) {
+  if (!obj) return noAttributes
   let result: string[] = []
   for (let prop in obj) pushAttribute(result, prop, obj[prop])
   return result.length ? result : noAttributes

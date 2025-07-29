@@ -2,7 +2,7 @@ import {EditorState, Facet, Extension} from "@wordgard/state"
 import {Prop} from "@wordgard/doc"
 import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
         ElementRepresentation, AttributeRepresentation, StructureRepresentation} from "@wordgard/doc"
-import {Elt, EltChild, Widget, WidgetType, TextWidget, pushAttribute, E, mergeAttributes, Shape} from "./shape"
+import {Elt, Widget, WidgetType, TextWidget, pushAttribute, mergeAttributes, readAttributes, noAttributes, noChildren, Shape} from "./shape"
 import {Attrs} from "./attributes"
 
 // FIXME support some kind of dependency tracking on decoration
@@ -60,7 +60,7 @@ function memo<T>(f: (tag: Tag<any>) => T) {
 
 function renderStructure<T>(repr: StructureRepresentation<T>, param: T) {
   let tag = typeof repr[0] == "function" ? repr[0](param) : repr[0], attrs: Attrs | undefined
-  let children: EltChild[] = []
+  let children: Shape[] = [], hole = false
   for (let i = 1; i < repr.length; i++) {
     let val = repr[i]
     if (typeof val == "function") {
@@ -69,13 +69,15 @@ function renderStructure<T>(repr: StructureRepresentation<T>, param: T) {
     }
     if (i == 1 && typeof val == "object" && !Array.isArray(val)) {
       attrs = val
-    } else if (typeof val == "string" || val === 0) {
-      children.push(val)
+    } else if (typeof val == "string") {
+      children.push(TextWidget.of(val))
+    } else if (val === 0) {
+      hole = true
     } else if (Array.isArray(val)) {
       children.push(renderStructure(val, param))
     }
   }
-  return E(tag, attrs || noAttrs, ...children)
+  return new Elt(tag, attrs ? readAttributes(attrs) : noAttributes, hole ? null : children)
 }
 
 const tagShape = memo((tag: Tag<unknown>): Shape => {
@@ -85,8 +87,8 @@ const tagShape = memo((tag: Tag<unknown>): Shape => {
   } else if (Array.isArray(repr)) {
     elt = renderStructure(repr, tag.param)
   } else {
-    let attrs = !repr.attributes ? noAttrs : typeof repr.attributes == "function" ? repr.attributes(tag.param) : repr.attributes
-    elt = tag.isAtom() ? E(repr.element, attrs) : E(repr.element, attrs, 0)
+    let attrs = repr.attributes && typeof repr.attributes == "function" ? repr.attributes(tag.param) : repr.attributes
+    elt = new Elt(repr.element, attrs ? readAttributes(attrs) : noAttributes, tag.isAtom() ? noChildren : null)
   }
   let attrs: string[] | undefined
   for (let prop of tag.props) if (!prop.type.element) {
@@ -96,8 +98,8 @@ const tagShape = memo((tag: Tag<unknown>): Shape => {
       pushAttribute(attrs || (attrs = []), repr.attribute, value)
   }
   if (attrs) {
-    if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.flags, elt.children)
-    else elt = new Elt(tag.isBlock() ? "div" : "span", attrs, 0, [elt])
+    if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.children)
+    else elt = new Elt(tag.isBlock() ? "div" : "span", attrs, [elt])
   }
   return elt
 })
@@ -130,10 +132,10 @@ export class TagWrapperSource {
     this.tag = tagPredicate(tag)
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
-      let elt = attributes ? E(element, attributes) : E(element)
+      let elt = new Elt(element, readAttributes(attributes), null)
       this.wrapper = () => elt
     } else {
-      this.wrapper = memo(tag => E(deco.element, attributes(tag)))
+      this.wrapper = memo(tag => new Elt(deco.element, readAttributes(attributes(tag)), null))
     }
     this.rank = rank ?? 50
     this.spanning = !!spanning
@@ -191,9 +193,9 @@ export class RangeDecorationSource<T> {
       this.spanning = !!spanning
       this.rank = rank ?? 50
       if (typeof attributes == "function") {
-        this.wrapper = (value: T) => E(element, attributes(value))
+        this.wrapper = (value: T) => new Elt(element, readAttributes(attributes(value)), null)
       } else {
-        let elt = attributes ? E(element, attributes) : E(element)
+        let elt = new Elt(element, readAttributes(attributes), null)
         this.wrapper = () => elt
       }
     } else {
@@ -872,8 +874,8 @@ export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
 export function renderPropWrapper(prop: Prop<any>) {
   // FIXME memoize this
   let repr = prop.type.repr as ElementRepresentation<any>
-  let attrs = typeof repr.attributes == "function" ? repr.attributes(prop.value) : repr.attributes || noAttrs
-  return E(repr.element, attrs)
+  let attrs = readAttributes(typeof repr.attributes == "function" ? repr.attributes(prop.value) : repr.attributes)
+  return new Elt(repr.element, attrs, null)
 }
 
 export class DecoIterator {
@@ -980,8 +982,8 @@ export class DecoIterator {
         pushAttribute(add || (add = []), attr.attribute, typeof attr.value == "function" ? attr.value(iter.value) : attr.value)
     }
     if (add) {
-      if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.flags, shape.children)
-      else shape = new Elt(tag.isBlock() ? "div" : "span", add, 0, [shape])
+      if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.children)
+      else shape = new Elt(tag.isBlock() ? "div" : "span", add, [shape])
     }
     return shape
   }
