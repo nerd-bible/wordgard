@@ -57,7 +57,9 @@ export class TagType<Param> {
     this.preserveWhitespace = !!spec.preserveWhitespace
     this.orientation = spec.orientation || "row"
     this.repr = spec.dom
-    if (isStructureRepresentation(this.repr)) checkStructureRepresentation(this.repr, this.isAtom())
+    if (isStructureRepresentation(this.repr) && checkStructureRepresentation(this.repr) != !this.isAtom())
+      throw new Error(this.isAtom() ? "Using a structure with a hole for an atom"
+                        : "Using a structure without hole for a non-atomic tag")
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
   }

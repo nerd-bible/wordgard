@@ -13,13 +13,31 @@ export type ElementRepresentation<Param> = {
   readElement?: (element: HTMLElement) => Param | Reject
 }
 
-// FIXME should check validity of this at tag/prop definition, rather than at render time
-
 export type StructureRepresentation<Param> =
   [string | ((param: Param) => string), Attrs | ((param: Param) => Attrs), ...StructureChild<Param>[]] |
   [string | ((param: Param) => string), ...StructureChild<Param>[]]
 
 export type StructureChild<Param> = string | ((param: Param) => string) | StructureRepresentation<Param> | 0
+
+export function checkStructureRepresentation<T>(s: StructureRepresentation<T>) {
+  let sawHole = false, sawChild = false, childHole = 0
+  for (let i = 1; i < s.length; i++) {
+    let ch = s[i]
+    if (typeof ch == "string") {
+      sawChild = true
+    } else if (ch === 0) {
+      sawHole = true
+    } else if (Array.isArray(ch)) {
+      sawChild = true
+      if (checkStructureRepresentation(ch)) childHole++
+    } else if (i > 1) {
+      sawChild = true
+    }
+  }
+  if (sawHole && sawChild) throw new Error(`Structure ${JSON.stringify(s)} has both a hole and children`)
+  if (childHole > 1) throw new Error(`Multiple holes in structure ${JSON.stringify(s)}`)
+  return sawHole || childHole > 0
+}
 
 export type AttributeRepresentation<Param> = {
   attribute: string
@@ -43,20 +61,6 @@ export function isStructureRepresentation<T>(
   repr: AttributeRepresentation<T> | ElementRepresentation<T> | StructureRepresentation<T>
 ): repr is StructureRepresentation<T> {
   return Array.isArray(repr)
-}
-
-export function checkStructureRepresentation(repr: StructureRepresentation<any>, isAtom: boolean) {
-  let holes = 0
-  function scan(repr: StructureRepresentation<any>) {
-    for (let i = 1; i < repr.length; i++) {
-      let elt = repr[i]
-      if (elt === 0) holes++
-      else if (Array.isArray(elt)) scan(elt)
-    }
-  }
-  scan(repr)
-  if (isAtom && holes) throw new Error("Holes found in the representation of an atom node")
-  else if (!isAtom && holes != 1) throw new Error(`Wrong number of holes (${holes}) in node representation`)
 }
 
 // FIXME split inline and block specs?
