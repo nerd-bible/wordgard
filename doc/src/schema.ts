@@ -129,7 +129,7 @@ export class Schema {
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
-    return new Schema(tags, props, docTag, lineBreak as Tag<unknown>)
+    return new Schema(tags, props, docTag, lineBreak as Tag<unknown> | null)
   }
 
   nodeFromJSON(json: NodeJSON) {

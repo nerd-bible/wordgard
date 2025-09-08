@@ -7,7 +7,7 @@ export type TagSpec<Param> = {
   blockContent?: string
   inlineContent?: string | true
   defaultParam?: Param extends null ? never : Param
-  // FIXME should this be part of the representation spec?
+  // FIXME should be part of the representation spec, remove here
   atom?: boolean
   /// A function or type name used to validate this tag's parameter
   /// value. This will be used when deserializing the attribute from
