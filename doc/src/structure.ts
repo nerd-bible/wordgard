@@ -72,7 +72,7 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => bo
   let outerCandidates: NodePos[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
-    if (node.isBlock() && !node.isAtom() && !node.inlineContent() && parent &&
+    if (node.isBlock() && !node.isLeaf() && !node.inlineContent() && parent &&
         (fromTextblock ? parent.type.canContain(fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!predicate || predicate(node.tag))) {
       let pos = doc.resolveNode(p)!, depth = pos.depth
@@ -162,7 +162,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
           index++
           gapStart = pos
         }
-      } else if (next.type.isolating || next.isAtom()) {
+      } else if (next.type.isolating || next.isLeaf()) {
         pos += next.length
         index++
       } else {

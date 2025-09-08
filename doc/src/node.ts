@@ -1,6 +1,6 @@
 import {Slice, OpenToken, Token, CloseToken} from "./slice"
-import {TagSpec, ElementRepresentation, StructureRepresentation,
-        checkStructureRepresentation, isStructureRepresentation} from "./spec"
+import {TagSpec, ElementShape, StructureRepresentation,
+        checkStructureRepresentation, isStructureShape} from "./spec"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {PropType, Prop} from "./prop"
@@ -39,7 +39,7 @@ export class TagType<Param> {
   readonly preserveWhitespace: boolean
   readonly orientation: "row" | "column"
   readonly default: Tag<Param> | null
-  readonly repr: ElementRepresentation<Param> | StructureRepresentation<Param>
+  readonly repr: ElementShape<Param> | StructureRepresentation<Param>
 
   constructor(
     readonly name: string,
@@ -57,7 +57,7 @@ export class TagType<Param> {
     this.preserveWhitespace = !!spec.preserveWhitespace
     this.orientation = spec.orientation || "row"
     this.repr = spec.dom
-    if (isStructureRepresentation(this.repr) && checkStructureRepresentation(this.repr) != !this.isAtom())
+    if (isStructureShape(this.repr) && checkStructureRepresentation(this.repr) != !this.isAtom())
       throw new Error(this.isAtom() ? "Using a structure with a hole for an atom"
                         : "Using a structure without hole for a non-atomic tag")
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :

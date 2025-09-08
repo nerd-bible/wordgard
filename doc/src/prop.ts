@@ -1,4 +1,4 @@
-import {PropSpec, isElementRepresentation, AttributeRepresentation, ElementRepresentation} from "./spec"
+import {PropSpec, isElementShape, AttributeShape, ElementShape} from "./spec"
 import {compareDeep, eqArray, none, splitGroups} from "./helper"
 import {SchemaElement} from "./schema"
 import {TagType} from "./node"
@@ -47,7 +47,7 @@ export class PropType<Value> {
   readonly inclusive: boolean
   readonly element: boolean
   readonly spanning: boolean
-  readonly repr: ElementRepresentation<Value> | AttributeRepresentation<Value>
+  readonly repr: ElementShape<Value> | AttributeShape<Value>
 
   constructor(
     readonly name: string,
@@ -59,7 +59,7 @@ export class PropType<Value> {
     this.set = spec.set ? spec.set.compare : null
     this.default = isFlag ? new Prop(this, null as any) : null
     this.inclusive = spec.inclusive !== false
-    this.element = isElementRepresentation(spec.dom)
+    this.element = isElementShape(spec.dom)
     this.spanning = spec.spanning ?? this.element
     this.repr = spec.dom
   }

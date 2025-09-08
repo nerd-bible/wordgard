@@ -2,7 +2,7 @@ import {Schema} from "./schema"
 import {Tag, TagType, Node, DocNode, Text} from "./node"
 import {Prop, PropType} from "./prop"
 import {Slice, Token, OpenToken, CloseToken} from "./slice"
-import {ParseRule, isElementRepresentation, ElementParseRule, isElementParseRule,
+import {ParseRule, isElementShape, ElementParseRule, isElementParseRule,
         AttributeParseRule, Reject} from "./spec"
 
 // FIXME automatically preserve whitespace in pre or white-space: pre elements
@@ -33,7 +33,7 @@ class RuleSet {
     }
     for (let prop of schema.props) {
       let {dom, parseRules} = prop.spec
-      if (isElementRepresentation(dom)) {
+      if (isElementShape(dom)) {
         rules.push({
           selector: dom.selector || dom.element,
           readElement: dom.readElement,

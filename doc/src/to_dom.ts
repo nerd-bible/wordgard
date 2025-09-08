@@ -2,8 +2,7 @@ import {DocNode, Node, Tag, TokenType} from "./node"
 import {Schema} from "./schema"
 import {Slice, CloseToken} from "./slice"
 import {Prop} from "./prop"
-import {Attrs, ElementRepresentation, AttributeRepresentation, StructureRepresentation,
-        isElementRepresentation, isAttributeRepresentation} from "./spec"
+import {ElementShape, AttributeShape, isElementShape, isAttributeShape, Elt} from "./shape"
 import {OpenSide} from "./from_dom"
 
 export type SerializeOptions = {
@@ -96,7 +95,7 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
   return result
 }
 
-function createElement<Param>(repr: ElementRepresentation<Param>, param: Param, doc: Document) {
+function createElement<Param>(repr: ElementShape<Param>, param: Param, doc: Document) {
   let dom = doc.createElement(repr.element)
   if (repr.attributes) {
     let attrs = typeof repr.attributes == "function" ? repr.attributes(param) : repr.attributes
@@ -108,14 +107,14 @@ function createElement<Param>(repr: ElementRepresentation<Param>, param: Param, 
   return dom
 }
 
-function applyAttributes(attrs: Attrs, elt: Element) {
+function applyAttributes(attrs: Record<string, string>, elt: Element) {
   for (let name in attrs) {
     let value = attrs[name]
     if (value != null) elt.setAttribute(name, String(value))
   }
 }
 
-function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, input: any) {
+function applyAttribute(repr: AttributeShape<any>, elt: HTMLElement, input: any) {
   let value = repr.value == null ? String(input) : typeof repr.value == "string" ? repr.value : repr.value(input)
   if (value != null) {
     if (/^style\//.test(repr.attribute)) elt.style.setProperty(repr.attribute.slice(6), value)
@@ -124,50 +123,34 @@ function applyAttribute(repr: AttributeRepresentation<any>, elt: HTMLElement, in
   }
 }
 
-function renderStructure<T>(repr: StructureRepresentation<T>, param: T, document: Document) {
-  let content: HTMLElement | undefined
-  function scan(repr: StructureRepresentation<T>) {
-    let elt = document.createElement(typeof repr[0] == "function" ? repr[0](param) : repr[0])
-    for (let i = 1; i < repr.length; i++) {
-      let val = repr[i]
-      if (typeof val == "function") {
-        val = val(param)
-        if (Array.isArray(val)) throw new Error("Dynamic parts of a structure representation may not return arrays")
-      }
-      if (i == 1 && typeof val == "object" && !Array.isArray(val)) {
-        applyAttributes(val, elt)
-      } else if (typeof val == "string") {
-        elt.appendChild(document.createTextNode(val))
-      } else if (val === 0) {
-        if (i < repr.length - 1 || elt.firstChild) throw new Error("Hole markers can only appear as the only child of an element")
-        if (content) throw new Error("Multiple holes found")
-        content = elt
-      } else if (Array.isArray(val)) {
-        elt.appendChild(scan(val))
-      } else {
-        throw new Error("Invalid value in structure representation: " + val)
-      }
-    }
-    return elt
+let contentElement: HTMLElement | null = null
+
+function renderElt(elt: Elt<string>, document: Document) {
+  let e = document.createElement(elt.tagName)
+  for (let i = 0; i < elt.attrs.length; i++) e.setAttribute(elt.attrs[i++], elt.attrs[i++])
+  if (elt.children) {
+    for (let ch of elt.children)
+      e.appendChild(typeof ch == "string" ? document.createTextNode(ch) : renderElt(ch, document))
+  } else {
+    contentElement = e
   }
-  return {outer: scan(repr), content}
+  return e
 }
 
 function serializeNodeMarkup(tag: Tag, options: FullOptions) {
   let {dom} = tag.type.spec, elt: HTMLElement | undefined, content: HTMLElement | undefined, text: Text | undefined
   if (tag.isText()) {
     text = options.document.createTextNode(tag.param as string)
-  } else if (Array.isArray(dom)) {
-    let struct = renderStructure(dom, tag.param, options.document)
-    elt = struct.outer
-    content = struct.content
-  } else {
+  } else if (isElementShape(dom)) {
     elt = options.document.createElement(dom.element)
     if (dom.attributes)
       applyAttributes(typeof dom.attributes == "function" ? dom.attributes(tag.param) : dom.attributes, elt)
     content = elt
+  } else {
+    elt = renderElt(typeof dom.structure == "function" ? dom.structure(tag.param) : dom.structure, options.document)
+    content = contentElement || elt
   }
-  for (let {type, value} of tag.props) if (isAttributeRepresentation(type.repr)) {
+  for (let {type, value} of tag.props) if (isAttributeShape(type.repr)) {
     if (!elt) {
       elt = document.createElement("span")
       elt.appendChild(text!)
@@ -206,10 +189,10 @@ function serializeChildren(
   let top = target, active: Prop[] = []
   for (let child of children) {
     let childDOM = serializeNodeInner(child, options)
-    if (active.length || child.tag.props.some(p => isElementRepresentation(p.type.repr))) {
+    if (active.length || child.tag.props.some(p => isElementShape(p.type.repr))) {
       let keep = 0, rendered = 0, eltProps = []
       for (let prop of child.tag.props)
-        if (isElementRepresentation(prop.type.repr)) eltProps.push(prop)
+        if (isElementShape(prop.type.repr)) eltProps.push(prop)
       while (keep < active.length && rendered < eltProps.length) {
         let next = eltProps[rendered]
         if (!next.eq(active[keep]) || !next.type.spanning) break
@@ -221,7 +204,7 @@ function serializeChildren(
       }
       while (rendered < eltProps.length) {
         let add = eltProps[rendered++]
-        let markDOM = createElement(add.type.repr as ElementRepresentation<any>,
+        let markDOM = createElement(add.type.repr as ElementShape<any>,
                                     add.value, options.document)
         active.push(add)
         top.appendChild(markDOM)

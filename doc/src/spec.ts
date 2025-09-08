@@ -1,67 +1,6 @@
 import {Node, Tag, TagType} from "./node"
 import {Prop, PropType} from "./prop"
-
-export type Attrs = Record<string, string>
-
-export const Reject: unique symbol = Symbol("reject")
-export type Reject = typeof Reject
-
-export type ElementRepresentation<Param> = {
-  element: string
-  selector?: string
-  attributes?: Attrs | ((param: Param) => Attrs)
-  readElement?: (element: HTMLElement) => Param | Reject
-}
-
-export type StructureRepresentation<Param> =
-  [string | ((param: Param) => string), Attrs | ((param: Param) => Attrs), ...StructureChild<Param>[]] |
-  [string | ((param: Param) => string), ...StructureChild<Param>[]]
-
-export type StructureChild<Param> = string | ((param: Param) => string) | StructureRepresentation<Param> | 0
-
-export function checkStructureRepresentation<T>(s: StructureRepresentation<T>) {
-  let sawHole = false, sawChild = false, childHole = 0
-  for (let i = 1; i < s.length; i++) {
-    let ch = s[i]
-    if (typeof ch == "string") {
-      sawChild = true
-    } else if (ch === 0) {
-      sawHole = true
-    } else if (Array.isArray(ch)) {
-      sawChild = true
-      if (checkStructureRepresentation(ch)) childHole++
-    } else if (i > 1) {
-      sawChild = true
-    }
-  }
-  if (sawHole && sawChild) throw new Error(`Structure ${JSON.stringify(s)} has both a hole and children`)
-  if (childHole > 1) throw new Error(`Multiple holes in structure ${JSON.stringify(s)}`)
-  return sawHole || childHole > 0
-}
-
-export type AttributeRepresentation<Param> = {
-  attribute: string
-  value?: string | ((param: Param) => string | null)
-  readAttribute?: (value: string) => Param | Reject
-}
-
-export function isElementRepresentation<T>(
-  repr: AttributeRepresentation<T> | ElementRepresentation<T> | StructureRepresentation<T>
-): repr is ElementRepresentation<T> {
-  return (repr as ElementRepresentation<any>).element != null
-}
-
-export function isAttributeRepresentation<T>(
-  repr: AttributeRepresentation<T> | ElementRepresentation<T> | StructureRepresentation<T>
-): repr is AttributeRepresentation<T> {
-  return (repr as AttributeRepresentation<any>).attribute != null
-}
-
-export function isStructureRepresentation<T>(
-  repr: AttributeRepresentation<T> | ElementRepresentation<T> | StructureRepresentation<T>
-): repr is StructureRepresentation<T> {
-  return Array.isArray(repr)
-}
+import {ElementShape, StructureShape, AttributeShape, Reject} from "./shape"
 
 // FIXME split inline and block specs?
 export type TagSpec<Param> = {
@@ -81,7 +20,7 @@ export type TagSpec<Param> = {
   validateParam?: string | ((param: Param) => void)
   group?: string
   toText?: (node: Node) => string
-  dom: ElementRepresentation<Param> | StructureRepresentation<Param>
+  dom: ElementShape<Param> | StructureShape<Param>
   parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
   /// Indicates that this type of block is the default generic block
@@ -147,7 +86,7 @@ export type PropSpec<Value> = {
   /// See [`TagSpec.validateParam`](#doc.TagSpec.validateParam).
   validate?: string | ((value: Value) => void)
   set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
-  dom: ElementRepresentation<Value> | AttributeRepresentation<Value>
+  dom: ElementShape<Value> | AttributeShape<Value>
   parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
 }
 

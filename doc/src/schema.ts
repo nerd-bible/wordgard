@@ -1,7 +1,7 @@
 import {Node, Tag, TagType, TagJSON, NodeJSON, Text, DocNode} from "./node"
 import {Prop, PropType} from "./prop"
 import {none, validate} from "./helper"
-import {Reject, Attrs} from "./spec"
+import {Reject} from "./spec"
 
 export type SchemaElement = Tag<any> | TagType<any> | Prop<any> | PropType<any>
 
@@ -220,7 +220,7 @@ export const OrderedList = TagType.defineBlock("OrderedList", {
   group: "Block",
   dom: {
     element: "ol",
-    attributes: order => order == 1 ? {} as Attrs : {order: String(order)},
+    attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
     readElement: elt => Number(elt.getAttribute("order") || "1")
   },
   autoJoin: (a, b) => b.param == 1
