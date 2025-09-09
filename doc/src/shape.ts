@@ -30,7 +30,10 @@ export class Elt<T> {
 
 export const noChildren: readonly any[] = []
 
-export function elt<T>(tag: string | {_: string, [attr: string]: string | null}, ...children: (Elt<T> | T | 0)[]): Elt<T> {
+export function elt<T>(
+  tag: string | {_: string, [attr: string]: string | null},
+  ...children: (Elt<T> | 0 | T)[]
+): Elt<Exclude<T, Elt<any> | 0>> {
   let [name, attrs] = typeof tag == "string" ? [tag, noAttributes] : [tag._, readAttributes(tag)]
   if (children.length == 1 && children[0] === 0)
     return new Elt(name, attrs, null)
@@ -99,7 +102,13 @@ export function readAttributes(obj: Record<string, string | null> | null | undef
   let result: string[] = []
   for (let prop in obj) if (prop != "_") {
     let value = obj[prop]
-    if (value != null) pushAttribute(result, prop, value)
+    if (value != null) {
+      if (/^style\//.test(prop)) {
+        value = prop.slice(6) + ": " + value
+        prop = "style"
+      }
+      pushAttribute(result, prop, value)
+    }
   }
   return result.length ? result : noAttributes
 }

@@ -1,4 +1,5 @@
-import {PropSpec, isElementShape, AttributeShape, ElementShape} from "./spec"
+import {PropSpec} from "./spec"
+import {isElementShape, AttributeShape, ElementShape} from "./shape"
 import {compareDeep, eqArray, none, splitGroups} from "./helper"
 import {SchemaElement} from "./schema"
 import {TagType} from "./node"

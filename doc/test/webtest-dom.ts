@@ -1,6 +1,6 @@
 import ist from "ist"
 import {DocNode, Node, basicBuilders, builder, Prop, PropType, Slice, OpenToken, CloseToken, Token,
-        serialize, serializeSlice, parseDoc, parseSlice, OpenSide, ParseOptions,
+        serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice, OpenSide, ParseOptions,
         Schema, basicSchema, tag} from "@wordgard/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
@@ -12,27 +12,34 @@ function html(doc: DocNode) {
   return wrap.innerHTML
 }
 
-function sliceHTML(doc: DocNode, options?: any) {
+function istHTML(doc: DocNode, expected: string) {
+  ist(html(doc), expected)
+  ist(serializeHTML(doc), expected)
+}
+
+function istSliceHTML(doc: DocNode, expected: string, options?: any) {
   let wrap = document.createElement("div")
-  wrap.appendChild(serializeSlice(doc.slice(tag(doc, 0), tag(doc, 1)), {
+  let slice = doc.slice(tag(doc, 0), tag(doc, 1)), opts = {
     ...options,
     schema: doc.schema,
     context: doc.contextAt(tag(doc, 0), options?.maxDepth)
-  }))
-  return wrap.innerHTML
+  }
+  wrap.appendChild(serializeSlice(slice, opts))
+  ist(wrap.innerHTML, expected)
+  ist(serializeSliceHTML(slice, opts), expected)
 }
 
 describe("serialize", () => {
   it("can serialize simple nodes", () => {
-    ist(html(doc(p("One"), blockquote(p("Two")))), "<p>One</p><blockquote><p>Two</p></blockquote>")
+    istHTML(doc(p("One"), blockquote(p("Two"))), "<p>One</p><blockquote><p>Two</p></blockquote>")
   })
 
   it("can serialize tag parameters", () => {
-    ist(html(doc(p($img()))), "<p><img src=\"test.png\"></p>")
+    istHTML(doc(p($img())), "<p><img src=\"test.png\"></p>")
   })
 
   it("can serialize spanning props", () => {
-    ist(html(doc(p(em("One", strong($img(), "Two"))))), "<p><em>One<strong><img src=\"test.png\">Two</strong></em></p>")
+    istHTML(doc(p(em("One", strong($img(), "Two")))), "<p><em>One<strong><img src=\"test.png\">Two</strong></em></p>")
   })
 
   it("can serialize attribute props", () => {
@@ -41,7 +48,7 @@ describe("serialize", () => {
       dom: {attribute: "data-p", readAttribute: x => x}
     })
     let pr = builder(Pr)
-    ist(html(doc(pr("one", p("x")))), "<p data-p=\"one\">x</p>")
+    istHTML(doc(pr("one", p("x"))), "<p data-p=\"one\">x</p>")
   })
 
   it("can serialize style props", () => {
@@ -50,47 +57,45 @@ describe("serialize", () => {
       dom: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
     let ul = builder(Ul)
-    ist(html(doc(p(ul("one")))), "<p><span style=\"text-decoration: underline;\">one</span></p>")
+    istHTML(doc(p(ul("one"))), "<p><span style=\"text-decoration: underline\">one</span></p>")
   })
 
   it("serializes heading levels", () => {
-    ist(html(doc(h1("One"), h2("Two"))), "<h1>One</h1><h2>Two</h2>")
+    istHTML(doc(h1("One"), h2("Two")), "<h1>One</h1><h2>Two</h2>")
   })
 
   it("serializes line breaks in whitespace-preserving nodes", () => {
-    ist(html(doc(p("a", br(), "b"), pre("a", br(), "b"))),
-        "<p>a<br>b</p><pre>a\nb</pre>")
+    istHTML(doc(p("a", br(), "b"), pre("a", br(), "b")),
+            "<p>a<br>b</p><pre>a\nb</pre>")
   })
 })
 
 describe("serializeSlice", () => {
   it("can serialize a simple slice", () => {
-    ist(sliceHTML(doc(0, p("One"), p("Two"), 1)), "<p>One</p><p>Two</p>")
+    istSliceHTML(doc(0, p("One"), p("Two"), 1), "<p>One</p><p>Two</p>")
   })
 
   it("can serialize an open slice", () => {
-    ist(sliceHTML(doc(h1(0, "One"), p("Two", 1))), "<h1>One</h1><p>Two</p>")
+    istSliceHTML(doc(h1(0, "One"), p("Two", 1)), "<h1>One</h1><p>Two</p>")
   })
 
   it("can serialize a slice with deeper open sides", () => {
-    ist(sliceHTML(doc(ul(li(p(0, "A"))), blockquote(p("B", 1)))),
-        "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
+    istSliceHTML(doc(ul(li(p(0, "A"))), blockquote(p("B", 1))),
+                 "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  function markOpen(elt: HTMLElement, open: OpenSide) {
-    if (open & OpenSide.Start) elt.setAttribute("open-start", "true")
-    if (open & OpenSide.End) elt.setAttribute("open-end", "true")
-  }
+  const openProp = PropType.define<string>("Open", {dom: {attribute: "open"}, tags: "*"})
 
   it("can mark open nodes", () => {
-    ist(sliceHTML(doc(p(0, "a"), blockquote(p("b", 1))), {markOpen}),
-        '<p open-start="true">a</p><blockquote open-end="true"><p open-end="true">b</p></blockquote>')
+    istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),
+                 '<p open="start">a</p><blockquote open="end"><p open="end">b</p></blockquote>',
+                 {openProp})
   })
 
   it("can include extra context", () => {
-    ist(sliceHTML(doc(blockquote(ul(li(p(0, "a")), li(p("b"), 1)))), {markOpen, maxDepth: 3}),
-        '<ul open-start="true" open-end="true"><li open-start="true"><p open-start="true">a</p></li>' +
-        '<li open-end="true"><p>b</p></li></ul>')
+    istSliceHTML(doc(blockquote(ul(li(p(0, "a")), li(p("b"), 1)))),
+                 '<ul open="start end"><li open="start"><p open="start">a</p></li><li open="end"><p>b</p></li></ul>',
+                 {openProp, maxDepth: 3, includeContext: 3})
   })
 })
 

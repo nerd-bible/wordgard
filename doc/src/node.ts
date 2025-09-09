@@ -46,7 +46,7 @@ export class TagType<Param> {
     readonly flags: TagFlag,
     readonly spec: TagSpec<Param>
   ) {
-    let groups = this.groups = [name]
+    let groups = this.groups = [name, "*"]
     if (flags & TagFlag.Inline) groups.push("Inline")
     if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
     let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
@@ -197,7 +197,7 @@ export class Tag<Param = unknown> {
   }
 
   isInline() { return this.type.isInline() }
-  isText(): this is Tag<string> { return this.type.isText() }
+  isText(): this is Tag<string> { return this.type.isText() } // FIXME this narrowing doesn't work
   isBlock() { return this.type.isBlock() }
   inlineContent() { return this.type.inlineContent() }
   isTextblock() { return this.type.isTextblock() }

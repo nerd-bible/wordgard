@@ -1,7 +1,7 @@
 import {Node, Tag, TagType, TagJSON, NodeJSON, Text, DocNode} from "./node"
 import {Prop, PropType} from "./prop"
 import {none, validate} from "./helper"
-import {Reject} from "./spec"
+import {elt, Reject} from "./shape"
 
 export type SchemaElement = Tag<any> | TagType<any> | Prop<any> | PropType<any>
 
@@ -182,7 +182,7 @@ export const Heading = TagType.defineBlock("Heading", {
   validateParam: "number",
   inlineContent: true,
   group: "Block",
-  dom: [level => "h" + level, 0],
+  dom: {structure: level => elt("h" + level, 0)},
   defining: true,
   parseRules: [
     {selector: "h1", param: 1},

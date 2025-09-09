@@ -2,8 +2,8 @@ import {Schema} from "./schema"
 import {Tag, TagType, Node, DocNode, Text} from "./node"
 import {Prop, PropType} from "./prop"
 import {Slice, Token, OpenToken, CloseToken} from "./slice"
-import {ParseRule, isElementShape, ElementParseRule, isElementParseRule,
-        AttributeParseRule, Reject} from "./spec"
+import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule} from "./spec"
+import {isElementShape, Reject} from "./shape"
 
 // FIXME automatically preserve whitespace in pre or white-space: pre elements
 

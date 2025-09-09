@@ -11,7 +11,11 @@ export type SerializeOptions = {
 }
 
 abstract class Context {
-  constructor(readonly schema: Schema, readonly emitNewlines: boolean) {}
+  readonly emitNewlines: boolean
+
+  constructor(options: SerializeOptions, readonly schema: Schema) {
+    this.emitNewlines = options.emitNewlines !== false
+  }
 
   abstract emitText(text: string): void
   abstract openElt(name: string, attrs: Attributes): void
@@ -20,9 +24,11 @@ abstract class Context {
 
 class DOMContext extends Context {
   top: DocumentFragment | HTMLElement
+  document: Document
 
-  constructor(readonly document: Document, schema: Schema, emitNewlines: boolean) {
-    super(schema, emitNewlines)
+  constructor(options: SerializeOptions, schema: Schema) {
+    super(options, schema)
+    this.document = options.document || document
     this.top = document.createDocumentFragment()
   }
 
@@ -71,19 +77,19 @@ class HTMLContext extends Context {
 }
 
 export function serialize(doc: DocNode, options: SerializeOptions = {}) {
-  let cx = new DOMContext(options.document || document, doc.schema, options.emitNewlines !== false)
+  let cx = new DOMContext(options, doc.schema)
   serializeChildren(doc.children, cx)
   return cx.top as DocumentFragment
 }
 
 export function serializeHTML(doc: DocNode, options: SerializeOptions = {}) {
-  let cx = new HTMLContext(doc.schema, options.emitNewlines !== false)
+  let cx = new HTMLContext(options, doc.schema)
   serializeChildren(doc.children, cx)
   return cx.html
 }
 
 export function serializeNode(node: Node, options: SerializeOptions & {schema: Schema}): HTMLElement | Text {
-  let cx = new DOMContext(options.document || document, options.schema, options.emitNewlines !== false)
+  let cx = new DOMContext(options, options.schema)
   serializeChildren([node], cx)
   return cx.top.firstChild as (HTMLElement | Text)
 }
@@ -94,7 +100,11 @@ const genericTag = Tag.defineBlock("generic", {
 
 type Nodeish = {tag: Tag<any>, children: readonly Nodeish[]}
 
-function flattenSlice(content: readonly Token[], context: readonly Tag[], openProp?: PropType<string>): readonly Nodeish[] {
+function flattenSlice(
+  content: readonly Token[],
+  context: readonly Tag[], includeContext: number,
+  openProp?: PropType<string>
+): readonly Nodeish[] {
   let depth = 0, i = 0, scan = (inner: boolean): readonly Nodeish[] => {
     let result: Nodeish[] = []
     for (; i < content.length;) {
@@ -114,26 +124,50 @@ function flattenSlice(content: readonly Token[], context: readonly Tag[], openPr
     }
     return result
   }
-  return scan(false)
+  let result = scan(false)
+  while (depth < includeContext && depth < context.length) {
+    let tag = context[depth++]
+    if (openProp) tag = tag.addProp(openProp.of("start end"))
+    result = [{tag, children: result}]
+  }
+  return result
 }
 
-// FIXME port to context
 export function serializeSlice(slice: Slice, options: SerializeOptions & {
   schema: Schema,
   openProp?: PropType<string>,
-  context?: readonly Tag[]
+  context?: readonly Tag[],
+  includeContext?: number
 }): DocumentFragment {
-  let cx = new DOMContext(options.document || document, options.schema, options.emitNewlines !== false)
-  serializeChildren(flattenSlice(slice.content, options.context || [], options.openProp), cx)
+  let cx = new DOMContext(options, options.schema)
+  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openProp), cx)
   return cx.top as DocumentFragment
+}
+
+export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
+  schema: Schema,
+  openProp?: PropType<string>,
+  context?: readonly Tag[],
+  includeContext?: number
+}): string {
+  let cx = new HTMLContext(options, options.schema)
+  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openProp), cx)
+  return cx.html
 }
 
 function serializeNodeInner(node: Nodeish, cx: Context) {
   let propAttrs: string[] = []
   for (let prop of node.tag.props) if (!prop.type.element) {
     let repr = prop.type.repr as AttributeShape<any>
-    let value = typeof repr.value == "function" ? repr.value(prop.value) : repr.value
-    if (value != null) pushAttribute(propAttrs, repr.attribute, value)
+    let name = repr.attribute
+    let value = typeof repr.value == "function" ? repr.value(prop.value) : repr.value ?? prop.value as string
+    if (value != null) {
+      if (/^style\//.test(name)) {
+        value = name.slice(6) + ": " + value
+        name = "style"
+      }
+      pushAttribute(propAttrs, name, value)
+    }
   }
   let renderContent = (cx: Context) => {
     let {children} = node
@@ -142,14 +176,18 @@ function serializeNodeInner(node: Nodeish, cx: Context) {
     serializeChildren(children, cx)
   }
   let repr = node.tag.type.repr
-  if (isElementShape(repr)) {
-    let attrs = typeof repr.attributes == "function" ? repr.attributes(node.tag.param) : repr.attributes
+  if (node.tag.isText()) {
+    if (propAttrs.length) cx.openElt("span", propAttrs)
+    cx.emitText(node.tag.param)
+    if (propAttrs.length) cx.closeElt()
+  } else if (isElementShape(repr)) {
+    let attrs = typeof repr.attributes == "function" ? repr.attributes((node.tag as Tag<any>).param) : repr.attributes
     let allAttrs = !attrs ? propAttrs : mergeAttributes(readAttributes(attrs), propAttrs)
     cx.openElt(repr.element, allAttrs)
     renderContent(cx)
     cx.closeElt()
   } else {
-    let elt = typeof repr.structure == "function" ? repr.structure(node.tag.param) : repr.structure
+    let elt = typeof repr.structure == "function" ? repr.structure((node.tag as Tag<any>).param) : repr.structure
     if (propAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, propAttrs), elt.children)
     serializeStructure(elt, cx, renderContent)
   }
