@@ -1,7 +1,7 @@
 import {Schema} from "./schema"
 import {Tag, TagType, Node, DocNode, Text} from "./node"
 import {Prop, PropType} from "./prop"
-import {Slice, Token, OpenToken, CloseToken} from "./slice"
+import {Slice, Token, CloseToken} from "./slice"
 import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule} from "./spec"
 import {isElementShape, Reject} from "./shape"
 
@@ -24,7 +24,7 @@ class RuleSet {
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
       let {repr, spec: {parseRules}} = tag
-      if (!Array.isArray(repr) && repr.element) rules.push({
+      if (isElementShape(repr) && repr.element) rules.push({
         selector: repr.selector || repr.element,
         readElement: repr.readElement,
         tag
@@ -107,7 +107,7 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
         }
         context.push(children[0].tag)
       } else if (openEnd && i == children.length - 1 && !child.isLeaf() && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
-        tokens.push(new OpenToken(child.tag))
+        tokens.push(child.tag)
         emitTokens(child.children, false, true)
       } else {
         tokens.push(child)

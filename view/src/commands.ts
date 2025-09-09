@@ -1,5 +1,5 @@
 import {Node, Tag, TagType, Prop, NodePos, Slice, Text, Token,
-        ChangeSpec, ChangeSet, CloseToken, OpenToken,
+        ChangeSpec, ChangeSet, CloseToken,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
         unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "@wordgard/doc"
 import {EditorSelection, StateCommand, EditorState, Transaction, Direction} from "@wordgard/state"
@@ -74,7 +74,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
     else before.push(CloseToken)
     if (index < level.node.children.length - 1) atEnd = false
     if (atEnd) end++
-    else after.unshift(new OpenToken(level.node.tag.split(false)))
+    else after.unshift(level.node.tag.split(false))
   }
   return false
 }
@@ -100,7 +100,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
         let defaultType = state.doc.schema.defaultContentType(p.parent.node.type)
         if (defaultType) tagAfter = tag.changeType(defaultType)
       }
-      tokens.splice(insert, 0, new OpenToken(tagAfter || tag))
+      tokens.splice(insert, 0, tagAfter || tag)
       if (p == after) break
     }
   }
@@ -113,7 +113,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
     if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({
         from: before.before, to: before.start,
-        insert: new Slice([new OpenToken(before.node.tag.changeType(deflt))])
+        insert: new Slice([before.node.tag.changeType(deflt)])
       })
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
@@ -160,7 +160,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
-      insert: new Slice([new OpenToken(before.tag.changeType(target.tag))])
+      insert: new Slice([before.tag.changeType(target.tag)])
     })
   let changeSet = ChangeSet.create(state.doc, changes)
   dispatch(state.update({
@@ -196,7 +196,7 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
   if (!target.children.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
     changes.push({
       from: block.before, to: block.start,
-      insert: new Slice([new OpenToken(target.tag.changeType(after.tag))])
+      insert: new Slice([target.tag.changeType(after.tag)])
     })
   dispatch(state.update({
     changes,
@@ -323,7 +323,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
         if (node.isTextblock() && pos > lastBlock && !node.tag.eq(tag) && parent && parent.type.canContain(tag.type)) {
           lastBlock = pos
           // FIXME more refined handling of props
-          changes.push({from: pos, to: pos + 1, insert: new Slice([new OpenToken(node.tag.changeType(tag))])})
+          changes.push({from: pos, to: pos + 1, insert: new Slice([node.tag.changeType(tag)])})
           for (let ch of clearNonFitting(state.doc.resolveNode(pos)!, tag.type)) changes.push(ch)
         }
       })

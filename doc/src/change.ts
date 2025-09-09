@@ -1,7 +1,7 @@
 import {Node, DocNode, Tag, TokenType} from "./node"
 import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
-import {Slice, Token, CloseToken, OpenToken, SliceJSON} from "./slice"
+import {Slice, Token, CloseToken, SliceJSON} from "./slice"
 import {Walker, Pos, NodePos} from "./pos"
 import {validate} from "./helper"
 
@@ -656,7 +656,7 @@ function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
   let content: Token[] = []
   for (let tok of slice.content) {
     if (tok.tokenType == TokenType.Open) {
-      content.push(new OpenToken(applyModifications(mods, tok.tag)))
+      content.push(applyModifications(mods, tok))
     } else if (tok.tokenType == TokenType.Node) {
       let node = applyModifications(mods, tok.tag).create(tok.children)
       if (content.length && content[content.length - 1].tokenType == TokenType.Node)
@@ -810,7 +810,7 @@ class ChangeFitter implements Walker {
       this.stackDelta--
     }
     for (let wrapper of fix.enter) {
-      this.patch(0, new OpenToken(wrapper))
+      this.patch(0, wrapper)
       this.stack.flags &= ~FitFlag.NeedsChild
       this.stack = new FitLevel(wrapper, this.stack)
       this.stack.flags |= FitFlag.Synthetic
@@ -836,7 +836,7 @@ class ChangeFitter implements Walker {
     for (let i = cur.length; i < sync.length; i++) {
       let tag = sync[i]
       this.stack = new FitLevel(tag, this.stack)
-      this.patch(0, new OpenToken(tag))
+      this.patch(0, tag)
     }
   }
 
@@ -1059,7 +1059,7 @@ function closeSlice(schema: Schema, slice: Slice, context: readonly Tag[], depth
         top.push(token)
       }
     } else if (token.tokenType == TokenType.Open) {
-      stack = new BuildContext(token.tag, stack)
+      stack = new BuildContext(token, stack)
     } else {
       ;(stack ? stack.children : top).push(token)
     }
@@ -1075,7 +1075,7 @@ function closeSlice(schema: Schema, slice: Slice, context: readonly Tag[], depth
 
 function splatContext(top: Token[], cx: BuildContext) {
   if (cx.parent) splatContext(top, cx.parent)
-  top.push(new OpenToken(cx.tag))
+  top.push(cx.tag)
   for (let ch of cx.children) top.push(ch)
 }
 

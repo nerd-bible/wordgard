@@ -1,5 +1,5 @@
 import {Slice, Text, Node, Pos, serializeSlice, parseSlice,
-        OpenSide, Token, CloseToken, OpenToken} from "@wordgard/doc"
+        OpenSide, Token, CloseToken} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import browser from "./browser"
 
@@ -74,7 +74,7 @@ function readClipboardText(state: EditorState, text: string, context: Pos, plain
   content.push(CloseToken)
   for (let i = 1; i < lines.length - 1; i++)
     content.push(wrapper.create(lines[i] ? [Node.text(lines[i], props)] : []))
-  content.push(new OpenToken(wrapper))
+  content.push(wrapper)
   let last = lines[lines.length - 1]
   if (last) content.push(Node.text(last, props))
   return new Slice(content)

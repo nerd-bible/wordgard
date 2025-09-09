@@ -3,7 +3,7 @@ import {Pos, NodePos} from "./pos"
 import {Prop} from "./prop"
 import {Schema} from "./schema"
 import {ChangeSpec} from "./change"
-import {Slice, Token, OpenToken, CloseToken} from "./slice"
+import {Slice, Token, CloseToken} from "./slice"
 
 export function clearNonFitting(node: NodePos, type: TagType<any>) {
   let changes: ChangeSpec[] = []
@@ -40,7 +40,7 @@ export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
     let tokens: Token[] = []
     for (let j = 0; j < openWrappers; j++) tokens.push(CloseToken)
     if (i == range.from.index) {
-      tokens.push(new OpenToken(wrapper))
+      tokens.push(wrapper)
     } else if (i == range.to.index) {
       tokens.push(CloseToken)
       changes.push({from: pos, insert: new Slice(tokens)})
@@ -49,7 +49,7 @@ export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
     let child = parent.children[i]
     let {schema} = range.from.doc
     let wrapping = schema.findWrapping(wrapper.type, child.type)!
-    for (let tag of wrapping) tokens.push(new OpenToken(tag))
+    for (let tag of wrapping) tokens.push(tag)
     openWrappers = wrapping.length
     changes.push({from: pos, insert: new Slice(tokens)})
     pos += child.length
@@ -146,7 +146,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
           for (let cx = parent, i = tokens.length, atStart = !index;; cx = cx.parent!) {
             if (cx.index > 0) atStart = false
             if (atStart) upto--
-            else tokens.splice(i, 0, new OpenToken(cx.node.tag.split(false)))
+            else tokens.splice(i, 0, cx.node.tag.split(false))
             if (cx == block) break
           }
           replaceGap(upto, tokens)
@@ -155,7 +155,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
           if (outer.type.canContain(next.type)) {
             replaceGap(pos, [])
           } else {
-            replaceGap(pos + 1, [new OpenToken(wrapText!)])
+            replaceGap(pos + 1, [wrapText!])
             changes.push(clearNonFitting(new NodePos(parent, next, pos + 1, index), wrapText!.type))
           }
           pos += next.length
@@ -196,7 +196,7 @@ export function joinBlocks(before: NodePos, after: NodePos): ChangeSpec[] {
     for (let i = dAfter - dBefore, level = after, atEnd = true; i > 0; i--, level = level.parent!) {
       if (level.nextSibling) atEnd = false
       if (atEnd) end++
-      else tokensAfter.push(new OpenToken(level.parent!.node.tag))
+      else tokensAfter.push(level.parent!.node.tag)
     }
   }
   if (tokensAfter.length || end > posAfter)

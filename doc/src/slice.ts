@@ -2,20 +2,6 @@ import {TokenType, Node, NodeJSON, TagJSON, Tag} from "./node"
 import {Schema} from "./schema"
 import {Walker} from "./pos"
 
-export class OpenToken {
-  readonly tag: Tag
-
-  constructor(tag: Tag<any>) { // FIXME only put tag/props in here?
-    if (tag.isLeaf()) throw new Error("Cannot create an opening token for a leaf node")
-    this.tag = tag
-  }
-
-  get tokenType(): TokenType.Open { return TokenType.Open }
-
-  /// @internal
-  toString() { return `OPEN(${this.tag.name})` }
-}
-
 export type CloseToken = {tokenType: TokenType.Close}
 
 export const CloseToken = {
@@ -24,7 +10,7 @@ export const CloseToken = {
   toString() { return "CLOSE" }
 } as CloseToken
 
-export type Token = Node | OpenToken | CloseToken
+export type Token = Node | Tag | CloseToken
 
 export class Slice {
   readonly length: number
@@ -35,13 +21,13 @@ export class Slice {
 
   toJSON(): SliceJSON {
     return this.content.map(e => e.tokenType == TokenType.Node ? {node: e.toJSON()}
-      : e.tokenType == TokenType.Open ? {open: e.tag.toJSON()} : {close: true})
+      : e.tokenType == TokenType.Open ? {open: e.toJSON()} : {close: true})
   }
 
   static fromJSON(schema: Schema, json: SliceJSON) {
     if (!Array.isArray(json)) throw new Error("Invalid slice JSON")
     return new Slice(json.map(value => {
-      if (value.open) return new OpenToken(schema.tagFromJSON(value.open))
+      if (value.open) return schema.tagFromJSON(value.open)
       if (value.close) return CloseToken
       if (value.node) return schema.nodeFromJSON(value.node)
       throw new Error("Invalid slice JSON")
@@ -57,7 +43,7 @@ export class Slice {
       } else if (a.tokenType == TokenType.Node) {
         if (!((b.tokenType == TokenType.Node) && a.eq(b))) return false
       } else if (a.tokenType == TokenType.Open) {
-        if (!((b.tokenType == TokenType.Open) && a.tag.eq(b.tag))) return false
+        if (!((b.tokenType == TokenType.Open) && a.eq(b))) return false
       }
     }
     return true
@@ -65,7 +51,7 @@ export class Slice {
 
   run(track: Walker) {
     for (let elt of this.content) {
-      if (elt.tokenType == TokenType.Open) track.enter(elt.tag)
+      if (elt.tokenType == TokenType.Open) track.enter(elt)
       else if (elt.tokenType == TokenType.Node) track.skip(elt)
       else track.leave()
     }
@@ -104,7 +90,7 @@ export class Slice {
   validate(schema: Schema) {
     for (let tok of this.content) {
       if (tok.tokenType == TokenType.Node) schema.validate(tok)
-      else if (tok.tokenType == TokenType.Open) schema.validateTag(tok.tag)
+      else if (tok.tokenType == TokenType.Open) schema.validateTag(tok)
     }
   }
 

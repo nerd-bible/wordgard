@@ -115,7 +115,7 @@ function flattenSlice(
         if (openProp) tag = tag.addProp(openProp.of("start"))
         result = [{tag, children: result}]
       } else if (tok.tokenType == TokenType.Open) {
-        let content = scan(true), tag = tok.tag
+        let content = scan(true), tag = tok
         if (openProp) tag = tag.addProp(openProp.of("end"))
         result.push({tag, children: content})
       } else {

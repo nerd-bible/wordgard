@@ -1,5 +1,5 @@
 import ist from "ist"
-import {DocNode, Node, basicBuilders, builder, Prop, PropType, Slice, OpenToken, CloseToken, Token,
+import {DocNode, Node, basicBuilders, builder, Prop, PropType, Slice, CloseToken, Token,
         serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice, OpenSide, ParseOptions,
         Schema, basicSchema, tag} from "@wordgard/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -187,7 +187,7 @@ describe("parseSlice", () => {
   }
 
   it("can parse a simple slice", () => {
-    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", CloseToken, new OpenToken(p().tag), "Two"]), eq)
+    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", CloseToken, p().tag, "Two"]), eq)
   })
 
   it("can parse text at the top level", () => {
@@ -203,7 +203,7 @@ describe("parseSlice", () => {
   })
 
   it("doesn't open leaf nodes", () => {
-    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), new OpenToken(p().tag), "A", br()]), eq)
+    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), p().tag, "A", br()]), eq)
   })
 
   function isOpen(elt: HTMLElement) {
@@ -212,6 +212,6 @@ describe("parseSlice", () => {
 
   it("can query the DOM for open structure", () => {
     ist(parse('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}).slice,
-        slice([new OpenToken(p().tag), "hi"]), eq)
+        slice([p().tag, "hi"]), eq)
   })
 })

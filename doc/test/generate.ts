@@ -1,5 +1,5 @@
 import {Node, Tag, Prop, DocNode, TextNode, PropType,
-        Slice, Token, OpenToken, CloseToken, ChangeSet,
+        Slice, Token, CloseToken, ChangeSet,
         basicBuilders, ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "@wordgard/doc"
@@ -11,7 +11,7 @@ export const Comment = PropType.define<readonly number[]>("Comment", {
   dom: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
 
-export function open(node: Node) { return new OpenToken(node.tag) }
+export function open(node: Node) { return node.tag }
 export const close = CloseToken
 
 export function slice(...tokens: (Token | string)[]) {

@@ -1,4 +1,4 @@
-import {Slice, OpenToken, Token, CloseToken} from "./slice"
+import {Slice, Token, CloseToken} from "./slice"
 import {TagSpec} from "./spec"
 import {ElementShape, StructureShape, isStructureShape} from "./shape"
 import {Schema} from "./schema"
@@ -205,6 +205,8 @@ export class Tag<Param = unknown> {
   isAtom() { return this.type.isAtom() }
   isDoc() { return this.type.isDoc() }
 
+  get tokenType(): TokenType.Open { return TokenType.Open }
+
   toJSON(): TagJSON {
     let result: TagJSON = {type: this.name}
     if (this != this.type.default && !this.isDoc()) result.param = this.param
@@ -278,7 +280,7 @@ export class Node {
         content.push(this)
         return
       }
-      content.push(new OpenToken(this.tag))
+      content.push(this.tag)
     }
     sliceContent(content, this.children, from - 1, to - 1)
     if (to >= this.length) content.push(CloseToken)

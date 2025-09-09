@@ -1,7 +1,7 @@
 import {EditorView, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
-import {DocNode, Tag, basicBuilders, CodeBlock, Slice, OpenToken, Node,
+import {DocNode, Tag, basicBuilders, CodeBlock, Slice, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image} from "@wordgard/doc"
 import ist from "ist"
 
@@ -71,7 +71,7 @@ describe("DocTile", () => {
   })
 
   it("can update for a tag change", () => {
-    let node = update(render(doc(p("a"))), {changes: {from: 0, to: 1, insert: new Slice([new OpenToken(CodeBlock)])}})
+    let node = update(render(doc(p("a"))), {changes: {from: 0, to: 1, insert: new Slice([CodeBlock])}})
     ist(node.dom.innerHTML, "<pre>a</pre>")
   })
 
