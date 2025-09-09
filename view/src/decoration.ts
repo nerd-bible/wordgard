@@ -1,9 +1,58 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
-import {Prop} from "@wordgard/doc"
-import {Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
-        ElementRepresentation, AttributeRepresentation, StructureRepresentation} from "@wordgard/doc"
-import {Elt, Widget, WidgetType, TextWidget, pushAttribute, mergeAttributes, readAttributes, noAttributes, noChildren, Shape} from "./shape"
+import {Prop, Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
+        ElementShape, AttributeShape, Elt, isStructureShape, Attributes, pushAttribute,
+        mergeAttributes, readAttributes, noAttributes, noChildren} from "@wordgard/doc"
 import {Attrs} from "./attributes"
+
+export type WidgetSpec<T> = {
+  render: (value: T) => HTMLElement | Text
+  eq?: (a: T, b: T) => boolean
+}
+
+export class WidgetType<T> {
+  render: (value: T) => HTMLElement | Text
+  eq: (a: T, b: T) => boolean
+
+  constructor(spec: WidgetSpec<T>) {
+    this.render = spec.render
+    this.eq = spec.eq || ((a, b) => a === b)
+  }
+
+  of(value: T) { return new Widget(this, value) }
+}
+
+export class Widget<T> {
+  constructor(readonly type: WidgetType<T>, readonly value: T) {}
+
+  eq(other: any) {
+    return other instanceof Widget && other.type == this.type && this.type.eq(this.value, other.value)
+  }
+
+  static define<T>(spec: WidgetSpec<T>) {
+    return new WidgetType(spec)
+  }
+
+  static create(spec: WidgetSpec<null>) {
+    return new WidgetType<null>(spec).of(null)
+  }
+
+  get hasContent() { return false }
+}
+
+export const TextWidget = Widget.define<string>({
+  render: s => document.createTextNode(s)
+})
+
+export type DecoElt = Elt<Widget<any> | string>
+
+export type Shape = Widget<any> | DecoElt
+
+export class Wrapper { // FIXME just use elt instances?
+  constructor(
+    readonly tagName: string | null,
+    readonly attrs: Attributes
+  ) {}
+}
 
 // FIXME support some kind of dependency tracking on decoration
 // sources
@@ -58,41 +107,19 @@ function memo<T>(f: (tag: Tag<any>) => T) {
   }
 }
 
-function renderStructure<T>(repr: StructureRepresentation<T>, param: T) {
-  let tag = typeof repr[0] == "function" ? repr[0](param) : repr[0], attrs: Attrs | undefined
-  let children: Shape[] = [], hole = false
-  for (let i = 1; i < repr.length; i++) {
-    let val = repr[i]
-    if (typeof val == "function") {
-      val = val(param)
-      if (Array.isArray(val)) throw new Error("Dynamic parts of a structure representation may not return arrays")
-    }
-    if (i == 1 && typeof val == "object" && !Array.isArray(val)) {
-      attrs = val
-    } else if (typeof val == "string") {
-      children.push(TextWidget.of(val))
-    } else if (val === 0) {
-      hole = true
-    } else if (Array.isArray(val)) {
-      children.push(renderStructure(val, param))
-    }
-  }
-  return new Elt(tag, attrs ? readAttributes(attrs) : noAttributes, hole ? null : children)
-}
-
 const tagShape = memo((tag: Tag<unknown>): Shape => {
-  let {repr} = tag.type, elt: Widget<any> | Elt | undefined
+  let {repr} = tag.type, elt: Widget<any> | DecoElt | undefined
   if (tag.isText()) {
     elt = TextWidget.of(tag.param)
-  } else if (Array.isArray(repr)) {
-    elt = renderStructure(repr, tag.param)
+  } else if (isStructureShape(repr)) {
+    elt = typeof repr.structure == "function" ? repr.structure(tag.param) : repr.structure
   } else {
     let attrs = repr.attributes && typeof repr.attributes == "function" ? repr.attributes(tag.param) : repr.attributes
     elt = new Elt(repr.element, attrs ? readAttributes(attrs) : noAttributes, tag.isAtom() ? noChildren : null)
   }
   let attrs: string[] | undefined
   for (let prop of tag.props) if (!prop.type.element) {
-    let repr = prop.type.repr as AttributeRepresentation<any>
+    let repr = prop.type.repr as AttributeShape<any>
     let value = repr.value == null ? String(prop.value) : typeof repr.value == "string" ? repr.value : repr.value(prop.value)
     if (value != null)
       pushAttribute(attrs || (attrs = []), repr.attribute, value)
@@ -123,7 +150,7 @@ export const tagWidgets = Facet.define<TagWidgetSource>()
 
 export class TagWrapperSource {
   tag: (tag: Tag) => boolean
-  wrapper: (tag: Tag) => Elt
+  wrapper: (tag: Tag) => DecoElt
   rank: number
   spanning: boolean
   extension: Extension
@@ -132,7 +159,7 @@ export class TagWrapperSource {
     this.tag = tagPredicate(tag)
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
-      let elt = new Elt(element, readAttributes(attributes), null)
+      let elt = new Elt<never>(element, readAttributes(attributes), null)
       this.wrapper = () => elt
     } else {
       this.wrapper = memo(tag => new Elt(deco.element, readAttributes(attributes(tag)), null))
@@ -171,7 +198,7 @@ export enum DecorationScope {
 export class RangeDecorationSource<T> {
   tag: (tag: Tag) => boolean
   scope: DecorationScope
-  wrapper: ((value: T) => Elt) | null = null
+  wrapper: ((value: T) => DecoElt) | null = null
   rank: number = 0
   spanning: boolean = false
   attr: AttributeDeco<T> | null = null
@@ -195,7 +222,7 @@ export class RangeDecorationSource<T> {
       if (typeof attributes == "function") {
         this.wrapper = (value: T) => new Elt(element, readAttributes(attributes(value)), null)
       } else {
-        let elt = new Elt(element, readAttributes(attributes), null)
+        let elt = new Elt<never>(element, readAttributes(attributes), null)
         this.wrapper = () => elt
       }
     } else {
@@ -716,7 +743,7 @@ function addSection(sections: number[], len: number, ins: number) {
 }
 
 export interface DecoWalker {
-  enter(tag: Tag, shape: Elt, wrappers: readonly WrapperSource[]): void
+  enter(tag: Tag, shape: DecoElt, wrappers: readonly WrapperSource[]): void
   leave(): void
   node(node: Node, shape: Shape, wrappers: readonly WrapperSource[]): void
   widget(widget: Widget<any>, side: number): void
@@ -865,7 +892,7 @@ function tagScope(tag: Tag): DecorationScope {
     (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
 }
 
-export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
+export function renderWrapper(src: WrapperSource, tag: Tag): DecoElt {
   if (src instanceof TagWrapperSource) return src.wrapper(tag)
   if (src instanceof RangeIterator) return src.source.wrapper!(src.value)
   return renderPropWrapper(src)
@@ -873,9 +900,9 @@ export function renderWrapper(src: WrapperSource, tag: Tag): Elt {
 
 export function renderPropWrapper(prop: Prop<any>) {
   // FIXME memoize this
-  let repr = prop.type.repr as ElementRepresentation<any>
+  let repr = prop.type.repr as ElementShape<any>
   let attrs = readAttributes(typeof repr.attributes == "function" ? repr.attributes(prop.value) : repr.attributes)
-  return new Elt(repr.element, attrs, null)
+  return new Elt<never>(repr.element, attrs, null)
 }
 
 export class DecoIterator {
@@ -921,7 +948,7 @@ export class DecoIterator {
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
         let shape = this.tagShape(node.tag, iter.active)
-        if (shape.hasHole) throw new Error("Shouldn't be skipping a non-leaf node " + node)
+        if (shape.hasContent) throw new Error("Shouldn't be skipping a non-leaf node " + node)
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
@@ -930,11 +957,11 @@ export class DecoIterator {
         else started = true
         let shape = this.tagShape(tag, iter.active), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
         if (tag.isAtom()) {
-          if (shape.hasHole) throw new Error(`Shape for atom ${tag.name} has a hole`)
+          if (shape.hasContent) throw new Error(`Shape for atom ${tag.name} has a hole`)
           walker.node(node!, shape, wrappers)
         } else {
-          if (!shape.hasHole) throw new Error(`Shape for tag ${tag.name} does not have a hole`)
-          walker.enter(tag, shape as Elt, wrappers)
+          if (!shape.hasContent) throw new Error(`Shape for tag ${tag.name} does not have a hole`)
+          walker.enter(tag, shape as DecoElt, wrappers)
         }
         this.widgets(tag, WidgetPlace.Start, walker)
         return !tag.isAtom()

@@ -60,6 +60,23 @@ export function sameAttributes(a: Attributes, b: Attributes) {
   return true
 }
 
+export function compareAttributes(a: Attributes, b: Attributes) {
+  for (let iA = 0, iB = 0, score = 0;;) {
+    if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
+      if (a[iA + 1] != b[iB + 1]) score--
+      iA += 2; iB += 2
+    } else if (iA < a.length && (iB == b.length || a[iA] < b[iB])) {
+      score--
+      iA += 2
+    } else if (iB < b.length && iA < a.length) {
+      score--
+      iB += 2
+    } else {
+      return score
+    }
+  }
+}
+
 // Combine two attribute sets, with b having higher precedence when
 // they set the same attribute.
 export function mergeAttributes(a: Attributes, b: Attributes) {
@@ -150,5 +167,16 @@ export function isAttributeShape<T>(
 export function isStructureShape<T>(
   repr: AttributeShape<T> | ElementShape<T> | StructureShape<T>
 ): repr is StructureShape<T> {
-  return Array.isArray(repr)
+  return (repr as StructureShape<any>).structure != null
+}
+
+export function structureHasContent(repr: StructureShape<any>) {
+  if (typeof repr.structure == "function") {
+    if (repr.atom == null) throw new Error("Dynamic structure shape must provide an `atom` field")
+    return !repr.atom
+  }
+  let content = repr.structure.hasContent
+  if (repr.atom != null && !repr.atom != content)
+    throw new Error("Disagreement between `atom` and `structure` field")
+  return content
 }

@@ -2,7 +2,7 @@ import {EditorView, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, Tag, basicBuilders, CodeBlock, Slice, Node,
-        Emphasis, Strong, ImageAlt, Paragraph, Image} from "@wordgard/doc"
+        Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "@wordgard/doc"
 import ist from "ist"
 
 const {DocTile} = EditorView
@@ -48,7 +48,9 @@ describe("DocTile", () => {
     let FancyBlock = Tag.defineBlock("FancyBlock", {
       group: "Block",
       inlineContent: "Inline",
-      dom: ["div", {class: "c"}, ["span", "before"], ["span", {class: "content"}, 0], ["span", "after"]]
+      dom: {
+        structure: elt({_: "div", class: "c"}, elt("span", "before"), elt({_: "span", class: "content"}, 0), elt("span", "after"))
+      }
     })
     let tile = render(doc(FancyBlock.create([Node.text("!")])), EditorState.validateDoc.of(false))
     ist(tile.dom.innerHTML,

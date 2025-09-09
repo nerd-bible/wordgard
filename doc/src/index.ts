@@ -1,6 +1,7 @@
 export * from "./node"
 export * from "./prop"
 export * from "./schema"
+export * from "./shape"
 export * from "./spec"
 export * from "./change"
 export * from "./pos"

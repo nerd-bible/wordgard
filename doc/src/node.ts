@@ -1,6 +1,6 @@
 import {Slice, Token, CloseToken} from "./slice"
 import {TagSpec} from "./spec"
-import {ElementShape, StructureShape, isStructureShape} from "./shape"
+import {ElementShape, StructureShape, isStructureShape, structureHasContent} from "./shape"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {PropType, Prop} from "./prop"
@@ -57,9 +57,9 @@ export class TagType<Param> {
     this.preserveWhitespace = !!spec.preserveWhitespace
     this.orientation = spec.orientation || "row"
     this.repr = spec.dom
-    if (isStructureShape(this.repr))
-      throw new Error(this.isAtom() ? "Using a structure with a hole for an atom"
-                        : "Using a structure without hole for a non-atomic tag")
+    if (isStructureShape(this.repr) && structureHasContent(this.repr) != !this.isAtom())
+      throw new Error(this.isAtom() ? "Using a structure with a content hole for an atom"
+                        : "Using a structure without content hole for a non-atomic tag")
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
   }
@@ -132,12 +132,12 @@ export class Tag<Param = unknown> {
 
   get name() { return this.type.name }
 
-  static defineInline(name: string, spec: TagSpec<null>) {
+  static defineInline(name: string, spec: TagSpec<null>): Tag<null> {
     checkTagName(name)
     return new TagType<null>(name, flagsFor(spec, true) | TagFlag.NullParam, spec).default!
   }
 
-  static defineBlock(name: string, spec: TagSpec<null>) {
+  static defineBlock(name: string, spec: TagSpec<null>): Tag<null> {
     checkTagName(name)
     return new TagType<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
   }

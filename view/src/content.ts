@@ -1,9 +1,9 @@
-import {Node as WGNode, Tag, ChangeDesc} from "@wordgard/doc"
+import {Node as WGNode, Tag, ChangeDesc, compareAttributes, Elt, Attributes,
+        pushAttribute, noAttributes} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
-import {DecoIterator, findChangedRanges, WrapperSource, renderWrapper, renderPropWrapper} from "./decoration"
+import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
+        renderWrapper, renderPropWrapper} from "./decoration"
 import {type CompositionInfo} from "./input"
-import {Shape, takeAttributes, Elt, Widget} from "./shape"
-import {compareAttributes, Attributes} from "./shape"
 
 const LOG_update = false
 
@@ -303,7 +303,7 @@ export class EltTile extends CompositeTile {
   declare dom: HTMLElement
   declare parent: CompositeTile
 
-  constructor(readonly elt: Elt, readonly tag: Tag | null, flags: number, length: number, dom: HTMLElement) {
+  constructor(readonly elt: DecoElt, readonly tag: Tag | null, flags: number, length: number, dom: HTMLElement) {
     super(dom, flags)
     this.length = length
   }
@@ -322,16 +322,16 @@ export class EltTile extends CompositeTile {
   }
 
   get contentTile(): EltTile | null {
-    for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasHole) return (ch as EltTile).contentTile
-    return this.elt.hasHole ? this : null
+    for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasContent) return (ch as EltTile).contentTile
+    return this.elt.hasContent ? this : null
   }
 
-  static of(elt: Elt, tag: Tag | null, flags: number, length: number, dom?: HTMLElement | null) {
+  static of(elt: DecoElt, tag: Tag | null, flags: number, length: number, dom?: HTMLElement | null) {
     return new EltTile(elt, tag, flags, length, dom || eltDOM(elt))
   }
 }
 
-function eltDOM(elt: Elt) {
+function eltDOM(elt: DecoElt) {
   let dom = document.createElement(elt.tagName)
   for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
   return dom
@@ -390,9 +390,10 @@ export class TextTile extends Tile {
 function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   if (shape instanceof Elt) {
     let outer = EltTile.of(shape, node && node.tag,
-                           (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasHole ? TileFlag.Point : 0),
+                           (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasContent ? TileFlag.Point : 0),
                            node ? node.length : 0)
-    if (shape.children) for (let child of shape.children) outer.addChild(buildFromShape(child, null, nodeInner || !!node))
+    if (shape.children) for (let child of shape.children)
+      outer.addChild(buildFromShape(typeof child == "string" ? TextWidget.of(child) : child, null, nodeInner || !!node))
     return outer
   } else {
     return new WidgetTile(shape, node, nodeInner ? TileFlag.Point | TileFlag.NodeInner : 0 as TileFlag, node ? node.length : 0)
@@ -401,7 +402,7 @@ function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
 
 function copyEltShape(tile: EltTile, tag: Tag | null): EltTile {
   let outer = EltTile.of(tile.elt, tag, tile.flags, tile.length, tile.dom)
-  if (!tile.elt.hasHole) {
+  if (!tile.elt.hasContent) {
     for (let ch of tile.children) outer.addChild(copyShape(ch as EltTile | WidgetTile))
   }
   return outer
@@ -490,7 +491,7 @@ class TilePointer {
     return index < tile.children.length ? tile.children[index] : null
   }
 
-  matchingWrapper(elt: Elt, spanning: boolean, reused: Set<HTMLElement | Text>) {
+  matchingWrapper(elt: DecoElt, spanning: boolean, reused: Set<HTMLElement | Text>) {
     let best: EltTile | undefined, bestScore = 0
     let start = this.tile.isText ? this.parent! : this
     for (let {tile, parent} = start; !(tile.isNode || tile.isDoc); {tile, parent} = parent!) {
@@ -602,7 +603,7 @@ class ContentUpdate {
     for (let parent = composition.target.parentNode; parent; parent = parent.parentNode) {
       let tile = parent.wgTile
       if (!tile) {
-        let elt = new Elt(parent.nodeName.toLowerCase(), takeAttributes(parent as HTMLElement), null)
+        let elt = new Elt<never>(parent.nodeName.toLowerCase(), takeAttributes(parent as HTMLElement), null)
         tile = new EltTile(elt, null, 0, 0, parent as HTMLElement)
       } else if (tile.isNode || tile.isDoc) {
         break
@@ -648,7 +649,8 @@ class ContentUpdate {
         }
         if (!tile) {
           tile = EltTile.of(elt, tag, 0, 2)
-          if (elt.children) for (let ch of elt.children) tile.addChild(buildFromShape(ch, null, true))
+          if (elt.children) for (let ch of elt.children)
+            tile.addChild(buildFromShape(typeof ch == "string" ? TextWidget.of(ch) : ch, null, true))
         }
         this.new.addChild(tile)
         this.new = tile.contentTile!
@@ -751,7 +753,7 @@ class ContentUpdate {
     }
   }
 
-  openWrapper(elt: Elt, spanning: boolean, reuse: boolean) {
+  openWrapper(elt: DecoElt, spanning: boolean, reuse: boolean) {
     let span = spanning && this.enterSpanning(elt)
     if (span) {
       this.new = span
@@ -763,7 +765,7 @@ class ContentUpdate {
     }
   }
 
-  enterSpanning(elt: Elt) {
+  enterSpanning(elt: DecoElt) {
     let cur = this.new
     for (let i = cur.children.length - 1; i >= 0; i--) {
       let prev = cur.children[i] as EltTile
@@ -802,6 +804,15 @@ class ContentUpdate {
     while (!(this.new instanceof DocTile)) this.up()
     return this.new
   }
+}
+
+function takeAttributes(elt: HTMLElement): Attributes {
+  let attrs: string[] = []
+  for (let i = 0; i < elt.attributes.length; i++) {
+    let {name, value} = elt.attributes[i]
+    pushAttribute(attrs, name, value)
+  }
+  return attrs.length ? attrs : noAttributes
 }
 
 function updateAttributes(dom: HTMLElement, a: Attributes, b: Attributes) {

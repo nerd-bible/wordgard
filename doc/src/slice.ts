@@ -10,7 +10,7 @@ export const CloseToken = {
   toString() { return "CLOSE" }
 } as CloseToken
 
-export type Token = Node | Tag | CloseToken
+export type Token = Node | Tag<any> | CloseToken
 
 export class Slice {
   readonly length: number

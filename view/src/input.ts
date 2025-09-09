@@ -1,7 +1,6 @@
 import {EditorSelection, EditorState} from "@wordgard/state"
 import {Slice, Node, ChangeSet, Prop} from "@wordgard/doc"
 import {EditorView} from "./editorview"
-import {eqArray} from "./shape"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
 import browser from "./browser"
@@ -573,6 +572,12 @@ observers.focus = view => {
 
 observers.blur = view => {
   view.observer.clearSelectionRange()
+}
+
+function eqArray<T extends {eq(b: T): boolean}>(a: readonly T[], b: readonly T[]) {
+  if (a.length != b.length) return false
+  for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
+  return true
 }
 
 observers.compositionstart = observers.compositionupdate = (view, event: CompositionEvent) => {

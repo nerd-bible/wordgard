@@ -1,7 +1,12 @@
-import {Slice, Text, Node, Pos, serializeSlice, parseSlice,
+import {Slice, Text, Node, PropType, Pos, serializeSlice, parseSlice,
         OpenSide, Token, CloseToken} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import browser from "./browser"
+
+const openProp = PropType.define<string>("Open", {
+  dom: {attribute: "wg-open"},
+  tags: "*"
+})
 
 export function writeClipboard(state: EditorState, slice: Slice, data: DataTransfer) {
   // FIXME clipboard output transform facet
@@ -9,9 +14,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   let doc = detachedDoc(), dom = serializeSlice(slice, {
     document: doc,
     schema: state.doc.schema,
-    markOpen: (elt, open) => {
-      elt.setAttribute("wg-open", open == OpenSide.Start ? "start" : open == OpenSide.End ? "end" : "start end")
-    }
+    openProp
   })
 
   let needsWrap, wrappers = 0

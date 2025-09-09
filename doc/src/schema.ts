@@ -182,7 +182,7 @@ export const Heading = TagType.defineBlock("Heading", {
   validateParam: "number",
   inlineContent: true,
   group: "Block",
-  dom: {structure: level => elt("h" + level, 0)},
+  dom: {structure: level => elt("h" + level, 0), atom: false},
   defining: true,
   parseRules: [
     {selector: "h1", param: 1},
