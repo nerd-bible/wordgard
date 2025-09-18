@@ -1,5 +1,5 @@
 import {EditorView, tagDecoration, Widget, PointSet, WidgetSource,
-        RangeSet, RangeDecorationSource} from "@wordgard/view"
+        RangeSet, RangeDecorationSource, ShapeSource} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, Tag, basicBuilders, CodeBlock, Slice, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "@wordgard/doc"
@@ -340,6 +340,27 @@ describe("DocTile", () => {
         set: () => RangeSet.for<string>().create([[2, 5, "a"]]),
         deco: {attribute: "alt", value: "a test"},
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
+    })
+
+    it("can override a specific leaf node's shape", () => {
+      ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
+        set: () => PointSet.for<string>().create([[3, "x"]]),
+        shape: () => elt("span", "!")
+      })).dom.innerHTML, "<p>ab<span>!</span>cd</p>")
+    })
+
+    it("can override a specific non-leaf node's shape", () => {
+      ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
+        set: () => PointSet.for<string>().create([[0, "x"]]),
+        shape: () => elt("div", 0)
+      })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
+    })
+
+    it("can replace a non-leaf node with an atom shape", () => {
+      ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
+        set: () => PointSet.for<string>().create([[0, "x"]]),
+        shape: () => elt("div", "?")
+      })).dom.innerHTML, "<div>?</div>")
     })
   })
 })

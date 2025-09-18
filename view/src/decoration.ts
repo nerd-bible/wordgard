@@ -110,7 +110,7 @@ function memo<T>(f: (tag: Tag<any>) => T) {
 const tagShape = memo((tag: Tag<unknown>): Shape => {
   let {repr} = tag.type, elt: Widget<any> | DecoElt | undefined
   if (tag.isText()) {
-    elt = TextWidget.of(tag.param)
+    elt = TextWidget.of(tag.param as string)
   } else if (isStructureShape(repr)) {
     elt = typeof repr.structure == "function" ? repr.structure(tag.param) : repr.structure
   } else {
@@ -256,7 +256,25 @@ export class WidgetSource<T> {
 
 export const widgets = Facet.define<WidgetSource<any>>()
 
-export const noAttrs: Record<string, string> = {}
+// FIXME enforce the point set having side=0
+// FIXME consider support for an assertion predicate that checks the target node
+export class ShapeSource<T> {
+  set: (state: EditorState) => PointSet<T>
+  shape: (value: T) => Shape
+  extension: Extension
+
+  constructor(config: {
+    set: (state: EditorState) => PointSet<T>,
+    // FIXME document that this must not be expensive
+    shape: (value: T) => Shape
+  }) {
+    this.set = config.set
+    this.shape = config.shape
+    this.extension = shapeSources.of(this)
+  }
+}
+
+export const shapeSources = Facet.define<ShapeSource<any>>()
 
 function findAbove(array: readonly number[], start: number, n: number) {
   let from = start, to = array.length
@@ -380,10 +398,8 @@ export class PointSet<Value> {
     return ranges
   }
 
-  iter(this: Value extends Widget<any> ? this : never): PointIterator<Value>
-  iter(get: (value: Value) => Widget<any>): PointIterator<Value>
-  iter(get?: (value: Value) => Widget<any>): PointIterator<Value> {
-    return new PointIterator<Value>(this, get || (x => x as Widget<any>))
+  iter<Source>(src: Source): PointIterator<Value, Source> {
+    return new PointIterator<Value, Source>(this, src)
   }
 
   static for<Value>(ops: {
@@ -391,7 +407,7 @@ export class PointSet<Value> {
     eq?: (a: Value, b: Value) => boolean
   } = {}) {
     let {side, eq} = ops
-    if (side == null) side = 1
+    if (side == null) side = 1 // FIXME consider whether +1e9 is a better default, for use in shape sources
     return new PointSetType<Value>(typeof side == "number" ? () => side : side, eq || ((a, b) => a === b))
   }
 }
@@ -413,13 +429,13 @@ export class PointBuilder<Value> {
   finish(side = 0) { return new PointSet(this.positions, this.values, this.type) }
 }
 
-export class PointIterator<Value> {
+export class PointIterator<Value, Source> {
   declare value: Value | null
   done = false
   declare pos: number
   declare i: number
 
-  constructor(readonly set: PointSet<Value>, readonly get: (value: Value) => Widget<any>) {
+  constructor(readonly set: PointSet<Value>, readonly source: Source) {
     this.fill(0)
   }
 
@@ -705,8 +721,11 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
       let add = (ranges: number[]) => { if (ranges.length) local.push(ranges) }
       compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, change, rangeDecorations,
                                                               posA, posB, len, add)
-      compareFacet<PointSet<any>, WidgetSource<any>>(prev, state,change, widgets,
+      compareFacet<PointSet<any>, WidgetSource<any>>(prev, state, change, widgets,
                                                      posA, posB, len, add)
+      // FIXME somehow handle changes in atomicity by making them cover the entire node
+      compareFacet<PointSet<any>, ShapeSource<any>>(prev, state, change, shapeSources,
+                                                    posA, posB, len, add)
       let joined = joinRanges(local), pos = posB, end = pos + len
       for (let i = 0; i < joined.length;) {
         let from = Math.max(pos, joined[i++]), to = Math.min(end, joined[i++])
@@ -749,15 +768,15 @@ export interface DecoWalker {
   widget(widget: Widget<any>, side: number): void
 }
 
-class HeapIterator<R, RS, P> {
+class HeapIterator<R, RS, P, PS> {
   active: RangeIterator<R, RS>[] = []
   from: number
   to: number
-  point: PointIterator<P> | null = null
+  point: PointIterator<P, PS> | null = null
   done = false
 
   constructor(readonly rangeHeap: RangeIterator<R, RS>[],
-              readonly pointHeap: PointIterator<P>[],
+              readonly pointHeap: PointIterator<P, PS>[],
               start: number,
               readonly end: number) {
     for (let i = rangeHeap.length >> 1; i >= 0; i--) bubble(rangeHeap, i, cmpRangeFrom)
@@ -851,7 +870,7 @@ function cmpRangeTo(a: RangeIterator<any, any>, b: RangeIterator<any, any>) {
   return a.to - b.to || a.value!.inclusiveEnd - b.value!.inclusiveEnd
 }
 
-function cmpPoint(a: PointIterator<any>, b: PointIterator<any>) {
+function cmpPoint(a: PointIterator<any, any>, b: PointIterator<any, any>) {
   return a.pos - b.pos || a.side - b.side
 }
 
@@ -911,7 +930,7 @@ export class DecoIterator {
   globalAttrs: readonly TagAttributeSource[]
   pos: Pos
   rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
-  pointIter: PointIterator<any>[] = []
+  pointIter: PointIterator<any, WidgetSource<any> | ShapeSource<any>>[] = []
   
   constructor(readonly state: EditorState) {
     this.globalWidgets = state.facet(tagWidgets)
@@ -924,7 +943,11 @@ export class DecoIterator {
     }
     for (let s of state.facet(widgets)) {
       let set = s.set(state)
-      if (set.length) this.pointIter.push(set.iter(s.widget))
+      if (set.length) this.pointIter.push(set.iter(s))
+    }
+    for (let s of state.facet(shapeSources)) {
+      let set = s.set(state)
+      if (set.length) this.pointIter.push(set.iter(s))
     }
   }
 
@@ -940,31 +963,43 @@ export class DecoIterator {
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
-    let iter = new HeapIterator<any, RangeDecorationSource<any>, any>(this.rangeIter, this.pointIter, from, to)
+    let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any> | ShapeSource<any>>(
+      this.rangeIter, this.pointIter, from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
+    let pendingShape: ShapeSource<any> | undefined, pendingShapePos = -1, pendingShapeValue: any
+
     let wrap: Walker = {
-      skip: node => { // Only done for leaf nodes.
+      skip: (node, pos) => { // Only done for leaf nodes.
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
-        let shape = this.tagShape(node.tag, iter.active)
-        if (shape.hasContent) throw new Error("Shouldn't be skipping a non-leaf node " + node)
+        let shape
+        if (pendingShape && pendingShapePos == pos) {
+          shape = pendingShape.shape(pendingShapeValue)
+          pendingShape = undefined
+        } else {
+          shape = this.tagShape(node.tag, iter.active)
+        }
+        if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
-      enter: (tag, node) => {
+      enter: (tag, pos, node) => {
         if (started) this.widgets(tag, WidgetPlace.Before, walker)
         else started = true
-        let shape = this.tagShape(tag, iter.active), wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
-        if (tag.isAtom()) {
-          if (shape.hasContent) throw new Error(`Shape for atom ${tag.name} has a hole`)
-          walker.node(node!, shape, wrappers)
-        } else {
-          if (!shape.hasContent) throw new Error(`Shape for tag ${tag.name} does not have a hole`)
-          walker.enter(tag, shape as DecoElt, wrappers)
+        let shape
+        if (pendingShape && pendingShapePos == pos) {
+          shape = pendingShape.shape(pendingShapeValue)
+          pendingShape = undefined
+        } else { // FIXME tag shape decorations
+          shape = this.tagShape(tag, iter.active)
         }
+        let wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
+        let atom = !shape.hasContent
+        if (atom) walker.node(node!, shape, wrappers)
+        else walker.enter(tag, shape as DecoElt, wrappers)
         this.widgets(tag, WidgetPlace.Start, walker)
-        return !tag.isAtom()
+        return !atom
       },
       leave: tag => {
         if (started) this.widgets(tag!, WidgetPlace.End, walker)
@@ -982,7 +1017,15 @@ export class DecoIterator {
 
     for (; !iter.next().done;) {
       if (iter.point) {
-        walker.widget(iter.point.get(iter.point.value!), iter.point.side)
+        let {source, value} = iter.point
+        if (source instanceof WidgetSource) {
+          walker.widget(source.widget(value!), iter.point.side)
+        } else if (pendingShapePos < pos.pos || !pendingShape ||
+                   comparePrec(pendingShape, source, this.state.facet(shapeSources)) < 0) {
+          pendingShape = source
+          pendingShapePos = pos.pos
+          pendingShapeValue = value
+        }
       } else {
         pos = pos.walk(iter.to - iter.from, wrap)
       }
@@ -994,7 +1037,6 @@ export class DecoIterator {
     else this.widgets(pos.parent.node.tag, WidgetPlace.End, walker)
     this.pos = pos
   }
-
 
   tagShape(tag: Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape = tagShape(tag)
@@ -1014,4 +1056,12 @@ export class DecoIterator {
     }
     return shape
   }
+}
+
+function comparePrec<T>(a: T, b: T, facet: readonly T[]) {
+  if (a !== b) for (let elt of facet) {
+    if (a === elt) return -1
+    if (b === elt) return 1
+  }
+  return 0
 }

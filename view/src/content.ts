@@ -20,6 +20,7 @@ export const enum TileFlag {
   PointSide = PointBefore | PointAfter,
   Composition = 32,
   Synced = 64,
+  Atom = 128, // Composite node whose length isn't determined by child length
 }
 
 export class ContentPos {
@@ -154,7 +155,7 @@ export class CompositeTile extends Tile {
       ch.sync()
       len += ch.length
     }
-    this.length = len
+    if (!(this.flags & TileFlag.Atom)) this.length = len
     this.syncChildren()
   }
 
@@ -316,11 +317,6 @@ export class EltTile extends CompositeTile {
 
   get boundary() { return this.tag && !this.tag.isAtom() ? 1 : 0 }
 
-  sync() {
-    if (this.tag && this.tag.isAtom()) this.flags |= TileFlag.Synced
-    else super.sync()
-  }
-
   get contentTile(): EltTile | null {
     for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasContent) return (ch as EltTile).contentTile
     return this.elt.hasContent ? this : null
@@ -354,6 +350,8 @@ export class WidgetTile extends Tile {
   get isAtom() { return true }
 
   get children() { return noChildren }
+
+  toString() { return this.widget.type == TextWidget ? JSON.stringify(this.widget.value) : super.toString() }
 }
 
 export class TextTile extends Tile {
@@ -390,7 +388,8 @@ export class TextTile extends Tile {
 function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   if (shape instanceof Elt) {
     let outer = EltTile.of(shape, node && node.tag,
-                           (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasContent ? TileFlag.Point : 0),
+                           (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasContent ? TileFlag.Point : 0) |
+                             (node && shape.hasContent ? 0 : TileFlag.Atom),
                            node ? node.length : 0)
     if (shape.children) for (let child of shape.children)
       outer.addChild(buildFromShape(typeof child == "string" ? TextWidget.of(child) : child, null, nodeInner || !!node))

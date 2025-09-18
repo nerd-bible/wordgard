@@ -20,6 +20,7 @@ export type TagSpec<Param> = {
   validateParam?: string | ((param: Param) => void)
   group?: string
   toText?: (node: Node) => string
+  // FIXME call this shape? repr?
   dom: ElementShape<Param> | StructureShape<Param>
   parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean

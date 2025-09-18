@@ -111,7 +111,7 @@ export class TagType<Param> {
 
   // FIXME make these getters and find some other way to make text accessible?
   isInline() { return (this.flags & TagFlag.Inline) > 0 }
-  isText(): this is TagType<string> { return (this.flags & TagFlag.Text) > 0 }
+  isText() { return (this.flags & TagFlag.Text) > 0 }
   isBlock() { return (this.flags & TagFlag.Inline) == 0 }
   inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
   isTextblock() { return this.isBlock() && this.inlineContent() }
@@ -197,7 +197,7 @@ export class Tag<Param = unknown> {
   }
 
   isInline() { return this.type.isInline() }
-  isText(): this is Tag<string> { return this.type.isText() } // FIXME this narrowing doesn't work
+  isText() { return this.type.isText() } // FIXME this narrowing doesn't work
   isBlock() { return this.type.isBlock() }
   inlineContent() { return this.type.inlineContent() }
   isTextblock() { return this.type.isTextblock() }

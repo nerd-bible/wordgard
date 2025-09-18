@@ -766,7 +766,7 @@ class ChangeFitter implements Walker {
       this.inputDelta -= counter.count
     }
     this.inserting = true
-    slice.run(this)
+    slice.run(this, this.pos)
     this.inserting = false
 
     if (this.local)

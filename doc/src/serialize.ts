@@ -181,13 +181,13 @@ function serializeNodeInner(node: Nodeish, cx: Context) {
     cx.emitText(node.tag.param)
     if (propAttrs.length) cx.closeElt()
   } else if (isElementShape(repr)) {
-    let attrs = typeof repr.attributes == "function" ? repr.attributes((node.tag as Tag<any>).param) : repr.attributes
+    let attrs = typeof repr.attributes == "function" ? repr.attributes(node.tag.param) : repr.attributes
     let allAttrs = !attrs ? propAttrs : mergeAttributes(readAttributes(attrs), propAttrs)
     cx.openElt(repr.element, allAttrs)
     renderContent(cx)
     cx.closeElt()
   } else {
-    let elt = typeof repr.structure == "function" ? repr.structure((node.tag as Tag<any>).param) : repr.structure
+    let elt = typeof repr.structure == "function" ? repr.structure(node.tag.param) : repr.structure
     if (propAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, propAttrs), elt.children)
     serializeStructure(elt, cx, renderContent)
   }

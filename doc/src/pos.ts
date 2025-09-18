@@ -3,10 +3,10 @@ import {Prop} from "./prop"
 import {none} from "./helper"
 
 export interface Walker {
-  skip(node: Node): void
+  skip(node: Node, pos: number): void
   // FIXME weird interface
-  enter(tag: Tag, node?: Node): void | boolean
-  leave(tag?: Tag): void
+  enter(tag: Tag, pos: number, node?: Node): void | boolean
+  leave(tag: Tag | undefined, pos: number): void
 }
 
 export class Pos {
@@ -175,7 +175,7 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
   if (inText) {
     let text = node.children[index] as TextNode
     let textStart = pos - inText, textEnd = textStart + text.length
-    if (walk) walk.skip(text.cutText(inText, Math.min(text.length, target - textStart)))
+    if (walk) walk.skip(text.cutText(inText, Math.min(text.length, target - textStart)), pos)
     if (target < textEnd)
       return new Pos(parent, target, index, target - textStart)
     pos = textEnd
@@ -184,7 +184,7 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
   while (pos < target) {
     if (index == node.children.length) {
       if (!parent.parent) throw new Error("Moving past end of document")
-      if (walk) walk.leave(node.tag)
+      if (walk) walk.leave(node.tag, pos)
       ;({index, parent} = parent)
       node = parent.node
       index++
@@ -192,13 +192,13 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
     } else {
       let next = node.children[index], end = pos + next.length
       if (target >= end && (!full || next.isLeaf())) {
-        if (walk) walk.skip(next)
+        if (walk) walk.skip(next, pos)
         pos = end
         index++
       } else if (next.isText()) {
-        if (walk) walk.skip(next.cutText(0, target - pos))
+        if (walk) walk.skip(next.cutText(0, target - pos), pos)
         return new Pos(parent, target, index, target - pos)
-      } else if (walk && walk.enter(next.tag, next) == false) {
+      } else if (walk && walk.enter(next.tag, pos, next) == false) {
         pos = end
         index++
       } else {

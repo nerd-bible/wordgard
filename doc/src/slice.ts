@@ -49,11 +49,12 @@ export class Slice {
     return true
   }
 
-  run(track: Walker) {
+  run(track: Walker, startPos = 0) {
+    let pos = startPos
     for (let elt of this.content) {
-      if (elt.tokenType == TokenType.Open) track.enter(elt)
-      else if (elt.tokenType == TokenType.Node) track.skip(elt)
-      else track.leave()
+      if (elt.tokenType == TokenType.Open) track.enter(elt, pos++)
+      else if (elt.tokenType == TokenType.Node) { track.skip(elt, pos); pos += elt.length }
+      else track.leave(undefined, pos++)
     }
   }
 
