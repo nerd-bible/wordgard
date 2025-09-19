@@ -148,7 +148,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   }
   let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
   while (!before.isTextblock()) {
-    if (before.type.isolating || before.isAtom() || !before.isBlock()) return false
+    if (before.type.isolating || state.isAtom(pos - before.length, before) || !before.isBlock()) return false
     let last = before.children.length - 1
     if (last < 0) return false
     parent = before
@@ -184,7 +184,7 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
   }
   let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
   while (!after.isTextblock()) {
-    if (after.type.isolating || after.isAtom() || !after.isBlock()) return false
+    if (after.type.isolating || state.isAtom(pos, after) || !after.isBlock()) return false
     if (!after.children.length) return false
     parent = after
     after = after.children[0]
@@ -232,7 +232,7 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
   let before = scan.node.children[index - 1]
   for (;;) {
     if (before.type.isolating) return false
-    if (before.isAtom()) break
+    if (state.isAtom(pos - before.length, before)) break
     let last = before.children.length - 1
     if (last < 0) return false
     before = before.children[last]
@@ -286,7 +286,7 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   let after = scan.node.children[index]
   for (;;) {
     if (after.type.isolating) return false
-    if (after.isAtom()) break
+    if (state.isAtom(pos, after)) break
     if (!after.children.length) return false
     after = after.children[0]
     pos++

@@ -7,16 +7,16 @@ let Iso = Tag.defineBlock("Iso", {
   blockContent: "Block",
   group: "Block",
   isolating: true,
-  dom: {element: "div"}
+  shape: {element: "div"}
 }), iso = builder(Iso)
 let InlineA = Tag.defineInline("InlineA", {
   inlineContent: true,
-  dom: {element: "span"}
+  shape: {element: "span"}
 }), a = builder(InlineA)
 let InlineB = Tag.defineInline("InlineB", {
   inlineContent: true,
   cursorInsideBounds: true,
-  dom: {element: "span"}
+  shape: {element: "span"}
 }), b = builder(InlineB)
 
 const schema = Schema.define([...basicSchema.tags, ...basicSchema.props, Iso, InlineA, InlineB])

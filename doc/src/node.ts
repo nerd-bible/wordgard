@@ -1,6 +1,6 @@
 import {Slice, Token, CloseToken} from "./slice"
 import {TagSpec} from "./spec"
-import {ElementShape, StructureShape, isStructureShape, structureHasContent} from "./shape"
+import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {PropType, Prop} from "./prop"
@@ -14,9 +14,8 @@ const enum TagFlag {
   InlineContent = 2,
   Text = 4,
   Leaf = 8,
-  Atom = 16,
-  Doc = 32,
-  NullParam = 64
+  Doc = 16,
+  NullParam = 32,
 }
 
 function flagsFor(spec: TagSpec<any>, inline: boolean) {
@@ -24,7 +23,6 @@ function flagsFor(spec: TagSpec<any>, inline: boolean) {
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= TagFlag.InlineContent
   else if (!spec.blockContent) flags |= TagFlag.Leaf
-  if (spec.atom || (flags & TagFlag.Leaf)) flags |= TagFlag.Atom
   else if (inline && spec.blockContent) throw new Error("Inline tags with block content must be marked as atoms")
   return flags
 }
@@ -39,7 +37,7 @@ export class TagType<Param> {
   readonly preserveWhitespace: boolean
   readonly orientation: "row" | "column"
   readonly default: Tag<Param> | null
-  readonly repr: ElementShape<Param> | StructureShape<Param>
+  readonly shape: NodeShape<Param>
 
   constructor(
     readonly name: string,
@@ -56,10 +54,7 @@ export class TagType<Param> {
     this.neutral = spec.neutral ?? !this.defining
     this.preserveWhitespace = !!spec.preserveWhitespace
     this.orientation = spec.orientation || "row"
-    this.repr = spec.dom
-    if (isStructureShape(this.repr) && structureHasContent(this.repr) != !this.isAtom())
-      throw new Error(this.isAtom() ? "Using a structure with a content hole for an atom"
-                        : "Using a structure without content hole for a non-atomic tag")
+    this.shape = NodeShape.from(this, spec.shape)
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
   }
@@ -83,7 +78,7 @@ export class TagType<Param> {
     let mod = group.indexOf(":")
     if (mod > -1) {
       let modName = group.slice(mod + 1)
-      if (modName == "Atom" && !this.isAtom()) return false
+      if (modName == "Leaf" && !this.isLeaf()) return false
       group = group.slice(0, mod)
     }
     return group == "_" || this.groups.includes(group)
@@ -116,7 +111,6 @@ export class TagType<Param> {
   inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
   isTextblock() { return this.isBlock() && this.inlineContent() }
   isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
-  isAtom() { return (this.flags & TagFlag.Atom) > 0 }
   isDoc() { return (this.flags & TagFlag.Doc) > 0 }
 }
 
@@ -148,7 +142,7 @@ export class Tag<Param = unknown> {
     if (spec.inlineContent) flags |= TagFlag.InlineContent
     return new TagType<Schema>("Doc", flags, {
       ...spec,
-      dom: {element: ""}
+      shape: {element: ""}
     })
   }
 
@@ -202,7 +196,6 @@ export class Tag<Param = unknown> {
   inlineContent() { return this.type.inlineContent() }
   isTextblock() { return this.type.isTextblock() }
   isLeaf() { return this.type.isLeaf() }
-  isAtom() { return this.type.isAtom() }
   isDoc() { return this.type.isDoc() }
 
   get tokenType(): TokenType.Open { return TokenType.Open }
@@ -292,7 +285,6 @@ export class Node {
   inlineContent() { return this.tag.inlineContent() }
   isTextblock() { return this.tag.isTextblock() }
   isLeaf() { return this.tag.isLeaf() }
-  isAtom() { return this.tag.isAtom() }
   isDoc() { return this.tag.isDoc() }
 
   iterate(from: number, to: number, f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void) {
@@ -426,8 +418,8 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
   }
 }
 
-export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Atom | TagFlag.Text | TagFlag.Inline, {
-  dom: {element: ""}
+export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Text | TagFlag.Inline, {
+  shape: {element: ""}
 })
 
 // FIXME show values? display differently?

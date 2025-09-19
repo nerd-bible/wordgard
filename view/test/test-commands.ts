@@ -52,7 +52,7 @@ function testSelProps(before: readonly Prop<any>[] | undefined, command: StateCo
 
 let TextOnly = Tag.defineBlock("TextOnly", {
   inlineContent: "Text",
-  dom: {element: "div"},
+  shape: {element: "div"},
   group: "Block"
 }), to = builder(TextOnly)
 
@@ -60,25 +60,24 @@ let BlockProp = Prop.define("BlockProp", {
   keepOnSplit: false,
   keepOnTypeChange: false,
   tags: "Block",
-  dom: {element: "prop1"}
+  shape: {element: "prop1"}
 }), bp = builder(BlockProp)
 
 let PreservedProp = Prop.define("PreservedProp", {
   keepOnSplit: true,
   keepOnTypeChange: true,
   tags: "Block",
-  dom: {element: "prop2"}
+  shape: {element: "prop2"}
 }), pp = builder(PreservedProp)
 
 let InlineSpan = Tag.defineInline("InlineSpan", {
   inlineContent: true,
-  dom: {element: "span"}
+  shape: {element: "span"}
 }), sp = builder(InlineSpan)
 
 let InlineAtom = Tag.defineInline("InlineAtom", {
   inlineContent: true,
-  dom: {element: "var"},
-  atom: true
+  shape: {element: "var", atom: true},
 }), at = builder(InlineAtom)
 
 let schema = Schema.define([...basicSchema.tags, ...basicSchema.props, TextOnly,

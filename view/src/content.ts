@@ -313,9 +313,9 @@ export class EltTile extends CompositeTile {
 
   get isNodeOuter() { return !!this.tag }
 
-  get isAtom() { return !!this.tag && this.tag.isAtom() }
+  get isAtom() { return !!this.tag && (this.flags & TileFlag.Atom) > 0 }
 
-  get boundary() { return this.tag && !this.tag.isAtom() ? 1 : 0 }
+  get boundary() { return this.tag && !(this.flags & TileFlag.Atom) ? 1 : 0 }
 
   get contentTile(): EltTile | null {
     for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasContent) return (ch as EltTile).contentTile
@@ -389,7 +389,7 @@ function buildFromShape(shape: Shape, node: WGNode | null, nodeInner = false) {
   if (shape instanceof Elt) {
     let outer = EltTile.of(shape, node && node.tag,
                            (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasContent ? TileFlag.Point : 0) |
-                             (node && shape.hasContent ? 0 : TileFlag.Atom),
+                             (node && !shape.hasContent ? TileFlag.Atom : 0),
                            node ? node.length : 0)
     if (shape.children) for (let child of shape.children)
       outer.addChild(buildFromShape(typeof child == "string" ? TextWidget.of(child) : child, null, nodeInner || !!node))

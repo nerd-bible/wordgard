@@ -45,7 +45,7 @@ describe("serialize", () => {
   it("can serialize attribute props", () => {
     let Pr = PropType.define<string>("Pr", {
       tags: "Paragraph",
-      dom: {attribute: "data-p", readAttribute: x => x}
+      shape: {attribute: "data-p", readAttribute: x => x}
     })
     let pr = builder(Pr)
     istHTML(doc(pr("one", p("x"))), "<p data-p=\"one\">x</p>")
@@ -54,7 +54,7 @@ describe("serialize", () => {
   it("can serialize style props", () => {
     let Ul = Prop.define("Ul", {
       tags: "Text",
-      dom: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
+      shape: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
     let ul = builder(Ul)
     istHTML(doc(p(ul("one"))), "<p><span style=\"text-decoration: underline\">one</span></p>")
@@ -84,7 +84,7 @@ describe("serializeSlice", () => {
                  "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  const openProp = PropType.define<string>("Open", {dom: {attribute: "open"}, tags: "*"})
+  const openProp = PropType.define<string>("Open", {shape: {attribute: "open"}, tags: "*"})
 
   it("can mark open nodes", () => {
     istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),

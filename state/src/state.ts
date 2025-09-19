@@ -1,4 +1,4 @@
-import {Schema, Tag, SchemaElement, DocNode, NodeJSON, parseDoc} from "@wordgard/doc"
+import {Schema, Tag, SchemaElement, DocNode, Node, NodeJSON, parseDoc} from "@wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
@@ -518,6 +518,19 @@ export class EditorState {
 
   wordAt(pos: number, bias: -1 | 1 = 1) {
     return wordAt(this, pos, bias)
+  }
+
+  /// @hidden
+  static isAtom = Facet.define<(state: EditorState, node: Node, pos: number) => boolean | null>()
+
+  isAtom(pos: number, node: Node = this.doc.nodeAt(pos)!) {
+    if (!node) throw new Error("No node at position " + pos)
+    if (node.isLeaf()) return true
+    for (let src of this.facet(EditorState.isAtom)) {
+      let result = src(this, node, pos)
+      if (result != null) return result
+    }
+    return node.tag.type.shape.atom
   }
 
   /// Facet used to register a hook that gets a chance to update or

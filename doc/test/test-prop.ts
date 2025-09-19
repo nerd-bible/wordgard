@@ -4,7 +4,7 @@ import ist from "ist"
 let Tag = PropType.define<readonly number[]>("Tag", {
   rank: 10,
   set: {compare: (a, b) => a - b},
-  dom: {attribute: "tag", value: ns => ns.join(" "), readAttribute: val => val.split(" ").map(n => Number(n))}
+  shape: {attribute: "tag", value: ns => ns.join(" "), readAttribute: val => val.split(" ").map(n => Number(n))}
 })
 const tag1 = Tag.of([1]), tag2 = Tag.of([2]), tag12 = Tag.of([1, 2])
 

@@ -174,7 +174,7 @@ export const Paragraph = Tag.defineBlock("Paragraph", {
   inlineContent: true,
   group: "Block",
   defaultBlock: true,
-  dom: {element: "p"}
+  shape: {element: "p"}
 })
 
 export const Heading = TagType.defineBlock("Heading", {
@@ -182,7 +182,7 @@ export const Heading = TagType.defineBlock("Heading", {
   validateParam: "number",
   inlineContent: true,
   group: "Block",
-  dom: {structure: level => elt("h" + level, 0), atom: false},
+  shape: {structure: level => elt("h" + level, 0), atom: false},
   defining: true,
   parseRules: [
     {selector: "h1", param: 1},
@@ -197,20 +197,20 @@ export const Heading = TagType.defineBlock("Heading", {
 export const CodeBlock = Tag.defineBlock("CodeBlock", {
   inlineContent: true,
   group: "Block",
-  dom: {element: "pre"},
+  shape: {element: "pre"},
   preserveWhitespace: true
 })
 
 export const CodeBlockLanguage = PropType.define("CodeBlockLanguage", {
   tags: "CodeBlock",
   validate: "string",
-  dom: {attribute: "data-language", readAttribute: x => x}
+  shape: {attribute: "data-language", readAttribute: x => x}
 })
 
 export const Blockquote = Tag.defineBlock("Blockquote", {
   blockContent: "Block",
   group: "Block",
-  dom: {element: "blockquote"}
+  shape: {element: "blockquote"}
 })
 
 export const OrderedList = TagType.defineBlock("OrderedList", {
@@ -218,7 +218,7 @@ export const OrderedList = TagType.defineBlock("OrderedList", {
   validateParam: "number",
   blockContent: "ListItem",
   group: "Block",
-  dom: {
+  shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
     readElement: elt => Number(elt.getAttribute("order") || "1")
@@ -229,41 +229,41 @@ export const OrderedList = TagType.defineBlock("OrderedList", {
 export const BulletList = Tag.defineBlock("BulletList", {
   blockContent: "ListItem",
   group: "Block",
-  dom: {element: "ul"},
+  shape: {element: "ul"},
   autoJoin: true
 })
 
 export const ListItem = Tag.defineBlock("ListItem", {
   blockContent: "Block",
-  dom: {element: "li"},
+  shape: {element: "li"},
   defining: true,
 })
 
 export const HorizontalRule = Tag.defineBlock("HorizontalRule", {
   group: "Block",
-  dom: {element: "hr"},
+  shape: {element: "hr"},
   toText: () => "---"
 })
 
 export const Image = TagType.defineInline<string>("Image", {
   validateParam: "string",
-  dom: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
+  shape: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
 
 export const ImageAlt = PropType.define<string>("ImageAlt", {
   tags: "Image",
   validate: "string",
-  dom: {attribute: "alt", readAttribute: x => x}
+  shape: {attribute: "alt", readAttribute: x => x}
 })
 
 export const LineBreak = Tag.defineInline("LineBreak", {
   isLineBreak: true,
-  dom: {element: "br"}
+  shape: {element: "br"}
 })
 
 export const Emphasis = Prop.define("Emphasis", {
   rank: 40,
-  dom: {element: "em"},
+  shape: {element: "em"},
   parseRules: [
     {attribute: "style/font-style", value: "italic"},
     {attribute: "style/font-style", value: "normal", clearProp: p => p.name == "Emphasis"}
@@ -272,7 +272,7 @@ export const Emphasis = Prop.define("Emphasis", {
 
 export const Strong = Prop.define("Strong", {
   rank: 60,
-  dom: {element: "strong"},
+  shape: {element: "strong"},
   parseRules: [
     {attribute: "style/font-weight",
      readAttribute: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value) ? null : Reject},
@@ -285,7 +285,7 @@ export const Strong = Prop.define("Strong", {
 export const Link = PropType.define<string>("Link", {
   rank: 20,
   validate: "string",
-  dom: {
+  shape: {
     element: "a",
     selector: "a[href]",
     attributes: href => ({href}),
@@ -295,7 +295,7 @@ export const Link = PropType.define<string>("Link", {
 
 export const Code = Prop.define("Code", {
   rank: 80,
-  dom: {element: "code"}
+  shape: {element: "code"}
 })
 
 export const Doc = Tag.defineDoc({

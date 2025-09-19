@@ -30,11 +30,11 @@ export function builder<Source extends Prop<any> | Tag<any> | PropType<any> | Ta
 }
 
 const InlineFragment = Tag.defineInline("Fragment", {
-  dom: {element: "span"},
+  shape: {element: "span"},
   inlineContent: true
 })
 const BlockFragment = Tag.defineBlock("Fragment", {
-  dom: {element: "div"},
+  shape: {element: "div"},
   blockContent: "_"
 })
 

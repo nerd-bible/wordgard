@@ -1,3 +1,5 @@
+import {TagType} from "./node"
+
 export class Elt<T> {
   constructor(
     readonly tagName: string,
@@ -138,9 +140,11 @@ export type ElementShape<Param> = {
   selector?: string
   attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
   readElement?: (element: HTMLElement) => Param | Reject
+  atom?: boolean
 }
 
 // FIXME allow parse rules here?
+// FIXME not a great name
 export type StructureShape<Param> = {
   structure: Elt<string> | ((param: Param) => Elt<string>),
   atom?: boolean
@@ -170,13 +174,38 @@ export function isStructureShape<T>(
   return (repr as StructureShape<any>).structure != null
 }
 
-export function structureHasContent(repr: StructureShape<any>) {
-  if (typeof repr.structure == "function") {
-    if (repr.atom == null) throw new Error("Dynamic structure shape must provide an `atom` field")
-    return !repr.atom
+export class NodeShape<Param> {
+  constructor(
+    readonly atom: boolean,
+    readonly create: (param: Param) => Elt<string>,
+    readonly spec: ElementShape<Param> | StructureShape<Param>
+  ) {}
+
+  static from<Param>(tag: TagType<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
+    let atom = spec.atom, create: (param: Param) => Elt<string>
+    if (isElementShape(spec)) {
+      if (atom == null) atom = tag.isLeaf()
+      let {element, attributes} = spec
+      if (typeof attributes == "function") {
+        create = (param: Param) => new Elt(element, readAttributes(attributes(param)), atom ? noChildren : null)
+      } else {
+        let elt = new Elt(element, readAttributes(attributes), atom ? noChildren : null)
+        create = () => elt
+      }
+    } else {
+      let {structure} = spec
+      if (typeof structure == "function") {
+        if (atom == null) throw new Error(`Dynamic structure for tag ${tag.name} must define an \`atom\` field`)
+        create = structure
+      } else {
+        if (atom == null)
+          atom = !structure.hasContent
+        else if (atom != !structure.hasContent)
+          throw new Error(`Disagreement between \`atom\` field and structure for tag ${tag.name}`)
+        create = () => structure
+      }
+    }
+    if (atom == false && tag.isLeaf()) throw new Error(`Leaf tag ${tag.name}'s shape must be atomic`)
+    return new NodeShape<Param>(atom, create, spec)
   }
-  let content = repr.structure.hasContent
-  if (repr.atom != null && !repr.atom != content)
-    throw new Error("Disagreement between `atom` and `structure` field")
-  return content
 }

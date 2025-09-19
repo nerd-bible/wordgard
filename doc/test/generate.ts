@@ -8,7 +8,7 @@ const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 export const Comment = PropType.define<readonly number[]>("Comment", {
   tags: "Inline",
   set: {compare: (a, b) => a - b},
-  dom: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
+  shape: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
 
 export function open(node: Node) { return node.tag }

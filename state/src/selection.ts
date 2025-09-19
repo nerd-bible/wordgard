@@ -42,6 +42,11 @@ export interface SelectionContext {
   doc: DocNode
   textDirection?: (tag?: Tag) => Direction
   visualCursorMotion?: boolean
+  isAtom?: (pos: number, node?: Node) => boolean
+}
+
+function isAtom(cx: SelectionContext, pos: number, node: Node) {
+  return cx.isAtom ? cx.isAtom(pos, node) : node.isLeaf()
 }
 
 function alwaysLTR() { return Direction.LTR }
@@ -238,9 +243,9 @@ export class EditorSelection {
   }
 }
 
-function isBarrier(node: Node) {
+function isBarrier(cx: SelectionContext, pos: number, node: Node) {
   return node.type.isolating || node.type.preserveWhitespace ||
-    node.isBlock() && node.isAtom() // FIXME allow node specs to enable this?
+    node.isBlock() && isAtom(cx, pos, node) // FIXME allow node specs to enable this?
 }
 
 function scanNormalFrom(
@@ -256,15 +261,17 @@ function scanNormalFrom(
     if (next != null) return next
     if (!block.parent) return null
     pos = new Pos(block.parent, forward ? block.after : block.before, block.index + (forward ? 1 : 0), 0)
-    pastBarrier = isBarrier(block.node)
+    pastBarrier = isBarrier(cx, block.before, block.node)
   } else {
     pastBarrier = !pos.parent.parent && pos.index == (forward ? 0 : pos.parent.node.children.length)
-    for (let {parent: {node}, index} = pos; !pastBarrier && (forward ? index : index < node.children.length);) {
-      let before = node.children[forward ? index - 1 : index]
-      if (isBarrier(before)) pastBarrier = true
-      if (before.inlineContent() || before.isAtom()) break
-      node = before
-      index = forward ? before.children.length : 0
+    for (let {parent: {node}, index, pos: p} = pos; !pastBarrier && (forward ? index : index < node.children.length);) {
+      let next = node.children[forward ? index - 1 : index]
+      if (!forward) p -= next.length
+      if (isBarrier(cx, p, next)) pastBarrier = true
+      if (next.inlineContent()) break
+      node = next
+      index = forward ? next.children.length : 0
+      if (forward) p += next.length
     }
   }
 
@@ -276,7 +283,7 @@ function scanNormalFrom(
       return {pos: p, assoc: forward ? 1 : -1}
     }
     if (index == (forward ? node.children.length : 0)) {
-      let barrier = !next || isBarrier(node)
+      let barrier = !next || isBarrier(cx, parent.before, node)
       if ((bottom != from || !mustMove) && pastBarrier && barrier) return {pos: bottom, assoc: forward ? -1 : 1}
       if (!next) return null
       index = parent.index + (forward ? 1 : 0)
@@ -285,10 +292,10 @@ function scanNormalFrom(
       bottom = p
       if (barrier) pastBarrier = true
     } else {
-      let nextNode = node.children[index - (forward ? 0 : 1)]
-      let barrier = isBarrier(nextNode)
+      let nextNode = node.children[index - (forward ? 0 : 1)], nextPos = p - (forward ? 0 : nextNode.length)
+      let barrier = isBarrier(cx, nextPos, nextNode)
       if (pastBarrier && (bottom != from || !mustMove) && barrier) return {pos: bottom, assoc: forward ? -1 : 1}
-      if (nextNode.isAtom()) {
+      if (isAtom(cx, nextPos, nextNode)) {
         index += step
         p += nextNode.length * step
       } else {

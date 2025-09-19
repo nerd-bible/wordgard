@@ -48,7 +48,7 @@ describe("DocTile", () => {
     let FancyBlock = Tag.defineBlock("FancyBlock", {
       group: "Block",
       inlineContent: "Inline",
-      dom: {
+      shape: {
         structure: elt({_: "div", class: "c"}, elt("span", "before"), elt({_: "span", class: "content"}, 0), elt("span", "after"))
       }
     })
@@ -345,21 +345,22 @@ describe("DocTile", () => {
     it("can override a specific leaf node's shape", () => {
       ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
         set: () => PointSet.for<string>().create([[3, "x"]]),
-        shape: () => elt("span", "!")
+        shape: () => elt("span", "!"),
+        atom: true
       })).dom.innerHTML, "<p>ab<span>!</span>cd</p>")
     })
 
     it("can override a specific non-leaf node's shape", () => {
       ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
         set: () => PointSet.for<string>().create([[0, "x"]]),
-        shape: () => elt("div", 0)
+        shape: elt("div", 0)
       })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
     })
 
     it("can replace a non-leaf node with an atom shape", () => {
       ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
         set: () => PointSet.for<string>().create([[0, "x"]]),
-        shape: () => elt("div", "?")
+        shape: elt("div", "?"),
       })).dom.innerHTML, "<div>?</div>")
     })
   })

@@ -55,14 +55,14 @@ export class PropType<Value> {
     readonly spec: PropSpec<Value>,
     isFlag: boolean
   ) {
-    this.targetGroups = spec.tags == null ? ["Inline:Atom"] : splitGroups(spec.tags)
+    this.targetGroups = spec.tags == null ? ["Inline:Leaf"] : splitGroups(spec.tags)
     this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
     this.set = spec.set ? spec.set.compare : null
     this.default = isFlag ? new Prop(this, null as any) : null
     this.inclusive = spec.inclusive !== false
-    this.element = isElementShape(spec.dom)
+    this.element = isElementShape(spec.shape)
     this.spanning = spec.spanning ?? this.element
-    this.repr = spec.dom
+    this.repr = spec.shape
   }
 
   of(value: Value) { return new Prop(this, value) }

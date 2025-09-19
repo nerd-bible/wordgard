@@ -1,8 +1,10 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
 import {Prop, Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
-        ElementShape, AttributeShape, Elt, isStructureShape, Attributes, pushAttribute,
-        mergeAttributes, readAttributes, noAttributes, noChildren} from "@wordgard/doc"
+        ElementShape, AttributeShape, Elt, Attributes, pushAttribute,
+        mergeAttributes, readAttributes} from "@wordgard/doc"
 import {Attrs} from "./attributes"
+
+// FIXME implement EditorState.isAtom
 
 export type WidgetSpec<T> = {
   render: (value: T) => HTMLElement | Text
@@ -108,15 +110,7 @@ function memo<T>(f: (tag: Tag<any>) => T) {
 }
 
 const tagShape = memo((tag: Tag<unknown>): Shape => {
-  let {repr} = tag.type, elt: Widget<any> | DecoElt | undefined
-  if (tag.isText()) {
-    elt = TextWidget.of(tag.param as string)
-  } else if (isStructureShape(repr)) {
-    elt = typeof repr.structure == "function" ? repr.structure(tag.param) : repr.structure
-  } else {
-    let attrs = repr.attributes && typeof repr.attributes == "function" ? repr.attributes(tag.param) : repr.attributes
-    elt = new Elt(repr.element, attrs ? readAttributes(attrs) : noAttributes, tag.isAtom() ? noChildren : null)
-  }
+  let elt: Shape = tag.isText() ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param)
   let attrs: string[] | undefined
   for (let prop of tag.props) if (!prop.type.element) {
     let repr = prop.type.repr as AttributeShape<any>
@@ -258,23 +252,42 @@ export const widgets = Facet.define<WidgetSource<any>>()
 
 // FIXME enforce the point set having side=0
 // FIXME consider support for an assertion predicate that checks the target node
+// FIXME better name
 export class ShapeSource<T> {
   set: (state: EditorState) => PointSet<T>
   shape: (value: T) => Shape
+  atom: boolean
   extension: Extension
 
   constructor(config: {
     set: (state: EditorState) => PointSet<T>,
     // FIXME document that this must not be expensive
-    shape: (value: T) => Shape
+    shape: Shape | ((value: T) => Shape),
+    atom?: boolean
   }) {
+    let {shape, atom} = config
+    if (typeof shape == "function") {
+      if (atom == null) throw new Error("Dynamically computed shapes must specify `atom`")
+      this.shape = shape
+    } else {
+      if (atom == null) atom = !shape.hasContent
+      this.shape = () => shape
+    }
+    this.atom = atom
     this.set = config.set
-    this.shape = config.shape
-    this.extension = shapeSources.of(this)
+    this.extension = [shapeSources.of(this), atomicDecorations]
   }
 }
 
 export const shapeSources = Facet.define<ShapeSource<any>>()
+
+const atomicDecorations = EditorState.isAtom.of((state, node, pos) => {
+  for (let src of state.facet(shapeSources)) {
+    let found = src.set(state).at(pos)
+    if (found !== undefined) return src.atom
+  }
+  return null
+})
 
 function findAbove(array: readonly number[], start: number, n: number) {
   let from = start, to = array.length
@@ -400,6 +413,11 @@ export class PointSet<Value> {
 
   iter<Source>(src: Source): PointIterator<Value, Source> {
     return new PointIterator<Value, Source>(this, src)
+  }
+
+  at(pos: number): Value | undefined { // FIXME handle undefined extends Value
+    let index = findAbove(this.positions, 0, pos)
+    return index < this.positions.length && this.positions[index] == pos ? this.values[index] : undefined
   }
 
   static for<Value>(ops: {

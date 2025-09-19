@@ -50,7 +50,7 @@ export class TextblockMap {
       for (let ch of node.children) {
         if (ch.isText()) {
           text += ch.text
-        } else if (ch.isAtom()) {
+        } else if (ch.type.shape.atom) { // FIXME not decoration-aware
           text += "\ufffc"
           if (ch.length > 1) {
             flush(pos)

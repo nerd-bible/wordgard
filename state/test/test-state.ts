@@ -26,7 +26,7 @@ describe("EditorState", () => {
     let Stranger = Tag.defineBlock("Stranger", {
       group: "Block",
       inlineContent: true,
-      dom: {element: "div"}
+      shape: {element: "div"}
     })
     ist.throws(() => EditorState.create({doc: doc(Stranger.create())}), /not in schema/)
     ist.throws(() => {
@@ -35,7 +35,7 @@ describe("EditorState", () => {
   })
 
   it("checks for props not in the schema", () => {
-    let Odd = Prop.define("Odd", {tags: "Block", dom: {attribute: "odd", value: "yes"}})
+    let Odd = Prop.define("Odd", {tags: "Block", shape: {attribute: "odd", value: "yes"}})
     let odd = builder(Odd)
     ist.throws(() => EditorState.create({doc: doc(odd(p()))}), /not in schema/)
     ist.throws(() => EditorState.create({doc: doc(p())}).update({changes: {from: 0, add: Odd}}), /not in schema/)

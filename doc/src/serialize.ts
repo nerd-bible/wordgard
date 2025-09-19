@@ -95,7 +95,7 @@ export function serializeNode(node: Node, options: SerializeOptions & {schema: S
 }
 
 const genericTag = Tag.defineBlock("generic", {
-  dom: {element: "div"}
+  shape: {element: "div"}
 })
 
 type Nodeish = {tag: Tag<any>, children: readonly Nodeish[]}
@@ -175,7 +175,7 @@ function serializeNodeInner(node: Nodeish, cx: Context) {
       children = lineBreaksToNewlines(children, cx.schema.lineBreak)
     serializeChildren(children, cx)
   }
-  let repr = node.tag.type.repr
+  let repr = node.tag.type.spec.shape
   if (node.tag.isText()) {
     if (propAttrs.length) cx.openElt("span", propAttrs)
     cx.emitText(node.tag.param)

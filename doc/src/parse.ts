@@ -23,26 +23,26 @@ class RuleSet {
   static fromSchema(schema: Schema) {
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
-      let {repr, spec: {parseRules}} = tag
-      if (isElementShape(repr) && repr.element) rules.push({
-        selector: repr.selector || repr.element,
-        readElement: repr.readElement,
+      let {spec: {shape, parseRules}} = tag
+      if (isElementShape(shape) && shape.element) rules.push({
+        selector: shape.selector || shape.element,
+        readElement: shape.readElement,
         tag
       })
       if (parseRules) for (let rule of parseRules) rules.push({...rule, tag: rule.tag || tag})
     }
     for (let prop of schema.props) {
-      let {dom, parseRules} = prop.spec
-      if (isElementShape(dom)) {
+      let {shape, parseRules} = prop.spec
+      if (isElementShape(shape)) {
         rules.push({
-          selector: dom.selector || dom.element,
-          readElement: dom.readElement,
+          selector: shape.selector || shape.element,
+          readElement: shape.readElement,
           prop
         })
       } else {
         rules.push({
-          attribute: dom.attribute,
-          readAttribute: dom.readAttribute,
+          attribute: shape.attribute,
+          readAttribute: shape.readAttribute,
           prop
         })
       }

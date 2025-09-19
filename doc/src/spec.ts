@@ -7,8 +7,6 @@ export type TagSpec<Param> = {
   blockContent?: string
   inlineContent?: string | true
   defaultParam?: Param extends null ? never : Param
-  // FIXME should be part of the representation spec, remove here
-  atom?: boolean
   /// A function or type name used to validate this tag's parameter
   /// value. This will be used when deserializing the attribute from
   /// JSON. When a string, it should be a `|`-separated string of
@@ -20,8 +18,7 @@ export type TagSpec<Param> = {
   validateParam?: string | ((param: Param) => void)
   group?: string
   toText?: (node: Node) => string
-  // FIXME call this shape? repr?
-  dom: ElementShape<Param> | StructureShape<Param>
+  shape: ElementShape<Param> | StructureShape<Param>
   parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
   /// Indicates that this type of block is the default generic block
@@ -57,7 +54,7 @@ export type TagSpec<Param> = {
 
 export type PropSpec<Value> = {
   /// Which node tags this prop may apply to, as a space separated
-  /// string of tag or group names. The default is `"Inline:Atom"`.
+  /// string of tag or group names. The default is `"Inline:Leaf"`.
   tags?: string
   /// Determines the position of this prop relative to other props.
   /// Props with lower rank appear first in prop set arrays, and are
@@ -87,7 +84,7 @@ export type PropSpec<Value> = {
   /// See [`TagSpec.validateParam`](#doc.TagSpec.validateParam).
   validate?: string | ((value: Value) => void)
   set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
-  dom: ElementShape<Value> | AttributeShape<Value>
+  shape: ElementShape<Value> | AttributeShape<Value>
   parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
 }
 

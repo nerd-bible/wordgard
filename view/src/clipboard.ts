@@ -4,7 +4,7 @@ import {EditorState} from "@wordgard/state"
 import browser from "./browser"
 
 const openProp = PropType.define<string>("Open", {
-  dom: {attribute: "wg-open"},
+  shape: {attribute: "wg-open"},
   tags: "*"
 })
 
