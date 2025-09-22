@@ -4,8 +4,6 @@ import {Prop, Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
         mergeAttributes, readAttributes} from "@wordgard/doc"
 import {Attrs} from "./attributes"
 
-// FIXME implement EditorState.isAtom
-
 export type WidgetSpec<T> = {
   render: (value: T) => HTMLElement | Text
   eq?: (a: T, b: T) => boolean
@@ -416,7 +414,7 @@ export class PointSet<Value> {
   }
 
   at(pos: number): Value | undefined { // FIXME handle undefined extends Value
-    let index = findAbove(this.positions, 0, pos)
+    let index = findAbove(this.positions, 0, pos - 1)
     return index < this.positions.length && this.positions[index] == pos ? this.values[index] : undefined
   }
 

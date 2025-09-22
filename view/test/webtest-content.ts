@@ -363,5 +363,17 @@ describe("DocTile", () => {
         shape: elt("div", "?"),
       })).dom.innerHTML, "<div>?</div>")
     })
+
+    it("properly recognizes atomicity of overridden shapes", () => {
+      ist(EditorState.create({doc: doc(p("ab"))}).isAtom(0), false)
+      let state = EditorState.create({
+        doc: doc(p("ab")),
+        extensions: new ShapeSource({
+          set: () => PointSet.for<string>().create([[0, "x"]]),
+          shape: elt("div", "?"),
+        })
+      })
+      ist(state.isAtom(0), true)
+    })
   })
 })
