@@ -61,6 +61,35 @@ enum WidgetPlace { Before, After, Start, End }
 
 export type TagSelector = Tag<any> | TagType<any> | readonly TagType<any>[] | string
 
+export function tagShape(spec: {
+  tag: TagSelector,
+  shape: Shape | ((tag: Tag<any>) => Shape),
+  atom?: boolean
+}): Extension {
+  let {tag, shape, atom} = spec, shapeFunc: (tag: Tag<any>) => Shape
+  if (typeof shape == "function") {
+    if (atom == null) throw new Error("Dynamic tag shapes must provide an 'atom' field")
+    shapeFunc = tag => addPropAttributes(shape(tag), tag)
+  } else {
+    if (atom == null) atom = !shape.hasContent
+    else if (atom != !shape.hasContent) throw new Error("'atom' and 'shape' field disagree on atomicity")
+    shapeFunc = tag => addPropAttributes(shape, tag)
+  }
+  return new TagShape(tagPredicate(tag), memo(shapeFunc), atom)
+}
+
+class TagShape {
+  extension: Extension
+
+  constructor(readonly tag: (tag: Tag<any>) => boolean,
+              readonly shape: (tag: Tag<any>) => Shape,
+              readonly atom: boolean) {
+    this.extension = [tagShapes.of(this), atomicDecorations]
+  }
+}
+
+const tagShapes = Facet.define<TagShape>()
+
 export type WrapperDeco<Param> = {
   element: string
   attributes?: Attrs | ((param: Param) => Attrs)
@@ -107,8 +136,7 @@ function memo<T>(f: (tag: Tag<any>) => T) {
   }
 }
 
-const tagShape = memo((tag: Tag<unknown>): Shape => {
-  let elt: Shape = tag.isText() ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param)
+function addPropAttributes(shape: Shape, tag: Tag<any>) {
   let attrs: string[] | undefined
   for (let prop of tag.props) if (!prop.type.element) {
     let repr = prop.type.repr as AttributeShape<any>
@@ -117,10 +145,14 @@ const tagShape = memo((tag: Tag<unknown>): Shape => {
       pushAttribute(attrs || (attrs = []), repr.attribute, value)
   }
   if (attrs) {
-    if (elt instanceof Elt) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, attrs), elt.children)
-    else elt = new Elt(tag.isBlock() ? "div" : "span", attrs, [elt])
+    if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
+    else shape = new Elt(tag.isBlock() ? "div" : "span", attrs, [shape])
   }
-  return elt
+  return shape
+}
+
+const baseTagShape = memo((tag: Tag<unknown>): Shape => {
+  return addPropAttributes(tag.isText() ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
 })
 
 class TagWidgetSource {
@@ -283,6 +315,9 @@ const atomicDecorations = EditorState.isAtom.of((state, node, pos) => {
   for (let src of state.facet(shapeSources)) {
     let found = src.set(state).at(pos)
     if (found !== undefined) return src.atom
+  }
+  for (let src of state.facet(tagShapes)) {
+    if (src.tag(node.tag)) return src.atom
   }
   return null
 })
@@ -944,6 +979,7 @@ export class DecoIterator {
   globalWidgets: readonly TagWidgetSource[]
   globalWrappers: readonly TagWrapperSource[]
   globalAttrs: readonly TagAttributeSource[]
+  tagShapes: readonly TagShape[]
   pos: Pos
   rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
   pointIter: PointIterator<any, WidgetSource<any> | ShapeSource<any>>[] = []
@@ -952,6 +988,7 @@ export class DecoIterator {
     this.globalWidgets = state.facet(tagWidgets)
     this.globalWrappers = state.facet(tagWrappers)
     this.globalAttrs = state.facet(tagAttributes)
+    this.tagShapes = state.facet(tagShapes)
     this.pos = state.doc.resolve(0)
     for (let s of state.facet(rangeDecorations)) {
       let set = s.set(state)
@@ -1055,7 +1092,12 @@ export class DecoIterator {
   }
 
   tagShape(tag: Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
-    let shape = tagShape(tag)
+    let shape
+    if (!tag.isText()) for (let src of this.tagShapes) if (src.tag(tag)) {
+      shape = src.shape(tag)
+      break
+    }
+    if (!shape) shape = baseTagShape(tag)
     let add: string[] | undefined
     for (let src of this.globalAttrs) {
       if (src.tag(tag))

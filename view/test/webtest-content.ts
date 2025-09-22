@@ -1,4 +1,4 @@
-import {EditorView, tagDecoration, Widget, PointSet, WidgetSource,
+import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, ShapeSource} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
 import {DocNode, Tag, basicBuilders, CodeBlock, Slice, Node,
@@ -24,6 +24,8 @@ function span(text: string) {
 }
 
 const inlineWidget = Widget.define<string>({render: span})
+
+const strPoints = PointSet.for<string>(), strRanges = RangeSet.for<string>()
 
 describe("DocTile", () => {
   it("can draw a simple document", () => {
@@ -329,7 +331,7 @@ describe("DocTile", () => {
 
     it("can take wrappers from spans", () => {
       ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
-        set: () => RangeSet.for<string>().create([[2, 5, "a"]]),
+        set: () => strRanges.create([[2, 5, "a"]]),
         deco: {element: "span", attributes: val => ({class: val}), spanning: true},
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
@@ -337,14 +339,14 @@ describe("DocTile", () => {
     it("can take attributes from spans", () => {
       ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
         tag: Image,
-        set: () => RangeSet.for<string>().create([[2, 5, "a"]]),
+        set: () => strRanges.create([[2, 5, "a"]]),
         deco: {attribute: "alt", value: "a test"},
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
 
     it("can override a specific leaf node's shape", () => {
       ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
-        set: () => PointSet.for<string>().create([[3, "x"]]),
+        set: () => strPoints.create([[3, "x"]]),
         shape: () => elt("span", "!"),
         atom: true
       })).dom.innerHTML, "<p>ab<span>!</span>cd</p>")
@@ -352,28 +354,36 @@ describe("DocTile", () => {
 
     it("can override a specific non-leaf node's shape", () => {
       ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
-        set: () => PointSet.for<string>().create([[0, "x"]]),
+        set: () => strPoints.create([[0, "x"]]),
         shape: elt("div", 0)
       })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
     })
 
     it("can replace a non-leaf node with an atom shape", () => {
       ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
-        set: () => PointSet.for<string>().create([[0, "x"]]),
+        set: () => strPoints.create([[0, "x"]]),
         shape: elt("div", "?"),
       })).dom.innerHTML, "<div>?</div>")
     })
 
     it("properly recognizes atomicity of overridden shapes", () => {
       ist(EditorState.create({doc: doc(p("ab"))}).isAtom(0), false)
-      let state = EditorState.create({
-        doc: doc(p("ab")),
-        extensions: new ShapeSource({
-          set: () => PointSet.for<string>().create([[0, "x"]]),
-          shape: elt("div", "?"),
-        })
-      })
-      ist(state.isAtom(0), true)
+      let byPoint = new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt("div", "?")})
+      ist(EditorState.create({doc: doc(p("ab")), extensions: byPoint}).isAtom(0), true)
+      let byTag = tagShape({tag: "Paragraph", shape: elt("hr")})
+      ist(EditorState.create({doc: doc(p("a")), extensions: byTag}).isAtom(0), true)
+    })
+
+    it("can override shapes by tag", () => {
+      ist(render(doc(p("a")), tagShape({tag: "Paragraph", shape: elt({_: "div", class: "para"}, 0)})).dom.innerHTML,
+          "<div class=\"para\">a</div>")
+    })
+
+    it("makes by-point shapes override by-tag ones", () => {
+      ist(render(doc(p("a")), [
+        tagShape({tag: "Paragraph", shape: elt({_: "div", class: "b"}, 0)}),
+        new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt({_: "div", class: "a"}, 0)})
+      ]).dom.innerHTML, "<div class=\"a\">a</div>")
     })
   })
 })
