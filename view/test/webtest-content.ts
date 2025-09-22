@@ -1,6 +1,6 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, ShapeSource} from "@wordgard/view"
-import {EditorState, Extension, StateField, TransactionSpec} from "@wordgard/state"
+import {EditorState, Extension, StateField, TransactionSpec, StateEffect} from "@wordgard/state"
 import {DocNode, Tag, basicBuilders, CodeBlock, Slice, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "@wordgard/doc"
 import ist from "ist"
@@ -384,6 +384,14 @@ describe("DocTile", () => {
         tagShape({tag: "Paragraph", shape: elt({_: "div", class: "b"}, 0)}),
         new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt({_: "div", class: "a"}, 0)})
       ]).dom.innerHTML, "<div class=\"a\">a</div>")
+    })
+
+    it("properly updates when tag shapes change", () => {
+      let tile = render(doc(p("a")))
+      tile = update(tile, {
+        effects: StateEffect.appendConfig.of(tagShape({tag: "Paragraph", shape: elt("para")}))
+      })
+      ist(tile.dom.innerHTML, "<para></para>")
     })
   })
 })

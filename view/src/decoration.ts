@@ -258,8 +258,6 @@ export class RangeDecorationSource<T> {
 
 export const rangeDecorations = Facet.define<RangeDecorationSource<any>>()
 
-// FIXME implement a point node decoration source
-
 export class WidgetSource<T> {
   // FIXME names
   set: (state: EditorState) => PointSet<T>
@@ -280,7 +278,6 @@ export class WidgetSource<T> {
 
 export const widgets = Facet.define<WidgetSource<any>>()
 
-// FIXME enforce the point set having side=0
 // FIXME consider support for an assertion predicate that checks the target node
 // FIXME better name
 export class ShapeSource<T> {
@@ -458,7 +455,7 @@ export class PointSet<Value> {
     eq?: (a: Value, b: Value) => boolean
   } = {}) {
     let {side, eq} = ops
-    if (side == null) side = 1 // FIXME consider whether +1e9 is a better default, for use in shape sources
+    if (side == null) side = 1
     return new PointSetType<Value>(typeof side == "number" ? () => side : side, eq || ((a, b) => a === b))
   }
 }
@@ -758,14 +755,22 @@ function compareFacet<
   }
 }
 
+function compareGlobal(stateA: EditorState, stateB: EditorState, facet: Facet<any>) {
+  return stateA.facet(facet) != stateB.facet(facet)
+}
+
 // Compare ranges and points in decoration facets for unchanged ranges
 // in the given change desc. Returns an array using the section format
 // used in change descs.
 export function findChangedRanges(prev: EditorState, state: EditorState, change: ChangeDesc) {
   let result: number[] = []
+  let globalChange = compareGlobal(prev, state, tagShapes) || compareGlobal(prev, state, tagWidgets) ||
+    compareGlobal(prev, state, tagWrappers) || compareGlobal(prev, state, tagAttributes)
   for (let sections = change.sections, i = 0, posA = 0, posB = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++]
-    if (ins == -1) {
+    if (ins == -1 && globalChange) {
+      addSection(result, len, -2)
+    } else if (ins == -1) {
       // Unchanged section. See which parts have potentially updated
       // decorations, and tag those as changed
       let local: number[][] = []
