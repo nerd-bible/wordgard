@@ -393,5 +393,13 @@ describe("DocTile", () => {
       })
       ist(tile.dom.innerHTML, "<para></para>")
     })
+
+    it("properly updates when positional shapes change", () => {
+      let tile = render(doc(p("a")))
+      tile = update(tile, {
+        effects: StateEffect.appendConfig.of(new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt("para")}))
+      })
+      ist(tile.dom.innerHTML, "<para></para>")
+    })
   })
 })

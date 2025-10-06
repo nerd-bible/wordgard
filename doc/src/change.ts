@@ -244,6 +244,10 @@ export class ChangeDesc {
     if (pos < length) addSection(sections, null, length - pos, -1, null)
     return new ChangeDesc(sections)
   }
+
+  static emptyDesc(length: number) {
+    return length ? new ChangeDesc([length, -1]) : new ChangeDesc([])
+  }
 }
 
 export class ChangeSet extends ChangeDesc {

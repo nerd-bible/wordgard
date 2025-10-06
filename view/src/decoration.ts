@@ -414,8 +414,8 @@ export class PointSet<Value> {
     }
   }
 
-  compareRange(fromA: number, b: PointSet<Value>, fromB: number, len: number) {
-    let a = this, ranges: number[] = [], endB = fromB + len
+  compareRange(fromA: number, b: PointSet<Value>, fromB: number, len: number, change: (from: number, to: number) => void) {
+    let a = this, endB = fromB + len
     if (a != b || fromA != fromB) {
       let iA = findAbove(a.positions, 0, fromA - 1), lA = a.positions.length
       let iB = findAbove(b.positions, 0, fromB - 1), lB = b.positions.length
@@ -426,19 +426,18 @@ export class PointSet<Value> {
         let next = Math.min(nextA, nextB)
         if (next > endB) break
         if (nextA == nextB) {
-          if (!this.type.eq(a.values[iA], b.values[iB])) addRange(ranges, next, next)
+          if (!this.type.eq(a.values[iA], b.values[iB])) change(next, next)
           iA++
           iB++
         } else if (nextA < nextB) {
-          addRange(ranges, nextA, nextA)
+          change(nextA, nextA)
           iA++
         } else {
-          addRange(ranges, nextB, nextB)
+          change(nextB, nextB)
           iB++
         }
       }
     }
-    return ranges
   }
 
   iter<Source>(src: Source): PointIterator<Value, Source> {
@@ -600,8 +599,8 @@ export class RangeSet<Value> {
     return new RangeIterator<Value, Source>(this, source!)
   }
 
-  compareRange(fromA: number, b: RangeSet<Value>, fromB: number, len: number) {
-    let a = this, ranges: number[] = [], toB = fromB + len
+  compareRange(fromA: number, b: RangeSet<Value>, fromB: number, len: number, change: (from: number, to: number) => void) {
+    let a = this, toB = fromB + len
     if (a != b || fromA != fromB) {
       let iA = findAbove(a.from, 0, fromA - 1), lA = a.from.length
       let iB = findAbove(b.from, 0, fromB - 1), lB = b.from.length
@@ -612,19 +611,18 @@ export class RangeSet<Value> {
         let start = Math.min(startA, startB)
         if (start > toB) break
         if (startA == startB) {
-          if (endA != endB || !a.type.eq(a.values[iA], b.values[iB])) addRange(ranges, start, Math.max(endA, endB))
+          if (endA != endB || !a.type.eq(a.values[iA], b.values[iB])) change(start, Math.max(endA, endB))
           iA++
           iB++
         } else if (startA < startB) {
-          addRange(ranges, startA, endA)
+          change(startA, endA)
           iA++
         } else {
-          addRange(ranges, startB, endB)
+          change(startB, endB)
           iB++
         }
       }
     }
-    return ranges
   }
 
   static for<Value>(ops: {
@@ -727,31 +725,33 @@ function joinRanges(ranges: number[][]) {
 }
 
 function compareFacet<
-  T extends {compareRange: (fromA: number, b: T, fromB: number, len: number) => number[], type: {empty: T}},
-  U extends {set: (state: EditorState) => T}
+  T extends {
+    compareRange: (fromA: number, b: T, fromB: number, len: number, add: (from: number, to: number) => void) => void,
+    type: {empty: T}
+  }, U extends {set: (state: EditorState) => T}
 >(
   stateA: EditorState, stateB: EditorState, change: ChangeDesc,
   facet: Facet<U>, 
   fromA: number, fromB: number, len: number,
-  addRanges: (ranges: number[]) => void
+  add: (from: number, to: number) => void
 ) {
   let a = stateA.facet(facet), b = stateB.facet(facet), iB = 0
   for (let eltA of a) {
     let idx = b.indexOf(eltA, iB)
     if (idx < 0) {
       let set = eltA.set(stateA)
-      addRanges(set.compareRange(fromA, set.type.empty, fromB, len))
+      set.compareRange(fromA, set.type.empty, fromB, len, add)
     } else {
       while (iB < idx) {
         let set = b[iB++].set(stateB)
-        addRanges(set.type.empty.compareRange(fromA, set, fromB, len))
+        set.type.empty.compareRange(fromA, set, fromB, len, add)
       }
-      addRanges(eltA.set(stateA).compareRange(fromA, b[iB++].set(stateB), fromB, len))
+      eltA.set(stateA).compareRange(fromA, b[iB++].set(stateB), fromB, len, add)
     }
   }
   while (iB < b.length) {
     let set = b[iB++].set(stateB)
-    addRanges(set.type.empty.compareRange(fromA, set, fromB, len))
+    set.type.empty.compareRange(fromA, set, fromB, len, add)
   }
 }
 
@@ -766,6 +766,10 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
   let result: number[] = []
   let globalChange = compareGlobal(prev, state, tagShapes) || compareGlobal(prev, state, tagWidgets) ||
     compareGlobal(prev, state, tagWrappers) || compareGlobal(prev, state, tagAttributes)
+  // When node shapes change, we need a separate pass to see whether
+  // their atomicity changed, and mark a replace for the whole node if
+  // it did.
+  let shapeChanges: boolean | number[] = false
   for (let sections = change.sections, i = 0, posA = 0, posB = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++]
     if (ins == -1 && globalChange) {
@@ -773,16 +777,21 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
     } else if (ins == -1) {
       // Unchanged section. See which parts have potentially updated
       // decorations, and tag those as changed
-      let local: number[][] = []
-      let add = (ranges: number[]) => { if (ranges.length) local.push(ranges) }
+      let cur: number[] = [], curPos = 0, ranges: number[][] = [cur]
+      let add = (from: number, to: number) => {
+        if (from < curPos) { ranges.push(cur = []); curPos = 0 }
+        addRange(cur, from, to)
+      }
       compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, change, rangeDecorations,
                                                               posA, posB, len, add)
       compareFacet<PointSet<any>, WidgetSource<any>>(prev, state, change, widgets,
                                                      posA, posB, len, add)
-      // FIXME somehow handle changes in atomicity by making them cover the entire node
-      compareFacet<PointSet<any>, ShapeSource<any>>(prev, state, change, shapeSources,
-                                                    posA, posB, len, add)
-      let joined = joinRanges(local), pos = posB, end = pos + len
+      compareFacet<PointSet<any>, ShapeSource<any>>(prev, state, change, shapeSources, posA, posB, len, from => {
+        add(from, from + 1)
+        if (shapeChanges === false) shapeChanges = []
+        if (typeof shapeChanges != "boolean") shapeChanges.push(from)
+      })
+      let joined = joinRanges(ranges), pos = posB, end = pos + len
       for (let i = 0; i < joined.length;) {
         let from = Math.max(pos, joined[i++]), to = Math.min(end, joined[i++])
         if (from > pos) addSection(result, from - pos, -1)
@@ -797,7 +806,49 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
       addSection(result, len, ins)
     }
   }
+  if (shapeChanges) return addAtomicityChanges(result, prev, state, shapeChanges)
   return result
+}
+
+function addAtomicityChanges(
+  sections: number[],
+  prev: EditorState, state: EditorState,
+  changes: boolean | number[]
+): readonly number[] {
+  let added: number[] = []
+  if (Array.isArray(changes)) {
+    let scan = prev.doc.resolve(0), last = -1, sectionPos = 0, sectionI = 0, off = 0
+    for (let posB of changes.sort()) {
+      if (posB == last) continue
+      last = posB
+      while (posB >= sectionPos) {
+        let len = sections[sectionI++], ins = sections[sectionI++]
+        if (ins < 0) {
+          sectionPos += len
+        } else {
+          sectionPos += ins
+          off += len - ins
+        }
+      }
+      let posA = posB - off
+      if (scan.pos < posA) scan = scan.advance(posA - scan.pos)
+      let node = scan.nodeAfter
+      if (!node) continue
+      if (prev.isAtom(posA, node) != state.isAtom(posB, node))
+        addRange(added, posA, posA + node.length)
+    }
+  } // FIXME handle changes == true
+  if (!added.length) return sections
+
+  let changedSections = [], pos = 0
+  for (let i = 0; i < added.length;) {
+    let from = added[i++], to = added[i++]
+    if (from > pos) changedSections.push(from - pos, -1)
+    changedSections.push(to - from, to - from)
+    pos = to
+  }
+  if (pos < prev.doc.length) changedSections.push(prev.doc.length - pos, -1)
+  return new ChangeDesc(changedSections).composeDesc(new ChangeDesc(sections)).sections
 }
 
 function addSection(sections: number[], len: number, ins: number) {
