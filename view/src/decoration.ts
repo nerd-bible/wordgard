@@ -81,7 +81,7 @@ export function tagShape(spec: {
 class TagShape {
   extension: Extension
 
-  constructor(readonly tag: (tag: Tag<any>) => boolean,
+  constructor(readonly pred: (tag: TagType<any>) => boolean,
               readonly shape: (tag: Tag<any>) => Shape,
               readonly atom: boolean) {
     this.extension = [tagShapes.of(this), atomicDecorations]
@@ -120,11 +120,11 @@ export function tagDecoration(spec: {
   }
 }
 
-function tagPredicate(selector?: TagSelector): (tag: Tag<any>) => boolean {
-  return typeof selector == "string" ? t => t.type.isInGroup(selector)
-    : selector instanceof TagType ? t => t.type == selector
-    : selector instanceof Tag ? t => t.eq(selector)
-    : selector ? t => selector.includes(t.type) : () => true
+function tagPredicate(selector?: TagSelector): (tag: TagType<any>) => boolean {
+  return typeof selector == "string" ? t => t.isInGroup(selector)
+    : selector instanceof TagType ? t => t == selector
+    : selector instanceof Tag ? t => t == selector.type
+    : selector ? t => selector.includes(t) : () => true
 }
 
 function memo<T>(f: (tag: Tag<any>) => T) {
@@ -157,14 +157,14 @@ const baseTagShape = memo((tag: Tag<unknown>): Shape => {
 
 class TagWidgetSource {
   place: WidgetPlace
-  tag: (tag: Tag) => boolean
+  pred: (tag: TagType<any>) => boolean
   widget: (tag: Tag) => Widget<any>
   extension: Extension
 
   constructor(tag: TagSelector, deco: WidgetDeco<Tag>) {
     let {place, widget} = deco
     this.place = typeof place == "string" ? WidgetPlace[place] : place
-    this.tag = tagPredicate(tag)
+    this.pred = tagPredicate(tag)
     this.widget = typeof widget == "function" ? memo(widget) : () => widget
     this.extension = tagWidgets.of(this)
   }
@@ -173,14 +173,14 @@ class TagWidgetSource {
 export const tagWidgets = Facet.define<TagWidgetSource>()
 
 export class TagWrapperSource {
-  tag: (tag: Tag) => boolean
+  pred: (tag: TagType<any>) => boolean
   wrapper: (tag: Tag) => DecoElt
   rank: number
   spanning: boolean
   extension: Extension
 
   constructor(tag: TagSelector, deco: WrapperDeco<Tag>) {
-    this.tag = tagPredicate(tag)
+    this.pred = tagPredicate(tag)
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
       let elt = new Elt<never>(element, readAttributes(attributes), null)
@@ -197,13 +197,13 @@ export class TagWrapperSource {
 export const tagWrappers = Facet.define<TagWrapperSource>()
 
 export class TagAttributeSource {
-  tag: (tag: Tag) => boolean
+  pred: (tag: TagType<any>) => boolean
   attribute: string
   value: string | ((tag: Tag) => string)
   extension: Extension
 
   constructor(tag: TagSelector, deco: AttributeDeco<Tag>) {
-    this.tag = tagPredicate(tag)
+    this.pred = tagPredicate(tag)
     this.attribute = deco.attribute
     this.value = deco.value
     this.extension = tagAttributes.of(this)
@@ -220,7 +220,7 @@ export enum DecorationScope {
 }
 
 export class RangeDecorationSource<T> {
-  tag: (tag: Tag) => boolean
+  pred: (tag: TagType<any>) => boolean
   scope: DecorationScope
   wrapper: ((value: T) => DecoElt) | null = null
   rank: number = 0
@@ -236,7 +236,7 @@ export class RangeDecorationSource<T> {
     set: (state: EditorState) => RangeSet<T>
     rank?: number
   }) {
-    this.tag = tagPredicate(config.tag)
+    this.pred = tagPredicate(config.tag)
     this.scope = config.scope ?? DecorationScope.InlineLeaf
     this.set = config.set
     if ((config.deco as WrapperDeco<T>).element) {
@@ -314,7 +314,7 @@ const atomicDecorations = EditorState.isAtom.of((state, node, pos) => {
     if (found !== undefined) return src.atom
   }
   for (let src of state.facet(tagShapes)) {
-    if (src.tag(node.tag)) return src.atom
+    if (src.pred(node.type)) return src.atom
   }
   return null
 })
@@ -764,12 +764,13 @@ function compareGlobal(stateA: EditorState, stateB: EditorState, facet: Facet<an
 // used in change descs.
 export function findChangedRanges(prev: EditorState, state: EditorState, change: ChangeDesc) {
   let result: number[] = []
-  let globalChange = compareGlobal(prev, state, tagShapes) || compareGlobal(prev, state, tagWidgets) ||
+  let globalShapeChange = compareGlobal(prev, state, tagShapes)
+  let globalChange = globalShapeChange || compareGlobal(prev, state, tagWidgets) ||
     compareGlobal(prev, state, tagWrappers) || compareGlobal(prev, state, tagAttributes)
   // When node shapes change, we need a separate pass to see whether
   // their atomicity changed, and mark a replace for the whole node if
   // it did.
-  let shapeChanges: boolean | number[] = false
+  let shapeChanges: boolean | number[] = globalShapeChange
   for (let sections = change.sections, i = 0, posA = 0, posB = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++]
     if (ins == -1 && globalChange) {
@@ -837,7 +838,19 @@ function addAtomicityChanges(
       if (prev.isAtom(posA, node) != state.isAtom(posB, node))
         addRange(added, posA, posA + node.length)
     }
-  } // FIXME handle changes == true
+  } else if (changes) {
+    let changedTags = new Set<TagType<any>>()
+    let a = prev.facet(tagShapes), b = state.facet(tagShapes)
+    for (let tag of state.doc.schema.tags) {
+      if (atomicShape(tag, a) != atomicShape(tag, b)) changedTags.add(tag)
+    }
+    if (changedTags.size) prev.doc.iterate((node, pos) => {
+      if (changedTags.has(node.tag.type)) {
+        added.push(pos, pos + node.length)
+        return false
+      }
+    })
+  }
   if (!added.length) return sections
 
   let changedSections = [], pos = 0
@@ -849,6 +862,11 @@ function addAtomicityChanges(
   }
   if (pos < prev.doc.length) changedSections.push(prev.doc.length - pos, -1)
   return new ChangeDesc(changedSections).composeDesc(new ChangeDesc(sections)).sections
+}
+
+function atomicShape(tag: TagType<any>, shapes: readonly TagShape[]) {
+  for (let s of shapes) if (s.pred(tag)) return s.atom
+  return tag.shape.atom
 }
 
 function addSection(sections: number[], len: number, ins: number) {
@@ -999,12 +1017,12 @@ function nodeWrappers(
   let wrappers: WrapperSource[] | undefined
 
   for (let prop of tag.props) if (prop.type.element) (wrappers || (wrappers = [])).push(prop)
-  for (let src of global) if (src.tag(tag)) (wrappers || (wrappers = [])).push(src)
+  for (let src of global) if (src.pred(tag.type)) (wrappers || (wrappers = [])).push(src)
   if (active.length) {
     let scope = tagScope(tag)
     for (let cur of active) {
       let {source} = cur
-      if (source.wrapper && (source.scope & scope) && source.tag(tag)) (wrappers || (wrappers = [])).push(cur)
+      if (source.wrapper && (source.scope & scope) && source.pred(tag.type)) (wrappers || (wrappers = [])).push(cur)
     }
   }
 
@@ -1062,7 +1080,7 @@ export class DecoIterator {
 
   widgets(tag: Tag, place: WidgetPlace, walker: DecoWalker) {
     for (let src of this.globalWidgets) {
-      if (src.place == place && src.tag(tag)) {
+      if (src.place == place && src.pred(tag.type)) {
         let widget = src.widget(tag)
         if (widget) walker.widget(widget, place == WidgetPlace.Before || place == WidgetPlace.End ? 1 : -1)
       }
@@ -1149,19 +1167,19 @@ export class DecoIterator {
 
   tagShape(tag: Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape
-    if (!tag.isText()) for (let src of this.tagShapes) if (src.tag(tag)) {
+    if (!tag.isText()) for (let src of this.tagShapes) if (src.pred(tag.type)) {
       shape = src.shape(tag)
       break
     }
     if (!shape) shape = baseTagShape(tag)
     let add: string[] | undefined
     for (let src of this.globalAttrs) {
-      if (src.tag(tag))
+      if (src.pred(tag.type))
         pushAttribute(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
     }
     for (let iter of active) {
       let {attr} = iter.source
-      if (attr && iter.source.tag(tag) && (iter.source.scope & tagScope(tag)))
+      if (attr && iter.source.pred(tag.type) && (iter.source.scope & tagScope(tag)))
         pushAttribute(add || (add = []), attr.attribute, typeof attr.value == "function" ? attr.value(iter.value) : attr.value)
     }
     if (add) {
