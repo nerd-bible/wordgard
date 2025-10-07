@@ -287,7 +287,16 @@ export class Node {
   isLeaf() { return this.tag.isLeaf() }
   isDoc() { return this.tag.isDoc() }
 
-  iterate(from: number, to: number, f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void) {
+  /// Iterate though the given range (or the entire document, when
+  /// given only one argument), and call the given function on every
+  /// node that overlaps the given range, outer nodes before inner
+  /// nodes. When the function returns `false` for a node, descendents
+  /// of that node are not iterated.
+  iterate(from: number, to: number, f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void): void
+  iterate(f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void): void
+  iterate(a: number | ((node: Node, pos: number, parent: Node | null, index: number) => boolean | void),
+          b?: number, c?: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void): void {
+    let [from, to, f] = typeof a == "number" ? [a, b!, c!] : [0, this.length, a]
     if (this.isDoc() || f(this, 0, null, 0) !== false)
       this.iterInner(0, from, to, f)
   }
