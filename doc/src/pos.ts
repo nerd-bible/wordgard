@@ -1,4 +1,4 @@
-import {Tag, Node, TextNode, DocNode} from "./node"
+import {Tag, Node, DocNode} from "./node"
 import {Prop} from "./prop"
 import {none} from "./helper"
 
@@ -28,11 +28,11 @@ export class Pos {
   get nodeAfter() {
     if (this.index == this.parent.node.children.length) return null
     let node = this.parent.node.children[this.index]
-    return this.inText && node.isText() ? node.cutText(this.inText) : node
+    return this.inText ? node.sliceText(this.inText) : node
   }
 
   get nodeBefore() {
-    if (this.inText) return (this.parent.node.children[this.index] as TextNode).cutText(0, this.inText)
+    if (this.inText) return this.parent.node.children[this.index].sliceText(0, this.inText)
     return this.index ? this.parent.node.children[this.index - 1] : null
   }
 
@@ -173,9 +173,9 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
                     walk?: Walker, full = false) {
   let target = pos + distance, {node} = parent
   if (inText) {
-    let text = node.children[index] as TextNode
+    let text = node.children[index]
     let textStart = pos - inText, textEnd = textStart + text.length
-    if (walk) walk.skip(text.cutText(inText, Math.min(text.length, target - textStart)), pos)
+    if (walk) walk.skip(text.sliceText(inText, Math.min(text.length, target - textStart)), pos)
     if (target < textEnd)
       return new Pos(parent, target, index, target - textStart)
     pos = textEnd
@@ -196,7 +196,7 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
         pos = end
         index++
       } else if (next.isText()) {
-        if (walk) walk.skip(next.cutText(0, target - pos), pos)
+        if (walk) walk.skip(next.sliceText(0, target - pos), pos)
         return new Pos(parent, target, index, target - pos)
       } else if (walk && walk.enter(next.tag, pos, next) == false) {
         pos = end

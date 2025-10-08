@@ -239,7 +239,7 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     pos--
   }
   if (before.isText()) {
-    let size = before.length - findClusterBreak(before.text, before.length, false)
+    let size = before.length - findClusterBreak(before.text!, before.length, false)
     dispatch(state.update({
       changes: {from: pos - size, to: pos},
       scrollIntoView: true,
@@ -292,7 +292,7 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
     pos++
   }
   if (after.isText()) {
-    let size = findClusterBreak(after.text, 0)
+    let size = findClusterBreak(after.text!, 0)
     dispatch(state.update({
       changes: {from: pos, to: pos + size},
       scrollIntoView: true,

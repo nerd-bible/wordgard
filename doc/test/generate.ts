@@ -1,4 +1,4 @@
-import {Node, Tag, Prop, DocNode, TextNode, PropType,
+import {Node, Tag, Prop, DocNode, PropType,
         Slice, Token, CloseToken, ChangeSet,
         basicBuilders, ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
@@ -81,7 +81,7 @@ export function rDoc(minLength: number) {
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
       if (node.isText() && last && last.isText() && last.tag.sameProps(node.tag))
-        children[children.length - 1] = Node.text((last as TextNode).text + node.text, node.tag.props)
+        children[children.length - 1] = Node.text(last.text! + node.text!, node.tag.props)
       else 
         children.push(node)
     }

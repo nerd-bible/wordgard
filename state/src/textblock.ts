@@ -49,8 +49,8 @@ export class TextblockMap {
     let scan = (node: Node, pos: number) => {
       for (let ch of node.children) {
         if (ch.isText()) {
-          text += ch.text
-        } else if (ch.type.shape.atom) { // FIXME not decoration-aware
+          text += ch.text!
+        } else if (ch.type.isLeaf()) {
           text += "\ufffc"
           if (ch.length > 1) {
             flush(pos)

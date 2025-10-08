@@ -223,7 +223,7 @@ class ParseContext {
       if (/^ /.test(text)) {
         let nodeBefore = this.top.children[this.top.children.length - 1]
         if (nodeBefore
-            ? nodeBefore.tag == this.schema.lineBreak || nodeBefore.isText() && / $/.test(nodeBefore.text)
+            ? nodeBefore.tag == this.schema.lineBreak || nodeBefore.isText() && / $/.test(nodeBefore.text!)
             : !(this.top.flags & CxFlag.OpenStart))
           text = text.slice(1)
       }
@@ -345,10 +345,10 @@ class ParseContext {
     if (!(cx.flags & CxFlag.OpenEnd) && cx.children.length && !cx.tag.type.preserveWhitespace &&
         this.options.collapseWhiteSpace !== false) {
       let last = cx.children[cx.children.length - 1], m
-      if (last.isText() && (m = /[ \t\r\n\u000c]+$/.exec(last.text))) {
-        let len = last.text.length - m[0].length
+      if (last.isText() && (m = /[ \t\r\n\u000c]+$/.exec(last.text!))) {
+        let len = last.text!.length - m[0].length
         if (!len) cx.children.pop()
-        else cx.children[cx.children.length - 1] = last.cutText(0, len)
+        else cx.children[cx.children.length - 1] = last.sliceText(0, len)
       }
     }
     let open = cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)

@@ -677,8 +677,8 @@ class ContentUpdate {
                        (reuse || this.posB == start)) {
               this.reused.add(nodeTile.dom)
               if (nodeTile.text != node.text) {
-                nodeTile.dom.nodeValue = node.text
-                tile = new TextTile(node.text, nodeTile.dom)
+                nodeTile.dom.nodeValue = node.text!
+                tile = new TextTile(node.text!, nodeTile.dom)
               } else {
                 tile = nodeTile
               }

@@ -336,8 +336,8 @@ export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
   scanBack: for (let i = res.index, cur = res.nodeBefore; cur;) {
     if (!cur.isText()) break
     for (let j = cur.length; j > 0;) {
-      let next = findClusterBreak(cur.text, j, false)
-      let ch = cur.text.slice(next, j)
+      let next = findClusterBreak(cur.text!, j, false)
+      let ch = cur.text!.slice(next, j)
       if (!/\p{L}|\p{N}/u.test(ch)) break scanBack
       text = ch + text
       start -= (j - next)
@@ -349,8 +349,8 @@ export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
   scanForward: for (let i = res.index + 1, cur = res.nodeAfter; cur;) {
     if (!cur.isText()) break
     for (let j = 0; j < cur.length;) {
-      let next = findClusterBreak(cur.text, j, true)
-      let ch = cur.text.slice(j, next)
+      let next = findClusterBreak(cur.text!, j, true)
+      let ch = cur.text!.slice(j, next)
       if (!/\p{L}|\p{N}/u.test(ch)) break scanForward
       text += ch
       end += (next - j)
