@@ -326,8 +326,19 @@ export class Node {
 
   /// @internal
   toString() {
-    return propsToString(this.tag.props, this.isText ? JSON.stringify(this.text)
-      : this.name + (this.isLeaf ? `` : `(${this.children.join()})`))
+    let result = this.isText ? JSON.stringify(this.text) : this.name
+    let props = []
+    for (let prop of this.tag.props) if (!prop.spanning) {
+      if (prop.type.default == prop) props.push(prop.type.name)
+      else props.push(`${prop.type.name}=${prop.value}`)
+    }
+    if (props.length) result += `[${props.join()}]`
+    if (!this.isLeaf) result += `(${this.children.join()})`
+    for (let i = this.tag.props.length - 1; i >= 0; i--) {
+      let prop = this.tag.props[i]
+      if (prop.spanning) result = `${prop.type.name}(${result})`
+    }
+    return result
   }
 
   toJSON(): NodeJSON {
@@ -431,13 +442,6 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
 export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Inline, {
   shape: {element: ""}
 })
-
-// FIXME show values? display differently?
-function propsToString(props: readonly Prop<unknown>[], inner: string) {
-  for (let i = props.length - 1; i >= 0; i--)
-    inner = props[i].name + "(" + inner + ")"
-  return inner
-}
 
 function joinText(nodes: readonly Node[]) {
   if (!nodes.length || nodes[0].isBlock) return nodes
