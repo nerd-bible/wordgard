@@ -19,7 +19,7 @@ export type Command = (target: EditorView) => boolean
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
   let {doc, selPos: sel} = state
   let block = sel.from.parent
-  if (!block.node.isTextblock() || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
+  if (!block.node.isTextblock || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
   let props = state.selection.props || sel.from.props(sel.to)
   dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos,
@@ -35,7 +35,7 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
 /// default textblock in its position.
 export const createTextblock: StateCommand = ({state, dispatch}) => {
   let sel = state.selPos
-  if (sel.head.parent.node.inlineContent() || sel.anchor.parent.node.inlineContent()) return false
+  if (sel.head.parent.node.inlineContent || sel.anchor.parent.node.inlineContent) return false
   let wrap = state.doc.schema.findWrapping(sel.from.parent.node.type, Text)
   if (!wrap) return false
   let content: Node[] = []
@@ -68,7 +68,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
       }))
       return true
     }
-    if (level.node.isInline() || level.node.type.isolating) break
+    if (level.node.isInline || level.node.type.isolating) break
     if (index) atStart = false
     if (atStart) start--
     else before.push(CloseToken)
@@ -96,7 +96,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
       if (index < p.node.children.length) atEnd = false
       let tag = p.node.tag.split(atEnd)
       if (tag.type.spec.splitTag) tagAfter = tag.type.spec.splitTag(tag, atEnd)
-      if (atEnd && tag.isTextblock() && !tagAfter && p.parent) {
+      if (atEnd && tag.isTextblock && !tagAfter && p.parent) {
         let defaultType = state.doc.schema.defaultContentType(p.parent.node.type)
         if (defaultType) tagAfter = tag.changeType(defaultType)
       }
@@ -144,11 +144,11 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   while (!scan.index) {
     if (!scan.parent) return false
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock()) return false
+    if (scan.node.type.isolating || !scan.node.isBlock) return false
   }
   let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
-  while (!before.isTextblock()) {
-    if (before.type.isolating || state.isAtom(pos - before.length, before) || !before.isBlock()) return false
+  while (!before.isTextblock) {
+    if (before.type.isolating || state.isAtom(pos - before.length, before) || !before.isBlock) return false
     let last = before.children.length - 1
     if (last < 0) return false
     parent = before
@@ -180,11 +180,11 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
     if (!scan.parent) return false
     if (scan.index < scan.parent.node.children.length - 1) break
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock()) return false
+    if (scan.node.type.isolating || !scan.node.isBlock) return false
   }
   let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
-  while (!after.isTextblock()) {
-    if (after.type.isolating || state.isAtom(pos, after) || !after.isBlock()) return false
+  while (!after.isTextblock) {
+    if (after.type.isolating || state.isAtom(pos, after) || !after.isBlock) return false
     if (!after.children.length) return false
     parent = after
     after = after.children[0]
@@ -238,7 +238,7 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     before = before.children[last]
     pos--
   }
-  if (before.isText()) {
+  if (before.isText) {
     let size = before.length - findClusterBreak(before.text!, before.length, false)
     dispatch(state.update({
       changes: {from: pos - size, to: pos},
@@ -249,7 +249,7 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
   }
   let from = pos - before.length, to = pos
   let parent: NodePos | null = state.doc.resolve(pos).parent
-  while (parent && parent.node.isBlock() && parent.node.children.length == 1) {
+  while (parent && parent.node.isBlock && parent.node.children.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -291,7 +291,7 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
     after = after.children[0]
     pos++
   }
-  if (after.isText()) {
+  if (after.isText) {
     let size = findClusterBreak(after.text!, 0)
     dispatch(state.update({
       changes: {from: pos, to: pos + size},
@@ -302,7 +302,7 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   }
   let from = pos, to = pos + after.length
   let parent: NodePos | null = state.doc.resolve(pos).parent
-  while (parent && parent.node.isBlock() && parent.node.children.length == 1) {
+  while (parent && parent.node.isBlock && parent.node.children.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -320,7 +320,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
     let changes: ChangeSpec[] = [], lastBlock = -1
     for (let {from, to} of state.selection.ranges) {
       state.doc.iterate(from, to, (node, pos, parent) => {
-        if (node.isTextblock() && pos > lastBlock && !node.tag.eq(tag) && parent && parent.type.canContain(tag.type)) {
+        if (node.isTextblock && pos > lastBlock && !node.tag.eq(tag) && parent && parent.type.canContain(tag.type)) {
           lastBlock = pos
           // FIXME more refined handling of props
           changes.push({from: pos, to: pos + 1, insert: new Slice([node.tag.changeType(tag)])})

@@ -46,7 +46,7 @@ export interface SelectionContext {
 }
 
 function isAtom(cx: SelectionContext, pos: number, node: Node) {
-  return cx.isAtom ? cx.isAtom(pos, node) : node.isLeaf()
+  return cx.isAtom ? cx.isAtom(pos, node) : node.type.shape.atom
 }
 
 function alwaysLTR() { return Direction.LTR }
@@ -141,7 +141,7 @@ export class EditorSelection {
   normalize(cx: SelectionContext) {
     if (!this.empty) return this
     let pos = cx.doc.resolve(this.head)
-    if (pos.parent.node.isTextblock()) return this
+    if (pos.parent.node.isTextblock) return this
     let normal = EditorSelection.near(cx, this.head, this.assoc || -1)
     if (normal == null || normal.head == this.head) return this
     return EditorSelection.cursor(normal.head, normal.assoc, this.goalColumn ?? undefined, this.props)
@@ -245,7 +245,7 @@ export class EditorSelection {
 
 function isBarrier(cx: SelectionContext, pos: number, node: Node) {
   return node.type.isolating || node.type.preserveWhitespace ||
-    node.isBlock() && isAtom(cx, pos, node) // FIXME allow node specs to enable this?
+    node.isBlock && isAtom(cx, pos, node) // FIXME allow node specs to enable this?
 }
 
 function scanNormalFrom(
@@ -253,7 +253,7 @@ function scanNormalFrom(
 ): {pos: number, assoc: -1 | 1} | null {
   let dir = cx.textDirection ?? alwaysLTR, visualOrder = cx.visualCursorMotion !== false
   let pos = cx.doc.resolve(from), pastBarrier = false
-  if (pos.parent.node.inlineContent()) {
+  if (pos.parent.node.inlineContent) {
     if (!mustMove) return {pos: pos.pos, assoc: assoc < 0 ? -1 : 1}
     let block = pos.textblockParent!
     let map = TextblockMap.get(block.start, block.node, dir(block.node.tag))
@@ -268,7 +268,7 @@ function scanNormalFrom(
       let next = node.children[forward ? index - 1 : index]
       if (!forward) p -= next.length
       if (isBarrier(cx, p, next)) pastBarrier = true
-      if (next.inlineContent()) break
+      if (next.inlineContent) break
       node = next
       index = forward ? next.children.length : 0
       if (forward) p += next.length
@@ -278,7 +278,7 @@ function scanNormalFrom(
   let bottom = pos.pos, step = forward ? 1 : -1
   for (let {parent, index} = pos, p = pos.pos;;) {
     let {node, parent: next} = parent
-    if (node.inlineContent()) {
+    if (node.inlineContent) {
       if (visualOrder) return TextblockMap.get(parent.start, parent.node, dir(parent.node.tag)).visualTextblockSide(forward)
       return {pos: p, assoc: forward ? 1 : -1}
     }
@@ -331,10 +331,10 @@ function skipWord(cx: SelectionContext, start: number, assoc: -1 | 1, forward: b
 
 export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
   let res = state.doc.resolve(pos)
-  if (!res.parent.node.inlineContent()) return EditorSelection.cursor(pos, bias)
+  if (!res.parent.node.inlineContent) return EditorSelection.cursor(pos, bias)
   let start = pos, end = pos, text = ""
   scanBack: for (let i = res.index, cur = res.nodeBefore; cur;) {
-    if (!cur.isText()) break
+    if (!cur.isText) break
     for (let j = cur.length; j > 0;) {
       let next = findClusterBreak(cur.text!, j, false)
       let ch = cur.text!.slice(next, j)
@@ -347,7 +347,7 @@ export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
     cur = res.parent.node.children[--i]
   }
   scanForward: for (let i = res.index + 1, cur = res.nodeAfter; cur;) {
-    if (!cur.isText()) break
+    if (!cur.isText) break
     for (let j = 0; j < cur.length;) {
       let next = findClusterBreak(cur.text!, j, true)
       let ch = cur.text!.slice(j, next)

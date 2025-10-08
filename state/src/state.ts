@@ -525,7 +525,7 @@ export class EditorState {
 
   isAtom(pos: number, node: Node = this.doc.nodeAt(pos)!) {
     if (!node) throw new Error("No node at position " + pos)
-    if (node.isLeaf()) return true
+    if (node.isLeaf) return true
     for (let src of this.facet(EditorState.isAtom)) {
       let result = src(this, node, pos)
       if (result != null) return result

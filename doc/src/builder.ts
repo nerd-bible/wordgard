@@ -40,7 +40,7 @@ const BlockFragment = Tag.defineBlock("Fragment", {
 
 function fragment(children: ContentSpec[], prop: Prop) {
   let chs = collectChildren(children, prop)
-  return (chs.length && chs[0].isBlock() ? BlockFragment : InlineFragment).create(chs)
+  return (chs.length && chs[0].isBlock ? BlockFragment : InlineFragment).create(chs)
 }
   
 const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()

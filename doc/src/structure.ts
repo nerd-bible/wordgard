@@ -65,14 +65,14 @@ function textblockChild(schema: Schema, type: TagType<any>) {
 // FIXME this still doesn't work properly on textblock-item-lists or definition lists
 export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => boolean) {
   let dFrom = from.depth, dTo = to.depth
-  let fromStart = from.parent.node.inlineContent() ? from.parent.start : from.pos
-  let fromTextblock = from.parent.node.isTextblock() ? from.parent.node.type : null
-  let toEnd = to.parent.node.inlineContent() ? to.parent.end : to.pos
+  let fromStart = from.parent.node.inlineContent ? from.parent.start : from.pos
+  let fromTextblock = from.parent.node.isTextblock ? from.parent.node.type : null
+  let toEnd = to.parent.node.inlineContent ? to.parent.end : to.pos
   let innerCandidates: NodePos[] = []
   let outerCandidates: NodePos[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
-    if (node.isBlock() && !node.isLeaf() && !node.inlineContent() && parent &&
+    if (node.isBlock && !node.isLeaf && !node.inlineContent && parent &&
         (fromTextblock ? parent.type.canContain(fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!predicate || predicate(node.tag))) {
       let pos = doc.resolveNode(p)!, depth = pos.depth
@@ -134,7 +134,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
       }
     } else {
       let next = parent.node.children[index]
-      if (outer.type.canContain(next.type) || wrapText && next.inlineContent()) {
+      if (outer.type.canContain(next.type) || wrapText && next.inlineContent) {
         if (from != null && pos + next.length <= from) {
           pos += next.length
           gapStart = pos
@@ -162,7 +162,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
           index++
           gapStart = pos
         }
-      } else if (next.type.isolating || next.isLeaf()) {
+      } else if (next.type.isolating || next.isLeaf) {
         pos += next.length
         index++
       } else {

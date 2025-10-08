@@ -665,7 +665,7 @@ class ContentUpdate {
       node: (node, shape, wrappers) => {
         this.openWrappers(wrappers, node.tag, reuse)
         let tile: Tile | undefined
-        if (reuse || node.isText() && this.posB == start) {
+        if (reuse || node.isText && this.posB == start) {
           let nodeTile = this.old.tileAfter()
           if (nodeTile && !this.reused.has(nodeTile.dom)) {
             if (shape instanceof Elt && nodeTile instanceof EltTile &&
@@ -673,7 +673,7 @@ class ContentUpdate {
               this.reused.add(nodeTile.dom)
               updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
               tile = copyEltShape(nodeTile, node.tag)
-            } else if (node.isText() && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
+            } else if (node.isText && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
                        (reuse || this.posB == start)) {
               this.reused.add(nodeTile.dom)
               if (nodeTile.text != node.text) {
@@ -689,7 +689,7 @@ class ContentUpdate {
           }
         }
         if (!tile) {
-          if (node.isText()) this.addText(node.text!)
+          if (node.isText) this.addText(node.text!)
           else tile = buildFromShape(shape, node)
         }
         if (tile) this.new.addChild(tile)
@@ -709,7 +709,7 @@ class ContentUpdate {
   }
 
   up() {
-    if (this.new instanceof EltTile && this.new.tag && this.new.tag.isTextblock()) {
+    if (this.new instanceof EltTile && this.new.tag && this.new.tag.isTextblock) {
       let i = this.new.children.length - 1
       let last = i < 0 ? null : this.new.children[i]
       if (last instanceof WidgetTile && last.widget.type == brHack.type) {

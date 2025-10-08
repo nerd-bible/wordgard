@@ -146,13 +146,13 @@ function addPropAttributes(shape: Shape, tag: Tag<any>) {
   }
   if (attrs) {
     if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
-    else shape = new Elt(tag.isBlock() ? "div" : "span", attrs, [shape])
+    else shape = new Elt(tag.isBlock ? "div" : "span", attrs, [shape])
   }
   return shape
 }
 
 const baseTagShape = memo((tag: Tag<unknown>): Shape => {
-  return addPropAttributes(tag.isText() ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
+  return addPropAttributes(tag.isText ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
 })
 
 class TagWidgetSource {
@@ -1033,7 +1033,7 @@ function nodeWrappers(
 
 function tagScope(tag: Tag): DecorationScope {
   return DecorationScope.All |
-    (tag.isLeaf() ? DecorationScope.Leaf | (tag.isInline() ? DecorationScope.InlineLeaf : 0) : 0)
+    (tag.isLeaf ? DecorationScope.Leaf | (tag.isInline ? DecorationScope.InlineLeaf : 0) : 0)
 }
 
 export function renderWrapper(src: WrapperSource, tag: Tag): DecoElt {
@@ -1167,7 +1167,7 @@ export class DecoIterator {
 
   tagShape(tag: Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape
-    if (!tag.isText()) for (let src of this.tagShapes) if (src.pred(tag.type)) {
+    if (!tag.isText) for (let src of this.tagShapes) if (src.pred(tag.type)) {
       shape = src.shape(tag)
       break
     }
@@ -1184,7 +1184,7 @@ export class DecoIterator {
     }
     if (add) {
       if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.children)
-      else shape = new Elt(tag.isBlock() ? "div" : "span", add, [shape])
+      else shape = new Elt(tag.isBlock ? "div" : "span", add, [shape])
     }
     return shape
   }

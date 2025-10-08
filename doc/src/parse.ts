@@ -98,7 +98,7 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
   let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
     for (let i = 0; i < children.length; i++) {
       let child = children[i]
-      if (openStart && i == 0 && !child.isLeaf() && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
+      if (openStart && i == 0 && !child.isLeaf && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
         if (children.length == 1 && openEnd && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
           emitTokens(child.children, true, true)
         } else {
@@ -106,7 +106,7 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
           tokens.push(CloseToken)
         }
         context.push(children[0].tag)
-      } else if (openEnd && i == children.length - 1 && !child.isLeaf() && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
+      } else if (openEnd && i == children.length - 1 && !child.isLeaf && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
         tokens.push(child.tag)
         emitTokens(child.children, false, true)
       } else {
@@ -143,7 +143,7 @@ class ParseContext {
   }
 
   ignoreElement(elt: HTMLElement, props: readonly Prop[]) {
-    if (elt.nodeName == "BR" && !this.top.tag.inlineContent())
+    if (elt.nodeName == "BR" && !this.top.tag.inlineContent)
       this.findPlace(Text.of("-"), props, false)
   }
 
@@ -157,7 +157,7 @@ class ParseContext {
     } else if (!match || match.rule.ignore === "skip") {
       let sync, top = this.top
       if (blockTags.has(name)) {
-        if (top.children.length && top.children[0].isInline()) this.close()
+        if (top.children.length && top.children[0].isInline) this.close()
         sync = true
       }
       let innerProps = match && match.rule.ignore ? props : this.parseAttributes(elt, props)
@@ -177,7 +177,7 @@ class ParseContext {
       tag = rule.tag instanceof Tag ? rule.tag :
         rule.tag instanceof TagType ? (hasValue ? rule.tag.of(match.value) : rule.tag.default) : null
       if (!tag) throw new Error(`Parse rule for ${rule.selector} does not produce a tag`)
-      if (tag.isLeaf()) {
+      if (tag.isLeaf) {
         this.insertNode(tag.create(), props)
       } else {
         let innerProps = this.enter(tag, props, endOfSlice, elt)
@@ -194,7 +194,7 @@ class ParseContext {
     }
     let startIn = this.top
 
-    if (tag && tag.isLeaf()) {
+    if (tag && tag.isLeaf) {
       this.scanInside(elt)
     } else {
       let content = elt
@@ -211,7 +211,7 @@ class ParseContext {
     let text = dom.nodeValue!
     if (!this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
       // Ignore entirely blank node
-      if (!this.top.tag.inlineContent() && !/[^ \t\r\n\u000c]/.test(text)) {
+      if (!this.top.tag.inlineContent && !/[^ \t\r\n\u000c]/.test(text)) {
         this.scanInside(dom)
         return
       }
@@ -223,7 +223,7 @@ class ParseContext {
       if (/^ /.test(text)) {
         let nodeBefore = this.top.children[this.top.children.length - 1]
         if (nodeBefore
-            ? nodeBefore.tag == this.schema.lineBreak || nodeBefore.isText() && / $/.test(nodeBefore.text!)
+            ? nodeBefore.tag == this.schema.lineBreak || nodeBefore.isText && / $/.test(nodeBefore.text!)
             : !(this.top.flags & CxFlag.OpenStart))
           text = text.slice(1)
       }
@@ -345,16 +345,16 @@ class ParseContext {
     if (!(cx.flags & CxFlag.OpenEnd) && cx.children.length && !cx.tag.type.preserveWhitespace &&
         this.options.collapseWhiteSpace !== false) {
       let last = cx.children[cx.children.length - 1], m
-      if (last.isText() && (m = /[ \t\r\n\u000c]+$/.exec(last.text!))) {
+      if (last.isText && (m = /[ \t\r\n\u000c]+$/.exec(last.text!))) {
         let len = last.text!.length - m[0].length
         if (!len) cx.children.pop()
         else cx.children[cx.children.length - 1] = last.sliceText(0, len)
       }
     }
     let open = cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)
-    if (!open && !cx.tag.inlineContent() && !cx.tag.isLeaf() && !cx.children.length)
+    if (!open && !cx.tag.inlineContent && !cx.tag.isLeaf && !cx.children.length)
       cx.children.push(this.schema.createDefault(cx.tag.type))
-    let node = cx.tag.isDoc() ? this.schema.doc(cx.children) : cx.tag.create(cx.children)
+    let node = cx.tag.isDoc ? this.schema.doc(cx.children) : cx.tag.create(cx.children)
     if (open) this.open.set(node, open)
     return node
   }
@@ -457,7 +457,7 @@ function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
   explore(content)
   let best: Tag | undefined, bestCost = 0
   scan: for (let parent of schema.tags) if (parent.default) {
-    let cost = parent.isDoc() ? -1 : 0
+    let cost = parent.isDoc ? -1 : 0
     for (let child of tags) {
       let fit = schema.findWrapping(parent, child)
       cost += fit ? fit.length * 2 : 1000

@@ -38,8 +38,8 @@ export class Pos {
 
   get textblockParent() {
     for (let p: NodePos | null = this.parent;; p = p.parent) {
-      if (!p || !p.node.inlineContent()) return null
-      if (p.node.isTextblock()) return p
+      if (!p || !p.node.inlineContent) return null
+      if (p.node.isTextblock) return p
     }
   }
 
@@ -101,7 +101,7 @@ export class Pos {
     let base = this.resolve(doc, pos)
     if (base.inText) return null
     let after = base.nodeAfter
-    return after && !after.isText() ? new NodePos(base.parent, after, pos + 1, base.index) : null
+    return after && !after.isText ? new NodePos(base.parent, after, pos + 1, base.index) : null
   }
 }
 
@@ -137,12 +137,12 @@ export class NodePos {
   }
 
   get start() {
-    if (this.node.isLeaf()) throw new Error("Accessing `start` on a leaf node")
+    if (this.node.isLeaf) throw new Error("Accessing `start` on a leaf node")
     return this._start
   }
 
   get end() {
-    if (this.node.isLeaf()) throw new Error("Accessing `end` on a leaf node")
+    if (this.node.isLeaf) throw new Error("Accessing `end` on a leaf node")
     return this._start + this.node.contentLength
   }
 
@@ -155,7 +155,7 @@ export class NodePos {
   get doc(): DocNode {
     let n: NodePos = this
     while (n.parent) n = n.parent
-    if (!(n.node.isDoc())) throw new Error("Outer parent node a document")
+    if (!(n.node.isDoc)) throw new Error("Outer parent node a document")
     return n.node as DocNode
   }
 
@@ -191,11 +191,11 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
       pos++
     } else {
       let next = node.children[index], end = pos + next.length
-      if (target >= end && (!full || next.isLeaf())) {
+      if (target >= end && (!full || next.isLeaf)) {
         if (walk) walk.skip(next, pos)
         pos = end
         index++
-      } else if (next.isText()) {
+      } else if (next.isText) {
         if (walk) walk.skip(next.sliceText(0, target - pos), pos)
         return new Pos(parent, target, index, target - pos)
       } else if (walk && walk.enter(next.tag, pos, next) == false) {

@@ -94,9 +94,9 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
     if (cur == view.contentDOM) break
     let cView = view.docTile.nearest(cur, true)
     if (!cView) return null
-    if (cView instanceof EltTile && cView.tag && (cView.tag.isBlock() && cView.parent || cView.isAtom)) {
+    if (cView instanceof EltTile && cView.tag && (cView.tag.isBlock && cView.parent || cView.isAtom)) {
       let rect = (cView.dom as HTMLElement).getBoundingClientRect()
-      if (cView.tag.isBlock() && cView.parent) {
+      if (cView.tag.isBlock && cView.parent) {
         // Only apply the horizontal test to the innermost block. Vertical for any parent.
         if (!sawBlock && rect.left > coords.x || rect.top > coords.y) outsideBlock = cView.posBefore
         else if (!sawBlock && rect.right < coords.x || rect.bottom < coords.y) outsideBlock = cView.posAfter
@@ -104,7 +104,7 @@ function posFromCaret(view: EditorView, node: Node, offset: number, coords: {x: 
       }
       if (cView.isAtom && outsideBlock < 0) {
         // If we are inside a leaf, return the side of the leaf closer to the coords
-        let before = cView.tag.isBlock() ? coords.y < (rect.top + rect.bottom) / 2
+        let before = cView.tag.isBlock ? coords.y < (rect.top + rect.bottom) / 2
           : coords.x < (rect.left + rect.right) / 2
         return before ? cView.posBefore : cView.posAfter
       }
@@ -230,7 +230,7 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
   // FIXME find block/inline status from cView?
   let cx = view.state.doc.resolve(cView.tile.posAtStart)
   // Return a horizontal line in block context
-  if (!cx.parent.node.inlineContent()) {
+  if (!cx.parent.node.inlineContent) {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
       let before = node.childNodes[offset - 1]
       if (before.nodeType == 1) return flattenH((before as HTMLElement).getBoundingClientRect(), false)

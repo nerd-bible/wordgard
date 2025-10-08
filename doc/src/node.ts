@@ -55,7 +55,7 @@ export class TagType<Param> {
     this.shape = NodeShape.from(this, spec.shape)
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
-    if (!this.shape.atom && this.isInline() && !this.inlineContent())
+    if (!this.shape.atom && this.isInline && !this.inlineContent)
       throw new Error("Inline tags with block content must be marked as atoms")
   }
 
@@ -78,7 +78,7 @@ export class TagType<Param> {
     let mod = group.indexOf(":")
     if (mod > -1) {
       let modName = group.slice(mod + 1)
-      if (modName == "Leaf" && !this.isLeaf()) return false
+      if (modName == "Leaf" && !this.isLeaf) return false
       group = group.slice(0, mod)
     }
     return group == "_" || this.groups.includes(group)
@@ -104,14 +104,13 @@ export class TagType<Param> {
     return children
   }
 
-  // FIXME make these getters and find some other way to make text accessible?
-  isInline() { return (this.flags & TagFlag.Inline) > 0 }
-  isText() { return (this as TagType<any>) == Text }
-  isBlock() { return (this.flags & TagFlag.Inline) == 0 }
-  inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
-  isTextblock() { return this.isBlock() && this.inlineContent() }
-  isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
-  isDoc() { return (this.flags & TagFlag.Doc) > 0 }
+  get isInline() { return (this.flags & TagFlag.Inline) > 0 }
+  get isText() { return (this as TagType<any>) == Text }
+  get isBlock() { return (this.flags & TagFlag.Inline) == 0 }
+  get inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
+  get isTextblock() { return this.isBlock && this.inlineContent }
+  get isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
+  get isDoc() { return (this.flags & TagFlag.Doc) > 0 }
 }
 
 export class Tag<Param = unknown> {
@@ -147,7 +146,7 @@ export class Tag<Param = unknown> {
   }
 
   create(children?: readonly Node[]): Node {
-    if (this.isDoc()) throw new Error("Document nodes must be created with schema.doc()")
+    if (this.isDoc) throw new Error("Document nodes must be created with schema.doc()")
     return new Node(this, this.type.checkChildren(joinText(children || none)))
   }
 
@@ -190,19 +189,19 @@ export class Tag<Param = unknown> {
     return to.withProps(props)
   }
 
-  isInline() { return this.type.isInline() }
-  isText() { return this.type.isText() }
-  isBlock() { return this.type.isBlock() }
-  inlineContent() { return this.type.inlineContent() }
-  isTextblock() { return this.type.isTextblock() }
-  isLeaf() { return this.type.isLeaf() }
-  isDoc() { return this.type.isDoc() }
+  get isInline() { return this.type.isInline }
+  get isText() { return this.type.isText }
+  get isBlock() { return this.type.isBlock }
+  get inlineContent() { return this.type.inlineContent }
+  get isTextblock() { return this.type.isTextblock }
+  get isLeaf() { return this.type.isLeaf }
+  get isDoc() { return this.type.isDoc }
 
   get tokenType(): TokenType.Open { return TokenType.Open }
 
   toJSON(): TagJSON {
     let result: TagJSON = {type: this.name}
-    if (this != this.type.default && !this.isDoc()) result.param = this.param
+    if (this != this.type.default && !this.isDoc) result.param = this.param
     if (this.props.length) {
       result.props = Object.create(null)
       for (let {name, value} of this.props) result.props![name] = value
@@ -233,7 +232,7 @@ export class Node {
   get type() { return this.tag.type }
 
   get length() {
-    return this.type == Text ? (this.tag.param as string).length : this.isLeaf() ? 1 : 2 + this.contentLength
+    return this.type == Text ? (this.tag.param as string).length : this.isLeaf ? 1 : 2 + this.contentLength
   }
 
   get text(): string | null { return this.type == Text ? this.tag.param as string : null }
@@ -248,7 +247,7 @@ export class Node {
 
   pushTo(nodes: Node[]) {
     let last = nodes.length - 1
-    if (last >= 0 && this.isText() && nodes[last].isText() && nodes[last].tag.sameProps(this.tag))
+    if (last >= 0 && this.isText && nodes[last].isText && nodes[last].tag.sameProps(this.tag))
       nodes[last] = Node.text(nodes[last].text! + this.text!, this.tag.props)
     else
       nodes.push(this)
@@ -267,7 +266,7 @@ export class Node {
 
   /// @internal
   sliceNode(content: Token[], from: number, to: number) {
-    if (this.isText()) {
+    if (this.isText) {
       if (from < to) content.push(this.sliceText(from, to))
       return
     }
@@ -282,13 +281,13 @@ export class Node {
     if (to >= this.length) content.push(CloseToken)
   }
 
-  isInline() { return this.tag.isInline() }
-  isText() { return this.tag.isText() }
-  isBlock() { return this.tag.isBlock() }
-  inlineContent() { return this.tag.inlineContent() }
-  isTextblock() { return this.tag.isTextblock() }
-  isLeaf() { return this.tag.isLeaf() }
-  isDoc() { return this.tag.isDoc() }
+  get isInline() { return this.tag.isInline }
+  get isText() { return this.tag.isText }
+  get isBlock() { return this.tag.isBlock }
+  get inlineContent() { return this.tag.inlineContent }
+  get isTextblock() { return this.tag.isTextblock }
+  get isLeaf() { return this.tag.isLeaf }
+  get isDoc() { return this.tag.isDoc }
 
   /// Iterate though the given range (or the entire document, when
   /// given only one argument), and call the given function on every
@@ -300,7 +299,7 @@ export class Node {
   iterate(a: number | ((node: Node, pos: number, parent: Node | null, index: number) => boolean | void),
           b?: number, c?: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void): void {
     let [from, to, f] = typeof a == "number" ? [a, b!, c!] : [0, this.length, a]
-    if (this.isDoc() || f(this, 0, null, 0) !== false)
+    if (this.isDoc || f(this, 0, null, 0) !== false)
       this.iterInner(0, from, to, f)
   }
 
@@ -327,8 +326,8 @@ export class Node {
 
   /// @internal
   toString() {
-    return propsToString(this.tag.props, this.isText() ? JSON.stringify(this.text)
-      : this.name + (this.isLeaf() ? `` : `(${this.children.join()})`))
+    return propsToString(this.tag.props, this.isText ? JSON.stringify(this.text)
+      : this.name + (this.isLeaf ? `` : `(${this.children.join()})`))
   }
 
   toJSON(): NodeJSON {
@@ -345,12 +344,12 @@ export class Node {
     let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
     let text = "", first = true
     this.iterate(from, to, (node, pos) => {
-      let nodeText = node.isText() ? node.text!.slice(Math.max(0, from - pos), Math.min(node.length, to - pos))
-        : !node.isLeaf() ? ""
+      let nodeText = node.isText ? node.text!.slice(Math.max(0, from - pos), Math.min(node.length, to - pos))
+        : !node.isLeaf ? ""
         : leafText ? (typeof leafText === "function" ? leafText(node) : leafText)
         : node.type.spec.toText ? node.type.spec.toText(node)
         : ""
-      if (node.isBlock() && (node.isLeaf() && nodeText || node.isTextblock())) {
+      if (node.isBlock && (node.isLeaf && nodeText || node.isTextblock)) {
         if (first) first = false
         else text += blockSeparator
       }
@@ -441,11 +440,11 @@ function propsToString(props: readonly Prop<unknown>[], inner: string) {
 }
 
 function joinText(nodes: readonly Node[]) {
-  if (!nodes.length || nodes[0].isBlock()) return nodes
+  if (!nodes.length || nodes[0].isBlock) return nodes
   let joined: Node[] | undefined
   for (let i = 0, last = null; i < nodes.length; i++) {
     let node = nodes[i]
-    if (last && node.isText() && last.isText() && last.tag.sameProps(node.tag)) {
+    if (last && node.isText && last.isText && last.tag.sameProps(node.tag)) {
       if (!joined) joined = nodes.slice(0, i)
       last = joined[joined.length - 1] = Node.text(last.text! + node.text!, node.tag.props)
     } else {

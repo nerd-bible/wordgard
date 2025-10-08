@@ -80,7 +80,7 @@ export function rDoc(minLength: number) {
       }
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
-      if (node.isText() && last && last.isText() && last.tag.sameProps(node.tag))
+      if (node.isText && last && last.isText && last.tag.sameProps(node.tag))
         children[children.length - 1] = Node.text(last.text! + node.text!, node.tag.props)
       else 
         children.push(node)
@@ -103,12 +103,12 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   // Insert a few characters
   doc => {
     let pos = doc.resolve(r(doc.length))
-    return pos.parent.node.inlineContent() ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
+    return pos.parent.node.inlineContent ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
   },
   // Delete some inline content
   doc => {
     let pos = r(doc.length), cx = doc.resolve(pos).parent
-    if (!cx.node.inlineContent() || cx.start == cx.end) return null
+    if (!cx.node.inlineContent || cx.start == cx.end) return null
     let from = pos > cx.start ? pos - 1 : pos
     return {from, to: pos < cx.end && (from == pos || r(2)) ? pos + 1 : pos}
   },
@@ -139,7 +139,7 @@ const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
   },
   // Remove a prop from some textblock
   doc => scanBlocks(doc, (node, pos) => {
-    if (node.isTextblock()) for (let i = 0; i < node.children.length; i++) {
+    if (node.isTextblock) for (let i = 0; i < node.children.length; i++) {
       let props = node.children[i].tag.props
       if (props.length) {
         return {from: pos, to: pos + node.length, remove: props[r(props.length)]}
@@ -159,7 +159,7 @@ function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, 
     for (let i = 0, pos = off; i < node.children.length; i++) {
       let child = node.children[i], val = f(child, pos, node, i)
       if (val != null) found.push(val)
-      if (!child.inlineContent()) explore(child, pos + 1)
+      if (!child.inlineContent) explore(child, pos + 1)
       pos += child.length
     }
   }

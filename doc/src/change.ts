@@ -22,7 +22,7 @@ class Builder implements Walker {
 
   add(node: Node) {
     if (this.modifications) {
-      if (!node.tag.isLeaf()) throw new Error("Invalid modification on non-leaf node")
+      if (!node.tag.isLeaf) throw new Error("Invalid modification on non-leaf node")
       let tag = applyModifications(this.modifications, node.tag)
       if (tag != node.tag) node = tag.create(node.children)
     }
@@ -39,7 +39,7 @@ class Builder implements Walker {
     if (!this.stack.parent) throw new Error("Surplus close token after " + this.stack.children)
     let top = this.stack
     this.stack = this.stack.parent
-    if (!top.children.length && !top.tag.isLeaf() && !top.tag.inlineContent())
+    if (!top.children.length && !top.tag.isLeaf && !top.tag.inlineContent)
       throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.tag.create(top.children))
   }
@@ -51,7 +51,7 @@ class Builder implements Walker {
   finish() {
     let {tag, children, parent} = this.stack
     if (parent) throw new Error("Invalid change")
-    if (!children.length && !tag.inlineContent())
+    if (!children.length && !tag.inlineContent)
       throw new Error(`Invalid change creating an empty block-child node`)
     return this.schema.doc(children)
   }
@@ -335,8 +335,8 @@ export class ChangeSet extends ChangeDesc {
         let mods = this.data[i] as readonly Modification[] | null
         let at = pos, end = pos + len
         if (mods) doc.iterate(pos, end, (node, nodePos) => {
-          if (node.isLeaf() || nodePos >= pos && nodePos < end) {
-            let [from, to] = node.isText()
+          if (node.isLeaf || nodePos >= pos && nodePos < end) {
+            let [from, to] = node.isText
               ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)]
               : [nodePos, nodePos + 1]
             if (at < from) addSection(sections, data, from - at, -1, null)
@@ -687,7 +687,7 @@ class FitLevel {
     readonly tag: Tag,
     readonly next: FitLevel | null,
   ) {
-    if (!this.tag.inlineContent() && !this.tag.isLeaf()) this.flags |= FitFlag.NeedsChild
+    if (!this.tag.inlineContent && !this.tag.isLeaf) this.flags |= FitFlag.NeedsChild
   }
 }
 
@@ -924,7 +924,7 @@ class ChangeFitter implements Walker {
 function localSyncPosAfter(pos: Pos) {
   let found = pos.pos
   for (let cx = pos.parent, index = pos.index;; index = cx.index, cx = cx.parent) {
-    if (!cx.parent || !cx.node.inlineContent() && index != cx.node.children.length - 1) break
+    if (!cx.parent || !cx.node.inlineContent && index != cx.node.children.length - 1) break
     found = cx.after
   }
   return found
@@ -933,8 +933,8 @@ function localSyncPosAfter(pos: Pos) {
 function markableSections(doc: Node, from: number, to: number, spanning: boolean,
                           f: (n: Node, from: number, to: number) => boolean) {
   doc.iterate(from, to, (node, pos) => {
-    if ((pos >= from && pos + (spanning ? node.length : 1) <= to) || node.isText()) {
-      if (node.isText() ? f(node, Math.max(pos, from), Math.min(pos + node.length, to)) : f(node, pos, pos + 1))
+    if ((pos >= from && pos + (spanning ? node.length : 1) <= to) || node.isText) {
+      if (node.isText ? f(node, Math.max(pos, from), Math.min(pos + node.length, to)) : f(node, pos, pos + 1))
         return false
     }
   })
@@ -1046,7 +1046,7 @@ function fitsTrivially(from: Pos, to: Pos, slice: Slice) {
 }
 
 function finishCx(cx: BuildContext, schema: Schema) {
-  return cx.tag.create(cx.children.length || cx.tag.inlineContent() ? cx.children
+  return cx.tag.create(cx.children.length || cx.tag.inlineContent ? cx.children
                        : [schema.createDefault(cx.tag.type)])
 }
 
@@ -1158,8 +1158,8 @@ function fitDeletion(doc: DocNode, from: Pos, to: Pos) {
     // non-inline content, and the range isn't inside a single
     // textblock, pick the outermost such range and delete it
     // entirely.
-    if (!cx.node.inlineContent() && toAtEnd && cx.parent.start == cxTo.parent!.start &&
-        !(from.parent.start == to.parent.start && from.parent.node.inlineContent()))
+    if (!cx.node.inlineContent && toAtEnd && cx.parent.start == cxTo.parent!.start &&
+        !(from.parent.start == to.parent.start && from.parent.node.inlineContent))
       covered = {from: cx.before, to: cxTo.after, slice: Slice.empty}
   }
   return covered || {from: from.pos, to: to.pos, slice: Slice.empty}

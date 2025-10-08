@@ -184,7 +184,7 @@ export class NodeShape<Param> {
   static from<Param>(tag: TagType<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
     if (isElementShape(spec)) {
-      if (atom == null) atom = tag.isLeaf()
+      if (atom == null) atom = tag.isLeaf
       let {element, attributes} = spec
       if (typeof attributes == "function") {
         create = (param: Param) => new Elt(element, readAttributes(attributes(param)), atom ? noChildren : null)
@@ -205,7 +205,7 @@ export class NodeShape<Param> {
         create = () => structure
       }
     }
-    if (atom == false && tag.isLeaf()) throw new Error(`Leaf tag ${tag.name}'s shape must be atomic`)
+    if (atom == false && tag.isLeaf) throw new Error(`Leaf tag ${tag.name}'s shape must be atomic`)
     return new NodeShape<Param>(atom, create, spec)
   }
 }

@@ -176,7 +176,7 @@ function serializeNodeInner(node: Nodeish, cx: Context) {
     serializeChildren(children, cx)
   }
   let repr = node.tag.type.spec.shape
-  if (node.tag.isText()) {
+  if (node.tag.isText) {
     if (propAttrs.length) cx.openElt("span", propAttrs)
     cx.emitText(node.tag.param)
     if (propAttrs.length) cx.closeElt()
@@ -213,7 +213,7 @@ function lineBreaksToNewlines(nodes: readonly Nodeish[], lineBreak: Tag<any>) {
     let next = node.tag == lineBreak ? Node.text("\n", node.tag.props) : node
     if (lastText && next instanceof Node) next.pushTo(result as Node[])
     else result.push(next)
-    lastText = next.tag.isText()
+    lastText = next.tag.isText
   }
   return result
 }

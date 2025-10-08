@@ -56,7 +56,7 @@ export class Schema {
   createDefault(parent: TagType<any>): Node {
     let child = this.defaultContentType(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
-    if (child.isLeaf() || child.inlineContent()) return child.create()
+    if (child.isLeaf || child.inlineContent) return child.create()
     return child.create([this.createDefault(child.type)])
   }
 
@@ -72,7 +72,7 @@ export class Schema {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
       for (let tag of this.tags) if (at.canContain(tag)) {
         if (tag == child) return path
-        if (!seen.has(tag) && !tag.isLeaf() && tag.default) {
+        if (!seen.has(tag) && !tag.isLeaf && tag.default) {
           seen.add(tag)
           work.push(path.concat(tag.default))
         }
@@ -109,22 +109,22 @@ export class Schema {
     let docTag: TagType<Schema> | null = null
     let lineBreak: Tag<any> | null = null
     for (let tag of tags) {
-      if (tag.isDoc()) docTag = tag
+      if (tag.isDoc) docTag = tag
       if (tag.spec.isLineBreak) {
-        if (tag.isBlock() || !tag.isLeaf() || !tag.default)
+        if (tag.isBlock || !tag.isLeaf || !tag.default)
           throw new Error("Line break tags must be inline leaves with a default param")
         if (lineBreak) throw new Error("Multiple line break tags provided")
         lineBreak = tag.default
       }
-      if (!tag.isLeaf()) {
+      if (!tag.isLeaf) {
         let sawDefaultable = false
         for (let child of tags) if (tag.canContain(child)) {
           if (child.default) sawDefaultable = true
-          if (child.isInline() != tag.inlineContent())
-            throw new Error(`Node type ${tag.name} has ${tag.inlineContent() ? "block" : "inline"
+          if (child.isInline != tag.inlineContent)
+            throw new Error(`Node type ${tag.name} has ${tag.inlineContent ? "block" : "inline"
                               } content, but allows ${child.name} as a child`)
         }
-        if (!tag.inlineContent() && !sawDefaultable)
+        if (!tag.inlineContent && !sawDefaultable)
           throw new Error(`Node ${tag.name} has block content, but all possible children require non-default props`)
       }
     }
@@ -136,7 +136,7 @@ export class Schema {
     let tag = this.tagFromJSON(json), children = none
     if (json.children && Array.isArray(json.children))
       children = json.children.map(c => this.nodeFromJSON(c))
-    if (tag.type.isDoc()) return this.doc(children)
+    if (tag.type.isDoc) return this.doc(children)
     return tag.create(children)
   }
 

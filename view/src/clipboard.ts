@@ -70,7 +70,7 @@ function readClipboardText(state: EditorState, text: string, context: Pos, plain
   let lines = text.split(/(?:\r\n?|\n)+/)
   let content: Token[] = lines[0] ? [Node.text(lines[0], props)] : []
   if (lines.length == 1) return new Slice(content)
-  let parent = (context.parent.node.inlineContent() ? context.parent.parent || context.parent : context.parent).node.tag
+  let parent = (context.parent.node.inlineContent ? context.parent.parent || context.parent : context.parent).node.tag
   let wrapping = state.doc.schema.findWrapping(parent.type, Text)
   if (!wrapping || !wrapping.length) return new Slice([Node.text(text.replace(/\r?\n|\r/g, " "), props)])
   let wrapper = wrapping[wrapping.length - 1]
