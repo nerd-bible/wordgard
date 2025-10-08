@@ -15,6 +15,9 @@ export function clearNonFitting(node: NodePos, type: TagType<any>) {
   return changes
 }
 
+/// Find a way to wrap the blocks betwen `from` and `to` in a node
+/// with the given tag. Returns precise start and end positions where
+/// a wrap is possible, or null if none is possible.
 export function findWrappable(from: Pos, to: Pos, wrapper: Tag<any>) {
   let dFrom = from.depth, dTo = to.depth
   let pFrom = from.parent, pTo = to.parent
@@ -34,6 +37,10 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Tag<any>) {
           to: new Pos(pFrom.parent, pTo.after, pTo.index + 1, 0)}
 }
 
+/// Wrap the given range in the given wrapper tag. The caller is
+/// responsible for verifying that this is actually a valid wrapping.
+/// It is recommended to use [`findWrappable`](#view.findWrappable)
+/// for finding wrap positions in non-trivial situations.
 export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
   let changes: ChangeSpec[] = [], parent = range.from.parent.node
   for (let i = range.from.index, openWrappers = 0, pos = range.from.pos;; i++) {
@@ -62,11 +69,13 @@ function textblockChild(schema: Schema, type: TagType<any>) {
   return wrap && wrap.length == 1 ? wrap[0] : null
 }
 
-// FIXME this still doesn't work properly on textblock-item-lists or definition lists
+/// Find the set of block nodes around the given range that match the
+/// predicate (if any) and can be unwrapped, meaning their content
+/// gets moved out to a parent node.
 export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => boolean) {
   let dFrom = from.depth, dTo = to.depth
   let fromStart = from.parent.node.inlineContent ? from.parent.start : from.pos
-  let fromTextblock = from.parent.node.isTextblock ? from.parent.node.type : null
+  let fromTextblock = from.textblockParent?.node.type
   let toEnd = to.parent.node.inlineContent ? to.parent.end : to.pos
   let innerCandidates: NodePos[] = []
   let outerCandidates: NodePos[] = []
@@ -100,12 +109,17 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => bo
   return candidates
 }
 
+/// Unwrap the given block node, or the node's children between `from`
+/// and `to`.
 export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeSpec {
   let changes: ChangeSpec[] = [], {schema} = block.doc
   let outer = block.parent!.node, wrapText = textblockChild(schema, outer.type)
 
-  let parent = block, index = 0, pos = block.start
-  let gapStart = block.before, skippedDepth = 0
+  // The start of the gap we're currently moving over
+  let gapStart = block.before
+  // Track the current depth relative to the start of the gap
+  let skippedDepth = 0
+  // Emit a change that replaces the current gap with the given tokens
   let replaceGap = (to: number, tokens: Token[]) => {
     for (let i = 0; i < skippedDepth; i++) tokens.unshift(CloseToken)
     skippedDepth = 0
@@ -113,17 +127,20 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
       changes.push({from: gapStart, to, insert: new Slice(tokens)})
   }
 
+  // Scan through the block
+  let parent = block, index = 0, pos = block.start
   for (;;) {
     if (index == parent.node.children.length) {
-      if (parent == block) {
+      if (parent == block) { // End of entire block, delete closing tokens
         let tokens: Token[] = []
+        // If parent becomes empty, put in a default replacement block
         if (gapStart == block.before && outer.children.length == 1) {
           let deflt = block.doc.schema.createDefault(outer.type)
           if (deflt) tokens.push(deflt)
         }
         replaceGap(block.after, tokens)
         break
-      } else {
+      } else { // Move out of an inner block
         if (gapStart == pos && skippedDepth > 0) {
           gapStart++
           skippedDepth--
@@ -134,15 +151,18 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
       }
     } else {
       let next = parent.node.children[index]
+      // Can be lifted
       if (outer.type.canContain(next.type) || wrapText && next.inlineContent) {
-        if (from != null && pos + next.length <= from) {
+        if (from != null && pos + next.length <= from) { // Before from
           pos += next.length
           gapStart = pos
+          // Reset skippedDepth to the depth after this node
           skippedDepth = 1
           for (let cx = parent; cx != block; cx = cx.parent!) skippedDepth++
           index++
-        } else if (to != null && pos >= to) {
+        } else if (to != null && pos >= to) { // After to
           let tokens: Token[] = [], upto = pos
+          // Create open tokens for the end of the unwrap, and exit
           for (let cx = parent, i = tokens.length, atStart = !index;; cx = cx.parent!) {
             if (cx.index > 0) atStart = false
             if (atStart) upto--
@@ -152,9 +172,12 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
           replaceGap(upto, tokens)
           break
         } else {
+          // Make sure this element is removed from the unwrapped parent
           if (outer.type.canContain(next.type)) {
             replaceGap(pos, [])
           } else {
+            // If it doesn't fit directly but can be moved into a
+            // different text block, do that
             replaceGap(pos + 1, [wrapText!])
             changes.push(clearNonFitting(new NodePos(parent, next, pos + 1, index), wrapText!.type))
           }
@@ -163,9 +186,11 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
           gapStart = pos
         }
       } else if (next.type.isolating || next.isLeaf) {
+        // Skip leaves and isolating nodes that cannot be moved up
         pos += next.length
         index++
       } else {
+        // Enter anything else
         parent = new NodePos(parent, next, pos + 1, index)
         index = 0
         pos++

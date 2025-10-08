@@ -19,7 +19,7 @@ export type TagSpec<Param> = {
   group?: string
   toText?: (node: Node) => string
   shape: ElementShape<Param> | StructureShape<Param>
-  parseRules?: readonly ElementParseRule<Param>[]
+    parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
   /// Indicates that this type of block is the default generic block
   /// type in parent nodes where it may occur (which is appropriate
@@ -40,16 +40,28 @@ export type TagSpec<Param> = {
   /// to `"column"` to tell the editor that this container's children
   /// are horizontally next to each other.
   orientation?: "row" | "column"
+  /// Defining nodes are preserved (when possible) when their content
+  /// is duplicated (dragged, pasted, etc) into a new position.
+  /// Defaults to false.
   defining?: boolean
+  /// Neutral nodes can be completely replaced when their entire
+  /// content gets replaced. Defaults to `!defining`.
   neutral?: boolean
+  /// Whether block nodes of this type should be automatically joined
+  /// when they become adjacent through an edit. Defaults to false.
+  /// Note that editing commands need to explicitly call
+  /// [`joinBlocks`](#doc.joinBlocks) for joining to happen. It is not
+  /// done automatically by a lower layer.
   autoJoin?: boolean | ((before: Tag, after: Tag) => boolean) // FIXME implement
-  // FIXME should this be integrated in Tag.split? Handling validity in parent may be awkward
-  splitTag?: (tag: Tag, atEnd: boolean) => Tag | null
+  /// By default, splitting a textblock at the end will revert the new
+  /// block to the default type of textblock at that position. Setting
+  /// this to true on a textblock type will prevent that behavior.
+  preserveOnSplitAtEnd?: boolean
   /// For inline nodes with inline content, this determines whether
   /// there are normalized cursor positions directly inside the node.
   /// The default is to only have cursor positions right outside the
   /// node.
-  cursorInsideBounds?: boolean // FIXME make a node flag?
+  cursorInsideBounds?: boolean
 }
 
 export type PropSpec<Value> = {
@@ -85,14 +97,14 @@ export type PropSpec<Value> = {
   validate?: string | ((value: Value) => void)
   set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
   shape: ElementShape<Value> | AttributeShape<Value>
-  parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
+    parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
 }
 
 export interface ElementParseRule<Param> {
   selector: string
   tag?: TagType<Param> | Tag<Param>
-  prop?: PropType<Param> | Prop<Param>
-  ignore?: boolean | "skip"
+    prop?: PropType<Param> | Prop<Param>
+    ignore?: boolean | "skip"
   param?: Param
   readElement?: (element: HTMLElement) => Param | Reject
   contentElement?: string | ((elt: HTMLElement) => HTMLElement)
@@ -105,7 +117,7 @@ export function isElementParseRule(rule: ParseRule): rule is ElementParseRule<un
 export interface AttributeParseRule<Param> {
   attribute: string
   prop?: PropType<Param> | Prop<Param>
-  ignore?: boolean
+    ignore?: boolean
   clearProp?: (prop: Prop<unknown>) => boolean
   param?: Param
   value?: string

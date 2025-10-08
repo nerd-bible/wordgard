@@ -89,18 +89,19 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
     if (p == before) break
   }
 
-  let after = sel.to.textblockParent, tagAfter = null
+  let after = sel.to.textblockParent
   if (after) {
     let atEnd = true, insert = tokens.length
     for (let p = sel.to.parent, index = sel.to.index;; index = p.index + 1, p = p.parent!) {
       if (index < p.node.children.length) atEnd = false
-      let tag = p.node.tag.split(atEnd)
-      if (tag.type.spec.splitTag) tagAfter = tag.type.spec.splitTag(tag, atEnd)
-      if (atEnd && tag.isTextblock && !tagAfter && p.parent) {
-        let defaultType = state.doc.schema.defaultContentType(p.parent.node.type)
-        if (defaultType) tagAfter = tag.changeType(defaultType)
+      let tag = p.node.tag.split(atEnd), nextTag = atEnd && !p.node.type.spec.preserveOnSplitAtEnd ? null : tag
+      if (!nextTag || !p.parent!.node.type.canContain(tag.type)) {
+        if (!atEnd) return false
+        let defaultType = state.doc.schema.defaultContentType(p.parent!.node.type)
+        if (defaultType) tag = tag.changeType(defaultType)
+        else return false
       }
-      tokens.splice(insert, 0, tagAfter || tag)
+      tokens.splice(insert, 0, tag)
       if (p == after) break
     }
   }

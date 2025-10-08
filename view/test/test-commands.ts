@@ -2,7 +2,7 @@ import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlock, unwrapBlockType, toggleProp} from "@wordgard/view"
-import {Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
+import {Node, Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList,
         Emphasis, Strong, Link} from "@wordgard/doc"
 import {EditorState, StateCommand, EditorSelection} from "@wordgard/state"
@@ -520,6 +520,18 @@ describe("unwrapBlock", () => {
 
   it("returns false at the top level", () => {
     test(doc(p("a", 0)), unwrapBlock)
+  })
+
+  it("can unwrap textblock list items", () => {
+    let list = Tag.defineBlock("List", {shape: {element: "ul"}, group: "Block", blockContent: "Item"})
+    let item = Tag.defineBlock("Item", {shape: {element: "li"}, inlineContent: true})
+    let s = Schema.define([...basicSchema.tags, list, item])
+    let state = EditorState.create({
+      doc: s.doc([list.create([item.create([Node.text("a")]), item.create([Node.text("b")])])]),
+      selection: {anchor: 0, head: 8}
+    })
+    unwrapBlockType(list)({state, dispatch: tr => state = tr.state})
+    ist(state.doc, s.doc([p("a"), p("b")]), eq)
   })
 })
 
