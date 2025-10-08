@@ -80,8 +80,13 @@ let InlineAtom = Tag.defineInline("InlineAtom", {
   shape: {element: "var", atom: true},
 }), at = builder(InlineAtom)
 
+let AtomProp = Prop.define("AtomProp", {
+  tags: "Inline:Leaf InlineAtom",
+  shape: {element: "atom-prop"}
+}), ap = builder(AtomProp)
+
 let schema = Schema.define([...basicSchema.tags, ...basicSchema.props, TextOnly,
-                            BlockProp, PreservedProp, InlineSpan, InlineAtom])
+                            BlockProp, PreservedProp, InlineSpan, InlineAtom, AtomProp])
 let doc = builder(schema)
 
 describe("liftEmptyBlock", () => {
@@ -563,11 +568,11 @@ describe("toggleProp", () => {
     test(doc(p(0, sp("a", em("b"), "c"), 1)), toggleProp(Emphasis), doc(p(0, sp(em("abc")), 1)))
   })
 
-  it("will stop adding a prop at inline atom boundary", () => {
-    test(doc(p(0, "a", at("b"), 1)), toggleProp(Emphasis), doc(p(0, em("a", at("b")), 1)))
+  it("will not add to both a parent and a child", () => {
+    test(doc(p(0, "a", at("b"), 1)), toggleProp(AtomProp), doc(p(0, ap("a", at("b")), 1)))
   })
 
-  it("will not remove a prop from inside an inline atom", () => {
-    test(doc(p(0, at(em("b")), 1)), toggleProp(Emphasis), doc(p(0, em(at(em("b"))), 1)))
+  it("will not remove a prop from inside an inline element that supports it", () => {
+    test(doc(p(0, at(ap("b")), 1)), toggleProp(AtomProp), doc(p(0, ap(at(ap("b"))), 1)))
   })
 })

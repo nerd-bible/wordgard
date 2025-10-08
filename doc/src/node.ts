@@ -22,7 +22,6 @@ function flagsFor(spec: TagSpec<any>, inline: boolean) {
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= TagFlag.InlineContent
   else if (!spec.blockContent) flags |= TagFlag.Leaf
-  else if (inline && spec.blockContent) throw new Error("Inline tags with block content must be marked as atoms")
   return flags
 }
 
@@ -56,6 +55,8 @@ export class TagType<Param> {
     this.shape = NodeShape.from(this, spec.shape)
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
+    if (!this.shape.atom && this.isInline() && !this.inlineContent())
+      throw new Error("Inline tags with block content must be marked as atoms")
   }
 
   static defineInline<T>(name: string, spec: TagSpec<T>) {
