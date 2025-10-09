@@ -2,7 +2,7 @@ import {Node, Tag, TagType, Prop, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
         unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "@wordgard/doc"
-import {EditorSelection, StateCommand, EditorState, Transaction, Direction} from "@wordgard/state"
+import {EditorSelection, StateCommand, EditorState, Transaction, Direction, autoJoinBlocks} from "@wordgard/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {KeyBinding} from "./keymap"
@@ -51,6 +51,8 @@ export const createTextblock: StateCommand = ({state, dispatch}) => {
   return true
 }
 
+/// If the cursor is in an empty textblock that can be lifted out of a
+/// parent, this command will do so.
 export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
   let sel = state.selPos, block = sel.head.textblockParent
   if (!sel.empty || !block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return false
@@ -64,7 +66,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
           {from: block.after, to: end, insert: new Slice(after)}
         ],
         scrollIntoView: true,
-        userEvent: "lift.empy"
+        userEvent: "lift.empty"
       }))
       return true
     }
@@ -79,6 +81,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
   return false
 }
 
+/// Split the textblock at the cursor position, if any.
 export const splitTextblock: StateCommand = ({state, dispatch}) => {
   let sel = state.selPos
   let before = sel.from.textblockParent
@@ -129,12 +132,12 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
 
 export const deleteSelection: StateCommand = ({state, dispatch}) => {
   if (state.selection.ranges.every(r => r.from == r.to)) return false
-  dispatch(state.update({
+  dispatch(state.update(autoJoinBlocks(state, {
     changes: {correct: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})), local: true},
     normalizeSelection: true,
     scrollIntoView: true,
     userEvent: "delete.selection"
-  }))
+  })))
   return true
 }
 
@@ -207,19 +210,17 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
   return true
 }
 
-// FIXME do auto-joining in delete commands
-
 export const deleteBackward: StateCommand = ({state, dispatch}) => {
   let sel = state.selPos
   if (!sel.empty) return false
   if (sel.head.inText) {
     let before = sel.head.nodeBefore!
     let size = before.length - findClusterBreak(before.text!, before.length, false)
-    dispatch(state.update({
+    dispatch(state.update(autoJoinBlocks(state, {
       changes: {from: sel.head.pos - size, to: sel.head.pos},
       scrollIntoView: true,
       userEvent: "delete.backward"
-    }))
+    })))
     return true
   }
 
@@ -269,11 +270,11 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   if (sel.head.inText) {
     let after = sel.head.nodeAfter!
     let size = findClusterBreak(after.text!, 0)
-    dispatch(state.update({
+    dispatch(state.update(autoJoinBlocks(state, {
       changes: {from: sel.head.pos, to: sel.head.pos + size},
       scrollIntoView: true,
       userEvent: "delete.forward"
-    }))
+    })))
     return true
   }
 
@@ -330,7 +331,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
       })
     }
     if (!changes.length) return false
-    dispatch(state.update({changes, scrollIntoView: true, userEvent: "settype"}))
+    dispatch(state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "settype"})))
     return true
   }
 }
@@ -345,7 +346,7 @@ export function wrapBlock(wrapper: Tag<any>): StateCommand {
       lastTo = range.to.pos
     }
     if (!changes.length) return false
-    dispatch(state.update({changes, scrollIntoView: true, userEvent: "wrap"}))
+    dispatch(state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "wrap"})))
     return true
   }
 }
@@ -366,7 +367,7 @@ export function unwrapBlockType(type: TagType<any> | Tag<any> | ((tag: Tag<any>)
       }
     }
     if (!targets.length) return false
-    dispatch(state.update({changes, scrollIntoView: true, normalizeSelection: true, userEvent: "unwrap"}))
+    dispatch(state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, normalizeSelection: true, userEvent: "unwrap"})))
     return true
   }
 }

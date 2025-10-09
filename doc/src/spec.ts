@@ -50,9 +50,8 @@ export type TagSpec<Param> = {
   /// Whether block nodes of this type should be automatically joined
   /// when they become adjacent through an edit. Defaults to false.
   /// Note that editing commands need to explicitly call
-  /// [`joinBlocks`](#doc.joinBlocks) for joining to happen. It is not
-  /// done automatically by a lower layer.
-  autoJoin?: boolean | ((before: Tag, after: Tag) => boolean) // FIXME implement
+  /// [`autoJoinBlocks`](#state.autoJoinBlocks) for joining to happen.
+  autoJoin?: boolean | ((before: Tag, after: Tag) => boolean)
   /// By default, splitting a textblock at the end will revert the new
   /// block to the default type of textblock at that position. Setting
   /// this to true on a textblock type will prevent that behavior.

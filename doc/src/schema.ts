@@ -210,7 +210,8 @@ export const CodeBlockLanguage = PropType.define("CodeBlockLanguage", {
 export const Blockquote = Tag.defineBlock("Blockquote", {
   blockContent: "Block",
   group: "Block",
-  shape: {element: "blockquote"}
+  shape: {element: "blockquote"},
+  autoJoin: true
 })
 
 export const OrderedList = TagType.defineBlock("OrderedList", {

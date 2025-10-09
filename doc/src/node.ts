@@ -289,6 +289,15 @@ export class Node {
   get isLeaf() { return this.tag.isLeaf }
   get isDoc() { return this.tag.isDoc }
 
+  get firstChild(): Node | null {
+    return this.children.length ? this.children[0] : null
+  }
+
+  get lastChild(): Node | null {
+    let last = this.children.length - 1
+    return last < 0 ? null : this.children[last]
+  }
+
   /// Iterate though the given range (or the entire document, when
   /// given only one argument), and call the given function on every
   /// node that overlaps the given range, outer nodes before inner

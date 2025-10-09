@@ -314,7 +314,7 @@ type ResolvedSpec = {
   scrollIntoView: boolean
 }
 
-function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
+export function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
   let mapForA, mapForB, changes
   if (sequential) {
     mapForA = b.changes
@@ -335,7 +335,7 @@ function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec, sequen
   }
 }
 
-function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedSpec {
+export function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedSpec {
   let sel = spec.selection, annotations = asArray(spec.annotations)
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   return {
@@ -391,4 +391,3 @@ const none: readonly any[] = []
 export function asArray<T>(value: undefined | T | readonly T[]): readonly T[] {
   return value == null ? none : Array.isArray(value) ? value : [value]
 }
-

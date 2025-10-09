@@ -237,6 +237,10 @@ describe("deleteSelection", () => {
   it("can delete multiple selected ranges", () => {
     test(doc(p("a", 0, "b", 1, "c", 2, "d", 3, "e")), deleteSelection, doc(p("a", 0, "c", 2, "e")))
   })
+
+  it("can join two lists", () => {
+    test(doc(ul(li(p("a"))), 0, p("-"), 1, ul(li(p("b")))), deleteSelection, doc(ul(li(p("a")), li(p("b")))))
+  })
 })
 
 describe("joinBackward", () => {
@@ -472,6 +476,11 @@ describe("wrapBlock", () => {
   it("will pick the innermost valid depth", () => {
     test(doc(blockquote(p("a", 0))), wrapBlock(BulletList), doc(blockquote(ul(li(p("a", 0))))))
   })
+
+  it("will join to adjacent auto-join node", () => {
+    test(doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))), wrapBlock(Blockquote),
+         doc(blockquote(p("a"), p("b"), p("c"))))
+  })
 })
 
 describe("unwrapBlock", () => {
@@ -532,6 +541,12 @@ describe("unwrapBlock", () => {
     })
     unwrapBlockType(list)({state, dispatch: tr => state = tr.state})
     ist(state.doc, s.doc([p("a"), p("b")]), eq)
+  })
+
+  it("will auto-join unwrapped nodes", () => {
+    test(doc(ul(li(p("a"))), blockquote(ul(li(p(0, "b"))))), unwrapBlock,
+         doc(ul(li(p("a")), li(p(0, "b")))))
+    
   })
 })
 
