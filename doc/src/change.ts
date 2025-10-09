@@ -250,6 +250,8 @@ export class ChangeDesc {
   }
 }
 
+const applyCache = new WeakMap<ChangeSet, {a: DocNode, b: DocNode}>()
+
 export class ChangeSet extends ChangeDesc {
   constructor(
     sections: readonly number[],
@@ -260,6 +262,9 @@ export class ChangeSet extends ChangeDesc {
 
   apply(doc: DocNode) {
     if (this.empty) return doc
+    let cached = applyCache.get(this)
+    if (cached && doc.eq(cached.a)) return cached.b
+
     let builder = new Builder(doc)
     let cursor = Pos.atStart(doc)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
@@ -275,7 +280,10 @@ export class ChangeSet extends ChangeDesc {
     }
     if (cursor.pos != doc.length)
       throw new Error("Change doesn't cover the entire document")
-    return builder.finish()
+
+    let newDoc = builder.finish()
+    applyCache.set(this, {a: doc, b: newDoc})
+    return newDoc
   }
 
   get desc() { return new ChangeDesc(this.sections) }
