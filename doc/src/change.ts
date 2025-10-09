@@ -103,12 +103,29 @@ function compareModification(a: Modification, b: Modification) {
   return isAdd(a) ? isAdd(b) && a.add.eq(b.add) : isRemove(b) && a.remove.eq(b.remove)
 }
 
+/// Representation of a single document change. Changes can either
+/// affect props (when `add` or `remove` is present), or replace a
+/// part of the document (otherwise).
 export type Change = {
+  /// The start position of the change.
   from: number
+  /// The end position. When not given, this defaults to `from` for
+  /// replacement changes, and `from + 1` for changes that add or
+  /// remove props.
   to?: number
+  /// Replace the given range with this slice.
   insert?: Slice
-  fit?: boolean | readonly Tag<any>[] // FIXME move this into a utility function
+  /// For deletions or insertions where it isn't obvious that the
+  /// replacement will produce a valid document, set this to `true` or
+  /// a stack of context tags to make the library process the
+  /// replacement to make sure it fits. Context tags (passed with the
+  /// innermost tag first, as in
+  /// [`DocNode.contextAt`](#doc.DocNode.contextAt)) may be used as
+  /// wrappers when fitting the slice.
+  fit?: boolean | readonly Tag<any>[]
+  /// Add the given prop to the change's range.
   add?: Prop<any>
+  /// Add the given prop to the change's range.
   remove?: Prop<any>
 }
 
@@ -116,7 +133,6 @@ export type ChangeSpec = Change | {correct: ChangeSpec, local?: boolean} | Chang
 
 type SectionData = Slice | readonly Modification[] | null
 
-// FIXME confirm that this is worth having as a separate class
 export class ChangeDesc {
   private _length = -1
   private _newLength = -1

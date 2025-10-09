@@ -5,8 +5,6 @@ import {Slice, Token, CloseToken} from "./slice"
 import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule} from "./spec"
 import {isElementShape, Reject} from "./shape"
 
-// FIXME automatically preserve whitespace in pre or white-space: pre elements
-
 type DOMNode = InstanceType<typeof window.Node>
 
 class RuleSet {

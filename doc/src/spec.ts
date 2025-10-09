@@ -102,8 +102,8 @@ export type PropSpec<Value> = {
 export interface ElementParseRule<Param> {
   selector: string
   tag?: TagType<Param> | Tag<Param>
-    prop?: PropType<Param> | Prop<Param>
-    ignore?: boolean | "skip"
+  prop?: PropType<Param> | Prop<Param>
+  ignore?: boolean | "skip"
   param?: Param
   readElement?: (element: HTMLElement) => Param | Reject
   contentElement?: string | ((elt: HTMLElement) => HTMLElement)
