@@ -63,17 +63,10 @@ class RuleSet {
 }
 
 export type ParseOptions = {
-  // rules: readonly ParseRule[]
-
   /// Controls whether HTML-style whitespace collapsing is used
   /// (outside nodes that don't enable `preserveWhitespace`). Defaults
   /// to true.
   collapseWhiteSpace?: boolean
-  /// When given, the parser will, beside parsing the content, record
-  /// the document positions of the given DOM positions. It will do so
-  /// by writing to the objects, setting a `pos` property that holds
-  /// the document position.
-  findPositions?: {node: DOMNode, offset: number, pos?: number}[] // FIXME no longer needed?
   isOpen?: (elt: HTMLElement) => OpenSide
 }
 
@@ -124,12 +117,10 @@ const enum CxFlag {
 }
 
 class ParseContext {
-  find: {node: DOMNode, offset: number, pos?: number}[] | undefined
   rules: RuleSet
   open: Map<Node, CxFlag> = new Map
 
   constructor(readonly schema: Schema, readonly options: ParseOptions, public top: NodeContext) {
-    this.find = options.findPositions
     this.rules = RuleSet.fromSchema(schema)
   }
 
@@ -150,7 +141,6 @@ class ParseContext {
     if (name in normalizers) normalizers[name](elt)
     let match = this.rules.matchElement(elt)
     if (match ? match.rule.ignore === true : ignoreTags.has(name)) {
-      this.scanInside(elt)
       this.ignoreElement(elt, props)
     } else if (!match || match.rule.ignore === "skip") {
       let sync, top = this.top
@@ -192,15 +182,11 @@ class ParseContext {
     }
     let startIn = this.top
 
-    if (tag && tag.isLeaf) {
-      this.scanInside(elt)
-    } else {
+    if (!tag || !tag.isLeaf) {
       let content = elt
       if (typeof rule.contentElement == "string") content = elt.querySelector(rule.contentElement) || elt
       else if (typeof rule.contentElement == "function") content = rule.contentElement(elt)
-      if (content != elt) this.scanAround(elt, content, true)
       this.parseChildren(content, props, endOfSlice)
-      if (content != elt) this.scanAround(elt, content, false)
     }
     if (sync && this.sync(startIn)) this.close()
   }
@@ -209,10 +195,7 @@ class ParseContext {
     let text = dom.nodeValue!
     if (!this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
       // Ignore entirely blank node
-      if (!this.top.tag.inlineContent && !/[^ \t\r\n\u000c]/.test(text)) {
-        this.scanInside(dom)
-        return
-      }
+      if (!this.top.tag.inlineContent && !/[^ \t\r\n\u000c]/.test(text)) return
       // Collapse spans of whitespace into a single space
       text = text.replace(/[ \t\r\n\u000c]+/g, " ")
       // If this starts with whitespace, and there is no node before it,
@@ -236,7 +219,6 @@ class ParseContext {
       text = text.replace(/\r?\n|\r/g, " ")
       if (text) this.insertNode(Node.text(text), props)
     }
-    this.scanText(dom, text)
   }
 
   parseAttributes(elt: HTMLElement, props: readonly Prop[]) {
@@ -355,47 +337,6 @@ class ParseContext {
     let node = cx.tag.isDoc ? this.schema.doc(cx.children) : cx.tag.create(cx.children)
     if (open) this.open.set(node, open)
     return node
-  }
-
-  scanInside(dom: DOMNode) {
-    if (this.find && dom.nodeType == 1) for (let query of this.find) {
-      if (query.pos == null && dom.contains(query.node)) query.pos = this.currentPos()
-    }
-  }
-
-  scanAtPoint(dom: DOMNode, offset: number) {
-    if (this.find) for (let query of this.find) {
-      if (query.node == dom && query.offset == offset) query.pos = this.currentPos()
-    }
-  }
-
-  scanAround(parent: DOMNode, content: DOMNode, before: boolean) {
-    if (parent != content && this.find && parent.nodeType == 1) for (let query of this.find) {
-      if (query.pos == null && parent.contains(query.node) &&
-          content.compareDocumentPosition(query.node) & (before ? 2 : 4))
-        query.pos = this.currentPos()
-    }
-  }
-
-  scanText(dom: Text, text: string) {
-    if (this.find) for (let query of this.find) {
-      if (query.node == dom) {
-        let oldText = dom.nodeValue!, overlap = 0
-        for (let i = oldText.length, j = text.length; i > query.offset && j > 0; i--, overlap++)
-          if (oldText[i - 1] != text[j - 1]) break
-        query.pos = this.currentPos() - overlap
-      }
-    }
-  }
-
-  currentPos() {
-    for (let cx = this.top, pos = 0;;) {
-      pos += cx.children.reduce((s, ch) => s + ch.length, 0)
-      let {parent} = cx
-      if (!parent) return pos
-      cx = parent
-      pos++
-    }
   }
 }
 
