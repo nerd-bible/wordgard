@@ -8,8 +8,8 @@ import ist from "ist"
 const {DocTile} = EditorView
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
-function render(doc: DocNode, ...extensions: Extension[]) {
-  return DocTile.create(EditorState.create({doc, extensions}), document.createElement("div"))
+function render(doc: DocNode, ...config: Extension[]) {
+  return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 
 function update(node: InstanceType<typeof DocTile>, spec: TransactionSpec) {
@@ -369,9 +369,9 @@ describe("DocTile", () => {
     it("properly recognizes atomicity of overridden shapes", () => {
       ist(EditorState.create({doc: doc(p("ab"))}).isAtom(0), false)
       let byPoint = new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt("div", "?")})
-      ist(EditorState.create({doc: doc(p("ab")), extensions: byPoint}).isAtom(0), true)
+      ist(EditorState.create({doc: doc(p("ab")), config: byPoint}).isAtom(0), true)
       let byTag = tagShape({tag: "Paragraph", shape: elt("hr")})
-      ist(EditorState.create({doc: doc(p("a")), extensions: byTag}).isAtom(0), true)
+      ist(EditorState.create({doc: doc(p("a")), config: byTag}).isAtom(0), true)
     })
 
     it("can override shapes by tag", () => {

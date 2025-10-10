@@ -6,8 +6,8 @@ import ist from "ist"
 const {DocTile} = EditorView
 const {doc, p, $img, hr} = basicBuilders
 
-function render(doc: DocNode, ...extensions: Extension[]) {
-  return DocTile.create(EditorState.create({doc, extensions}), document.createElement("div"))
+function render(doc: DocNode, ...config: Extension[]) {
+  return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 
 function isIn(pos: ContentPos, parent: string, offset: number) {

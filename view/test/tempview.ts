@@ -11,7 +11,7 @@ let hide: any = null
 
 /// Create a hidden view with the given document and extensions that
 /// lives until the next call to `tempView`.
-export function tempView(doc: string | DocNode, extensions: Extension = []): EditorView {
+export function tempView(doc: string | DocNode, config: Extension = []): EditorView {
   if (currentTempView) {
     currentTempView.dom.remove()
     currentTempView = null
@@ -21,7 +21,7 @@ export function tempView(doc: string | DocNode, extensions: Extension = []): Edi
   if (typeof doc != "string") {
     t0 = maybeTag(doc, 0); t1 = maybeTag(doc, 1)
   }
-  currentTempView = new EditorView({doc, selection: t0 != null ? {anchor: t0, head: t1} : undefined, extensions})
+  currentTempView = new EditorView({doc, selection: t0 != null ? {anchor: t0, head: t1} : undefined, config})
   workspace.appendChild(currentTempView.dom)
   workspace.style.pointerEvents = ""
   if (hide == null) hide = setTimeout(() => {

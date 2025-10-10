@@ -252,7 +252,7 @@ export interface EditorStateSpec {
   /// document.
   selection?: EditorSelection | SelectionSpec | ((doc: DocNode) => EditorSelection)
   /// Configuration for this state.
-  extensions?: Extension
+  config?: Extension | Configuration
 }
 
 /// The editor state class is a persistent (immutable) data structure.
@@ -405,7 +405,7 @@ export class EditorState {
   /// initializing an editor—updated states are created by applying
   /// transactions.
   static create(spec: EditorStateSpec): EditorState {
-    let config = Configuration.resolve(spec.extensions || [], new Map)
+    let config = spec.config instanceof Configuration ? spec.config : Configuration.resolve(spec.config || [], new Map)
     let schema = spec.doc instanceof DocNode ? spec.doc.schema : schemaFromConfig(config)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? EditorSelection.near({
