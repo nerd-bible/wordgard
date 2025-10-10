@@ -1,9 +1,9 @@
 import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "@wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
-import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
-        sameArray, dynamicFacetSlot, ensureAddr, getAddr, schemaElement,
-        transactionFilter, transactionExtender} from "./facet"
+import {Extension, Configuration, Facet, FacetReader, StateField, SlotStatus,
+        DynamicSlot, ensureAddr, getAddr, transactionFilter,
+        transactionExtender, Compartment} from "./facet"
 import {Direction} from "./bidi"
 
 export type StateCommand = (target: {state: EditorState, dispatch: (tr: Transaction) => void}) => boolean
@@ -32,206 +32,6 @@ function readDoc(schema: Schema, doc: DocSource): DocNode {
   let {nodeType} = doc as any
   if (nodeType === 1 || nodeType === 11) return parseDoc(schema, doc as HTMLElement | DocumentFragment)
   return schema.docFromJSON(doc as NodeJSON)
-}
-
-/// Extension values can be
-/// [provided](#state.EditorStateConfig.extensions) when creating a
-/// state to attach various kinds of configuration and behavior
-/// information. They can either be built-in extension-providing
-/// objects, such as [state fields](#state.StateField) or [facet
-/// providers](#state.Facet.of), or objects with an extension in its
-/// `extension` property. Extensions can be nested in arrays
-/// arbitrarily deep—they will be flattened when processed.
-export type Extension = {extension: Extension} | readonly Extension[]
-
-const Prec_ = {lowest: 4, low: 3, default: 2, high: 1, highest: 0}
-
-function prec(value: number) {
-  return (ext: Extension) => new PrecExtension(ext, value) as Extension
-}
-
-/// By default extensions are registered in the order they are found
-/// in the flattened form of nested array that was provided.
-/// Individual extension values can be assigned a precedence to
-/// override this. Extensions that do not have a precedence set get
-/// the precedence of the nearest parent with a precedence, or
-/// [`default`](#state.Prec.default) if there is no such parent. The
-/// final ordering of extensions is determined by first sorting by
-/// precedence and then by order within each precedence.
-export const Prec = {
-  /// The highest precedence level, for extensions that should end up
-  /// near the start of the precedence ordering.
-  highest: prec(Prec_.highest),
-  /// A higher-than-default precedence, for extensions that should
-  /// come before those with default precedence.
-  high: prec(Prec_.high),
-  /// The default precedence, which is also used for extensions
-  /// without an explicit precedence.
-  default: prec(Prec_.default),
-  /// A lower-than-default precedence.
-  low: prec(Prec_.low),
-  /// The lowest precedence level. Meant for things that should end up
-  /// near the end of the extension order.
-  lowest: prec(Prec_.lowest)
-}
-
-class PrecExtension {
-  constructor(readonly inner: Extension, readonly prec: number) {}
-  extension!: Extension
-}
-
-const reconfigure = StateEffect.define<{compartment: Compartment, extension: Extension}>()
-
-/// Extension compartments can be used to make a configuration
-/// dynamic. By [wrapping](#state.Compartment.of) part of your
-/// configuration in a compartment, you can later
-/// [replace](#state.Compartment.reconfigure) that part through a
-/// transaction.
-export class Compartment {
-  /// Create an instance of this compartment to add to your [state
-  /// configuration](#state.EditorStateConfig.extensions).
-  of(ext: Extension): Extension { return new CompartmentInstance(this, ext) }
-
-  /// Create an [effect](#state.TransactionSpec.effects) that
-  /// reconfigures this compartment.
-  reconfigure(content: Extension): StateEffect<unknown> {
-    return reconfigure.of({compartment: this, extension: content})
-  }
-
-  /// Get the current content of the compartment in the state, or
-  /// `undefined` if it isn't present.
-  get(state: EditorState): Extension | undefined {
-    return state.config.compartments.get(this)
-  }
-}
-
-export class CompartmentInstance {
-  constructor(readonly compartment: Compartment, readonly inner: Extension) {}
-  extension!: Extension
-}
-
-export interface DynamicSlot {
-  create(state: EditorState): SlotStatus
-  update(state: EditorState, tr: Transaction): SlotStatus
-  reconfigure(state: EditorState, oldState: EditorState): SlotStatus
-}
-
-export class Configuration {
-  readonly statusTemplate: SlotStatus[] = []
-  readonly schema: Schema
-
-  constructor(readonly base: Extension,
-              readonly compartments: Map<Compartment, Extension>,
-              readonly dynamicSlots: DynamicSlot[],
-              readonly address: {[id: number]: number},
-              readonly staticValues: readonly any[],
-              readonly facets: {[id: number]: readonly FacetProvider<any>[]}) {
-    while (this.statusTemplate.length < dynamicSlots.length)
-      this.statusTemplate.push(SlotStatus.Unresolved)
-    this.schema = Schema.define(this.staticFacet(schemaElement))
-  }
-
-  staticFacet<Output>(facet: Facet<any, Output>) {
-    let addr = this.address[facet.id]
-    return addr == null ? facet.default : this.staticValues[addr >> 1]
-  }
-
-  createState(spec: {doc: DocNode, selection: EditorSelection}) {
-    return EditorState.fromConfig(this, spec.doc, spec.selection)
-  }
-
-  static resolve(base: Extension, compartments: Map<Compartment, Extension>, oldState?: EditorState) {
-    let fields: StateField<any>[] = []
-    let facets: {[id: number]: FacetProvider<any>[]} = Object.create(null)
-    let newCompartments = new Map<Compartment, Extension>()
-
-    for (let ext of flatten(base, compartments, newCompartments)) {
-      if (ext instanceof StateField) fields.push(ext)
-      else (facets[ext.facet.id] || (facets[ext.facet.id] = [])).push(ext)
-    }
-
-    let address: {[id: number]: number} = Object.create(null)
-    let staticValues: any[] = []
-    let dynamicSlots: ((address: {[id: number]: number}) => DynamicSlot)[] = []
-
-    for (let field of fields) {
-      address[field.id] = dynamicSlots.length << 1
-      dynamicSlots.push(a => field.slot(a))
-    }
-
-    let oldFacets = oldState?.config.facets
-    for (let id in facets) {
-      let providers = facets[id], facet = providers[0].facet
-      let oldProviders = oldFacets && oldFacets[id] || []
-      if (providers.every(p => p.type == Provider.Static)) {
-        address[facet.id] = (staticValues.length << 1) | 1
-        if (sameArray(oldProviders, providers)) {
-          staticValues.push(oldState!.facet(facet))
-        } else {
-          let value = facet.combine(providers.map(p => p.value))
-          staticValues.push(oldState && facet.compare(value, oldState.facet(facet)) ? oldState.facet(facet) : value)
-        }
-      } else {
-        for (let p of providers) {
-          if (p.type == Provider.Static) {
-            address[p.id] = (staticValues.length << 1) | 1
-            staticValues.push(p.value)
-          } else {
-            address[p.id] = dynamicSlots.length << 1
-            dynamicSlots.push(a => p.dynamicSlot(a))
-          }
-        }
-        address[facet.id] = dynamicSlots.length << 1
-        dynamicSlots.push(a => dynamicFacetSlot(a, facet, providers))
-      }
-    }
-
-    let dynamic = dynamicSlots.map(f => f(address))
-    return new Configuration(base, newCompartments, dynamic, address, staticValues, facets)
-  }
-
-  /// Create a configuration from the given set of extensions.
-  static create(extensions: Extension) {
-    return Configuration.resolve(extensions, new Map)
-  }
-}
-
-function flatten(extension: Extension, compartments: Map<Compartment, Extension>, newCompartments: Map<Compartment, Extension>) {
-  let result: (FacetProvider<any> | StateField<any>)[][] = [[], [], [], [], []]
-  let seen = new Map<Extension, number>()
-  function inner(ext: Extension, prec: number) {
-    let known = seen.get(ext)
-    if (known != null) {
-      if (known <= prec) return
-      let found = result[known].indexOf(ext as any)
-      if (found > -1) result[known].splice(found, 1)
-      if (ext instanceof CompartmentInstance) newCompartments.delete(ext.compartment)
-    }
-    seen.set(ext, prec)
-    if (Array.isArray(ext)) {
-      for (let e of ext) inner(e, prec)
-    } else if (ext instanceof CompartmentInstance) {
-      if (newCompartments.has(ext.compartment))
-        throw new RangeError(`Duplicate use of compartment in extensions`)
-      let content = compartments.get(ext.compartment) || ext.inner
-      newCompartments.set(ext.compartment, content)
-      inner(content, prec)
-    } else if (ext instanceof PrecExtension) {
-      inner(ext.inner, ext.prec)
-    } else if (ext instanceof StateField) {
-      result[prec].push(ext)
-      if (ext.provides) inner(ext.provides, prec)
-    } else if (ext instanceof FacetProvider) {
-      result[prec].push(ext)
-      if (ext.facet.extensions) inner(ext.facet.extensions, Prec_.default)
-    } else {
-      let content = (ext as any).extension
-      if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`)
-      inner(content, prec)
-    }
-  }
-  inner(extension, Prec_.default)
-  return result.reduce((a, b) => a.concat(b))
 }
 
 type DocSource = DocNode | HTMLElement | DocumentFragment | string | NodeJSON | ((schema: Schema) => DocNode)
@@ -326,7 +126,7 @@ export class EditorState {
   applyTransaction(tr: Transaction) {
     let conf: Configuration | null = this.config, {base, compartments} = conf
     for (let effect of tr.effects) {
-      if (effect.is(reconfigure)) {
+      if (effect.is(Compartment.reconfigureCompartment)) {
         if (conf) {
           compartments = new Map
           conf.compartments.forEach((val, key) => compartments!.set(key, val))

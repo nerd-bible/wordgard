@@ -1,6 +1,6 @@
 import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "@wordgard/doc"
-import {EditorState, Extension} from "./state"
-import {transactionFilter, transactionExtender} from "./facet"
+import {EditorState} from "./state"
+import {transactionFilter, transactionExtender, Extension, Compartment} from "./facet"
 import {EditorSelection, SelectionSpec} from "./selection"
 
 /// Annotations are tagged values that are used to add metadata to
@@ -113,6 +113,8 @@ export class StateEffect<Value> {
   /// Append extensions to the top-level configuration of the editor.
   static appendConfig = StateEffect.define<Extension>()
 }
+
+Compartment.reconfigureCompartment = StateEffect.define<{compartment: Compartment, extension: Extension}>()
 
 /// Describes a [transaction](#state.Transaction) when calling the
 /// [`EditorState.update`](#state.EditorState.update) method.
