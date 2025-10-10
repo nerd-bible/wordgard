@@ -24,7 +24,7 @@ const doc = builder(schema)
 
 function normalPositions(cx: SelectionContext) {
   let result: number[] = []
-  for (let cur = EditorSelection.near(cx, 0);;) {
+  for (let cur = EditorSelection.atStart(cx);;) {
     result.push(cur.head)
     let next = EditorSelection.nextNormalCursor(cx, cur)
     if (next == null) return result
@@ -41,7 +41,7 @@ describe("nextNormalCursor", () => {
       if (next == null) break
       expect.push(next)
     }
-    for (let cur = EditorSelection.near(cx, doc.length);;) {
+    for (let cur = EditorSelection.atEnd(cx);;) {
       back.push(cur.head)
       let next = EditorSelection.prevNormalCursor(cx, cur)
       if (next == null) break
@@ -147,7 +147,7 @@ describe("skipNextWord", () => {
   function test(name: string, lines: string | string[], positions: number[]) {
     it(name, () => {
       let cx = {doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))}
-      let cur = EditorSelection.near(cx, 0), found = []
+      let cur = EditorSelection.atStart(cx), found = []
       for (;;) {
         let next = EditorSelection.skipNextWord(cx, cur)
         if (!next) break
@@ -177,7 +177,7 @@ describe("skipPrevWord", () => {
   function test(name: string, lines: string | string[], positions: number[]) {
     it(name, () => {
       let cx = {doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))}
-      let cur = EditorSelection.near(cx, cx.doc.length), found = []
+      let cur = EditorSelection.atEnd(cx), found = []
       for (;;) {
         let prev = EditorSelection.skipPrevWord(cx, cur)
         if (!prev) break

@@ -480,7 +480,7 @@ export const selectWordBackward: StateCommand = ({state, dispatch}) => selectByW
 function nextVertical(view: EditorView, sel: EditorSelection, forward: boolean, distance?: number) {
   let next = view.moveVertically(sel, forward, distance)
   if (next) return next
-  let end = EditorSelection.near(view.state, forward ? view.state.doc.length : 0)
+  let end = (forward ? EditorSelection.atEnd : EditorSelection.atStart)(view.state)
   return end.head == view.state.selection.head ? null : end
 }
 
@@ -536,12 +536,12 @@ export const selectLineStart: Command = view => selectLineSide(view, false)
 export const selectLineEnd: Command = view => selectLineSide(view, true)
 
 export const cursorDocStart: StateCommand = ({state, dispatch}) => {
-  let start = EditorSelection.near(state, 0, 1)
+  let start = EditorSelection.atStart(state)
   if (state.selection.empty && start.head == state.selection.head) return false
   return setSelection(state, dispatch, start)
 }
 export const cursorDocEnd: StateCommand = ({state, dispatch}) => {
-  let end = EditorSelection.near(state, state.doc.length, -1)
+  let end = EditorSelection.atEnd(state)
   if (state.selection.empty && end.head == state.selection.head) return false
   return setSelection(state, dispatch, end)
 }

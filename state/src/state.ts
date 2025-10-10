@@ -202,11 +202,11 @@ export class EditorState {
     let configSchema = config.staticFacet(schemaElement)
     let schema = spec.doc instanceof DocNode ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
     let doc = readDoc(schema, spec.doc)
-    let selection = !spec.selection ? EditorSelection.near({
+    let selection = !spec.selection ? EditorSelection.atStart({
       doc,
       textDirection: config.staticFacet(EditorState.textDirection),
       visualCursorMotion: config.staticFacet(EditorState.visualCursorMotion),
-    }, 0)
+    })
       : typeof spec.selection == "function" ? spec.selection(doc)
       : spec.selection instanceof EditorSelection ? spec.selection
       : EditorSelection.create(spec.selection)

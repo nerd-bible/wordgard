@@ -224,12 +224,25 @@ export class EditorSelection {
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
-  // FIXME provide specific docStart/docEnd helpers. This doesn't work
-  // for finding the start in a single-textblock-doc bidi situation.
   static near(cx: SelectionContext, pos: number, bias: -1 | 1 = 1) {
-    let norm = scanNormalFrom(cx, pos, bias, bias > 0, false)
-      ?? scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false)!
+    let norm = scanNormalFrom(cx, pos, bias, bias > 0, false) ??
+      scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false) ??
+      {pos: pos, assoc: -1}
     return EditorSelection.cursor(norm.pos, norm.assoc)
+  }
+
+  static atStart(cx: SelectionContext) {
+    let found = cx.doc.inlineContent
+      ? TextblockMap.get(0, cx.doc, (cx.textDirection ?? alwaysLTR)(cx.doc.tag)).visualTextblockSide(true)
+      : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, assoc: 1}
+    return EditorSelection.cursor(found.pos, found.assoc)
+  }
+
+  static atEnd(cx: SelectionContext) {
+    let found = cx.doc.inlineContent
+      ? TextblockMap.get(0, cx.doc, (cx.textDirection ?? alwaysLTR)(cx.doc.tag)).visualTextblockSide(false)
+      : scanNormalFrom(cx, cx.doc.length, -1, false, false) ?? {pos: cx.doc.length, assoc: -1}
+    return EditorSelection.cursor(found.pos, found.assoc)
   }
 
   static mapRange(change: ChangeDesc, from: number, to: number, assoc = -1) {

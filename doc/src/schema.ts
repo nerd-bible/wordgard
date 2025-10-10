@@ -8,8 +8,6 @@ export type SchemaElement = Tag<any> | TagType<any> | Prop<any> | PropType<any>
 const schemaCache = new Map<readonly SchemaElement[], Schema>()
 
 export class Schema {
-  private tagSet: Set<TagType<unknown>>
-  private propSet: Set<PropType<any>>
   private tagsByName: {[name: string]: TagType<unknown>} = Object.create(null)
   private propsByName: {[name: string]: PropType<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Tag[] | null} = Object.create(null)
@@ -24,8 +22,6 @@ export class Schema {
     docType: TagType<Schema>,
     readonly lineBreak: Tag<unknown> | null
   ) {
-    this.tagSet = new Set(tags)
-    this.propSet = new Set(props)
     this.docTag = docType.of(this)
     for (let tag of tags) this.tagsByName[tag.name] = tag
     for (let prop of props) this.propsByName[prop.name] = prop
@@ -43,14 +39,14 @@ export class Schema {
 
   /// @internal
   validateTag(tag: Tag<any>) {
-    if (!this.tagSet.has(tag.type))
+    if (this.tagsByName[tag.name] != tag.type)
       throw new Error(`Tag type ${tag.name} not in schema`)
     for (let prop of tag.props) this.validateProp(prop)
   }
 
   /// @internal
   validateProp(prop: Prop<any>) {
-    if (!this.propSet.has(prop.type))
+    if (this.propsByName[prop.name] != prop.type)
       throw new Error(`Prop type ${prop.name} not in schema`)
   }
 
