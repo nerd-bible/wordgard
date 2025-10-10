@@ -1,4 +1,4 @@
-import {Schema, Tag, SchemaElement, DocNode, Node, NodeJSON, parseDoc} from "@wordgard/doc"
+import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "@wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
@@ -7,15 +7,6 @@ import {Facet, FacetReader, StateField, SlotStatus, FacetProvider, Provider,
 import {Direction} from "./bidi"
 
 export type StateCommand = (target: {state: EditorState, dispatch: (tr: Transaction) => void}) => boolean
-
-const schemaCache: WeakMap<readonly SchemaElement[], Schema> = new WeakMap
-
-export function schemaFromConfig(config: Configuration) {
-  let elts = config.staticFacet(schemaElement)
-  let schema = schemaCache.get(elts)
-  if (!schema) schemaCache.set(elts, schema = Schema.define(elts))
-  return schema
-}
 
 function readHTML(html: string): HTMLElement {
   let detachedDoc = document.implementation.createHTMLDocument("title")
@@ -127,6 +118,7 @@ export interface DynamicSlot {
 
 export class Configuration {
   readonly statusTemplate: SlotStatus[] = []
+  readonly schema: Schema
 
   constructor(readonly base: Extension,
               readonly compartments: Map<Compartment, Extension>,
@@ -136,6 +128,7 @@ export class Configuration {
               readonly facets: {[id: number]: readonly FacetProvider<any>[]}) {
     while (this.statusTemplate.length < dynamicSlots.length)
       this.statusTemplate.push(SlotStatus.Unresolved)
+    this.schema = Schema.define(this.staticFacet(schemaElement))
   }
 
   staticFacet<Output>(facet: Facet<any, Output>) {
@@ -397,8 +390,8 @@ export class EditorState {
       }
     }
     let config = Configuration.create([extensions, fieldInit])
-    let schema = schemaFromConfig(config)
-    return EditorState.fromConfig(config, schema.docFromJSON(json.doc), EditorSelection.fromJSON(schema, json.selection))
+    return EditorState.fromConfig(config, config.schema.docFromJSON(json.doc),
+                                  EditorSelection.fromJSON(config.schema, json.selection))
   }
 
   /// Create a new state. You'll usually only need this when
@@ -406,7 +399,7 @@ export class EditorState {
   /// transactions.
   static create(spec: EditorStateSpec): EditorState {
     let config = spec.config instanceof Configuration ? spec.config : Configuration.resolve(spec.config || [], new Map)
-    let schema = spec.doc instanceof DocNode ? spec.doc.schema : schemaFromConfig(config)
+    let schema = spec.doc instanceof DocNode ? spec.doc.schema.append(config.schema) : config.schema
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? EditorSelection.near({
       doc,
