@@ -3,7 +3,7 @@ import {EditorSelection, SelectionSpec, SelectionPos, wordAt} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, SlotStatus,
         DynamicSlot, ensureAddr, getAddr, transactionFilter,
-        transactionExtender, Compartment} from "./facet"
+        transactionExtender, Compartment, schemaElement} from "./facet"
 import {Direction} from "./bidi"
 
 export type StateCommand = (target: {state: EditorState, dispatch: (tr: Transaction) => void}) => boolean
@@ -190,8 +190,8 @@ export class EditorState {
       }
     }
     let config = Configuration.create([extensions, fieldInit])
-    return EditorState.fromConfig(config, config.schema.docFromJSON(json.doc),
-                                  EditorSelection.fromJSON(config.schema, json.selection))
+    let schema = Schema.define(config.staticFacet(schemaElement))
+    return EditorState.fromConfig(config, schema.docFromJSON(json.doc), EditorSelection.fromJSON(schema, json.selection))
   }
 
   /// Create a new state. You'll usually only need this when
@@ -199,7 +199,8 @@ export class EditorState {
   /// transactions.
   static create(spec: EditorStateSpec): EditorState {
     let config = spec.config instanceof Configuration ? spec.config : Configuration.resolve(spec.config || [], new Map)
-    let schema = spec.doc instanceof DocNode ? spec.doc.schema.append(config.schema) : config.schema
+    let configSchema = config.staticFacet(schemaElement)
+    let schema = spec.doc instanceof DocNode ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? EditorSelection.near({
       doc,

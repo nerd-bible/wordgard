@@ -1,4 +1,4 @@
-import {SchemaElement, Schema} from "@wordgard/doc"
+import {SchemaElement} from "@wordgard/doc"
 import {Transaction, TransactionSpec, StateEffect, StateEffectType} from "./transaction"
 import {EditorState} from "./state"
 
@@ -475,7 +475,6 @@ export interface DynamicSlot {
 
 export class Configuration {
   readonly statusTemplate: SlotStatus[] = []
-  readonly schema: Schema
 
   constructor(readonly base: Extension,
               readonly compartments: Map<Compartment, Extension>,
@@ -485,7 +484,6 @@ export class Configuration {
               readonly facets: {[id: number]: readonly FacetProvider<any>[]}) {
     while (this.statusTemplate.length < dynamicSlots.length)
       this.statusTemplate.push(SlotStatus.Unresolved)
-    this.schema = Schema.define(this.staticFacet(schemaElement))
   }
 
   staticFacet<Output>(facet: Facet<any, Output>) {
