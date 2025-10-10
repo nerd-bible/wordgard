@@ -12,6 +12,9 @@ export class Schema {
   private propsByName: {[name: string]: PropType<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Tag[] | null} = Object.create(null)
   readonly docTag: Tag<Schema>
+  /// All the schema elements that make up this schema. Useful if you
+  /// want to include the schema as a whole in an editor configuration.
+  elements: readonly SchemaElement[]
 
   private constructor(
     readonly tags: readonly TagType<unknown>[],
@@ -24,6 +27,7 @@ export class Schema {
     this.docTag = docType.of(this)
     for (let tag of tags) this.tagsByName[tag.name] = tag
     for (let prop of props) this.propsByName[prop.name] = prop
+    this.elements = (tags as SchemaElement[]).concat(props)
   }
 
   doc(children: readonly Node[]) {
@@ -130,6 +134,15 @@ export class Schema {
     }
     if (!docTag) throw new Error("A schema must define a document tag")
     return new Schema(tags, props, docTag, lineBreak as Tag<unknown> | null)
+  }
+
+  append(other: Schema | readonly SchemaElement[]) {
+    let add: SchemaElement[] = []
+    for (let elt of (other instanceof Schema ? other.elements : other)) {
+      if (elt instanceof Tag || elt instanceof Prop) elt = elt.type
+      if ((elt instanceof TagType ? this.tagsByName : this.propsByName)[elt.name] != elt) add.push(elt)
+    }
+    return add.length ? Schema.define(this.elements.concat(add)) : this
   }
 
   nodeFromJSON(json: NodeJSON) {

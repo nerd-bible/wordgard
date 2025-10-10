@@ -143,7 +143,6 @@ export type ElementShape<Param> = {
   atom?: boolean
 }
 
-// FIXME allow parse rules here?
 // FIXME not a great name
 export type StructureShape<Param> = {
   structure: Elt<string> | ((param: Param) => Elt<string>),

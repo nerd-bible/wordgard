@@ -19,7 +19,7 @@ export type TagSpec<Param> = {
   group?: string
   toText?: (node: Node) => string
   shape: ElementShape<Param> | StructureShape<Param>
-    parseRules?: readonly ElementParseRule<Param>[]
+  parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
   /// Indicates that this type of block is the default generic block
   /// type in parent nodes where it may occur (which is appropriate
