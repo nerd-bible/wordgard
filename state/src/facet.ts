@@ -1,4 +1,4 @@
-import {SchemaElement} from "@wordgard/doc"
+import {SchemaElement, Tag, TagType, Prop, PropType} from "@wordgard/doc"
 import {Transaction, TransactionSpec, StateEffect, StateEffectType} from "./transaction"
 import {EditorState} from "./state"
 
@@ -10,7 +10,7 @@ import {EditorState} from "./state"
 /// providers](#state.Facet.of), or objects with an extension in its
 /// `extension` property. Extensions can be nested in arrays
 /// arbitrarily deep—they will be flattened when processed.
-export type Extension = {extension: Extension} | readonly Extension[]
+export type Extension = SchemaElement | {extension: Extension} | readonly Extension[]
 
 const Prec_ = {lowest: 4, low: 3, default: 2, high: 1, highest: 0}
 
@@ -76,6 +76,8 @@ type FacetConfig<Input, Output> = {
   enables?: Extension | ((self: Facet<Input, Output>) => Extension)
 }
 
+const none: readonly any[] = []
+
 /// A facet is a labeled value that is associated with an editor
 /// state. It takes inputs from any number of extensions, and combines
 /// those into a single output value.
@@ -105,7 +107,7 @@ export class Facet<Input, Output = readonly Input[]> implements FacetReader<Outp
     private isStatic: boolean,
     enables: Extension | undefined | ((self: Facet<Input, Output>) => Extension)
   ) {
-    this.default = combine([])
+    this.default = combine(none)
     this.extensions = typeof enables == "function" ? enables(this) : enables
   }
 
@@ -124,7 +126,7 @@ export class Facet<Input, Output = readonly Input[]> implements FacetReader<Outp
 
   /// Returns an extension that adds the given value to this facet.
   of(value: Input): Extension {
-    return new FacetProvider<Input>([], this, Provider.Static, value)
+    return new FacetProvider<Input>(none, this, Provider.Static, value)
   }
 
   /// Create an extension that computes a value for the facet from a
@@ -428,7 +430,7 @@ export function getAddr(state: EditorState, addr: number) {
 }
 
 export const schemaElement = Facet.define<SchemaElement | readonly SchemaElement[], readonly SchemaElement[]>({
-  combine: values => values.reduce((set: readonly SchemaElement[], elt) => set.concat(elt), [])
+  combine: values => values.reduce((set: readonly SchemaElement[], elt) => set.concat(elt), none)
 })
 
 export const transactionFilter = Facet.define<(tr: Transaction) => TransactionSpec | readonly TransactionSpec[]>()
@@ -513,7 +515,7 @@ export class Configuration {
     let oldFacets = oldState?.config.facets
     for (let id in facets) {
       let providers = facets[id], facet = providers[0].facet
-      let oldProviders = oldFacets && oldFacets[id] || []
+      let oldProviders = oldFacets && oldFacets[id] || none
       if (providers.every(p => p.type == Provider.Static)) {
         address[facet.id] = (staticValues.length << 1) | 1
         if (sameArray(oldProviders, providers)) {
@@ -575,6 +577,8 @@ function flatten(extension: Extension, compartments: Map<Compartment, Extension>
     } else if (ext instanceof FacetProvider) {
       result[prec].push(ext)
       if (ext.facet.extensions) inner(ext.facet.extensions, Prec_.default)
+    } else if (ext instanceof Tag || ext instanceof TagType || ext instanceof Prop || ext instanceof PropType) {
+      result[prec].push(schemaElement.of(ext) as FacetProvider<any>)
     } else {
       let content = (ext as any).extension
       if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`)
