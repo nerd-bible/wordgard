@@ -2,6 +2,7 @@ import {Slice, Text, Node, PropType, Pos, serializeSlice, parseSlice,
         OpenSide, Token, CloseToken} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import browser from "./browser"
+import {clipboardOutputFilter, clipboardOutputHTMLFilter} from "./extension"
 
 const openProp = PropType.define<string>("Open", {
   shape: {attribute: "wg-open"},
@@ -9,7 +10,8 @@ const openProp = PropType.define<string>("Open", {
 })
 
 export function writeClipboard(state: EditorState, slice: Slice, data: DataTransfer) {
-  // FIXME clipboard output transform facet
+  for (let filter of state.facet(clipboardOutputFilter)) slice = filter(slice, state)
+
   // FIXME determine defining context nodes and props
   let doc = detachedDoc(), dom = serializeSlice(slice, {
     document: doc,
@@ -33,7 +35,10 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
 
   let wrap = doc.createElement("div")
   wrap.appendChild(dom)
-  data.setData("text/html", wrap.innerHTML)
+
+  let html = wrap.innerHTML
+  for (let filter of state.facet(clipboardOutputHTMLFilter)) html = filter(html, state)
+  data.setData("text/html", html)
   data.setData("text/plain", wrap.textContent!) // FIXME
 }
 

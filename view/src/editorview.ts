@@ -10,7 +10,8 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
         exceptionSink, updateListener, logException,
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, editable, inputHandler, scrollIntoView,
-        ScrollTarget, scrollHandler} from "./extension"
+        ScrollTarget, scrollHandler,
+        clipboardOutputFilter, clipboardOutputHTMLFilter} from "./extension"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
@@ -484,6 +485,14 @@ export class EditorView {
     return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? {from: pos, to: pos} : pos,
                                               options.y, options.x, options.yMargin, options.xMargin))
   }
+
+  /// Filter functions provided through this facet will be run on a
+  /// slice before it is serialized to the clipboard.
+  static clipboardOutputFilter = clipboardOutputFilter
+
+  /// Filter functions provided through this facet will be run on an
+  /// HTML string before it put onto the clipboard.
+  static clipboardOutputHTMLFilter = clipboardOutputHTMLFilter
 
   /// Enable or disable tab-focus mode, which disables key bindings
   /// for Tab and Shift-Tab, letting the browser's default
