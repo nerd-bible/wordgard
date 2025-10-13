@@ -17,7 +17,7 @@ export type Command = (target: EditorView) => boolean
 // FIXME check behavior with inline nodes with content for all of these
 
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
-  let {doc, selPos: sel} = state
+  let {doc, sel: sel} = state
   let block = sel.from.parent
   if (!block.node.isTextblock || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
   let props = state.selection.props || sel.from.props(sel.to)
@@ -34,7 +34,7 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
 /// If the selection is not in an inline context, insert an empty
 /// default textblock in its position.
 export const createTextblock: StateCommand = ({state, dispatch}) => {
-  let sel = state.selPos
+  let sel = state.sel
   if (sel.head.parent.node.inlineContent || sel.anchor.parent.node.inlineContent) return false
   let wrap = state.doc.schema.findWrapping(sel.from.parent.node.type, Text)
   if (!wrap) return false
@@ -54,7 +54,7 @@ export const createTextblock: StateCommand = ({state, dispatch}) => {
 /// If the cursor is in an empty textblock that can be lifted out of a
 /// parent, this command will do so.
 export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
-  let sel = state.selPos, block = sel.head.textblockParent
+  let sel = state.sel, block = sel.head.textblockParent
   if (!sel.empty || !block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return false
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
   for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
@@ -66,7 +66,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
           {from: block.after, to: end, insert: new Slice(after)}
         ],
         scrollIntoView: true,
-        userEvent: "lift.empty"
+        userEvent: "unwrap.empty"
       }))
       return true
     }
@@ -83,7 +83,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
 
 /// Split the textblock at the cursor position, if any.
 export const splitTextblock: StateCommand = ({state, dispatch}) => {
-  let sel = state.selPos
+  let sel = state.sel
   let before = sel.from.textblockParent
   if (!before || !before.parent) return false
   let tokens: Token[] = []
@@ -142,7 +142,7 @@ export const deleteSelection: StateCommand = ({state, dispatch}) => {
 }
 
 export const joinBackward: StateCommand = ({state, dispatch}) => {
-  let {head, empty} = state.selPos, block = head.textblockParent
+  let {head, empty} = state.sel, block = head.textblockParent
   if (!empty || !block || !head.isAtStart(block)) return false
   let scan = block, target = scan.node
   while (!scan.index) {
@@ -177,7 +177,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
 }
 
 export const joinForward: StateCommand = ({state, dispatch}) => {
-  let {head, empty} = state.selPos, block = head.textblockParent
+  let {head, empty} = state.sel, block = head.textblockParent
   if (!empty || !block || !head.isAtEnd(block)) return false
   let scan = block, target = scan.node
   for (;;) {
@@ -211,7 +211,7 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
 }
 
 export const deleteBackward: StateCommand = ({state, dispatch}) => {
-  let sel = state.selPos
+  let sel = state.sel
   if (!sel.empty) return false
   if (sel.head.inText) {
     let before = sel.head.nodeBefore!
@@ -265,7 +265,7 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
 }
 
 export const deleteForward: StateCommand = ({state, dispatch}) => {
-  let sel = state.selPos
+  let sel = state.sel
   if (!sel.empty) return false
   if (sel.head.inText) {
     let after = sel.head.nodeAfter!
@@ -378,7 +378,7 @@ export function toggleProp(prop: Prop<any>): StateCommand {
   return ({state, dispatch}) => {
     let {selection, doc} = state
     if (selection.empty) {
-      let selProps = selection.props || state.selPos.head.props(), add = !prop.isInSet(selProps)
+      let selProps = selection.props || state.sel.head.props(), add = !prop.isInSet(selProps)
       let newProps = add ? prop.addToSet(selProps) : prop.removeFromSet(selProps)
       dispatch(state.update({
         selection: EditorSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newProps),
@@ -409,7 +409,7 @@ function setSelection(state: EditorState, dispatch: (tr: Transaction) => void, s
 }
 
 function ltrAtCursor(state: EditorState) {
-  let block = state.selPos.head.textblockParent
+  let block = state.sel.head.textblockParent
   return state.textDirection(block ? block.node.tag : undefined) == Direction.LTR
 }
 

@@ -21,20 +21,33 @@ export type SelectionSpec = {
   props?: readonly Prop<any>[]
 }
 
+/// A selection object where the selection positions have been
+/// [resolved](#doc.DocNode.resolve). This is derived from the
+/// regular, canonical selection, for convenience.
 export class SelectionPos {
+  /// The selection anchor.
   anchor: Pos
+  /// The head of the selection.
   head: Pos
 
-  constructor(doc: DocNode, readonly selection: EditorSelection) {
+  constructor(doc: DocNode,
+              /// The original selection.
+              readonly selection: EditorSelection) {
     this.anchor = doc.resolve(selection.anchor)
     this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
   }
 
+  /// The lower bound of the selection.
   get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
+  /// The upper bound of the selection.
   get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
 
+  /// True when the selection is empty (a cursor).
   get empty() { return this.selection.empty }
-  get assoc() { return this.selection.assoc } 
+  /// If a cursor is explicitly associated with the element before or
+  /// after it, this holds a non-zero value.
+  get assoc() { return this.selection.assoc }
+  /// [Active props](#state.EditorSelection.props) on this selection.
   get props() { return this.selection.props }
 }
 
@@ -257,10 +270,17 @@ export class EditorSelection {
 }
 
 function isBarrier(cx: SelectionContext, pos: number, node: Node) {
+  let override = node.type.spec.cursorBarrier
+  if (override != null) return override
   return node.type.isolating || node.type.preserveWhitespace ||
-    node.isBlock && isAtom(cx, pos, node) // FIXME allow node specs to enable this?
+    node.isBlock && isAtom(cx, pos, node)
 }
 
+// Find the next 'normal' cursor position from the given position. Any
+// inline position not inside a surrogate pair, unicode cluster, or
+// atomic node counts as a normal position. Positions between a block
+// node that counts as a barrier and another such block node, or the
+// end/start of the document, also count as normal positions.
 function scanNormalFrom(
   cx: SelectionContext, from: number, assoc: -1 | 1, forward: boolean, mustMove: boolean
 ): {pos: number, assoc: -1 | 1} | null {

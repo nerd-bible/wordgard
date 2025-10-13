@@ -21,6 +21,13 @@ export type TagSpec<Param> = {
   shape: ElementShape<Param> | StructureShape<Param>
   parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
+  /// Whether the sides of this node act as a 'barrier' when
+  /// [normalizing](#state.EditorSelection.normalize) a cursor
+  /// position. By default, block nodes that are
+  /// [isolating](#state.TagSpec.isolating),
+  /// [atomic](#state.EditorState.isAtom), or whitepace-preserving act
+  /// as barriers.
+  cursorBarrier?: boolean
   /// Indicates that this type of block is the default generic block
   /// type in parent nodes where it may occur (which is appropriate
   /// for, for example, paragraphs tags). Default blocks should not

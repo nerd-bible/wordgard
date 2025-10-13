@@ -58,7 +58,7 @@ export class TextblockMap {
             sectionPos = pos + ch.length
           }
         } else if (ch.type.spec.cursorInsideBounds) {
-          text += " " // FIXME smart unicode char?
+          text += " "
           scan(ch, pos + 1)
           text += " "
         } else {

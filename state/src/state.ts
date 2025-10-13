@@ -153,8 +153,10 @@ export class EditorState {
     new EditorState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
   }
 
-  // FIXME better name?
-  get selPos() {
+  /// A resolved form of the state's selection. Instead of raw
+  /// positions, this object holds [document position](#doc.Pos)
+  /// objects for `head`, `anchor`, `from`, and `to`.
+  get sel() {
     return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
   }
 

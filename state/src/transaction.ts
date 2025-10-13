@@ -273,24 +273,31 @@ export class Transaction {
   /// event. Holds a string identifying the event, using a
   /// dot-separated format to support attaching more specific
   /// information. The events used by the core libraries are:
-  /// FIXME check against view implementation
   ///
   ///  - `"input"` when content is entered
   ///    - `"input.type"` for typed input
   ///      - `"input.type.compose"` for composition
   ///    - `"input.paste"` for pasted input
   ///    - `"input.drop"` when adding content with drag-and-drop
-  ///    - `"input.complete"` when autocompleting
   ///  - `"delete"` when the user deletes content
   ///    - `"delete.selection"` when deleting the selection
   ///    - `"delete.forward"` when deleting forward from the selection
   ///    - `"delete.backward"` when deleting backward from the selection
   ///    - `"delete.cut"` when cutting to the clipboard
   ///  - `"move"` when content is moved
-  ///    - `"move.drop"` when content is moved within the editor through drag-and-drop
+  ///    - `"move.drop"` when content is moved within the editor
+  ///      through drag-and-drop
   ///  - `"select"` when explicitly changing the selection
-  ///    - `"select.pointer"` when selecting with a mouse or other pointing device
+  ///    - `"select.pointer"` when selecting with a mouse or other pointing
+  ///      device
+  ///    - `"select.all"` when selecting the entire document
   ///  - `"undo"` and `"redo"` for history actions
+  ///  - `"insert"` for actions that insert nodes
+  ///  - `"prop"` for actions that manipulate props
+  ///    - `"prop.add"` when a command adds a prop
+  ///    - `"prop.remove"` when a command removes one
+  ///  - `"split"`, `"wrap"`, `"settype"`, `"wrap"`, `"unwrap"` for
+  ///    block manipulation actions
   ///
   /// Use [`isUserEvent`](#state.Transaction.isUserEvent) to check
   /// whether the annotation matches a given event.

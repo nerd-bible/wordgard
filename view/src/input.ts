@@ -501,7 +501,7 @@ handlers.dragend = view => {
 handlers.drop = (view, event: DragEvent) => {
   if (!event.dataTransfer || view.state.readOnly) return true
   // FIXME allow handling of file drops
-  let content = readClipboard(view.state, event.dataTransfer, view.state.selPos.head, false)
+  let content = readClipboard(view.state, event.dataTransfer, view.state.sel.head, false)
   if (content) {
     let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY})
     let {draggedContent} = view.inputState
@@ -523,7 +523,7 @@ handlers.drop = (view, event: DragEvent) => {
 handlers.paste = (view: EditorView, event: ClipboardEvent) => {
   if (view.state.readOnly || !event.clipboardData) return true
   let {state} = view
-  let content = readClipboard(state, event.clipboardData, state.selPos.head, view.inputState.shiftKey)
+  let content = readClipboard(state, event.clipboardData, state.sel.head, view.inputState.shiftKey)
   if (content) { // FIXME proper multi-selection pasting
     let changes = ChangeSet.create(view.state.doc, {
       from: state.selection.from,
@@ -586,7 +586,7 @@ observers.compositionstart = observers.compositionupdate = (view, event: Composi
 
     let wrap: readonly Prop<any>[] | null = null
     if (!view.inputState.composing.changes && !event.data) {
-      let sel = view.state.selPos, props = sel.props || sel.from.props()
+      let sel = view.state.sel, props = sel.props || sel.from.props()
       if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
           !eqArray((sel.head.nodeBefore?.tag.props || []), props))
         wrap = props
@@ -676,9 +676,9 @@ handlers.beforeinput = (view, event: InputEvent) => {
     if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
 
     let slice = event.inputType == "insertText"
-      ? textSlice(event.data!, view.state.selection.props || view.state.selPos.from.props())
+      ? textSlice(event.data!, view.state.selection.props || view.state.sel.from.props())
       // FIXME why is this in a dataTransfer anyway? Spec says it shouldn't be...
-      : readClipboard(view.state, event.dataTransfer!, view.state.selPos.head, true)?.slice
+      : readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
     if (slice) {
       let {from, to} = inputEventRange(event, view)
       applyTextChange(view, from, to, slice)
