@@ -11,7 +11,8 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, editable, inputHandler, scrollIntoView,
         ScrollTarget, scrollHandler,
-        clipboardOutputFilter, clipboardOutputHTMLFilter} from "./extension"
+        clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
+        clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter} from "./extension"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
@@ -493,6 +494,21 @@ export class EditorView {
   /// Filter functions provided through this facet will be run on an
   /// HTML string before it put onto the clipboard.
   static clipboardOutputHTMLFilter = clipboardOutputHTMLFilter
+
+  /// Filter to run on the plain text representation of content put
+  /// onto the clipboard.
+  static clipboardInputTextFilter = clipboardOutputTextFilter
+
+  /// Filter functions provided through this facet will be run on a
+  /// slice after it is read from the clipboard.
+  static clipboardInputFilter = clipboardOutputFilter
+
+  /// Filter functions to run on HTML text that is read from the
+  /// clipboard.
+  static clipboardInputHTMLFilter = clipboardOutputHTMLFilter
+
+  /// Filter to run on plain text read from the clipboard.
+  static clipboardOutputTextFilter = clipboardOutputTextFilter
 
   /// Enable or disable tab-focus mode, which disables key bindings
   /// for Tab and Shift-Tab, letting the browser's default

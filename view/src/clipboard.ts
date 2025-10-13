@@ -1,8 +1,9 @@
-import {Slice, Text, Node, PropType, Pos, serializeSlice, parseSlice,
+import {Slice, Text, Node, Tag, PropType, Pos, serializeSlice, parseSlice,
         OpenSide, Token, CloseToken} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import browser from "./browser"
-import {clipboardOutputFilter, clipboardOutputHTMLFilter} from "./extension"
+import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
+        clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter} from "./extension"
 
 const openProp = PropType.define<string>("Open", {
   shape: {attribute: "wg-open"},
@@ -39,7 +40,9 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   let html = wrap.innerHTML
   for (let filter of state.facet(clipboardOutputHTMLFilter)) html = filter(html, state)
   data.setData("text/html", html)
-  data.setData("text/plain", wrap.textContent!) // FIXME
+  let text = wrap.textContent! // FIXME
+  for (let filter of state.facet(clipboardOutputTextFilter)) text = filter(text, state)
+  data.setData("text/plain", text)
 }
 
 function isOpen(elt: HTMLElement) {
@@ -47,25 +50,29 @@ function isOpen(elt: HTMLElement) {
   return value == "start" ? OpenSide.Start : value == "end" ? OpenSide.End : value ? OpenSide.Both : OpenSide.None
 }
 
-// FIXME choice between text and HTML. Check context?
-export function readClipboard(state: EditorState, data: DataTransfer, context: Pos, plain: boolean) {
+export function readClipboard(state: EditorState, data: DataTransfer, targetContext: Pos, plain: boolean) {
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
-  if (text && (context.parent.node.type.preserveWhitespace || !html || plain))
-    return text ? {slice: readClipboardText(state, text, context, plain), context: []} : null
+  let slice: Slice, context: readonly Tag[] = []
+  if (text && (targetContext.parent.node.type.preserveWhitespace || !html || plain)) {
+    for (let filter of state.facet(clipboardInputTextFilter)) text = filter(text, state)
+    slice = readClipboardText(state, text, targetContext, plain)
+  } else if (!html) {
+    return null
+  } else {
+    for (let filter of state.facet(clipboardInputHTMLFilter)) html = filter(html, state)
+    let dom = readHTML(html)
+    if (browser.webkit) restoreReplacedSpaces(dom)
 
-  // FIXME transform HTML
-  let dom = readHTML(html)
-  if (browser.webkit) restoreReplacedSpaces(dom)
-
-  let fromWordgard = !!dom.querySelector("[wg-content=true]")
-  let slice = parseSlice(state.doc.schema, dom, {
-    collapseWhiteSpace: !fromWordgard,
-    isOpen: fromWordgard ? isOpen : undefined
-    // FIXME strip suspicious trailing <br>s somehow
-  })
-  // FIXME transform slice
-  return slice
+    let fromWordgard = !!dom.querySelector("[wg-content=true]")
+    // FIXME use target context?
+    ;({slice, context} = parseSlice(state.doc.schema, dom, {
+      collapseWhiteSpace: !fromWordgard,
+      isOpen: fromWordgard ? isOpen : undefined
+    }))
+  }
+  for (let filter of state.facet(clipboardInputFilter)) slice = filter(slice, state)
+  return {slice, context}
 }
 
 function readClipboardText(state: EditorState, text: string, context: Pos, plain: boolean) {

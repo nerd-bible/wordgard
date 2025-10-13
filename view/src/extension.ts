@@ -26,6 +26,11 @@ export const focusChangeEffect = Facet.define<(state: EditorState, focusing: boo
 
 export const clipboardOutputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
 export const clipboardOutputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
+export const clipboardOutputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
+
+export const clipboardInputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
+export const clipboardInputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
+export const clipboardInputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
 
 export const scrollHandler = Facet.define<(
   view: EditorView,
