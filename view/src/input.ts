@@ -6,6 +6,7 @@ import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as 
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
+import {eqArray} from "./util"
 
 export class InputState {
   shiftKey = false
@@ -576,12 +577,6 @@ observers.blur = view => {
   view.observer.clearSelectionRange()
 }
 
-function eqArray<T extends {eq(b: T): boolean}>(a: readonly T[], b: readonly T[]) {
-  if (a.length != b.length) return false
-  for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
-  return true
-}
-
 observers.compositionstart = observers.compositionupdate = (view, event: CompositionEvent) => {
   if (!view.inputState.composing) {
     view.inputState.composing = {changes: 0, target: null}
@@ -590,7 +585,7 @@ observers.compositionstart = observers.compositionupdate = (view, event: Composi
     if (!view.inputState.composing.changes && !event.data) {
       let sel = view.state.sel, props = sel.props || sel.from.props()
       if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
-          !eqArray((sel.head.nodeBefore?.tag.props || []), props))
+          !eqArray(sel.head.nodeBefore?.tag.props, props))
         wrap = props
     }
 

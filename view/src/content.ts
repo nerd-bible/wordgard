@@ -1,8 +1,9 @@
-import {Node as WGNode, Tag, ChangeDesc, compareAttributes, Elt, Attributes,
+import {Node as WGNode, Tag, Prop, ChangeDesc, compareAttributes, Elt, Attributes,
         pushAttribute, noAttributes} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderPropWrapper} from "./decoration"
+import {eqArray} from "./util"
 import {type CompositionInfo} from "./input"
 import {type EditorView} from "./editorview"
 
@@ -178,12 +179,12 @@ export class CompositeTile extends Tile {
 export class DocTile extends CompositeTile {
   declare dom: HTMLElement
 
-  constructor(public state: EditorState, dom: HTMLElement) {
+  constructor(public state: EditorState, dom: HTMLElement, readonly cursorWrapper: readonly Prop<any>[] | null) {
     super(dom, 0)
   }
 
   static create(state: EditorState, dom: HTMLElement) {
-    return new DocTile(state, dom).updateRanges(state, [0, state.doc.length])
+    return new DocTile(state, dom, null).updateRanges(state, [0, state.doc.length])
   }
 
   get isDoc() { return true }
@@ -193,8 +194,10 @@ export class DocTile extends CompositeTile {
   }
 
   updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionInfo | null) {
-    // FIXME somehow avoid redraws when composition didn't change from last call and no content changes
-    if (sections.length == 2 && sections[1] == -1 && !composition) return this
+    let wrapper = composition?.wrapCursor || null
+    if ((!sections.length || sections.length == 2 && sections[1] == -1) &&
+        eqArray(wrapper, this.cursorWrapper))
+      return this
     LOG_update && console.log(`updateRanges(${state.doc},`, sections, composition, ")")
     if (composition) {
       let separated = separateComposition(sections, composition)
@@ -202,7 +205,7 @@ export class DocTile extends CompositeTile {
       if (!separated) composition = null
       else sections = separated
     }
-    let builder = new ContentUpdate(state, this, new DecoIterator(state))
+    let builder = new ContentUpdate(state, this, new DecoIterator(state), wrapper)
     for (let i = 0, posA = 0, startCovered = false; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
@@ -538,9 +541,9 @@ class ContentUpdate {
   posB = 0
   reused = new Set<HTMLElement | Text>()
 
-  constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator) {
+  constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Prop<any>[] | null) {
     this.old = new TilePointer(old, 0, null)
-    this.new = new DocTile(state, old.dom as HTMLElement)
+    this.new = new DocTile(state, old.dom as HTMLElement, cursorWrapper)
     // FIXME pre-allocate walkers?
   }
 
