@@ -4,6 +4,7 @@ import {EditorState} from "@wordgard/state"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderPropWrapper} from "./decoration"
 import {type CompositionInfo} from "./input"
+import {type EditorView} from "./editorview"
 
 const LOG_update = false
 
@@ -48,7 +49,7 @@ export abstract class Tile {
     dom.wgTile = this
   }
 
-  get isAtom() { return false } // FIXME make text nodes return false?
+  get isAtom() { return false }
   get isNodeOuter() { return false }
   get isNodeInner() { return (this.flags & TileFlag.NodeInner) > 0 }
   get isNode() { return this.isNodeOuter || (this.flags & TileFlag.NodeInner) > 0 }
@@ -129,7 +130,7 @@ export abstract class Tile {
     return bias > 0 ? this.posAtEnd : this.posAtStart
   }
 
-  ignoreEvent(event: Event) { return false } // FIXME implement or redesign
+  handleEvent(event: Event, view: EditorView) { return false }
 
   get ignoreMutations() { return false }
 
@@ -260,8 +261,9 @@ export class DocTile extends CompositeTile {
         if (ch.boundary ? off && off < ch.length : off <= ch.length) {
           if (ch.isText && (!off ? assoc > 0 : off == ch.length ? assoc < 0 : true)) {
             found = ch; offset = off; foundDepth = depth + 1
+          } else if (!ch.isAtom && scan(ch, off - ch.boundary, depth + 1)) {
+            return true
           }
-          else if (!ch.isAtom && scan(ch, off - ch.boundary, depth + 1)) return true
         }
         off -= ch.length
         if (off < 0) return true
@@ -350,6 +352,8 @@ export class WidgetTile extends Tile {
   get isAtom() { return true }
 
   get children() { return noChildren }
+
+  handleEvent(event: Event, view: EditorView) { return this.widget.type.handleEvent(event, view) }
 
   toString() { return this.widget.type == TextWidget ? JSON.stringify(this.widget.value) : super.toString() }
 }

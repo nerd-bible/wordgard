@@ -374,7 +374,7 @@ function eventBelongsToEditor(view: EditorView, event: Event): boolean {
   if (!event.bubbles) return true
   if (event.defaultPrevented) return false
   for (let node = event.target as DOMNode | null, cView; node != view.contentDOM; node = node.parentNode)
-    if (!node || node.nodeType == 11 || (cView = node.wgTile) && cView.ignoreEvent(event))
+    if (!node || node.nodeType == 11 || (cView = node.wgTile) && cView.handleEvent(event, view))
       return false
   return true
 }
@@ -393,6 +393,8 @@ handlers.keydown = (view, event: KeyboardEvent) => {
   if (event.keyCode == 27 && view.inputState.tabFocusMode != 0) view.inputState.tabFocusMode = Date.now() + 2000
   return false
 }
+
+// FIXME proper strategy for touch handling
 
 observers.touchstart = (view, e) => {
   view.inputState.lastTouchTime = Date.now()
