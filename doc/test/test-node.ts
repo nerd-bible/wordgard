@@ -50,7 +50,7 @@ describe("Node", () => {
   describe("textContent", () => {
     it("works with leafText", () => {
       const d = doc(p("foo", $img()))
-      ist(d.textContent({leafText: "[LEAF]"}), 'foo[LEAF]')
+      ist(JSON.stringify(d.textContent({leafText: "[LEAF]"})), JSON.stringify('foo[LEAF]'))
       ist(d.textContent({leafText: (node) => "[LEAF]"}), 'foo[LEAF]')
     })
 
@@ -60,6 +60,10 @@ describe("Node", () => {
 
     it("adds block separator around leaf nodes", () => {
       ist(doc(p("one"), hr(), hr(), p("two")).textContent(), "one\n---\n---\ntwo")
+    })
+
+    it("doesn't duplicate separators for multiple opened blocks", () => {
+      ist(doc(p("a"), blockquote(blockquote(p("b")))).textContent(), "a\nb")
     })
 
     let BlockLeaf = Tag.defineBlock("BlockLeaf", {group: "Block", shape: {element: "div"}})
@@ -74,6 +78,10 @@ describe("Node", () => {
 
     it("doesn't get confused by leading wrapper blocks", () => {
       ist(doc(blockquote(p("a"))).textContent(), "a")
+    })
+
+    it("works on slices", () => {
+      ist(doc(p("abc"), blockquote(p("def"))).slice(2, 9).textContent(), "bc\nde")
     })
   })
 

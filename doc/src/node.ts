@@ -362,20 +362,13 @@ export class Node {
     leafText?: string | ((node: Node) => string)
   } = {}) {
     let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
-    let text = "", first = true
+    let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
     this.iterate(from, to, (node, pos) => {
-      let nodeText = node.isText ? node.text!.slice(Math.max(0, from - pos), Math.min(node.length, to - pos))
-        : !node.isLeaf ? ""
-        : leafText ? (typeof leafText === "function" ? leafText(node) : leafText)
-        : node.type.spec.toText ? node.type.spec.toText(node)
-        : ""
-      if (node.isBlock && (node.isLeaf && nodeText || node.isTextblock)) {
-        if (first) first = false
-        else text += blockSeparator
-      }
-      text += nodeText
+      if (node.isText && (pos < from || pos + node.length > to))
+        node = node.sliceText(Math.max(0, from - pos), Math.min(node.length, to - pos))
+      return !out.serialize(node)
     })
-    return text
+    return out.text
   }
 
   prop<Value>(prop: PropType<Value>): Value | undefined { return this.tag.prop(prop) }
@@ -389,6 +382,29 @@ export class Node {
 
   static text(text: string, props: readonly Prop<any>[] = none) {
     return new Node(Text.of(text, props), none)
+  }
+}
+
+export class TextOutput {
+  text = ""
+  started = false
+
+  constructor(readonly blockSep: string, readonly leafText?: (node: Node) => string) {}
+
+  serialize(node: Node): boolean {
+    let nodeText = node.isText ? node.text!
+      : node.type.spec.toText ? node.type.spec.toText(node)
+      : !node.isLeaf ? null
+      : this.leafText ? this.leafText(node)
+      : ""
+    if (node.isBlock && (nodeText || node.isTextblock)) this.openBlock()
+    if (nodeText != null) { this.text += nodeText; this.started = true }
+    return nodeText != null
+  }
+
+  openBlock() {
+    if (this.started) this.text += this.blockSep
+    else this.started = true
   }
 }
 

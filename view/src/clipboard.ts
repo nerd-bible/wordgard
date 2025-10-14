@@ -40,7 +40,8 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   let html = wrap.innerHTML
   for (let filter of state.facet(clipboardOutputHTMLFilter)) html = filter(html, state)
   data.setData("text/html", html)
-  let text = wrap.textContent! // FIXME
+
+  let text = slice.textContent({blockSeparator: "\n\n"})
   for (let filter of state.facet(clipboardOutputTextFilter)) text = filter(text, state)
   data.setData("text/plain", text)
 }

@@ -275,6 +275,7 @@ export const ImageAlt = PropType.define<string>("ImageAlt", {
 
 export const LineBreak = Tag.defineInline("LineBreak", {
   isLineBreak: true,
+  toText: () => "\n",
   shape: {element: "br"}
 })
 

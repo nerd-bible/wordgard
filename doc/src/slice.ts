@@ -1,4 +1,4 @@
-import {TokenType, Node, NodeJSON, TagJSON, Tag} from "./node"
+import {TokenType, Node, NodeJSON, TagJSON, Tag, TextOutput} from "./node"
 import {Schema} from "./schema"
 import {Walker} from "./pos"
 
@@ -93,6 +93,22 @@ export class Slice {
       if (tok.tokenType == TokenType.Node) schema.validate(tok)
       else if (tok.tokenType == TokenType.Open) schema.validateTag(tok)
     }
+  }
+
+  textContent(options: {
+    blockSeparator?: string,
+    leafText?: string | ((node: Node) => string)
+  } = {}) {
+    let {blockSeparator = "\n", leafText} = options
+    let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
+    for (let tok of this.content) {
+      if (tok.tokenType == TokenType.Open) {
+        if (tok.isTextblock) out.openBlock()
+      } else if (tok.tokenType == TokenType.Node) {
+        tok.iterate(node => !out.serialize(node))
+      }
+    }
+    return out.text
   }
 
   static empty = new Slice([])
