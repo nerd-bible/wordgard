@@ -24,7 +24,11 @@ function readHTML(html: string): HTMLElement {
 
 function readDoc(schema: Schema, doc: DocSource): DocNode {
   if (doc instanceof DocNode) {
-    if (doc.schema != schema) throw new Error("Schema mismatch between document and editor configuration")
+    if (doc.schema != schema) {
+      if (doc.schema.elements.some(e => !schema.elements.includes(e)))
+        throw new Error("Schema mismatch between document and editor configuration")
+      return schema.doc(doc.children)
+    }
     return doc
   }
   if (typeof doc == "function") return doc(schema)

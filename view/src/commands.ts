@@ -16,8 +16,21 @@ export type Command = (target: EditorView) => boolean
 
 // FIXME check behavior with inline nodes with content for all of these
 
+export const insertLineBreak: StateCommand = ({state, dispatch}) => {
+  let {doc, sel} = state
+  let brk = doc.schema.lineBreak
+  if (!brk || !sel.from.parent.node.type.canContain(brk.type)) return false
+  dispatch(state.update({
+    changes: {from: sel.from.pos, to: sel.to.pos, insert: new Slice([brk.create()]), fit: true},
+    selection: {anchor: sel.from.pos + 1},
+    scrollIntoView: true,
+    userEvent: "insert.linebreak"
+  }))
+  return true
+}
+
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
-  let {doc, sel: sel} = state
+  let {doc, sel} = state
   let block = sel.from.parent
   if (!block.node.isTextblock || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
   let props = state.selection.props || sel.from.props(sel.to)
@@ -582,7 +595,8 @@ export const defaultDelete: Command = (view: EditorView) => {
 }
 
 export const defaultKeymap: readonly KeyBinding[] = [
-  {key: "Enter", run: defaultEnter}, // FIXME shift to insert a line break
+  {key: "Enter", run: defaultEnter},
+  {key: "Shift-Enter", run: view => insertLineBreakInCode(view) || insertLineBreak(view)},
   {key: "Backspace", run: defaultBackspace},
   {key: "Delete", run: defaultDelete},
   {key: "ArrowLeft", run: cursorCharLeft, shift: selectCharLeft},
