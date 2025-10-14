@@ -160,7 +160,6 @@ export class EditorView {
     if (value) {
       this.root = getRoot(this.dom.parentNode!) || document
       this.mountStyles()
-      this.docTile.connect()
       this.inputState.connect()
       for (let plugin of this.plugins) plugin.connect(this)
       this.observer.connect()
@@ -171,7 +170,7 @@ export class EditorView {
       this.observer.disconnect()
       for (let plugin of this.plugins) plugin.disconnect(this)
       this.inputState.disconnect()
-      this.docTile.disconnect()
+      this.docTile.destroyDropped(new Map)
     }
   }
 

@@ -170,6 +170,28 @@ describe("DocTile", () => {
     ist(def.nodeValue, "df")
   })
 
+  it("calls destroy on removed widgets", () => {
+    let log: string[] = []
+    const trackedWidget = Widget.define<string>({
+      render(v) { let s = document.createElement("span"); s.textContent = v; return s },
+      destroy(v) { log.push(v) }
+    })
+    const imgWidget = tagShape({
+      tag: "Image",
+      shape: t => trackedWidget.of(t.param),
+      atom: true
+    })
+
+    let tile = update(render(doc(p("ab", img("a"), "cd")), imgWidget), {
+      changes: {from: 3, to: 4, insert: new Slice([img("b")])}
+    })
+    ist(log.join(), "a")
+    tile = update(tile, {changes: {from: tile.length, insert: new Slice([p("!", img("c"))])}})
+    ist(log.join(), "a")
+    tile = update(tile, {changes: {from: 0, to: tile.length, insert: new Slice([hr()])}})
+    ist(log.join(), "a,b,c")
+  })
+
   // FIXME test nodes with inner structure
 
   describe("decoration", () => {

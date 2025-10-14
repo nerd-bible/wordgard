@@ -8,6 +8,7 @@ import {type EditorView} from "./editorview"
 export type WidgetSpec<T> = {
   render: (value: T) => HTMLElement | Text
   eq?: (a: T, b: T) => boolean
+  destroy?: (value: T) => void
   handleEvent?: (event: Event, view: EditorView) => boolean
 }
 
@@ -15,11 +16,13 @@ export class WidgetType<T> {
   render: (value: T) => HTMLElement | Text
   eq: (a: T, b: T) => boolean
   handleEvent: (event: Event, view: EditorView) => boolean
+  destroy: (value: T) => void
 
   constructor(spec: WidgetSpec<T>) {
     this.render = spec.render
     this.eq = spec.eq || ((a, b) => a === b)
     this.handleEvent = spec.handleEvent || (() => false)
+    this.destroy = spec.destroy || (() => {})
   }
 
   of(value: T) { return new Widget(this, value) }

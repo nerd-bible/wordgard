@@ -138,6 +138,15 @@ export abstract class Tile {
   toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
 
   sync() {}
+
+  destroyDropped(reused: Map<Tile, Reused>) {
+    if (reused.get(this) != Reused.Full) {
+      this.destroy()
+      for (let ch of this.children) ch.destroyDropped(reused)
+    }
+  }
+
+  destroy() {}
 }
 
 export class CompositeTile extends Tile {
@@ -228,6 +237,7 @@ export class DocTile extends CompositeTile {
     }
     let result = builder.finish()
     result.sync()
+    for (let ch of this.children) ch.destroyDropped(builder.reused)
     LOG_update && console.log("/updateRanges " + result + " : " + result.dom.innerHTML)
     return result
   }
@@ -240,7 +250,6 @@ export class DocTile extends CompositeTile {
     return null
   }
 
-  // FIXME this will follow stale parent pointers. Need to clear those somehow
   owns(elt: Tile) {
     for (;;) {
       let {parent} = elt
@@ -294,14 +303,6 @@ export class DocTile extends CompositeTile {
       pos += ch.length
     }
     return pos
-  }
-
-  connect() {
-    // FIXME
-  }
-
-  disconnect() {
-    // FIXME must determine disconnected elements during update
   }
 }
 
@@ -357,6 +358,8 @@ export class WidgetTile extends Tile {
   get children() { return noChildren }
 
   handleEvent(event: Event, view: EditorView) { return this.widget.type.handleEvent(event, view) }
+
+  destroy() { this.widget.type.destroy(this.widget.value) }
 
   toString() { return this.widget.type == TextWidget ? JSON.stringify(this.widget.value) : super.toString() }
 }
@@ -497,12 +500,12 @@ class TilePointer {
     return index < tile.children.length ? tile.children[index] : null
   }
 
-  matchingWrapper(elt: DecoElt, spanning: boolean, reused: Set<HTMLElement | Text>) {
+  matchingWrapper(elt: DecoElt, spanning: boolean, reused: Map<Tile, Reused>) {
     let best: EltTile | undefined, bestScore = 0
     let start = this.tile.isText ? this.parent! : this
     for (let {tile, parent} = start; !(tile.isNode || tile.isDoc); {tile, parent} = parent!) {
       let wrap = tile as EltTile
-      if (reused.has(wrap.dom) || wrap.elt.tagName != elt.tagName || wrap.isSpanning != spanning) continue
+      if (reused.has(wrap) || wrap.elt.tagName != elt.tagName || wrap.isSpanning != spanning) continue
       let score = compareAttributes(wrap.elt.attrs, elt.attrs)
       if (!best || bestScore < score) {
         best = wrap
@@ -511,11 +514,11 @@ class TilePointer {
     }
     if (!best) return null
     if (bestScore < 0) updateAttributes(best.dom, best.elt.attrs, elt.attrs)
-    reused.add(best.dom)
+    reused.set(best, Reused.DOM)
     return best.dom
   }
 
-  matchingWidget(widget: Widget<any>, sideFlag: number, reused: Set<HTMLElement | Text>) {
+  matchingWidget(widget: Widget<any>, sideFlag: number, reused: Map<Tile, Reused>) {
     let {index, tile, parent} = this
     for (;;) {
       if (!index) {
@@ -525,21 +528,25 @@ class TilePointer {
         if (tile instanceof TextTile) break
         let before = tile.children[--index]
         if (!before.isPoint) break
-        if (!reused.has(before.dom) && before instanceof WidgetTile && before.widget.eq(widget) &&
-            (before.flags & TileFlag.PointSide) == sideFlag)
+        if (!reused.has(before) && before instanceof WidgetTile && before.widget.eq(widget) &&
+            (before.flags & TileFlag.PointSide) == sideFlag) {
+          reused.set(before, Reused.Full)
           return before
+        }
       }
     }
     return null
   }
 }
 
+const enum Reused { Full = 1, DOM = 2 }
+
 class ContentUpdate {
   old: TilePointer
   new: CompositeTile
   // Current position in the new document
   posB = 0
-  reused = new Set<HTMLElement | Text>()
+  reused = new Map<Tile, Reused>()
 
   constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Prop<any>[] | null) {
     this.old = new TilePointer(old, 0, null)
@@ -554,7 +561,7 @@ class ContentUpdate {
         if (span) {
           this.new = span
         } else {
-          this.reused.add(tile.dom)
+          this.reused.set(tile, Reused.DOM)
           let inner = EltTile.of(tile.elt, tile.tag, tile.flags, tile.boundary * 2, tile.dom)
           this.new.addChild(inner)
           this.new = inner
@@ -565,13 +572,15 @@ class ContentUpdate {
       },
       skip: (tile, from, to) => {
         if (!(tile instanceof TextTile)) {
+          this.reused.set(tile, Reused.Full)
           this.new.addChild(tile)
         } else if (this.new.lastChild instanceof TextTile && !this.new.lastChild.isComposition) {
           this.addText(tile.text.slice(from, to))
         } else if (!from && to == tile.text.length) {
+          this.reused.set(tile, Reused.Full)
           this.new.addChild(tile)
-        } else if (!this.reused.has(tile.dom)) {
-          this.reused.add(tile.dom)
+        } else if (!this.reused.has(tile)) {
+          this.reused.set(tile, Reused.DOM)
           this.new.addChild(new TextTile(tile.text.slice(from, to), tile.dom))
         } else {
           this.new.addChild(TextTile.of(tile.text.slice(from, to)))
@@ -620,11 +629,11 @@ class ContentUpdate {
       let tile = found[i]
       if (tile.isSpanning && this.enterSpanning(tile.elt)) {
       } else {
-        if (tile.isSpanning && this.reused.has(tile.dom)) {
+        if (tile.isSpanning && this.reused.has(tile)) {
           let owner = tile.dom.wgTile
           if (owner && owner != tile) owner.dom = eltDOM((owner as EltTile).elt)
         } else {
-          this.reused.add(tile.dom)
+          this.reused.set(tile, Reused.DOM)
         }
         tile = EltTile.of(tile.elt, null, tile.flags, 0, tile.dom)
         this.new.addChild(tile)
@@ -632,7 +641,6 @@ class ContentUpdate {
       }
     }
     this.new.addChild(new TextTile(composition.text, composition.target, TileFlag.Composition))
-    this.reused.add(composition.target)
     this.old = this.old.walk(composition.toA - composition.fromA, 1)
     this.posB += composition.text.length
   }
@@ -646,9 +654,9 @@ class ContentUpdate {
         let tile: EltTile | undefined
         if (reuse) {
           let nodeTile = this.old.tileAfter()
-          if (nodeTile instanceof EltTile && !this.reused.has(nodeTile.dom) &&
+          if (nodeTile instanceof EltTile && !this.reused.has(nodeTile) &&
               nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
-            this.reused.add(nodeTile.dom)
+            this.reused.set(nodeTile, Reused.DOM)
             updateAttributes(nodeTile.dom, nodeTile.elt.attrs, elt.attrs)
             tile = copyEltShape(nodeTile, tag)
           }
@@ -674,20 +682,21 @@ class ContentUpdate {
         let tile: Tile | undefined
         if (reuse || node.isText && this.posB == start) {
           let nodeTile = this.old.tileAfter()
-          if (nodeTile && !this.reused.has(nodeTile.dom)) {
+          if (nodeTile && !this.reused.has(nodeTile)) {
             if (shape instanceof Elt && nodeTile instanceof EltTile &&
                 nodeTile.elt.tagName == shape.tagName && nodeTile.elt.eqChildren(shape)) {
-              this.reused.add(nodeTile.dom)
+              this.reused.set(nodeTile, Reused.DOM)
               updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
               tile = copyEltShape(nodeTile, node.tag)
             } else if (node.isText && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
                        (reuse || this.posB == start)) {
-              this.reused.add(nodeTile.dom)
               if (nodeTile.text != node.text) {
                 nodeTile.dom.nodeValue = node.text!
                 tile = new TextTile(node.text!, nodeTile.dom)
+                this.reused.set(nodeTile, Reused.DOM)
               } else {
                 tile = nodeTile
+                this.reused.set(nodeTile, Reused.Full)
               }
             } else if (shape instanceof Widget && nodeTile instanceof WidgetTile &&
                        nodeTile.widget.eq(shape)) {
@@ -786,7 +795,6 @@ class ContentUpdate {
       }
       // Move any point tiles after the wrapper into it
       for (let j = i + 1; j < cur.children.length; j++) prev.addChild(cur.children[j])
-      cur.children.length = i + 1
       return prev
     }
     return null
@@ -798,8 +806,8 @@ class ContentUpdate {
       this.new.addChild(TextTile.of(text))
     } else if (last.flags & TileFlag.Synced) {
       this.new.children.pop()
-      this.new.addChild(this.reused.has(last.dom) ? TextTile.of(last.text + text) : new TextTile(last.text + text, last.dom))
-      this.reused.add(last.dom)
+      this.new.addChild(new TextTile(last.text + text, last.dom))
+      this.reused.set(last, Reused.DOM)
     } else {
       last.text += text
       last.length += text.length
