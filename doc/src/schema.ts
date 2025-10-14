@@ -235,6 +235,7 @@ export const OrderedList = TagType.defineBlock("OrderedList", {
   validateParam: "number",
   blockContent: "ListItem",
   group: "Block",
+  isList: true,
   shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
@@ -246,6 +247,7 @@ export const OrderedList = TagType.defineBlock("OrderedList", {
 export const BulletList = Tag.defineBlock("BulletList", {
   blockContent: "ListItem",
   group: "Block",
+  isList: true,
   shape: {element: "ul"},
   autoJoin: true
 })

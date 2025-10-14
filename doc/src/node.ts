@@ -15,6 +15,7 @@ const enum TagFlag {
   Leaf = 8,
   Doc = 16,
   NullParam = 32,
+  List = 64
 }
 
 function flagsFor(spec: TagSpec<any>, inline: boolean) {
@@ -22,6 +23,7 @@ function flagsFor(spec: TagSpec<any>, inline: boolean) {
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= TagFlag.InlineContent
   else if (!spec.blockContent) flags |= TagFlag.Leaf
+  if (spec.isList) flags |= TagFlag.List
   return flags
 }
 
@@ -111,6 +113,7 @@ export class TagType<Param> {
   get isTextblock() { return this.isBlock && this.inlineContent }
   get isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
   get isDoc() { return (this.flags & TagFlag.Doc) > 0 }
+  get isList() { return (this.flags & TagFlag.List) > 0 }
 }
 
 export class Tag<Param = unknown> {
@@ -181,7 +184,7 @@ export class Tag<Param = unknown> {
   changeType(to: Tag<any>) {
     if (!this.props.length) return to
     let props = to.props
-    for (let prop of this.props) if (prop.type.set || !prop.isInSet(props)) {
+    for (let prop of this.props) if (prop.type.canTarget(to.type) && (prop.type.set || !prop.isInSet(props))) {
       let {keepOnTypeChange} = prop.type.spec
       if (keepOnTypeChange && (keepOnTypeChange === true || keepOnTypeChange(this as Tag<any>, to.type)))
         props = prop.addToSet(props)

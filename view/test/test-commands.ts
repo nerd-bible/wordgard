@@ -1,5 +1,5 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
-        splitTextblock, deleteSelection, joinBackward, joinForward,
+        splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlock, unwrapBlockType, toggleProp} from "@wordgard/view"
 import {Node, Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
@@ -286,6 +286,25 @@ describe("joinBackward", () => {
 
   it("can join from inside an inline node", () => {
     test(doc(p("a"), p(sp(0, "b"))), joinBackward, doc(p("a", sp(0, "b"))))
+  })
+})
+
+describe("joinListItems", () => {
+  it("joins list items", () => {
+    test(doc(ul(li(p("a")), li(p(0, "b")))), joinListItems, doc(ul(li(p("a"), p(0, "b")))))
+  })
+
+  it("doesn't join when not at the start of the item", () => {
+    test(doc(ul(li(p("a")), li(p("b", 0, "c")))), joinListItems)
+    test(doc(ul(li(p("a")), li(p("b"), p(0, "c")))), joinListItems)
+  })
+
+  it("doesn't try to join the first item", () => {
+    test(doc(ul(li(p("a"))), ul(li(p(0, "b")))), joinListItems)
+  })
+
+  it("doesn't join non-list items", () => {
+    test(doc(blockquote(blockquote(p("a")), blockquote(p(0, "b")))), joinListItems)
   })
 })
 

@@ -41,6 +41,9 @@ export type TagSpec<Param> = {
   /// [whitespace-preserving](#state.TagSpec.preserveWhitespace)
   /// nodes.
   isLineBreak?: boolean
+  /// Indicates that this node represents a list, which makes some
+  /// commands behave specially on it.
+  isList?: boolean
   isolating?: boolean
   /// Block containers are, by default, assumed to arrange their
   /// children vertically below each other (`"row"`). You can set this

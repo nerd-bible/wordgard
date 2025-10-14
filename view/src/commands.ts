@@ -189,6 +189,27 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   return true
 }
 
+export const joinListItems: StateCommand = ({state, dispatch}) => {
+  let {empty, head} = state.sel
+  if (!empty || head.index || head.inText) return false
+  for (let scan = head.parent;;) {
+    let next = scan.parent
+    if (!next) return false
+    if (scan.node.isBlock && next.node.type.isList) {
+      let prev = scan.previousSibling
+      if (!prev || scan.node.children.some(ch => !prev.type.canContain(ch.type))) return false
+      dispatch(state.update({
+        changes: {from: scan.before - 1, to: scan.before + 1},
+        userEvent: "join.backward.list",
+        scrollIntoView: true
+      }))
+      return true
+    }
+    if (scan.index) return false
+    scan = next
+  }
+}
+
 export const joinForward: StateCommand = ({state, dispatch}) => {
   let {head, empty} = state.sel, block = head.textblockParent
   if (!empty || !block || !head.isAtEnd(block)) return false
@@ -337,7 +358,6 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
       state.doc.iterate(from, to, (node, pos, parent) => {
         if (node.isTextblock && pos > lastBlock && !node.tag.eq(tag) && parent && parent.type.canContain(tag.type)) {
           lastBlock = pos
-          // FIXME more refined handling of props
           changes.push({from: pos, to: pos + 1, insert: new Slice([node.tag.changeType(tag)])})
           for (let ch of clearNonFitting(state.doc.resolveNode(pos)!, tag.type)) changes.push(ch)
         }
@@ -581,9 +601,9 @@ export const defaultEnter: Command = (view: EditorView) => {
     splitTextblock(view)
 }
 
-// FIXME join list items
 export const defaultBackspace: Command = (view: EditorView) => {
   return deleteSelection(view) ||
+    joinListItems(view) ||
     joinBackward(view) ||
     deleteBackward(view)
 }
