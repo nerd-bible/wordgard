@@ -1,9 +1,17 @@
 import {Slice, Text, Node, Tag, PropType, Pos, serializeSlice, parseSlice,
         OpenSide, Token, CloseToken} from "@wordgard/doc"
-import {EditorState} from "@wordgard/state"
+import {Facet, EditorState} from "@wordgard/state"
 import browser from "./browser"
-import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
-        clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter} from "./extension"
+
+export const clipboardOutputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
+export const clipboardOutputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
+export const clipboardTextSerializer = Facet.define<(slice: Slice, state: EditorState) => string | null>()
+export const clipboardOutputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
+
+export const clipboardInputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
+export const clipboardInputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
+export const clipboardTextParser = Facet.define<(text: string, state: EditorState) => Slice | null>()
+export const clipboardInputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
 
 const openProp = PropType.define<string>("Open", {
   shape: {attribute: "wg-open"},
@@ -41,7 +49,11 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   for (let filter of state.facet(clipboardOutputHTMLFilter)) html = filter(html, state)
   data.setData("text/html", html)
 
-  let text = slice.textContent({blockSeparator: "\n\n"})
+  let text: string | undefined | null
+  for (let serialize of state.facet(clipboardTextSerializer)) {
+    if ((text = serialize(slice, state)) != null) break
+  }
+  if (text == null) text = slice.textContent({blockSeparator: "\n\n"})
   for (let filter of state.facet(clipboardOutputTextFilter)) text = filter(text, state)
   data.setData("text/plain", text)
 }
@@ -77,7 +89,11 @@ export function readClipboard(state: EditorState, data: DataTransfer, targetCont
 }
 
 function readClipboardText(state: EditorState, text: string, context: Pos, plain: boolean) {
-  // FIXME text filtering, custom parsers
+  if (!plain) for (let parser of state.facet(clipboardTextParser)) {
+    let slice = parser(text, state)
+    if (slice) return slice
+  }
+
   let props = plain ? [] : context.props()
   if (context.parent.node.type.preserveWhitespace) return new Slice([Node.text(text.replace(/\r?\n|\r/g, "\n"), props)])
   let lines = text.split(/(?:\r\n?|\n)+/)

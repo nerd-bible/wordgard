@@ -10,9 +10,10 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
         exceptionSink, updateListener, logException,
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, editable, inputHandler, scrollIntoView,
-        ScrollTarget, scrollHandler,
-        clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
-        clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter} from "./extension"
+        ScrollTarget, scrollHandler} from "./extension"
+import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
+        clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter,
+        clipboardTextParser, clipboardTextSerializer} from "./clipboard"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
@@ -495,20 +496,31 @@ export class EditorView {
   /// HTML string before it put onto the clipboard.
   static clipboardOutputHTMLFilter = clipboardOutputHTMLFilter
 
+  /// This can be used to provide a function that converts a document
+  /// slice to a string that is put onto the plain-text clipboard.
+  /// Serializers are tried in order of precedence until one returns
+  /// a string.
+  static clipboardTextSerializer = clipboardTextSerializer
+
   /// Filter to run on the plain text representation of content put
   /// onto the clipboard.
-  static clipboardInputTextFilter = clipboardOutputTextFilter
+  static clipboardOutputTextFilter = clipboardOutputTextFilter
 
   /// Filter functions provided through this facet will be run on a
   /// slice after it is read from the clipboard.
-  static clipboardInputFilter = clipboardOutputFilter
+  static clipboardInputFilter = clipboardInputFilter
 
   /// Filter functions to run on HTML text that is read from the
   /// clipboard.
-  static clipboardInputHTMLFilter = clipboardOutputHTMLFilter
+  static clipboardInputHTMLFilter = clipboardInputHTMLFilter
+
+  /// When the editor reads plain text from the clipboard, this facet
+  /// can be used to provide a custom parser. Each provided function
+  /// is tried in order of precedence, until one returns a slice.
+  static clipboardTextParser = clipboardTextParser
 
   /// Filter to run on plain text read from the clipboard.
-  static clipboardOutputTextFilter = clipboardOutputTextFilter
+  static clipboardInputTextFilter = clipboardInputTextFilter
 
   /// Enable or disable tab-focus mode, which disables key bindings
   /// for Tab and Shift-Tab, letting the browser's default

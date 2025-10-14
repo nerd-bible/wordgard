@@ -1,5 +1,5 @@
 import {EditorState, Transaction, Facet, StateEffect, Extension, EditorSelection} from "@wordgard/state"
-import {ChangeSet, ChangeDesc, Slice} from "@wordgard/doc"
+import {ChangeSet, ChangeDesc} from "@wordgard/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
@@ -23,14 +23,6 @@ export const inputHandler = Facet.define<(view: EditorView, from: number, to: nu
 export const inputEventHandler = Facet.define<{event: string, run: Command}>()
 
 export const focusChangeEffect = Facet.define<(state: EditorState, focusing: boolean) => StateEffect<any> | null>()
-
-export const clipboardOutputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
-export const clipboardOutputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
-export const clipboardOutputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
-
-export const clipboardInputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
-export const clipboardInputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
-export const clipboardInputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
 
 export const scrollHandler = Facet.define<(
   view: EditorView,
