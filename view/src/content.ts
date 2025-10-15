@@ -547,15 +547,12 @@ class ContentUpdate {
   // Current position in the new document
   posB = 0
   reused = new Map<Tile, Reused>()
+  keepWalker: TileWalker
 
   constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Prop<any>[] | null) {
     this.old = new TilePointer(old, 0, null)
     this.new = new DocTile(state, old.dom as HTMLElement, cursorWrapper)
-    // FIXME pre-allocate walkers?
-  }
-
-  keep(len: number, includeStart: boolean, includeEnd: boolean) {
-    let walker: TileWalker = {
+    this.keepWalker = {
       enter: tile => {
         let span = tile.isSpanning && this.enterSpanning(tile.elt)
         if (span) {
@@ -587,11 +584,14 @@ class ContentUpdate {
         }
       }
     }
+  }
+
+  keep(len: number, includeStart: boolean, includeEnd: boolean) {
     if (!includeStart) {
       this.old = this.old.walk(0, 1)
       this.openOldWrappers()
     }
-    this.old = this.old.walk(len, includeEnd ? 1 : -1, walker)
+    this.old = this.old.walk(len, includeEnd ? 1 : -1, this.keepWalker)
     this.posB += len
   }
 
