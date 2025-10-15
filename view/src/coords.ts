@@ -3,11 +3,16 @@ import browser from "./browser"
 import {EditorView} from "./editorview"
 import {Tile, EltTile} from "./content"
 
-// FIXME make this aware of node orientation, review
 function findOffsetInNode(node: HTMLElement, coords: {x: number, y: number}): {node: Node, offset: number} {
-  let closest, dxClosest = 2e8, coordsClosest: {x: number, y: number} | undefined, offset = 0
+  // Track the closest element that overlaps with y
+  let closest, dxClosest = 2e8, coordsClosest: {x: number, y: number} | undefined
+  // Organize things whose y overlap into rows
   let rowBot = coords.y, rowTop = coords.y
+  // In case nothing directly overlaps, track the first element below y
   let firstBelow: Node | undefined, coordsBelow: {x: number, y: number} | undefined
+  // The offset of the first child that sticks out beyond the
+  // coords, used when we return a position directly in this element
+  let offset = 0
   for (let child = node.firstChild, childIndex = 0; child; child = child.nextSibling, childIndex++) {
     let rects
     if (child.nodeType == 1) rects = (child as HTMLElement).getClientRects()
@@ -17,6 +22,7 @@ function findOffsetInNode(node: HTMLElement, coords: {x: number, y: number}): {n
     for (let i = 0; i < rects.length; i++) {
       let rect = rects[i]
       if (rect.top <= rowBot && rect.bottom >= rowTop) {
+        // Rectangle is in the current row
         rowBot = Math.max(rect.bottom, rowBot)
         rowTop = Math.min(rect.top, rowTop)
         let dx = rect.left > coords.x ? rect.left - coords.x
@@ -33,6 +39,7 @@ function findOffsetInNode(node: HTMLElement, coords: {x: number, y: number}): {n
           continue
         }
       } else if (rect.top > coords.y && !firstBelow && rect.left <= coords.x && rect.right >= coords.x) {
+        // Rectangle is below the coordinates.
         firstBelow = child
         coordsBelow = {x: Math.max(rect.left, Math.min(rect.right, coords.x)), y: rect.top}
       }
