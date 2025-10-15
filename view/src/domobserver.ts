@@ -217,7 +217,7 @@ function childRange(tile: Tile, record: MutationRecord): [number, number] {
 
 function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
   while (dom) {
-    let cur = dom.wgTile
+    let cur = Tile.get(dom)
     if (cur && cur.parent == elt) return cur
     let parent = dom.parentNode
     dom = parent != elt.dom ? parent : dir > 0 ? dom.nextSibling : dom.previousSibling

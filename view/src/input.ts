@@ -7,6 +7,7 @@ import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 import {eqArray} from "./util"
+import {Tile} from "./content"
 
 export class InputState {
   shiftKey = false
@@ -374,8 +375,8 @@ function isInPrimarySelection(view: EditorView, event: MouseEvent) {
 function eventBelongsToEditor(view: EditorView, event: Event): boolean {
   if (!event.bubbles) return true
   if (event.defaultPrevented) return false
-  for (let node = event.target as DOMNode | null, cView; node != view.contentDOM; node = node.parentNode)
-    if (!node || node.nodeType == 11 || (cView = node.wgTile) && cView.handleEvent(event, view))
+  for (let node = event.target as DOMNode | null, tile; node != view.contentDOM; node = node.parentNode)
+    if (!node || node.nodeType == 11 || (tile = Tile.get(node)) && tile.handleEvent(event, view))
       return false
   return true
 }
@@ -612,7 +613,7 @@ function findCompositionTarget(view: EditorView, prev: Text | null) {
   if (!focusNode) return null
   let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
   if (!before || !after || before == after) return before || after
-  let tileBefore = before.wgTile, tileAfter = after.wgTile
+  let tileBefore = Tile.get(before), tileAfter = Tile.get(after)
   if (!tileBefore || (tileBefore as any).text != before.nodeValue) return before
   if (!tileAfter || (tileAfter as any).text != after.nodeValue) return after
   return prev == after ? after : before

@@ -52,6 +52,7 @@ export abstract class Tile {
 
   get isAtom() { return false }
   get isNodeOuter() { return false }
+  get nodeTag(): Tag<unknown> | null { return null }
   get isNodeInner() { return (this.flags & TileFlag.NodeInner) > 0 }
   get isNode() { return this.isNodeOuter || (this.flags & TileFlag.NodeInner) > 0 }
   get isText() { return false }
@@ -147,6 +148,8 @@ export abstract class Tile {
   }
 
   destroy() {}
+
+  static get(node: Node) { return node.wgTile }
 }
 
 export class CompositeTile extends Tile {
@@ -245,7 +248,7 @@ export class DocTile extends CompositeTile {
   nearest(dom: Node, requireTag = true) {
     for (let cur: Node | null = dom; cur; cur = cur.parentNode) {
       let elt = cur.wgTile
-      if (elt && (!requireTag || elt.isNode) && this.owns(elt)) return elt
+      if (elt && (!requireTag || elt.isNodeOuter) && this.owns(elt)) return elt
     }
     return null
   }
@@ -319,6 +322,8 @@ export class EltTile extends CompositeTile {
 
   get isNodeOuter() { return !!this.tag }
 
+  get nodeTag() { return this.tag }
+
   get isAtom() { return !!this.tag && (this.flags & TileFlag.Atom) > 0 }
 
   get boundary() { return this.tag && !(this.flags & TileFlag.Atom) ? 1 : 0 }
@@ -352,6 +357,8 @@ export class WidgetTile extends Tile {
   }
 
   get isNodeOuter() { return !!this.node }
+
+  get nodeTag() { return this.node ? this.node.tag : null }
 
   get isAtom() { return true }
 
