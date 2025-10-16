@@ -2,7 +2,6 @@ import {EditorSelection, Direction} from "@wordgard/state"
 import {NodePos} from "@wordgard/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
-import {findVerticalInTextblock} from "./coords"
 
 export function setDOMSelection(view: EditorView) {
   let {anchor, head, assoc} = view.state.selection
@@ -46,8 +45,8 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
       let elt = view.docTile.resolve(block.start, 0)
       let rect = (elt.dom as HTMLElement).getBoundingClientRect()
       if (forward ? rect.bottom >= y : rect.top <= y) {
-        let found = findVerticalInTextblock(view, elt.tile, forward, x, y)
-        if (found) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
+        let found = elt.tile.posAtCoords(view.state, x, y, forward ? 1 : -1)
+        if (found.assoc != null) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
       }
       if (!block.parent) return null
       scan = forward ? block.after : block.before
