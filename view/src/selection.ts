@@ -46,7 +46,7 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
       let elt = view.docTile.resolve(block.start, 0)
       let rect = (elt.dom as HTMLElement).getBoundingClientRect()
       if (forward ? rect.bottom >= y : rect.top <= y) {
-        let found = findVerticalInTextblock(elt.tile, forward, x, y)
+        let found = findVerticalInTextblock(view, elt.tile, forward, x, y)
         if (found) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
       }
       if (!block.parent) return null

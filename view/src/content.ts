@@ -1,11 +1,14 @@
 import {Node as WGNode, Tag, Prop, ChangeDesc, compareAttributes, Elt, Attributes,
         pushAttribute, noAttributes} from "@wordgard/doc"
-import {EditorState} from "@wordgard/state"
+import {EditorState, Direction} from "@wordgard/state"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderPropWrapper} from "./decoration"
 import {eqArray} from "./util"
+import {textRange, Rect, singleRect} from "./dom"
 import {type CompositionInfo} from "./input"
 import {type EditorView} from "./editorview"
+
+// FIXME rename this file to tile.ts
 
 const LOG_update = false
 
@@ -24,6 +27,10 @@ export const enum TileFlag {
   Synced = 64,
   Atom = 128, // Composite node whose length isn't determined by child length
 }
+
+export const enum Orientation { Row, Col }
+
+type PosResult = {pos: number, assoc: -1 | 0 | 1}
 
 export class ContentPos {
   constructor(
@@ -149,7 +156,28 @@ export abstract class Tile {
 
   destroy() {}
 
+  posAtCoords(state: EditorState, x: number, y: number): PosResult {
+    let tile: Tile = this
+    for (;;) {
+      let tag = tile.nodeTag
+      if (tag) return tile.posAtCoordsInner(state, x, y, Orientation.Row, state.textDirection())
+      tile = tile.parent!
+    }
+  }
+
+  abstract posAtCoordsInner(
+    state: EditorState, x: number, y: number, orientation: Orientation, direction: Direction
+  ): PosResult
+
   static get(node: Node) { return node.wgTile }
+
+  static nearest(node: Node, requireTag = true) {
+    for (let cur: Node | null = node; cur; cur = cur.parentNode) {
+      let elt = cur.wgTile
+      if (elt && (!requireTag || elt.isNodeOuter)) return elt
+    }
+    return null
+  }
 }
 
 export class CompositeTile extends Tile {
@@ -186,6 +214,73 @@ export class CompositeTile extends Tile {
     }
     while (next) next = rm(next)
   }
+
+  posAtCoordsInner(state: EditorState, x: number, y: number, orientation: Orientation, direction: Direction): PosResult {
+    let tag = this.nodeTag
+    if (tag) {
+      orientation = tag.type.orientation == "row" ? Orientation.Row : Orientation.Col
+      if (tag.isTextblock) direction = state.textDirection(tag)
+    }
+    return orientation == Orientation.Col ? this.posAtCoordsCol(state, x, y, direction)
+      : this.posAtCoordsRow(state, x, y, direction)
+  }
+
+  posAtCoordsCol(state: EditorState, x: number, y: number, direction: Direction): PosResult {
+    // Organize things whose y overlap into rows
+    let rowBot = y, rowTop = y
+    // Track the closest element that overlaps with y, or, with lower
+    // precedence, overlaps with x and is below y
+    let closest: Tile | undefined, closestBelow = false, dxClosest = 2e8, closestRect: Rect | undefined
+    // The last child that sticks out before the coords, used when we
+    // don't find a closest child
+    let lastBefore: Tile | undefined
+
+    for (let child of this.children) {
+      let rects, {dom} = child
+      if (dom.nodeType == 1) rects = (dom as HTMLElement).getClientRects()
+      else if (dom.nodeType == 3) rects = textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
+      else continue
+
+      for (let i = 0; i < rects.length; i++) {
+        let rect = rects[i]
+        if (rect.top <= rowBot && rect.bottom >= rowTop) {
+          // Rectangle is in the current row
+          rowBot = Math.max(rect.bottom, rowBot)
+          rowTop = Math.min(rect.top, rowTop)
+          let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
+          if (closestBelow || dx < dxClosest) {
+            closest = child
+            dxClosest = dx
+            closestBelow = false
+            closestRect = rect
+          }
+        } else if (rect.top > y && rect.left <= x && rect.right >= x &&
+                   (!closest || closestBelow && closestRect!.top > rect.top)) {
+          // Rectangle is below y
+          closest = child
+          closestBelow = true
+          closestRect = rect
+        }
+        if (!closest && (x >= rect.right && y >= rect.top || x >= rect.left && y >= rect.bottom))
+          lastBefore = child
+      }
+    }
+    if (closest && !dxClosest)
+      return closest.posAtCoordsInner(state, clipX(x, closestRect!), clipY(y, closestRect!),
+                                      Orientation.Col, direction)
+    if (!lastBefore) return {pos: this.posAtStart, assoc: 0}
+    return {pos: lastBefore.posAfter, assoc: 0}
+  }
+
+  posAtCoordsRow(state: EditorState, x: number, y: number, direction: Direction): PosResult {
+    for (let child of this.children) {
+      if (child.dom.nodeType != 1) continue
+      let rect = (child.dom as HTMLElement).getBoundingClientRect()
+      if (rect.top > y) return {pos: child.posBefore, assoc: 0}
+      if (rect.bottom <= y) return child.posAtCoordsInner(state, clipX(x, rect), y, Orientation.Row, direction)
+    }
+    return {pos: this.posAtEnd, assoc: 0}
+  }
 }
 
 export class DocTile extends CompositeTile {
@@ -208,7 +303,7 @@ export class DocTile extends CompositeTile {
   updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
     if ((!sections.length || sections.length == 2 && sections[1] == -1) &&
-        eqArray(wrapper, this.cursorWrapper))
+      eqArray(wrapper, this.cursorWrapper))
       return this
     LOG_update && console.log(`updateRanges(${state.doc},`, sections, composition, ")")
     if (composition) {
@@ -369,6 +464,15 @@ export class WidgetTile extends Tile {
   destroy() { this.widget.type.destroy(this.widget.value) }
 
   toString() { return this.widget.type == TextWidget ? JSON.stringify(this.widget.value) : super.toString() }
+
+  posAtCoordsInner(state: EditorState, x: number, y: number, orientation: Orientation, direction: Direction): PosResult {
+    if (!this.node) return {pos: this.posBefore, assoc: 0}
+    let rect = this.dom.nodeType == 1 ? (this.dom as HTMLElement).getBoundingClientRect()
+      : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
+    let after = orientation == Orientation.Row ? y > (rect.top + rect.bottom) / 2
+      : (x > (rect.left + rect.right) / 2) == (direction == Direction.LTR)
+    return after ? {pos: this.posAfter, assoc: -1} : {pos: this.posBefore, assoc: 1}
+  }
 }
 
 export class TextTile extends Tile {
@@ -395,6 +499,22 @@ export class TextTile extends Tile {
 
   localPosFromDOM(dom: Node, offset: number): number {
     return this.posAtStart + Math.min(offset, this.length)
+  }
+
+  posAtCoordsInner(state: EditorState, x: number, y: number, orientation: Orientation, direction: Direction): PosResult {
+    let start = this.posBefore, firstAfter = -1
+    for (let i = 0; i < this.length; i++) {
+      let rect = singleRect(textRange(this.dom, i, i + 1), 1)
+      if (rect.top == rect.bottom) continue
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        // FIXME get bidi map and pick local direction
+        let after = (x >= (rect.left + rect.right) / 2) == (direction == Direction.LTR)
+        return {pos: start + i + (after ? 1 : 0), assoc: after ? -1 : 1}
+      } else if (firstAfter < 0 && (rect.top > y || (direction == Direction.LTR ? rect.left > x : rect.right < x))) {
+        firstAfter = i
+      }
+    }
+    return {pos: start + (firstAfter < 0 ? this.length : firstAfter), assoc: 0}
   }
 
   static of(text: string) {
@@ -885,3 +1005,6 @@ function separateComposition(sections: readonly number[], comp: CompositionInfo)
   if (diff != compIns - (toA - fromA)) return null
   return result
 }
+
+const clipX = (x: number, rect: Rect) => Math.max(Math.min(x, rect.right), rect.left)
+const clipY = (y: number, rect: Rect) => Math.max(Math.min(y, rect.bottom), rect.top)

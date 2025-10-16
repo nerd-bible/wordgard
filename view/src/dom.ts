@@ -273,6 +273,19 @@ export function textRange(node: Text, from: number, to = from) {
   return range
 }
 
+function nonZero(rect: DOMRect) {
+  return rect.top < rect.bottom || rect.left < rect.right
+}
+
+export function singleRect(target: HTMLElement | Range, bias: number): DOMRect {
+  let rects = target.getClientRects()
+  if (rects.length) {
+    let first = rects[bias < 0 ? 0 : rects.length - 1]
+    if (nonZero(first)) return first
+  }
+  return Array.prototype.find.call(rects, nonZero) || target.getBoundingClientRect()
+}
+
 export function dispatchKey(elt: HTMLElement, name: string, code: number, mods?: KeyboardEvent): boolean {
   let options: KeyboardEventInit = {key: name, code: name, keyCode: code, which: code, cancelable: true}
   if (mods)
@@ -350,21 +363,5 @@ export function textNodeAfter(startNode: Node, startOffset: number): Text | null
     } else {
       return null
     }
-  }
-}
-
-export function caretFromPoint(doc: Document, x: number, y: number): {node: Node, offset: number} | undefined {
-  if ((doc as any).caretPositionFromPoint) {
-    try { // Firefox throws for this call in hard-to-predict circumstances (#994)
-      let pos = (doc as any).caretPositionFromPoint(x, y)
-      // Clip the offset, because Chrome will return a text offset
-      // into <input> nodes, which can't be treated as a regular DOM
-      // offset
-      if (pos) return {node: pos.offsetNode, offset: Math.min(maxOffset(pos.offsetNode), pos.offset)}
-    } catch (_) {}
-  }
-  if (doc.caretRangeFromPoint) {
-    let range = doc.caretRangeFromPoint(x, y)
-    if (range) return {node: range.startContainer, offset: Math.min(maxOffset(range.startContainer), range.startOffset)}
   }
 }

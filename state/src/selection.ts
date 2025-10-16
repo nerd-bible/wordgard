@@ -351,7 +351,7 @@ function skipWord(cx: SelectionContext, start: number, assoc: -1 | 1, forward: b
       if (!next) return last
       ;({pos, assoc} = next)
     } else {
-      let map = TextblockMap.get(block.start, block.node, cx.textDirection ? cx.textDirection(block.node.tag) : Direction.LTR)
+      let map = TextblockMap.get(block.start, block.node, (cx.textDirection ?? alwaysLTR)(block.node.tag))
       let next = map.skipWord(pos, assoc, forward, visually)
       if (next) return next
       if (!block.parent) return last

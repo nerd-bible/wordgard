@@ -31,6 +31,8 @@ export class TextblockMap {
   }
 
   // FIXME handle isolates
+  // FIXME use some kind of world age counter trick to invalidate
+  // cache when direction or shape facets change
   static get(start: number, node: Node, dir: Direction) {
     let cached = cache.get(node)
     if (cached && cached.start == start && cached.dir == dir) return cached
