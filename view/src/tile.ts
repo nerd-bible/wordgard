@@ -66,8 +66,8 @@ export abstract class Tile {
   get isComposition() { return (this.flags & TileFlag.Composition) > 0 }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
 
-  posBeforeChild(child: Tile): number {
-    for (let i = 0, pos = this.posAtStart;; i++) {
+  posBeforeChild(child: Tile, ownStart = this.posAtStart): number {
+    for (let i = 0, pos = ownStart;; i++) {
       let cur = this.children[i]
       if (cur == child) return pos
       pos += cur.length
@@ -159,12 +159,12 @@ export abstract class Tile {
     let tile: Tile = this
     for (;;) {
       let tag = tile.nodeTag
-      if (tag) return tile.posAtCoordsInner(state, x, y, null, Orientation.Col, scan)
+      if (tag) return tile.posAtCoordsInner(tile.posAtStart, state, x, y, null, Orientation.Col, scan)
       tile = tile.parent!
     }
   }
 
-  abstract posAtCoordsInner(state: EditorState, x: number, y: number, textblock: TextblockMap | null,
+  abstract posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
                             orientation: Orientation, scan?: -1 | 1): PosResult
 
   static get(node: Node) { return node.wgTile }
@@ -213,25 +213,24 @@ export class CompositeTile extends Tile {
     while (next) next = rm(next)
   }
 
-  posAtCoordsInner(state: EditorState, x: number, y: number, textblock: TextblockMap | null,
+  posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
                    orientation: Orientation, scan?: -1 | 1): PosResult {
     let tag = this.nodeTag
     if (tag) {
       orientation = tag.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (tag.isTextblock) {
-        let pos = this.posBefore
         // FIXME why don't elttiles store whole nodes?
-        // FIXME pass position around to avoid queries here?
-        textblock = TextblockMap.get(pos, state.doc.nodeAt(pos)!, state.textDirection(tag))
+        textblock = TextblockMap.get(start, state.doc.nodeAt(start - 1)!, state.textDirection(tag))
       } else if (tag.isBlock) {
         textblock = null
       }
     }
-    return orientation == Orientation.Col ? this.posAtCoordsCol(state, x, y, textblock, scan)
-      : this.posAtCoordsRow(state, x, y, textblock, scan)
+    return orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock, scan)
+      : this.posAtCoordsRow(start, state, x, y, textblock, scan)
   }
 
-  posAtCoordsRow(state: EditorState, x: number, y: number, textblock: TextblockMap | null, scan?: -1 | 1): PosResult {
+  posAtCoordsRow(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
+                 scan?: -1 | 1): PosResult {
     // Organize things whose y overlap into rows
     let rowBot = y, rowTop = y
     // Track the closest element that overlaps with y, or, with lower
@@ -275,19 +274,21 @@ export class CompositeTile extends Tile {
       }
     }
     if (closest && !dxClosest)
-      return closest.posAtCoordsInner(state, clipX(x, closestRect!), clipY(y, closestRect!), textblock, Orientation.Row, scan)
-    if (!lastBefore) return {pos: this.posAtStart, assoc: 0}
-    return {pos: lastBefore.posAfter, assoc: 0}
+      return closest.posAtCoordsInner(this.posBeforeChild(closest, start) + closest.boundary, state,
+                                      clipX(x, closestRect!), clipY(y, closestRect!), textblock, Orientation.Row, scan)
+    if (!lastBefore) return {pos: start, assoc: 0}
+    return {pos: this.posBeforeChild(lastBefore, start), assoc: 0}
   }
 
-  posAtCoordsCol(state: EditorState, x: number, y: number, textblock: TextblockMap | null, scan?: -1 | 1): PosResult {
+  posAtCoordsCol(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null, scan?: -1 | 1): PosResult {
     for (let child of this.children) {
       if (child.isPoint || child.dom.nodeType != 1) continue
       let rect = (child.dom as HTMLElement).getBoundingClientRect()
-      if (rect.top > y) return {pos: child.posBefore, assoc: 0}
-      if (rect.bottom <= y) return child.posAtCoordsInner(state, clipX(x, rect), y, textblock, Orientation.Col, scan)
+      if (rect.top > y) return {pos: this.posBeforeChild(child, start), assoc: 0}
+      if (rect.bottom <= y) return child.posAtCoordsInner(this.posBeforeChild(child, start) + child.boundary, state,
+                                                          clipX(x, rect), y, textblock, Orientation.Col, scan)
     }
-    return {pos: this.posAtEnd, assoc: 0}
+    return {pos: start + this.length - 2 * this.boundary, assoc: 0}
   }
 }
 
@@ -473,13 +474,14 @@ export class WidgetTile extends Tile {
 
   toString() { return this.widget.type == TextWidget ? JSON.stringify(this.widget.value) : super.toString() }
 
-  posAtCoordsInner(state: EditorState, x: number, y: number, textblock: TextblockMap | null, orientation: Orientation): PosResult {
-    if (!this.node) return {pos: this.posBefore, assoc: 0}
+  posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
+                   textblock: TextblockMap | null, orientation: Orientation): PosResult {
+    if (!this.node) return {pos: start, assoc: 0}
     let rect = this.dom.nodeType == 1 ? (this.dom as HTMLElement).getBoundingClientRect()
       : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
     let after = orientation == Orientation.Col ? y > (rect.top + rect.bottom) / 2
-      : (x < (rect.left + rect.right) / 2) == (dirAt(state, this.posBefore, 1, textblock) == Direction.LTR)
-    return after ? {pos: this.posAfter, assoc: -1} : {pos: this.posBefore, assoc: 1}
+      : (x < (rect.left + rect.right) / 2) == (dirAt(state, start, 1, textblock) == Direction.LTR)
+    return after ? {pos: start + this.length - 2 * this.boundary, assoc: -1} : {pos: start, assoc: 1}
   }
 }
 
@@ -515,8 +517,9 @@ export class TextTile extends Tile {
     return this.posAtStart + Math.min(offset, this.length)
   }
 
-  posAtCoordsInner(state: EditorState, x: number, y: number, textblock: TextblockMap | null, orientation: Orientation): PosResult {
-    let start = this.posBefore, firstAfter = -1, basedir = textblock ? textblock.dir : state.textDirection()
+  posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
+                   textblock: TextblockMap | null, orientation: Orientation): PosResult {
+    let firstAfter = -1, basedir = textblock ? textblock.dir : state.textDirection()
     for (let i = 0; i < this.length; i++) {
       let rect = singleRect(textRange(this.dom, i, i + 1), 1)
       if (rect.top == rect.bottom) continue
