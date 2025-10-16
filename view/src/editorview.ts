@@ -3,7 +3,7 @@ import {EditorState, Transaction, TransactionSpec, Extension, Prec,
 import {ChangeDesc} from "@wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
-import {DocTile} from "./content"
+import {DocTile} from "./tile"
 import {posAtCoords, coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,

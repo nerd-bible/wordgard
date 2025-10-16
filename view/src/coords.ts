@@ -1,7 +1,7 @@
 import {Rect, textRange, maxOffset, clientRectsFor, singleRect} from "./dom"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {Tile, Orientation} from "./content"
+import {Tile, Orientation} from "./tile"
 
 // Given an x,y position on the editor, get the position in the document.
 export function posAtCoords(view: EditorView, coords: {x: number, y: number}) {

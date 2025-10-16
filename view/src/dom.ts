@@ -1,6 +1,6 @@
 // FIXME prune unused functions when stuff is more stable
 
-import {TileFlag} from "./content"
+import {TileFlag} from "./tile"
 
 export type DOMNode = Node
 

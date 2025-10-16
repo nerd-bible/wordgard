@@ -7,7 +7,7 @@ import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 import {eqArray} from "./util"
-import {Tile} from "./content"
+import {Tile} from "./tile"
 
 export class InputState {
   shiftKey = false

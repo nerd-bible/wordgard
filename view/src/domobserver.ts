@@ -3,7 +3,7 @@ import browser from "./browser"
 import {EditorView} from "./editorview"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
         isEquivalentPosition, atElementStart} from "./dom"
-import {Tile} from "./content"
+import {Tile} from "./tile"
 import {setDOMSelection, readDOMSelection} from "./selection"
 
 const observeOptions = {

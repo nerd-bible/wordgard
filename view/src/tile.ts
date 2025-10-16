@@ -8,8 +8,6 @@ import {textRange, Rect, singleRect} from "./dom"
 import {type CompositionInfo} from "./input"
 import {type EditorView} from "./editorview"
 
-// FIXME rename this file to tile.ts
-
 const LOG_update = false
 
 declare global {
