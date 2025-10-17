@@ -152,11 +152,12 @@ export abstract class Tile {
   destroy() {}
 
   // FIXME needs a lot of tests
+  // FIXME default scan to 1?
   posAtCoords(state: EditorState, x: number, y: number, scan?: -1 | 1): PosResult {
     let tile: Tile = this
     for (;;) {
-      let {node} = tile
-      if (node) return tile.posAtCoordsInner(tile.posAtStart, state, x, y, null, Orientation.Col, scan)
+      if (tile.isNodeOuter || tile.isDoc)
+        return tile.posAtCoordsInner(tile.posAtStart, state, x, y, null, Orientation.Col, scan)
       tile = tile.parent!
     }
   }
@@ -271,9 +272,10 @@ export class CompositeTile extends Tile {
           lastBefore = child
       }
     }
-    if (closest && !dxClosest)
+    if (closest)
       return closest.posAtCoordsInner(this.posBeforeChild(closest, start) + closest.boundary, state,
-                                      clipX(x, closestRect!), clipY(y, closestRect!), textblock, Orientation.Row, scan)
+                                      x, Math.max(closestRect!.top, Math.min(closestRect!.bottom, y)),
+                                      textblock, Orientation.Row, scan)
     if (!lastBefore) return {pos: start, assoc: 0}
     return {pos: this.posBeforeChild(lastBefore, start), assoc: 0}
   }
@@ -283,8 +285,8 @@ export class CompositeTile extends Tile {
       if (child.isPoint || child.dom.nodeType != 1) continue
       let rect = (child.dom as HTMLElement).getBoundingClientRect()
       if (rect.top > y) return {pos: this.posBeforeChild(child, start), assoc: 0}
-      if (rect.bottom <= y) return child.posAtCoordsInner(this.posBeforeChild(child, start) + child.boundary, state,
-                                                          clipX(x, rect), y, textblock, Orientation.Col, scan)
+      if (rect.bottom >= y) return child.posAtCoordsInner(this.posBeforeChild(child, start) + child.boundary, state,
+                                                          x, y, textblock, Orientation.Col, scan)
     }
     return {pos: start + this.length - 2 * this.boundary, assoc: 0}
   }
@@ -1016,6 +1018,3 @@ function separateComposition(sections: readonly number[], comp: CompositionInfo)
   if (diff != compIns - (toA - fromA)) return null
   return result
 }
-
-const clipX = (x: number, rect: Rect) => Math.max(Math.min(x, rect.right), rect.left)
-const clipY = (y: number, rect: Rect) => Math.max(Math.min(y, rect.bottom), rect.top)

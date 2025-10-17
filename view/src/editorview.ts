@@ -413,9 +413,9 @@ export class EditorView {
   }
 
   /// Get the document position at the given screen coordinates.
-  posAtCoords(coords: {x: number, y: number}): number {
+  posAtCoords(coords: {x: number, y: number}): {pos: number, assoc: -1 | 0 | 1} {
     this.checkFlushed()
-    return posAtCoords(this, coords).pos
+    return posAtCoords(this, coords)
   }
 
   /// Get the screen coordinates at the given document position.

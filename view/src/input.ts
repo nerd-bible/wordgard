@@ -433,27 +433,19 @@ handlers.mousedown = (view, event: MouseEvent) => {
   return false
 }
 
-// Try to determine, for the given coordinates, associated with the
-// given position, whether they are related to the element before or
-// the element after the position.
-function findPositionSide(view: EditorView, pos: number, x: number, y: number): -1 | 1 {
-  return -1 // FIXME
+function queryPos(view: EditorView, event: MouseEvent) {
+  return view.posAtCoords({x: event.clientX, y: event.clientY})
 }
 
-function queryPos(view: EditorView, event: MouseEvent): {pos: number, bias: 1 | -1} {
-  let pos = view.posAtCoords({x: event.clientX, y: event.clientY})
-  return {pos, bias: findPositionSide(view, pos, event.clientX, event.clientY)}
-}
-
-function rangeForClick(view: EditorView, pos: {pos: number, bias: -1 | 1}, type: number): EditorSelection {
+function rangeForClick(view: EditorView, pos: {pos: number, assoc: -1 | 0 | 1}, type: number): EditorSelection {
   if (type == 1) { // Single click
-    return EditorSelection.cursor(pos.pos, pos.bias)
+    return EditorSelection.cursor(pos.pos, pos.assoc)
   } else if (type == 2) { // Double click
-    return view.state.wordAt(pos.pos, pos.bias)
+    return view.state.wordAt(pos.pos, pos.assoc || 1)
   } else { // Triple click
     let cx = view.state.doc.resolve(pos.pos), block = cx.textblockParent
     if (block) return EditorSelection.range(block.start, block.end)
-    else return EditorSelection.cursor(pos.pos, pos.bias)
+    else return EditorSelection.cursor(pos.pos, pos.assoc)
   }
 }
 
@@ -477,7 +469,7 @@ function basicMouseSelection(view: EditorView, event: MouseEvent) {
       if (extend)
         return startSel.extend(from, to)
       else if (from == to)
-        return EditorSelection.cursor(from, cur.bias)
+        return EditorSelection.cursor(from, cur.assoc)
       else
         return EditorSelection.range(from, to)
     }
@@ -507,7 +499,7 @@ handlers.drop = (view, event: DragEvent) => {
   // FIXME allow handling of file drops
   let content = readClipboard(view.state, event.dataTransfer, view.state.sel.head, false)
   if (content) {
-    let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY})
+    let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY}).pos
     let {draggedContent} = view.inputState
     let del = draggedContent && dragMovesSelection(view, event)
       ? {from: draggedContent.from, to: draggedContent.to} : null

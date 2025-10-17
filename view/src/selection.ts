@@ -67,16 +67,8 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
 
 function findTextblockVertically(view: EditorView, from: number, forward: boolean, x: number) {
   let {parent, index, pos} = view.state.doc.resolve(from)
-  for (let p: NodePos | null = parent; p; p = p.parent) {
-    if (p.node.type.orientation == "column") {
-      if (!p.parent) return null
-      index = p.index + (forward ? 1 : 0)
-      pos = forward ? p.after : p.before
-      parent = p.parent
-    }
-  }
   for (;;) {
-    if (parent.node.type.orientation == "column" || forward ? index == parent.node.children.length : !index) {
+    if (parent.node.type.orientation == "row" || forward ? index == parent.node.children.length : !index) {
       if (!parent.parent) return null
       index = parent.index + (forward ? 1 : 0)
       pos += (forward ? 1 : -1)
@@ -90,7 +82,7 @@ function findTextblockVertically(view: EditorView, from: number, forward: boolea
       }
       let nextPos = pos - (forward ? 0 : next.length)
       let node = new NodePos(parent, next, nextPos + 1, index - (forward ? 0 : 1))
-      if (!next.inlineContent && next.type.orientation == "column") {
+      if (!next.inlineContent && next.type.orientation == "row") {
         // Find the child closest to the given x
         let closest = -1, closestPos = -1, closestDist = -1
         for (let chPos = nextPos + 1, i = 0; i < next.children.length; i++) {
@@ -125,7 +117,7 @@ export function moveToLineBoundary(view: EditorView, start: EditorSelection, for
   let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
   let dir = view.state.textDirection(block.node.tag)
   let blockRect = (view.docTile.resolve(block.start, 0).dom as HTMLElement).getBoundingClientRect()
-  let pos = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
-                              y: (startCoords.top + startCoords.bottom) / 2})
+  let {pos} = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
+                                y: (startCoords.top + startCoords.bottom) / 2})
   return EditorSelection.cursor(pos, forward ? -1 : 1)
 }

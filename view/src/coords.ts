@@ -12,6 +12,8 @@ export function posAtCoords(view: EditorView, coords: {x: number, y: number}) {
   return tile.posAtCoords(view.state, coords.x, coords.y)
 }
 
+const BIDI = /[\u0590-\u05f4\u0600-\u06ff\u0700-\u08ac]/
+
 // Given a position in the document model, get a bounding box of the
 // character at that position, relative to the window.
 export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect {
@@ -19,25 +21,32 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
   let node = tile.dom, {offset} = tile
 
   if (node.nodeType == 3) {
-    let rect = singleRect(textRange(node as Text, offset, offset), assoc)
-    // Firefox returns bad results (the position before the space)
-    // when querying a position directly after line-broken
-    // whitespace. Detect this situation and and kludge around it
-    if (browser.gecko && offset && /\s/.test(node.nodeValue![offset - 1]) && offset < node.nodeValue!.length) {
-      let rectBefore = singleRect(textRange(node as Text, offset - 1, offset - 1), -1)
-      if (rectBefore.top == rect.top) {
-        let rectAfter = singleRect(textRange(node as Text, offset, offset + 1), -1)
-        if (rectAfter.top != rect.top)
-          return flattenV(rectAfter, rectAfter.left < rectBefore.left)
+    if ((assoc <= 0 ? !offset : offset == node.nodeValue!.length) || BIDI.test(node.nodeValue!)) {
+      let rect = singleRect(textRange(node as Text, offset, offset), assoc)
+      // Firefox returns bad results (the position before the space)
+      // when querying a position directly after line-broken
+      // whitespace. Detect this situation and and kludge around it
+      if (browser.gecko && offset && /\s/.test(node.nodeValue![offset - 1]) && offset < node.nodeValue!.length) {
+        let rectBefore = singleRect(textRange(node as Text, offset - 1, offset - 1), -1)
+        if (rectBefore.top == rect.top) {
+          let rectAfter = singleRect(textRange(node as Text, offset, offset + 1), -1)
+          if (rectAfter.top != rect.top)
+            return flattenV(rectAfter, rectAfter.left < rectBefore.left)
+        }
       }
+      return rect
+    } else {
+      let from = offset, to = offset, before = assoc <= 0
+      if (before) from--
+      else to++
+      return flattenV(singleRect(textRange(node as Text, from, to), before ? 1 : -1), !before)
     }
-    return rect
   }
 
   let tagTile = tile.tile
   while (!tagTile.node) tagTile = tagTile.parent!
   // Return a horizontal line in block context
-  if (tagTile.node.type.orientation == "row") {
+  if (tagTile.node.type.orientation == "column") {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
       let before = node.childNodes[offset - 1]
       if (before.nodeType == 1) return flattenH((before as HTMLElement).getBoundingClientRect(), false)

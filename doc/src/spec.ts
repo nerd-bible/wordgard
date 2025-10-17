@@ -19,7 +19,7 @@ export type TagSpec<Param> = {
   group?: string
   toText?: (node: Node) => string
   shape: ElementShape<Param> | StructureShape<Param>
-  parseRules?: readonly ElementParseRule<Param>[]
+    parseRules?: readonly ElementParseRule<Param>[]
   preserveWhitespace?: boolean
   /// Whether the sides of this node act as a 'barrier' when
   /// [normalizing](#state.EditorSelection.normalize) a cursor
@@ -46,8 +46,8 @@ export type TagSpec<Param> = {
   isList?: boolean
   isolating?: boolean
   /// Block containers are, by default, assumed to arrange their
-  /// children vertically below each other (`"row"`). You can set this
-  /// to `"column"` to tell the editor that this container's children
+  /// children vertically below each other (`"column"`). You can set this
+  /// to `"row"` to tell the editor that this container's children
   /// are horizontally next to each other.
   orientation?: "row" | "column"
   /// Defining nodes are preserved (when possible) when their content
@@ -112,8 +112,8 @@ export type PropSpec<Value> = {
 export interface ElementParseRule<Param> {
   selector: string
   tag?: TagType<Param> | Tag<Param>
-  prop?: PropType<Param> | Prop<Param>
-  ignore?: boolean | "skip"
+    prop?: PropType<Param> | Prop<Param>
+    ignore?: boolean | "skip"
   param?: Param
   readElement?: (element: HTMLElement) => Param | Reject
   contentElement?: string | ((elt: HTMLElement) => HTMLElement)
