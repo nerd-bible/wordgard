@@ -35,9 +35,9 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
   }
 
   let tagTile = tile.tile
-  while (!tagTile.nodeTag) tagTile = tagTile.parent!
+  while (!tagTile.node) tagTile = tagTile.parent!
   // Return a horizontal line in block context
-  if (tagTile.nodeTag.type.orientation == "row") {
+  if (tagTile.node.type.orientation == "row") {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
       let before = node.childNodes[offset - 1]
       if (before.nodeType == 1) return flattenH((before as HTMLElement).getBoundingClientRect(), false)

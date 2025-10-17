@@ -894,7 +894,7 @@ function addSection(sections: number[], len: number, ins: number) {
 }
 
 export interface DecoWalker {
-  enter(tag: Tag, shape: DecoElt, wrappers: readonly WrapperSource[]): void
+  enter(node: Node, shape: DecoElt, wrappers: readonly WrapperSource[]): void
   leave(): void
   node(node: Node, shape: Shape, wrappers: readonly WrapperSource[]): void
   widget(widget: Widget<any>, side: number): void
@@ -1131,7 +1131,7 @@ export class DecoIterator {
         let wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
         let atom = !shape.hasContent
         if (atom) walker.node(node!, shape, wrappers)
-        else walker.enter(tag, shape as DecoElt, wrappers)
+        else walker.enter(node!, shape as DecoElt, wrappers)
         this.widgets(tag, WidgetPlace.Start, walker)
         return !atom
       },

@@ -1,8 +1,12 @@
 // FIXME prune unused functions when stuff is more stable
 
-import {TileFlag} from "./tile"
+import {Tile, TileFlag} from "./tile"
 
 export type DOMNode = Node
+
+declare global {
+  interface Node { wgTile?: Tile }
+}
 
 export function getSelection(root: DocumentOrShadowRoot): Selection | null {
   let target
