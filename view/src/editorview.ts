@@ -4,7 +4,7 @@ import {ChangeDesc} from "@wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocTile} from "./tile"
-import {posAtCoords, coordsAtPos} from "./coords"
+import {coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
         exceptionSink, updateListener, logException,
@@ -415,7 +415,10 @@ export class EditorView {
   /// Get the document position at the given screen coordinates.
   posAtCoords(coords: {x: number, y: number}): {pos: number, assoc: -1 | 0 | 1} {
     this.checkFlushed()
-    return posAtCoords(this, coords)
+    let elt = ((this.root as any).elementFromPoint ? this.root : this.dom.ownerDocument)
+                .elementFromPoint(coords.x, coords.y) as HTMLElement
+    let tile = (elt && this.docTile.nearest(elt)) || this.docTile
+    return tile.posAtCoords(this.state, coords.x, coords.y)
   }
 
   /// Get the screen coordinates at the given document position.

@@ -1,6 +1,7 @@
 import {Node, Tag, Prop, ChangeDesc, compareAttributes, Elt, Attributes,
         pushAttribute, noAttributes} from "@wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "@wordgard/state"
+import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderPropWrapper} from "./decoration"
 import {eqArray} from "./util"
@@ -180,6 +181,7 @@ Tile.prototype.node = null
 
 export class CompositeTile extends Tile {
   children: Tile[] = []
+  declare dom: HTMLElement
 
   addChild(child: Tile) {
     if (this.flags & TileFlag.Synced) throw new Error("Cannot add to a synced tile")
@@ -224,6 +226,11 @@ export class CompositeTile extends Tile {
         textblock = null
       }
     }
+    if (this.isAtom) {
+      let rect = this.dom.getBoundingClientRect()
+      let after = orientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
+      return {pos: start + (after ? this.length : 0), assoc: after ? -1 : 1}
+    }
     return orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock, scan)
       : this.posAtCoordsRow(start, state, x, y, textblock, scan)
   }
@@ -234,7 +241,7 @@ export class CompositeTile extends Tile {
     let rowBot = y, rowTop = y
     // Track the closest element that overlaps with y, or, with lower
     // precedence, overlaps with x and is below (or above if
-    // CoordFlag.ScanUp) y.
+    // scan == -1) y.
     let closest: Tile | undefined, dxClosest = 2e8, closestRect: Rect | undefined
     let scanUp = scan === -1, closestVert = false
     // The last child that sticks out before the coords, used when we
@@ -261,7 +268,7 @@ export class CompositeTile extends Tile {
             closestVert = false
             closestRect = rect
           }
-        } else if (rect.left <= x && rect.right >= x && (scanUp ? rect.bottom < y : rect.top > y) &&
+        } else if (rect.left <= x && rect.right >= x && (scanUp ? y < rect.top : y > rect.bottom) &&
                    (!closest || closestVert && (scanUp ? closestRect!.bottom < rect.bottom : closestRect!.top > rect.top))) {
           // Rectangle is below y
           closest = child
@@ -514,18 +521,44 @@ export class TextTile extends Tile {
   }
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
-                   textblock: TextblockMap | null, orientation: Orientation): PosResult {
-    let firstAfter = -1, basedir = textblock ? textblock.dir : state.textDirection()
-    for (let i = 0; i < this.length; i++) {
-      let rect = singleRect(textRange(this.dom, i, i + 1), 1)
+                   textblock: TextblockMap | null, orientation: Orientation, scan?: -1 | 1): PosResult {
+    // Similar to CompositeTile.posAtCoordsRow, but querying individual characters
+    let rowBot = y, rowTop = y, scanUp = scan === -1
+    let closest = -1, closestRect: Rect | undefined, dxClosest = 2e8, dyClosest = 2e8, firstAfter = -1
+    let basedir = textblock ? textblock.dir : state.textDirection()
+
+    for (let i = 0; i < this.length;) {
+      let end = findClusterBreak(this.text, i)
+      let rect = singleRect(textRange(this.dom, i, end), 1)
       if (rect.top == rect.bottom) continue
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-        let dir = dirAt(state, start + i, 1, textblock)
-        let after = (x >= (rect.left + rect.right) / 2) == (dir == Direction.LTR)
-        return {pos: start + i + (after ? 1 : 0), assoc: after ? -1 : 1}
-      } else if (firstAfter < 0 && (rect.top > y || rect.bottom > y && (basedir == Direction.RTL ? rect.right < x : rect.left > x))) {
-        firstAfter = i
+      if (rect.top <= rowBot && rect.bottom >= rowTop) {
+        rowBot = Math.max(rect.bottom, rowBot)
+        rowTop = Math.min(rect.top, rowTop)
+        let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
+        if (dyClosest || dx < dxClosest) {
+          closest = i
+          closestRect = rect
+          dxClosest = dx
+          dyClosest = 0
+        }
+      } else if (rect.left <= x && rect.right >= x) {
+        let dy = scanUp ? rect.top - y : y - rect.bottom
+        if (dy > 0 && dxClosest > 0 && dy < dyClosest) {
+          closest = i
+          dxClosest = 0
+          dyClosest = dy
+        }
       }
+      if (closest < 0 && firstAfter < 0 &&
+          (rect.top > y || rect.bottom > y && (basedir == Direction.RTL ? rect.right < x : rect.left > x)))
+        firstAfter = i
+      i = end
+    }
+
+    if (closest > -1) {
+      let dir = dirAt(state, start + closest, 1, textblock)
+      let after = (x >= (closestRect!.left + closestRect!.right) / 2) == (dir == Direction.LTR)
+      return {pos: start + closest + (after ? 1 : 0), assoc: dxClosest ? 0 : after ? -1 : 1}
     }
     return {pos: start + (firstAfter < 0 ? this.length : firstAfter), assoc: 0}
   }

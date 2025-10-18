@@ -46,7 +46,8 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
       let rect = (elt.dom as HTMLElement).getBoundingClientRect()
       if (forward ? rect.bottom >= y : rect.top <= y) {
         let found = elt.tile.posAtCoords(view.state, x, y, forward ? 1 : -1)
-        if (found.assoc != null) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
+        // FIXME this doesn't really work
+        if (found.assoc != 0) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
       }
       if (!block.parent) return null
       scan = forward ? block.after : block.before

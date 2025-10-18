@@ -53,7 +53,7 @@ export class TagType<Param> {
     this.defining = !!spec.defining
     this.neutral = spec.neutral ?? !this.defining
     this.preserveWhitespace = !!spec.preserveWhitespace
-    this.orientation = flags & TagFlag.InlineContent ? "row" : spec.orientation || "row"
+    this.orientation = flags & TagFlag.InlineContent ? "row" : spec.orientation || "column"
     this.shape = NodeShape.from(this, spec.shape)
     this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
       (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null

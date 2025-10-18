@@ -4,14 +4,6 @@ import {EditorView} from "./editorview"
 
 // FIXME move remaining code here into selection.ts
 
-// Given an x,y position on the editor, get the position in the document.
-export function posAtCoords(view: EditorView, coords: {x: number, y: number}) {
-  let elt = ((view.root as any).elementFromPoint ? view.root : view.dom.ownerDocument)
-              .elementFromPoint(coords.x, coords.y) as HTMLElement
-  let tile = (elt && view.docTile.nearest(elt)) || view.docTile
-  return tile.posAtCoords(view.state, coords.x, coords.y)
-}
-
 const BIDI = /[\u0590-\u05f4\u0600-\u06ff\u0700-\u08ac]/
 
 // Given a position in the document model, get a bounding box of the
@@ -26,6 +18,7 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
       // Firefox returns bad results (the position before the space)
       // when querying a position directly after line-broken
       // whitespace. Detect this situation and and kludge around it
+      // FIXME is this still the case?
       if (browser.gecko && offset && /\s/.test(node.nodeValue![offset - 1]) && offset < node.nodeValue!.length) {
         let rectBefore = singleRect(textRange(node as Text, offset - 1, offset - 1), -1)
         if (rectBefore.top == rect.top) {
@@ -35,7 +28,7 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
         }
       }
       return rect
-    } else {
+    } else { // FIXME Is it better to actually query bidi status?
       let from = offset, to = offset, before = assoc <= 0
       if (before) from--
       else to++
@@ -44,9 +37,9 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
   }
 
   let tagTile = tile.tile
-  while (!tagTile.node) tagTile = tagTile.parent!
+  while (!tagTile.node && !tagTile.isDoc) tagTile = tagTile.parent!
   // Return a horizontal line in block context
-  if (tagTile.node.type.orientation == "column") {
+  if ((tagTile.isDoc ? view.state.doc.schema.docTag : tagTile.node!).type.orientation == "column") {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
       let before = node.childNodes[offset - 1]
       if (before.nodeType == 1) return flattenH((before as HTMLElement).getBoundingClientRect(), false)
