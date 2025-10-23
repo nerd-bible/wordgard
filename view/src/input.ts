@@ -439,13 +439,13 @@ function queryPos(view: EditorView, event: MouseEvent) {
 
 function rangeForClick(view: EditorView, pos: {pos: number, assoc: -1 | 0 | 1}, type: number): EditorSelection {
   if (type == 1) { // Single click
-    return EditorSelection.cursor(pos.pos, pos.assoc)
+    return EditorSelection.near(view.state, pos.pos, pos.assoc || -1)
   } else if (type == 2) { // Double click
     return view.state.wordAt(pos.pos, pos.assoc || 1)
   } else { // Triple click
     let cx = view.state.doc.resolve(pos.pos), block = cx.textblockParent
     if (block) return EditorSelection.range(block.start, block.end)
-    else return EditorSelection.cursor(pos.pos, pos.assoc)
+    else return EditorSelection.near(view.state, pos.pos, pos.assoc || -1)
   }
 }
 

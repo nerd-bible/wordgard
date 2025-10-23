@@ -35,7 +35,7 @@ class PosAssoc {
   constructor(readonly pos: number, assoc: -1 | 0 | 1, vertOutside?: boolean) {
     this.flags = (assoc + 1) | (vertOutside ? PosAssocFlag.VertOutside : 0)
   }
-  get assoc() { return (this.flags & PosAssocFlag.AssocMask) - 1 }
+  get assoc(): -1 | 0 | 1 { return ((this.flags & PosAssocFlag.AssocMask) - 1) as -1 | 0 | 1 }
   get vertOutside() { return (this.flags & PosAssocFlag.VertOutside) > 0 }
 }
 
@@ -350,8 +350,7 @@ export class DocTile extends CompositeTile {
 
   updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
-    if ((!sections.length || sections.length == 2 && sections[1] == -1) &&
-      eqArray(wrapper, this.cursorWrapper))
+    if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
       return this
     LOG_update && console.log(`updateRanges(${state.doc},`, sections, composition, ")")
     if (composition) {

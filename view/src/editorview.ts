@@ -248,16 +248,19 @@ export class EditorView {
   private runUpdate(update: ViewUpdate, domChanges: ChangeDesc | null) {
     let composition = this.composing ? getCompositionInfo(this) : null
     let changes = domChanges ? domChanges.composeDesc(update.changes) : update.changes
-    this.docTile = this.docTile.update(update.state, changes, composition)
+    let prevDocTile = this.docTile
+    this.docTile = prevDocTile.update(update.state, changes, composition)
     if ((composition?.wrapCursor || !composition && (!changes.empty || update.selectionSet)) && this.hasFocus)
       setDOMSelection(this)
     this.observer.clear()
-    if (update.empty) return
-    this.updatePlugins(update)
-    this.inputState.update(update)
-    this.showAnnouncements(update.transactions)
-    if (this.state.facet(styleModule) != this.styleModules) this.mountStyles()
-    this.updateAttrs()
+    if (!update.empty) {
+      this.updatePlugins(update)
+      this.inputState.update(update)
+      this.showAnnouncements(update.transactions)
+      if (this.state.facet(styleModule) != this.styleModules) this.mountStyles()
+      this.updateAttrs()
+    }
+    if (this.docTile != prevDocTile) this.docViewUpdate()
   }
 
   private updatePlugins(update: ViewUpdate) {
@@ -284,6 +287,16 @@ export class EditorView {
     }
     for (let i = 0; i < this.plugins.length; i++) this.plugins[i].update(this)
     if (prevSpecs != specs) this.inputState.ensureHandlers(this.plugins)
+  }
+
+  private docViewUpdate() {
+    for (let plugin of this.plugins) {
+      let val = plugin.value
+      if (val && val.docViewUpdate) {
+        try { val.docViewUpdate(this) }
+        catch(e) { logException(this.state, e, "doc view update listener") }
+      }
+    }
   }
 
   /// Get the CSS classes for the currently active editor themes.

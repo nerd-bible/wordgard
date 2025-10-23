@@ -92,6 +92,10 @@ export interface PluginValue {
   /// your code in a DOM reading phase if you need to.
   update?(update: ViewUpdate): void
 
+  /// When present, this will be called when an update causes any
+  /// changes in the DOM representation of the document.
+  docViewUpdate?(view: EditorView): void
+
   /// Called when the editor is attached to the DOM. It is possible
   /// for an editor to be disconnected and then reconnected again, so
   /// if you implement either method, you probably need to implement
