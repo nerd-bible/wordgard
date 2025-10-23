@@ -20,12 +20,24 @@ export const enum TileFlag {
   PointSide = PointBefore | PointAfter,
   Composition = 32,
   Synced = 64,
-  Atom = 128, // Composite node whose length isn't determined by child length
+  Atom = 128, // Composite tile whose length isn't determined by child length
 }
 
 const enum Orientation { Row, Col }
 
-type PosResult = {pos: number, assoc: -1 | 0 | 1}
+const enum PosAssocFlag {
+  AssocMask = 3,
+  VertOutside = 4
+}
+
+class PosAssoc {
+  readonly flags: PosAssocFlag
+  constructor(readonly pos: number, assoc: -1 | 0 | 1, vertOutside?: boolean) {
+    this.flags = (assoc + 1) | (vertOutside ? PosAssocFlag.VertOutside : 0)
+  }
+  get assoc() { return (this.flags & PosAssocFlag.AssocMask) - 1 }
+  get vertOutside() { return (this.flags & PosAssocFlag.VertOutside) > 0 }
+}
 
 export class ContentPos {
   constructor(
@@ -52,8 +64,6 @@ export abstract class Tile {
     dom.wgTile = this
   }
 
-  declare node: Node | null
-
   get isAtom() { return false }
   get isNodeOuter() { return false }
   get isNodeInner() { return (this.flags & TileFlag.NodeInner) > 0 }
@@ -63,6 +73,7 @@ export abstract class Tile {
   get isSpanning() { return false }
   get isComposition() { return (this.flags & TileFlag.Composition) > 0 }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
+  get node(): Node | null { return null }
 
   posBeforeChild(child: Tile, ownStart = this.posAtStart): number {
     for (let i = 0, pos = ownStart;; i++) {
@@ -152,32 +163,31 @@ export abstract class Tile {
 
   destroy() {}
 
-  // FIXME needs a lot of tests
-  // FIXME default scan to 1?
-  posAtCoords(state: EditorState, x: number, y: number, scan?: -1 | 1): PosResult {
+  nearestNode() {
     let tile: Tile = this
-    for (;;) {
-      if (tile.isNodeOuter || tile.isDoc)
-        return tile.posAtCoordsInner(tile.posAtStart, state, x, y, null, Orientation.Col, scan)
-      tile = tile.parent!
-    }
+    while (!tile.node) tile = tile.parent!
+    return tile
+  }
+
+  // FIXME needs a lot of tests
+  posAtCoords(state: EditorState, x: number, y: number): PosAssoc {
+    let nodeTile = this.nearestNode()
+    return nodeTile.posAtCoordsInner(nodeTile.posAtStart, state, x, y, null, Orientation.Col)
   }
 
   abstract posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
-                            orientation: Orientation, scan?: -1 | 1): PosResult
+                            orientation: Orientation): PosAssoc
 
   static get(node: DOMNode) { return node.wgTile }
 
-  static nearest(node: DOMNode, requireTag = true) {
+  static nearest(node: DOMNode, requireNode = true) {
     for (let cur: DOMNode | null = node; cur; cur = cur.parentNode) {
       let elt = cur.wgTile
-      if (elt && (!requireTag || elt.isNodeOuter)) return elt
+      if (elt) return requireNode ? elt.nearestNode() : elt
     }
     return null
   }
 }
-
-Tile.prototype.node = null
 
 export class CompositeTile extends Tile {
   children: Tile[] = []
@@ -216,8 +226,13 @@ export class CompositeTile extends Tile {
   }
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
-                   orientation: Orientation, scan?: -1 | 1): PosResult {
+                   orientation: Orientation): PosAssoc {
     let {node} = this
+    if (this.isAtom || !this.children.length) {
+      let rect = this.dom.getBoundingClientRect()
+      let after = orientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
+      return new PosAssoc(start + (after ? this.length : 0), after ? -1 : 1)
+    }
     if (node) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) {
@@ -226,77 +241,92 @@ export class CompositeTile extends Tile {
         textblock = null
       }
     }
-    if (this.isAtom) {
-      let rect = this.dom.getBoundingClientRect()
-      let after = orientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
-      return {pos: start + (after ? this.length : 0), assoc: after ? -1 : 1}
-    }
-    return orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock, scan)
-      : this.posAtCoordsRow(start, state, x, y, textblock, scan)
+    return orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock)
+      : this.posAtCoordsRow(start, state, x, y, textblock)
   }
 
-  posAtCoordsRow(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
-                 scan?: -1 | 1): PosResult {
-    // Organize things whose y overlap into rows
-    let rowBot = y, rowTop = y
-    // Track the closest element that overlaps with y, or, with lower
-    // precedence, overlaps with x and is below (or above if
-    // scan == -1) y.
-    let closest: Tile | undefined, dxClosest = 2e8, closestRect: Rect | undefined
-    let scanUp = scan === -1, closestVert = false
-    // The last child that sticks out before the coords, used when we
-    // don't find a closest child
-    let lastBefore: Tile | undefined
-
+  posAtCoordsRow(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null): PosAssoc {
+    let scan = new RowScan<Tile>(x, y)
     for (let child of this.children) {
       if (child.isPoint) continue
       let rects, {dom} = child
       if (dom.nodeType == 1) rects = (dom as HTMLElement).getClientRects()
       else if (dom.nodeType == 3) rects = textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
       else continue
-
-      for (let i = 0; i < rects.length; i++) {
-        let rect = rects[i]
-        if (rect.top <= rowBot && rect.bottom >= rowTop) {
-          // Rectangle is in the current row
-          rowBot = Math.max(rect.bottom, rowBot)
-          rowTop = Math.min(rect.top, rowTop)
-          let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
-          if (closestVert || dx < dxClosest) {
-            closest = child
-            dxClosest = dx
-            closestVert = false
-            closestRect = rect
-          }
-        } else if (rect.left <= x && rect.right >= x && (scanUp ? y < rect.top : y > rect.bottom) &&
-                   (!closest || closestVert && (scanUp ? closestRect!.bottom < rect.bottom : closestRect!.top > rect.top))) {
-          // Rectangle is below y
-          closest = child
-          closestVert = true
-          closestRect = rect
-        }
-        if (!closest && (x >= rect.right && y >= rect.top || x >= rect.left && y >= rect.bottom))
-          lastBefore = child
-      }
+      for (let i = 0; i < rects.length; i++) scan.rect(rects[i], child)
     }
-    if (closest)
-      return closest.posAtCoordsInner(this.posBeforeChild(closest, start) + closest.boundary, state,
-                                      x, Math.max(closestRect!.top, Math.min(closestRect!.bottom, y)),
-                                      textblock, Orientation.Row, scan)
-    if (!lastBefore) return {pos: start, assoc: 0}
-    return {pos: this.posBeforeChild(lastBefore, start), assoc: 0}
+    let closest = scan.closest!, rect = scan.closestRect!
+    let pos = this.posBeforeChild(closest, start)
+    if (scan.dyClosest) { // Coords are vertically outside of the child
+      if (y > rect.bottom) return new PosAssoc(pos + closest.length, -1, true)
+      else return new PosAssoc(pos, 1, true)
+    }
+    return closest.posAtCoordsInner(pos + closest.boundary, state,
+                                    x, Math.max(rect!.top, Math.min(rect!.bottom, y)),
+                                    textblock, Orientation.Row)
   }
 
-  posAtCoordsCol(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null, scan?: -1 | 1): PosResult {
+  posAtCoordsCol(
+    start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null
+  ): PosAssoc {
+    let lastBot = -1
     for (let child of this.children) {
       if (child.isPoint || child.dom.nodeType != 1) continue
       let rect = (child.dom as HTMLElement).getBoundingClientRect()
-      if (rect.top > y) return {pos: this.posBeforeChild(child, start), assoc: 0}
+      if (rect.top > y) return new PosAssoc(this.posBeforeChild(child, start), y > (lastBot + rect.top) / 2 ? 1 : -1)
       if (rect.bottom >= y) return child.posAtCoordsInner(this.posBeforeChild(child, start) + child.boundary, state,
-                                                          x, y, textblock, Orientation.Col, scan)
+                                                          x, y, textblock, Orientation.Col)
     }
-    return {pos: start + this.length - 2 * this.boundary, assoc: 0}
+    return new PosAssoc(start + this.length - 2 * this.boundary, -1)
   }
+}
+
+// Algorithm for posAtCoords in row-layout elements (textblocks, block
+// containers with orientation=row, and text nodes). Locates the
+// closest element to the coordinates, prioritizing y closeness, and
+// organizing things that overlap vertically into rows, conceptually
+// expanding their height to the full height of the row.
+class RowScan<T> {
+  dxClosest = 1e9
+  dyClosest = 1e9
+  closest: T | null = null
+  closestRect: Rect | null = null
+  rowTop: number
+  rowBot: number
+
+  constructor(readonly x: number, readonly y: number) {
+    this.rowTop = this.rowBot = y
+  }
+
+  rect(rect: Rect, value: T) {
+    let {x, y} = this
+    let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
+    let dy = rect.top > y ? rect.top - y : rect.bottom < y ? y - rect.bottom : 0
+    if (rect.top <= this.rowBot && rect.bottom >= this.rowTop) {
+      // Rectangle is in the current row
+      this.rowTop = Math.min(rect.top, this.rowTop)
+      this.rowBot = Math.max(rect.bottom, this.rowBot)
+      dy = 0
+    }
+    if (this.closest == null || (dy - this.dyClosest || dx - this.dxClosest) < 0) {
+      if (this.closest && this.dyClosest && this.dxClosest < dx &&
+          this.closestRect!.top <= this.rowBot - 2 && this.closestRect!.bottom >= this.rowTop + 2) {
+        // Retroactively set dy to 0 if the current match is in this row.
+        this.dyClosest = 0
+      } else {
+        this.closest = value
+        this.dxClosest = dx
+        this.dyClosest = dy
+        this.closestRect = rect
+      }
+    }
+  }
+}
+
+function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock: TextblockMap | null) {
+  if (!textblock) return state.textDirection()
+  let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)
+  return textblock.order[found].dir
 }
 
 export class DocTile extends CompositeTile {
@@ -311,6 +341,8 @@ export class DocTile extends CompositeTile {
   }
 
   get isDoc() { return true }
+
+  get node() { return this.state.doc }
 
   update(state: EditorState, changes: ChangeDesc, composition?: CompositionInfo | null) {
     return this.updateRanges(state, findChangedRanges(this.state, state, changes), composition)
@@ -424,18 +456,16 @@ export class EltTile extends CompositeTile {
   declare dom: HTMLElement
   declare parent: CompositeTile
 
-  constructor(readonly elt: DecoElt, readonly node: Node | null, flags: number, length: number, dom: HTMLElement) {
+  constructor(readonly elt: DecoElt, readonly _node: Node | null, flags: number, length: number, dom: HTMLElement) {
     super(dom, flags)
     this.length = length
   }
 
   get isSpanning() { return (this.flags & TileFlag.Spanning) > 0 }
-
   get isNodeOuter() { return !!this.node }
-
-  get isAtom() { return !!this.node && (this.flags & TileFlag.Atom) > 0 }
-
-  get boundary() { return this.node && !(this.flags & TileFlag.Atom) ? 1 : 0 }
+  get isAtom() { return !!this._node && (this.flags & TileFlag.Atom) > 0 }
+  get boundary() { return this._node && !(this.flags & TileFlag.Atom) ? 1 : 0 }
+  get node() { return this._node }
 
   get contentTile(): EltTile | null {
     for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasContent) return (ch as EltTile).contentTile
@@ -456,7 +486,7 @@ function eltDOM(elt: DecoElt) {
 export class WidgetTile extends Tile {
   constructor(
     readonly widget: Widget<any>,
-    readonly node: Node | null,
+    readonly _node: Node | null,
     flags: TileFlag,
     length: number = 0,
     dom?: HTMLElement | Text
@@ -465,9 +495,9 @@ export class WidgetTile extends Tile {
     this.length = length
   }
 
-  get isNodeOuter() { return !!this.node }
-
+  get isNodeOuter() { return !!this._node }
   get isAtom() { return true }
+  get node() { return this._node }
 
   get children() { return noChildren }
 
@@ -478,20 +508,14 @@ export class WidgetTile extends Tile {
   toString() { return this.widget.type == TextWidget ? JSON.stringify(this.widget.value) : super.toString() }
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
-                   textblock: TextblockMap | null, orientation: Orientation): PosResult {
-    if (!this.node) return {pos: start, assoc: 0}
+                   textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
+    if (!this.node) return new PosAssoc(start, 0)
     let rect = this.dom.nodeType == 1 ? (this.dom as HTMLElement).getBoundingClientRect()
       : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
     let after = orientation == Orientation.Col ? y > (rect.top + rect.bottom) / 2
       : (x < (rect.left + rect.right) / 2) == (dirAt(state, start, 1, textblock) == Direction.LTR)
-    return after ? {pos: start + this.length - 2 * this.boundary, assoc: -1} : {pos: start, assoc: 1}
+    return after ? new PosAssoc(start + this.length - 2 * this.boundary, -1) : new PosAssoc(start, 1)
   }
-}
-
-function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock: TextblockMap | null) {
-  if (!textblock) return state.textDirection()
-  let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)
-  return textblock.order[found].dir
 }
 
 export class TextTile extends Tile {
@@ -521,46 +545,21 @@ export class TextTile extends Tile {
   }
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
-                   textblock: TextblockMap | null, orientation: Orientation, scan?: -1 | 1): PosResult {
-    // Similar to CompositeTile.posAtCoordsRow, but querying individual characters
-    let rowBot = y, rowTop = y, scanUp = scan === -1
-    let closest = -1, closestRect: Rect | undefined, dxClosest = 2e8, dyClosest = 2e8, firstAfter = -1
-    let basedir = textblock ? textblock.dir : state.textDirection()
-
+                   textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
+    let scan = new RowScan<number>(x, y)
     for (let i = 0; i < this.length;) {
       let end = findClusterBreak(this.text, i)
       let rect = singleRect(textRange(this.dom, i, end), 1)
       if (rect.top == rect.bottom) continue
-      if (rect.top <= rowBot && rect.bottom >= rowTop) {
-        rowBot = Math.max(rect.bottom, rowBot)
-        rowTop = Math.min(rect.top, rowTop)
-        let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
-        if (dyClosest || dx < dxClosest) {
-          closest = i
-          closestRect = rect
-          dxClosest = dx
-          dyClosest = 0
-        }
-      } else if (rect.left <= x && rect.right >= x) {
-        let dy = scanUp ? rect.top - y : y - rect.bottom
-        if (dy > 0 && dxClosest > 0 && dy < dyClosest) {
-          closest = i
-          dxClosest = 0
-          dyClosest = dy
-        }
-      }
-      if (closest < 0 && firstAfter < 0 &&
-          (rect.top > y || rect.bottom > y && (basedir == Direction.RTL ? rect.right < x : rect.left > x)))
-        firstAfter = i
+      scan.rect(rect, i)
       i = end
     }
-
-    if (closest > -1) {
-      let dir = dirAt(state, start + closest, 1, textblock)
-      let after = (x >= (closestRect!.left + closestRect!.right) / 2) == (dir == Direction.LTR)
-      return {pos: start + closest + (after ? 1 : 0), assoc: dxClosest ? 0 : after ? -1 : 1}
-    }
-    return {pos: start + (firstAfter < 0 ? this.length : firstAfter), assoc: 0}
+    let closest = scan.closest!, rect = scan.closestRect!
+    let pos = start + closest, dir = dirAt(state, pos, 1, textblock)
+    let after = scan.dyClosest ? y > rect.bottom
+      : (x > (rect.left + rect.right) / 2) == (dir == Direction.LTR)
+    if (after) return new PosAssoc(start + findClusterBreak(this.text, closest), -1)
+    else return new PosAssoc(pos, 1)
   }
 
   static of(text: string) {

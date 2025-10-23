@@ -34,20 +34,23 @@ export function readDOMSelection(view: EditorView, range: SelectionRange) {
   return EditorSelection.range(anchor, head)
 }
 
-export function moveVertically(view: EditorView, start: EditorSelection, forward: boolean, distance: number = 0) {
-  let editorRect = view.dom.getBoundingClientRect()
+const Y_STEP = 5
+
+export function moveVertically(view: EditorView, start: EditorSelection, forward: boolean, distance: number = Y_STEP) {
+  let editorRect = view.contentDOM.getBoundingClientRect()
   let coords = view.coordsAtPos(start.head, start.assoc || -1)
-  let goalColumn = start.goalColumn ?? coords.left - editorRect.left
+  let goalColumn = start.goalColumn ?? coords.left - editorRect.left // FIXME does this need to be flipped if RTL?
   let x = editorRect.left + goalColumn, y = forward ? coords.bottom + distance : coords.top - distance
   for (let scan = start.head;;) {
     let pos = view.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {
       let elt = view.docTile.resolve(block.start, 0)
       let rect = (elt.dom as HTMLElement).getBoundingClientRect()
-      if (forward ? rect.bottom >= y : rect.top <= y) {
-        let found = elt.tile.posAtCoords(view.state, x, y, forward ? 1 : -1)
-        // FIXME this doesn't really work
-        if (found.assoc != 0) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
+      if (forward ? y < rect.top : y > rect.bottom) y = forward ? rect.top : rect.bottom
+      while (forward ? rect.bottom >= y : rect.top <= y) {
+        let found = elt.tile.posAtCoords(view.state, x, y)
+        if (!found.vertOutside && found.pos != start.head) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
+        y += forward ? Y_STEP : -Y_STEP
       }
       if (!block.parent) return null
       scan = forward ? block.after : block.before
