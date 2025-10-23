@@ -180,13 +180,13 @@ function computeHandlers(plugins: readonly PluginInstance[]) {
   function record(type: string) {
     return result[type] || (result[type] = {observers: [], handlers: []})
   }
-  for (let plugin of plugins) {
+  for (let plugin of plugins) if (!plugin.deactivated) {
     let spec = plugin.spec
-    if (spec && spec.domEventHandlers) for (let type in spec.domEventHandlers) {
+    if (spec.domEventHandlers) for (let type in spec.domEventHandlers) {
       let f = spec.domEventHandlers[type]
       if (f) record(type).handlers.push(bindHandler(plugin.value!, f))
     }
-    if (spec && spec.domEventObservers) for (let type in spec.domEventObservers) {
+    if (spec.domEventObservers) for (let type in spec.domEventObservers) {
       let f = spec.domEventObservers[type]
       if (f) record(type).observers.push(bindHandler(plugin.value!, f))
     }

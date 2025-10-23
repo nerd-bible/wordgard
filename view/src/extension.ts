@@ -96,17 +96,17 @@ export interface PluginValue {
   /// changes in the DOM representation of the document.
   docViewUpdate?(view: EditorView): void
 
-  /// Called when the editor is attached to the DOM. It is possible
-  /// for an editor to be disconnected and then reconnected again, so
-  /// if you implement either method, you probably need to implement
-  /// both, and make them invert each other's effect.
+  /// Called when the editor is attached to the DOM.
   connect?(): void
 
   /// Called when the editor is removed from the DOM. If the plugin
   /// produced any effects (event handlers, DOM changes, global data)
   /// outside of the editor's DOM, it should undo those here, in order
-  /// to avoid leaking data.
-  disconnect?(): void
+  /// to avoid leaking data.  When this returns `false`, the plugin
+  /// will be discarded and recreated if the editor is reconnected to
+  /// the DOM. Otherwise, it is assumed that it can be reactivated
+  /// with [`connect`](#view.PluginValue.connect).
+  disconnect?(): void | boolean
 }
 
 let nextPluginID = 0
@@ -174,18 +174,20 @@ export class ViewPlugin<V extends PluginValue> {
 export class PluginInstance {
   // When starting an update, all plugins have this field set to the
   // update object, indicating they need to be updated. When finished
-  // updating, it is set to `false`. Retrieving a plugin that needs to
+  // updating, it is set to `null`. Retrieving a plugin that needs to
   // be updated with `view.plugin` forces an eager update.
   mustUpdate: ViewUpdate | null = null
   // This is null when the plugin is initially created, but
   // initialized on the first update.
   value: PluginValue | null = null
+  // Set when the plugin crashes, and will no longer run.
+  deactivated = false
 
-  constructor(public spec: ViewPlugin<any> | null) {}
+  constructor(public spec: ViewPlugin<any>) {}
 
   update(view: EditorView) {
     if (!this.value) {
-      if (this.spec) {
+      if (!this.deactivated) {
         try { this.value = this.spec.create(view) }
         catch (e) {
           logException(view.state, e, "CodeMirror plugin crashed")
@@ -218,18 +220,19 @@ export class PluginInstance {
     }
   }
 
-  disconnect(view: EditorView) {
-    if (this.value?.disconnect) {
-      try { this.value.disconnect() }
-      catch (e) {
-        logException(view.state, e, "CodeMirror plugin crashed")
-        this.deactivate()
-      }
+  disconnect(view: EditorView): boolean {
+    if (!this.value?.disconnect) return true
+    try { return this.value.disconnect() !== false }
+    catch (e) {
+      logException(view.state, e, "CodeMirror plugin crashed")
+      this.deactivate()
+      return false
     }
   }
 
   deactivate() {
-    this.spec = this.value = null
+    this.deactivated = true
+    this.value = null
   }
 }
 

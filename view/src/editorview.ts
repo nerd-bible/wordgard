@@ -162,13 +162,14 @@ export class EditorView {
       this.mountStyles()
       this.inputState.connect()
       for (let plugin of this.plugins) plugin.connect(this)
+      this.syncPlugins(this.state.facet(viewPlugin))
       this.observer.connect()
       if (this.viewState.pending.length || this.readRequests.length || this.writeRequests.length)
         this.scheduleFlush()
     } else {
       this.root = document
       this.observer.disconnect()
-      for (let plugin of this.plugins) plugin.disconnect(this)
+      this.plugins = this.plugins.filter(p => p.disconnect(this))
       this.inputState.disconnect()
       this.docTile.destroyDropped(new Map)
     }
@@ -263,30 +264,36 @@ export class EditorView {
     if (this.docTile != prevDocTile) this.docViewUpdate()
   }
 
-  private updatePlugins(update: ViewUpdate) {
-    let prevSpecs = update.startState.facet(viewPlugin), specs = update.state.facet(viewPlugin)
-    if (prevSpecs != specs) {
-      let newPlugins = []
-      for (let spec of specs) {
-        let found = prevSpecs.indexOf(spec)
-        if (found < 0) {
-          newPlugins.push(new PluginInstance(spec))
-        } else {
-          let plugin = this.plugins[found]
-          plugin.mustUpdate = update
-          newPlugins.push(plugin)
-        }
+  private syncPlugins(specs: readonly ViewPlugin<any>[], update: ViewUpdate | null = null) {
+    let newPlugins = []
+    for (let spec of specs) {
+      let found = this.plugins.findIndex(p => p.spec == spec)
+      if (found < 0) {
+        let plugin = new PluginInstance(spec)
+        newPlugins.push(plugin)
+        if (this.connected) plugin.connect(this)
+      } else {
+        let plugin = this.plugins[found]
+        plugin.mustUpdate = update
+        newPlugins.push(plugin)
       }
-      for (let plugin of this.plugins)
-        if (plugin.mustUpdate != update) plugin.disconnect(this)
-      for (let plugin of newPlugins) plugin.connect(this)
-      this.plugins = newPlugins
-      this.pluginMap.clear()
+    }
+    for (let plugin of this.plugins) if (!newPlugins.includes(plugin)) plugin.disconnect(this)
+    this.plugins = newPlugins
+    this.pluginMap.clear()
+  }
+
+  private updatePlugins(update: ViewUpdate) {
+    let specs = update.state.facet(viewPlugin)
+    let configChange = specs != update.startState.facet(viewPlugin)
+    // FIXME this will recreate plugins destroyed by disconnect
+    if (configChange) {
+      this.syncPlugins(specs, update)
     } else {
       for (let p of this.plugins) p.mustUpdate = update
     }
     for (let i = 0; i < this.plugins.length; i++) this.plugins[i].update(this)
-    if (prevSpecs != specs) this.inputState.ensureHandlers(this.plugins)
+    if (configChange) this.inputState.ensureHandlers(this.plugins)
   }
 
   private docViewUpdate() {
@@ -367,7 +374,7 @@ export class EditorView {
   plugin<T extends PluginValue>(plugin: ViewPlugin<T>): T | null {
     let known = this.pluginMap.get(plugin)
     if (known === undefined || known && known.spec != plugin)
-      this.pluginMap.set(plugin, known = this.plugins.find(p => p.spec == plugin) || null)
+      this.pluginMap.set(plugin, known = this.plugins.find(p => p.spec == plugin && !p.deactivated) || null)
     return known && known.update(this).value as T
   }
 
