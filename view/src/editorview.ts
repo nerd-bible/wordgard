@@ -17,7 +17,7 @@ import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFil
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
-import {InputState, getCompositionInfo} from "./input"
+import {InputState, getCompositionInfo, isFocusChange} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
@@ -529,6 +529,11 @@ export class EditorView {
 
   /// Filter to run on plain text read from the clipboard.
   static clipboardInputTextFilter = clipboardInputTextFilter
+
+  /// This annotation is added to transactions created because the
+  /// editor's focused status changed. It holds `true` when the editor
+  /// gained focus, `false` when it lost focus.
+  static isFocusChange = isFocusChange
 
   /// Enable or disable tab-focus mode, which disables key bindings
   /// for Tab and Shift-Tab, letting the browser's default

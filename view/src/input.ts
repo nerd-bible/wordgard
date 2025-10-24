@@ -1,4 +1,4 @@
-import {EditorSelection, EditorState} from "@wordgard/state"
+import {EditorSelection, EditorState, Annotation} from "@wordgard/state"
 import {Slice, Node, ChangeSet, Prop} from "@wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
@@ -556,6 +556,18 @@ handlers.copy = handlers.cut = (view, event: ClipboardEvent) => {
   return true
 }
 
+export const isFocusChange = Annotation.define<boolean>()
+
+function updateForFocusChange(view: EditorView) {
+  setTimeout(() => {
+    let focus = view.hasFocus
+    if (focus != view.inputState.notifiedFocused) {
+      view.inputState.notifiedFocused = focus
+      view.dispatch({annotations: isFocusChange.of(focus)})
+    }
+  }, 10)
+}
+
 observers.focus = view => {
   view.inputState.lastFocusTime = Date.now()
   // When focusing reset the scroll position, move it back to where it was
@@ -563,11 +575,12 @@ observers.focus = view => {
     view.scrollDOM.scrollTop = view.inputState.lastScrollTop
     view.scrollDOM.scrollLeft = view.inputState.lastScrollLeft
   }
-  // FIXME make sure wg-focused class is added
+  updateForFocusChange(view)
 }
 
 observers.blur = view => {
   view.observer.clearSelectionRange()
+  updateForFocusChange(view)
 }
 
 observers.compositionstart = observers.compositionupdate = (view, event: CompositionEvent) => {

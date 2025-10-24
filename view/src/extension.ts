@@ -22,8 +22,6 @@ export const inputHandler = Facet.define<(view: EditorView, from: number, to: nu
 
 export const inputEventHandler = Facet.define<{event: string, run: Command}>()
 
-export const focusChangeEffect = Facet.define<(state: EditorState, focusing: boolean) => StateEffect<any> | null>()
-
 export const scrollHandler = Facet.define<(
   view: EditorView,
   range: {from: number, to: number},
