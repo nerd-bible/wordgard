@@ -6,8 +6,6 @@ import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
 import {Tile} from "./tile"
 import {setDOMSelection, readDOMSelection} from "./selection"
 
-// FIXME can this become an always-on view plugin?
-
 const observeOptions = {
   childList: true,
   characterData: true,
@@ -107,7 +105,8 @@ export class DOMObserver {
   }
 
   pollSelection() {
-    if (!this.view.inputState.currentComposition && this.readSelectionRange()) {
+    if (!this.view.inputState.currentComposition && this.readSelectionRange() &&
+        this.view.hasFocus && this.view.contentDOM.contains(this.selectionRange.focusNode)) {
       let sel = readDOMSelection(this.view, this.selectionRange)
       if (!sel.eqPos(this.view.state.selection))
         this.view.dispatch({selection: sel, userEvent: "select"})
