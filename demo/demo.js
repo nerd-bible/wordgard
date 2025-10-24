@@ -1,15 +1,11 @@
 import {EditorView, keymap, defaultKeymap} from "@wordgard/view"
-import {basicSchema, Strong} from "@wordgard/doc"
-import {schemaElement, EditorSelection} from "@wordgard/state"
+import {basicSchema} from "@wordgard/doc"
 
 let view = window.view = new EditorView({
   parent: document.body,
-  doc: "<p>-</p>",
-  selection: EditorSelection.cursor(2, -1, -1, [Strong]),
-  extensions: [
-    schemaElement.of(basicSchema.tags.concat(basicSchema.props)),
+  doc: "<p>-</p><hr><hr>",
+  config: [
+    basicSchema.elements,
     keymap.of(defaultKeymap)
   ]
 })
-
-view.focus()

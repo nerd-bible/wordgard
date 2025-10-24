@@ -6,6 +6,8 @@ import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
 import {Tile} from "./tile"
 import {setDOMSelection, readDOMSelection} from "./selection"
 
+// FIXME can this become an always-on view plugin?
+
 const observeOptions = {
   childList: true,
   characterData: true,

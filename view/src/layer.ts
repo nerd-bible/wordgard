@@ -1,3 +1,5 @@
+// FIXME drop this again, since core doesn't need it?
+
 import {Extension, Facet, EditorState} from "@wordgard/state"
 import {ViewPlugin, ViewUpdate} from "./extension"
 import {EditorView} from "./editorview"
@@ -31,8 +33,8 @@ export class RectangleMarker implements LayerMarker {
               readonly left: number,
               /// The top position of the marker.
               readonly top: number,
-              /// The width of the marker, or null if it shouldn't get a width assigned.
-              readonly width: number | null,
+              /// The width of the marker.
+              readonly width: number,
               /// The height of the marker.
               readonly height: number) {}
 
@@ -52,7 +54,7 @@ export class RectangleMarker implements LayerMarker {
   private adjust(elt: HTMLElement) {
     elt.style.left = this.left + "px"
     elt.style.top = this.top + "px"
-    elt.style.width = this.width == null ? "" : this.width + "px"
+    elt.style.width = this.width + "px"
     elt.style.height = this.height + "px"
   }
 
@@ -161,7 +163,7 @@ class LayerView {
       this.dom.style.display = this.dom.firstChild ? "" : "none"
   }
 
-  destroy() { // FIXME use disconnect interface
+  destroy() {
     if (this.layer.destroy) this.layer.destroy(this.dom, this.view)
     this.dom.remove()
   }

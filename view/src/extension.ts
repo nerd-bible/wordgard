@@ -111,9 +111,13 @@ export interface PluginValue {
 
 }
 
-let nextPluginID = 0
+export const basePlugins: ViewPlugin<any>[] = []
 
-export const viewPlugin = Facet.define<ViewPlugin<any>>()
+export const viewPlugin = Facet.define<ViewPlugin<any>>({
+  combine: plugins => basePlugins.concat(plugins)
+})
+
+let nextPluginID = 0
 
 /// Provides additional information when defining a [view
 /// plugin](#view.ViewPlugin).

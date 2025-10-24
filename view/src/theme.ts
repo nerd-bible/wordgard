@@ -54,37 +54,21 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     minHeight: "100%",
     padding: "4px 0",
     outline: "none",
+    caretColor: "transparent",
   },
 
-  "&light .wg-content": { caretColor: "black" },
-  "&dark .wg-content": { caretColor: "white" },
-
-  ".wg-layer": {
+  ".wg-cursorLayer": {
     position: "absolute",
     left: 0,
     top: 0,
     contain: "size style",
     "& > *": {
       position: "absolute"
-    }
+    },
+    pointerEvents: "none",
+    zIndex: 150,
   },
 
-  "&light .wg-selectionBackground": {
-    background: "#d9d9d9"
-  },
-  "&dark .wg-selectionBackground": {
-    background: "#222"
-  },
-  "&light.wg-focused > .wg-scroller > .wg-selectionLayer .wg-selectionBackground": {
-    background: "#d7d4f0"
-  },
-  "&dark.wg-focused > .wg-scroller > .wg-selectionLayer .wg-selectionBackground": {
-    background: "#233"
-  },
-
-  ".wg-cursorLayer": {
-    pointerEvents: "none"
-  },
   "&.wg-focused > .wg-scroller > .wg-cursorLayer": {
     animation: "steps(1) wg-blink 1.2s infinite"
   },
@@ -95,21 +79,18 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   "@keyframes wg-blink": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
   "@keyframes wg-blink2": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
 
-  ".wg-cursor, .wg-dropCursor": {
-    borderLeft: "1.2px solid black",
-    marginLeft: "-0.6px",
-    pointerEvents: "none",
-  },
   ".wg-cursor": {
-    display: "none"
+    pointerEvents: "none",
+    display: "none",
   },
-  "&dark .wg-cursor": {
-    borderLeftColor: "#444"
+  ".wg-cursor-v": {
+    borderLeft: "1.2px solid currentColor",
+    marginLeft: "-0.6px",
   },
-  ".wg-dropCursor": {
-    position: "absolute"
+  ".wg-cursor-h": {
+    borderTop: "1.2px solid currentColor",
+    marginTop: "-0.6px",
   },
-
   "&.wg-focused > .wg-scroller > .wg-cursorLayer .wg-cursor": {
     display: "block"
   },

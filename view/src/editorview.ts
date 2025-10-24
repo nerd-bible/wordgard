@@ -22,6 +22,7 @@ import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
 import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
+import {cursorBlinkRate} from "./drawcursor"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
@@ -613,6 +614,10 @@ export class EditorView {
   /// when those are bound to keys or buttons. See the
   /// [`readOnly`](#state.EditorState.readOnly) facet for that.)
   static editable = editable
+
+  /// Controls the length of a full cursor blink cycle, in milliseconds.
+  /// Defaults to 1200. Can be set to 0 to disable blinking.
+  static cursorBlinkRate = cursorBlinkRate
 
   /// Allows you to influence the way mouse selection happens. The
   /// functions in this facet will be called for a `mousedown` event
