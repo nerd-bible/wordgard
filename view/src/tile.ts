@@ -390,15 +390,15 @@ export class DocTile extends CompositeTile {
   nearest(dom: DOMNode, requireTag = true) {
     for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
       let elt = cur.wgTile
-      if (elt && (!requireTag || elt.isNodeOuter) && this.owns(elt)) return elt
+      if (elt && (!requireTag || elt.node) && this.owns(elt)) return elt
     }
     return null
   }
 
   owns(elt: Tile) {
     for (;;) {
+      if (elt == this) return true
       let {parent} = elt
-      if (parent == this) return true
       if (!parent) return false
       elt = parent
     }
@@ -433,7 +433,7 @@ export class DocTile extends CompositeTile {
   }
 
   posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
-    let elt = this.nearest(dom)
+    let elt = this.nearest(dom, false)
     if (!elt)
       return this.dom.compareDocumentPosition(dom) & 4 /* following */ ? this.length : 0
     return elt.localPosFromDOM(dom, offset, bias)
