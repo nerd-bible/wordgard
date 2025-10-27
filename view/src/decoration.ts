@@ -258,7 +258,6 @@ export class RangeDecorationSource<T> {
 export const rangeDecorations = Facet.define<RangeDecorationSource<any>>()
 
 export class WidgetSource<T> {
-  // FIXME names
   set: (state: EditorState) => PointSet<T>
   widget: (value: T) => Widget<any>
   extension: Extension
@@ -277,37 +276,38 @@ export class WidgetSource<T> {
 
 export const widgets = Facet.define<WidgetSource<any>>()
 
-// FIXME better name
-export class ShapeSource<T> {
-  set: (state: EditorState) => PointSet<T>
-  check: (node: Node) => boolean
-  shape: (value: T) => Shape
-  atom: boolean
+export function overrideShape<T>(spec: {
+  set: (state: EditorState) => PointSet<T>,
+  check?: (node: Node) => boolean,
+  // FIXME document that this must not be expensive
+  shape: Shape | ((value: T) => Shape),
+  atom?: boolean
+}) {
+  let {shape, atom} = spec, shapeFunc
+  if (typeof shape == "function") {
+    if (atom == null) throw new Error("Dynamically computed shapes must specify `atom`")
+    shapeFunc = shape
+  } else {
+    if (atom == null) atom = !shape.hasContent
+    shapeFunc = () => shape
+  }
+  return new ShapeOverride(spec.set, shapeFunc, spec.check || (() => true), atom)
+}
+
+class ShapeOverride<T> {
   extension: Extension
 
-  constructor(config: {
-    set: (state: EditorState) => PointSet<T>,
-    check?: (node: Node) => boolean,
-    // FIXME document that this must not be expensive
-    shape: Shape | ((value: T) => Shape),
-    atom?: boolean
-  }) {
-    let {shape, atom} = config
-    if (typeof shape == "function") {
-      if (atom == null) throw new Error("Dynamically computed shapes must specify `atom`")
-      this.shape = shape
-    } else {
-      if (atom == null) atom = !shape.hasContent
-      this.shape = () => shape
-    }
-    this.atom = atom
-    this.set = config.set
-    this.check = config.check || (() => true)
+  constructor(
+    readonly set: (state: EditorState) => PointSet<T>,
+    readonly shape: (value: T) => Shape,
+    readonly check: (node: Node) => boolean,
+    readonly atom: boolean
+  ) {
     this.extension = [shapeSources.of(this), atomicDecorations]
   }
 }
 
-export const shapeSources = Facet.define<ShapeSource<any>>()
+export const shapeSources = Facet.define<ShapeOverride<any>>()
 
 const atomicDecorations = EditorState.isAtom.of((state, node, pos) => {
   for (let src of state.facet(shapeSources)) {
@@ -788,7 +788,7 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
                                                               posA, posB, len, add)
       compareFacet<PointSet<any>, WidgetSource<any>>(prev, state, change, widgets,
                                                      posA, posB, len, add)
-      compareFacet<PointSet<any>, ShapeSource<any>>(prev, state, change, shapeSources, posA, posB, len, from => {
+      compareFacet<PointSet<any>, ShapeOverride<any>>(prev, state, change, shapeSources, posA, posB, len, from => {
         add(from, from + 1)
         if (shapeChanges === false) shapeChanges = []
         if (typeof shapeChanges != "boolean") shapeChanges.push(from)
@@ -1058,7 +1058,7 @@ export class DecoIterator {
   tagShapes: readonly TagShape[]
   pos: Pos
   rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
-  pointIter: PointIterator<any, WidgetSource<any> | ShapeSource<any>>[] = []
+  pointIter: PointIterator<any, WidgetSource<any> | ShapeOverride<any>>[] = []
   
   constructor(readonly state: EditorState) {
     this.globalWidgets = state.facet(tagWidgets)
@@ -1092,11 +1092,11 @@ export class DecoIterator {
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
-    let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any> | ShapeSource<any>>(
+    let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any> | ShapeOverride<any>>(
       this.rangeIter, this.pointIter, from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
-    let pendingShape: ShapeSource<any> | undefined, pendingShapePos = -1, pendingShapeValue: any
+    let pendingShape: ShapeOverride<any> | undefined, pendingShapePos = -1, pendingShapeValue: any
 
     let wrap: Walker = {
       skip: (node, pos) => { // Only done for leaf nodes.

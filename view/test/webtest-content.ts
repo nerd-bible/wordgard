@@ -1,5 +1,5 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
-        RangeSet, RangeDecorationSource, ShapeSource} from "@wordgard/view"
+        RangeSet, RangeDecorationSource, overrideShape} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec, StateEffect} from "@wordgard/state"
 import {DocNode, Tag, basicBuilders, CodeBlock, Slice, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "@wordgard/doc"
@@ -367,7 +367,7 @@ describe("DocTile", () => {
     })
 
     it("can override a specific leaf node's shape", () => {
-      ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
+      ist(render(doc(p("ab", $img(), "cd")), overrideShape({
         set: () => strPoints.create([[3, "x"]]),
         shape: () => elt("span", "!"),
         atom: true
@@ -375,14 +375,14 @@ describe("DocTile", () => {
     })
 
     it("can override a specific non-leaf node's shape", () => {
-      ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
+      ist(render(doc(p("ab", $img(), "cd")), overrideShape({
         set: () => strPoints.create([[0, "x"]]),
         shape: elt("div", 0)
       })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
     })
 
     it("can replace a non-leaf node with an atom shape", () => {
-      ist(render(doc(p("ab", $img(), "cd")), new ShapeSource({
+      ist(render(doc(p("ab", $img(), "cd")), overrideShape({
         set: () => strPoints.create([[0, "x"]]),
         shape: elt("div", "?"),
       })).dom.innerHTML, "<div>?</div>")
@@ -390,7 +390,7 @@ describe("DocTile", () => {
 
     it("properly recognizes atomicity of overridden shapes", () => {
       ist(EditorState.create({doc: doc(p("ab"))}).isAtom(0), false)
-      let byPoint = new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt("div", "?")})
+      let byPoint = overrideShape({set: () => strPoints.create([[0, "x"]]), shape: elt("div", "?")})
       ist(EditorState.create({doc: doc(p("ab")), config: byPoint}).isAtom(0), true)
       let byTag = tagShape({tag: "Paragraph", shape: elt("hr")})
       ist(EditorState.create({doc: doc(p("a")), config: byTag}).isAtom(0), true)
@@ -404,7 +404,7 @@ describe("DocTile", () => {
     it("makes by-point shapes override by-tag ones", () => {
       ist(render(doc(p("a")), [
         tagShape({tag: "Paragraph", shape: elt({_: "div", class: "b"}, 0)}),
-        new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt({_: "div", class: "a"}, 0)})
+        overrideShape({set: () => strPoints.create([[0, "x"]]), shape: elt({_: "div", class: "a"}, 0)})
       ]).dom.innerHTML, "<div class=\"a\">a</div>")
     })
 
@@ -419,7 +419,7 @@ describe("DocTile", () => {
     it("properly updates when positional shapes change", () => {
       let tile = render(doc(p("a")))
       tile = update(tile, {
-        effects: StateEffect.appendConfig.of(new ShapeSource({set: () => strPoints.create([[0, "x"]]), shape: elt("para")}))
+        effects: StateEffect.appendConfig.of(overrideShape({set: () => strPoints.create([[0, "x"]]), shape: elt("para")}))
       })
       ist(tile.dom.innerHTML, "<para></para>")
     })
