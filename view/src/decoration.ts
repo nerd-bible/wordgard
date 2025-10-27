@@ -330,37 +330,10 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
-// FIXME rename to something like PointSetConfig?
-class PointSetType<Value> {
-  constructor(readonly side: (value: Value) => number, readonly eq: (a: Value, b: Value) => boolean) {}
-
-  create(source: Iterable<[number, Value]>): PointSet<Value> {
-    let positions: number[] = [], values: Value[] = [], prev = -1
-    for (let [pos, val] of source) {
-      if (pos < prev || pos == prev && this.side(values[values.length - 1]) > this.side(val))
-        throw new Error("Points provided in the wrong order to PointSetType.create")
-      prev = pos
-      positions.push(pos)
-      values.push(val)
-    }
-    return new PointSet<Value>(positions, values, this)
-  }
-
-  builder() {
-    return new PointBuilder<Value>(this)
-  }
-
-  private _empty: PointSet<Value> | null = null
-
-  get empty() {
-    return this._empty || (this._empty = new PointSet<Value>(none, none, this))
-  }
-}
-
 export class PointSet<Value> {
   constructor(readonly positions: readonly number[],
               readonly values: readonly Value[],
-              readonly type: PointSetType<Value>) {}
+              readonly type: PointSet.Type<Value>) {}
 
   get length() { return this.positions.length }
 
@@ -456,25 +429,53 @@ export class PointSet<Value> {
   } = {}) {
     let {side, eq} = ops
     if (side == null) side = 1
-    return new PointSetType<Value>(typeof side == "number" ? () => side : side, eq || ((a, b) => a === b))
+    return new PointSet.Type<Value>(typeof side == "number" ? () => side : side, eq || ((a, b) => a === b))
   }
 }
 
-export class PointBuilder<Value> {
-  positions: number[] = []
-  values: Value[] = []
-  cur = 0
+export namespace PointSet {
+  export class Type<Value> {
+    constructor(readonly side: (value: Value) => number, readonly eq: (a: Value, b: Value) => boolean) {}
 
-  constructor(readonly type: PointSetType<Value>) {}
+    create(source: Iterable<[number, Value]>): PointSet<Value> {
+      let positions: number[] = [], values: Value[] = [], prev = -1
+      for (let [pos, val] of source) {
+        if (pos < prev || pos == prev && this.side(values[values.length - 1]) > this.side(val))
+          throw new Error("Points provided in the wrong order to PointSet.Type.create")
+        prev = pos
+        positions.push(pos)
+        values.push(val)
+      }
+      return new PointSet<Value>(positions, values, this)
+    }
 
-  add(pos: number, value: Value) {
-    if (pos < this.cur) throw new RangeError("Point positions must be added in order")
-    this.cur = pos
-    this.positions.push(pos)
-    this.values.push(value)
+    builder() {
+      return new PointSet.Builder<Value>(this)
+    }
+
+    private _empty: PointSet<Value> | null = null
+
+    get empty() {
+      return this._empty || (this._empty = new PointSet<Value>(none, none, this))
+    }
   }
 
-  finish(side = 0) { return new PointSet(this.positions, this.values, this.type) }
+  export class Builder<Value> {
+    positions: number[] = []
+    values: Value[] = []
+    cur = 0
+
+    constructor(readonly type: PointSet.Type<Value>) {}
+
+    add(pos: number, value: Value) {
+      if (pos < this.cur) throw new RangeError("Point positions must be added in order")
+      this.cur = pos
+      this.positions.push(pos)
+      this.values.push(value)
+    }
+
+    finish(side = 0) { return new PointSet(this.positions, this.values, this.type) }
+  }
 }
 
 export class PointIterator<Value, Source> {
@@ -530,37 +531,12 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
-export class RangeSetType<Value> {
-  constructor(readonly inclusive: (value: Value, side: -1 | 1) => boolean,
-              readonly eq: (a: Value, b: Value) => boolean) {}
-
-  create(source: Iterable<[number, number, Value]>): RangeSet<Value> {
-    let from: number[] = [], to: number[] = [], values: Value[] = [], prev = -1
-    for (let [f, t, val] of source) {
-      if (f < prev) throw new Error("Range provided to RangeSetType.create are in the wrong order or overlap")
-      prev = t
-      from.push(f)
-      to.push(t)
-      values.push(val)
-    }
-    return new RangeSet<Value>(from, to, values, this)
-  }
-
-  builder() { return new RangeBuilder<Value>(this) }
-
-  private _empty: RangeSet<Value> | null = null
-
-  get empty() {
-    return this._empty || (this._empty = new RangeSet<Value>(none, none, none, this))
-  }
-}
-
 export class RangeSet<Value> {
   constructor(
     readonly from: readonly number[],
     readonly to: readonly number[],
     readonly values: readonly Value[],
-    readonly type: RangeSetType<Value>
+    readonly type: RangeSet.Type<Value>
   ) {}
 
   get length() { return this.from.length }
@@ -632,30 +608,57 @@ export class RangeSet<Value> {
   } = {}) {
     let {inclusive, eq} = ops
     if (inclusive == null) inclusive = false
-    return new RangeSetType(typeof inclusive == "boolean" ? () => inclusive : inclusive,
-                            eq || ((a, b) => a === b))
+    return new RangeSet.Type(typeof inclusive == "boolean" ? () => inclusive : inclusive,
+                             eq || ((a, b) => a === b))
   }
 }
 
-export class RangeBuilder<Value> {
-  from: number[] = []
-  to: number[] = []
-  values: Value[] = []
-  cur = 0
+export namespace RangeSet {
+  export class Type<Value> {
+    constructor(readonly inclusive: (value: Value, side: -1 | 1) => boolean,
+                readonly eq: (a: Value, b: Value) => boolean) {}
 
-  constructor(readonly type: RangeSetType<Value>) {}
+    create(source: Iterable<[number, number, Value]>): RangeSet<Value> {
+      let from: number[] = [], to: number[] = [], values: Value[] = [], prev = -1
+      for (let [f, t, val] of source) {
+        if (f < prev) throw new Error("Range provided to RangeSet.Type.create are in the wrong order or overlap")
+        prev = t
+        from.push(f)
+        to.push(t)
+        values.push(val)
+      }
+      return new RangeSet<Value>(from, to, values, this)
+    }
 
-  add(from: number, to: number, value: Value) {
-    if (from >= to) throw new Error("Ranges cannot be empty")
-    if (from < this.cur) throw new Error("Ranges must be added in order and cannot overlap")
-    this.cur = to
-    this.from.push(from)
-    this.to.push(to)
-    this.values.push(value)
+    builder() { return new RangeSet.Builder<Value>(this) }
+
+    private _empty: RangeSet<Value> | null = null
+
+    get empty() {
+      return this._empty || (this._empty = new RangeSet<Value>(none, none, none, this))
+    }
   }
 
-  finish() {
-    return new RangeSet<Value>(this.from, this.to, this.values, this.type)
+  export class Builder<Value> {
+    from: number[] = []
+    to: number[] = []
+    values: Value[] = []
+    cur = 0
+
+    constructor(readonly type: RangeSet.Type<Value>) {}
+
+    add(from: number, to: number, value: Value) {
+      if (from >= to) throw new Error("Ranges cannot be empty")
+      if (from < this.cur) throw new Error("Ranges must be added in order and cannot overlap")
+      this.cur = to
+      this.from.push(from)
+      this.to.push(to)
+      this.values.push(value)
+    }
+
+    finish() {
+      return new RangeSet<Value>(this.from, this.to, this.values, this.type)
+    }
   }
 }
  
@@ -1121,7 +1124,7 @@ export class DecoIterator {
         if (pendingShape && pendingShapePos == pos) {
           shape = pendingShape.shape(pendingShapeValue)
           pendingShape = undefined
-        } else { // FIXME tag shape decorations
+        } else {
           shape = this.tagShape(tag, iter.active)
         }
         let wrappers = nodeWrappers(tag, iter.active, this.globalWrappers, !shape.hasContent)
