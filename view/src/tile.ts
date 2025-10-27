@@ -254,6 +254,7 @@ export class CompositeTile extends Tile {
       else if (dom.nodeType == 3) rects = textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
       else continue
       for (let i = 0; i < rects.length; i++) scan.rect(rects[i], child)
+      if (scan.done) break
     }
     let closest = scan.closest!, rect = scan.closestRect!
     let pos = this.posBeforeChild(closest, start)
@@ -321,6 +322,8 @@ class RowScan<T> {
       }
     }
   }
+
+  get done() { return !this.dxClosest && !this.dyClosest }
 }
 
 function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock: TextblockMap | null) {
@@ -551,6 +554,7 @@ export class TextTile extends Tile {
       let rect = singleRect(textRange(this.dom, i, end), 1)
       if (rect.top == rect.bottom) continue
       scan.rect(rect, i)
+      if (scan.done) break
       i = end
     }
     let closest = scan.closest!, rect = scan.closestRect!
