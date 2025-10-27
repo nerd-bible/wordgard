@@ -737,10 +737,12 @@ function inputEventRange(event: InputEvent, view: EditorView) {
 }
 
 export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {
+  let changes = ChangeSet.create(view.state.doc, {from, to, insert, fit: true})
   // FIXME define this more robustly
   view.dispatch({
-    changes: {from, to, insert, fit: true},
-    selection: {anchor: from + insert.length},
+    changes,
+    selection: EditorSelection.cursor(changes.mapPos(to, 1), -1),
+    normalizeSelection: true,
     userEvent: "input.type"
   })
 }
