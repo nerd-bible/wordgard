@@ -1,6 +1,6 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
 import {Prop, Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
-        ElementShape, AttributeShape, Elt, Attributes, pushAttribute,
+        ElementShape, AttributeShape, Elt, pushAttribute,
         mergeAttributes, readAttributes} from "@wordgard/doc"
 import {Attrs} from "./attributes"
 import {type EditorView} from "./editorview"
@@ -53,13 +53,6 @@ export const TextWidget = Widget.define<string>({
 export type DecoElt = Elt<Widget<any> | string>
 
 export type Shape = Widget<any> | DecoElt
-
-export class Wrapper { // FIXME just use elt instances?
-  constructor(
-    readonly tagName: string | null,
-    readonly attrs: Attributes
-  ) {}
-}
 
 // FIXME support some kind of dependency tracking on decoration
 // sources
@@ -220,10 +213,9 @@ export class TagAttributeSource {
 export const tagAttributes = Facet.define<TagAttributeSource>()
 
 export enum DecorationScope {
-  Leaf = 1,
-  InlineLeaf = 2,
+  Atom = 1,
+  InlineAtom = 2,
   All = 4,
-//  StartDepth FIXME add support
 }
 
 export class RangeDecorationSource<T> {
@@ -244,7 +236,7 @@ export class RangeDecorationSource<T> {
     rank?: number
   }) {
     this.pred = tagPredicate(config.tag)
-    this.scope = config.scope ?? DecorationScope.InlineLeaf
+    this.scope = config.scope ?? DecorationScope.InlineAtom
     this.set = config.set
     if ((config.deco as WrapperDeco<T>).element) {
       const {element, attributes, spanning, rank} = config.deco as WrapperDeco<T>
@@ -1019,14 +1011,15 @@ export type WrapperSource = Prop<any> | TagWrapperSource | RangeIterator<any, Ra
 function nodeWrappers(
   tag: Tag,
   active: readonly RangeIterator<any, RangeDecorationSource<any>>[],
-  global: readonly TagWrapperSource[]
+  global: readonly TagWrapperSource[],
+  atom: boolean
 ): readonly WrapperSource[] {
   let wrappers: WrapperSource[] | undefined
 
   for (let prop of tag.props) if (prop.type.element) (wrappers || (wrappers = [])).push(prop)
   for (let src of global) if (src.pred(tag.type)) (wrappers || (wrappers = [])).push(src)
   if (active.length) {
-    let scope = tagScope(tag)
+    let scope = tagScope(tag, atom)
     for (let cur of active) {
       let {source} = cur
       if (source.wrapper && (source.scope & scope) && source.pred(tag.type)) (wrappers || (wrappers = [])).push(cur)
@@ -1038,9 +1031,9 @@ function nodeWrappers(
   return wrappers
 }
 
-function tagScope(tag: Tag): DecorationScope {
+function tagScope(tag: Tag, atom: boolean): DecorationScope {
   return DecorationScope.All |
-    (tag.isLeaf ? DecorationScope.Leaf | (tag.isInline ? DecorationScope.InlineLeaf : 0) : 0)
+    (atom ? DecorationScope.Atom | (tag.isInline ? DecorationScope.InlineAtom : 0) : 0)
 }
 
 export function renderWrapper(src: WrapperSource, tag: Tag): DecoElt {
@@ -1115,7 +1108,7 @@ export class DecoIterator {
           shape = this.tagShape(node.tag, iter.active)
         }
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
-        walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers))
+        walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers, true))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enter: (tag, pos, node) => {
@@ -1128,7 +1121,7 @@ export class DecoIterator {
         } else { // FIXME tag shape decorations
           shape = this.tagShape(tag, iter.active)
         }
-        let wrappers = nodeWrappers(tag, iter.active, this.globalWrappers)
+        let wrappers = nodeWrappers(tag, iter.active, this.globalWrappers, !shape.hasContent)
         let atom = !shape.hasContent
         if (atom) walker.node(node!, shape, wrappers)
         else walker.enter(node!, shape as DecoElt, wrappers)
@@ -1186,7 +1179,7 @@ export class DecoIterator {
     }
     for (let iter of active) {
       let {attr} = iter.source
-      if (attr && iter.source.pred(tag.type) && (iter.source.scope & tagScope(tag)))
+      if (attr && iter.source.pred(tag.type) && (iter.source.scope & tagScope(tag, !shape.hasContent)))
         pushAttribute(add || (add = []), attr.attribute, typeof attr.value == "function" ? attr.value(iter.value) : attr.value)
     }
     if (add) {
