@@ -318,7 +318,11 @@ class RowScan<T> {
   get done() { return !this.dxClosest && !this.dyClosest }
 }
 
-function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock: TextblockMap | null) {
+export function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
+  if (textblock === undefined) {
+    let {textblockParent: block} = state.doc.resolve(pos)
+    textblock = block ? TextblockMap.get(block.start, block.node, state.textDirection()) : null
+  }
   if (!textblock) return state.textDirection()
   let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)
   return textblock.order[found].dir

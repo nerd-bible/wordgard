@@ -14,7 +14,7 @@ import {KeyBinding} from "./keymap"
 /// transaction) and return `true`.
 export type Command = (target: EditorView) => boolean
 
-// FIXME check behavior with inline nodes with content for all of these
+// FIXME check behavior around inline nodes with content for all of these
 
 export const insertLineBreak: StateCommand = ({state, dispatch}) => {
   let {doc, sel} = state

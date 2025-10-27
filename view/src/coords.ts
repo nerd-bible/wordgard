@@ -1,39 +1,22 @@
+import {Direction} from "@wordgard/state"
 import {Rect, textRange, maxOffset, singleRect} from "./dom"
-import browser from "./browser"
+import {dirAt} from "./tile"
 import {EditorView} from "./editorview"
-
-// FIXME move remaining code here into selection.ts
-
-const BIDI = /[\u0590-\u05f4\u0600-\u06ff\u0700-\u08ac]/
 
 // Given a position in the document model, get a bounding box of the
 // character at that position, relative to the window.
-export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect {
-  let tile = view.docTile.resolve(pos, assoc < 0 ? -1 : 1)
+export function coordsAtPos(view: EditorView, pos: number, assoc: -1 | 1): Rect {
+  let tile = view.docTile.resolve(pos, assoc)
   let node = tile.dom, {offset} = tile
 
   if (node.nodeType == 3) {
-    if ((assoc <= 0 ? !offset : offset == node.nodeValue!.length) || BIDI.test(node.nodeValue!)) {
-      let rect = singleRect(textRange(node as Text, offset, offset), assoc)
-      // Firefox returns bad results (the position before the space)
-      // when querying a position directly after line-broken
-      // whitespace. Detect this situation and and kludge around it
-      // FIXME is this still the case?
-      if (browser.gecko && offset && /\s/.test(node.nodeValue![offset - 1]) && offset < node.nodeValue!.length) {
-        let rectBefore = singleRect(textRange(node as Text, offset - 1, offset - 1), -1)
-        if (rectBefore.top == rect.top) {
-          let rectAfter = singleRect(textRange(node as Text, offset, offset + 1), -1)
-          if (rectAfter.top != rect.top)
-            return flattenV(rectAfter, rectAfter.left < rectBefore.left)
-        }
-      }
-      return rect
-    } else { // FIXME Is it better to actually query bidi status?
-      let from = offset, to = offset, before = assoc <= 0
-      if (before) from--
-      else to++
-      return flattenV(singleRect(textRange(node as Text, from, to), before ? 1 : -1), !before)
-    }
+    let len = node.nodeValue!.length
+    if (!len) return singleRect(textRange(node as Text, 0, 0), 1)
+    let from = offset, to = offset, side = assoc < 0 && from || from == len ? 1 : -1
+    if (side < 0) to++
+    else from--
+    return flattenV(singleRect(textRange(node as Text, from, to), side),
+                    (side < 0) == (dirAt(view.state, pos, assoc) == Direction.LTR))
   }
 
   let tagTile = tile.tile
@@ -48,27 +31,27 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: number): Rect 
       let after = node.childNodes[offset]
       if (after.nodeType == 1) return flattenH((after as HTMLElement).getBoundingClientRect(), true)
     }
-    return flattenH((node as HTMLElement).getBoundingClientRect(), assoc >= 0)
+    return flattenH((node as HTMLElement).getBoundingClientRect(), assoc > 0)
   }
 
-  // Inline, not in text node (FIXME this is not Bidi-safe)
+  // Inline, not in text node
   if (offset && (assoc < 0 || offset == maxOffset(node))) {
     let before = node.childNodes[offset - 1]
     let target = before.nodeType == 3 ? textRange(before as Text, maxOffset(before))
         // BR nodes tend to only return the rectangle before them.
         // Only use them if they are the last element in their parent
         : before.nodeType == 1 && (before.nodeName != "BR" || !before.nextSibling) ? before : null
-    if (target) return flattenV(singleRect(target as Range | HTMLElement, 1), false)
+    if (target) return flattenV(singleRect(target as Range | HTMLElement, 1), dirAt(view.state, pos, assoc) == Direction.RTL)
   }
   if (offset < maxOffset(node)) {
     let after = node.childNodes[offset]
     let target = !after ? null : after.nodeType == 3 ? textRange(after as Text, 0, 0)
         : after.nodeType == 1 ? after : null
-    if (target) return flattenV(singleRect(target as Range | HTMLElement, -1), true)
+    if (target) return flattenV(singleRect(target as Range | HTMLElement, -1), dirAt(view.state, pos, assoc) == Direction.LTR)
   }
   // All else failed, just try to get a rectangle for the target node
   return flattenV(singleRect(node.nodeType == 3 ? textRange(node as Text, 0, node.nodeValue!.length) : node as HTMLElement, -assoc),
-                  assoc >= 0)
+                  assoc > 0)
 }
 
 function flattenV(rect: DOMRect, left: boolean) {
