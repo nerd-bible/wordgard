@@ -92,10 +92,10 @@ export class StateEffect<Value> {
   /// [appended](#state.StateEffect^appendConfig), but does not reset
   /// the content of [reconfigured](#state.Compartment.reconfigure)
   /// compartments.
-  static reconfigure = StateEffect.define<Extension>()
+  declare static reconfigure: StateEffect.Type<Extension>
 
   /// Append extensions to the top-level configuration of the editor.
-  static appendConfig = StateEffect.define<Extension>()
+  declare static appendConfig: StateEffect.Type<Extension>
 }
 
 export namespace StateEffect {
@@ -117,6 +117,10 @@ export namespace StateEffect {
     of(value: Value): StateEffect<Value> { return new StateEffect(this, value) }
   }
 }
+
+StateEffect.reconfigure = StateEffect.define<Extension>()
+
+StateEffect.appendConfig = StateEffect.define<Extension>()
 
 Compartment.reconfigureCompartment = StateEffect.define<{compartment: Compartment, extension: Extension}>()
 
