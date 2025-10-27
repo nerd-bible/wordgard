@@ -277,16 +277,17 @@ export class WidgetSource<T> {
 
 export const widgets = Facet.define<WidgetSource<any>>()
 
-// FIXME consider support for an assertion predicate that checks the target node
 // FIXME better name
 export class ShapeSource<T> {
   set: (state: EditorState) => PointSet<T>
+  check: (node: Node) => boolean
   shape: (value: T) => Shape
   atom: boolean
   extension: Extension
 
   constructor(config: {
     set: (state: EditorState) => PointSet<T>,
+    check?: (node: Node) => boolean,
     // FIXME document that this must not be expensive
     shape: Shape | ((value: T) => Shape),
     atom?: boolean
@@ -301,6 +302,7 @@ export class ShapeSource<T> {
     }
     this.atom = atom
     this.set = config.set
+    this.check = config.check || (() => true)
     this.extension = [shapeSources.of(this), atomicDecorations]
   }
 }
@@ -310,7 +312,7 @@ export const shapeSources = Facet.define<ShapeSource<any>>()
 const atomicDecorations = EditorState.isAtom.of((state, node, pos) => {
   for (let src of state.facet(shapeSources)) {
     let found = src.set(state).at(pos)
-    if (found !== undefined) return src.atom
+    if (found !== undefined && src.check(node)) return src.atom
   }
   for (let src of state.facet(tagShapes)) {
     if (src.pred(node.type)) return src.atom
@@ -1101,12 +1103,13 @@ export class DecoIterator {
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
         let shape
-        if (pendingShape && pendingShapePos == pos) {
+        if (pendingShape && pendingShapePos == pos && pendingShape.check(node)) {
           shape = pendingShape.shape(pendingShapeValue)
           pendingShape = undefined
         } else {
           shape = this.tagShape(node.tag, iter.active)
         }
+        pendingShape = undefined
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers, true))
         this.widgets(node.tag, WidgetPlace.After, walker)
