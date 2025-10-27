@@ -60,16 +60,21 @@ export const cursorLayer = ViewPlugin.fromClass(class {
 
 basePlugins[basePlugins.length] = cursorLayer
 
-const VertWidth = 30
+const VertWidth = 30, VertGap = 5
 
 export function cursorPos(view: EditorView): CursorPos {
-  let {state} = view, {empty, head} = state.selection
+  let {state} = view, {empty, head, assoc} = state.selection
   if (!empty) return null
-  let {left, right, top, bottom} = view.coordsAtPos(head)
+  let {left, right, top, bottom} = view.coordsAtPos(head, assoc || -1)
   let horiz = top == bottom, size = horiz ? right - left : bottom - top
   if (horiz && size > VertWidth) {
     size = VertWidth
     if (view.state.textDirection() == Direction.RTL) left = right - size
+    let other = view.coordsAtPos(head, assoc > 0 ? -1 : 1)
+    if (other.top == other.bottom && other.top != top) {
+      let move = Math.min(VertGap, Math.abs(other.top - top) / 2)
+      top = bottom = top + move * (other.top < top ? -1 : 1)
+    }
   }
   let doc = view.contentDOM.getBoundingClientRect()
   return {left: left - doc.left, top: top - doc.top, size, horiz}
