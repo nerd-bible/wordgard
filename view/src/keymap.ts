@@ -220,15 +220,14 @@ function runHandlers(map: Keymap, event: KeyboardEvent, view: EditorView, scope:
     if (matched) {
       if (!handled && binding.command(view)) {
         handled = true
+      } else {
         if (binding.flags & BindingFlag.StopPropagation) stopPropagation = true
+        if (binding.flags & BindingFlag.PreventDefault) preventDefault = true
       }
-      if (binding.flags & BindingFlag.PreventDefault) preventDefault = true
     }
   }
-  if (handled) {
-    if (stopPropagation) event.stopPropagation()
-    if (preventDefault) event.preventDefault()
-  }
+  if (stopPropagation) event.stopPropagation()
+  if (preventDefault) event.preventDefault()
   return handled
 }
 
