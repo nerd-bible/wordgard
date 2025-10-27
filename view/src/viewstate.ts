@@ -6,6 +6,7 @@ import {EditorView} from "./editorview"
 export enum Direction { LTR, RTL }
 
 export class ViewState {
+  initialized = false
   contentDOMWidth = 0 // contentDOM.getBoundingClientRect().width
   contentDOMHeight = 0 // contentDOM.getBoundingClientRect().height
   editorHeight = 0 // scrollDOM.clientHeight
@@ -78,5 +79,15 @@ export class ViewState {
       result |= UpdateFlag.Geometry
     }
     return result
+  }
+
+  initialMeasure(view: EditorView) {
+    this.initialized = true
+    let domRect = view.contentDOM.getBoundingClientRect()
+    this.contentDOMWidth = domRect.width
+    this.contentDOMHeight = domRect.height
+    this.editorHeight = view.scrollDOM.clientHeight
+    this.editorWidth = view.scrollDOM.clientWidth
+    this.scrollTop = view.scrollDOM.scrollTop
   }
 }

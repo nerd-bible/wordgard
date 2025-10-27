@@ -163,6 +163,7 @@ export class EditorView {
       this.root = getRoot(this.dom.parentNode!) || document
       this.mountStyles()
       this.inputState.connect()
+      if (!this.viewState.initialized) this.viewState.initialMeasure(this)
       for (let plugin of this.plugins) plugin.connect(this)
       this.observer.connect()
       if (this.viewState.pending.length || this.readRequests.length || this.writeRequests.length)
