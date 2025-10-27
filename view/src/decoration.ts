@@ -129,11 +129,11 @@ function tagPredicate(selector?: TagSelector): (tag: Tag.Type<any>) => boolean {
     : selector ? t => selector.includes(t) : () => true
 }
 
-function memo<T>(f: (tag: Tag<any>) => T) {
-  let map = new WeakMap<Tag<any>, T>()
-  return (tag: Tag) => {
-    let found = map.get(tag)
-    if (found === undefined) map.set(tag, found = f(tag))
+function memo<T, A extends Object>(f: (arg: A) => T) {
+  let map = new WeakMap<A, T>()
+  return (arg: A) => {
+    let found = map.get(arg)
+    if (found === undefined) map.set(arg, found = f(arg))
     return found
   }
 }
@@ -1049,12 +1049,11 @@ export function renderWrapper(src: WrapperSource, tag: Tag): DecoElt {
   return renderPropWrapper(src)
 }
 
-export function renderPropWrapper(prop: Prop<any>) {
-  // FIXME memoize this
+export const renderPropWrapper = memo((prop: Prop<any>) => {
   let repr = prop.type.repr as ElementShape<any>
   let attrs = readAttributes(typeof repr.attributes == "function" ? repr.attributes(prop.value) : repr.attributes)
   return new Elt<never>(repr.element, attrs, null)
-}
+})
 
 export class DecoIterator {
   globalWidgets: readonly TagWidgetSource[]
