@@ -179,14 +179,6 @@ export abstract class Tile {
                             orientation: Orientation): PosAssoc
 
   static get(node: DOMNode) { return node.wgTile }
-
-  static nearest(node: DOMNode, requireNode = true) {
-    for (let cur: DOMNode | null = node; cur; cur = cur.parentNode) {
-      let elt = cur.wgTile
-      if (elt) return requireNode ? elt.nearestNode() : elt
-    }
-    return null
-  }
 }
 
 export class CompositeTile extends Tile {
@@ -390,7 +382,7 @@ export class DocTile extends CompositeTile {
     return result
   }
 
-  nearest(dom: DOMNode, requireTag = true) {
+  nearest(dom: DOMNode, requireTag = false) {
     for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
       let elt = cur.wgTile
       if (elt && (!requireTag || elt.node) && this.owns(elt)) return elt
@@ -436,7 +428,7 @@ export class DocTile extends CompositeTile {
   }
 
   posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
-    let elt = this.nearest(dom, false)
+    let elt = this.nearest(dom)
     if (!elt)
       return this.dom.compareDocumentPosition(dom) & 4 /* following */ ? this.length : 0
     return elt.localPosFromDOM(dom, offset, bias)
