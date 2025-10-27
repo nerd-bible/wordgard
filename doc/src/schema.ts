@@ -1,15 +1,15 @@
-import {Node, Tag, TagType, TagJSON, NodeJSON, Text, DocNode} from "./node"
-import {Prop, PropType} from "./prop"
+import {Node, Tag, TagJSON, NodeJSON, Text, DocNode} from "./node"
+import {Prop} from "./prop"
 import {none, validate} from "./helper"
 import {elt, Reject} from "./shape"
 
-export type SchemaElement = Tag<any> | TagType<any> | Prop<any> | PropType<any>
+export type SchemaElement = Tag<any> | Tag.Type<any> | Prop<any> | Prop.Type<any>
 
 const schemaCache = new Map<readonly SchemaElement[], Schema>()
 
 export class Schema {
-  private tagsByName: {[name: string]: TagType<unknown>} = Object.create(null)
-  private propsByName: {[name: string]: PropType<any>} = Object.create(null)
+  private tagsByName: {[name: string]: Tag.Type<unknown>} = Object.create(null)
+  private propsByName: {[name: string]: Prop.Type<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Tag[] | null} = Object.create(null)
   readonly docTag: Tag<Schema>
   /// All the schema elements that make up this schema. Useful if you
@@ -17,9 +17,9 @@ export class Schema {
   elements: readonly SchemaElement[]
 
   private constructor(
-    readonly tags: readonly TagType<unknown>[],
-    readonly props: readonly PropType<any>[],
-    docType: TagType<Schema>,
+    readonly tags: readonly Tag.Type<unknown>[],
+    readonly props: readonly Prop.Type<any>[],
+    docType: Tag.Type<Schema>,
     readonly lineBreak: Tag<unknown> | null
   ) {
     this.docTag = docType.of(this)
@@ -50,26 +50,26 @@ export class Schema {
       throw new Error(`Prop type ${prop.name} not in schema`)
   }
 
-  defaultContentType(parent: TagType<any>) {
+  defaultContentType(parent: Tag.Type<any>) {
     for (let tag of this.tags) if (parent.canContain(tag) && tag.default) return tag.default
     return null
   }
 
-  createDefault(parent: TagType<any>): Node {
+  createDefault(parent: Tag.Type<any>): Node {
     let child = this.defaultContentType(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     if (child.isLeaf || child.inlineContent) return child.create()
     return child.create([this.createDefault(child.type)])
   }
 
-  findWrapping(parent: TagType<any>, child: TagType<any>): readonly Tag[] | null {
+  findWrapping(parent: Tag.Type<any>, child: Tag.Type<any>): readonly Tag[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  private findWrappingInner(parent: TagType<any>, child: TagType<any>): readonly Tag[] | null {
-    let seen: Set<TagType<unknown>> = new Set, work: Tag[][] = [[]]
+  private findWrappingInner(parent: Tag.Type<any>, child: Tag.Type<any>): readonly Tag[] | null {
+    let seen: Set<Tag.Type<unknown>> = new Set, work: Tag[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
       for (let tag of this.tags) if (at.canContain(tag)) {
@@ -83,26 +83,26 @@ export class Schema {
     return null
   }
 
-  getProp(name: string): PropType<any> | undefined { return this.propsByName[name] }
+  getProp(name: string): Prop.Type<any> | undefined { return this.propsByName[name] }
 
-  getTag(name: string): TagType<unknown> | undefined { return this.tagsByName[name] }
+  getTag(name: string): Tag.Type<unknown> | undefined { return this.tagsByName[name] }
 
   static define(spec: readonly SchemaElement[]) {
     let cached = schemaCache.get(spec)
     if (cached) return cached
 
-    let tags: TagType<any>[] = [Text], props: PropType<unknown>[] = []
+    let tags: Tag.Type<any>[] = [Text], props: Prop.Type<unknown>[] = []
     let defaultI = 0
     let tagNames: Set<string> = new Set, propNames: Set<string> = new Set
     for (let elt of spec) {
       if (elt instanceof Tag || elt instanceof Prop) elt = elt.type
-      if (elt instanceof TagType) {
+      if (elt instanceof Tag.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
         if (elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
         else tags.push(elt)
-      } else if (elt instanceof PropType) {
+      } else if (elt instanceof Prop.Type) {
         if (props.includes(elt)) continue
         if (propNames.has(elt.name)) throw new Error(`Duplicate use of prop name ${elt.name} in schema`)
         propNames.add(elt.name)
@@ -111,7 +111,7 @@ export class Schema {
         throw new Error("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
     }
-    let docTag: TagType<Schema> | null = null
+    let docTag: Tag.Type<Schema> | null = null
     let lineBreak: Tag<any> | null = null
     for (let tag of tags) {
       if (tag.isDoc) docTag = tag
@@ -143,7 +143,7 @@ export class Schema {
     let add: SchemaElement[] = []
     for (let elt of (other instanceof Schema ? other.elements : other)) {
       if (elt instanceof Tag || elt instanceof Prop) elt = elt.type
-      if ((elt instanceof TagType ? this.tagsByName : this.propsByName)[elt.name] != elt) add.push(elt)
+      if ((elt instanceof Tag.Type ? this.tagsByName : this.propsByName)[elt.name] != elt) add.push(elt)
     }
     return add.length ? Schema.define(this.elements.concat(add)) : this
   }
@@ -193,7 +193,7 @@ export const Paragraph = Tag.defineBlock("Paragraph", {
   shape: {element: "p"}
 })
 
-export const Heading = TagType.defineBlock("Heading", {
+export const Heading = Tag.Type.defineBlock("Heading", {
   defaultParam: 1,
   validateParam: "number",
   inlineContent: true,
@@ -217,7 +217,7 @@ export const CodeBlock = Tag.defineBlock("CodeBlock", {
   preserveWhitespace: true
 })
 
-export const CodeBlockLanguage = PropType.define("CodeBlockLanguage", {
+export const CodeBlockLanguage = Prop.Type.define("CodeBlockLanguage", {
   tags: "CodeBlock",
   validate: "string",
   shape: {attribute: "data-language", readAttribute: x => x}
@@ -230,7 +230,7 @@ export const Blockquote = Tag.defineBlock("Blockquote", {
   autoJoin: true
 })
 
-export const OrderedList = TagType.defineBlock("OrderedList", {
+export const OrderedList = Tag.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
   blockContent: "ListItem",
@@ -264,12 +264,12 @@ export const HorizontalRule = Tag.defineBlock("HorizontalRule", {
   toText: () => "---"
 })
 
-export const Image = TagType.defineInline<string>("Image", {
+export const Image = Tag.Type.defineInline<string>("Image", {
   validateParam: "string",
   shape: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
 
-export const ImageAlt = PropType.define<string>("ImageAlt", {
+export const ImageAlt = Prop.Type.define<string>("ImageAlt", {
   tags: "Image",
   validate: "string",
   shape: {attribute: "alt", readAttribute: x => x}
@@ -302,7 +302,7 @@ export const Strong = Prop.define("Strong", {
   ]
 })
 
-export const Link = PropType.define<string>("Link", {
+export const Link = Prop.Type.define<string>("Link", {
   rank: 20,
   validate: "string",
   shape: {

@@ -1,7 +1,7 @@
-import {PropType, Prop, Emphasis, Strong, Link, Code} from "@wordgard/doc"
+import {Prop, Emphasis, Strong, Link, Code} from "@wordgard/doc"
 import ist from "ist"
 
-let Tag = PropType.define<readonly number[]>("Tag", {
+let Tag = Prop.Type.define<readonly number[]>("Tag", {
   rank: 10,
   set: {compare: (a, b) => a - b},
   shape: {attribute: "tag", value: ns => ns.join(" "), readAttribute: val => val.split(" ").map(n => Number(n))}

@@ -1,5 +1,5 @@
-import {Node, DocNode, Tag, TagType} from "./node"
-import {PropType, Prop} from "./prop"
+import {Node, DocNode, Tag} from "./node"
+import {Prop} from "./prop"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
@@ -9,19 +9,19 @@ type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
 export type NodeBuilder<Source> =
   Source extends Prop<any> | Tag<any> ? (...children: ContentSpec[]) => Node :
-  Source extends PropType<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
-  Source extends TagType<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
+  Source extends Prop.Type<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
+  Source extends Tag.Type<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
   Source extends Schema ? (...children: ContentSpec[]) => DocNode :
   never
 
-export function builder<Source extends Prop<any> | Tag<any> | PropType<any> | TagType<any> | Schema>(
+export function builder<Source extends Prop<any> | Tag<any> | Prop.Type<any> | Tag.Type<any> | Schema>(
   source: Source
 ): NodeBuilder<Source> {
   return (source instanceof Tag
     ? (...children: ContentSpec[]) => source.create(collectChildren(children))
     : source instanceof Prop
     ? (...children: ContentSpec[]) => fragment(children, source)
-    : source instanceof TagType
+    : source instanceof Tag.Type
     ? (param: any, ...children: ContentSpec[]) => source.of(param).create(collectChildren(children))
     : source instanceof Schema
     ? (...children: ContentSpec[]) => source.doc(collectChildren(children))

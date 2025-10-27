@@ -1,5 +1,5 @@
-import {Node, Tag, TagType} from "./node"
-import {Prop, PropType} from "./prop"
+import {Node, Tag} from "./node"
+import {Prop} from "./prop"
 import {ElementShape, StructureShape, AttributeShape, Reject} from "./shape"
 
 // FIXME split inline and block specs?
@@ -100,7 +100,7 @@ export type PropSpec<Value> = {
   keepOnSplit?: boolean | ((tag: Tag<unknown>, atEnd: boolean) => boolean)
   /// Used by `Tag.changeType` to decide whether props of this type
   /// are preserved after the type change.
-  keepOnTypeChange?: boolean | ((from: Tag<unknown>, to: TagType<unknown>) => boolean)
+  keepOnTypeChange?: boolean | ((from: Tag<unknown>, to: Tag.Type<unknown>) => boolean)
   /// A function or type name used to validate values of this prop.
   /// See [`TagSpec.validateParam`](#doc.TagSpec.validateParam).
   validate?: string | ((value: Value) => void)
@@ -111,8 +111,8 @@ export type PropSpec<Value> = {
 
 export interface ElementParseRule<Param> {
   selector: string
-  tag?: TagType<Param> | Tag<Param>
-    prop?: PropType<Param> | Prop<Param>
+  tag?: Tag.Type<Param> | Tag<Param>
+    prop?: Prop.Type<Param> | Prop<Param>
     ignore?: boolean | "skip"
   param?: Param
   readElement?: (element: HTMLElement) => Param | Reject
@@ -125,7 +125,7 @@ export function isElementParseRule(rule: ParseRule): rule is ElementParseRule<un
 
 export interface AttributeParseRule<Param> {
   attribute: string
-  prop?: PropType<Param> | Prop<Param>
+  prop?: Prop.Type<Param> | Prop<Param>
     ignore?: boolean
   clearProp?: (prop: Prop<unknown>) => boolean
   param?: Param

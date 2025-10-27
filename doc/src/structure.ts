@@ -1,11 +1,11 @@
-import {DocNode, Tag, TagType, Text} from "./node"
+import {DocNode, Tag, Text} from "./node"
 import {Pos, NodePos} from "./pos"
 import {Prop} from "./prop"
 import {Schema} from "./schema"
 import {ChangeSpec} from "./change"
 import {Slice, Token, CloseToken} from "./slice"
 
-export function clearNonFitting(node: NodePos, type: TagType<any>) {
+export function clearNonFitting(node: NodePos, type: Tag.Type<any>) {
   let changes: ChangeSpec[] = []
   for (let i = 0, pos = node.start; i < node.node.children.length; i++) {
     let child = node.node.children[i], end = pos + child.length
@@ -64,7 +64,7 @@ export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
   return changes
 }
 
-function textblockChild(schema: Schema, type: TagType<any>) {
+function textblockChild(schema: Schema, type: Tag.Type<any>) {
   let wrap = schema.findWrapping(type, Text)
   return wrap && wrap.length == 1 ? wrap[0] : null
 }

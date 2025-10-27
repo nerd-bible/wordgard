@@ -1,4 +1,4 @@
-import {TagType} from "./node"
+import {Tag} from "./node"
 
 export class Elt<T> {
   constructor(
@@ -180,7 +180,7 @@ export class NodeShape<Param> {
     readonly spec: ElementShape<Param> | StructureShape<Param>
   ) {}
 
-  static from<Param>(tag: TagType<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
+  static from<Param>(tag: Tag.Type<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
     if (isElementShape(spec)) {
       if (atom == null) atom = tag.isLeaf

@@ -1,11 +1,11 @@
-import {Node, Tag, Prop, DocNode, PropType,
+import {Node, Tag, Prop, DocNode,
         Slice, Token, CloseToken, ChangeSet,
         basicBuilders, ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "@wordgard/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
-export const Comment = PropType.define<readonly number[]>("Comment", {
+export const Comment = Prop.Type.define<readonly number[]>("Comment", {
   tags: "Inline",
   set: {compare: (a, b) => a - b},
   shape: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}

@@ -1,6 +1,6 @@
 import {Schema} from "./schema"
-import {Tag, TagType, Node, DocNode, Text} from "./node"
-import {Prop, PropType} from "./prop"
+import {Tag, Node, DocNode, Text} from "./node"
+import {Prop} from "./prop"
 import {Slice, Token, CloseToken} from "./slice"
 import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule} from "./spec"
 import {isElementShape, Reject} from "./shape"
@@ -163,7 +163,7 @@ class ParseContext {
     let sync, tag, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.tag) {
       tag = rule.tag instanceof Tag ? rule.tag :
-        rule.tag instanceof TagType ? (hasValue ? rule.tag.of(match.value) : rule.tag.default) : null
+        rule.tag instanceof Tag.Type ? (hasValue ? rule.tag.of(match.value) : rule.tag.default) : null
       if (!tag) throw new Error(`Parse rule for ${rule.selector} does not produce a tag`)
       if (tag.isLeaf) {
         this.insertNode(tag.create(), props)
@@ -176,7 +176,7 @@ class ParseContext {
       }
     } else {
       let prop = rule.prop instanceof Prop ? rule.prop :
-        rule.prop instanceof PropType ? (hasValue ? rule.prop.of(match.value) : rule.prop.default) : null
+        rule.prop instanceof Prop.Type ? (hasValue ? rule.prop.of(match.value) : rule.prop.default) : null
       if (!prop) throw new Error(`Parse rule for ${rule.selector} does not produce a prop`)
       props = props.concat(prop)
     }
@@ -242,7 +242,7 @@ class ParseContext {
         props = props.filter(p => !rule.clearProp!(p))
       } else {
         let prop = rule.prop instanceof Prop ? rule.prop :
-          rule.prop instanceof PropType ? (hasParam ? rule.prop.of(param) : rule.prop.default) : null
+          rule.prop instanceof Prop.Type ? (hasParam ? rule.prop.of(param) : rule.prop.default) : null
         if (!prop) throw new Error(`Parse rule for ${rule.attribute} does not produce a prop (or have ignore/clearProp properties)`)
         props = props.concat(prop)
       }
@@ -380,7 +380,7 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
 
 function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
   let rules = RuleSet.fromSchema(schema) // FIXME avoid recomputing these
-  let tags: TagType<any>[] = []
+  let tags: Tag.Type<any>[] = []
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {
       tags.push(Text)

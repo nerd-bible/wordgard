@@ -1,5 +1,5 @@
 import ist from "ist"
-import {DocNode, Node, basicBuilders, builder, Prop, PropType, Slice, CloseToken, Token,
+import {DocNode, Node, basicBuilders, builder, Prop, Slice, CloseToken, Token,
         serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice, OpenSide, ParseOptions,
         Schema, basicSchema, tag} from "@wordgard/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -43,7 +43,7 @@ describe("serialize", () => {
   })
 
   it("can serialize attribute props", () => {
-    let Pr = PropType.define<string>("Pr", {
+    let Pr = Prop.Type.define<string>("Pr", {
       tags: "Paragraph",
       shape: {attribute: "data-p", readAttribute: x => x}
     })
@@ -84,7 +84,7 @@ describe("serializeSlice", () => {
                  "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  const openProp = PropType.define<string>("Open", {shape: {attribute: "open"}, tags: "*"})
+  const openProp = Prop.Type.define<string>("Open", {shape: {attribute: "open"}, tags: "*"})
 
   it("can mark open nodes", () => {
     istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),

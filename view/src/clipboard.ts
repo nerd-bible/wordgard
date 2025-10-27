@@ -1,4 +1,4 @@
-import {Slice, Text, Node, Tag, PropType, Pos, serializeSlice, parseSlice,
+import {Slice, Text, Node, Prop, Tag, Pos, serializeSlice, parseSlice,
         OpenSide, Token, CloseToken} from "@wordgard/doc"
 import {Facet, EditorState} from "@wordgard/state"
 import browser from "./browser"
@@ -13,7 +13,7 @@ export const clipboardInputHTMLFilter = Facet.define<(html: string, state: Edito
 export const clipboardTextParser = Facet.define<(text: string, state: EditorState) => Slice | null>()
 export const clipboardInputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
 
-const openProp = PropType.define<string>("Open", {
+const openProp = Prop.Type.define<string>("Open", {
   shape: {attribute: "wg-open"},
   tags: "*"
 })

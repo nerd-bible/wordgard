@@ -1,5 +1,5 @@
 import {EditorState, Facet, Extension} from "@wordgard/state"
-import {Prop, Pos, Node, Tag, Walker, TagType, ChangeDesc, MapMode,
+import {Prop, Pos, Node, Tag, Walker, ChangeDesc, MapMode,
         ElementShape, AttributeShape, Elt, pushAttribute,
         mergeAttributes, readAttributes} from "@wordgard/doc"
 import {Attrs} from "./attributes"
@@ -12,38 +12,40 @@ export type WidgetSpec<T> = {
   handleEvent?: (event: Event, view: EditorView) => boolean
 }
 
-export class WidgetType<T> {
-  render: (value: T) => HTMLElement | Text
-  eq: (a: T, b: T) => boolean
-  handleEvent: (event: Event, view: EditorView) => boolean
-  destroy: (value: T) => void
-
-  constructor(spec: WidgetSpec<T>) {
-    this.render = spec.render
-    this.eq = spec.eq || ((a, b) => a === b)
-    this.handleEvent = spec.handleEvent || (() => false)
-    this.destroy = spec.destroy || (() => {})
-  }
-
-  of(value: T) { return new Widget(this, value) }
-}
-
 export class Widget<T> {
-  constructor(readonly type: WidgetType<T>, readonly value: T) {}
+  constructor(readonly type: Widget.Type<T>, readonly value: T) {}
 
   eq(other: any) {
     return other instanceof Widget && other.type == this.type && this.type.eq(this.value, other.value)
   }
 
   static define<T>(spec: WidgetSpec<T>) {
-    return new WidgetType(spec)
+    return new Widget.Type(spec)
   }
 
   static create(spec: WidgetSpec<null>) {
-    return new WidgetType<null>(spec).of(null)
+    return new Widget.Type<null>(spec).of(null)
   }
 
   get hasContent() { return false }
+}
+
+export namespace Widget {
+  export class Type<T> {
+    render: (value: T) => HTMLElement | Text
+    eq: (a: T, b: T) => boolean
+    handleEvent: (event: Event, view: EditorView) => boolean
+    destroy: (value: T) => void
+
+    constructor(spec: WidgetSpec<T>) {
+      this.render = spec.render
+      this.eq = spec.eq || ((a, b) => a === b)
+      this.handleEvent = spec.handleEvent || (() => false)
+      this.destroy = spec.destroy || (() => {})
+    }
+
+    of(value: T) { return new Widget(this, value) }
+  }
 }
 
 export const TextWidget = Widget.define<string>({
@@ -59,7 +61,7 @@ export type Shape = Widget<any> | DecoElt
 
 enum WidgetPlace { Before, After, Start, End }
 
-export type TagSelector = Tag<any> | TagType<any> | readonly TagType<any>[] | string
+export type TagSelector = Tag<any> | Tag.Type<any> | readonly Tag.Type<any>[] | string
 
 export function tagShape(spec: {
   tag: TagSelector,
@@ -81,7 +83,7 @@ export function tagShape(spec: {
 class TagShape {
   extension: Extension
 
-  constructor(readonly pred: (tag: TagType<any>) => boolean,
+  constructor(readonly pred: (tag: Tag.Type<any>) => boolean,
               readonly shape: (tag: Tag<any>) => Shape,
               readonly atom: boolean) {
     this.extension = [tagShapes.of(this), atomicDecorations]
@@ -120,9 +122,9 @@ export function tagDecoration(spec: {
   }
 }
 
-function tagPredicate(selector?: TagSelector): (tag: TagType<any>) => boolean {
+function tagPredicate(selector?: TagSelector): (tag: Tag.Type<any>) => boolean {
   return typeof selector == "string" ? t => t.isInGroup(selector)
-    : selector instanceof TagType ? t => t == selector
+    : selector instanceof Tag.Type ? t => t == selector
     : selector instanceof Tag ? t => t == selector.type
     : selector ? t => selector.includes(t) : () => true
 }
@@ -157,7 +159,7 @@ const baseTagShape = memo((tag: Tag<unknown>): Shape => {
 
 class TagWidgetSource {
   place: WidgetPlace
-  pred: (tag: TagType<any>) => boolean
+  pred: (tag: Tag.Type<any>) => boolean
   widget: (tag: Tag) => Widget<any>
   extension: Extension
 
@@ -173,7 +175,7 @@ class TagWidgetSource {
 export const tagWidgets = Facet.define<TagWidgetSource>()
 
 export class TagWrapperSource {
-  pred: (tag: TagType<any>) => boolean
+  pred: (tag: Tag.Type<any>) => boolean
   wrapper: (tag: Tag) => DecoElt
   rank: number
   spanning: boolean
@@ -197,7 +199,7 @@ export class TagWrapperSource {
 export const tagWrappers = Facet.define<TagWrapperSource>()
 
 export class TagAttributeSource {
-  pred: (tag: TagType<any>) => boolean
+  pred: (tag: Tag.Type<any>) => boolean
   attribute: string
   value: string | ((tag: Tag) => string)
   extension: Extension
@@ -219,7 +221,7 @@ export enum DecorationScope {
 }
 
 export class RangeDecorationSource<T> {
-  pred: (tag: TagType<any>) => boolean
+  pred: (tag: Tag.Type<any>) => boolean
   scope: DecorationScope
   wrapper: ((value: T) => DecoElt) | null = null
   rank: number = 0
@@ -265,11 +267,11 @@ export class WidgetSource<T> {
   constructor(config: {
     set: (state: EditorState) => PointSet<T>,
   } & (T extends Widget<any> ? {} : {
-    widget: WidgetType<T> | ((value: T) => Widget<any>)
+    widget: Widget.Type<T> | ((value: T) => Widget<any>)
   })) {
     this.set = config.set
     let widget = (config as any).widget || ((w: any) => w)
-    this.widget = widget instanceof WidgetType ? v => widget.of(v) : widget
+    this.widget = widget instanceof Widget.Type ? v => widget.of(v) : widget
     this.extension = widgets.of(this)
   }
 }
@@ -843,7 +845,7 @@ function addAtomicityChanges(
         addRange(added, posA, posA + node.length)
     }
   } else if (changes) {
-    let changedTags = new Set<TagType<any>>()
+    let changedTags = new Set<Tag.Type<any>>()
     let a = prev.facet(tagShapes), b = state.facet(tagShapes)
     for (let tag of state.doc.schema.tags) {
       if (atomicShape(tag, a) != atomicShape(tag, b)) changedTags.add(tag)
@@ -868,7 +870,7 @@ function addAtomicityChanges(
   return new ChangeDesc(changedSections).composeDesc(new ChangeDesc(sections)).sections
 }
 
-function atomicShape(tag: TagType<any>, shapes: readonly TagShape[]) {
+function atomicShape(tag: Tag.Type<any>, shapes: readonly TagShape[]) {
   for (let s of shapes) if (s.pred(tag)) return s.atom
   return tag.shape.atom
 }

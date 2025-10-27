@@ -1,4 +1,4 @@
-import {Node, Tag, TagType, Prop, NodePos, Slice, Text, Token,
+import {Node, Tag, Prop, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
         unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "@wordgard/doc"
@@ -384,7 +384,7 @@ export function wrapBlock(wrapper: Tag<any>): StateCommand {
   }
 }
 
-export function unwrapBlockType(type: TagType<any> | Tag<any> | ((tag: Tag<any>) => boolean)): StateCommand {
+export function unwrapBlockType(type: Tag.Type<any> | Tag<any> | ((tag: Tag<any>) => boolean)): StateCommand {
   let pred: (tag: Tag<any>) => boolean = typeof type == "function" ? type
     : type instanceof Tag ? tag => tag.type == type.type
     : tag => tag.type == type

@@ -4,7 +4,7 @@ import {TagSpec} from "./spec"
 import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
-import {PropType, Prop} from "./prop"
+import {Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 
 const enum TagFlag {
@@ -26,98 +26,9 @@ function flagsFor(spec: TagSpec<any>, inline: boolean) {
   return flags
 }
 
-export class TagType<Param> {
-  groups: readonly string[]
-  contentGroups: readonly string[]
-  readonly childCache: Map<TagType<unknown>, boolean> = new Map
-  readonly isolating: boolean
-  readonly defining: boolean
-  readonly neutral: boolean
-  readonly preserveWhitespace: boolean
-  readonly orientation: "row" | "column"
-  readonly default: Tag<Param> | null
-  readonly shape: NodeShape<Param>
-
-  constructor(
-    readonly name: string,
-    readonly flags: TagFlag,
-    readonly spec: TagSpec<Param>
-  ) {
-    let groups = this.groups = [name, "*"]
-    if (flags & TagFlag.Inline) groups.push("Inline")
-    if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
-    let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
-    this.contentGroups = content ? splitGroups(content) : none
-    this.isolating = !!spec.isolating
-    this.defining = !!spec.defining
-    this.neutral = spec.neutral ?? !this.defining
-    this.preserveWhitespace = !!spec.preserveWhitespace
-    this.orientation = flags & TagFlag.InlineContent ? "row" : spec.orientation || "column"
-    this.shape = NodeShape.from(this, spec.shape)
-    this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
-      (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
-    if (!this.shape.atom && this.isInline && !this.inlineContent)
-      throw new Error("Inline tags with block content must be marked as atoms")
-  }
-
-  static defineInline<T>(name: string, spec: TagSpec<T>) {
-    checkTagName(name)
-    return new TagType<T>(name, flagsFor(spec, true), spec)
-  }
-
-  static defineBlock<T>(name: string, spec: TagSpec<T>) {
-    checkTagName(name)
-    return new TagType<T>(name, flagsFor(spec, false), spec)
-  }
-
-  of(param: Param, props: readonly Prop<any>[] = none) {
-    if (!props.length && this.default && compareDeep(this.default.param, param)) return this.default
-    return new Tag(this, param, props)
-  }
-
-  isInGroup(group: string) {
-    let mod = group.indexOf(":")
-    if (mod > -1) {
-      let modName = group.slice(mod + 1)
-      if (modName == "Leaf" && !this.isLeaf) return false
-      group = group.slice(0, mod)
-    }
-    return group == "_" || this.groups.includes(group)
-  }
-
-  canContain(child: TagType<any>) {
-    let result = this.childCache.get(child)
-    if (result == null) {
-      result = (child.flags & TagFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
-      this.childCache.set(child, result)
-    }
-    return result
-  }
-
-  sharesContent(other: TagType<any>) {
-    return other.contentGroups.some(g => this.contentGroups.includes(g))
-  }
-
-  checkChildren(children: readonly Node[]) {
-    for (let child of children)
-      if (!this.canContain(child.type))
-        throw new Error(`${child.name} is not a valid child of ${this.name}`)
-    return children
-  }
-
-  get isInline() { return (this.flags & TagFlag.Inline) > 0 }
-  get isText() { return (this as TagType<any>) == Text }
-  get isBlock() { return (this.flags & TagFlag.Inline) == 0 }
-  get inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
-  get isTextblock() { return this.isBlock && this.inlineContent }
-  get isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
-  get isDoc() { return (this.flags & TagFlag.Doc) > 0 }
-  get isList() { return (this.flags & TagFlag.List) > 0 }
-}
-
 export class Tag<Param = unknown> {
   constructor(
-    readonly type: TagType<Param>,
+    readonly type: Tag.Type<Param>,
     readonly param: Param,
     readonly props: readonly Prop<unknown>[]
   ) {
@@ -129,19 +40,19 @@ export class Tag<Param = unknown> {
 
   static defineInline(name: string, spec: TagSpec<null>): Tag<null> {
     checkTagName(name)
-    return new TagType<null>(name, flagsFor(spec, true) | TagFlag.NullParam, spec).default!
+    return new Tag.Type<null>(name, flagsFor(spec, true) | TagFlag.NullParam, spec).default!
   }
 
   static defineBlock(name: string, spec: TagSpec<null>): Tag<null> {
     checkTagName(name)
-    return new TagType<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
+    return new Tag.Type<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
   }
 
   static defineDoc(spec: {inlineContent?: string | true, blockContent?: string}) {
     if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
     let flags = TagFlag.NullParam | TagFlag.Doc
     if (spec.inlineContent) flags |= TagFlag.InlineContent
-    return new TagType<Schema>("Doc", flags, {
+    return new Tag.Type<Schema>("Doc", flags, {
       ...spec,
       shape: {element: ""}
     })
@@ -160,14 +71,14 @@ export class Tag<Param = unknown> {
     return this == other || Prop.sameSet(this.props, other.props)
   }
 
-  prop<Value>(prop: PropType<Value>): Value | undefined {
+  prop<Value>(prop: Prop.Type<Value>): Value | undefined {
     for (let v of this.props) if (v.type == prop) return v.value as Value
     return undefined
   }
 
   addProp(prop: Prop<any>) { return this.type.of(this.param, prop.addToSet(this.props)) }
-  removeProp(prop: Prop<any> | PropType<any>) { return this.type.of(this.param, prop.removeFromSet(this.props)) }
-  hasProp(prop: Prop<any> | PropType<any>) { return prop.isInSet(this.props) }
+  removeProp(prop: Prop<any> | Prop.Type<any>) { return this.type.of(this.param, prop.removeFromSet(this.props)) }
+  hasProp(prop: Prop<any> | Prop.Type<any>) { return prop.isInSet(this.props) }
 
   withProps(props: readonly Prop<any>[]) {
     return Prop.sameSet(this.props, props) ? this : this.type.of(this.param, props)
@@ -209,6 +120,97 @@ export class Tag<Param = unknown> {
       for (let {name, value} of this.props) result.props![name] = value
     }
     return result
+  }
+}
+
+export namespace Tag {
+  export class Type<Param> {
+    groups: readonly string[]
+    contentGroups: readonly string[]
+    readonly childCache: Map<Tag.Type<unknown>, boolean> = new Map
+    readonly isolating: boolean
+    readonly defining: boolean
+    readonly neutral: boolean
+    readonly preserveWhitespace: boolean
+    readonly orientation: "row" | "column"
+    readonly default: Tag<Param> | null
+    readonly shape: NodeShape<Param>
+
+    constructor(
+      readonly name: string,
+      readonly flags: TagFlag,
+      readonly spec: TagSpec<Param>
+    ) {
+      let groups = this.groups = [name, "*"]
+      if (flags & TagFlag.Inline) groups.push("Inline")
+      if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
+      let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
+      this.contentGroups = content ? splitGroups(content) : none
+      this.isolating = !!spec.isolating
+      this.defining = !!spec.defining
+      this.neutral = spec.neutral ?? !this.defining
+      this.preserveWhitespace = !!spec.preserveWhitespace
+      this.orientation = flags & TagFlag.InlineContent ? "row" : spec.orientation || "column"
+      this.shape = NodeShape.from(this, spec.shape)
+      this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
+        (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
+      if (!this.shape.atom && this.isInline && !this.inlineContent)
+        throw new Error("Inline tags with block content must be marked as atoms")
+    }
+
+    static defineInline<T>(name: string, spec: TagSpec<T>) {
+      checkTagName(name)
+      return new Tag.Type<T>(name, flagsFor(spec, true), spec)
+    }
+
+    static defineBlock<T>(name: string, spec: TagSpec<T>) {
+      checkTagName(name)
+      return new Tag.Type<T>(name, flagsFor(spec, false), spec)
+    }
+
+    of(param: Param, props: readonly Prop<any>[] = none) {
+      if (!props.length && this.default && compareDeep(this.default.param, param)) return this.default
+      return new Tag(this, param, props)
+    }
+
+    isInGroup(group: string) {
+      let mod = group.indexOf(":")
+      if (mod > -1) {
+        let modName = group.slice(mod + 1)
+        if (modName == "Leaf" && !this.isLeaf) return false
+        group = group.slice(0, mod)
+      }
+      return group == "_" || this.groups.includes(group)
+    }
+
+    canContain(child: Tag.Type<any>) {
+      let result = this.childCache.get(child)
+      if (result == null) {
+        result = (child.flags & TagFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
+        this.childCache.set(child, result)
+      }
+      return result
+    }
+
+    sharesContent(other: Tag.Type<any>) {
+      return other.contentGroups.some(g => this.contentGroups.includes(g))
+    }
+
+    checkChildren(children: readonly Node[]) {
+      for (let child of children)
+        if (!this.canContain(child.type))
+          throw new Error(`${child.name} is not a valid child of ${this.name}`)
+      return children
+    }
+
+    get isInline() { return (this.flags & TagFlag.Inline) > 0 }
+    get isText() { return (this as Tag.Type<any>) == Text }
+    get isBlock() { return (this.flags & TagFlag.Inline) == 0 }
+    get inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
+    get isTextblock() { return this.isBlock && this.inlineContent }
+    get isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
+    get isDoc() { return (this.flags & TagFlag.Doc) > 0 }
+    get isList() { return (this.flags & TagFlag.List) > 0 }
   }
 }
 
@@ -373,7 +375,7 @@ export class Node {
     return out.text
   }
 
-  prop<Value>(prop: PropType<Value>): Value | undefined { return this.tag.prop(prop) }
+  prop<Value>(prop: Prop.Type<Value>): Value | undefined { return this.tag.prop(prop) }
 
   withProps(props: readonly Prop<any>[]) {
     let tag = this.tag.withProps(props)
@@ -443,7 +445,7 @@ function sliceContent(content: Token[], nodes: readonly Node[], from: number, to
   }
 }
 
-export const Text = new TagType<string>("Text", TagFlag.Leaf | TagFlag.Inline, {
+export const Text = new Tag.Type<string>("Text", TagFlag.Leaf | TagFlag.Inline, {
   shape: {element: ""}
 })
 

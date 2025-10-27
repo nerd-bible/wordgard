@@ -2,7 +2,7 @@ import {PropSpec} from "./spec"
 import {isElementShape, AttributeShape, ElementShape} from "./shape"
 import {compareDeep, eqArray, none, splitGroups} from "./helper"
 import {SchemaElement} from "./schema"
-import {TagType} from "./node"
+import {Tag} from "./node"
 
 function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)
@@ -40,60 +40,8 @@ export function subtractSet<T>(a: readonly T[], b: readonly T[], compare: (a: T,
   }
 }
 
-export class PropType<Value> {
-  readonly targetGroups: readonly string[]
-  readonly rank: number
-  readonly set: null | ((a: any, b: any) => number)
-  readonly default: Prop<Value> | null
-  readonly inclusive: boolean
-  readonly element: boolean
-  readonly spanning: boolean
-  readonly repr: ElementShape<Value> | AttributeShape<Value>
-
-  constructor(
-    readonly name: string,
-    readonly spec: PropSpec<Value>,
-    isFlag: boolean
-  ) {
-    this.targetGroups = spec.tags == null ? ["Inline:Leaf"] : splitGroups(spec.tags)
-    this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
-    this.set = spec.set ? spec.set.compare : null
-    this.default = isFlag ? new Prop(this, null as any) : null
-    this.inclusive = spec.inclusive !== false
-    this.element = isElementShape(spec.shape)
-    this.spanning = spec.spanning ?? this.element
-    this.repr = spec.shape
-  }
-
-  of(value: Value) { return new Prop(this, value) }
-
-  get schemaElement(): SchemaElement { return this }
-
-  canTarget(tag: TagType<any>) {
-    return this.targetGroups.some(g => tag.isInGroup(g))
-  }
-
-  compareRank(other: PropType<any>) {
-    return this.rank - other.rank || (other.name < this.name ? 1 : -1)
-  }
-
-  removeFromSet(set: readonly Prop[]): readonly Prop[] {
-    for (var i = 0; i < set.length; i++) if (set[i].type == this) return remove(set, i)
-    return set
-  }
-
-  isInSet(set: readonly Prop[]): Prop | null {
-    for (let v of set) if (v.type == this) return v
-    return null
-  }
-
-  static define<Value>(name: string, spec: PropSpec<Value>) {
-    return new PropType<Value>(name, spec, false)
-  }
-}
-
 export class Prop<Value = unknown> {
-  constructor(readonly type: PropType<Value>, readonly value: Value) {}
+  constructor(readonly type: Prop.Type<Value>, readonly value: Value) {}
 
   eq(other: Prop<any>) {
     return this.type == other.type && compareDeep(this.value, other.value)
@@ -110,7 +58,7 @@ export class Prop<Value = unknown> {
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
   static define(name: string, spec: PropSpec<null>): Prop<null> {
-    return new PropType<null>(name, spec, true).default!
+    return new Prop.Type<null>(name, spec, true).default!
   }
 
   addToSet(set: readonly Prop<any>[]): readonly Prop[] {
@@ -158,5 +106,59 @@ export class Prop<Value = unknown> {
 
   static sameSet(a: readonly Prop<any>[], b: readonly Prop<any>[]): boolean {
     return eqArray(a, b)
+  }
+}
+
+export namespace Prop {
+  export class Type<Value> {
+    readonly targetGroups: readonly string[]
+    readonly rank: number
+    readonly set: null | ((a: any, b: any) => number)
+    readonly default: Prop<Value> | null
+    readonly inclusive: boolean
+    readonly element: boolean
+    readonly spanning: boolean
+    readonly repr: ElementShape<Value> | AttributeShape<Value>
+
+    constructor(
+      readonly name: string,
+      readonly spec: PropSpec<Value>,
+      isFlag: boolean
+    ) {
+      this.targetGroups = spec.tags == null ? ["Inline:Leaf"] : splitGroups(spec.tags)
+      this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
+      this.set = spec.set ? spec.set.compare : null
+      this.default = isFlag ? new Prop(this, null as any) : null
+      this.inclusive = spec.inclusive !== false
+      this.element = isElementShape(spec.shape)
+      this.spanning = spec.spanning ?? this.element
+      this.repr = spec.shape
+    }
+
+    of(value: Value) { return new Prop(this, value) }
+
+    get schemaElement(): SchemaElement { return this }
+
+    canTarget(tag: Tag.Type<any>) {
+      return this.targetGroups.some(g => tag.isInGroup(g))
+    }
+
+    compareRank(other: Prop.Type<any>) {
+      return this.rank - other.rank || (other.name < this.name ? 1 : -1)
+    }
+
+    removeFromSet(set: readonly Prop[]): readonly Prop[] {
+      for (var i = 0; i < set.length; i++) if (set[i].type == this) return remove(set, i)
+      return set
+    }
+
+    isInSet(set: readonly Prop[]): Prop | null {
+      for (let v of set) if (v.type == this) return v
+      return null
+    }
+
+    static define<Value>(name: string, spec: PropSpec<Value>) {
+      return new Prop.Type<Value>(name, spec, false)
+    }
   }
 }

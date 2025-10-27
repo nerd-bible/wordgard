@@ -1,7 +1,7 @@
 import {DocNode, Node, Tag} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType} from "./slice"
-import {Prop, PropType} from "./prop"
+import {Prop} from "./prop"
 import {ElementShape, AttributeShape, isElementShape,
         Elt, Attributes, readAttributes, pushAttribute, mergeAttributes} from "./shape"
 
@@ -103,7 +103,7 @@ type Nodeish = {tag: Tag<any>, children: readonly Nodeish[]}
 function flattenSlice(
   content: readonly Token[],
   context: readonly Tag[], includeContext: number,
-  openProp?: PropType<string>
+  openProp?: Prop.Type<string>
 ): readonly Nodeish[] {
   let depth = 0, i = 0, scan = (inner: boolean): readonly Nodeish[] => {
     let result: Nodeish[] = []
@@ -135,7 +135,7 @@ function flattenSlice(
 
 export function serializeSlice(slice: Slice, options: SerializeOptions & {
   schema: Schema,
-  openProp?: PropType<string>,
+  openProp?: Prop.Type<string>,
   context?: readonly Tag[],
   includeContext?: number
 }): DocumentFragment {
@@ -146,7 +146,7 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
 
 export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
   schema: Schema,
-  openProp?: PropType<string>,
+  openProp?: Prop.Type<string>,
   context?: readonly Tag[],
   includeContext?: number
 }): string {
