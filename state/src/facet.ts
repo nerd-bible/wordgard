@@ -1,5 +1,5 @@
 import {SchemaElement, Tag, TagType, Prop, PropType} from "@wordgard/doc"
-import {Transaction, TransactionSpec, StateEffect, StateEffectType} from "./transaction"
+import {Transaction, TransactionSpec, StateEffect} from "./transaction"
 import {EditorState} from "./state"
 
 /// Extension values can be
@@ -461,7 +461,7 @@ export class Compartment {
   }
 
   /// @internal
-  declare static reconfigureCompartment: StateEffectType<{compartment: Compartment, extension: Extension}>
+  declare static reconfigureCompartment: StateEffect.Type<{compartment: Compartment, extension: Extension}>
 }
 
 export class CompartmentInstance {

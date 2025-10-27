@@ -14,23 +14,25 @@ export class Annotation<T> {
   /// @internal
   constructor(
     /// The annotation type.
-    readonly type: AnnotationType<T>,
+    readonly type: Annotation.Type<T>,
     /// The value of this annotation.
     readonly value: T
   ) {}
 
   /// Define a new type of annotation.
-  static define<T>() { return new AnnotationType<T>() }
+  static define<T>() { return new Annotation.Type<T>() }
 
   // This is just to get less sloppy typing (where StateEffect is a subtype of Annotation)
   // @ts-ignore
   private _isAnnotation!: true
 }
 
-/// Marker that identifies a type of [annotation](#state.Annotation).
-export class AnnotationType<T> {
-  /// Create an instance of this annotation.
-  of(value: T): Annotation<T> { return new Annotation(this, value) }
+export namespace Annotation {
+  /// Marker that identifies a type of [annotation](#state.Annotation).
+  export class Type<T> {
+    /// Create an instance of this annotation.
+    of(value: T): Annotation<T> { return new Annotation(this, value) }
+  }
 }
 
 interface StateEffectSpec<Value> {
@@ -39,24 +41,6 @@ interface StateEffectSpec<Value> {
   /// When the function returns `undefined`, that means the mapping
   /// deletes the effect.
   map?: (value: Value, mapping: ChangeDesc) => Value | undefined
-}
-
-/// Representation of a type of state effect. Defined with
-/// [`StateEffect.define`](#state.StateEffect^define).
-export class StateEffectType<Value> {
-  /// @internal
-  constructor(
-    // The `any` types in these function types are there to work
-    // around TypeScript issue #37631, where the type guard on
-    // `StateEffect.is` mysteriously stops working when these properly
-    // have type `Value`.
-    /// @internal
-    readonly map: (value: any, mapping: ChangeDesc) => any | undefined
-  ) {}
-
-  /// Create a [state effect](#state.StateEffect) instance of this
-  /// type.
-  of(value: Value): StateEffect<Value> { return new StateEffect(this, value) }
 }
 
 /// State effects can be used to represent additional effects
@@ -68,7 +52,7 @@ export class StateEffect<Value> {
   /// @internal
   constructor(
     /// @internal
-    readonly type: StateEffectType<Value>,
+    readonly type: StateEffect.Type<Value>,
     /// The value of this effect.
     readonly value: Value) {}
 
@@ -80,16 +64,16 @@ export class StateEffect<Value> {
   }
 
   /// Tells you whether this effect object is of a given
-  /// [type](#state.StateEffectType).
-  is<T>(type: StateEffectType<T>): this is StateEffect<T> { return this.type == type as any }
+  /// [type](#state.StateEffect.Type).
+  is<T>(type: StateEffect.Type<T>): this is StateEffect<T> { return this.type == type as any }
 
   /// Define a new effect type. The type parameter indicates the type
   /// of values that his effect holds. It should be a type that
   /// doesn't include `undefined`, since that is used in
   /// [mapping](#state.StateEffect.map) to indicate that an effect is
   /// removed.
-  static define<Value = null>(spec: StateEffectSpec<Value> = {}): StateEffectType<Value> {
-    return new StateEffectType(spec.map || (v => v))
+  static define<Value = null>(spec: StateEffectSpec<Value> = {}): StateEffect.Type<Value> {
+    return new StateEffect.Type(spec.map || (v => v))
   }
 
   /// Map an array of effects through a change set.
@@ -112,6 +96,26 @@ export class StateEffect<Value> {
 
   /// Append extensions to the top-level configuration of the editor.
   static appendConfig = StateEffect.define<Extension>()
+}
+
+export namespace StateEffect {
+  /// Representation of a type of state effect. Defined with
+  /// [`StateEffect.define`](#state.StateEffect^define).
+  export class Type<Value> {
+    /// @internal
+    constructor(
+      // The `any` types in these function types are there to work
+      // around TypeScript issue #37631, where the type guard on
+      // `StateEffect.is` mysteriously stops working when these properly
+      // have type `Value`.
+      /// @internal
+      readonly map: (value: any, mapping: ChangeDesc) => any | undefined
+    ) {}
+
+    /// Create a [state effect](#state.StateEffect) instance of this
+    /// type.
+    of(value: Value): StateEffect<Value> { return new StateEffect(this, value) }
+  }
 }
 
 Compartment.reconfigureCompartment = StateEffect.define<{compartment: Compartment, extension: Extension}>()
@@ -241,7 +245,7 @@ export class Transaction {
   }
 
   /// Get the value of the given annotation type, if any.
-  annotation<T>(type: AnnotationType<T>): T | undefined {
+  annotation<T>(type: Annotation.Type<T>): T | undefined {
     for (let ann of this.annotations) if (ann.type == type) return ann.value
     return undefined
   }
