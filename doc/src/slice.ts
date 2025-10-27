@@ -1,6 +1,9 @@
-import {TokenType, Node, NodeJSON, TagJSON, Tag, TextOutput} from "./node"
+import type {Node, NodeJSON, TagJSON, Tag} from "./node"
+import {TextOutput} from "./text"
 import {Schema} from "./schema"
 import {Walker} from "./pos"
+
+export const enum TokenType { Open, Close, Node }
 
 export type CloseToken = {tokenType: TokenType.Close}
 

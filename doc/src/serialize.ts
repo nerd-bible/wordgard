@@ -1,6 +1,6 @@
-import {DocNode, Node, Tag, TokenType} from "./node"
+import {DocNode, Node, Tag} from "./node"
 import {Schema} from "./schema"
-import {Slice, Token} from "./slice"
+import {Slice, Token, TokenType} from "./slice"
 import {Prop, PropType} from "./prop"
 import {ElementShape, AttributeShape, isElementShape,
         Elt, Attributes, readAttributes, pushAttribute, mergeAttributes} from "./shape"

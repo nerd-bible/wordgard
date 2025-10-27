@@ -1,7 +1,7 @@
-import {Node, DocNode, Tag, TokenType} from "./node"
+import {Node, DocNode, Tag} from "./node"
 import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
-import {Slice, Token, CloseToken, SliceJSON} from "./slice"
+import {Slice, Token, TokenType, CloseToken, SliceJSON} from "./slice"
 import {Walker, Pos, NodePos} from "./pos"
 import {validate} from "./helper"
 

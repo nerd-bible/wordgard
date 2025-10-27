@@ -1,12 +1,11 @@
-import {Slice, Token, CloseToken} from "./slice"
+import {Slice, Token, TokenType, CloseToken} from "./slice"
+import {TextOutput} from "./text"
 import {TagSpec} from "./spec"
 import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {PropType, Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
-
-export const enum TokenType { Open, Close, Node }
 
 const enum TagFlag {
   None = 0,
@@ -385,29 +384,6 @@ export class Node {
 
   static text(text: string, props: readonly Prop<any>[] = none) {
     return new Node(Text.of(text, props), none)
-  }
-}
-
-export class TextOutput {
-  text = ""
-  started = false
-
-  constructor(readonly blockSep: string, readonly leafText?: (node: Node) => string) {}
-
-  serialize(node: Node): boolean {
-    let nodeText = node.isText ? node.text!
-      : node.type.spec.toText ? node.type.spec.toText(node)
-      : !node.isLeaf ? null
-      : this.leafText ? this.leafText(node)
-      : ""
-    if (node.isBlock && (nodeText || node.isTextblock)) this.openBlock()
-    if (nodeText != null) { this.text += nodeText; this.started = true }
-    return nodeText != null
-  }
-
-  openBlock() {
-    if (this.started) this.text += this.blockSep
-    else this.started = true
   }
 }
 
