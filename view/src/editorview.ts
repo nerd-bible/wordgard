@@ -396,7 +396,6 @@ export class EditorView {
   /// the cursor's own horizontal position is used. The returned
   /// cursor will have its goal column set to whichever column was
   /// used.
-  // FIXME move somewhere else?
   moveVertically(start: EditorSelection, forward: boolean, distance?: number) {
     this.checkFlushed()
     return moveVertically(this, start, forward, distance)

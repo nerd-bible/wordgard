@@ -36,7 +36,7 @@ export function readDOMSelection(view: EditorView, range: SelectionRange) {
 
 const Y_STEP = 5
 
-export function moveVertically(view: EditorView, start: EditorSelection, forward: boolean, distance: number = Y_STEP) {
+export function moveVertically(view: EditorView, start: EditorSelection, forward: boolean, distance: number = 0) {
   let editorRect = view.contentDOM.getBoundingClientRect()
   let coords = view.coordsAtPos(start.head, start.assoc || -1)
   let goalColumn = start.goalColumn ?? coords.left - editorRect.left // FIXME does this need to be flipped if RTL?

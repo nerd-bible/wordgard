@@ -66,6 +66,9 @@ describe("nextNormalCursor", () => {
   it("stops at isolating nodes", () =>
     testNormal(doc(0, iso(1, hr(), 2), 3, iso(p(4)), 5)))
 
+  it("allows positions between block atoms", () =>
+    testNormal(doc(p(0, "-", 1), hr(), 2, hr(), 3)))
+
   it("creates positions around whitespace-preserving nodes", () =>
     testNormal(doc(0, pre(1, "a", 2), p(3), pre(4), 5)))
 
