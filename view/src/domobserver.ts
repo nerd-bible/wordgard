@@ -14,7 +14,6 @@ const observeOptions = {
   characterDataOldValue: true
 }
 
-// FIXME split observer and selection tracker
 export class DOMObserver {
   dom: HTMLElement
   win: Window | null = null
@@ -24,10 +23,10 @@ export class DOMObserver {
 
   // The known selection. Kept in our own object, as opposed to just
   // directly accessing the selection because:
-  //  - Safari doesn't report the right selection in shadow DOM
+  //  - Safari doesn't provide getSelection in shadow DOM
   //  - Reading from the selection forces a DOM layout
-  //  - This way, we can ignore selectionchange events if we have
-  //    already seen the 'new' selection
+  //  - By tracking this, we can ignore selectionchange events if we
+  //    have already seen the 'new' selection
   selectionRange: DOMSelectionState = new DOMSelectionState
 
   resizeTimeout = -1
@@ -53,7 +52,7 @@ export class DOMObserver {
 
     if (typeof ResizeObserver == "function") {
       this.resizeScroll = new ResizeObserver(() => {
-        // FIXME if (this.view.docView?.lastUpdate < Date.now() - 75) this.onResize()
+        if (this.view.lastFlush < Date.now() - 75) this.onResize()
       })
     }
     this.readSelectionRange()
@@ -106,7 +105,7 @@ export class DOMObserver {
 
   pollSelection() {
     if (!this.view.inputState.currentComposition && this.readSelectionRange() &&
-        this.view.hasFocus && this.view.contentDOM.contains(this.selectionRange.focusNode)) {
+        this.view.hasFocus && hasSelection(this.view.contentDOM, this.selectionRange)) {
       let sel = readDOMSelection(this.view, this.selectionRange)
       if (!sel.eqPos(this.view.state.selection))
         this.view.dispatch({selection: sel, userEvent: "select"})
@@ -150,8 +149,8 @@ export class DOMObserver {
     this.selectionRange.set(null, 0, null, 0)
   }
 
-  ignore<T>(f: () => T): T { // FIXME just call clear directly?
-    let result = f() // FIXME add mechanism to ensure no synchronous flush?
+  ignore<T>(f: () => T): T {
+    let result = f()
     this.clear()
     return result
   }

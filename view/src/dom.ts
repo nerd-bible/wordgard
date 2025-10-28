@@ -1,5 +1,3 @@
-// FIXME prune unused functions when stuff is more stable
-
 import {Tile, TileFlag} from "./tile"
 
 export type DOMNode = Node
@@ -21,29 +19,16 @@ export function getSelection(root: DocumentOrShadowRoot): Selection | null {
   return target.getSelection()
 }
 
-export function contains(parent: Node, node: Node | null) {
-  return node ? parent == node || parent.contains(node.nodeType != 1 ? node.parentNode : node) : false
-}
-
 export function hasSelection(dom: HTMLElement, selection: SelectionRange): boolean {
   if (!selection.focusNode) return false
   try {
     // Firefox will raise 'permission denied' errors when accessing
     // properties of `sel.focusNode` when it's in a generated CSS
     // element.
-    return contains(dom, selection.focusNode)
+    return dom.contains(selection.focusNode)
   } catch(_) {
     return false
   }
-}
-
-export function clientRectsFor(dom: Node) {
-  if (dom.nodeType == 3)
-    return textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
-  else if (dom.nodeType == 1)
-    return (dom as HTMLElement).getClientRects()
-  else
-    return [] as any as DOMRectList
 }
 
 // Scans forward and backward through DOM positions equivalent to the
@@ -62,7 +47,8 @@ export function domIndex(node: Node): number {
 }
 
 export function isBlockElement(node: Node): boolean {
-  // FIXME inspect tiles?
+  let tile = node.wgTile
+  if (tile?.node) return tile.node.isBlock
   return node.nodeType == 1 && /^(DIV|P|LI|UL|OL|BLOCKQUOTE|DD|DT|H\d|SECTION|PRE)$/.test(node.nodeName)
 }
 
@@ -101,11 +87,6 @@ export interface Rect {
   readonly right: number
   readonly top: number
   readonly bottom: number
-}
-
-export function flattenRect(rect: Rect, left: boolean) {
-  let x = left ? rect.left : rect.right
-  return {left: x, right: x, top: rect.top, bottom: rect.bottom}
 }
 
 function windowRect(win: Window): Rect {
@@ -277,6 +258,10 @@ export function textRange(node: Text, from: number, to = from) {
   return range
 }
 
+export function clearScratchRange() {
+  if (scratchRange) { scratchRange.detach(); scratchRange = null }
+}
+
 function nonZero(rect: DOMRect) {
   return rect.top < rect.bottom || rect.left < rect.right
 }
@@ -290,19 +275,6 @@ export function singleRect(target: HTMLElement | Range, bias: number): DOMRect {
   return Array.prototype.find.call(rects, nonZero) || target.getBoundingClientRect()
 }
 
-export function dispatchKey(elt: HTMLElement, name: string, code: number, mods?: KeyboardEvent): boolean {
-  let options: KeyboardEventInit = {key: name, code: name, keyCode: code, which: code, cancelable: true}
-  if (mods)
-    ({altKey: options.altKey, ctrlKey: options.ctrlKey, shiftKey: options.shiftKey, metaKey: options.metaKey} = mods)
-  let down = new KeyboardEvent("keydown", options)
-  ;(down as any).synthetic = true
-  elt.dispatchEvent(down)
-  let up = new KeyboardEvent("keyup", options)
-  ;(up as any).synthetic = true
-  elt.dispatchEvent(up)
-  return down.defaultPrevented || up.defaultPrevented
-}
-
 export function getRoot(node: Node | null | undefined): DocumentOrShadowRoot | null {
   while (node) {
     if (node && (node.nodeType == 9 || node.nodeType == 11 && (node as ShadowRoot).host))
@@ -310,10 +282,6 @@ export function getRoot(node: Node | null | undefined): DocumentOrShadowRoot | n
     node = (node as HTMLElement).assignedSlot || node.parentNode
   }
   return null
-}
-
-export function clearAttributes(node: HTMLElement) {
-  while (node.attributes.length) node.removeAttributeNode(node.attributes[0])
 }
 
 export function atElementStart(doc: HTMLElement, selection: SelectionRange) {

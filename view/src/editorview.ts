@@ -20,7 +20,7 @@ import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState, getCompositionInfo, isFocusChange} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
-import {Rect, DOMNode, getRoot, ScrollStrategy} from "./dom"
+import {Rect, DOMNode, getRoot, ScrollStrategy, clearScratchRange} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {cursorBlinkRate} from "./drawcursor"
 
@@ -95,7 +95,7 @@ export class EditorView {
   /// @internal
   viewState: ViewState
   /// @internal
-  docTile: DocTile
+  docTile!: DocTile
 
   /// @internal
   plugins: PluginInstance[] = []
@@ -108,6 +108,7 @@ export class EditorView {
   connected = false
   private flushing = false
   private willFlush = false
+  lastFlush = Date.now()
 
   /// @internal
   observer: DOMObserver
@@ -149,9 +150,10 @@ export class EditorView {
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.docTile = DocTile.create(this.state, this.contentDOM)
-
-    this.updateAttrs()
+    this.observer.ignore(() => {
+      this.docTile = DocTile.create(this.state, this.contentDOM)
+      this.updateAttrs()
+    })
 
     if (spec.parent) spec.parent.appendChild(this.dom)
   }
@@ -174,6 +176,7 @@ export class EditorView {
       for (let plugin of this.plugins) plugin.disconnect(this)
       this.inputState.disconnect()
       this.docTile.destroyDropped(new Map)
+      clearScratchRange()
     }
   }
 
@@ -217,13 +220,14 @@ export class EditorView {
     this.observer.pollSelection()
     this.willFlush = false
     this.flushing = true
+    this.lastFlush = Date.now()
     let domChanges = this.observer.takeDirty()
     // FIXME avoid unnecessary work
     let {flushedState, state, pending} = this.viewState
     this.viewState.flush()
     let mainUpdate = ViewUpdate.create(this, flushedState, state, pending)
     try {
-      this.runUpdate(mainUpdate, domChanges)
+      this.observer.ignore(() => this.runUpdate(mainUpdate, domChanges))
       domChanges = null
       for (let i = 0;; i++) {
         if (i > 5) {
@@ -317,14 +321,11 @@ export class EditorView {
     if (this.state.readOnly) contentAttrs["aria-readonly"] = "true"
     attrsFromFacet(this, contentAttributes, contentAttrs)
 
-    let changed = this.observer.ignore(() => {
-      let changedContent = updateAttrs(this.contentDOM, this.contentAttrs, contentAttrs)
-      let changedEditor = updateAttrs(this.dom, this.editorAttrs, editorAttrs)
-      return changedContent || changedEditor
-    })
+    let changedContent = updateAttrs(this.contentDOM, this.contentAttrs, contentAttrs)
+    let changedEditor = updateAttrs(this.dom, this.editorAttrs, editorAttrs)
     this.editorAttrs = editorAttrs
     this.contentAttrs = contentAttrs
-    return changed
+    return changedContent || changedEditor
   }
 
   private showAnnouncements(trs: readonly Transaction[]) {
@@ -465,7 +466,7 @@ export class EditorView {
   focus() {
     this.observer.ignore(() => {
       this.contentDOM.focus({preventScroll: true})
-      // FIXME sync selection
+      setDOMSelection(this)
     })
   }
 
