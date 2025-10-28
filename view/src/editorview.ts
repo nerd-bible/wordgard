@@ -438,13 +438,13 @@ export class EditorView {
     return coordsAtPos(this, pos, assoc)
   }
 
-  /// Return the rectangle around a given character. If `pos` does not
-  /// point in front of a character, this will return null. For space
-  /// characters that are a line wrap point, this will return the
-  /// position before the line break.
-  coordsForChar(pos: number) {
+  /// Return the rectangle around a given node or character. If there
+  /// is no element directly after `pos`, this will return null. For
+  /// space characters that are a line wrap point, this will return
+  /// the position before the line break.
+  coordsForElement(pos: number) {
     this.checkFlushed()
-    // return this.docView.coordsForChar(pos) FIXME
+    return this.docTile.coordsForElement(pos)
   }
 
   /// The text direction

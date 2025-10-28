@@ -448,6 +448,20 @@ export class DocTile extends CompositeTile {
     }
     return pos
   }
+
+  coordsForElement(pos: number): DOMRect | null {
+    let r = this.resolve(pos, 1)
+    if (r.tile instanceof TextTile) return textTileRect(r.tile, r.offset)
+    if (r.offset == r.tile.children.length) return null
+    let after = r.tile.children[r.offset]
+    if (after instanceof TextTile) return textTileRect(after, 0)
+    if (after.dom.nodeType != 1) return null
+    return (after.dom as HTMLElement).getBoundingClientRect()
+  }
+}
+
+function textTileRect(tile: TextTile, offset: number) {
+  return textRange(tile.dom, offset, findClusterBreak(tile.text, offset)).getBoundingClientRect()
 }
 
 export class EltTile extends CompositeTile {
