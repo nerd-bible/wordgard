@@ -5,7 +5,7 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderPropWrapper} from "./decoration"
 import {eqArray} from "./util"
-import {textRange, singleRect, DOMNode} from "./dom"
+import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
 import {type CompositionInfo} from "./input"
 import {type EditorView} from "./editorview"
 
@@ -204,17 +204,17 @@ export class CompositeTile extends Tile {
   }
 
   syncChildren() {
-    let prev: DOMNode | null = null, next: DOMNode | null = this.dom.firstChild
+    let prev: DOMNode | null = null, next: ChildNode | null = this.dom.firstChild
     for (let child of this.children) {
       if (child.dom.parentNode == this.dom) {
-        while (next && next != child.dom) next = rm(next)
+        while (next && next != child.dom) next = rmDOM(next)
       } else {
         this.dom.insertBefore(child.dom, next)
       }
       prev = child.dom
       next = prev.nextSibling
     }
-    while (next) next = rm(next)
+    while (next) next = rmDOM(next)
   }
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
@@ -612,12 +612,6 @@ function copyShape(tile: EltTile | WidgetTile): EltTile | WidgetTile {
 }
 
 const noChildren: Tile[] = []
-
-function rm(dom: DOMNode): DOMNode | null {
-  let next = dom.nextSibling
-  dom.parentNode!.removeChild(dom)
-  return next
-}
 
 interface TileWalker {
   enter(tile: EltTile): void

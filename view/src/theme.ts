@@ -103,9 +103,11 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     ".wg-announced": { display: "none" }
   },
 
-  ".wg-placeholder": {
-    color: "#888",
-    display: "inline-block",
-    verticalAlign: "top",
+  ".wg-panels": {
+    boxSizing: "border-box",
+    position: "sticky",
+    left: 0,
+    right: 0,
+    zIndex: 300,
   },
 }, lightDarkIDs)

@@ -46,6 +46,12 @@ export function domIndex(node: Node): number {
   }
 }
 
+export function rmDOM(dom: ChildNode): ChildNode | null {
+  let next = dom.nextSibling
+  dom.remove()
+  return next
+}
+
 export function isBlockElement(node: Node): boolean {
   let tile = node.wgTile
   if (tile?.node) return tile.node.isBlock

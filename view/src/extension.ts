@@ -88,17 +88,16 @@ export interface PluginValue {
 
   /// Called when the plugin is removed from an editor. This should
   /// clean up any changes it made to the editor itself.
-  destroy?(): void
+  destroy?(view: EditorView): void
 
   /// Called when the editor is attached to the DOM. If the plugin
   /// needs to allocate any resource that must be released, or modify
   /// something outside the editor, it should do it in this method,
   /// and make sure to release/undo it in its `disconnect` method.
-  connect?(): void
+  connect?(view: EditorView): void
 
   /// Called when the editor is removed from the DOM.
-  disconnect?(): void
-
+  disconnect?(view: EditorView): void
 }
 
 export const basePlugins: ViewPlugin<any>[] = []
@@ -187,7 +186,7 @@ export class PluginInstance {
         try { this.value = this.spec.create(view) }
         catch (e) {
           logException(view.state, e, "CodeMirror plugin crashed")
-          this.deactivate(false)
+          this.deactivate(null)
         }
       }
     } else if (this.mustUpdate) {
@@ -198,8 +197,8 @@ export class PluginInstance {
           this.value.update(update)
         } catch (e) {
           logException(update.state, e, "CodeMirror plugin crashed")
-          if (view.connected && this.value.disconnect) try { this.value.disconnect() } catch {}
-          this.deactivate(true)
+          if (view.connected && this.value.disconnect) try { this.value.disconnect(view) } catch {}
+          this.deactivate(view)
         }
       }
     }
@@ -216,10 +215,10 @@ export class PluginInstance {
   connect(view: EditorView) {
     if (this.value?.connect) {
       try {
-        this.value.connect()
+        this.value.connect(view)
       } catch (e) {
         logException(view.state, e, "CodeMirror plugin crashed")
-        this.deactivate(true)
+        this.deactivate(view)
       }
     }
   }
@@ -227,24 +226,24 @@ export class PluginInstance {
   disconnect(view: EditorView) {
     if (!this.value?.disconnect) return
     try {
-      this.value.disconnect()
+      this.value.disconnect(view)
     } catch (e) {
       logException(view.state, e, "CodeMirror plugin crashed")
-      this.deactivate(true)
+      this.deactivate(view)
     }
   }
 
   destroy(view: EditorView) {
     if (view.connected) this.disconnect(view)
     if (this.value?.destroy) try {
-      this.value.destroy()
+      this.value.destroy(view)
     } catch(e) {
       logException(view.state, e, "CodeMirror plugin crashed")
     }
   }
 
-  deactivate(destroy: boolean) {
-    if (destroy && this.value?.destroy) try { this.value.destroy() } catch {}
+  deactivate(destroy: EditorView | null) {
+    if (destroy && this.value?.destroy) try { this.value.destroy(destroy) } catch {}
     this.deactivated = true
     this.value = null
   }
