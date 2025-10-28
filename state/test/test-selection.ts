@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Schema, basicSchema, DocNode, Tag, basicBuilders, builder, maybeTag} from "@wordgard/doc"
-import {EditorSelection, SelectionContext, Direction} from "@wordgard/state"
+import {EditorSelection, EditorState, Direction} from "@wordgard/state"
 const {p, hr, blockquote, pre, $img} = basicBuilders
 
 let Iso = Tag.defineBlock("Iso", {
@@ -22,11 +22,11 @@ let InlineB = Tag.defineInline("InlineB", {
 const schema = Schema.define([...basicSchema.tags, ...basicSchema.props, Iso, InlineA, InlineB])
 const doc = builder(schema)
 
-function normalPositions(cx: SelectionContext) {
+function normalPositions(state: EditorState) {
   let result: number[] = []
-  for (let cur = EditorSelection.atStart(cx);;) {
+  for (let cur = EditorSelection.atStart(state);;) {
     result.push(cur.head)
-    let next = EditorSelection.nextNormalCursor(cx, cur)
+    let next = cur.nextNormalCursor(state)
     if (next == null) return result
     cur = next
   }
@@ -34,16 +34,16 @@ function normalPositions(cx: SelectionContext) {
 
 describe("nextNormalCursor", () => {
   function testNormal(doc: DocNode) {
-    let cx = {doc}, forward = normalPositions({doc}), back = []
+    let state = EditorState.create({doc}), forward = normalPositions(state), back = []
     let expect = []
     for (let i = 0;; i++) {
       let next = maybeTag(doc, i)
       if (next == null) break
       expect.push(next)
     }
-    for (let cur = EditorSelection.atEnd(cx);;) {
+    for (let cur = EditorSelection.atEnd(state);;) {
       back.push(cur.head)
-      let next = EditorSelection.prevNormalCursor(cx, cur)
+      let next = cur.nextNormalCursor(state, false)
       if (next == null) break
       cur = next
     }
@@ -91,10 +91,11 @@ describe("nextNormalCursor", () => {
   describe("bidi", () => {
     function test(text: string, ltr: number[], rtl: number[]) {
       it("moves LTR through " + JSON.stringify(text), () => {
-        ist(JSON.stringify(normalPositions({doc: doc(p(text))}).map(n => n - 1)), JSON.stringify(ltr))
+        ist(JSON.stringify(normalPositions(EditorState.create({doc: doc(p(text))})).map(n => n - 1)), JSON.stringify(ltr))
       })
       it("moves RTL through " + JSON.stringify(text), () => {
-        ist(JSON.stringify(normalPositions({doc: doc(p(text)), textDirection: () => Direction.RTL}).map(n => n - 1)), JSON.stringify(rtl))
+        let state = EditorState.create({doc: doc(p(text)), config: EditorState.textDirection.of(Direction.RTL)})
+        ist(JSON.stringify(normalPositions(state).map(n => n - 1)), JSON.stringify(rtl))
       })
     }
 
@@ -146,13 +147,13 @@ describe("nextNormalCursor", () => {
   })
 })
 
-describe("skipNextWord", () => {
+describe("skipWord", () => {
   function test(name: string, lines: string | string[], positions: number[]) {
     it(name, () => {
-      let cx = {doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))}
-      let cur = EditorSelection.atStart(cx), found = []
+      let state = EditorState.create({doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))})
+      let cur = EditorSelection.atStart(state), found = []
       for (;;) {
-        let next = EditorSelection.skipNextWord(cx, cur)
+        let next = cur.skipWord(state, true)
         if (!next) break
         found.push(next.head)
         cur = next
@@ -176,13 +177,13 @@ describe("skipNextWord", () => {
   test("uses a segmenter", "两只兔子", [2, 3, 5])
 })
 
-describe("skipPrevWord", () => {
+describe("skipWord back", () => {
   function test(name: string, lines: string | string[], positions: number[]) {
     it(name, () => {
-      let cx = {doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))}
-      let cur = EditorSelection.atEnd(cx), found = []
+      let state = EditorState.create({doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))})
+      let cur = EditorSelection.atEnd(state), found = []
       for (;;) {
-        let prev = EditorSelection.skipPrevWord(cx, cur)
+        let prev = cur.skipWord(state, false)
         if (!prev) break
         found.push(prev.head)
         cur = prev

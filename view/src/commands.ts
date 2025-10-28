@@ -447,12 +447,12 @@ function ltrAtCursor(state: EditorState) {
 }
 
 function cursorByChar(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
-  let next = (forward ? EditorSelection.nextNormalCursor : EditorSelection.prevNormalCursor)(state)
+  let next = state.selection.nextNormalCursor(state, forward)
   return next ? setSelection(state, dispatch, next) : false
 }
 
 function selectByChar(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
-  let next = (forward ? EditorSelection.nextNormalCursor : EditorSelection.prevNormalCursor)(state)
+  let next = state.selection.nextNormalCursor(state, forward)
   return next ? setSelection(state, dispatch, state.selection.extend(next.from, next.to)) : false
 }
 
@@ -479,12 +479,12 @@ export const selectCharForward: StateCommand = ({state, dispatch}) => selectByCh
 export const selectCharBackward: StateCommand = ({state, dispatch}) => selectByChar(state, dispatch, false)
 
 function cursorByWord(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
-  let next = (forward ? EditorSelection.skipNextWord : EditorSelection.skipPrevWord)(state)
+  let next = state.selection.skipWord(state, forward)
   return next ? setSelection(state, dispatch, next) : false
 }
 
 function selectByWord(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {
-  let next = (forward ? EditorSelection.skipNextWord : EditorSelection.skipPrevWord)(state)
+  let next = state.selection.skipWord(state, forward)
   return next ? setSelection(state, dispatch, next) : false
 }
 

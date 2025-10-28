@@ -1,7 +1,7 @@
 import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "@wordgard/doc"
 import {EditorState} from "./state"
 import {transactionFilter, transactionExtender, Extension, Compartment} from "./facet"
-import {EditorSelection, SelectionSpec} from "./selection"
+import {EditorSelection, SelectionSpec, normalize} from "./selection"
 
 /// Annotations are tagged values that are used to add metadata to
 /// transactions in an extensible way. They should be used to model
@@ -233,11 +233,12 @@ export class Transaction {
   get newSelection() {
     if (!this._selection) {
       let sel = this.selection || this.startState.selection.map(this.changes)
-      this._selection = this.normalizeSelection ? sel.normalize({
+      this._selection = this.normalizeSelection ? normalize({
         doc: this.newDoc,
         textDirection: this.startState.textDirection,
-        visualCursorMotion: this.startState.visualCursorMotion
-      }) : sel
+        visualCursorMotion: this.startState.visualCursorMotion,
+        // FIXME somehow handle isAtom correctly
+      }, sel) : sel
     }
     return this._selection
   }

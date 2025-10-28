@@ -4,20 +4,41 @@ import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 import {EditorState} from "./state"
 
+/// The representation of a selection when serialized to JSON.
 export type SelectionJSON = {
   anchor: number
   head?: number
-  assoc?: number
+  assoc?: -1 | 0 | 1,
   ranges?: readonly {from: number, to: number}[]
   props?: Record<string, any>
 }
 
+/// A description of an editor selection.
 export type SelectionSpec = {
+  /// The anchor point of the selection. This is the side that doesn't
+  /// move when extending the selection (for example by moving the
+  /// cursor while holding shift).
   anchor: number
+  /// The moving side of the selection. This will default to `anchor`
+  /// when not given.
   head?: number
-  assoc?: number
+  /// The side of the head position that the selection is associated
+  /// with, if any. `-1` points at the element before the position,
+  /// `1` at the element after. This is only meaningful for
+  /// empty/cursor selections. It will influence where the cursor is
+  /// drawn.
+  assoc?: -1 | 0 | 1
+  /// Associates a horizontal position with this selection for use
+  /// during vertical cursor motion.
   goalColumn?: number
+  /// For selections that cover multiple ranges in the document, you
+  /// can specify the ranges. Must include the main range
+  /// (`anchor`/`head`) if provided. These must be non-overlapping,
+  /// and sorted.
   ranges?: readonly {from: number, to: number}[]
+  /// Props associated with a cursor selection, which will determine
+  /// the props of inline content inserted at that selection. This is
+  /// used for things like toggling emphasis on a cursor selection.
   props?: readonly Prop<any>[]
 }
 
@@ -51,6 +72,7 @@ export class SelectionPos {
   get props() { return this.selection.props }
 }
 
+// FIXME make this user-visible?
 export interface SelectionContext {
   doc: DocNode
   textDirection?: (tag?: Tag) => Direction
@@ -102,6 +124,7 @@ export class EditorSelection {
   /// True when `anchor` and `head` are at the same position.
   get empty(): boolean { return this.anchor == this.head }
 
+  /// The set of ranges covered by this selection, sorted.
   get ranges() {
     return this._ranges || (this._ranges = [{from: this.from, to: this.to}])
   }
@@ -118,11 +141,14 @@ export class EditorSelection {
     return EditorSelection.createInner(anchor, head, 0, this.goalColumn)
   }
 
+  /// Returns true if this selection has the same head and anchor as
+  /// the given selection.
   eqPos(other: EditorSelection) {
     return this.anchor == other.anchor && this.head == other.head
   }
 
-  /// Compare this range to another range.
+  /// Compare this selection to another selection, comparing all
+  /// ranges, associativity, and props.
   eq(other: EditorSelection): boolean {
     return this.eqPos(other) && this.assoc == other.assoc &&
       this.ranges.length == other.ranges.length &&
@@ -151,15 +177,9 @@ export class EditorSelection {
 
   /// Make sure, if this is a cursor selection, that it sits at a
   /// normal cursor position.
-  normalize(cx: SelectionContext) {
-    if (!this.empty) return this
-    let pos = cx.doc.resolve(this.head)
-    if (pos.parent.node.isTextblock) return this
-    let normal = EditorSelection.near(cx, this.head, this.assoc || -1)
-    if (normal == null || normal.head == this.head) return this
-    return EditorSelection.cursor(normal.head, normal.assoc, this.goalColumn ?? undefined, this.props)
-  }
+  normalize(state: EditorState) { return normalize(state, this) }
 
+  /// @internal
   resolve(doc: DocNode) { return new SelectionPos(doc, this) }
 
   /// Convert this selection to an object that can be serialized to
@@ -189,7 +209,7 @@ export class EditorSelection {
 
   /// Create a cursor selection range at the given position. You can
   /// safely ignore the optional arguments in most situations.
-  static cursor(pos: number, assoc = 0, goalColumn?: number, props?: readonly Prop<any>[]) {
+  static cursor(pos: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number, props?: readonly Prop<any>[]) {
     return EditorSelection.createInner(pos, pos, assoc, goalColumn, undefined, props)
   }
 
@@ -198,9 +218,10 @@ export class EditorSelection {
     return EditorSelection.createInner(anchor, head, 0, goalColumn, undefined, props)
   }
 
-  private static createInner(anchor: number, head: number, assoc?: number, goalColumn?: number,
+  private static createInner(anchor: number, head: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number,
                              ranges?: readonly {from: number, to: number}[], props?: readonly Prop<any>[]) {
-    return new EditorSelection(anchor, head, !assoc ? 0 : assoc < 0 ? -1 : 1, goalColumn, ranges, props)
+    if (anchor != head) assoc = head < anchor ? 1 : -1
+    return new EditorSelection(anchor, head, assoc, goalColumn, ranges, props)
   }
 
   /// Create a selection.
@@ -209,55 +230,34 @@ export class EditorSelection {
                                        spec.ranges, spec.props)
   }
 
-  static nextNormalCursor(cx: EditorState): EditorSelection | null
-  static nextNormalCursor(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
-  static nextNormalCursor(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
-    let found = scanNormalFrom(cx, selection.head, selection.assoc || -1, true, true)
+  /// Find the next normal cursor position after or before this selection's
+  /// head.
+  nextNormalCursor(state: EditorState, forward = true): EditorSelection | null {
+    let found = scanNormalFrom(state, this.head, this.assoc || -1, forward, true)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
-  static prevNormalCursor(state: EditorState): EditorSelection | null
-  static prevNormalCursor(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
-  static prevNormalCursor(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
-    let found = scanNormalFrom(cx, selection.head, selection.assoc || -1, false, true)
+  /// Move across one word starting from this selection's head.
+  skipWord(state: EditorState, forward = true): EditorSelection | null {
+    let found = skipWord(state, this.head, this.assoc || -1, forward)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
-  static skipNextWord(state: EditorState): EditorSelection | null
-  static skipNextWord(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
-  static skipNextWord(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
-    let found = skipWord(cx, selection.head, selection.assoc || -1, true)
-    return found && EditorSelection.cursor(found.pos, found.assoc)
-  }
+  /// Find a normal selection near the given position.
+  static near(state: EditorState, pos: number, bias: -1 | 1 = 1) { return selectionNear(state, pos, bias) }
 
-  static skipPrevWord(state: EditorState): EditorSelection | null
-  static skipPrevWord(cx: SelectionContext, selection: EditorSelection): EditorSelection | null
-  static skipPrevWord(cx: SelectionContext & {selection?: EditorSelection}, selection = cx.selection!) {
-    let found = skipWord(cx, selection.head, selection.assoc || -1, false)
-    return found && EditorSelection.cursor(found.pos, found.assoc)
-  }
+  /// Find a normal selection at the start of the document.
+  static atStart(state: EditorState) { return selectionAtStart(state) }
 
-  static near(cx: SelectionContext, pos: number, bias: -1 | 1 = 1) {
-    let norm = scanNormalFrom(cx, pos, bias, bias > 0, false) ??
-      scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false) ??
-      {pos: pos, assoc: -1}
-    return EditorSelection.cursor(norm.pos, norm.assoc)
-  }
-
-  static atStart(cx: SelectionContext) {
-    let found = cx.doc.inlineContent
-      ? TextblockMap.get(0, cx.doc, (cx.textDirection ?? alwaysLTR)(cx.doc.tag)).visualTextblockSide(true)
-      : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, assoc: 1}
+  /// Find a normal selection at the end of the document.
+  static atEnd(state: EditorState) {
+    let found = state.doc.inlineContent
+      ? TextblockMap.get(0, state.doc, state.textDirection()).visualTextblockSide(false)
+      : scanNormalFrom(state, state.doc.length, -1, false, false) ?? {pos: state.doc.length, assoc: -1}
     return EditorSelection.cursor(found.pos, found.assoc)
   }
 
-  static atEnd(cx: SelectionContext) {
-    let found = cx.doc.inlineContent
-      ? TextblockMap.get(0, cx.doc, (cx.textDirection ?? alwaysLTR)(cx.doc.tag)).visualTextblockSide(false)
-      : scanNormalFrom(cx, cx.doc.length, -1, false, false) ?? {pos: cx.doc.length, assoc: -1}
-    return EditorSelection.cursor(found.pos, found.assoc)
-  }
-
+  /// @internal
   static mapRange(change: ChangeDesc, from: number, to: number, assoc = -1) {
     if (from == to) {
       let pos = change.mapPos(from, assoc)
@@ -267,6 +267,29 @@ export class EditorSelection {
       return {from, to: Math.max(from, change.mapPos(to, -1))}
     }
   }
+}
+
+export function normalize(cx: SelectionContext, selection: EditorSelection) {
+  if (!selection.empty) return selection
+  let pos = cx.doc.resolve(selection.head)
+  if (pos.parent.node.isTextblock) return selection
+  let normal = selectionNear(cx, selection.head, selection.assoc || -1)
+  if (normal == null || normal.head == selection.head) return selection
+  return EditorSelection.cursor(normal.head, normal.assoc, selection.goalColumn ?? undefined, selection.props)
+}
+
+export function selectionNear(cx: SelectionContext, pos: number, bias: -1 | 1) {
+  let norm = scanNormalFrom(cx, pos, bias, bias > 0, false) ??
+    scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false) ??
+    {pos: pos, assoc: -1}
+  return EditorSelection.cursor(norm.pos, norm.assoc)
+}
+
+export function selectionAtStart(cx: SelectionContext) {
+  let found = cx.doc.inlineContent
+    ? TextblockMap.get(0, cx.doc, (cx.textDirection ?? alwaysLTR)(cx.doc.tag)).visualTextblockSide(true)
+    : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, assoc: 1}
+  return EditorSelection.cursor(found.pos, found.assoc)
 }
 
 function isBarrier(cx: SelectionContext, pos: number, node: Node) {

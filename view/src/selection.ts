@@ -55,8 +55,8 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
       if (!block.parent) return null
       scan = forward ? block.after : block.before
     }
-    let nextCursor = (forward ? EditorSelection.nextNormalCursor : EditorSelection.prevNormalCursor)
-      (view.state, EditorSelection.cursor(scan, 0))
+    
+    let nextCursor = EditorSelection.cursor(scan, 0).nextNormalCursor(view.state, forward)
     if (!nextCursor) return null
     let nextBlock = findTextblockVertically(view, scan, forward, x)
     if (!nextBlock || (forward ? nextCursor.head < nextBlock.start : nextCursor.head > nextBlock.end)) {

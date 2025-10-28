@@ -1,5 +1,5 @@
 import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "@wordgard/doc"
-import {EditorSelection, SelectionSpec, SelectionPos, wordAt} from "./selection"
+import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, SlotStatus,
         DynamicSlot, ensureAddr, getAddr, transactionFilter,
@@ -208,7 +208,7 @@ export class EditorState {
     let configSchema = config.staticFacet(schemaElement)
     let schema = spec.doc instanceof DocNode ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
     let doc = readDoc(schema, spec.doc)
-    let selection = !spec.selection ? EditorSelection.atStart({
+    let selection = !spec.selection ? selectionAtStart({
       doc,
       textDirection: config.staticFacet(EditorState.textDirection),
       visualCursorMotion: config.staticFacet(EditorState.visualCursorMotion),
