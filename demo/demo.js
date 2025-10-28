@@ -1,16 +1,19 @@
-import {EditorView, keymap, defaultKeymap, showPanel} from "@wordgard/view"
+import {EditorView, keymap, defaultKeymap, showTooltip} from "@wordgard/view"
 import {basicSchema} from "@wordgard/doc"
 
 let view = window.view = new EditorView({
   parent: document.body,
-  doc: "<p>-</p><hr><hr>",
+  doc: "<p>12 34 56</p><hr><hr>",
   config: [
     basicSchema.elements,
     keymap.of(defaultKeymap),
-    showPanel.of(view => {
-      let dom = document.createElement("div")
-      dom.textContent = "this is my panel"
-      return {dom}
+    showTooltip.of({
+      pos: 6,
+      create: view => {
+        let dom = document.createElement("div")
+        dom.textContent = "tool tip"
+        return {dom}
+      }
     })
   ]
 })

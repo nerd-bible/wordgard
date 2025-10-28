@@ -87,7 +87,7 @@ export function maxOffset(node: Node): number {
   return node.nodeType == 3 ? node.nodeValue!.length : node.childNodes.length
 }
 
-function windowRect(win: Window): DOMRect {
+export function windowRect(win: Window): DOMRect {
   let vp = win.visualViewport
   return new DOMRect(0, 0, vp ? vp.width : win.innerWidth, vp ? vp.height : win.innerHeight)
 }
