@@ -3,7 +3,7 @@ import {ChangeSet, ChangeDesc} from "@wordgard/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
-import {Rect, ScrollStrategy} from "./dom"
+import {ScrollStrategy} from "./dom"
 import {MakeSelectionStyle} from "./input"
 import {Command} from "./commands"
 
@@ -264,7 +264,7 @@ export const editorAttributes = Facet.define<AttrSource>()
 
 export const contentAttributes = Facet.define<AttrSource>()
 
-export const scrollMargins = Facet.define<(view: EditorView) => Partial<Rect> | null>()
+export const scrollMargins = Facet.define<(view: EditorView) => Partial<DOMRect> | null>()
 
 export function getScrollMargins(view: EditorView) {
   let left = 0, right = 0, top = 0, bottom = 0

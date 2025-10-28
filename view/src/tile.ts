@@ -5,7 +5,7 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderPropWrapper} from "./decoration"
 import {eqArray} from "./util"
-import {textRange, Rect, singleRect, DOMNode} from "./dom"
+import {textRange, singleRect, DOMNode} from "./dom"
 import {type CompositionInfo} from "./input"
 import {type EditorView} from "./editorview"
 
@@ -283,7 +283,7 @@ class RowScan<T> {
   dxClosest = 1e9
   dyClosest = 1e9
   closest: T | null = null
-  closestRect: Rect | null = null
+  closestRect: DOMRect | null = null
   rowTop: number
   rowBot: number
 
@@ -291,7 +291,7 @@ class RowScan<T> {
     this.rowTop = this.rowBot = y
   }
 
-  rect(rect: Rect, value: T) {
+  rect(rect: DOMRect, value: T) {
     let {x, y} = this
     let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
     let dy = rect.top > y ? rect.top - y : rect.bottom < y ? y - rect.bottom : 0

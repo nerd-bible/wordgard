@@ -81,22 +81,9 @@ export function maxOffset(node: Node): number {
   return node.nodeType == 3 ? node.nodeValue!.length : node.childNodes.length
 }
 
-/// Basic rectangle type.
-export interface Rect {
-  readonly left: number
-  readonly right: number
-  readonly top: number
-  readonly bottom: number
-}
-
-function windowRect(win: Window): Rect {
+function windowRect(win: Window): DOMRect {
   let vp = win.visualViewport
-  if (vp) return {
-    left: 0, right: vp.width,
-    top: 0, bottom: vp.height
-  }
-  return {left: 0, right: win.innerWidth,
-          top: 0, bottom: win.innerHeight}
+  return new DOMRect(0, 0, vp ? vp.width : win.innerWidth, vp ? vp.height : win.innerHeight)
 }
 
 export type ScrollStrategy = "nearest" | "start" | "end" | "center"
@@ -109,14 +96,14 @@ export function getScale(elt: HTMLElement, rect: DOMRect) {
   return {scaleX, scaleY}
 }
 
-export function scrollRectIntoView(dom: HTMLElement, rect: Rect, side: -1 | 1,
+export function scrollRectIntoView(dom: HTMLElement, rect: DOMRect, side: -1 | 1,
                                    x: ScrollStrategy, y: ScrollStrategy,
                                    xMargin: number, yMargin: number, ltr: boolean) {
   let doc = dom.ownerDocument!, win = doc.defaultView || window
 
   for (let cur: any = dom, stop = false; cur && !stop;) {
     if (cur.nodeType == 1) { // Element
-      let bounding: Rect, top = cur == doc.body
+      let bounding: DOMRect, top = cur == doc.body
       let scaleX = 1, scaleY = 1
       if (top) {
         bounding = windowRect(win)
@@ -129,8 +116,7 @@ export function scrollRectIntoView(dom: HTMLElement, rect: Rect, side: -1 | 1,
         let rect = cur.getBoundingClientRect()
         ;({scaleX, scaleY} = getScale(cur, rect))
         // Make sure scrollbar width isn't included in the rectangle
-        bounding = {left: rect.left, right: rect.left + cur.clientWidth * scaleX,
-                    top: rect.top, bottom: rect.top + cur.clientHeight * scaleY}
+        bounding = new DOMRect(rect.left, rect.top, cur.clientWidth * scaleX, cur.clientHeight * scaleY)
       }
 
       let moveX = 0, moveY = 0

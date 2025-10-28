@@ -1,11 +1,11 @@
 import {Direction} from "@wordgard/state"
-import {Rect, textRange, maxOffset, singleRect} from "./dom"
+import {textRange, maxOffset, singleRect} from "./dom"
 import {dirAt} from "./tile"
 import {EditorView} from "./editorview"
 
 // Given a position in the document model, get a bounding box of the
 // character at that position, relative to the window.
-export function coordsAtPos(view: EditorView, pos: number, assoc: -1 | 1): Rect {
+export function coordsAtPos(view: EditorView, pos: number, assoc: -1 | 1): DOMRect {
   let tile = view.docTile.resolve(pos, assoc)
   let node = tile.dom, {offset} = tile
 
@@ -55,13 +55,9 @@ export function coordsAtPos(view: EditorView, pos: number, assoc: -1 | 1): Rect 
 }
 
 function flattenV(rect: DOMRect, left: boolean) {
-  if (rect.width == 0) return rect
-  let x = left ? rect.left : rect.right
-  return {top: rect.top, bottom: rect.bottom, left: x, right: x}
+  return rect.width ? new DOMRect(left ? rect.left : rect.right, rect.top, 0, rect.height) : rect
 }
 
 function flattenH(rect: DOMRect, top: boolean) {
-  if (rect.height == 0) return rect
-  let y = top ? rect.top : rect.bottom
-  return {top: y, bottom: y, left: rect.left, right: rect.right}
+  return rect.height ? new DOMRect(rect.left, top ? rect.top : rect.bottom, rect.width, 0) : rect
 }

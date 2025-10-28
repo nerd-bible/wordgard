@@ -20,7 +20,7 @@ import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState, getCompositionInfo, isFocusChange} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
-import {Rect, DOMNode, getRoot, ScrollStrategy, clearScratchRange} from "./dom"
+import {DOMNode, getRoot, ScrollStrategy, clearScratchRange} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {cursorBlinkRate} from "./drawcursor"
 
@@ -433,7 +433,7 @@ export class EditorView {
   /// element before (-1) or after (1) the position (if no element is
   /// available on the given side, the method will transparently use
   /// another strategy to get reasonable coordinates).
-  coordsAtPos(pos: number, assoc: -1 | 1 = -1): Rect {
+  coordsAtPos(pos: number, assoc: -1 | 1 = -1): DOMRect {
     this.checkFlushed()
     return coordsAtPos(this, pos, assoc)
   }
