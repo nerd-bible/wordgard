@@ -38,6 +38,7 @@ export class DOMObserver {
 
   scrollTargets: HTMLElement[] = []
   resizeScroll: ResizeObserver | null = null
+  darkThemeQuery: MediaQueryList | null = null
 
   constructor(private view: EditorView) {
     this.dom = view.contentDOM
@@ -49,6 +50,7 @@ export class DOMObserver {
     this.pollSelection = this.pollSelection.bind(this)
     this.onResize = this.onResize.bind(this)
     this.onScroll = this.onScroll.bind(this)
+    this.onThemeChange = this.onThemeChange.bind(this)
 
     if (typeof ResizeObserver == "function") {
       this.resizeScroll = new ResizeObserver(() => {
@@ -76,6 +78,11 @@ export class DOMObserver {
     win.addEventListener("resize", this.onResize)
     win.addEventListener("scroll", this.onScroll)
     win.document.addEventListener("selectionchange", this.pollSelection)
+    if (typeof win.matchMedia == "function") {
+      this.darkThemeQuery = win.matchMedia("(prefers-color-scheme: dark)")
+      this.onThemeChange()
+      this.darkThemeQuery.addEventListener("change", this.onThemeChange)
+    }
   }
 
   disconnect() {
@@ -90,6 +97,10 @@ export class DOMObserver {
       this.win.document.removeEventListener("selectionchange", this.pollSelection)
       this.win = null
     }
+    if (this.darkThemeQuery) {
+      this.darkThemeQuery.removeEventListener("change", this.onThemeChange)
+      this.darkThemeQuery = null
+    }
   }
 
   onScroll(e: Event) {
@@ -102,6 +113,10 @@ export class DOMObserver {
       this.view.scheduleFlush()
     }, 50)
   }
+
+  onThemeChange() {
+    this.view.configureDarkTheme(this.darkThemeQuery!.matches)
+  }        
 
   pollSelection() {
     if (!this.view.inputState.currentComposition && this.readSelectionRange() &&

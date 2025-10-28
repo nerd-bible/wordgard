@@ -108,7 +108,9 @@ export class EditorView {
   connected = false
   private flushing = false
   private willFlush = false
+  /// @internal
   lastFlush = Date.now()
+  private defaultDarkTheme = false
 
   /// @internal
   observer: DOMObserver
@@ -329,7 +331,7 @@ export class EditorView {
   /// Get the CSS classes for the currently active editor themes.
   get themeClasses() {
     return baseThemeID + " " +
-      (this.state.facet(darkTheme) ? baseDarkID : baseLightID) + " " +
+      (this.state.facet(darkTheme) ?? this.defaultDarkTheme ? baseDarkID : baseLightID) + " " +
       this.state.facet(theme)
   }
 
@@ -699,18 +701,25 @@ export class EditorView {
   /// `&light` when a light theme is active).
   // FIXME work out whether we want a theme system at all, and make
   // dark/light integrate properly with client setting
-  static theme(spec: {[selector: string]: StyleSpec}, options?: {dark?: boolean}): Extension {
+  static theme(spec: {[selector: string]: StyleSpec}): Extension {
     let prefix = StyleModule.newName()
-    let result = [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))]
-    if (options && options.dark) result.push(darkTheme.of(true))
-    return result
+    return [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))]
   }
 
-  /// This facet records whether a dark theme is active. The extension
-  /// returned by [`theme`](#view.EditorView^theme) automatically
-  /// includes an instance of this when the `dark` option is set to
-  /// true.
+  /// This facet controls whether a dark theme is active, which
+  /// determines whether base theme rules with a `&dark` or `&light`
+  /// selector are applied. By default, the editor uses a CSS
+  /// `prefers-color-scheme: dark` query to determine whether to
+  /// enable light or dark mode.
   static darkTheme = darkTheme
+
+  /// @internal
+  configureDarkTheme(dark: boolean) {
+    if (this.defaultDarkTheme == dark) return
+    this.defaultDarkTheme = dark
+    if (this.state.facet(darkTheme) == null)
+      this.observer.ignore(() => this.updateAttrs())
+  }
 
   /// Create an extension that adds styles to the base theme. Like
   /// with [`theme`](#view.EditorView^theme), use `&` to indicate the
