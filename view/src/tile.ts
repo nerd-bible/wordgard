@@ -219,12 +219,7 @@ export class CompositeTile extends Tile {
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
                    orientation: Orientation): PosAssoc {
-    let {node} = this
-    if (this.isAtom || !this.children.length) {
-      let rect = this.dom.getBoundingClientRect()
-      let after = orientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
-      return new PosAssoc(start + (after ? this.length : 0), after ? -1 : 1)
-    }
+    let {node} = this, outerOrientation = orientation
     if (node) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) {
@@ -233,11 +228,16 @@ export class CompositeTile extends Tile {
         textblock = null
       }
     }
-    return orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock)
+    let result = this.isAtom || !this.children.length ? null
+      : orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock)
       : this.posAtCoordsRow(start, state, x, y, textblock)
+    if (result) return result
+    let rect = this.dom.getBoundingClientRect()
+    let after = outerOrientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
+    return new PosAssoc(start + (after ? this.length : 0), after ? -1 : 1)
   }
 
-  posAtCoordsRow(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null): PosAssoc {
+  posAtCoordsRow(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null): PosAssoc | null {
     let scan = new RowScan<Tile>(x, y)
     for (let child of this.children) {
       if (child.isPoint) continue
@@ -248,7 +248,8 @@ export class CompositeTile extends Tile {
       for (let i = 0; i < rects.length; i++) scan.rect(rects[i], child)
       if (scan.done) break
     }
-    let closest = scan.closest!, rect = scan.closestRect!
+    if (!scan.closest) return null
+    let closest = scan.closest, rect = scan.closestRect!
     let pos = this.posBeforeChild(closest, start)
     if (scan.dyClosest) { // Coords are vertically outside of the child
       if (y > rect.bottom) return new PosAssoc(pos + closest.length, -1, true)

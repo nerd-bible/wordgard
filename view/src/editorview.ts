@@ -10,7 +10,7 @@ import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource
         exceptionSink, updateListener, logException,
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, editable, inputHandler, scrollIntoView,
-        ScrollTarget, scrollHandler} from "./extension"
+        ScrollTarget, scrollHandler, getScrollMargins} from "./extension"
 import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
         clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter,
         clipboardTextParser, clipboardTextSerializer} from "./clipboard"
@@ -20,7 +20,7 @@ import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState, getCompositionInfo, isFocusChange} from "./input"
 import {ViewState, Direction} from "./viewstate"
 import browser from "./browser"
-import {DOMNode, getRoot, ScrollStrategy, clearScratchRange} from "./dom"
+import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {cursorBlinkRate} from "./drawcursor"
 
@@ -71,7 +71,7 @@ export class EditorView {
   root: DocumentOrShadowRoot = document
 
   /// @internal
-  get win() { return this.dom.ownerDocument.defaultView || window } // FIXME make public?
+  get win() { return this.dom.ownerDocument.defaultView || window }
 
   /// The outer DOM element that represents the editor.
   readonly dom: HTMLElement
@@ -246,10 +246,39 @@ export class EditorView {
         if (flags) this.runUpdate(ViewUpdate.create(this, state, state, [], flags), null)
       }
     } finally { this.flushing = false }
+    if (this.viewState.scrollTarget) {
+      this.scrollTo(this.viewState.scrollTarget)
+      this.viewState.scrollTarget = null
+    }
     if (!mainUpdate.empty) for (let listener of this.state.facet(updateListener)) {
       try { listener(mainUpdate) }
       catch (e) { logException(this.state, e, "update listener") }
     }
+  }
+
+  private scrollTo(target: ScrollTarget) {
+    for (let handler of this.state.facet(scrollHandler)) {
+      try { if (handler(this, target.range, target)) return true }
+      catch(e) { logException(this.state, e, "scroll handler") }
+    }
+
+    let {range} = target
+    let rect = this.coordsAtPos(range.head, range.empty ? range.assoc || -1 : range.head > range.anchor ? -1 : 1)
+    if (!range.empty) {
+      let other = this.coordsAtPos(range.anchor, range.anchor > range.head ? -1 : 1)
+      let left = Math.min(rect.left, other.left), top = Math.min(rect.top, other.top)
+      rect = new DOMRect(left, top, Math.max(rect.right, other.right) - left, Math.max(rect.bottom, other.bottom) - top)
+    }
+
+    let margins = getScrollMargins(this)
+    let targetRect = new DOMRect(rect.left + margins.left, rect.top + margins.top,
+                                 rect.width - margins.left - margins.right, rect.height - margins.top - margins.bottom)
+    let {offsetWidth, offsetHeight} = this.scrollDOM
+    scrollRectIntoView(this.scrollDOM, targetRect, range.head < range.anchor ? -1 : 1,
+                       target.x, target.y,
+                       Math.max(Math.min(target.xMargin, offsetWidth), -offsetWidth),
+                       Math.max(Math.min(target.yMargin, offsetHeight), -offsetHeight),
+                       this.state.textDirection() == Direction.LTR)
   }
 
   private runUpdate(update: ViewUpdate, domChanges: ChangeDesc | null) {
@@ -375,6 +404,8 @@ export class EditorView {
   get scaleY() { return this.viewState.scaleY }
 
   private checkFlushed() {
+    if (!this.connected)
+      throw new Error("Editor is not connected to the DOM")
     if (this.willFlush && (this.viewState.pending.some(tr => tr.docChanged) || this.observer.dirty))
       throw new Error("Trying to read from unflushed editor DOM")
   }
@@ -493,7 +524,7 @@ export class EditorView {
     /// editor.
     xMargin?: number,
   } = {}): StateEffect<unknown> {
-    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? {from: pos, to: pos} : pos,
+    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos,
                                               options.y, options.x, options.yMargin, options.xMargin))
   }
 
@@ -666,10 +697,12 @@ export class EditorView {
   /// which will cause the `&dark` rules from [base
   /// themes](#view.EditorView^baseTheme) to be used (as opposed to
   /// `&light` when a light theme is active).
+  // FIXME work out whether we want a theme system at all, and make
+  // dark/light integrate properly with client setting
   static theme(spec: {[selector: string]: StyleSpec}, options?: {dark?: boolean}): Extension {
     let prefix = StyleModule.newName()
     let result = [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))]
-    if (options && options.dark) result.push(darkTheme.of(true)) // FIXME less implicit?
+    if (options && options.dark) result.push(darkTheme.of(true))
     return result
   }
 
