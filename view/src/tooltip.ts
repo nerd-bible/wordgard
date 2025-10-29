@@ -384,22 +384,15 @@ function setLeftStyle(elt: HTMLElement, value: number) {
   if (isNaN(current) || Math.abs(value - current) > 1) elt.style.left = value + "px"
 }
 
-// FIXME figure out how to best style these
 const baseTheme = EditorView.baseTheme({
   ".wg-tooltip": {
     zIndex: 500,
-    boxSizing: "border-box"
+    boxSizing: "border-box",
+    backgroundColor: "var(--wg-panel-color)",
+    border: "1px solid var(--wg-border-color)",
   },
-  "&light .wg-tooltip": {
-    border: "1px solid #bbb",
-    backgroundColor: "#f5f5f5"
-  },
-  "&light .wg-tooltip-section:not(:first-child)": {
-    borderTop: "1px solid #bbb",
-  },
-  "&dark .wg-tooltip": {
-    backgroundColor: "#333338",
-    color: "white"
+  ".wg-tooltip-section:not(:first-child)": {
+    borderTop: "1px solid var(--wg-border-color)",
   },
   ".wg-tooltip-arrow": {
     height: `${Arrow.Size}px`,
@@ -418,34 +411,24 @@ const baseTheme = EditorView.baseTheme({
     ".wg-tooltip-above &": {
       bottom: `-${Arrow.Size}px`,
       "&:before": {
-        borderTop: `${Arrow.Size}px solid #bbb`,
+        borderTop: `${Arrow.Size}px solid var(--wg-border-color)`,
       },
       "&:after": {
-        borderTop: `${Arrow.Size}px solid #f5f5f5`,
+        borderTop: `${Arrow.Size}px solid var(--wg-panel-color)`,
         bottom: "1px"
       }
     },
     ".wg-tooltip-below &": {
       top: `-${Arrow.Size}px`,
       "&:before": {
-        borderBottom: `${Arrow.Size}px solid #bbb`,
+        borderBottom: `${Arrow.Size}px solid var(--wg-border-color)`,
       },
       "&:after": {
-        borderBottom: `${Arrow.Size}px solid #f5f5f5`,
+        borderBottom: `${Arrow.Size}px solid var(--wg-panel-color)`,
         top: "1px"
       }
     },
   },
-  "&dark .wg-tooltip .wg-tooltip-arrow": {
-    "&:before": {
-      borderTopColor: "#333338",
-      borderBottomColor: "#333338"
-    },
-    "&:after": {
-      borderTopColor: "transparent",
-      borderBottomColor: "transparent"
-    }
-  }
 })
 
 /// Describes a tooltip. Values of this type, when provided through

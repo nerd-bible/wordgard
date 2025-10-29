@@ -37,8 +37,17 @@ export const baseTheme = buildTheme("." + baseThemeID, {
       outline: "1px dotted #212121"
     },
     display: "flex !important",
-    flexDirection: "column"
+    flexDirection: "column",
   },
+
+  "&light": {
+    "--wg-panel-color": "#f3f3f5",
+    "--wg-border-color": "#cacacb"
+  },
+  "&dark": {
+    "--wg-panel-color": "#030303",
+    "--wg-border-color": "#444"
+  },    
 
   ".wg-scroller": {
     height: "100%",
@@ -109,5 +118,6 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     left: 0,
     right: 0,
     zIndex: 300,
+    backgroundColor: "var(--wg-panel-color)"
   },
 }, lightDarkIDs)

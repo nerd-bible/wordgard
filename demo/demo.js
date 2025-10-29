@@ -8,6 +8,7 @@ let view = window.view = new EditorView({
     basicSchema.elements,
     keymap.of(defaultKeymap),
     showTooltip.of({
+      arrow: true,
       pos: 6,
       create: view => {
         let dom = document.createElement("div")
