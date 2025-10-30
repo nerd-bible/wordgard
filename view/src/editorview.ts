@@ -24,6 +24,8 @@ import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView}
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {cursorBlinkRate} from "./drawcursor"
 
+// FIXME use custom elements rather than classes to target CSS?
+
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
 export interface EditorViewSpec extends Partial<EditorStateSpec> {
@@ -89,6 +91,8 @@ export class EditorView {
   readonly contentDOM: HTMLElement
 
   private announceDOM: HTMLElement
+
+  private id = "wg-editor-" + Math.floor(Math.random() * 0xffffff).toString(16)
 
   /// @internal
   inputState!: InputState
@@ -337,7 +341,8 @@ export class EditorView {
 
   private updateAttrs() {
     let editorAttrs = attrsFromFacet(this, editorAttributes, {
-      class: "wg-editor" + (this.hasFocus ? " wg-focused " : " ") + this.themeClasses
+      class: "wg-editor" + (this.hasFocus ? " wg-focused " : " ") + this.themeClasses,
+      id: this.id
     })
     let contentAttrs: Attrs = {
       spellcheck: "false",

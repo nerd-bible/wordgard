@@ -13,7 +13,8 @@
     "paths": {
       "@wordgard/doc": ["./doc/src/index.ts"],
       "@wordgard/state": ["./state/src/index.ts"],
-      "@wordgard/view": ["./view/src/index.ts"]
+      "@wordgard/view": ["./view/src/index.ts"],
+      "@wordgard/menu": ["./menu/src/index.ts"]
     }
   },
   "include": ["*/src/*.ts", "*/test/*.ts"],

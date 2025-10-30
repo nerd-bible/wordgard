@@ -1,5 +1,6 @@
-import {EditorView, keymap, defaultKeymap, showTooltip} from "@wordgard/view"
+import {EditorView, keymap, defaultKeymap} from "@wordgard/view"
 import {basicSchema} from "@wordgard/doc"
+import {menuBar} from "@wordgard/menu"
 
 let view = window.view = new EditorView({
   parent: document.body,
@@ -7,14 +8,6 @@ let view = window.view = new EditorView({
   config: [
     basicSchema.elements,
     keymap.of(defaultKeymap),
-    showTooltip.of({
-      arrow: true,
-      pos: 6,
-      create: view => {
-        let dom = document.createElement("div")
-        dom.textContent = "tool tip"
-        return {dom}
-      }
-    })
+    menuBar()
   ]
 })
