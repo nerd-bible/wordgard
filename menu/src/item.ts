@@ -29,7 +29,9 @@ export interface MenuSelect extends BaseMenuItem {
   type: "select"
   description: string
   label?: MenuLabel
-  defaultLabel: MenuLabel
+  defaultLabel?: MenuLabel
+  arrow?: boolean
+  width?: number
 }
 
 // FIXME make this easily extendable in 3rd party code, somehow
@@ -52,14 +54,6 @@ export class TemplateGroup {
 export const Top: MenuGroup = {type: "group"}
 export const Commands: MenuGroup = {type: "group", parent: Top, rank: 10}
 export const InlineStyles: MenuGroup = {type: "group", parent: Top, rank: 30}
-
-export const Alignment: MenuSelect = {
-  type: "select",
-  parent: Top,
-  defaultLabel: {icon: "M2 12.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"},
-  rank: 50,
-  description: "Text alignment"
-}
 
 export const Undo: MenuButton = {
   type: "button",
@@ -88,6 +82,15 @@ export const Strong: MenuButton = {
   rank: 10
 }
 
+export const Alignment: MenuSelect = {
+  type: "select",
+  parent: Top,
+  defaultLabel: {icon: "M2 12.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"},
+  rank: 50,
+  description: "Text alignment",
+  arrow: false,
+}
+
 // FIXME use start/end nomenclature?
 export const AlignLeft: MenuButton = {
   type: "button",
@@ -113,17 +116,76 @@ export const AlignCenter: MenuButton = {
   label: {icon: "M4 12.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"},
   description: "Center",
   parent: Alignment,
-  active: () => true,
   rank: 30
 }
 
+export const TextblockStyle: MenuSelect = {
+  type: "select",
+  defaultLabel: "Block style",
+  description: "Block style",
+  parent: Top,
+  rank: 5,
+  width: 10,
+}
+
+export const Paragraph: MenuButton = {
+  type: "button",
+  run: () => { console.log("para"); return true },
+  label: "Paragraph",
+  description: "Paragraph",
+  parent: TextblockStyle,
+  rank: 20
+}
+
+export const Header: MenuSelect = {
+  type: "select",
+  label: "Header",
+  description: "Header",
+  parent: TextblockStyle,
+  rank: 30
+}
+
+export const Header1: MenuButton = {
+  type: "button",
+  run: () => { console.log("h1"); return true },
+  label: "Header 1",
+  description: "Header level 1",
+  parent: Header,
+  rank: 30
+}
+
+export const Header2: MenuButton = {
+  type: "button",
+  run: () => { console.log("h2"); return true },
+  label: "Header 2",
+  description: "Header level 2",
+  parent: Header,
+  rank: 31
+}
+
+export const Header3: MenuButton = {
+  type: "button",
+  run: () => { console.log("h3"); return true },
+  label: "Header 3",
+  description: "Header level 3",
+  parent: Header,
+  rank: 32
+}
+
 // FIXME automatic generation from facet
-export const staticMenu: MenuItem[] = [Undo, Redo, Strong, AlignLeft, AlignRight, AlignCenter, Commands, InlineStyles, Alignment]
+export const staticMenu: MenuItem[] = [
+  Undo, Redo, Strong,
+  AlignLeft, AlignRight, AlignCenter,
+  Commands, InlineStyles, Alignment,
+  TextblockStyle, Paragraph, Header, Header1, Header2, Header3,
+]
 
 export class ResolvedGroup {
   constructor(readonly item: MenuItem,
               readonly content: readonly (MenuItem | ResolvedGroup)[]) {}
 }
+
+// FIXME somehow support custom items in the template
 
 export function resolveMenu(
   items: readonly MenuItem[],
