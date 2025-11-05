@@ -205,15 +205,14 @@ class MenuBar {
   }
 
   update(update: ViewUpdate) {
-    let recomp = update.docChanged || update.selectionSet
-    this.updateElts(update.state, recomp, this.selection)
+    this.updateElts(update.state, update, this.selection)
   }
 
-  updateElts(state: EditorState, recomp: boolean, selection: readonly BarElement[]) {
-    // FIXME don't blindly recompute, help items check status efficiently
+  updateElts(state: EditorState, update: ViewUpdate | boolean, selection: readonly BarElement[]) {
+    let changed = typeof update == "boolean" ? update : update.docChanged || update.selectionSet
     for (let i = this.elts.length - 1; i >= 0; i--) {
       let elt = this.elts[i], flags
-      if (recomp) {
+      if (update && (update === true || (elt.item.updateFor ? update.transactions.some(tr => elt.item.updateFor!(tr)) : changed))) {
         flags = ((elt.item.select ? elt.item.select(state) : true) ? 0 : F.Hidden) |
           ((elt.item.enable ? elt.item.enable(state) : true) ? 0 : F.Disabled) |
           ((elt instanceof BarButton && elt.item.active ? elt.item.active(state) : false) ? F.Active : 0)
@@ -227,7 +226,7 @@ class MenuBar {
       }
       elt.update(flags, state)
     }
-    if (recomp && selection.some(e => e.flags & F.Hidden)) {
+    if (update && selection.some(e => e.flags & F.Hidden)) {
       let reset = selection[0].flags & F.Hidden ? findChild(this.children, true) : selection[0]
       this.setSelection(reset ? [reset] : [])
     }

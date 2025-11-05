@@ -1,5 +1,5 @@
 import {Command} from "@wordgard/view"
-import {EditorState} from "@wordgard/state"
+import {EditorState, Transaction} from "@wordgard/state"
 
 export type MenuLabel = string | {icon: string}
 
@@ -7,6 +7,12 @@ export interface BaseMenuItem {
   type: string
   select?: (state: EditorState) => boolean
   enable?: (state: EditorState) => boolean
+  /// By default, state predicates (`select`, `enable`, and `active`)
+  /// are re-checked whenever the document or selection changes. If an
+  /// item is sensitive to other aspects of the state, provide a test
+  /// here that returns `true` for transactions that might affect the
+  /// item state.
+  updateFor?: (tr: Transaction) => boolean
   parent?: MenuItem
   rank?: number
 }
