@@ -1,10 +1,10 @@
 import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
 import {EditorState, Extension} from "@wordgard/state"
-import {MenuLabel, MenuItem, MenuButton, MenuSelect, resolveMenu, staticMenu, ResolvedGroup} from "./item"
+import {MenuLabel, MenuItem, MenuButton, Submenu, resolveMenu, staticMenu, ResolvedSubmenu} from "./item"
 
 // FIXME redraw when menu-item facets change
 
-type BarElement = BarButton | BarSelect
+type BarElement = BarButton | BarSubmenu
 
 let nextID = 0
 
@@ -30,7 +30,7 @@ function labelButton(state: EditorState, button: HTMLElement, label: MenuLabel) 
 }
 
 const enum F {
-  // For a select element, indicates whether the menu is open
+  // For a submenu element, indicates whether the menu is open
   Open = 2,
   // Whether this element is currently selected
   Selected = 4,
@@ -81,19 +81,19 @@ class BarButton {
   }
 }
 
-class BarSelect {
+class BarSubmenu {
   dom: HTMLElement
   button: HTMLElement
   list: HTMLElement
   flags: F = 0 as F
-  // Initialized to -3. -2 means the select has its own label, > -2
+  // Initialized to -3. -2 means the submenu has its own label, > -2
   // means taking label from that active child, -1 is no active child
   activeChild = -3
   index = 0
 
-  constructor(readonly item: MenuSelect, readonly children: readonly BarElement[], state: EditorState) {
+  constructor(readonly item: Submenu, readonly children: readonly BarElement[], state: EditorState) {
     this.dom = document.createElement("div")
-    this.dom.className = "wg-menu-select"
+    this.dom.className = "wg-submenu"
     this.button = this.dom.appendChild(document.createElement("button"))
     this.button.tabIndex = -1
     this.button.className = "wg-menu-button"
@@ -104,8 +104,8 @@ class BarSelect {
       labelButton(state, this.button, item.label)
       this.activeChild = -2
     }
-    if (item.width != null) this.dom.style.setProperty("--wg-select-width", item.width + "ch")
-    if (item.arrow !== false) this.button.classList.add("wg-select-arrow")
+    if (item.width != null) this.dom.style.setProperty("--wg-submenu-width", item.width + "ch")
+    if (item.arrow !== false) this.button.classList.add("wg-submenu-arrow")
     this.list = this.dom.appendChild(document.createElement("div"))
     this.list.className = "wg-menu-list"
     this.list.style.display = "none"
@@ -149,10 +149,10 @@ class BarSelect {
   }
 }
 
-function instantiate(item: MenuItem | ResolvedGroup, state: EditorState, flat: BarElement[]): BarElement {
+function instantiate(item: MenuItem | ResolvedSubmenu, state: EditorState, flat: BarElement[]): BarElement {
   let elt
-  if (item instanceof ResolvedGroup)
-    elt = new BarSelect(item.item as MenuSelect /* FIXME */,
+  if (item instanceof ResolvedSubmenu)
+    elt = new BarSubmenu(item.item as Submenu /* FIXME */,
                         item.content.map(i => instantiate(i, state, flat)), state)
   else if (item.type == "button")
     elt = new BarButton(item, state)
@@ -165,6 +165,7 @@ function instantiate(item: MenuItem | ResolvedGroup, state: EditorState, flat: B
 
 const menuPlugin = showPanel.of(view => new MenuBar(view))
 
+// FIXME separate from tooltip, export as utility
 class MenuBar {
   dom: HTMLElement
   elts: readonly BarElement[]
@@ -236,15 +237,15 @@ class MenuBar {
       }
     } else if (event.key == "ArrowDown" || event.key == "ArrowUp") {
       if (sLen > 1) {
-        let parent = this.selection[sLen - 2] as BarSelect
+        let parent = this.selection[sLen - 2] as BarSubmenu
         let next = findNextChild(parent.children, this.selection[sLen - 1], event.key == "ArrowUp" ? -1 : 1)
         if (next) this.setSelection(this.selection.slice(0, sLen - 1).concat(next))
-      } else if (sLen == 1 && this.selection[0] instanceof BarSelect) {
+      } else if (sLen == 1 && this.selection[0] instanceof BarSubmenu) {
         let inner = defaultChild(this.selection[0].children)
         if (inner) this.setSelection([this.selection[0], inner])
       }
     } else if (event.key == "Home" || event.key == "End") {
-      let child = findChild(sLen > 1 ? (this.selection[sLen - 2] as BarSelect).children : this.children, event.key == "Home")
+      let child = findChild(sLen > 1 ? (this.selection[sLen - 2] as BarSubmenu).children : this.children, event.key == "Home")
       if (child) this.setSelection(this.selection.slice(0, sLen - 1).concat(child))
     } else if (event.key == " " || event.key == "Enter") {
       if (sLen) {
@@ -282,7 +283,7 @@ class MenuBar {
       this.setSelection(this.selection.slice(0, idx + 1), false)
     } else {
       for (let i = 0; i < this.selection.length; i++) {
-        let {children} = i ? this.selection[i - 1] as BarSelect : this
+        let {children} = i ? this.selection[i - 1] as BarSubmenu : this
         if (children.includes(target)) {
           let next = defaultChild(target.children)
           if (next) this.setSelection(this.selection.slice(0, i).concat([target, next]), false)
@@ -388,7 +389,7 @@ const theme = EditorView.baseTheme({
 
   ".wg-button-label": {
     display: "inline-block",
-    minWidth: "var(--wg-select-width)",
+    minWidth: "var(--wg-submenu-width)",
     padding: "0 3px",
   },
 
@@ -398,7 +399,7 @@ const theme = EditorView.baseTheme({
     height: "var(--wg-menu-item-size)",
   },
 
-  ".wg-menu-select": {
+  ".wg-submenu": {
     position: "relative",
     lineHeight: ".6",
     whiteSpace: "nowrap"
@@ -422,14 +423,14 @@ const theme = EditorView.baseTheme({
     }
   },
 
-  ".wg-select-arrow:after": {
+  ".wg-submenu-arrow:after": {
     padding: "0 2px",
     fontSize: "80%",
     verticalAlign: "10%",
     opacity: "0.4",
     content: "'▾'"
   },
-  ".wg-select-arrow.wg-select-arrow-open:after": {
+  ".wg-submenu-arrow.wg-submenu-arrow-open:after": {
     content: "'▴'"
   },
 })

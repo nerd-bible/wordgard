@@ -22,11 +22,11 @@ export interface MenuButton extends BaseMenuItem {
 
 export interface MenuGroup extends BaseMenuItem {
   type: "group"
-  margin?: boolean
+  margin?: boolean // FIXME implement
 }
 
-export interface MenuSelect extends BaseMenuItem {
-  type: "select"
+export interface Submenu extends BaseMenuItem {
+  type: "submenu"
   description: string
   label?: MenuLabel
   defaultLabel?: MenuLabel
@@ -35,9 +35,9 @@ export interface MenuSelect extends BaseMenuItem {
 }
 
 // FIXME make this easily extendable in 3rd party code, somehow
-export type MenuItem = MenuButton | MenuGroup | MenuSelect
+export type MenuItem = MenuButton | MenuGroup | Submenu
 
-export class TemplateGroup {
+export class MenuTemplate {
   parent: MenuItem | null
   rank: number
 
@@ -47,7 +47,7 @@ export class TemplateGroup {
   }
 
   static of(item: MenuItem, ...content: (MenuItem | "...")[]) {
-    return new TemplateGroup(item, content.length ? content : ["..."])
+    return new MenuTemplate(item, content.length ? content : ["..."])
   }
 }
 
@@ -82,8 +82,8 @@ export const Strong: MenuButton = {
   rank: 10
 }
 
-export const Alignment: MenuSelect = {
-  type: "select",
+export const Alignment: Submenu = {
+  type: "submenu",
   parent: Top,
   defaultLabel: {icon: "M2 12.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5m0-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5"},
   rank: 50,
@@ -119,8 +119,8 @@ export const AlignCenter: MenuButton = {
   rank: 30
 }
 
-export const TextblockStyle: MenuSelect = {
-  type: "select",
+export const TextblockStyle: Submenu = {
+  type: "submenu",
   defaultLabel: "Block style",
   description: "Block style",
   parent: Top,
@@ -137,8 +137,8 @@ export const Paragraph: MenuButton = {
   rank: 20
 }
 
-export const Header: MenuSelect = {
-  type: "select",
+export const Header: Submenu = {
+  type: "submenu",
   label: "Header",
   description: "Header",
   parent: TextblockStyle,
@@ -180,27 +180,27 @@ export const staticMenu: MenuItem[] = [
   TextblockStyle, Paragraph, Header, Header1, Header2, Header3,
 ]
 
-export class ResolvedGroup {
+export class ResolvedSubmenu {
   constructor(readonly item: MenuItem,
-              readonly content: readonly (MenuItem | ResolvedGroup)[]) {}
+              readonly content: readonly (MenuItem | ResolvedSubmenu)[]) {}
 }
 
 // FIXME somehow support custom items in the template
 
 export function resolveMenu(
   items: readonly MenuItem[],
-  template: TemplateGroup | readonly TemplateGroup[] = TemplateGroup.of(Top)
-): readonly (MenuItem | ResolvedGroup)[] {
+  template: MenuTemplate | readonly MenuTemplate[] = MenuTemplate.of(Top)
+): readonly (MenuItem | ResolvedSubmenu)[] {
   let used = new Set<MenuItem>()
-  function resolve(template: MenuItem | TemplateGroup, content: readonly (MenuItem | "...")[] | null,
-                   target: (MenuItem | ResolvedGroup)[]) {
-    if (template instanceof TemplateGroup) {
+  function resolve(template: MenuItem | MenuTemplate, content: readonly (MenuItem | "...")[] | null,
+                   target: (MenuItem | ResolvedSubmenu)[]) {
+    if (template instanceof MenuTemplate) {
       resolve(template.item, template.content, target)
     } else {
       if (used.has(template)) return
       used.add(template)
-      if (template.type == "select" || template.type == "group") {
-        let innerTarget: (MenuItem | ResolvedGroup)[] = template.type == "select" ? [] : target
+      if (template.type == "submenu" || template.type == "group") {
+        let innerTarget: (MenuItem | ResolvedSubmenu)[] = template.type == "submenu" ? [] : target
         for (let elt of content || ["..."]) {
           if (elt === "...") {
             let found: MenuItem[] = items.filter(i => i.parent == template)
@@ -210,15 +210,15 @@ export function resolveMenu(
           }
         }
         if (innerTarget != target && innerTarget.length)
-          target.push(new ResolvedGroup(template, innerTarget))
+          target.push(new ResolvedSubmenu(template, innerTarget))
       } else {
         target.push(template)
       }
     }
   }
 
-  let top: (MenuItem | ResolvedGroup)[] = []
+  let top: (MenuItem | ResolvedSubmenu)[] = []
   if (Array.isArray(template)) for (let elt of template) resolve(elt, null, top)
-  else resolve(template as TemplateGroup, null, top)
+  else resolve(template as MenuTemplate, null, top)
   return top
 }
