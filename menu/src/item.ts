@@ -1,7 +1,17 @@
-import {Command} from "@wordgard/view"
+import {EditorView} from "@wordgard/view"
 import {EditorState, Transaction} from "@wordgard/state"
 
-export type MenuLabel = string | {icon: string}
+export type MenuLabelWidget = {
+  render: (view: EditorView) => HTMLElement
+  rerender?: (tr: Transaction) => boolean
+  update?: (elt: HTMLElement, view: EditorView) => void
+}
+
+export type MenuLabel = string | {icon: string} | MenuLabelWidget
+
+export function isMenuLabelWidget(label: MenuLabel): label is MenuLabelWidget {
+  return !!(label as any).render
+}
 
 export interface BaseMenuItem {
   type: string
@@ -19,7 +29,7 @@ export interface BaseMenuItem {
 
 export interface MenuButton extends BaseMenuItem {
   type: "button"
-  run: Command
+  run: (view: EditorView) => void
   active?: (state: EditorState) => boolean
   // FIXME use 100x100 viewport for these, find better icons
   label: MenuLabel
@@ -43,6 +53,11 @@ export interface Submenu extends BaseMenuItem {
 // FIXME define a facet for these
 
 export type MenuItem = MenuButton | MenuGroup | Submenu
+
+export class EditorStateQuery {
+  constructor(readonly state: EditorState) {}
+
+  
 
 export class MenuTemplate {
   parent: MenuItem | null
@@ -194,6 +209,7 @@ export class ResolvedSubmenu<Custom = never> {
 }
 
 // FIXME somehow support custom items in the template
+// FIXME make sure items appearing directly in the template aren't taken from items
 
 export function resolveMenu<Custom = never>(
   items: readonly MenuItem[],

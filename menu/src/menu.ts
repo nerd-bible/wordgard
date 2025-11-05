@@ -1,6 +1,7 @@
 import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
-import {EditorState, Extension} from "@wordgard/state"
-import {MenuLabel, MenuButton, Submenu, resolveMenu, staticMenu, ResolvedSubmenu, ResolvedMenuItem} from "./item"
+import {Extension} from "@wordgard/state"
+import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton, Submenu,
+        resolveMenu, staticMenu, ResolvedSubmenu, ResolvedMenuItem} from "./item"
 
 // FIXME redraw when menu-item facets change
 
@@ -14,18 +15,20 @@ function id(prefix: string) {
 
 const SVG = "http://www.w3.org/2000/svg"
 
-function labelButton(state: EditorState, button: HTMLElement, label: MenuLabel) {
+function labelButton(view: EditorView, button: HTMLElement, label: MenuLabel) {
   button.textContent = ""
   if (typeof label == "string") {
     let span = button.appendChild(document.createElement("span"))
     span.className = "wg-button-label"
-    span.textContent = state.phrase(label)
-  } else {
+    span.textContent = view.state.phrase(label)
+  } else if ((label as {icon: string}).icon != null) {
     let svg = button.appendChild(document.createElementNS(SVG, "svg"))
     svg.classList.add("wg-icon")
     svg.setAttribute("viewBox", "0 0 16 16")
     let path = svg.appendChild(document.createElementNS(SVG, "path"))
-    path.setAttribute("d", label.icon)
+    path.setAttribute("d", (label as {icon: string}).icon)
+  } else if (isMenuLabelWidget(label)) {
+    button.appendChild(label.render(view))
   }
 }
 
@@ -44,22 +47,26 @@ const enum F {
   Hidden = 32,
 }
 
+// FIXME copy relevant item fields for monomorphic access?
+
 class BarButton {
   dom: HTMLElement
   flags: F = 0 as F
   index = 0
+  dynamicLabel: boolean
 
-  constructor(readonly item: MenuButton, state: EditorState) {
+  constructor(readonly item: MenuButton, view: EditorView) {
     this.dom = document.createElement("button")
     this.dom.className = "wg-menu-button"
     this.dom.tabIndex = -1
-    labelButton(state, this.dom, item.label)
-    this.dom.setAttribute("aria-label", this.dom.title = state.phrase(item.description))
+    labelButton(view, this.dom, item.label)
+    this.dynamicLabel = isMenuLabelWidget(item.label) && item.label.rerender != null
+    this.dom.setAttribute("aria-label", this.dom.title = view.state.phrase(item.description))
   }
 
   get focusDOM() { return this.dom }
 
-  update(flags: F) {
+  update(flags: F, view: EditorView, update: ViewUpdate | null) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -78,6 +85,13 @@ class BarButton {
       }
       this.flags = flags
     }
+    if (this.dynamicLabel && update) {
+      let label = this.item.label as MenuLabelWidget
+      if (update.transactions.some(tr => label.rerender!(tr))) {
+        if (label.update) label.update(this.dom.firstChild as HTMLElement, view)
+        else labelButton(view, this.dom, label)
+      }
+    }
   }
 }
 
@@ -92,7 +106,7 @@ class BarSubmenu {
   index = 0
   children: readonly BarElement[]
 
-  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], state: EditorState) {
+  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], view: EditorView) {
     this.dom = document.createElement("div")
     this.dom.className = "wg-submenu"
     this.button = this.dom.appendChild(document.createElement("button"))
@@ -100,9 +114,9 @@ class BarSubmenu {
     this.button.className = "wg-menu-button"
     this.button.setAttribute("aria-haspopup", "true")
     this.button.setAttribute("aria-expanded", "false")
-    this.button.setAttribute("aria-label", this.button.title = state.phrase(item.description))
+    this.button.setAttribute("aria-label", this.button.title = view.state.phrase(item.description))
     if (item.label) {
-      labelButton(state, this.button, item.label)
+      labelButton(view, this.button, item.label)
       this.activeChild = -2
     }
     if (item.width != null) this.dom.style.setProperty("--wg-submenu-width", item.width + "ch")
@@ -124,7 +138,7 @@ class BarSubmenu {
 
   get focusDOM() { return this.button }
 
-  update(flags: F, state: EditorState) {
+  update(flags: F, view: EditorView) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -146,7 +160,7 @@ class BarSubmenu {
       if (this.activeChild != activeChild) {
         this.activeChild = activeChild
         let label = (activeChild < 0 ? this.item.defaultLabel : (this.children[activeChild].item as MenuButton).label) ?? ""
-        labelButton(state, this.button, label)
+        labelButton(view, this.button, label)
       }
     }
   }
@@ -161,15 +175,15 @@ class BarSpacer {
   }
 }
 
-function instantiate(item: ResolvedMenuItem, state: EditorState, flat: BarElement[]): BarElement | BarSpacer {
+function instantiate(item: ResolvedMenuItem, view: EditorView, flat: BarElement[]): BarElement | BarSpacer {
   let elt
   if (item instanceof ResolvedSubmenu)
     elt = new BarSubmenu(item.item as Submenu /* FIXME */,
-                         item.content.map(i => instantiate(i, state, flat)), state)
+                         item.content.map(i => instantiate(i, view, flat)), view)
   else if (item === "|")
     return new BarSpacer()
   else if (item.type == "button")
-    elt = new BarButton(item, state)
+    elt = new BarButton(item, view)
   else
     throw new Error("No implementation for menu item type " + item.type)
   elt.index = flat.length
@@ -196,20 +210,22 @@ class MenuBar {
     this.dom.addEventListener("focusout", this.focusout.bind(this))
     let elts: BarElement[] = []
     this.elts = elts
-    let children = resolveMenu(staticMenu).map(i => instantiate(i, view.state, elts))
+    let children = resolveMenu(staticMenu).map(i => instantiate(i, view, elts))
     this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
-    this.updateElts(view.state, true, this.selection)
+    this.updateElts(true, this.selection)
     this.globalClick = this.globalClick.bind(this)
   }
 
   update(update: ViewUpdate) {
-    this.updateElts(update.state, update, this.selection)
+    this.updateElts(update, this.selection)
   }
 
-  updateElts(state: EditorState, update: ViewUpdate | boolean, selection: readonly BarElement[]) {
+  updateElts(update: ViewUpdate | boolean, selection: readonly BarElement[]) {
+    let {state} = this.view
     let changed = typeof update == "boolean" ? update : update.docChanged || update.selectionSet
+    let updateObj = typeof update == "boolean" ? null : update
     for (let i = this.elts.length - 1; i >= 0; i--) {
       let elt = this.elts[i], flags
       if (update && (update === true || (elt.item.updateFor ? update.transactions.some(tr => elt.item.updateFor!(tr)) : changed))) {
@@ -224,7 +240,7 @@ class MenuBar {
         if (selected == selection.length - 1) flags |= F.Selected
         else if (selected > -1) flags |= F.Open
       }
-      elt.update(flags, state)
+      elt.update(flags, this.view, updateObj)
     }
     if (update && selection.some(e => e.flags & F.Hidden)) {
       let reset = selection[0].flags & F.Hidden ? findChild(this.children, true) : selection[0]
@@ -233,7 +249,7 @@ class MenuBar {
   }
 
   setSelection(selection: readonly BarElement[], focus = true) {
-    this.updateElts(this.view.state, false, selection)
+    this.updateElts(false, selection)
     if (selection.length > 1 && this.selection.length <= 1)
       this.dom.ownerDocument.addEventListener("mousedown", this.globalClick)
     this.selection = selection
