@@ -1,6 +1,6 @@
 import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
 import {EditorState, Extension} from "@wordgard/state"
-import {MenuLabel, MenuItem, MenuButton, Submenu, resolveMenu, staticMenu, ResolvedSubmenu} from "./item"
+import {MenuLabel, MenuButton, Submenu, resolveMenu, staticMenu, ResolvedSubmenu, ResolvedMenuItem} from "./item"
 
 // FIXME redraw when menu-item facets change
 
@@ -90,8 +90,9 @@ class BarSubmenu {
   // means taking label from that active child, -1 is no active child
   activeChild = -3
   index = 0
+  children: readonly BarElement[]
 
-  constructor(readonly item: Submenu, readonly children: readonly BarElement[], state: EditorState) {
+  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], state: EditorState) {
     this.dom = document.createElement("div")
     this.dom.className = "wg-submenu"
     this.button = this.dom.appendChild(document.createElement("button"))
@@ -113,9 +114,11 @@ class BarSubmenu {
     this.list.id = id("wg-popup")
     this.list.setAttribute("aria-label", this.button.title)
     this.button.setAttribute("aria-controls", this.list.id)
+    this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let child of children) {
       this.list.appendChild(child.dom)
-      child.focusDOM.role = "menuitem"
+      if (!(child instanceof BarSpacer))
+        child.focusDOM.role = "menuitem"
     }
   }
 
@@ -149,11 +152,22 @@ class BarSubmenu {
   }
 }
 
-function instantiate(item: MenuItem | ResolvedSubmenu, state: EditorState, flat: BarElement[]): BarElement {
+class BarSpacer {
+  dom: HTMLElement
+
+  constructor() {
+    this.dom = document.createElement("div")
+    this.dom.className = "wg-menu-spacer"
+  }
+}
+
+function instantiate(item: ResolvedMenuItem, state: EditorState, flat: BarElement[]): BarElement | BarSpacer {
   let elt
   if (item instanceof ResolvedSubmenu)
     elt = new BarSubmenu(item.item as Submenu /* FIXME */,
-                        item.content.map(i => instantiate(i, state, flat)), state)
+                         item.content.map(i => instantiate(i, state, flat)), state)
+  else if (item === "|")
+    return new BarSpacer()
   else if (item.type == "button")
     elt = new BarButton(item, state)
   else
@@ -182,8 +196,9 @@ class MenuBar {
     this.dom.addEventListener("focusout", this.focusout.bind(this))
     let elts: BarElement[] = []
     this.elts = elts
-    this.children = resolveMenu(staticMenu).map(i => instantiate(i, view.state, elts))
-    for (let elt of this.children) this.dom.appendChild(elt.dom)
+    let children = resolveMenu(staticMenu).map(i => instantiate(i, view.state, elts))
+    this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
+    for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
     this.updateElts(view.state, true, this.selection)
     this.globalClick = this.globalClick.bind(this)
@@ -397,6 +412,10 @@ const theme = EditorView.baseTheme({
     fill: "currentColor",
     width: "var(--wg-menu-item-size)",
     height: "var(--wg-menu-item-size)",
+  },
+
+  ".wg-menu-spacer": {
+    width: "3px"
   },
 
   ".wg-submenu": {

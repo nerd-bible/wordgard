@@ -34,26 +34,27 @@ export interface Submenu extends BaseMenuItem {
   width?: number
 }
 
-// FIXME make this easily extendable in 3rd party code, somehow
+// FIXME define a facet for these
+
 export type MenuItem = MenuButton | MenuGroup | Submenu
 
 export class MenuTemplate {
   parent: MenuItem | null
   rank: number
 
-  private constructor(readonly item: MenuItem, readonly content: readonly (MenuItem | "...")[] = []) {
+  private constructor(readonly item: MenuGroup | Submenu, readonly content: readonly (MenuTemplate | MenuItem | "...")[] = []) {
     this.parent = item.parent ?? null
     this.rank = item.rank ?? 100
   }
 
-  static of(item: MenuItem, ...content: (MenuItem | "...")[]) {
+  static of(item: MenuGroup | Submenu, ...content: (MenuTemplate | MenuItem | "...")[]) {
     return new MenuTemplate(item, content.length ? content : ["..."])
   }
 }
 
 export const Top: MenuGroup = {type: "group"}
 export const Commands: MenuGroup = {type: "group", parent: Top, rank: 10}
-export const InlineStyles: MenuGroup = {type: "group", parent: Top, rank: 30}
+export const InlineStyles: MenuGroup = {type: "group", parent: Top, rank: 30, margin: true}
 
 export const Undo: MenuButton = {
   type: "button",
@@ -180,27 +181,33 @@ export const staticMenu: MenuItem[] = [
   TextblockStyle, Paragraph, Header, Header1, Header2, Header3,
 ]
 
-export class ResolvedSubmenu {
-  constructor(readonly item: MenuItem,
-              readonly content: readonly (MenuItem | ResolvedSubmenu)[]) {}
+export type ResolvedMenuItem<Custom = never> = MenuItem | "|" | Custom | ResolvedSubmenu<Custom>
+
+export class ResolvedSubmenu<Custom = never> {
+  constructor(readonly item: Submenu, readonly content: readonly ResolvedMenuItem<Custom>[]) {}
 }
 
 // FIXME somehow support custom items in the template
 
-export function resolveMenu(
+export function resolveMenu<Custom = never>(
   items: readonly MenuItem[],
   template: MenuTemplate | readonly MenuTemplate[] = MenuTemplate.of(Top)
-): readonly (MenuItem | ResolvedSubmenu)[] {
+): readonly ResolvedMenuItem<Custom>[] {
   let used = new Set<MenuItem>()
-  function resolve(template: MenuItem | MenuTemplate, content: readonly (MenuItem | "...")[] | null,
-                   target: (MenuItem | ResolvedSubmenu)[]) {
+  function margin(target: ResolvedMenuItem<Custom>[]) {
+    if (target.length && target[target.length - 1] !== "|") target.push("|")
+  }
+  function resolve(template: MenuItem | MenuTemplate,
+                   content: readonly (MenuTemplate | MenuItem | "...")[] | null,
+                   target: ResolvedMenuItem<Custom>[]) {
     if (template instanceof MenuTemplate) {
       resolve(template.item, template.content, target)
     } else {
       if (used.has(template)) return
       used.add(template)
       if (template.type == "submenu" || template.type == "group") {
-        let innerTarget: (MenuItem | ResolvedSubmenu)[] = template.type == "submenu" ? [] : target
+        if (template.type == "group" && template.margin) margin(target)
+        let innerTarget: ResolvedMenuItem<Custom>[] = template.type == "submenu" ? [] : target
         for (let elt of content || ["..."]) {
           if (elt === "...") {
             let found: MenuItem[] = items.filter(i => i.parent == template)
@@ -209,16 +216,21 @@ export function resolveMenu(
             resolve(elt, null, innerTarget)
           }
         }
-        if (innerTarget != target && innerTarget.length)
-          target.push(new ResolvedSubmenu(template, innerTarget))
+        if (innerTarget != target && innerTarget.length) {
+          if (innerTarget[innerTarget.length - 1] === "|") innerTarget.pop()
+          if (innerTarget.length) target.push(new ResolvedSubmenu(template as Submenu, innerTarget))
+        } else if (template.type == "group" && template.margin) {
+          margin(target)
+        }
       } else {
         target.push(template)
       }
     }
   }
 
-  let top: (MenuItem | ResolvedSubmenu)[] = []
+  let top: ResolvedMenuItem<Custom>[] = []
   if (Array.isArray(template)) for (let elt of template) resolve(elt, null, top)
   else resolve(template as MenuTemplate, null, top)
+  if (top.length && top[top.length - 1] === "|") top.pop()
   return top
 }
