@@ -205,9 +205,13 @@ export class ResolvedSubmenu {
 
 export function resolveMenu(
   items: readonly MenuItem[],
-  template: MenuTemplate | readonly MenuTemplate[] = MenuTemplate.of(Top)
+  template: MenuTemplate | readonly MenuTemplate[] = MenuTemplate.of(Top),
+  suppress?: readonly MenuItem[]
 ): readonly ResolvedMenuItem[] {
+  // 1 means not used yet, but will be used in template, so ignore
+  // when filling items, 2 means used/suppressed
   let used = new Map<MenuItem, number>()
+  if (suppress) for (let item of suppress) used.set(item, 2)
   function scan(template: MenuTemplate) {
     used.set(template.item, 1)
     for (let child of template.content) {
