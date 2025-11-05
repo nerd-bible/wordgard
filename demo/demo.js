@@ -1,6 +1,6 @@
 import {EditorView, keymap, defaultKeymap} from "@wordgard/view"
 import {basicSchema} from "@wordgard/doc"
-import {menuBar} from "@wordgard/menu"
+import {menuBar, staticMenu} from "@wordgard/menu"
 
 let view = window.view = new EditorView({
   parent: document.body,
@@ -8,6 +8,7 @@ let view = window.view = new EditorView({
   config: [
     basicSchema.elements,
     keymap.of(defaultKeymap),
+    staticMenu,
     menuBar()
   ]
 })

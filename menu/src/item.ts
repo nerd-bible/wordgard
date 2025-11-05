@@ -1,5 +1,5 @@
 import {EditorView} from "@wordgard/view"
-import {EditorState, Transaction} from "@wordgard/state"
+import {EditorState, Transaction, Facet, Extension} from "@wordgard/state"
 
 export type MenuLabelWidget = {
   render: (view: EditorView) => HTMLElement
@@ -23,7 +23,7 @@ export interface BaseMenuItem {
   /// here that returns `true` for transactions that might affect the
   /// item state.
   updateFor?: (tr: Transaction) => boolean
-  parent?: MenuItem
+  parent?: MenuGroup | Submenu
   rank?: number
 }
 
@@ -50,17 +50,12 @@ export interface Submenu extends BaseMenuItem {
   width?: number
 }
 
-// FIXME define a facet for these
-
 export type MenuItem = MenuButton | MenuGroup | Submenu
 
-export class EditorStateQuery {
-  constructor(readonly state: EditorState) {}
-
-  
+export const menuItem = Facet.define<MenuItem>()
 
 export class MenuTemplate {
-  parent: MenuItem | null
+  parent: MenuGroup | Submenu | null
   rank: number
 
   private constructor(readonly item: MenuGroup | Submenu, readonly content: readonly (MenuTemplate | MenuItem | "...")[] = []) {
@@ -195,33 +190,33 @@ export const Header3: MenuButton = {
 }
 
 // FIXME automatic generation from facet
-export const staticMenu: MenuItem[] = [
+export const staticMenu: Extension[] = [
   Undo, Redo, Strong,
   AlignLeft, AlignRight, AlignCenter,
   Commands, InlineStyles, Alignment,
   TextblockStyle, Paragraph, Header, Header1, Header2, Header3,
-]
+].map(i => menuItem.of(i))
 
-export type ResolvedMenuItem<Custom = never> = MenuItem | "|" | Custom | ResolvedSubmenu<Custom>
+export type ResolvedMenuItem = MenuItem | "|" | ResolvedSubmenu
 
-export class ResolvedSubmenu<Custom = never> {
-  constructor(readonly item: Submenu, readonly content: readonly ResolvedMenuItem<Custom>[]) {}
+export class ResolvedSubmenu {
+  constructor(readonly item: Submenu, readonly content: readonly ResolvedMenuItem[]) {}
 }
 
-// FIXME somehow support custom items in the template
 // FIXME make sure items appearing directly in the template aren't taken from items
 
-export function resolveMenu<Custom = never>(
-  items: readonly MenuItem[],
+export function resolveMenu(
+  state: EditorState,
   template: MenuTemplate | readonly MenuTemplate[] = MenuTemplate.of(Top)
-): readonly ResolvedMenuItem<Custom>[] {
+): readonly ResolvedMenuItem[] {
+  let items = state.facet(menuItem)
   let used = new Set<MenuItem>()
-  function margin(target: ResolvedMenuItem<Custom>[]) {
+  function margin(target: ResolvedMenuItem[]) {
     if (target.length && target[target.length - 1] !== "|") target.push("|")
   }
   function resolve(template: MenuItem | MenuTemplate,
                    content: readonly (MenuTemplate | MenuItem | "...")[] | null,
-                   target: ResolvedMenuItem<Custom>[]) {
+                   target: ResolvedMenuItem[]) {
     if (template instanceof MenuTemplate) {
       resolve(template.item, template.content, target)
     } else {
@@ -229,7 +224,7 @@ export function resolveMenu<Custom = never>(
       used.add(template)
       if (template.type == "submenu" || template.type == "group") {
         if (template.type == "group" && template.margin) margin(target)
-        let innerTarget: ResolvedMenuItem<Custom>[] = template.type == "submenu" ? [] : target
+        let innerTarget: ResolvedMenuItem[] = template.type == "submenu" ? [] : target
         for (let elt of content || ["..."]) {
           if (elt === "...") {
             let found: MenuItem[] = items.filter(i => i.parent == template)
@@ -250,7 +245,7 @@ export function resolveMenu<Custom = never>(
     }
   }
 
-  let top: ResolvedMenuItem<Custom>[] = []
+  let top: ResolvedMenuItem[] = []
   if (Array.isArray(template)) for (let elt of template) resolve(elt, null, top)
   else resolve(template as MenuTemplate, null, top)
   if (top.length && top[top.length - 1] === "|") top.pop()

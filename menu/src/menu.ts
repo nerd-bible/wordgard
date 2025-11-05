@@ -1,7 +1,7 @@
 import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
-import {Extension} from "@wordgard/state"
-import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton, Submenu,
-        resolveMenu, staticMenu, ResolvedSubmenu, ResolvedMenuItem} from "./item"
+import {Extension, Facet} from "@wordgard/state"
+import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton, Submenu, Top,
+        MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem} from "./item"
 
 // FIXME redraw when menu-item facets change
 
@@ -191,9 +191,15 @@ function instantiate(item: ResolvedMenuItem, view: EditorView, flat: BarElement[
   return elt
 }
 
-const menuPlugin = showPanel.of(view => new MenuBar(view))
+const menuPlugin = showPanel.of(view => {
+  let bar = new MenuBar(view, view.state.facet(barTemplate))
+  return {
+    dom: bar.dom,
+    update: u => bar.update(u),
+    top: true
+  }
+})
 
-// FIXME separate from tooltip, export as utility
 class MenuBar {
   dom: HTMLElement
   elts: readonly BarElement[]
@@ -201,7 +207,7 @@ class MenuBar {
   selection: readonly BarElement[]
   focusTimeout = -1
 
-  constructor(readonly view: EditorView) {
+  constructor(readonly view: EditorView, template: MenuTemplate | readonly MenuTemplate[]) {
     this.dom = document.createElement("wg-menubar")
     this.dom.role = "toolbar"
     this.dom.setAttribute("aria-controls", view.contentDOM.id)
@@ -210,7 +216,7 @@ class MenuBar {
     this.dom.addEventListener("focusout", this.focusout.bind(this))
     let elts: BarElement[] = []
     this.elts = elts
-    let children = resolveMenu(staticMenu).map(i => instantiate(i, view, elts))
+    let children = resolveMenu(view.state, template).map(i => instantiate(i, view, elts))
     this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
@@ -344,8 +350,6 @@ class MenuBar {
       }, 20)
     }
   }
-
-  get top() { return true }
 }
 
 function findChild(children: readonly BarElement[], start: boolean) {
@@ -469,6 +473,14 @@ const theme = EditorView.baseTheme({
   },
 })
 
-export function menuBar(): Extension {
-  return [menuPlugin, theme]
+const barTemplate = Facet.define<readonly MenuTemplate[], readonly MenuTemplate[]>({
+  combine: inputs => inputs.length ? inputs[0] : [MenuTemplate.of(Top)]
+})
+
+export function menuBar(config: {
+  template?: MenuTemplate | readonly MenuTemplate[]
+} = {}): Extension {
+  let extensions = [menuPlugin, theme]
+  if (config.template) extensions.push(barTemplate.of(Array.isArray(config.template) ? config.template : [config.template]))
+  return extensions
 }
