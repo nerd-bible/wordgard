@@ -1,6 +1,6 @@
 import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
 import {Extension, Facet} from "@wordgard/state"
-import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton, Submenu, Top,
+import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
 type BarElement = BarButton | BarSubmenu
@@ -22,7 +22,7 @@ function labelButton(view: EditorView, button: HTMLElement, label: MenuLabel) {
   } else if ((label as {icon: string}).icon != null) {
     let svg = button.appendChild(document.createElementNS(SVG, "svg"))
     svg.classList.add("wg-icon")
-    svg.setAttribute("viewBox", "0 0 16 16")
+    svg.setAttribute("viewBox", "0 0 100 100")
     let path = svg.appendChild(document.createElementNS(SVG, "path"))
     path.setAttribute("d", (label as {icon: string}).icon)
   } else if (isMenuLabelWidget(label)) {
@@ -59,7 +59,8 @@ class BarButton {
     this.dom.tabIndex = -1
     labelButton(view, this.dom, item.label)
     this.dynamicLabel = isMenuLabelWidget(item.label) && item.label.rerender != null
-    this.dom.setAttribute("aria-label", this.dom.title = view.state.phrase(item.description))
+    if (item.description)
+      this.dom.setAttribute("aria-label", this.dom.title = view.state.phrase(item.description))
   }
 
   get focusDOM() { return this.dom }
@@ -112,7 +113,8 @@ class BarSubmenu {
     this.button.className = "wg-menu-button"
     this.button.setAttribute("aria-haspopup", "true")
     this.button.setAttribute("aria-expanded", "false")
-    this.button.setAttribute("aria-label", this.button.title = view.state.phrase(item.description))
+    if (item.description)
+      this.button.setAttribute("aria-label", this.button.title = view.state.phrase(item.description))
     if (item.label) {
       labelButton(view, this.button, item.label)
       this.activeChild = -2
@@ -179,10 +181,8 @@ function instantiate(item: ResolvedMenuItem, view: EditorView, flat: BarElement[
     elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, view, flat)), view)
   else if (item === "|")
     return new BarSpacer()
-  else if (item.type == "button")
-    elt = new BarButton(item, view)
   else
-    throw new Error("No implementation for menu item type " + item.type)
+    elt = new BarButton(item, view)
   elt.index = flat.length
   flat.push(elt)
   return elt
@@ -196,6 +196,9 @@ const menuPlugin = showPanel.of(view => {
     top: true
   }
 })
+
+// FIXME use some kind of getter system to build up the menu, for
+// finer control
 
 class MenuBar {
   dom: HTMLElement
@@ -484,7 +487,7 @@ const theme = EditorView.baseTheme({
 })
 
 const barTemplate = Facet.define<readonly MenuTemplate[], readonly MenuTemplate[]>({
-  combine: inputs => inputs.length ? inputs[0] : [MenuTemplate.of(Top)]
+  combine: inputs => inputs.length ? inputs[0] : [Top.template()]
 })
 
 export function menuBar(config: {
