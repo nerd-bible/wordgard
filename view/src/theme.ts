@@ -120,4 +120,40 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     zIndex: 300,
     backgroundColor: "var(--wg-panel-color)"
   },
+
+  ".wg-dialog": {
+    padding: "2px 19px 4px 6px",
+    position: "relative",
+    "& label": { fontSize: "80%" },
+  },
+  ".wg-dialog-close": {
+    position: "absolute",
+    top: "3px",
+    right: "4px",
+    backgroundColor: "inherit",
+    border: "none",
+    font: "inherit",
+    fontSize: "14px",
+    padding: "0"
+  },
+  ".wg-dialog-button": {
+    color: "inherit",
+    fontSize: "80%",
+    padding: ".1em .4em",
+    border: "1px solid var(--wg-border-color)",
+    borderRadius: "3px",
+  },
+  "&light .wg-dialog-button": {
+    backgroundImage: "linear-gradient(#eff1f5, #d9d9df)",
+    "&:active": {
+      backgroundImage: "linear-gradient(#b4b4b4, #d0d3d6)"
+    }
+  },
+  "&dark .wg-dialog-button": {
+    backgroundImage: "linear-gradient(#393939, #111)",
+    border: "1px solid #888",
+    "&:active": {
+      backgroundImage: "linear-gradient(#111, #333)"
+    }
+  },
 }, lightDarkIDs)
