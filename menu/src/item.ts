@@ -203,33 +203,40 @@ export class ResolvedSubmenu {
   constructor(readonly item: Submenu, readonly content: readonly ResolvedMenuItem[]) {}
 }
 
-// FIXME make sure items appearing directly in the template aren't taken from items
-
 export function resolveMenu(
   items: readonly MenuItem[],
   template: MenuTemplate | readonly MenuTemplate[] = MenuTemplate.of(Top)
 ): readonly ResolvedMenuItem[] {
-  let used = new Set<MenuItem>()
+  let used = new Map<MenuItem, number>()
+  function scan(template: MenuTemplate) {
+    used.set(template.item, 1)
+    for (let child of template.content) {
+      if (child instanceof MenuTemplate) scan(child)
+      else if (typeof child != "string") used.set(child, 1)
+    }
+  }
   function margin(target: ResolvedMenuItem[]) {
     if (target.length && target[target.length - 1] !== "|") target.push("|")
   }
   function resolve(template: MenuItem | MenuTemplate,
                    content: readonly (MenuTemplate | MenuItem | "...")[] | null,
-                   target: ResolvedMenuItem[]) {
+                   target: ResolvedMenuItem[],
+                   fromTemplate: boolean) {
     if (template instanceof MenuTemplate) {
-      resolve(template.item, template.content, target)
+      resolve(template.item, template.content, target, true)
     } else {
-      if (used.has(template)) return
-      used.add(template)
+      let wasUsed = used.get(template)
+      if (fromTemplate ? wasUsed == 2 : wasUsed != null) return
+      used.set(template, 2)
       if (template.type == "submenu" || template.type == "group") {
         if (template.type == "group" && template.margin) margin(target)
         let innerTarget: ResolvedMenuItem[] = template.type == "submenu" ? [] : target
         for (let elt of content || ["..."]) {
           if (elt === "...") {
             let found: MenuItem[] = items.filter(i => i.parent == template)
-            for (let item of found.sort((a, b) => (a.rank ?? 100) - (b.rank ?? 100))) resolve(item, null, innerTarget)
+            for (let item of found.sort((a, b) => (a.rank ?? 100) - (b.rank ?? 100))) resolve(item, null, innerTarget, false)
           } else {
-            resolve(elt, null, innerTarget)
+            resolve(elt, null, innerTarget, fromTemplate)
           }
         }
         if (innerTarget != target && innerTarget.length) {
@@ -245,8 +252,13 @@ export function resolveMenu(
   }
 
   let top: ResolvedMenuItem[] = []
-  if (Array.isArray(template)) for (let elt of template) resolve(elt, null, top)
-  else resolve(template as MenuTemplate, null, top)
+  if (Array.isArray(template)) {
+    for (let elt of template) scan(elt)
+    for (let elt of template) resolve(elt, null, top, true)
+  } else {
+    scan(template as MenuTemplate)
+    resolve(template as MenuTemplate, null, top, true)
+  }
   if (top.length && top[top.length - 1] === "|") top.pop()
   return top
 }
