@@ -1,9 +1,9 @@
 import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
 import {Extension, Facet} from "@wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton, Submenu, Top,
-        MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem} from "./item"
+        MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
-// FIXME redraw when menu-item facets change
+// FIXME rename to menubar.ts
 
 type BarElement = BarButton | BarSubmenu
 
@@ -202,30 +202,43 @@ const menuPlugin = showPanel.of(view => {
 
 class MenuBar {
   dom: HTMLElement
-  elts: readonly BarElement[]
-  children: readonly BarElement[]
-  selection: readonly BarElement[]
+  declare elts: readonly BarElement[]
+  declare children: readonly BarElement[]
+  declare selection: readonly BarElement[]
   focusTimeout = -1
+  items: readonly MenuItem[]
 
-  constructor(readonly view: EditorView, template: MenuTemplate | readonly MenuTemplate[]) {
+  constructor(readonly view: EditorView, readonly template: MenuTemplate | readonly MenuTemplate[]) {
     this.dom = document.createElement("wg-menubar")
     this.dom.role = "toolbar"
     this.dom.setAttribute("aria-controls", view.contentDOM.id)
     this.dom.addEventListener("keydown", this.key.bind(this))
     this.dom.addEventListener("mousedown", this.click.bind(this))
     this.dom.addEventListener("focusout", this.focusout.bind(this))
+    this.items = view.state.facet(menuItem)
+    this.init()
+    this.globalClick = this.globalClick.bind(this)
+  }
+
+  init() {
     let elts: BarElement[] = []
     this.elts = elts
-    let children = resolveMenu(view.state, template).map(i => instantiate(i, view, elts))
+    let children = resolveMenu(this.items, this.template).map(i => instantiate(i, this.view, elts))
     this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
     this.updateElts(true, this.selection)
-    this.globalClick = this.globalClick.bind(this)
   }
 
   update(update: ViewUpdate) {
-    this.updateElts(update, this.selection)
+    let items = update.state.facet(menuItem)
+    if (items != this.items) {
+      this.items = items
+      this.dom.textContent = ""
+      this.init()
+    } else {
+      this.updateElts(update, this.selection)
+    }
   }
 
   updateElts(update: ViewUpdate | boolean, selection: readonly BarElement[]) {

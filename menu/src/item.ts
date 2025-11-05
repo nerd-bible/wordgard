@@ -206,10 +206,9 @@ export class ResolvedSubmenu {
 // FIXME make sure items appearing directly in the template aren't taken from items
 
 export function resolveMenu(
-  state: EditorState,
+  items: readonly MenuItem[],
   template: MenuTemplate | readonly MenuTemplate[] = MenuTemplate.of(Top)
 ): readonly ResolvedMenuItem[] {
-  let items = state.facet(menuItem)
   let used = new Set<MenuItem>()
   function margin(target: ResolvedMenuItem[]) {
     if (target.length && target[target.length - 1] !== "|") target.push("|")
