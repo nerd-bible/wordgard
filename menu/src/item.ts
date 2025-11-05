@@ -38,7 +38,7 @@ export interface MenuButton extends BaseMenuItem {
 
 export interface MenuGroup extends BaseMenuItem {
   type: "group"
-  margin?: boolean // FIXME implement
+  margin?: boolean
 }
 
 export interface Submenu extends BaseMenuItem {
@@ -189,7 +189,7 @@ export const Header3: MenuButton = {
   rank: 32
 }
 
-// FIXME automatic generation from facet
+// FIXME drop
 export const staticMenu: Extension[] = [
   Undo, Redo, Strong,
   AlignLeft, AlignRight, AlignCenter,

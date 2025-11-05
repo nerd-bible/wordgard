@@ -3,8 +3,6 @@ import {Extension, Facet} from "@wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton, Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
-// FIXME rename to menubar.ts
-
 type BarElement = BarButton | BarSubmenu
 
 let nextID = 0
@@ -178,8 +176,7 @@ class BarSpacer {
 function instantiate(item: ResolvedMenuItem, view: EditorView, flat: BarElement[]): BarElement | BarSpacer {
   let elt
   if (item instanceof ResolvedSubmenu)
-    elt = new BarSubmenu(item.item as Submenu /* FIXME */,
-                         item.content.map(i => instantiate(i, view, flat)), view)
+    elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, view, flat)), view)
   else if (item === "|")
     return new BarSpacer()
   else if (item.type == "button")
@@ -300,7 +297,7 @@ class MenuBar {
       if (sLen) {
         let child = this.selection[sLen - 1]
         if (child.flags & F.Disabled) {
-        } else if (child instanceof BarButton) { // FIXME
+        } else if (child instanceof BarButton) {
           child.item.run(this.view)
           this.setSelection([this.selection[0]])
         } else {
@@ -324,7 +321,7 @@ class MenuBar {
       if (target) break
     }
 
-    if (target instanceof BarButton) { // FIXME
+    if (target instanceof BarButton) {
       target.item.run(this.view)
       this.setSelection(this.children.includes(target) ? [target] : this.selection.length ? [this.selection[0]] : [], false)
     } else if ((idx = this.selection.indexOf(target)) > -1 && idx < this.selection.length - 1) {
