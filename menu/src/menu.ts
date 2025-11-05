@@ -2,12 +2,7 @@ import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
 import {EditorState, Extension} from "@wordgard/state"
 import {MenuLabel, MenuItem, MenuButton, MenuSelect, resolveMenu, staticMenu, ResolvedGroup} from "./item"
 
-// FIXME use view.dom.ownerDocument
 // FIXME redraw when menu-item facets change
-
-declare global { // FIXME needed?
-  interface HTMLElement { wgButton?: BarButton }
-}
 
 type BarElement = BarButton | BarSelect
 
@@ -97,7 +92,8 @@ class BarSelect {
   index = 0
 
   constructor(readonly item: MenuSelect, readonly children: readonly BarElement[], state: EditorState) {
-    this.dom = document.createElement("wg-menu-select")
+    this.dom = document.createElement("div")
+    this.dom.className = "wg-menu-select"
     this.button = this.dom.appendChild(document.createElement("button"))
     this.button.tabIndex = -1
     this.button.className = "wg-menu-button"
@@ -110,7 +106,8 @@ class BarSelect {
     }
     if (item.width != null) this.dom.style.setProperty("--wg-select-width", item.width + "ch")
     if (item.arrow !== false) this.button.classList.add("wg-select-arrow")
-    this.list = this.dom.appendChild(document.createElement("wg-menu-list"))
+    this.list = this.dom.appendChild(document.createElement("div"))
+    this.list.className = "wg-menu-list"
     this.list.style.display = "none"
     this.list.role = "menu"
     this.list.id = id("wg-popup")
@@ -118,7 +115,7 @@ class BarSelect {
     this.button.setAttribute("aria-controls", this.list.id)
     for (let child of children) {
       this.list.appendChild(child.dom)
-      child.focusDOM.role = "menuitemradio"
+      child.focusDOM.role = "menuitem"
     }
   }
 
@@ -145,12 +142,8 @@ class BarSelect {
       let activeChild = this.children.findIndex(ch => ch.flags & F.Active)
       if (this.activeChild != activeChild) {
         this.activeChild = activeChild
-        if (activeChild < 0) {
-          if (this.item.defaultLabel) // FIXME
-            labelButton(state, this.button, this.item.defaultLabel)
-        } else {
-          labelButton(state, this.button, (this.children[activeChild].item as MenuButton).label ?? "")
-        }
+        let label = (activeChild < 0 ? this.item.defaultLabel : (this.children[activeChild].item as MenuButton).label) ?? ""
+        labelButton(state, this.button, label)
       }
     }
   }
@@ -192,10 +185,6 @@ class MenuBar {
     for (let elt of this.children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
     this.updateElts(view.state, true, this.selection)
-    if (this.selection.length && (this.selection[0].flags & F.Hidden)) {
-      let found = findChild(this.children, true)
-      this.setSelection(found ? [found] : [])
-    }
     this.globalClick = this.globalClick.bind(this)
   }
 
@@ -205,9 +194,7 @@ class MenuBar {
   }
 
   updateElts(state: EditorState, recomp: boolean, selection: readonly BarElement[]) {
-    // FIXME don't blindly recompute
-    // FIXME update selection if elements hidden
-    // FIXME split elt updates into separate parts for open/sel and rest?
+    // FIXME don't blindly recompute, help items check status efficiently
     for (let i = this.elts.length - 1; i >= 0; i--) {
       let elt = this.elts[i], flags
       if (recomp) {
@@ -223,6 +210,10 @@ class MenuBar {
         else if (selected > -1) flags |= F.Open
       }
       elt.update(flags, state)
+    }
+    if (recomp && selection.some(e => e.flags & F.Hidden)) {
+      let reset = selection[0].flags & F.Hidden ? findChild(this.children, true) : selection[0]
+      this.setSelection(reset ? [reset] : [])
     }
   }
 
@@ -312,7 +303,7 @@ class MenuBar {
     clearTimeout(this.focusTimeout)
     if (this.selection.length > 1) {
       this.focusTimeout = setTimeout(() => {
-        let active = document.activeElement
+        let active = this.view.root.activeElement
         for (let i = 0; i < this.selection.length - 1; i++) {
           if (!active || !this.selection[i].dom.contains(active)) {
             this.setSelection([this.selection[0]], false)
@@ -355,14 +346,19 @@ const theme = EditorView.baseTheme({
     "--wg-menu-item-size": "20px",
     "--wg-menu-highlight": "#6af"
   },
+  "&light": {
+    "--wg-menu-color": "#555"
+  },
+  "&dark": {
+    "--wg-menu-color": "#ccc"
+  },
 
   "wg-menubar": {
     display: "flex",
     flexWrap: "wrap",
     gap: "4px",
     padding: "2px",
-    // FIXME light/dark colors
-    color: "#555",
+    color: "var(--wg-menu-color)",
     borderBottom: "1px solid var(--wg-border-color)",
   },
 
@@ -376,10 +372,11 @@ const theme = EditorView.baseTheme({
     borderRadius: "2px",
     backgroundColor: "transparent",
     font: "inherit",
+    color: "inherit",
     height: "var(--wg-menu-item-size)",
     textAlign: "left",
     "&[aria-disabled]": {
-      opacity: "0.4"
+      opacity: "0.3"
     },
     "&[aria-pressed]": {
       color: "var(--wg-menu-highlight)"
@@ -401,13 +398,13 @@ const theme = EditorView.baseTheme({
     height: "var(--wg-menu-item-size)",
   },
 
-  "wg-menu-select": {
+  ".wg-menu-select": {
     position: "relative",
     lineHeight: ".6",
     whiteSpace: "nowrap"
   },
 
-  "wg-menu-list": {
+  ".wg-menu-list": {
     display: "flex",
     flexDirection: "column",
     alignItems: "stretch",
@@ -419,7 +416,7 @@ const theme = EditorView.baseTheme({
     left: "-1.5px",
     top: "100%",
     border: "1px solid var(--wg-border-color)",
-    "& wg-menu-list": {
+    "& .wg-menu-list": {
       left: "100%",
       top: 0
     }
