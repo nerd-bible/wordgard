@@ -9,7 +9,7 @@ export type MenuLabelWidget = {
 }
 
 // FIXME use 100x100 viewport for these, find better icons
-export type MenuLabel = string | {icon: string} | MenuLabelWidget
+export type MenuLabel = string | {icon: string, directional?: boolean} | MenuLabelWidget
 
 export function isMenuLabelWidget(label: MenuLabel): label is MenuLabelWidget {
   return !!(label as any).render

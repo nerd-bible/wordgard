@@ -1,5 +1,5 @@
 import {showPanel, EditorView, ViewUpdate} from "@wordgard/view"
-import {Extension, Facet} from "@wordgard/state"
+import {Extension, Facet, Direction} from "@wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
@@ -25,6 +25,8 @@ function labelButton(view: EditorView, button: HTMLElement, label: MenuLabel) {
     svg.setAttribute("viewBox", "0 0 100 100")
     let path = svg.appendChild(document.createElementNS(SVG, "path"))
     path.setAttribute("d", (label as {icon: string}).icon)
+    if ((label as any).directional && view.state.textDirection() == Direction.RTL)
+      svg.setAttribute("transform", "scale(-1, 1)")
   } else if (isMenuLabelWidget(label)) {
     button.appendChild(label.render(view))
   }
