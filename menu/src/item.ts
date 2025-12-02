@@ -1,6 +1,9 @@
-import {EditorView} from "@wordgard/view"
+import {EditorView, toggleProp, setTextblockType, showDialog} from "@wordgard/view"
 import {EditorState, Transaction, Facet, Extension} from "@wordgard/state"
-import {iconAlignLeft, iconAlignRight, iconAlignCenter, iconUndo, iconRedo, iconBold} from "./icon"
+import {Prop, Tag, canAddPropInRange, ChangeSpec,
+        Strong, Emphasis, Code, Link,
+        Paragraph, CodeBlock, Heading} from "@wordgard/doc"
+import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink} from "./icon"
 
 export type MenuLabelWidget = {
   render: (view: EditorView) => HTMLElement
@@ -93,7 +96,7 @@ export class Submenu implements MenuItemSpec {
     fillItem(spec, this)
     this.label = spec.label
     this.defaultLabel = spec.defaultLabel
-    this.arrow = !!spec.arrow
+    this.arrow = spec.arrow !== false
     this.width = spec.width
     this.extension = menuItem.of(this)
   }
@@ -143,6 +146,101 @@ export const Top = new MenuGroup()
 export const Commands = new MenuGroup({parent: Top, rank: 10})
 export const InlineStyles = new MenuGroup({parent: Top, rank: 30, margin: true})
 
+export function toggleInlineProp(config: {
+  prop: Prop<any>,
+  parent?: MenuGroup | Submenu
+  rank?: number
+  description?: string
+  label: MenuLabel
+}) {
+  let {prop, parent, rank, description, label} = config
+  return new MenuButton({
+    run: toggleProp(prop),
+    active(state) {
+      let {selection} = state
+      if (selection.empty)
+        return !!prop.isInSet(selection.props || state.sel.head.props())
+      else
+        return !selection.ranges.some(r => canAddPropInRange(state.doc, r.from, r.to, prop))
+    },
+    parent,
+    rank,
+    description,
+    label
+  })
+}
+
+export const ToggleStrong = toggleInlineProp({
+  prop: Strong,
+  parent: InlineStyles,
+  rank: 10,
+  description: "Toggle strong emphasis",
+  label: iconBold
+})
+
+export const ToggleEmphasis = toggleInlineProp({
+  prop: Emphasis,
+  parent: InlineStyles,
+  rank: 12,
+  description: "Toggle emphasis",
+  label: iconItalic
+})
+
+export const ToggleCode = toggleInlineProp({
+  prop: Code,
+  parent: InlineStyles,
+  rank: 30,
+  description: "Toggle code font",
+  label: iconCode
+})
+
+export const ToggleLink = new MenuButton({
+  run(view) {
+    let {selection, doc} = view.state
+    if (selection.empty) return false
+    let remove: ChangeSpec[] = []
+    for (let {from, to} of selection.ranges) doc.iterate(from, to, (node, pos) => {
+      let has = node.tag.hasProp(Link)
+      if (has) remove.push({from: pos, to: pos + node.length, remove: has})
+    })
+    if (remove.length) {
+      view.dispatch({changes: remove, userEvent: "prop.remove"})
+    } else {
+      showDialog(view, {
+        label: "Link target",
+        input: {type: "text", name: "url"},
+        submitLabel: "Create link",
+        focus: true
+      }).result.then(form => {
+        view.focus()
+        let url = form && (form.elements.namedItem("url") as HTMLInputElement)?.value
+        if (url) view.dispatch({
+          changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: Link.of(url)})),
+          userEvent: "prop.add"
+        })
+      })
+    }
+    return true
+  },
+  active(state) {
+    let {selection, doc} = state, found = false
+    if (!selection.empty) for (let {from, to} of selection.ranges) doc.iterate(from, to, node => {
+      if (found) return false
+      if (node.tag.hasProp(Link)) found = true
+    })
+    return found
+  },
+  enable(state) {
+    return !state.selection.empty
+  },
+  label: iconLink,
+  description: "Create a link",
+  parent: InlineStyles,
+  rank: 50,
+})
+
+// FIXME wire up actual undo/redo commands
+
 export const Undo = new MenuButton({
   run: () => { console.log("undo"); return true },
   label: iconUndo,
@@ -159,47 +257,6 @@ export const Redo = new MenuButton({
   rank: 20
 })
 
-export const Strong = new MenuButton({
-  run: () => { console.log("strong"); return true },
-  label: iconBold,
-  description: "Toggle strong emphasis",
-  parent: InlineStyles,
-  rank: 10
-})
-
-export const Alignment = new Submenu({
-  parent: Top,
-  defaultLabel: iconAlignLeft,
-  rank: 50,
-  description: "Text alignment",
-  arrow: false,
-})
-
-// FIXME use start/end nomenclature?
-export const AlignLeft = new MenuButton({
-  run: () => { console.log("left"); return true },
-  label: iconAlignLeft,
-  description: "Align left",
-  parent: Alignment,
-  rank: 10
-})
-
-export const AlignRight = new MenuButton({
-  run: () => { console.log("right"); return true },
-  label: iconAlignRight,
-  description: "Align right",
-  parent: Alignment,
-  rank: 20
-})
-
-export const AlignCenter = new MenuButton({
-  run: () => { console.log("center"); return true },
-  label: iconAlignCenter,
-  description: "Center",
-  parent: Alignment,
-  rank: 30
-})
-
 export const TextblockStyle = new Submenu({
   defaultLabel: "Block style",
   description: "Block style",
@@ -208,51 +265,58 @@ export const TextblockStyle = new Submenu({
   width: 10,
 })
 
-export const Paragraph = new MenuButton({
-  run: () => { console.log("para"); return true },
+function selectionInType(tag: Tag<any>) {
+  return (state: EditorState) => {
+    let {sel} = state, block = sel.head.textblockParent
+    return !!block && block.start == sel.anchor.textblockParent?.start && block.node.tag.eq(tag)
+  }
+}
+
+export const ParagraphButton = new MenuButton({
+  run: setTextblockType(Paragraph),
+  active: selectionInType(Paragraph),
   label: "Paragraph",
-  description: "Paragraph",
   parent: TextblockStyle,
-  rank: 20
+  rank: 10
 })
 
-export const Header = new Submenu({
-  label: "Header",
-  description: "Header",
+export const CodeBlockButton = new MenuButton({
+  run: setTextblockType(CodeBlock),
+  active: selectionInType(CodeBlock),
+  label: "Code block",
   parent: TextblockStyle,
   rank: 30
 })
 
-export const Header1 = new MenuButton({
-  run: () => { console.log("h1"); return true },
-  label: "Header 1",
-  description: "Header level 1",
-  parent: Header,
-  rank: 30
+export const Heading1 = new MenuButton({
+  run: setTextblockType(Heading.of(1)),
+  active: selectionInType(Heading.of(1)),
+  label: "Heading 1",
+  parent: TextblockStyle,
+  rank: 50
 })
 
-export const Header2 = new MenuButton({
-  run: () => { console.log("h2"); return true },
-  label: "Header 2",
-  description: "Header level 2",
-  parent: Header,
-  rank: 31
+export const Heading2 = new MenuButton({
+  run: setTextblockType(Heading.of(2)),
+  active: selectionInType(Heading.of(2)),
+  label: "Heading 2",
+  parent: TextblockStyle,
+  rank: 51
 })
 
-export const Header3 = new MenuButton({
-  run: () => { console.log("h3"); return true },
-  label: "Header 3",
-  description: "Header level 3",
-  parent: Header,
-  rank: 32
+export const Heading3 = new MenuButton({
+  run: setTextblockType(Heading.of(3)),
+  active: selectionInType(Heading.of(3)),
+  label: "Heading 3",
+  parent: TextblockStyle,
+  rank: 52
 })
 
 // FIXME drop
 export const staticMenu: Extension[] = [
   Undo, Redo, Strong,
-  AlignLeft, AlignRight, AlignCenter,
-  Commands, InlineStyles, Alignment,
-  TextblockStyle, Paragraph, Header, Header1, Header2, Header3,
+  Commands, InlineStyles, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
+  TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
 ]
 
 export type ResolvedMenuItem = MenuButton | "|" | ResolvedSubmenu

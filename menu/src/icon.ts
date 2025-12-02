@@ -65,3 +65,7 @@ export const iconDedent: MenuLabel = {
   icon: "M81 50a3 3 0 0 0-3-3H36l13-13a2 2 0 1 0-4-4l-19 19a3 3 0 0 0 0 4l19 19a3 3 0 0 0 4-4L36 53H78A3 3 0 0 0 81 50M22 25a3 3 0 0 0-3 3v44a3 3 0 0 0 6 0v-44a3 3 0 0 0-3-3",
   directional: true
 }
+
+export const iconVerticalDots: MenuLabel = {
+  icon: "M59 81a9 9 0 1 1-19 0 9 9 0 0 1 19 0m0-31a9 9 0 1 1-19 0 9 9 0 0 1 19 0m0-31a9 9 0 1 1-19 0 9 9 0 0 1 19 0"
+}

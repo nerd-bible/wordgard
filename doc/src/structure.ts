@@ -229,11 +229,11 @@ export function joinBlocks(before: NodePos, after: NodePos): ChangeSpec[] {
   return changes
 }
 
-export function canAddPropInRange(doc: DocNode, from: number, to: number, prop: Prop<any>) {
-  let found = false
+export function canAddPropInRange(doc: DocNode, from: number, to: number, prop: Prop<any> | Prop.Type<any>) {
+  let found = false, type = prop instanceof Prop ? prop.type : prop
   doc.iterate(from, to, node => {
     if (found || prop.isInSet(node.tag.props)) return false
-    if (prop.type.canTarget(node.type)) found = true
+    if (type.canTarget(node.type)) found = true
     return true
   })
   return found

@@ -123,9 +123,9 @@ export type Change = {
   /// [`DocNode.contextAt`](#doc.DocNode.contextAt)) may be used as
   /// wrappers when fitting the slice.
   fit?: boolean | readonly Tag<any>[]
-  /// Add the given prop to the change's range.
+  /// Add the given prop to this change's range.
   add?: Prop<any>
-  /// Add the given prop to the change's range.
+  /// Remove the given prop from this range.
   remove?: Prop<any>
 }
 

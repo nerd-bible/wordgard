@@ -47,8 +47,6 @@ const enum F {
   Hidden = 32,
 }
 
-// FIXME copy relevant item fields for monomorphic access?
-
 class BarButton {
   dom: HTMLElement
   flags: F = 0 as F
@@ -72,7 +70,7 @@ class BarButton {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
       if ((flags & F.Disabled) != (this.flags & F.Disabled)) {
-        if (flags & F.Disabled) this.dom.removeAttribute("aria-disabled")
+        if (!(flags & F.Disabled)) this.dom.removeAttribute("aria-disabled")
         else this.dom.setAttribute("aria-disabled", "true")
       }
       if ((flags & F.Selected) != (this.flags & F.Selected)) {
@@ -122,7 +120,7 @@ class BarSubmenu {
       this.activeChild = -2
     }
     if (item.width != null) this.dom.style.setProperty("--wg-submenu-width", item.width + "ch")
-    if (item.arrow !== false) this.button.classList.add("wg-submenu-arrow")
+    if (item.arrow) this.button.classList.add("wg-submenu-arrow")
     this.list = this.dom.appendChild(document.createElement("div"))
     this.list.className = "wg-menu-list"
     this.list.style.display = "none"
@@ -247,7 +245,7 @@ class MenuBar {
     let {state} = this.view
     let changed = typeof update == "boolean" ? update : update.docChanged || update.selectionSet
     let updateObj = typeof update == "boolean" ? null : update
-    for (let i = this.elts.length - 1; i >= 0; i--) {
+    for (let i = 0; i < this.elts.length; i++) {
       let elt = this.elts[i], flags
       if (update && (update === true || (elt.item.updateFor ? update.transactions.some(tr => elt.item.updateFor!(tr)) : changed))) {
         flags = ((elt.item.select ? elt.item.select(state) : true) ? 0 : F.Hidden) |
