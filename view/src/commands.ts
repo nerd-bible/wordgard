@@ -442,7 +442,6 @@ function selectedTextblocks(state: EditorState) {
   return textblocks
 }
 
-// FIXME support textblock items
 export function toggleList(listTag: Tag<any>): StateCommand {
   return ({state, dispatch}) => {
     let blocks = selectedTextblocks(state)
@@ -454,28 +453,13 @@ export function toggleList(listTag: Tag<any>): StateCommand {
 }
 
 function isListItem(node: NodePos) {
-  for (let top = true;;) {
+  for (let first = true;;) {
     let {parent} = node
     if (!parent) return null
-    if (parent.node.tag.type.isList) return top ? node : null
-    top = !node.index
+    if (parent.node.tag.type.isList) return first ? node : null
+    first = node.isFirst
     node = parent
   }
-}
-
-const enum PlanPos { // FIXME don't need specific values?
-  WrapBefore = 1,
-  WrapAfter = 2,
-  ConvertBefore = 4,
-  ConvertAfter = 8,
-  UnwrapAfter = 16,
-  UnwrapBefore = 32
-}
-
-function get0<T>(map: Map<T, number>, val: T) { return map.get(val) ?? 0 }
-
-function addPlanPos(map: Map<number, PlanPos>, at: number, plan: PlanPos) {
-  map.set(at, (map.get(at) || 0) | plan)
 }
 
 function autoJoin(a: Tag<any>, b: Tag<any>) {
@@ -485,24 +469,25 @@ function autoJoin(a: Tag<any>, b: Tag<any>) {
 
 function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
   let plan: ({wrap: NodePos, item: Tag<any>} | {change: NodePos, item: NodePos})[] = []
-  let planPos: Map<number, PlanPos> = new Map
+  let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let lastItem = -1
   for (let block of blocks) {
     let item = isListItem(block), wrap
     if (!item && block.parent && block.parent.node.type.canContain(listTag.type) &&
-        (wrap = state.doc.schema.findWrapping(listTag.type, block.node.type)) && wrap.length == 1) {
-      addPlanPos(planPos, block.before, PlanPos.WrapAfter)
-      addPlanPos(planPos, block.after, PlanPos.WrapBefore)
+        ((wrap = state.doc.schema.findWrapping(listTag.type, block.node.type)) && wrap.length == 1 ||
+          (wrap = state.doc.schema.findWrapping(listTag.type, Text)) && wrap.length == 1)) {
+      chAfter.add(block.before)
+      chBefore.add(block.after)
       plan.push({wrap: block, item: wrap[0]})
       lastItem = block.before
     } else if (item?.parent && item.parent.node.tag.type != listTag.type &&
                listTag.type.canContain(item.node.type) &&
                item.parent.parent && item.parent.parent.node.type.canContain(listTag.type) &&
                item.before != lastItem) {
-      addPlanPos(planPos, item.before, PlanPos.ConvertAfter)
-      addPlanPos(planPos, item.after, PlanPos.ConvertBefore)
-      if (item.index == 0) addPlanPos(planPos, item.parent.before, PlanPos.ConvertAfter)
-      if (item.index == item.parent.node.children.length - 1) addPlanPos(planPos, item.parent.after, PlanPos.ConvertBefore)
+      chAfter.add(item.before)
+      chBefore.add(item.after)
+      if (item.isFirst) chAfter.add(item.parent.before)
+      if (item.isLast) chBefore.add(item.parent.after)
       plan.push({change: block, item})
       lastItem = item.before
     }
@@ -510,40 +495,34 @@ function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
   if (!plan.length) return null
   let changes: ChangeSpec[] = []
   for (let step of plan) {
-    if ("wrap" in step) {
+    if ("wrap" in step) { // Wrap block in a list
       let {wrap, item} = step, prev, next
-      if (get0(planPos, wrap.before) & (PlanPos.WrapBefore | PlanPos.ConvertBefore)) {
-        changes.push({from: wrap.before, insert: new Slice([item])})
-      } else if ((prev = wrap.previousSibling) && prev.tag.eq(listTag)) {
-        changes.push({from: wrap.before - 1, to: wrap.before, insert: new Slice([item])})
-      } else {
-        changes.push({from: wrap.before, insert: new Slice([listTag, item])})
-      }
-      if (get0(planPos, wrap.after) & (PlanPos.WrapAfter | PlanPos.ConvertAfter)) {
-        changes.push({from: wrap.after, insert: new Slice([CloseToken])})
-      } else if ((next = wrap.nextSibling) && next.tag.type == listTag.type &&
-                 autoJoin(next.tag, listTag)) {
-        changes.push({from: wrap.after, to: wrap.after + 1, insert: new Slice([CloseToken])})
-      } else {
-        changes.push({from: wrap.after, insert: new Slice([CloseToken, CloseToken])})
-      }
+      let openTo = item.isTextblock ? wrap.start : wrap.before, openFrom = wrap.before, open: Token[] = [item]
+      if (chBefore.has(wrap.before)) {} // Block above is also included in change
+      else if ((prev = wrap.previousSibling) && prev.tag.eq(listTag)) openFrom-- // Join to list above
+      else open.unshift(listTag) // Start new list
+      changes.push({from: openFrom, to: openTo, insert: new Slice(open)})
+      let closeFrom = item.isTextblock ? wrap.end : wrap.after, closeTo = wrap.after, close: Token[] = [CloseToken]
+      if (chAfter.has(wrap.after)) {} // Block below included in change
+      else if ((next = wrap.nextSibling) && next.tag.type == listTag.type && autoJoin(next.tag, listTag)) closeTo++ // Join
+      else close.push(CloseToken) // End list
+      changes.push({from: closeFrom, to: closeTo, insert: new Slice(close)})
     } else { // Change other list
       let {item} = step, prev, next
-      if (item.index == 0) {
-        if (get0(planPos, item.before - 1) & (PlanPos.WrapBefore | PlanPos.ConvertBefore)) {
+      if (item.isFirst) {
+        if (chBefore.has(item.before - 1)) // Right after an item produced by another change, delete open token
           changes.push({from: item.before - 1, to: item.before})
-        } else if ((prev = item.parent!.previousSibling) && prev.tag.type == listTag.type) {
+        else if ((prev = item.parent!.previousSibling) && prev.tag.type == listTag.type) // Join to list above
           changes.push({from: item.before - 2, to: item.before})
-        } else {
+        else // Change open token
           changes.push({from: item.before - 1, to: item.before, insert: new Slice([listTag])})
-        }
-      } else if (!(get0(planPos, item.before) & PlanPos.ConvertBefore)) {
+      } else if (!chBefore.has(item.before)) { // Start a new list
         changes.push({from: item.before, insert: new Slice([CloseToken, listTag])})
       }
-      if (item.index == item.parent!.node.children.length - 1) {
-        if (get0(planPos, item.after + 1) & (PlanPos.WrapAfter | PlanPos.ConvertAfter)) {
+      if (item.isLast) {
+        if (chAfter.has(item.after + 1)) { // Before item produced by other change, drop close token
           changes.push({from: item.after, to: item.after + 1})
-        } else if ((next = item.parent!.nextSibling) && autoJoin(next.tag, listTag)) {
+        } else if ((next = item.parent!.nextSibling) && autoJoin(next.tag, listTag)) { // Join to list below
           changes.push({from: item.after, to: item.after + 2})
         }
       }
@@ -553,33 +532,33 @@ function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
 }
 
 function removeList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
-  let plan: NodePos[] = [], planPos: Map<number, PlanPos> = new Map, lastItem = -1
+  let plan: {item: NodePos, rewrap: Tag<any> | null}[] = [], lastItem = -1
+  let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   for (let block of blocks) {
     let item = isListItem(block)
-    if (item && item.parent!.node.type == listTag.type && item.before != lastItem) {
+    if (!item) continue
+    let list = item.parent!, parent = list.parent, rewrap: Tag<any> | null = null
+    if (parent && list.node.type == listTag.type && item.before != lastItem &&
+        (item.node.isTextblock
+          ? (rewrap = state.doc.schema.defaultContentType(parent.node.type)) && rewrap.isTextblock
+          : parent.node.type.canContain(block.node.type))) {
       lastItem = item.before
-      plan.push(item)
-      addPlanPos(planPos, item.before, PlanPos.UnwrapAfter)
-      addPlanPos(planPos, item.after, PlanPos.UnwrapBefore)
+      plan.push({item, rewrap})
+      chAfter.add(item.before)
+      chBefore.add(item.after)
     }
   }
   if (!plan.length) return null
   let changes: ChangeSpec[] = []
-  for (let item of plan) {
-    if (item.index == 0) {
-      changes.push({from: item.before - 1, to: item.start})
-    } else if (get0(planPos, item.before) & PlanPos.UnwrapBefore) {
-      changes.push({from: item.before, to: item.start})
-    } else {
-      changes.push({from: item.before, to: item.start, insert: new Slice([CloseToken])})
-    }
-    if (item.index == item.parent!.node.children.length - 1) {
-      changes.push({from: item.end, to: item.after + 1})
-    } else if (get0(planPos, item.after) & PlanPos.UnwrapAfter) {
-      changes.push({from: item.end, to: item.after})
-    } else {
-      changes.push({from: item.end, to: item.after, insert: new Slice([listTag])})
-    }
+  for (let {item, rewrap} of plan) {
+    let openFrom = item.before, openTo = item.start, open: Token[] = rewrap ? [rewrap] : []
+    if (item.isFirst) openFrom--
+    else if (!chBefore.has(item.before)) open.unshift(CloseToken)
+    changes.push({from: openFrom, to: openTo, insert: new Slice(open)})
+    let closeFrom = rewrap ? item.after : item.end, closeTo = item.after, close: Token[] = []
+    if (item.isLast) closeTo++
+    else if (!chAfter.has(item.after)) close.push(listTag)
+    changes.push({from: closeFrom, to: closeTo, insert: new Slice(close)})
   }
   return state.update({changes, userEvent: "unwrap.list"})
 }

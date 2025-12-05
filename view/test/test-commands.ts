@@ -610,7 +610,7 @@ describe("toggleList", () => {
     test(doc(ul(li(p(0)))), toggleOL, doc(ol(li(p(0)))))
   })
 
-  it("can the type of two adjacent lists", () => {
+  it("can change the type of two adjacent lists", () => {
     test(doc(ul(li(p(0))), ul(li(p(1)))), toggleOL, doc(ol(li(p(0)), li(p(1)))))
   })
 
@@ -636,6 +636,83 @@ describe("toggleList", () => {
 
   it("can unwrap an item with multiple children", () => {
     test(doc(ul(li(p("a", 0), p("b")))), toggleUL, doc(p("a", 0), p("b")))
+  })
+
+  describe("with textblock items", () => {
+    let InlineListItem = Tag.defineBlock("ListItem", {
+      inlineContent: true,
+      shape: {element: "li"}
+    })
+    let InlineOrderedList = Tag.defineBlock("OrderedList", {
+      blockContent: "ListItem",
+      shape: {element: "ol"},
+      isList: true
+    })
+    let InlineBulletList = Tag.defineBlock("BulletList", {
+      blockContent: "ListItem",
+      shape: {element: "ul"},
+      isList: true
+    })
+    let InlineListSchema = Schema.define([
+      Tag.defineDoc({blockContent: "Paragraph OrderedList BulletList"}),
+      Paragraph,
+      InlineListItem,
+      InlineOrderedList,
+      InlineBulletList
+    ])
+    let toggleUL = toggleList(InlineBulletList), toggleOL = toggleList(InlineOrderedList)
+    let doc = builder(InlineListSchema)
+    let ul = builder(InlineBulletList), ol = builder(InlineOrderedList), li = builder(InlineListItem)
+
+    it("can wrap lists", () => {
+      test(doc(p("a", 0)), toggleUL, doc(ul(li("a", 0))))
+    })
+
+    it("can unwrap lists", () => {
+      test(doc(ol(li("a", 0))), toggleOL, doc(p("a", 0)))
+    })
+
+    it("can add a list to two blocks", () => {
+      test(doc(p("a", 0), p("b", 1)), toggleOL, doc(ol(li("a", 0), li("b", 1))))
+    })
+
+    it("can remove only some items from a list", () => {
+      test(doc(ul(li("a"), li(0, "b"), li("c", 1), li("d"))),
+           toggleUL,
+           doc(ul(li("a")), p(0, "b"), p("c", 1), ul(li("d"))))
+    })
+
+    it("adds lists when it can", () => {
+      test(doc(ol(li(0)), p(1)), toggleOL, doc(ol(li(0), li(1))))
+    })
+
+    it("joins newly created lists to those above and below", () => {
+      test(doc(ul(li("a")), p("b", 0), ul(li("c"))),
+           toggleUL,
+           doc(ul(li("a"), li("b", 0), li("c"))))
+    })
+
+    it("joins changed lists to those above and below", () => {
+      test(doc(ul(li("a")), ol(li("b", 0)), ul(li("c"))),
+           toggleUL,
+           doc(ul(li("a"), li("b", 0), li("c"))))
+    })
+
+    it("can change a list's type", () => {
+      test(doc(ul(li(0))), toggleOL, doc(ol(li(0))))
+    })
+
+    it("can change the type of two adjacent lists", () => {
+      test(doc(ul(li(0)), ul(li(1))), toggleOL, doc(ol(li(0), li(1))))
+    })
+
+    it("can change a list's type and wrap items before and after", () => {
+      test(doc(p(0), ul(li()), p(1)), toggleOL, doc(ol(li(0), li(), li(1))))
+    })
+
+    it("can handle multiple cursors in a single block", () => {
+      test(doc(p(0, "a", 2, "b", 4)), toggleOL, doc(ol(li(0, "a", 2, "b", 4))))
+    })
   })
 })
 

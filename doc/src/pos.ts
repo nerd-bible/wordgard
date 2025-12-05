@@ -159,14 +159,11 @@ export class NodePos {
     return n.node as DocNode
   }
 
-  get nextSibling() {
-    return !this.parent || this.index == this.parent.node.children.length - 1 ? null
-      : this.parent.node.children[this.index + 1]
-  }
+  get isFirst() { return !this.parent || this.index == 0 }
+  get isLast() { return !this.parent || this.index == this.parent.node.children.length - 1 }
 
-  get previousSibling() {
-    return !this.parent || !this.index ? null : this.parent.node.children[this.index - 1]
-  }
+  get nextSibling() { return this.isLast ? null : this.parent!.node.children[this.index + 1] }
+  get previousSibling() { return this.isFirst ? null : this.parent!.node.children[this.index - 1] }
 }
 
 function advancePos(distance: number, parent: NodePos, pos: number, index: number, inText: number,
