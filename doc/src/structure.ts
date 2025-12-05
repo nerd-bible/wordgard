@@ -50,7 +50,7 @@ export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
       tokens.push(wrapper)
     } else if (i == range.to.index) {
       tokens.push(CloseToken)
-      changes.push({from: pos, insert: new Slice(tokens)})
+      changes.push({from: pos, insert: tokens})
       break
     }
     let child = parent.children[i]
@@ -58,7 +58,7 @@ export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
     let wrapping = schema.findWrapping(wrapper.type, child.type)!
     for (let tag of wrapping) tokens.push(tag)
     openWrappers = wrapping.length
-    changes.push({from: pos, insert: new Slice(tokens)})
+    changes.push({from: pos, insert: tokens})
     pos += child.length
   }
   return changes
@@ -124,7 +124,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
     for (let i = 0; i < skippedDepth; i++) tokens.unshift(CloseToken)
     skippedDepth = 0
     if (to > gapStart || tokens.length)
-      changes.push({from: gapStart, to, insert: new Slice(tokens)})
+      changes.push({from: gapStart, to, insert: tokens})
   }
 
   // Scan through the block
@@ -225,7 +225,7 @@ export function joinBlocks(before: NodePos, after: NodePos): ChangeSpec[] {
     }
   }
   if (tokensAfter.length || end > posAfter)
-    changes.push({from: posAfter, to: end, insert: new Slice(tokensAfter)})
+    changes.push({from: posAfter, to: end, insert: tokensAfter})
   return changes
 }
 

@@ -18,7 +18,7 @@ describe("EditorState", () => {
   it("can be updated", () => {
     let {state} = EditorState.create({
       doc: doc(p("!"))
-    }).update({changes: {from: 1, insert: new Slice([Node.text("-")])}})
+    }).update({changes: {from: 1, insert: [Node.text("-")]}})
     ist(state.doc, doc(p("-!")), eq)
   })
 
@@ -30,7 +30,7 @@ describe("EditorState", () => {
     })
     ist.throws(() => EditorState.create({doc: doc(Stranger.create())}), /not in schema/)
     ist.throws(() => {
-      EditorState.create({doc: doc(p())}).update({changes: {from: 0, insert: new Slice([Stranger.create()])}})
+      EditorState.create({doc: doc(p())}).update({changes: {from: 0, insert: [Stranger.create()]}})
     }, /not in schema/)
   })
 
@@ -39,7 +39,7 @@ describe("EditorState", () => {
     let odd = builder(Odd)
     ist.throws(() => EditorState.create({doc: doc(odd(p()))}), /not in schema/)
     ist.throws(() => EditorState.create({doc: doc(p())}).update({changes: {from: 0, add: Odd}}), /not in schema/)
-    ist.throws(() => EditorState.create({doc: doc(p())}).update({changes: {from: 0, insert: new Slice([odd(p())])}}),
+    ist.throws(() => EditorState.create({doc: doc(p())}).update({changes: {from: 0, insert: [odd(p())]}}),
                /not in schema/)
   })
 })

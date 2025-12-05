@@ -114,7 +114,7 @@ export type Change = {
   /// remove props.
   to?: number
   /// Replace the given range with this slice.
-  insert?: Slice
+  insert?: Slice | readonly Token[]
   /// For deletions or insertions where it isn't obvious that the
   /// replacement will produce a valid document, set this to `true` or
   /// a stack of context tags to make the library process the
@@ -527,7 +527,7 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
         }
       } else {
         if (to == null) to = from
-        insert = insert ?? Slice.empty
+        insert = (!insert ? Slice.empty : Array.isArray(insert) ? new Slice(insert) : insert) as Slice
         if (to <= from) to = from
         if (fit) {
           doCorrect = true

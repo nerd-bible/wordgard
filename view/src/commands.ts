@@ -21,7 +21,7 @@ export const insertLineBreak: StateCommand = ({state, dispatch}) => {
   let brk = doc.schema.lineBreak
   if (!brk || !sel.from.parent.node.type.canContain(brk.type)) return false
   dispatch(state.update({
-    changes: {from: sel.from.pos, to: sel.to.pos, insert: new Slice([brk.create()]), fit: true},
+    changes: {from: sel.from.pos, to: sel.to.pos, insert: [brk.create()], fit: true},
     selection: {anchor: sel.from.pos + 1},
     scrollIntoView: true,
     userEvent: "insert.linebreak"
@@ -36,7 +36,7 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
   let props = state.selection.props || sel.from.props(sel.to)
   dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos,
-              insert: new Slice([(doc.schema.lineBreak ? doc.schema.lineBreak.create() : Node.text("\n")).withProps(props)])},
+              insert: [(doc.schema.lineBreak ? doc.schema.lineBreak.create() : Node.text("\n")).withProps(props)]},
     selection: EditorSelection.cursor(sel.from.pos + 1, -1),
     scrollIntoView: true,
     userEvent: "input"
@@ -75,8 +75,8 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
     if (!first && level.node.type.canContain(block.node.type)) {
       dispatch(state.update({
         changes: [
-          {from: start, to: block.before, insert: new Slice(before)},
-          {from: block.after, to: end, insert: new Slice(after)}
+          {from: start, to: block.before, insert: before},
+          {from: block.after, to: end, insert: after}
         ],
         scrollIntoView: true,
         userEvent: "unwrap.empty"
@@ -123,14 +123,14 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
   }
   let changes: ChangeSpec[] = [{
     from: sel.from.pos, to: sel.to.pos,
-    insert: new Slice(tokens)
+    insert: tokens
   }]
   if (sel.from.isAtStart(before)) {
     let deflt = state.doc.schema.defaultContentType(before.parent.node.type)
     if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({
         from: before.before, to: before.start,
-        insert: new Slice([before.node.tag.changeType(deflt)])
+        insert: [before.node.tag.changeType(deflt)]
       })
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
@@ -177,7 +177,7 @@ export const joinBackward: StateCommand = ({state, dispatch}) => {
   if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
-      insert: new Slice([before.tag.changeType(target.tag)])
+      insert: [before.tag.changeType(target.tag)]
     })
   let changeSet = ChangeSet.create(state.doc, changes)
   dispatch(state.update({
@@ -234,7 +234,7 @@ export const joinForward: StateCommand = ({state, dispatch}) => {
   if (!target.children.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
     changes.push({
       from: block.before, to: block.start,
-      insert: new Slice([target.tag.changeType(after.tag)])
+      insert: [target.tag.changeType(after.tag)]
     })
   dispatch(state.update({
     changes,
@@ -356,7 +356,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
     let changes: ChangeSpec[] = []
     for (let block of selectedTextblocks(state)) {
       if (!block.node.tag.eq(tag) && block.parent && block.parent.node.type.canContain(tag.type)) {
-        changes.push({from: block.before, to: block.before + 1, insert: new Slice([block.node.tag.changeType(tag)])})
+        changes.push({from: block.before, to: block.before + 1, insert: [block.node.tag.changeType(tag)]})
         for (let ch of clearNonFitting(block, tag.type)) changes.push(ch)
       }
     }
@@ -501,12 +501,12 @@ function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
       if (chBefore.has(wrap.before)) {} // Block above is also included in change
       else if ((prev = wrap.previousSibling) && prev.tag.eq(listTag)) openFrom-- // Join to list above
       else open.unshift(listTag) // Start new list
-      changes.push({from: openFrom, to: openTo, insert: new Slice(open)})
+      changes.push({from: openFrom, to: openTo, insert: open})
       let closeFrom = item.isTextblock ? wrap.end : wrap.after, closeTo = wrap.after, close: Token[] = [CloseToken]
       if (chAfter.has(wrap.after)) {} // Block below included in change
       else if ((next = wrap.nextSibling) && next.tag.type == listTag.type && autoJoin(next.tag, listTag)) closeTo++ // Join
       else close.push(CloseToken) // End list
-      changes.push({from: closeFrom, to: closeTo, insert: new Slice(close)})
+      changes.push({from: closeFrom, to: closeTo, insert: close})
     } else { // Change other list
       let {item} = step, prev, next
       if (item.isFirst) {
@@ -515,9 +515,9 @@ function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
         else if ((prev = item.parent!.previousSibling) && prev.tag.type == listTag.type) // Join to list above
           changes.push({from: item.before - 2, to: item.before})
         else // Change open token
-          changes.push({from: item.before - 1, to: item.before, insert: new Slice([listTag])})
+          changes.push({from: item.before - 1, to: item.before, insert: [listTag]})
       } else if (!chBefore.has(item.before)) { // Start a new list
-        changes.push({from: item.before, insert: new Slice([CloseToken, listTag])})
+        changes.push({from: item.before, insert: [CloseToken, listTag]})
       }
       if (item.isLast) {
         if (chAfter.has(item.after + 1)) { // Before item produced by other change, drop close token
@@ -554,11 +554,11 @@ function removeList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
     let openFrom = item.before, openTo = item.start, open: Token[] = rewrap ? [rewrap] : []
     if (item.isFirst) openFrom--
     else if (!chBefore.has(item.before)) open.unshift(CloseToken)
-    changes.push({from: openFrom, to: openTo, insert: new Slice(open)})
+    changes.push({from: openFrom, to: openTo, insert: open})
     let closeFrom = rewrap ? item.after : item.end, closeTo = item.after, close: Token[] = []
     if (item.isLast) closeTo++
     else if (!chAfter.has(item.after)) close.push(listTag)
-    changes.push({from: closeFrom, to: closeTo, insert: new Slice(close)})
+    changes.push({from: closeFrom, to: closeTo, insert: close})
   }
   return state.update({changes, userEvent: "unwrap.list"})
 }

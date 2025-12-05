@@ -1,7 +1,7 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, overrideShape} from "@wordgard/view"
 import {EditorState, Extension, StateField, TransactionSpec, StateEffect} from "@wordgard/state"
-import {DocNode, Tag, basicBuilders, CodeBlock, Slice, Node,
+import {DocNode, Tag, basicBuilders, CodeBlock, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "@wordgard/doc"
 import ist from "ist"
 
@@ -57,9 +57,9 @@ describe("DocTile", () => {
     let tile = render(doc(FancyBlock.create([Node.text("!")])), EditorState.validateDoc.of(false))
     ist(tile.dom.innerHTML,
         "<div class=\"c\"><span>before</span><span class=\"content\">!</span><span>after</span></div>")
-    tile = update(tile, {changes: [{from: 0, insert: new Slice([p("(")])},
-                                   {from: 1, to: 2, insert: new Slice([Node.text("?")])},
-                                   {from: 3, insert: new Slice([p(")")])}]})
+    tile = update(tile, {changes: [{from: 0, insert: [p("(")]},
+                                   {from: 1, to: 2, insert: [Node.text("?")]},
+                                   {from: 3, insert: [p(")")]}]})
     ist(tile.dom.innerHTML,
         "<p>(</p><div class=\"c\"><span>before</span><span class=\"content\">?</span><span>after</span></div><p>)</p>")
   })
@@ -70,17 +70,17 @@ describe("DocTile", () => {
   })
 
   it("can update for a text change", () => {
-    let node = update(render(doc(p("123"))), {changes: {from: 2, insert: new Slice([Node.text("..")])}})
+    let node = update(render(doc(p("123"))), {changes: {from: 2, insert: [Node.text("..")]}})
     ist(node.dom.innerHTML, "<p>1..23</p>")
   })
 
   it("can update for a tag change", () => {
-    let node = update(render(doc(p("a"))), {changes: {from: 0, to: 1, insert: new Slice([CodeBlock])}})
+    let node = update(render(doc(p("a"))), {changes: {from: 0, to: 1, insert: [CodeBlock]}})
     ist(node.dom.innerHTML, "<pre>a</pre>")
   })
 
   it("can make multiple changes", () => {
-    let node = update(render(doc(p("ab"), p("cd"))), {changes: [{from: 1, insert: new Slice([Node.text("..")])}, {from: 2, to: 6}]})
+    let node = update(render(doc(p("ab"), p("cd"))), {changes: [{from: 1, insert: [Node.text("..")]}, {from: 2, to: 6}]})
     ist(node.dom.innerHTML, "<p>..ad</p>")
   })
 
@@ -117,7 +117,7 @@ describe("DocTile", () => {
 
   it("properly syncs replacements inside wrappers", () => {
     let node = render(doc(p(strong("abc")), p("def")))
-    ist(update(node, {changes: {from: 2, insert: new Slice([Node.text("..", [Strong])])}}).dom.innerHTML,
+    ist(update(node, {changes: {from: 2, insert: [Node.text("..", [Strong])]}}).dom.innerHTML,
         "<p><strong>a..bc</strong></p><p>def</p>")
   })
 
@@ -131,7 +131,7 @@ describe("DocTile", () => {
   it("preserves prop wrapper nodes", () => {
     let node = render(doc(p(strong("ab"))))
     let str = node.dom.querySelector("strong")
-    node = update(node, {changes: {from: 2, insert: new Slice([Node.text("!")])}})
+    node = update(node, {changes: {from: 2, insert: [Node.text("!")]}})
     ist(node.dom.querySelector("strong"), str)
   })
 
@@ -142,14 +142,14 @@ describe("DocTile", () => {
 
   it("fixes textblock breaks on changes", () => {
     let node = render(doc(p(), p("a")))
-    ist(update(node, {changes: [{from: 1, insert: new Slice([Node.text("x")])}, {from: 3, to: 4}]}).dom.innerHTML,
+    ist(update(node, {changes: [{from: 1, insert: [Node.text("x")]}, {from: 3, to: 4}]}).dom.innerHTML,
         "<p>x</p><p><br></p>")
   })
 
   it("reuses text nodes when changing their start", () => {
     let node = render(doc(p("abc"), p("def")))
     let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
-    node = update(node, {changes: [{from: 1, insert: new Slice([Node.text("..")])}, {from: 6, to: 7}]})
+    node = update(node, {changes: [{from: 1, insert: [Node.text("..")]}, {from: 6, to: 7}]})
     ist(abc.nodeValue, "..abc")
     ist(def.nodeValue, "ef")
   })
@@ -157,7 +157,7 @@ describe("DocTile", () => {
   it("reuses text nodes when changing their end", () => {
     let node = render(doc(p("abc"), p("def")))
     let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
-    node = update(node, {changes: [{from: 4, insert: new Slice([Node.text("..")])}, {from: 8, to: 9}]})
+    node = update(node, {changes: [{from: 4, insert: [Node.text("..")]}, {from: 8, to: 9}]})
     ist(abc.nodeValue, "abc..")
     ist(def.nodeValue, "de")
   })
@@ -165,7 +165,7 @@ describe("DocTile", () => {
   it("reuses text nodes when changing their middle", () => {
     let node = render(doc(p("abc"), p("def")))
     let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
-    node = update(node, {changes: [{from: 2, insert: new Slice([Node.text("..")])}, {from: 7, to: 8}]})
+    node = update(node, {changes: [{from: 2, insert: [Node.text("..")]}, {from: 7, to: 8}]})
     ist(abc.nodeValue, "a..bc")
     ist(def.nodeValue, "df")
   })
@@ -183,12 +183,12 @@ describe("DocTile", () => {
     })
 
     let tile = update(render(doc(p("ab", img("a"), "cd")), imgWidget), {
-      changes: {from: 3, to: 4, insert: new Slice([img("b")])}
+      changes: {from: 3, to: 4, insert: [img("b")]}
     })
     ist(log.join(), "a")
-    tile = update(tile, {changes: {from: tile.length, insert: new Slice([p("!", img("c"))])}})
+    tile = update(tile, {changes: {from: tile.length, insert: [p("!", img("c"))]}})
     ist(log.join(), "a")
-    tile = update(tile, {changes: {from: 0, to: tile.length, insert: new Slice([hr()])}})
+    tile = update(tile, {changes: {from: 0, to: tile.length, insert: [hr()]}})
     ist(log.join(), "a,b,c")
   })
 
@@ -217,7 +217,7 @@ describe("DocTile", () => {
       })
       let node = render(doc(p("x", $img(), "y")), src("Before"), src("After"))
       let widgets = node.dom.querySelectorAll("span")
-      node = update(node, {changes: {from: 2, to: 3, insert: new Slice([img("/x.webp")])}})
+      node = update(node, {changes: {from: 2, to: 3, insert: [img("/x.webp")]}})
       let newWidgets = node.dom.querySelectorAll("span")
       ist(newWidgets.length, 2)
       for (let i = 0; i < widgets.length; i++) ist(newWidgets[i], widgets[i])
@@ -322,7 +322,7 @@ describe("DocTile", () => {
       ist(node.dom.innerHTML, "<p><strong>a</strong><span>!</span><img src=\"test.png\"></p>")
       node = update(node, {changes: [
         {from: 1, to: 2, remove: Strong},
-        {from: 2, to: 3, insert: new Slice([$img()])}
+        {from: 2, to: 3, insert: [$img()]}
       ]})
       ist(node.dom.innerHTML, "<p>a<span>!</span><img src=\"test.png\"></p>")
     })
