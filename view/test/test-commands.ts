@@ -1,14 +1,14 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
-        wrapBlock, unwrapBlock, unwrapBlockType, toggleProp} from "@wordgard/view"
+        wrapBlock, unwrapBlock, unwrapBlockType, toggleList, toggleProp} from "@wordgard/view"
 import {Node, Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
-        Paragraph, Heading, Blockquote, BulletList,
+        Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "@wordgard/doc"
 import {EditorState, StateCommand, EditorSelection} from "@wordgard/state"
 import ist from "ist"
 
-const {p, blockquote, ul, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
+const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -566,6 +566,76 @@ describe("unwrapBlock", () => {
     test(doc(ul(li(p("a"))), blockquote(ul(li(p(0, "b"))))), unwrapBlock,
          doc(ul(li(p("a")), li(p(0, "b")))))
     
+  })
+})
+
+describe("toggleList", () => {
+  let toggleUL = toggleList(BulletList), toggleOL = toggleList(OrderedList.default!)
+
+  it("can add a list to a single block", () => {
+    test(doc(p("a", 0)), toggleUL, doc(ul(li(p("a", 0)))))
+  })
+
+  it("can add a list to two blocks", () => {
+    test(doc(p("a", 0), p("b", 1)), toggleOL, doc(ol(li(p("a", 0)), li(p("b", 1)))))
+  })
+
+  it("can remove a list", () => {
+    test(doc(ol(li(p(0)))), toggleOL, doc(p(0)))
+  })
+
+  it("can remove only some items from a list", () => {
+    test(doc(ul(li(p("a")), li(p(0, "b")), li(p("c", 1)), li(p("d")))),
+         toggleUL,
+         doc(ul(li(p("a"))), p(0, "b"), p("c", 1), ul(li(p("d")))))
+  })
+
+  it("adds lists when it can", () => {
+    test(doc(ol(li(p(0))), p(1)), toggleOL, doc(ol(li(p(0)), li(p(1)))))
+  })
+
+  it("joins newly created lists to those above and below", () => {
+    test(doc(ul(li(p("a"))), p("b", 0), ul(li(p("c")))),
+         toggleUL,
+         doc(ul(li(p("a")), li(p("b", 0)), li(p("c")))))
+  })
+
+  it("joins changed lists to those above and below", () => {
+    test(doc(ul(li(p("a"))), ol(li(p("b", 0))), ul(li(p("c")))),
+         toggleUL,
+         doc(ul(li(p("a")), li(p("b", 0)), li(p("c")))))
+  })
+
+  it("can change a list's type", () => {
+    test(doc(ul(li(p(0)))), toggleOL, doc(ol(li(p(0)))))
+  })
+
+  it("can the type of two adjacent lists", () => {
+    test(doc(ul(li(p(0))), ul(li(p(1)))), toggleOL, doc(ol(li(p(0)), li(p(1)))))
+  })
+
+  it("can change a list's type and wrap items before and after", () => {
+    test(doc(p(0), ul(li(p())), p(1)), toggleOL, doc(ol(li(p(0)), li(p()), li(p(1)))))
+  })
+
+  it("can handle multiple cursors in a single block", () => {
+    test(doc(p(0, "a", 2, "b", 4)), toggleOL, doc(ol(li(p(0, "a", 2, "b", 4)))))
+  })
+
+  it("can unwrap a wrapper block", () => {
+    test(doc(ul(li(blockquote(p(0, "a"), p("b", 1))))), toggleUL, doc(blockquote(p(0, "a"), p("b", 1))))
+  })
+
+  it("can unwrap a nested item", () => {
+    test(doc(ul(li(p("a"), ul(li(p("b", 0)))))), toggleUL, doc(ul(li(p("a"), p("b", 0)))))
+  })
+
+  it("can wrap a nested item", () => {
+    test(doc(ul(li(p("a"), p("b", 0)))), toggleUL, doc(ul(li(p("a"), ul(li(p("b", 0)))))))
+  })
+
+  it("can unwrap an item with multiple children", () => {
+    test(doc(ul(li(p("a", 0), p("b")))), toggleUL, doc(p("a", 0), p("b")))
   })
 })
 

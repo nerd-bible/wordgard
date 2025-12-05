@@ -353,15 +353,12 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
 
 export function setTextblockType(tag: Tag<any>): StateCommand {
   return ({state, dispatch}) => {
-    let changes: ChangeSpec[] = [], lastBlock = -1
-    for (let {from, to} of state.selection.ranges) {
-      state.doc.iterate(from, to, (node, pos, parent) => {
-        if (node.isTextblock && pos > lastBlock && !node.tag.eq(tag) && parent && parent.type.canContain(tag.type)) {
-          lastBlock = pos
-          changes.push({from: pos, to: pos + 1, insert: new Slice([node.tag.changeType(tag)])})
-          for (let ch of clearNonFitting(state.doc.resolveNode(pos)!, tag.type)) changes.push(ch)
-        }
-      })
+    let changes: ChangeSpec[] = []
+    for (let block of selectedTextblocks(state)) {
+      if (!block.node.tag.eq(tag) && block.parent && block.parent.node.type.canContain(tag.type)) {
+        changes.push({from: block.before, to: block.before + 1, insert: new Slice([block.node.tag.changeType(tag)])})
+        for (let ch of clearNonFitting(block, tag.type)) changes.push(ch)
+      }
     }
     if (!changes.length) return false
     dispatch(state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "settype"})))
@@ -430,6 +427,161 @@ export function toggleProp(prop: Prop<any>): StateCommand {
     }
     return true
   }
+}
+
+function selectedTextblocks(state: EditorState) {
+  let textblocks: NodePos[] = [], lastBlock = -1
+  for (let {from, to} of state.selection.ranges) {
+    state.doc.iterate(from, to, (node, pos, parent) => {
+      if (node.isTextblock && pos > lastBlock) {
+        textblocks.push(state.doc.resolveNode(pos)!)
+        lastBlock = pos
+      }
+    })
+  }
+  return textblocks
+}
+
+// FIXME support textblock items
+export function toggleList(listTag: Tag<any>): StateCommand {
+  return ({state, dispatch}) => {
+    let blocks = selectedTextblocks(state)
+    if (!blocks.length) return false
+    let tr = addList(state, blocks, listTag) || removeList(state, blocks, listTag)
+    if (tr) dispatch(tr)
+    return !!tr
+  }
+}
+
+function isListItem(node: NodePos) {
+  for (let top = true;;) {
+    let {parent} = node
+    if (!parent) return null
+    if (parent.node.tag.type.isList) return top ? node : null
+    top = !node.index
+    node = parent
+  }
+}
+
+const enum PlanPos { // FIXME don't need specific values?
+  WrapBefore = 1,
+  WrapAfter = 2,
+  ConvertBefore = 4,
+  ConvertAfter = 8,
+  UnwrapAfter = 16,
+  UnwrapBefore = 32
+}
+
+function get0<T>(map: Map<T, number>, val: T) { return map.get(val) ?? 0 }
+
+function addPlanPos(map: Map<number, PlanPos>, at: number, plan: PlanPos) {
+  map.set(at, (map.get(at) || 0) | plan)
+}
+
+function autoJoin(a: Tag<any>, b: Tag<any>) {
+  let {autoJoin} = a.type.spec
+  return typeof autoJoin == "function" ? autoJoin(a, b) : typeof autoJoin == "boolean" ? autoJoin : a.eq(b)
+}
+
+function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
+  let plan: ({wrap: NodePos, item: Tag<any>} | {change: NodePos, item: NodePos})[] = []
+  let planPos: Map<number, PlanPos> = new Map
+  let lastItem = -1
+  for (let block of blocks) {
+    let item = isListItem(block), wrap
+    if (!item && block.parent && block.parent.node.type.canContain(listTag.type) &&
+        (wrap = state.doc.schema.findWrapping(listTag.type, block.node.type)) && wrap.length == 1) {
+      addPlanPos(planPos, block.before, PlanPos.WrapAfter)
+      addPlanPos(planPos, block.after, PlanPos.WrapBefore)
+      plan.push({wrap: block, item: wrap[0]})
+      lastItem = block.before
+    } else if (item?.parent && item.parent.node.tag.type != listTag.type &&
+               listTag.type.canContain(item.node.type) &&
+               item.parent.parent && item.parent.parent.node.type.canContain(listTag.type) &&
+               item.before != lastItem) {
+      addPlanPos(planPos, item.before, PlanPos.ConvertAfter)
+      addPlanPos(planPos, item.after, PlanPos.ConvertBefore)
+      if (item.index == 0) addPlanPos(planPos, item.parent.before, PlanPos.ConvertAfter)
+      if (item.index == item.parent.node.children.length - 1) addPlanPos(planPos, item.parent.after, PlanPos.ConvertBefore)
+      plan.push({change: block, item})
+      lastItem = item.before
+    }
+  }
+  if (!plan.length) return null
+  let changes: ChangeSpec[] = []
+  for (let step of plan) {
+    if ("wrap" in step) {
+      let {wrap, item} = step, prev, next
+      if (get0(planPos, wrap.before) & (PlanPos.WrapBefore | PlanPos.ConvertBefore)) {
+        changes.push({from: wrap.before, insert: new Slice([item])})
+      } else if ((prev = wrap.previousSibling) && prev.tag.eq(listTag)) {
+        changes.push({from: wrap.before - 1, to: wrap.before, insert: new Slice([item])})
+      } else {
+        changes.push({from: wrap.before, insert: new Slice([listTag, item])})
+      }
+      if (get0(planPos, wrap.after) & (PlanPos.WrapAfter | PlanPos.ConvertAfter)) {
+        changes.push({from: wrap.after, insert: new Slice([CloseToken])})
+      } else if ((next = wrap.nextSibling) && next.tag.type == listTag.type &&
+                 autoJoin(next.tag, listTag)) {
+        changes.push({from: wrap.after, to: wrap.after + 1, insert: new Slice([CloseToken])})
+      } else {
+        changes.push({from: wrap.after, insert: new Slice([CloseToken, CloseToken])})
+      }
+    } else { // Change other list
+      let {item} = step, prev, next
+      if (item.index == 0) {
+        if (get0(planPos, item.before - 1) & (PlanPos.WrapBefore | PlanPos.ConvertBefore)) {
+          changes.push({from: item.before - 1, to: item.before})
+        } else if ((prev = item.parent!.previousSibling) && prev.tag.type == listTag.type) {
+          changes.push({from: item.before - 2, to: item.before})
+        } else {
+          changes.push({from: item.before - 1, to: item.before, insert: new Slice([listTag])})
+        }
+      } else if (!(get0(planPos, item.before) & PlanPos.ConvertBefore)) {
+        changes.push({from: item.before, insert: new Slice([CloseToken, listTag])})
+      }
+      if (item.index == item.parent!.node.children.length - 1) {
+        if (get0(planPos, item.after + 1) & (PlanPos.WrapAfter | PlanPos.ConvertAfter)) {
+          changes.push({from: item.after, to: item.after + 1})
+        } else if ((next = item.parent!.nextSibling) && autoJoin(next.tag, listTag)) {
+          changes.push({from: item.after, to: item.after + 2})
+        }
+      }
+    }
+  }
+  return state.update({changes, userEvent: "wrap.list"})
+}
+
+function removeList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
+  let plan: NodePos[] = [], planPos: Map<number, PlanPos> = new Map, lastItem = -1
+  for (let block of blocks) {
+    let item = isListItem(block)
+    if (item && item.parent!.node.type == listTag.type && item.before != lastItem) {
+      lastItem = item.before
+      plan.push(item)
+      addPlanPos(planPos, item.before, PlanPos.UnwrapAfter)
+      addPlanPos(planPos, item.after, PlanPos.UnwrapBefore)
+    }
+  }
+  if (!plan.length) return null
+  let changes: ChangeSpec[] = []
+  for (let item of plan) {
+    if (item.index == 0) {
+      changes.push({from: item.before - 1, to: item.start})
+    } else if (get0(planPos, item.before) & PlanPos.UnwrapBefore) {
+      changes.push({from: item.before, to: item.start})
+    } else {
+      changes.push({from: item.before, to: item.start, insert: new Slice([CloseToken])})
+    }
+    if (item.index == item.parent!.node.children.length - 1) {
+      changes.push({from: item.end, to: item.after + 1})
+    } else if (get0(planPos, item.after) & PlanPos.UnwrapAfter) {
+      changes.push({from: item.end, to: item.after})
+    } else {
+      changes.push({from: item.end, to: item.after, insert: new Slice([listTag])})
+    }
+  }
+  return state.update({changes, userEvent: "unwrap.list"})
 }
 
 function setSelection(state: EditorState, dispatch: (tr: Transaction) => void, selection: EditorSelection) {
