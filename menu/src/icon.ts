@@ -53,11 +53,11 @@ export const iconImage: MenuLabel = {
 }
 
 export const iconUndo: MenuLabel = {
-  icon: "M31 13l6 6l-11 11h41c14 0 26 11 26 26s-11 26-26 26h-9v-9h9c9 0 17-8 17-17s-8-17-17-17H26l11 11l-6 6L10 34L31 13z"
+  icon: "M69 90c9-16 10-41-24-40v20l-30-30 30-30v19c42-1 46 37 24 61z"
 }
 
 export const iconRedo: MenuLabel = {
-  icon: "M69 13l-6 6l11 11h-41c-14 0-26 11-26 26s11 26 26 26h9v-9h-9c-9 0-17-8-17-17s8-17 17-17H74l-11 11l6 6L90 34L69 13z"
+  icon: "M55 29v-19l30 30-30 30v-20c-35-1-33 24-24 40-22-24-17-62 24-61z"
 }
 
 export const iconIndent: MenuLabel = {
