@@ -452,6 +452,13 @@ export function toggleList(listTag: Tag<any>): StateCommand {
   }
 }
 
+export const listIsActive = (listTag: Tag<any>): (state: EditorState) => boolean => state => {
+  return selectedTextblocks(state).every(b => {
+    let item = isListItem(b)
+    return item && item.parent!.node.type == listTag.type
+  })
+}
+
 function isListItem(node: NodePos) {
   for (let first = true;;) {
     let {parent} = node

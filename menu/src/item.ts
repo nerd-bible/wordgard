@@ -1,9 +1,9 @@
-import {EditorView, toggleProp, setTextblockType, showDialog} from "@wordgard/view"
+import {EditorView, toggleProp, setTextblockType, toggleList, listIsActive, showDialog} from "@wordgard/view"
 import {EditorState, Transaction, Facet, Extension} from "@wordgard/state"
 import {Prop, Tag, canAddPropInRange, ChangeSpec,
         Strong, Emphasis, Code, Link,
-        Paragraph, CodeBlock, Heading} from "@wordgard/doc"
-import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink} from "./icon"
+        Paragraph, CodeBlock, Heading, BulletList, OrderedList} from "@wordgard/doc"
+import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList} from "./icon"
 
 export type MenuLabelWidget = {
   render: (view: EditorView) => HTMLElement
@@ -145,6 +145,7 @@ export class MenuTemplate {
 export const Top = new MenuGroup()
 export const Commands = new MenuGroup({parent: Top, rank: 10})
 export const InlineStyles = new MenuGroup({parent: Top, rank: 30, margin: true})
+export const BlockMenu = new MenuGroup({parent: Top, rank: 50, margin: true})
 
 export function toggleInlineProp(config: {
   prop: Prop<any>,
@@ -312,11 +313,30 @@ export const Heading3 = new MenuButton({
   rank: 52
 })
 
+export const BulletListButton = new MenuButton({
+  run: toggleList(BulletList),
+  active: listIsActive(BulletList),
+  label: iconBulletList,
+  description: "Toggle bullet list",
+  parent: BlockMenu,
+  rank: 20
+})
+
+export const OrderedListButton = new MenuButton({
+  run: toggleList(OrderedList.default!),
+  active: listIsActive(OrderedList.default!),
+  label: iconOrderedList,
+  description: "Toggle ordered list",
+  parent: BlockMenu,
+  rank: 30
+})
+
 // FIXME drop
 export const staticMenu: Extension[] = [
   Undo, Redo, Strong,
-  Commands, InlineStyles, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
+  Commands, InlineStyles, BlockMenu, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
+  BulletListButton, OrderedListButton
 ]
 
 export type ResolvedMenuItem = MenuButton | "|" | ResolvedSubmenu
