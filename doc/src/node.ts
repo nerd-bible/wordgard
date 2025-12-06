@@ -138,6 +138,7 @@ export namespace Tag {
 
     constructor(
       readonly name: string,
+      /// @internal
       readonly flags: TagFlag,
       readonly spec: TagSpec<Param>
     ) {

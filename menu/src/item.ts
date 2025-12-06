@@ -1,9 +1,10 @@
-import {EditorView, toggleProp, setTextblockType, toggleList, listIsActive, showDialog} from "@wordgard/view"
+import {EditorView, toggleProp, setTextblockType, wrapBlock, unwrapBlockType,
+        toggleList, listIsActive, showDialog} from "@wordgard/view"
 import {EditorState, Transaction, Facet, Extension} from "@wordgard/state"
-import {Prop, Tag, canAddPropInRange, ChangeSpec,
+import {Prop, Tag, NodePos, canAddPropInRange, ChangeSpec,
         Strong, Emphasis, Code, Link,
-        Paragraph, CodeBlock, Heading, BulletList, OrderedList} from "@wordgard/doc"
-import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList} from "./icon"
+        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "@wordgard/doc"
+import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
 
 export type MenuLabelWidget = {
   render: (view: EditorView) => HTMLElement
@@ -331,12 +332,25 @@ export const OrderedListButton = new MenuButton({
   rank: 30
 })
 
+export const BlockquoteButton = new MenuButton({
+  run: view => unwrapBlockType(Blockquote)(view) || wrapBlock(Blockquote)(view),
+  active: state => {
+    for (let cur: NodePos | null = state.sel.head.parent; cur; cur = cur.parent)
+      if (cur.node.type == Blockquote.type) return true
+    return false
+  },
+  label: iconQuote,
+  description: "Toggle blockquote",
+  parent: BlockMenu,
+  rank: 40
+})
+
 // FIXME drop
 export const staticMenu: Extension[] = [
   Undo, Redo, Strong,
   Commands, InlineStyles, BlockMenu, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
-  BulletListButton, OrderedListButton
+  BulletListButton, OrderedListButton, BlockquoteButton
 ]
 
 export type ResolvedMenuItem = MenuButton | "|" | ResolvedSubmenu
