@@ -94,7 +94,8 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
   return false
 }
 
-/// Split the textblock at the cursor position, if any.
+/// Split the textblock at the cursor position, if any. If the
+/// textblock is the first child of a list item, also split that item.
 export const splitTextblock: StateCommand = ({state, dispatch}) => {
   let sel = state.sel
   let before = sel.from.textblockParent
@@ -104,6 +105,9 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
     tokens.push(CloseToken)
     if (p == before) break
   }
+
+  if (!before.parent.node.type.isList && before.isFirst && before.parent.parent?.node.type.isList)
+    tokens.push(CloseToken, before.parent.node.tag.split(false))
 
   let after = sel.to.textblockParent
   if (after) {

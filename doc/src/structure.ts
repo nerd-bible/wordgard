@@ -3,7 +3,7 @@ import {Pos, NodePos} from "./pos"
 import {Prop} from "./prop"
 import {Schema} from "./schema"
 import {ChangeSpec} from "./change"
-import {Slice, Token, CloseToken} from "./slice"
+import {Token, CloseToken} from "./slice"
 
 export function clearNonFitting(node: NodePos, type: Tag.Type<any>) {
   let changes: ChangeSpec[] = []

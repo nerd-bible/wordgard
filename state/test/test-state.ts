@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Node, Tag, builder, basicBuilders, Slice, Prop} from "@wordgard/doc"
+import {Node, Tag, builder, basicBuilders, Prop} from "@wordgard/doc"
 import {EditorState} from "@wordgard/state"
 const {doc, p} = basicBuilders
 
