@@ -1,1 +1,1 @@
-export const packages = ["doc", "state", "view", "menu"]
+export const packages = ["doc", "state", "view", "menu", "history"]

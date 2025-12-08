@@ -5,7 +5,8 @@ import {elt, Reject} from "./shape"
 
 export type SchemaElement = Tag<any> | Tag.Type<any> | Prop<any> | Prop.Type<any>
 
-const schemaCache = new Map<readonly SchemaElement[], Schema>()
+// FIXME maybe don't store these forever
+const schemaCache = new Set<Schema>()
 
 export class Schema {
   private tagsByName: {[name: string]: Tag.Type<unknown>} = Object.create(null)
@@ -88,8 +89,9 @@ export class Schema {
   getTag(name: string): Tag.Type<unknown> | undefined { return this.tagsByName[name] }
 
   static define(spec: readonly SchemaElement[]) {
-    let cached = schemaCache.get(spec)
-    if (cached) return cached
+    for (let cached of schemaCache)
+      if (cached.elements.length == spec.length && cached.elements.every((e, i) => e == spec[i]))
+        return cached
 
     let tags: Tag.Type<any>[] = [Text], props: Prop.Type<unknown>[] = []
     let defaultI = 0
@@ -135,7 +137,7 @@ export class Schema {
     }
     if (!docTag) throw new Error("A schema must define a document tag")
     let schema = new Schema(tags, props, docTag, lineBreak as Tag<unknown> | null)
-    schemaCache.set(spec, schema)
+    schemaCache.add(schema)
     return schema
   }
 

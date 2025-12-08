@@ -7,6 +7,8 @@ import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {KeyBinding} from "./keymap"
 
+// FIXME split into its own submodule
+
 /// Command functions are used in key bindings and other types of user
 /// actions. Given an editor view, they check whether their effect can
 /// apply to the editor, and if it can, perform it as a side effect

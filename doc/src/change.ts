@@ -248,6 +248,27 @@ export class ChangeDesc {
     }
   }
 
+  /// Iterate over the ranges changed (either replaced or modified) by
+  /// this change desc.
+  iterChangedRanges(range: (fromA: number, toA: number, fromB: number, toB: number) => void) {
+    for (let i = 0, posA = 0, posB = 0; i < this.sections.length;) {
+      let len = this.sections[i++], ins = this.sections[i++]
+      if (ins == -1) {
+        posB += len
+      } else {
+        if (ins == -2) ins = len
+        while (i < this.sections.length && this.sections[i + 1] != -1) {
+          let addLen = this.sections[i++], addIns = this.sections[i++]
+          len += addLen
+          ins += addIns == -2 ? addLen : addIns
+        }
+        range(posA, posA + len, posB, posB + ins)
+        posB += ins
+      }
+      posA += len
+    }
+  }
+
   // Non-overlapping, sorted
   static createDesc(length: number, ranges: {from: number, to: number, replace?: number}[]) {
     let sections: number[] = [], pos = 0
@@ -277,6 +298,8 @@ export class ChangeSet extends ChangeDesc {
   }
 
   apply(doc: DocNode) {
+    if (this.length != doc.length)
+      throw new RangeError(`Trying to apply change of length ${this.length} to doc of length ${doc.length}`)
     if (this.empty) return doc
     let cached = applyCache.get(this)
     if (cached && doc.eq(cached.a)) return cached.b

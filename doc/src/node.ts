@@ -64,7 +64,7 @@ export class Tag<Param = unknown> {
   }
 
   eq(other: Tag<any>) {
-    return this == other || this.type == other.type && compareDeep(this.param, other.param) && this.sameProps(other)
+    return this == other || this.type == other.type && !this.isDoc && compareDeep(this.param, other.param) && this.sameProps(other)
   }
 
   sameProps(other: Tag<any>) {
@@ -405,6 +405,8 @@ export interface MarkJSON {
   params?: any
 }
 
+// FIXME the use of schema objects as param conflicts with the
+// plain JSON structure that we assume params have
 export class DocNode extends Node {
   constructor(tag: Tag<Schema>, children: readonly Node[]) {
     super(tag, children)
