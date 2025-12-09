@@ -5,7 +5,7 @@ import {KeyBinding, EditorView} from "@wordgard/view"
 
 const enum BranchName { Done, Undone }
 
-const fromHistory = Annotation.define<{side: BranchName, rest: HistBranch | null, selection: EditorSelection}>()
+const fromHistory = Annotation.define<{side: BranchName, rest: Branch | null, selection: EditorSelection}>()
 
 /// Transaction annotation that will prevent that transaction from
 /// being combined with other transactions in the undo history. Given
@@ -60,7 +60,7 @@ const historyField_ = StateField.define({
     if (fromHist) {
       let from = fromHist.side, event = eventFromTransaction(tr)
       let other = from == BranchName.Done ? state.undone : state.done
-      if (event) other = new HistBranch(event.changes, event.effects, null, fromHist.selection, other)
+      if (event) other = new Branch(event.changes, event.effects, null, fromHist.selection, other)
       return new HistoryState(from == BranchName.Done ? fromHist.rest : other,
                               from == BranchName.Done ? other : fromHist.rest)
     }
@@ -69,7 +69,10 @@ const historyField_ = StateField.define({
     if (isolate == "full" || isolate == "before") state = state.isolate()
 
     if (tr.annotation(Transaction.addToHistory) === false)
-      return tr.changes.empty ? state : state.addMapping(tr.startState.doc, tr.changes)
+      return tr.changes.empty ? state : new HistoryState(
+        state.done && state.done.addMapping(tr.changes, tr.startState.doc),
+        state.undone && state.undone.addMapping(tr.changes, tr.startState.doc),
+        state.prevTime, state.prevUserEvent)
 
     let event = eventFromTransaction(tr)
     let time = tr.annotation(Transaction.time)!, userEvent = tr.annotation(Transaction.userEvent)
@@ -80,7 +83,7 @@ const historyField_ = StateField.define({
   },
 
   toJSON(value) {
-    let mkJSON = (value: HistBranch | null) => {
+    let mkJSON = (value: Branch | null) => {
       let events: {changes: ChangeSetJSON, selection: SelectionJSON}[] = []
       for (let cur = value; cur; cur = cur.next)
         events.push({changes: cur.changes.toJSON(), selection: cur.startSelection.toJSON()})
@@ -95,9 +98,9 @@ const historyField_ = StateField.define({
   fromJSON(json: any, state: EditorState) {
     if (!json || !Array.isArray(json.done) || !Array.isArray(json.undone)) throw new RangeError("Invalid history JSON")
     let buildBranch = (json: {changes: ChangeSetJSON, selection: SelectionJSON}[]) => {
-      let result: HistBranch | null = null
+      let result: Branch | null = null
       for (let i = json.length - 1; i >= 0; i--)
-        result = new HistBranch(ChangeSet.fromJSON(state.doc.schema, json[i].changes),
+        result = new Branch(ChangeSet.fromJSON(state.doc.schema, json[i].changes),
                                 none, null, EditorSelection.fromJSON(state.doc.schema, json[i].selection), result)
                                 
       return result
@@ -148,7 +151,7 @@ export const undo = cmd(BranchName.Done)
 /// available.
 export const redo = cmd(BranchName.Undone)
 
-function depth(branch: HistBranch | null | undefined) {
+function depth(branch: Branch | null | undefined) {
   return branch ? branch.depth : 0
 }
 
@@ -166,7 +169,7 @@ export type HistEventJSON = {
 
 // History branch events store groups of changes or effects that need
 // to be undone/redone together. They form a linked list.
-class HistBranch {
+class Branch {
   depth: number
   
   constructor(
@@ -183,47 +186,68 @@ class HistBranch {
     readonly mapped: {change: ChangeSet, doc: DocNode} | null,
     // The selection before this event
     readonly startSelection: EditorSelection,
-    readonly next: HistBranch | null
+    readonly next: Branch | null
   ) {
     this.depth = depth(next) + 1
   }
 
   // Assumes `this` is already resolved
   addChanges(changes: ChangeSet, effects: readonly StateEffect<any>[]) {
-    return new HistBranch(changes.compose(this.changes), conc(StateEffect.mapEffects(effects, this.changes), this.effects),
+    return new Branch(changes.compose(this.changes),
+                          conc(StateEffect.mapEffects(effects, this.changes), this.effects),
                           null, this.startSelection, this.next)
   }
 
-  resolve(): HistBranch | null {
+  // Resolve this event's mapping, if any.
+  resolve(): Branch | null {
     if (!this.mapped) return this
     let {mapped: {change, doc}, next} = this
+    // Map the event's changes and mapped.change (which both start
+    // from mapped.doc) over each other
     let mappedChanges = this.changes.map(change, doc), mappedMapping = change.map(this.changes, doc, true)
+    // If there's more events below this, push the updated mapping down
     if (next) next = next.addMapping(mappedMapping, next.mapped ? null : this.changes.apply(doc))
+    // If there's nothing left in this event, return the next one
     if (mappedChanges.empty && !this.effects.length) return next && next.resolve()
-    return new HistBranch(mappedChanges, StateEffect.mapEffects(this.effects, change), null,
+    // Map the effects over the original mapping, and the selection
+    // (referring to the state before this event's changes) over the
+    // updated mapping.
+    return new Branch(mappedChanges, StateEffect.mapEffects(this.effects, change), null,
                          this.startSelection.map(mappedMapping), next)
   }
 
-  resolveFully(): HistBranch | null {
-    let branch: HistBranch | null = this.resolve()
-    if (!branch) return null
-    let next = branch.next && branch.next.resolve()
-    return next == branch.next ? branch : new HistBranch(this.changes, this.effects, null, this.startSelection, next)
+  // When serializing to JSON, we first fully resolve the whole history.
+  resolveFully(): Branch | null {
+    let stack: Branch[] = []
+    for (let head: Branch | null = this; head; head = head.next) {
+      head = head.resolve()
+      if (!head) break
+      stack.push(head)
+    }
+    let result: Branch | null = null
+    for (let i = stack.length - 1; i >= 0; i--) {
+      let next = stack[i]
+      if (next.next == result) result = next
+      else result = new Branch(next.changes, next.effects, null, next.startSelection, result)
+    }
+    return result
   }
 
+  // Add a mapping to this change
   addMapping(change: ChangeSet, startDoc: DocNode | null) {
-    return new HistBranch(this.changes, this.effects, this.mapped
+    return new Branch(this.changes, this.effects, this.mapped
       ? {change: this.mapped.change.compose(change), doc: this.mapped.doc}
       : {change, doc: startDoc!}, this.startSelection, this.next)
   }
 
+  // Drop any events below the given depth
   clip(depth: number) {
-    let stack: HistBranch[] = []
-    for (let i = 0, cur: HistBranch | null = this; i < depth && cur; i++, cur = cur.next) stack.push(cur)
+    let stack: Branch[] = []
+    for (let i = 0, cur: Branch | null = this; i < depth && cur; i++, cur = cur.next) stack.push(cur)
     let result = null
     for (let i = stack.length - 1; i >= 0; i--) {
       let event = stack[i]
-      result = new HistBranch(event.changes, event.effects, event.mapped, event.startSelection, result)
+      result = new Branch(event.changes, event.effects, event.mapped, event.startSelection, result)
     }
     return result
   }
@@ -242,6 +266,9 @@ function eventFromTransaction(tr: Transaction): {
   return {changes: tr.changes.invert(tr.startState.doc), effects}
 }
 
+// Check whether two change sets touch each other. The
+// suspicious-looking use of before-positions in a and after-positions
+// in b is because these will be inverted change sets.
 function isAdjacent(a: ChangeDesc, b: ChangeDesc): boolean {
   let ranges: number[] = [], isAdjacent = false
   a.iterChangedRanges((f, t) => ranges.push(f, t))
@@ -265,10 +292,15 @@ const joinableUserEvent = /^(input\.type|delete)($|\.)/
 class HistoryState {
   constructor(
     // These are only mutated when resolving in toJSON
-    public done: HistBranch | null,
-    public undone: HistBranch | null,
-    private readonly prevTime: number = 0,
-    private readonly prevUserEvent: string | undefined = undefined
+    // The branch of undoable changes
+    public done: Branch | null,
+    // The branch of redoable changes
+    public undone: Branch | null,
+    // The time at which the last done event was created, or 0 if
+    // nothing should be joined to it
+    readonly prevTime: number = 0,
+    // The user event that was last added to this.done
+    readonly prevUserEvent: string | undefined = undefined
   ) {}
 
   isolate() {
@@ -278,7 +310,11 @@ class HistoryState {
   addChanges(event: {changes: ChangeSet, effects: readonly StateEffect<any>[]},
              time: number, userEvent: string | undefined,
              config: Required<HistoryConfig>, tr: Transaction): HistoryState {
+    // Make sure the top of the done branch is resolved, so that we
+    // can add changes without worrying about its mapping
     let done = this.done && this.done.resolve()
+    // If possible, add the changes to the top event, otherwise start
+    // a new event
     if (done && !done.changes.empty &&
         (!userEvent || joinableUserEvent.test(userEvent)) &&
         ((time - this.prevTime < config.newGroupDelay &&
@@ -287,21 +323,14 @@ class HistoryState {
          userEvent == "input.type.compose")) {
       done = done.addChanges(event.changes, event.effects)
     } else {
-      done = new HistBranch(event.changes, event.effects, null, tr.startState.selection, done)
+      done = new Branch(event.changes, event.effects, null, tr.startState.selection, done)
     }
     return new HistoryState(done, null, time, userEvent)
   }
 
-  addMapping(startDoc: DocNode, mapping: ChangeSet): HistoryState {
-    return new HistoryState(this.done && this.done.addMapping(mapping, startDoc),
-                            this.undone && this.undone.addMapping(mapping, startDoc),
-                            this.prevTime, this.prevUserEvent)
-  }
-
   pop(side: BranchName, state: EditorState): Transaction | null {
     let branch = side == BranchName.Done ? this.done : this.undone
-    if (branch) branch = branch.resolve()
-    if (!branch) return null
+    if (!branch || !(branch = branch.resolve())) return null
     return state.update({
       changes: branch.changes,
       selection: branch.startSelection,

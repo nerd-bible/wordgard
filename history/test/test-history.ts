@@ -30,8 +30,9 @@ function receive(state: EditorState, text: string, from: number, to = from) {
   return state.update({changes: {from, to, insert: [Node.text(text)]},
                        annotations: Transaction.addToHistory.of(false)}).state
 }
-function command(state: EditorState, cmd: StateCommand, success: boolean = true) {
-  ist(cmd({state, dispatch(tr: Transaction) { state = tr.state }}), success)
+function command(state: EditorState, cmd: StateCommand, success: boolean | null = true) {
+  let result = cmd({state, dispatch(tr: Transaction) { state = tr.state }})
+  if (success != null) ist(result, success)
   return state
 }
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
@@ -299,6 +300,25 @@ describe("history", () => {
     ist(state.selection.head, 6)
   })
 
+  it("can handle random events without crashing", () => {
+    let state = mkState(doc(p("123456789")))
+    let r = (n: number) => Math.floor(Math.random() * n)
+    let rPos = () => 1 + r(state.doc.length - 2)
+    let rRange = () => {
+      let from = 1 + r(state.doc.length - 3)
+      return {from, to: from + r(state.doc.length - 1 - from)}
+    }
+    for (let i = 0; i < 500; i++) {
+      let c = r(5)
+      state =
+        c == 0 ? command(state, undo, null) :
+        c == 1 ? command(state, redo, null) :
+        c == 2 ? type(state, "ABCDEFGHIJKL"[r(12)], rPos()) :
+        c == 3 ? receive(state, "abcdefghijkl"[r(12)], rPos()) :
+        state.update({changes: rRange()}).state
+    }
+  })
+
   it("supports querying for the undo and redo depth", () => {
     let state = mkState()
     state = type(state, "a")
@@ -362,6 +382,15 @@ describe("history", () => {
     state = command(state, undo)
     ist(state.doc, doc(p("xabcy")), eq)
     ist(state.selection.ranges.map(r => r.from).join(","), "1,3,4")
+  })
+
+  it("properly maps selections in deeper events", () => {
+    let state = mkState(doc(p("123", 0)))
+    state = isolate(type(state, "4"))
+    state = state.update({changes: {from: 1, to: 3}}).state
+    state = receive(state, "!!!!", 1)
+    state = command(command(state, undo), undo)
+    ist(state.selection.head, 8)
   })
 
   it("restores selection on redo", () => {
@@ -510,6 +539,22 @@ describe("history", () => {
       ist(state.doc, doc(p("dabc")), eq)
       state = command(command(state, undo), undo)
       ist(state.doc, doc(p("abcd")), eq)
+    })
+
+    it("resolves before serializing", () => {
+      let state = mkState(doc(p()))
+      state = isolate(type(state, "a"))
+      state = isolate(type(state, "b"))
+      state = type(state, "c")
+      state = receive(state, "d", 4)
+      let jsonConf = {history: historyField}
+      let json = JSON.stringify(state.toJSON(jsonConf))
+      state = EditorState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
+      ist(state.doc, doc(p("abcd")), eq)
+      state = command(command(state, undo), undo)
+      ist(state.doc, doc(p("ad")), eq)
+      state = command(state, undo)
+      ist(state.doc, doc(p("d")), eq)
     })
   })
 })
