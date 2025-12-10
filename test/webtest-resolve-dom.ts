@@ -1,9 +1,9 @@
-import {EditorView, ContentPos, Widget, PointSet, WidgetSource} from "@wordgard/view"
-import {EditorState, Extension} from "@wordgard/state"
-import {DocNode, basicBuilders} from "@wordgard/doc"
+import {EditorView, ContentPos, Widget, PointSet, WidgetSource} from "../dist/view.js"
+import {EditorState, type Extension} from "../dist/state.js"
+import {DocNode, basicBuilders} from "../dist/doc.js"
 import ist from "ist"
 
-const {DocTile} = EditorView
+const {DocTile} = EditorView as any
 const {doc, p, $img, hr} = basicBuilders
 
 function render(doc: DocNode, ...config: Extension[]) {

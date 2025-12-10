@@ -1,8 +1,8 @@
 // Helper library for browser test scripts
 
-import {EditorView} from "@wordgard/view"
-import {Extension} from "@wordgard/state"
-import {DocNode, maybeTag} from "@wordgard/doc"
+import {EditorView} from "../dist/view.js"
+import {type Extension} from "../dist/state.js"
+import {DocNode, maybeTag} from "../dist/doc.js"
 
 const workspace: HTMLElement = document.querySelector("#workspace")! as HTMLElement
 

@@ -1,8 +1,8 @@
-import {EditorView} from "@wordgard/view"
-import {basicBuilders, Strong} from "@wordgard/doc"
-import {EditorSelection} from "@wordgard/state"
+import {EditorView} from "../dist/view.js"
+import {basicBuilders, Strong} from "../dist/doc.js"
+import {EditorSelection} from "../dist/state.js"
 import ist from "ist"
-import {tempView, requireFocus} from "./tempview"
+import {tempView, requireFocus} from "./tempview.ts"
 
 const {doc, p, strong, em} = basicBuilders
 
