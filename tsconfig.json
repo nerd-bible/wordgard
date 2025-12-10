@@ -1,22 +1,15 @@
 {
   "compilerOptions": {
     "lib": ["es2020", "dom", "scripthost"],
+    "typeRoots": ["./node_modules/@types"],
     "types": ["mocha"],
     "stripInternal": true,
-    "typeRoots": ["./node_modules/@types"],
     "noUnusedLocals": true,
     "strict": true,
     "target": "es2020",
     "module": "es2020",
     "newLine": "lf",
-    "moduleResolution": "node",
-    "paths": {
-      "@wordgard/doc": ["./doc/src/index.ts"],
-      "@wordgard/state": ["./state/src/index.ts"],
-      "@wordgard/view": ["./view/src/index.ts"],
-      "@wordgard/menu": ["./menu/src/index.ts"],
-      "@wordgard/history": ["./history/src/index.ts"]
-    }
+    "moduleResolution": "bundler"
   },
-  "include": ["*/src/*.ts", "*/test/*.ts"],
+  "include": ["src/*/*.ts", "test/*.ts"]
 }
