@@ -1,6 +1,6 @@
-import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "@wordgard/history"
-import {DocNode, Node, basicBuilders, maybeTag, ChangeDesc, basicSchema} from "@wordgard/doc"
-import {EditorState, EditorSelection, Transaction, StateEffect, StateField, StateCommand} from "@wordgard/state"
+import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "../dist/history.js"
+import {DocNode, Node, basicBuilders, maybeTag, ChangeDesc, basicSchema} from "../dist/doc.js"
+import {EditorState, EditorSelection, Transaction, StateEffect, StateField, type StateCommand} from "../dist/state.js"
 import ist from "ist"
 
 const {doc, p} = basicBuilders
@@ -439,9 +439,14 @@ describe("history", () => {
     })
 
     class Comment {
-      constructor(readonly from: number,
-                  readonly to: number,
-                  readonly text: string) {}
+      readonly from: number
+      readonly to: number
+      readonly text: string
+
+      constructor(from: number, to: number, text: string) {
+        this.from = from; this.to = to
+        this.text = text
+      }
 
       eq(other: Comment) { return this.from == other.from && this.to == other.to && this.text == other.text }
     }

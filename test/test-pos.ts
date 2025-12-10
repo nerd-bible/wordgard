@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Pos, Walker, DocNode, basicBuilders, tag} from "@wordgard/doc"
+import {Pos, type Walker, DocNode, basicBuilders, tag} from "../dist/doc.js"
 const {doc, p, br, li, ul, $img} = basicBuilders
 
 function testPos(name: string, doc: DocNode, ...contexts: ([string, number] | [string, number, number])[]) {

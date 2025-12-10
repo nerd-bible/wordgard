@@ -1,4 +1,4 @@
-import {Prop, Emphasis, Strong, Link, Code} from "@wordgard/doc"
+import {Prop, Emphasis, Strong, Link, Code} from "../dist/doc.js"
 import ist from "ist"
 
 let Tag = Prop.Type.define<readonly number[]>("Tag", {

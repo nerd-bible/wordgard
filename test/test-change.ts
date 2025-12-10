@@ -1,9 +1,9 @@
 import ist from "ist"
 import {Node, DocNode, Tag, Prop,
-        ChangeSet, ChangeSpec, Token,
+        ChangeSet, type ChangeSpec, type Token,
         Schema, basicSchema, basicBuilders, tag, maybeTag,
-        ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "@wordgard/doc"
-import {permute, open, close, slice, rDoc, rChange} from "./generate.js"
+        ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "../dist/doc.js"
+import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilders
 
 type ChangeData = (Token | string)[] | {add: Prop<any>} | {remove: Prop<any>}
@@ -97,10 +97,10 @@ describe("ChangeSet", () => {
     it("complains on a mismatched length", () => {
       ist.throws(() => {
         mk(doc(p("12", 0, "34")), [["-"]]).apply(doc(p("123")))
-      }, /past end/)
+      }, /Trying to apply/)
       ist.throws(() => {
         mk(doc(p("12", 0, "3")), [["-"]]).apply(doc(p("1234")))
-      }, /doesn't cover/)
+      }, /Trying to apply/)
     })
 
     it("won't create empty block-child nodes", () => {

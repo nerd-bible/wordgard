@@ -158,8 +158,6 @@ function watchTS(dirs: readonly string[], tsconfig: any, options: BuildOptions) 
   return out
 }
 
-function external(id: string) { return id != "tslib" && !/^(\.?\/|\w:)/.test(id) }
-
 function outputPlugin(output: Output, ext: string, base: Plugin) {
   let {resolveId, load} = base
   return {
@@ -238,6 +236,15 @@ async function emit(bundle: RollupBuild, conf: any, makePure = false) {
   }
 }
 
+function external(id: string) {
+  return id != "tslib" && !/^(\.?\/|\w:)/.test(id)
+}
+
+function rewriteSibling(id: string) {
+  let m = /\/src\/(\w+)$/.exec(id)
+  return m ? `./${m[1]}.js` : id
+}
+
 async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
   let base = await Promise.resolve(options.outputPlugin && options.outputPlugin(pkg.dir) || {name: "dummy"})
   let input = pkg.sources.find(s => /\bindex\.ts$/.test(s))
@@ -245,9 +252,7 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
   let bundle = await rollup({
     input: input.replace(/\.ts$/, ".js"),
     external,
-    plugins: [
-      outputPlugin(compiled, ".js", base)
-    ]
+    plugins: [outputPlugin(compiled, ".js", base)]
   })
   let dist = join(pkg.dir, "..", "..", "dist")
   // makePure set to false when generating source map since this manipulates output after source map is generated
@@ -255,6 +260,7 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
     format: "esm",
     file: join(dist, pkg.name + ".js"),
     externalLiveBindings: false,
+    paths: rewriteSibling
   }, options.pureTopCalls)
 
   let tscBundle = await rollup({
@@ -268,6 +274,7 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
   })
   await emit(tscBundle, {
     format: "esm",
+    paths: rewriteSibling,
     file: join(dist, pkg.name + ".d.ts")
   })
 }

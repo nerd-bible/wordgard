@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Node, Tag, builder, basicBuilders, Prop} from "@wordgard/doc"
-import {EditorState} from "@wordgard/state"
+import {Node, Tag, builder, basicBuilders, Prop} from "../dist/doc.js"
+import {EditorState} from "../dist/state.js"
 const {doc, p} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }

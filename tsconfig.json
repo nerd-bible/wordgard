@@ -9,7 +9,8 @@
     "target": "es2020",
     "module": "es2020",
     "newLine": "lf",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true
   },
   "include": ["src/*/*.ts", "test/*.ts"]
 }

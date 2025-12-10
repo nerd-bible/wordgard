@@ -1,8 +1,8 @@
 import {Node, Tag, Prop, DocNode,
-        Slice, Token, CloseToken, ChangeSet,
-        basicBuilders, ChangeSpec,
+        Slice, type Token, CloseToken, ChangeSet,
+        basicBuilders, type ChangeSpec,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
-        Emphasis, Strong, Code, Link} from "@wordgard/doc"
+        Emphasis, Strong, Code, Link} from "../dist/doc.js"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
 export const Comment = Prop.Type.define<readonly number[]>("Comment", {
