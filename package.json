@@ -13,6 +13,7 @@
   },
   "scripts": {
     "test": "mocha test/test-*.ts",
+    "test-headless": "node bin/test-headless.ts",
     "prepare": "node bin/build.ts",
     "watch": "node bin/build.ts --watch"
   },
