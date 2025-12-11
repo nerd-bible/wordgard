@@ -582,7 +582,7 @@ class HoverTooltipHost implements TooltipView {
   get resize() { return this.passProp("resize") }
 }
 
-const showHoverTooltipHost = showTooltip.compute([showHoverTooltip], state => {
+const showHoverTooltipHost = showTooltip.compute(state => {
   let tooltips = state.facet(showHoverTooltip)
   if (tooltips.length === 0) return null
 

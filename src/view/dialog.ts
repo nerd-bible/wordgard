@@ -83,7 +83,7 @@ const dialogField = StateField.define<readonly PanelConstructor[]>({
     }
     return dialogs
   },
-  provide: f => showPanel.computeN([f], state => state.field(f))
+  provide: f => showPanel.computeN(state => state.field(f))
 })
 
 const openDialogEffect = StateEffect.define<PanelConstructor>()

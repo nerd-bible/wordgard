@@ -1,7 +1,7 @@
 import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "../doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
-import {Extension, Configuration, Facet, FacetReader, StateField, SlotStatus,
+import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,
         DynamicSlot, ensureAddr, getAddr, transactionFilter,
         transactionExtender, Compartment, schemaElement} from "./facet"
 import {Direction} from "./bidi"
@@ -64,14 +64,13 @@ export class EditorState {
   /// @internal
   computeSlot: null | ((state: EditorState, slot: DynamicSlot) => SlotStatus)
   private _resolvedSel: SelectionPos | null = null
+  private trackAccess: Slot[] | null = null
 
   private constructor(
     /// The configuration 
     readonly config: Configuration,
-    /// The current document.
-    readonly doc: DocNode,
-    /// The current selection.
-    readonly selection: EditorSelection,
+    private _doc: DocNode,
+    private _selection: EditorSelection,
     /// @internal
     readonly values: any[],
     computeSlot: (state: EditorState, slot: DynamicSlot) => SlotStatus,
@@ -86,6 +85,27 @@ export class EditorState {
     this.computeSlot = null
   }
 
+  /// The current document.
+  get doc() {
+    if (this.trackAccess) addValue(this.trackAccess, "doc")
+    return this._doc
+  }
+
+  /// The current selection.
+  get selection() {
+    if (this.trackAccess) addValue(this.trackAccess, "selection")
+    return this._selection
+  }
+
+  /// @internal
+  track(slot: Slot) {
+    let track = this.trackAccess
+    if (!track) return null
+    addValue(track, slot)
+    this.trackAccess = null
+    return track
+  }
+
   /// Retrieve the value of a [state field](#state.StateField). Throws
   /// an error when the state doesn't have that field, unless you pass
   /// `false` as second parameter.
@@ -97,15 +117,19 @@ export class EditorState {
       if (require) throw new RangeError("Field is not present in this state")
       return undefined
     }
+    let track = this.track(field)
     ensureAddr(this, addr)
+    this.trackAccess = track
     return getAddr(this, addr)
   }
 
   /// Get the value of a state [facet](#state.Facet).
   facet<Output>(facet: FacetReader<Output>): Output {
+    let track = this.track(facet)
     let addr = this.config.address[facet.id]
     if (addr == null) return facet.default
     ensureAddr(this, addr)
+    this.trackAccess = track
     return getAddr(this, addr)
   }
 
@@ -162,6 +186,14 @@ export class EditorState {
   /// objects for `head`, `anchor`, `from`, and `to`.
   get sel() {
     return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
+  }
+
+  recordAccess<T>(slots: Slot[], f: (state: EditorState) => T): T {
+    let prev = this.trackAccess
+    this.trackAccess = slots
+    let result = f(this)
+    this.trackAccess = prev
+    return result
   }
 
   /// Convert this state to a JSON-serializable object. When custom
@@ -364,4 +396,8 @@ export class EditorState {
   ///
   /// Extenders run _after_ filters, when both are present.
   static transactionExtender = transactionExtender
+}
+
+function addValue<T>(set: T[], value: T) {
+  if (set.indexOf(value) < 0) set.push(value)
 }

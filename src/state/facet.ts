@@ -126,26 +126,28 @@ export class Facet<Input, Output = readonly Input[]> implements FacetReader<Outp
 
   /// Returns an extension that adds the given value to this facet.
   of(value: Input): Extension {
-    return new FacetProvider<Input>(none, this, Provider.Static, value)
+    return new FacetProvider<Input>(none, this, ProviderFlag.Static, value)
   }
 
   /// Create an extension that computes a value for the facet from a
-  /// state. You must take care to declare the parts of the state that
-  /// this value depends on, since your function is only called again
-  /// for a new state when one of those parts changed.
+  /// state. The given function should only depend on the state, not
+  /// any external non-constant inputs. Its return value will be kept
+  /// on state update, unless any of the fields or facets (including
+  /// document and selection) that it read are changed by the update,
+  /// in which case it is called again.
   ///
-  /// In cases where your value depends only on a single field, you'll
-  /// want to use the [`from`](#state.Facet.from) method instead.
-  compute(deps: readonly Slot<any>[], get: (state: EditorState) => Input): Extension {
+  /// In cases where your value depends only on a single field, you
+  /// can use the [`from`](#state.Facet.from) method instead.
+  compute(get: (state: EditorState) => Input): Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
-    return new FacetProvider<Input>(deps, this, Provider.Single, get)
+    return new FacetProvider<Input>([], this, ProviderFlag.Auto, get)
   }
 
   /// Create an extension that computes zero or more values for this
   /// facet from a state.
-  computeN(deps: readonly Slot<any>[], get: (state: EditorState) => readonly Input[]): Extension {
+  computeN(get: (state: EditorState) => readonly Input[]): Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
-    return new FacetProvider<Input>(deps, this, Provider.Multi, get)
+    return new FacetProvider<Input>([], this, ProviderFlag.Multi | ProviderFlag.Auto, get)
   }
 
   /// Shorthand method for registering a facet source with a state
@@ -155,8 +157,9 @@ export class Facet<Input, Output = readonly Input[]> implements FacetReader<Outp
   from<T extends Input>(field: StateField<T>): Extension
   from<T>(field: StateField<T>, get: (value: T) => Input): Extension
   from<T>(field: StateField<T>, get?: (value: T) => Input): Extension {
+    if (this.isStatic) throw new Error("Can't compute a static facet")
     if (!get) get = x => x as any
-    return this.compute([field], state => get!(state.field(field)))
+    return new FacetProvider<Input>([field], this, 0 as ProviderFlag, state => get!(state.field(field)))
   }
 
   /// Utility function for combining behaviors to fill in a config
@@ -206,9 +209,13 @@ export function sameArray<T>(a: readonly T[], b: readonly T[]) {
   return a == b || a.length == b.length && a.every((e, i) => e === b[i])
 }
 
-type Slot<T> = FacetReader<T> | StateField<T> | "doc" | "selection"
+export type Slot = FacetReader<any> | StateField<any> | "doc" | "selection"
 
-export const enum Provider { Static, Single, Multi }
+export const enum ProviderFlag {
+  Static = 1,
+  Multi = 2, // Dynamic providers may produce an array of values
+  Auto = 4   // Dependencies automatically tracked
+}
 
 export const enum SlotStatus {
   Unresolved = 0,
@@ -217,34 +224,52 @@ export const enum SlotStatus {
   Computing = 4
 }
 
+class DependencySet {
+  doc: boolean = false
+  sel: boolean = false
+  addrs: number[] = []
+  count: number = 0
+
+  update(deps: readonly Slot[], addresses: {[id: number]: number}) {
+    while (this.count < deps.length) {
+      let dep = deps[this.count++]
+      if (dep === "doc") this.doc = true
+      else if (dep === "selection") this.sel = true
+      else if (((addresses[dep.id] ?? 1) & 1) == 0) this.addrs.push(addresses[dep.id])
+    }
+  }
+}
+
 export class FacetProvider<Input> {
   readonly id = nextID++
   extension!: Extension // Kludge to convince the type system these count as extensions
+  dependencies: Slot[]
 
-  constructor(readonly dependencies: readonly Slot<any>[],
+  constructor(dependencies: readonly Slot[],
               readonly facet: Facet<Input, any>,
-              readonly type: Provider,
-              readonly value: ((state: EditorState) => Input) | ((state: EditorState) => readonly Input[]) | Input) {}
+              readonly flags: ProviderFlag,
+              readonly value: ((state: EditorState) => Input) | ((state: EditorState) => readonly Input[]) | Input) {
+    this.dependencies = dependencies as Slot[] // Only mutated for auto providers
+  }
 
   dynamicSlot(addresses: {[id: number]: number}): DynamicSlot {
     let getter: (state: EditorState) => any = this.value as any
     let compare = this.facet.compareInput
-    let id = this.id, idx = addresses[id] >> 1, multi = this.type == Provider.Multi
-    let depDoc = false, depSel = false, depAddrs: number[] = []
-    for (let dep of this.dependencies) {
-      if (dep == "doc") depDoc = true
-      else if (dep == "selection") depSel = true
-      else if (((addresses[dep.id] ?? 1) & 1) == 0) depAddrs.push(addresses[dep.id])
-    }
+    let id = this.id, idx = addresses[id] >> 1
+    let multi = this.flags & ProviderFlag.Multi
+    let dependencies = this.dependencies
+    let auto: Slot[] | null = this.flags & ProviderFlag.Auto ? dependencies : null
+    let depSet = new DependencySet
 
     return {
       create(state) {
-        state.values[idx] = getter(state)
+        state.values[idx] = auto ? state.recordAccess(auto, getter) : getter(state)
         return SlotStatus.Changed
       },
       update(state, tr) {
-        if ((depDoc && tr.docChanged) || (depSel && (tr.docChanged || tr.selection)) || ensureAll(state, depAddrs)) {
-          let newVal = getter(state)
+        depSet.update(dependencies, addresses)
+        if ((depSet.doc && tr.docChanged) || (depSet.sel && (tr.docChanged || tr.selection)) || ensureAll(state, depSet.addrs)) {
+          let newVal = auto ? state.recordAccess(auto, getter) : getter(state)
           if (multi ? !compareArray(newVal, state.values[idx], compare) : !compare(newVal, state.values[idx])) {
             state.values[idx] = newVal
             return SlotStatus.Changed
@@ -252,11 +277,11 @@ export class FacetProvider<Input> {
         }
         return 0
       },
-      reconfigure: (state, oldState) => {
+      reconfigure(state, oldState) {
         let newVal, oldAddr = oldState.config.address[id]
         if (oldAddr != null) {
           let oldVal = getAddr(oldState, oldAddr)
-          if (this.dependencies.every(dep => {
+          if (dependencies.every(dep => {
             return dep instanceof Facet ? oldState.facet(dep) === state.facet(dep) :
               dep instanceof StateField ? oldState.field(dep, false) == state.field(dep, false) : true
           }) || (multi ? compareArray(newVal = getter(state), oldVal, compare) : compare(newVal = getter(state), oldVal))) {
@@ -264,7 +289,7 @@ export class FacetProvider<Input> {
             return 0
           }
         } else {
-          newVal = getter(state)
+          newVal = auto ? state.recordAccess(auto, getter) : getter(state)
         }
         state.values[idx] = newVal
         return SlotStatus.Changed
@@ -292,7 +317,6 @@ export function dynamicFacetSlot<Input, Output>(
   providers: readonly FacetProvider<Input>[]
 ): DynamicSlot {
   let providerAddrs = providers.map(p => addresses[p.id])
-  let providerTypes = providers.map(p => p.type)
   let dynamic = providerAddrs.filter(p => !(p & 1))
   let idx = addresses[facet.id] >> 1
 
@@ -300,7 +324,7 @@ export function dynamicFacetSlot<Input, Output>(
     let values: Input[] = []
     for (let i = 0; i < providerAddrs.length; i++) {
       let value = getAddr(state, providerAddrs[i])
-      if (providerTypes[i] == Provider.Multi) for (let val of value) values.push(val)
+      if (providers[i].flags & ProviderFlag.Multi) for (let val of value) values.push(val)
       else values.push(value)
     }
     return facet.combine(values)
@@ -540,7 +564,7 @@ export class Configuration {
     for (let id in facets) {
       let providers = facets[id], facet = providers[0].facet
       let oldProviders = oldFacets && oldFacets[id] || none
-      if (providers.every(p => p.type == Provider.Static)) {
+      if (providers.every(p => p.flags & ProviderFlag.Static)) {
         address[facet.id] = (staticValues.length << 1) | 1
         if (sameArray(oldProviders, providers)) {
           staticValues.push(oldState!.facet(facet))
@@ -550,7 +574,7 @@ export class Configuration {
         }
       } else {
         for (let p of providers) {
-          if (p.type == Provider.Static) {
+          if (p.flags & ProviderFlag.Static) {
             address[p.id] = (staticValues.length << 1) | 1
             staticValues.push(p.value)
           } else {
