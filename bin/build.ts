@@ -47,7 +47,8 @@ class Package {
 }
 
 const tsDefaultOptions = {
-  lib: ["es6", "scripthost", "dom"],
+  lib: ["es2020", "dom"],
+  types: [],
   stripInternal: true,
   noUnusedLocals: true,
   strict: true,
