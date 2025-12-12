@@ -1,7 +1,7 @@
 import ist from "ist"
 import {DocNode, Node, basicBuilders, builder, Prop, Slice, CloseToken, type Token,
         serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice, OpenSide, type ParseOptions,
-        Schema, basicSchema, tag} from "../dist/doc.js"
+        Schema, basicSchema, tag} from "wordgard/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }

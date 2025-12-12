@@ -1,6 +1,6 @@
 import ist from "ist"
-import {EditorState, Facet, type Extension, Prec, StateField, StateEffect} from "../dist/state.js"
-import {Node, basicBuilders} from "../dist/doc.js"
+import {EditorState, Facet, type Extension, Prec, StateField, StateEffect} from "wordgard/state"
+import {Node, basicBuilders} from "wordgard/doc"
 
 const {doc, p} = basicBuilders
 

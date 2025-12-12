@@ -1,6 +1,6 @@
 import {EditorView} from "./editorview"
 import {Command} from "./commands"
-import {Facet, Prec} from "../state"
+import {Facet, Prec} from "wordgard/state"
 import browser from "./browser"
 
 /// Key bindings associate keys with [command](#view.Command)-style

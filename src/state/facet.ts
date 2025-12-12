@@ -1,4 +1,4 @@
-import {SchemaElement, Tag, Prop} from "../doc"
+import {SchemaElement, Tag, Prop} from "wordgard/doc"
 import {Transaction, TransactionSpec, StateEffect} from "./transaction"
 import {EditorState} from "./state"
 

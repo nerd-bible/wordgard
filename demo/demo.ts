@@ -1,9 +1,9 @@
-import {EditorView, keymap, defaultKeymap} from "../dist/view.js"
-import {basicSchema} from "../dist/doc.js"
-import {menuBar, staticMenu} from "../dist/menu.js"
-import {history, historyKeymap} from "../dist/history.js"
+import {EditorView, keymap, defaultKeymap} from "wordgard/view"
+import {basicSchema} from "wordgard/doc"
+import {menuBar, staticMenu} from "wordgard/menu"
+import {history, historyKeymap} from "wordgard/history"
 
-let view = (window as any).view = new EditorView({
+;(window as any).view = new EditorView({
   parent: document.body,
   doc: "<h3>Hello</h3><p>I am Wordgard</p>",
   config: [

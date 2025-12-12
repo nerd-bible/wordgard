@@ -1,4 +1,4 @@
-import {StateField, StateEffect} from "../state"
+import {StateField, StateEffect} from "wordgard/state"
 import {showPanel, Panel, PanelConstructor, getPanel} from "./panel"
 import {EditorView} from "./editorview"
 

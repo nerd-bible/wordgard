@@ -1,4 +1,4 @@
-import {Node} from "../doc"
+import {Node} from "wordgard/doc"
 import {Direction, BidiSpan, computeOrder} from "./bidi"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 

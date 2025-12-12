@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Node, Tag, basicBuilders, tag, Paragraph, Image, basicSchema as schema} from "../dist/doc.js"
+import {Node, Tag, basicBuilders, tag, Paragraph, Image, basicSchema as schema} from "wordgard/doc"
 const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilders
 
 describe("Node", () => {

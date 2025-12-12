@@ -1,6 +1,6 @@
-import {EditorView} from "../dist/view.js"
-import {basicBuilders, Strong} from "../dist/doc.js"
-import {EditorSelection} from "../dist/state.js"
+import {EditorView} from "wordgard/view"
+import {basicBuilders, Strong} from "wordgard/doc"
+import {EditorSelection} from "wordgard/state"
 import ist from "ist"
 import {tempView, requireFocus} from "./tempview.ts"
 

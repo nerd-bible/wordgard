@@ -1,5 +1,5 @@
-import {EditorSelection, Direction} from "../state"
-import {NodePos} from "../doc"
+import {EditorSelection, Direction} from "wordgard/state"
+import {NodePos} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 

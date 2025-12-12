@@ -1,4 +1,4 @@
-import {ChangeSet, ChangeSpec, Node} from "../doc"
+import {ChangeSet, ChangeSpec, Node} from "wordgard/doc"
 import {resolveTransactionInner, mergeTransaction, TransactionSpec} from "./transaction"
 import {EditorState} from "./state"
 

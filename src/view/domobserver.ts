@@ -1,4 +1,4 @@
-import {ChangeDesc} from "../doc"
+import {ChangeDesc} from "wordgard/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,

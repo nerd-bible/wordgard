@@ -1,4 +1,4 @@
-import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "../doc"
+import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"

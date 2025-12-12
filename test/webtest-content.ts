@@ -1,8 +1,8 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
-        RangeSet, RangeDecorationSource, overrideShape} from "../dist/view.js"
-import {EditorState, type Extension, StateField, type TransactionSpec, StateEffect} from "../dist/state.js"
+        RangeSet, RangeDecorationSource, overrideShape} from "wordgard/view"
+import {EditorState, type Extension, StateField, type TransactionSpec, StateEffect} from "wordgard/state"
 import {DocNode, Tag, basicBuilders, CodeBlock, Node,
-        Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "../dist/doc.js"
+        Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "wordgard/doc"
 import ist from "ist"
 
 const {DocTile} = EditorView as any

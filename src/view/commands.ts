@@ -1,8 +1,8 @@
 import {Node, Tag, Prop, NodePos, Slice, Text, Token,
         ChangeSpec, ChangeSet, CloseToken,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
-        unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "../doc"
-import {EditorSelection, StateCommand, EditorState, Transaction, Direction, autoJoinBlocks} from "../state"
+        unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "wordgard/doc"
+import {EditorSelection, StateCommand, EditorState, Transaction, Direction, autoJoinBlocks} from "wordgard/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {KeyBinding} from "./keymap"

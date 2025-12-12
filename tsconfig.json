@@ -10,7 +10,10 @@
     "module": "es2020",
     "newLine": "lf",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": {
+      "wordgard/*": ["./src/*"],
+    }
   },
-  "include": ["src/*/*.ts", "test/*.ts"]
+  "include": ["src/*/*.ts", "test/*.ts", "demo/*.ts"]
 }

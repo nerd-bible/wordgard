@@ -1,5 +1,5 @@
-import {showPanel, EditorView, ViewUpdate} from "../view"
-import {Extension, Facet, Direction} from "../state"
+import {showPanel, EditorView, ViewUpdate} from "wordgard/view"
+import {Extension, Facet, Direction} from "wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 

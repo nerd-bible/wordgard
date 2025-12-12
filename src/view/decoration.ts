@@ -1,7 +1,7 @@
-import {EditorState, Facet, Extension} from "../state"
+import {EditorState, Facet, Extension} from "wordgard/state"
 import {Prop, Pos, Node, Tag, Walker, ChangeDesc, MapMode,
         ElementShape, AttributeShape, Elt, pushAttribute,
-        mergeAttributes, readAttributes} from "../doc"
+        mergeAttributes, readAttributes} from "wordgard/doc"
 import {Attrs} from "./attributes"
 import {type EditorView} from "./editorview"
 

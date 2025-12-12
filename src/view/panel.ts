@@ -1,6 +1,6 @@
 // FIXME figure out how to provide easy-to-use default styling for these
 
-import {Facet, Extension} from "../state"
+import {Facet, Extension} from "wordgard/state"
 import {EditorView} from "./editorview"
 import {ViewPlugin, ViewUpdate} from "./extension"
 import {rmDOM} from "./dom"

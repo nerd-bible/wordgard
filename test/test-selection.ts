@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Schema, basicSchema, DocNode, Tag, basicBuilders, builder, maybeTag} from "../dist/doc.js"
-import {EditorSelection, EditorState, Direction} from "../dist/state.js"
+import {Schema, basicSchema, DocNode, Tag, basicBuilders, builder, maybeTag} from "wordgard/doc"
+import {EditorSelection, EditorState, Direction} from "wordgard/state"
 const {p, hr, blockquote, pre, $img} = basicBuilders
 
 let Iso = Tag.defineBlock("Iso", {

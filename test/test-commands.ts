@@ -1,11 +1,11 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
-        wrapBlock, unwrapBlock, unwrapBlockType, toggleList, toggleProp} from "../dist/view.js"
+        wrapBlock, unwrapBlock, unwrapBlockType, toggleList, toggleProp} from "wordgard/view"
 import {Node, Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
-        Emphasis, Strong, Link} from "../dist/doc.js"
-import {EditorState, type StateCommand, EditorSelection} from "../dist/state.js"
+        Emphasis, Strong, Link} from "wordgard/doc"
+import {EditorState, type StateCommand, EditorSelection} from "wordgard/state"
 import ist from "ist"
 
 const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuilders

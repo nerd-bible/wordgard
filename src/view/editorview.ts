@@ -1,6 +1,6 @@
 import {EditorState, Transaction, TransactionSpec, Extension, Prec,
-        EditorSelection, StateEffect, Facet, EditorStateSpec} from "../state"
-import {ChangeDesc} from "../doc"
+        EditorSelection, StateEffect, Facet, EditorStateSpec} from "wordgard/state"
+import {ChangeDesc} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocTile} from "./tile"

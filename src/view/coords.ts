@@ -1,4 +1,4 @@
-import {Direction} from "../state"
+import {Direction} from "wordgard/state"
 import {textRange, maxOffset, singleRect} from "./dom"
 import {dirAt} from "./tile"
 import {EditorView} from "./editorview"

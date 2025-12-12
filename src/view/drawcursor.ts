@@ -1,4 +1,4 @@
-import {Facet, EditorState, Direction} from "../state"
+import {Facet, EditorState, Direction} from "wordgard/state"
 import {ViewPlugin, ViewUpdate, basePlugins} from "./extension"
 import {type EditorView} from "./editorview"
 

@@ -1,6 +1,6 @@
-import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "../dist/history.js"
-import {DocNode, Node, basicBuilders, maybeTag, ChangeDesc, basicSchema} from "../dist/doc.js"
-import {EditorState, EditorSelection, Transaction, StateEffect, StateField, type StateCommand} from "../dist/state.js"
+import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
+import {DocNode, Node, basicBuilders, maybeTag, ChangeDesc, basicSchema} from "wordgard/doc"
+import {EditorState, EditorSelection, Transaction, StateEffect, StateField, type StateCommand} from "wordgard/state"
 import ist from "ist"
 
 const {doc, p} = basicBuilders

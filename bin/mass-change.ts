@@ -10,10 +10,9 @@ if (!pattern) {
 
 let re = new RegExp(pattern, "g")
 let root = resolve(import.meta.dirname, "..")
-for (let pkg of packages) {
-  let src = join(root, "src", pkg)
-  for (let file of fs.readdirSync(src)) if (/\.ts$/.test(file)) {
-    let path = join(src, file)
+for (let dir of packages.map(p => join(root, "src", p)).concat(join(root, "test"))) {
+  for (let file of fs.readdirSync(dir)) if (/\.ts$/.test(file)) {
+    let path = join(dir, file)
     let content = fs.readFileSync(path, "utf8"), changed = content.replace(re, replacement)
     if (changed != content) {
       console.log("Updated " + path)

@@ -1,4 +1,4 @@
-import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "../doc"
+import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,

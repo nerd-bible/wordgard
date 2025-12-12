@@ -5,11 +5,11 @@
   "type": "module",
   "main": "dist/view.js",
   "exports": {
-    "doc": "./dist/doc.js",
-    "state": "./dist/state.js",
-    "view": "./dist/view.js",
-    "history": "./dist/history.js",
-    "menu": "./dist/menu.js"
+    "./doc": "./dist/doc.js",
+    "./state": "./dist/state.js",
+    "./view": "./dist/view.js",
+    "./history": "./dist/history.js",
+    "./menu": "./dist/menu.js"
   },
   "scripts": {
     "test": "mocha test/test-*.ts",
@@ -30,7 +30,7 @@
     "@types/mocha": "^24.10.2",
     "mocha": "^11.7.5",
     "ist": "^1.1.7",
-    "esmoduleserve": "^0.3.0"
+    "esmoduleserve": "^0.3.1"
   },
   "engines": {"node": ">=22"}
 }

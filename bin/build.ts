@@ -56,7 +56,10 @@ const tsDefaultOptions = {
   module: "es2020",
   newLine: "lf",
   declaration: true,
-  moduleResolution: "bundler"
+  moduleResolution: "bundler",
+  paths: {
+    "wordgard/*": ["./src/*"],
+  }
 }
 
 function configFor(pkgs: readonly Package[], options: BuildOptions) {
@@ -241,11 +244,6 @@ function external(id: string) {
   return id != "tslib" && !/^(\.?\/|\w:)/.test(id)
 }
 
-function rewriteSibling(id: string) {
-  let m = /\/src\/(\w+)$/.exec(id)
-  return m ? `./${m[1]}.js` : id
-}
-
 async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
   let base = await Promise.resolve(options.outputPlugin && options.outputPlugin(pkg.dir) || {name: "dummy"})
   let input = pkg.sources.find(s => /\bindex\.ts$/.test(s))
@@ -261,7 +259,6 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
     format: "esm",
     file: join(dist, pkg.name + ".js"),
     externalLiveBindings: false,
-    paths: rewriteSibling
   }, options.pureTopCalls)
 
   let tscBundle = await rollup({
@@ -275,7 +272,6 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
   })
   await emit(tscBundle, {
     format: "esm",
-    paths: rewriteSibling,
     file: join(dist, pkg.name + ".d.ts")
   })
 }

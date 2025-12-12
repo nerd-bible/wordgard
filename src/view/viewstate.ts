@@ -1,4 +1,4 @@
-import {EditorState, EditorSelection, Transaction} from "../state"
+import {EditorState, EditorSelection, Transaction} from "wordgard/state"
 import {getScale} from "./dom"
 import {UpdateFlag, ScrollTarget, scrollIntoView} from "./extension"
 import {EditorView} from "./editorview"

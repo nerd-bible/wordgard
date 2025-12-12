@@ -1,4 +1,4 @@
-import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "../doc"
+import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "wordgard/doc"
 import {EditorState} from "./state"
 import {transactionFilter, transactionExtender, Extension, Compartment} from "./facet"
 import {EditorSelection, SelectionSpec, normalize} from "./selection"

@@ -1,9 +1,9 @@
 import {EditorView, toggleProp, setTextblockType, wrapBlock, unwrapBlockType,
-        toggleList, listIsActive, showDialog} from "../view"
-import {EditorState, Transaction, Facet, Extension} from "../state"
+        toggleList, listIsActive, showDialog} from "wordgard/view"
+import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
 import {Prop, Tag, NodePos, canAddPropInRange, ChangeSpec,
         Strong, Emphasis, Code, Link,
-        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "../doc"
+        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/doc"
 import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
 
 export type MenuLabelWidget = {

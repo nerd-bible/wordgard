@@ -1,7 +1,7 @@
 import {EditorState, Transaction, StateField, StateCommand, StateEffect,
-        Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "../state"
-import {DocNode, ChangeSet, ChangeDesc, ChangeSetJSON} from "../doc"
-import {KeyBinding, EditorView} from "../view"
+        Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "wordgard/state"
+import {DocNode, ChangeSet, ChangeDesc, ChangeSetJSON} from "wordgard/doc"
+import {KeyBinding, EditorView} from "wordgard/view"
 
 const enum BranchName { Done, Undone }
 

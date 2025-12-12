@@ -1,6 +1,6 @@
 import {Node, Tag, Prop, ChangeDesc, compareAttributes, Elt, Attributes,
-        pushAttribute, noAttributes} from "../doc"
-import {EditorState, Direction, TextblockMap, BidiSpan} from "../state"
+        pushAttribute, noAttributes} from "wordgard/doc"
+import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderPropWrapper} from "./decoration"

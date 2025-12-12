@@ -2,7 +2,7 @@ import ist from "ist"
 import {Node, DocNode, Tag, Prop,
         ChangeSet, type ChangeSpec, type Token,
         Schema, basicSchema, basicBuilders, tag, maybeTag,
-        ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "../dist/doc.js"
+        ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "wordgard/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilders
 

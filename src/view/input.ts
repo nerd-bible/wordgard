@@ -1,5 +1,5 @@
-import {EditorSelection, EditorState, Annotation} from "../state"
-import {Slice, Node, ChangeSet, Prop} from "../doc"
+import {EditorSelection, EditorState, Annotation} from "wordgard/state"
+import {Slice, Node, ChangeSet, Prop} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"

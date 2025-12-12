@@ -1,6 +1,6 @@
 import {Slice, Text, Node, Prop, Tag, Pos, serializeSlice, parseSlice,
-        OpenSide, Token, CloseToken} from "../doc"
-import {Facet, EditorState} from "../state"
+        OpenSide, Token, CloseToken} from "wordgard/doc"
+import {Facet, EditorState} from "wordgard/state"
 import browser from "./browser"
 
 export const clipboardOutputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()

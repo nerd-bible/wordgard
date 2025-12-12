@@ -1,6 +1,6 @@
 import {EditorState, Transaction, StateEffect, Facet, StateField,
-        Extension, FacetReader, Direction} from "../state"
-import {MapMode} from "../doc"
+        Extension, FacetReader, Direction} from "wordgard/state"
+import {MapMode} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewPlugin, ViewUpdate, logException, getScrollMargins} from "./extension"
 import {windowRect} from "./dom"
