@@ -1,6 +1,6 @@
 import {EditorState, Transaction, Extension, Prec,
         EditorSelection, StateEffect, Facet} from "wordgard/state"
-import {ChangeDesc} from "wordgard/doc"
+import {ChangeSet} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocTile} from "./tile"
@@ -287,12 +287,14 @@ export class EditorView {
                        this.state.textDirection() == Direction.LTR)
   }
 
-  private runUpdate(update: ViewUpdate, domChanges: ChangeDesc | null) {
+  private runUpdate(update: ViewUpdate, domChanges: ChangeSet.Sections | null) {
     let composition = this.composing ? getCompositionInfo(this) : null
-    let changes = domChanges ? domChanges.composeDesc(update.changes) : update.changes
+    let changes = domChanges ? ChangeSet.composeSections(domChanges, update.changes.sections) : update.changes.sections
     let prevDocTile = this.docTile
     this.docTile = prevDocTile.update(update.state, changes, composition)
-    if ((composition?.wrapCursor || !composition && (!changes.empty || update.selectionSet)) && this.hasFocus)
+    
+    if ((composition?.wrapCursor || !composition &&
+        (changes.length && !(changes.length == 2 && changes[1] == -1) || update.selectionSet)) && this.hasFocus)
       setDOMSelection(this)
     this.observer.clear()
     if (!update.empty) {

@@ -14,7 +14,7 @@ function render(doc: DocNode, ...config: Extension[]) {
 
 function update(node: InstanceType<typeof DocTile>, spec: Transaction.Spec) {
   let tr = node.state.update(spec)
-  return node.update(tr.state, tr.changes)
+  return node.update(tr.state, tr.changes.sections)
 }
 
 function span(text: string) {
@@ -259,7 +259,7 @@ describe("DocTile", () => {
       let elts = node.dom.querySelectorAll("*")
       let tr1 = node.state.update({changes: {from: 1, to: 12, remove: Strong}})
       let tr2 = tr1.state.update({changes: {from: 1, to: 12, add: Strong}})
-      node = node.update(tr2.state, tr1.changes.compose(tr2.changes))
+      node = node.update(tr2.state, tr1.changes.compose(tr2.changes).sections)
       let newElts = node.dom.querySelectorAll("*")
       ist(newElts.length, elts.length)
       for (let i = 0; i < elts.length; i++) ist(newElts[i], elts[i])

@@ -1,6 +1,6 @@
 import {EditorState, Transaction, StateField, StateCommand, StateEffect,
         Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "wordgard/state"
-import {DocNode, ChangeSet, ChangeDesc, ChangeSetJSON} from "wordgard/doc"
+import {DocNode, ChangeSet, ChangeSetJSON} from "wordgard/doc"
 import {KeyBinding, EditorView} from "wordgard/view"
 
 const enum BranchName { Done, Undone }
@@ -269,7 +269,7 @@ function eventFromTransaction(tr: Transaction): {
 // Check whether two change sets touch each other. The
 // suspicious-looking use of before-positions in a and after-positions
 // in b is because these will be inverted change sets.
-function isAdjacent(a: ChangeDesc, b: ChangeDesc): boolean {
+function isAdjacent(a: ChangeSet, b: ChangeSet): boolean {
   let ranges: number[] = [], isAdjacent = false
   a.iterChangedRanges((f, t) => ranges.push(f, t))
   b.iterChangedRanges((_f, _t, f, t) => {

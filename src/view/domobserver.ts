@@ -1,4 +1,4 @@
-import {ChangeDesc} from "wordgard/doc"
+import {ChangeSet} from "wordgard/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
@@ -34,7 +34,7 @@ export class DOMObserver {
 
   // Ranges (refering to positions in the flushed document) that need
   // to be re-checked because their DOM changed, if any are known.
-  dirty: ChangeDesc | null = null
+  dirty: ChangeSet.Sections | null = null
 
   scrollTargets: HTMLElement[] = []
   resizeScroll: ResizeObserver | null = null
@@ -187,8 +187,7 @@ export class DOMObserver {
     let sections = from ? [from, -1] : [], len = this.view.flushedState.doc.length
     sections.push(to - from, -2)
     if (to < len) sections.push(len - to, -1)
-    let desc = new ChangeDesc(sections)
-    this.dirty = this.dirty ? this.dirty.composeDesc(desc) : desc
+    this.dirty = this.dirty ? ChangeSet.composeSections(this.dirty, sections) : sections
   }
 
   processRecords(records: readonly MutationRecord[]) {

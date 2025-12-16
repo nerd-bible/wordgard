@@ -137,7 +137,9 @@ export type ChangeSpec = Change | {correct: ChangeSpec, local?: boolean} | Chang
 
 type SectionData = Slice | readonly Modification[] | null
 
-export class ChangeDesc {
+const applyCache = new WeakMap<ChangeSet, {a: DocNode, b: DocNode}>()
+
+export class ChangeSet {
   private _length = -1
   private _newLength = -1
 
@@ -146,7 +148,8 @@ export class ChangeDesc {
     // section in A, the second either -1 for a preserved, -2 for a
     // marked range, or a non-negative insertion length for a
     // replacement.
-    readonly sections: readonly number[]
+    readonly sections: ChangeSet.Sections,
+    readonly data: readonly SectionData[]
   ) {}
 
   get length() {
@@ -170,13 +173,120 @@ export class ChangeDesc {
 
   get empty() { return this.sections.length == 0 || this.sections.length == 2 && this.sections[1] < 0 }
 
-  get desc(): ChangeDesc { return this }
-
-  eq(other: ChangeDesc) {
+  eq(other: ChangeSet) {
     if (other.sections.length != this.sections.length) return false
     for (let i = 0; i < this.sections.length; i++)
       if (this.sections[i] != other.sections[i]) return false
+    for (let i = 0; i < this.data.length; i++) {
+      let a = this.data[i] as any, b = (other as ChangeSet).data[i] as any
+      if (a && !(this.sections[(i << 1) + 1] < 0 ? compareModifications(a, b) : a.eq(b))) return false
+    }
     return true
+  }
+
+  apply(doc: DocNode) {
+    if (this.length != doc.length)
+      throw new RangeError(`Trying to apply change of length ${this.length} to doc of length ${doc.length}`)
+    if (this.empty) return doc
+    let cached = applyCache.get(this)
+    if (cached && doc.eq(cached.a)) return cached.b
+
+    let builder = new Builder(doc)
+    let cursor = Pos.atStart(doc)
+    for (let i = 0, iS = 0; i < this.data.length; i++) {
+      let lenA = this.sections[iS++], lenB = this.sections[iS++]
+      if (lenB < 0) {
+        builder.modifications = this.data[i] as (null | readonly Modification[])
+        cursor = cursor.advance(lenA, builder)
+        builder.modifications = null
+      } else {
+        cursor = cursor.advance(lenA)
+        ;(this.data[i] as Slice).run(builder)
+      }
+    }
+    if (cursor.pos != doc.length)
+      throw new Error("Change doesn't cover the entire document")
+
+    let newDoc = builder.finish()
+    applyCache.set(this, {a: doc, b: newDoc})
+    return newDoc
+  }
+
+  toJSON(): ChangeSetJSON {
+    return this.data.map((data, i) => {
+      let length = this.sections[i << 1], type = this.sections[(i << 1) + 1]
+      return type >= 0 ? {length, replacement: (data as Slice).toJSON()}
+        : data ? {length, modifications: (data as readonly Modification[]).map(modificationToJSON)}
+        : {length}
+    })
+  }
+
+  static fromJSON(schema: Schema, json: ChangeSetJSON) {
+    if (!Array.isArray(json)) throw new Error("Invalid ChangeSet JSON")
+    let sections: number[] = [], data: SectionData[] = []
+    for (let elt of json) {
+      let {length} = elt
+      if (typeof length != "number") throw new Error("Invalid ChangeSet JSON")
+      if (elt.replacement) {
+        let slice = Slice.fromJSON(schema, elt.replacement)
+        sections.push(length, slice.length)
+        data.push(slice)
+      } else {
+        sections.push(length, -1)
+        data.push(!Array.isArray(elt.modification) ? null :
+          elt.modification.map((m: ModificationJSON) => modificationFromJSON(schema, m)))
+      }
+    }
+    return new ChangeSet(sections, data)
+  }
+
+  map(other: ChangeSet, doc: DocNode, before: boolean = false): ChangeSet {
+    return map(this, other, doc, before, true)
+  }
+
+  compose(other: ChangeSet): ChangeSet {
+    let {sections, data} = compose(this.sections, other.sections, this.data, other.data)
+    return new ChangeSet(sections, data!)
+  }
+
+  invert(doc: DocNode) {
+    let sections: number[] = [], data: SectionData[] = []
+    for (let i = 0, iS = 0, pos = 0; iS < this.sections.length; iS += 2, i++) {
+      let len = this.sections[iS], ins = this.sections[iS + 1]
+      if (ins >= 0) {
+        addSection(sections, data, ins, len, doc.slice(pos, pos + len))
+      } else {
+        let mods = this.data[i] as readonly Modification[] | null
+        let at = pos, end = pos + len
+        if (mods) doc.iterate(pos, end, (node, nodePos) => {
+          if (node.isLeaf || nodePos >= pos && nodePos < end) {
+            let [from, to] = node.isText
+              ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)]
+              : [nodePos, nodePos + 1]
+            if (at < from) addSection(sections, data, from - at, -1, null)
+            addSection(sections, data, to - from, -2, invertMods(mods!, node))
+            at = to
+          }
+        })
+        if (at < end) addSection(sections, data, end - at, -1, null)
+      }
+      pos += len
+    }
+    return new ChangeSet(sections, data)
+  }
+
+  /// Returns the change itself if it can be applied to this document
+  /// and produce a valid document, or a modified version of the
+  /// change that _is_ correct.
+  correct(doc: DocNode, local = false) {
+    let fitter = new ChangeFitter(doc, local)
+    for (let i = 0, iS = 0, pos = 0; i < this.data.length; i++) {
+      let len = this.sections[iS++], ins = this.sections[iS++]
+      if (ins < 0) fitter.preserved(pos, pos += len)
+      else fitter.replaced(this.data[i] as Slice, pos, pos += len)
+    }
+    let fit = fitter.finish()
+    return fit ? this.compose(fit) : this
   }
 
   mapPos(pos: number, assoc?: number): number
@@ -203,19 +313,6 @@ export class ChangeDesc {
     return posB
   }
 
-  composeDesc(other: ChangeDesc): ChangeDesc { return compose(this, other, false) }
-
-  invertDesc() {
-    let sections: number[] = []
-    for (let iS = 0, pos = 0; iS < this.sections.length; iS += 2) {
-      let len = this.sections[iS], ins = this.sections[iS + 1]
-      if (ins >= 0) addSection(sections, null, ins, len, null)
-      else if (len) addSection(sections, null, len, ins, null)
-      pos += len
-    }
-    return new ChangeDesc(sections)
-  }
-
   touchesRange(from: number, to: number) {
     for (let i = 0, pos = 0; i < this.sections.length && pos <= to;) {
       let len = this.sections[i++], ins = this.sections[i++], end = pos + len
@@ -223,6 +320,23 @@ export class ChangeDesc {
       pos = end
     }
     return false
+  }
+
+  /// Iterate over the ranges in this changeset, calling `replaced`
+  /// for ranges that have been replaced, and `preserved` for ranges
+  /// that are either preserved as-is (when `modifications` is null)
+  /// or only have properties modified.
+  iterChanges(replaced: (fromA: number, toA: number, fromB: number, toB: number, inserted: Slice) => void,
+              preserved?: (fromA: number, toA: number, fromB: number, toB: number, modifications: readonly Modification[] | null) => void) {
+    for (let posA = 0, posB = 0, i = 0, iS = 0; i < this.data.length;) {
+      let len = this.sections[iS++], ins = this.sections[iS++], data = this.data[i++]
+      if (ins < 0) {
+        if (preserved) preserved(posA, posA + len, posB, posB + len, data as any)
+        posA += len; posB += len
+      } else {
+        replaced(posA, posA += len, posB, posB += ins, data as Slice)
+      }
+    }
   }
 
   /// Iterate over the sections of the document this change leaves
@@ -273,166 +387,6 @@ export class ChangeDesc {
     }
   }
 
-  // Non-overlapping, sorted
-  static createDesc(length: number, ranges: {from: number, to: number, replace?: number}[]) {
-    let sections: number[] = [], pos = 0
-    for (let {from, to, replace} of ranges) {
-      if (from > pos) addSection(sections, null, from - pos, -1, null)
-      if (replace != null) addSection(sections, null, to - from, replace, null)
-      else if (to > from) addSection(sections, null, to - from, -2, null)
-      pos = to
-    }
-    if (pos < length) addSection(sections, null, length - pos, -1, null)
-    return new ChangeDesc(sections)
-  }
-
-  static emptyDesc(length: number) {
-    return length ? new ChangeDesc([length, -1]) : new ChangeDesc([])
-  }
-}
-
-const applyCache = new WeakMap<ChangeSet, {a: DocNode, b: DocNode}>()
-
-export class ChangeSet extends ChangeDesc {
-  constructor(
-    sections: readonly number[],
-    readonly data: readonly SectionData[]
-  ) {
-    super(sections)
-  }
-
-  apply(doc: DocNode) {
-    if (this.length != doc.length)
-      throw new RangeError(`Trying to apply change of length ${this.length} to doc of length ${doc.length}`)
-    if (this.empty) return doc
-    let cached = applyCache.get(this)
-    if (cached && doc.eq(cached.a)) return cached.b
-
-    let builder = new Builder(doc)
-    let cursor = Pos.atStart(doc)
-    for (let i = 0, iS = 0; i < this.data.length; i++) {
-      let lenA = this.sections[iS++], lenB = this.sections[iS++]
-      if (lenB < 0) {
-        builder.modifications = this.data[i] as (null | readonly Modification[])
-        cursor = cursor.advance(lenA, builder)
-        builder.modifications = null
-      } else {
-        cursor = cursor.advance(lenA)
-        ;(this.data[i] as Slice).run(builder)
-      }
-    }
-    if (cursor.pos != doc.length)
-      throw new Error("Change doesn't cover the entire document")
-
-    let newDoc = builder.finish()
-    applyCache.set(this, {a: doc, b: newDoc})
-    return newDoc
-  }
-
-  get desc() { return new ChangeDesc(this.sections) }
-
-  eq(other: ChangeDesc) {
-    if (!(other instanceof ChangeSet) && super.eq(other)) return false
-    for (let i = 0; i < this.data.length; i++) {
-      let a = this.data[i] as any, b = (other as ChangeSet).data[i] as any
-      if (a && !(this.sections[(i << 1) + 1] < 0 ? compareModifications(a, b) : a.eq(b))) return false
-    }
-    return true
-  }
-
-  toJSON(): ChangeSetJSON {
-    return this.data.map((data, i) => {
-      let length = this.sections[i << 1], type = this.sections[(i << 1) + 1]
-      return type >= 0 ? {length, replacement: (data as Slice).toJSON()}
-        : data ? {length, modifications: (data as readonly Modification[]).map(modificationToJSON)}
-        : {length}
-    })
-  }
-
-  static fromJSON(schema: Schema, json: ChangeSetJSON) {
-    if (!Array.isArray(json)) throw new Error("Invalid ChangeSet JSON")
-    let sections: number[] = [], data: SectionData[] = []
-    for (let elt of json) {
-      let {length} = elt
-      if (typeof length != "number") throw new Error("Invalid ChangeSet JSON")
-      if (elt.replacement) {
-        let slice = Slice.fromJSON(schema, elt.replacement)
-        sections.push(length, slice.length)
-        data.push(slice)
-      } else {
-        sections.push(length, -1)
-        data.push(!Array.isArray(elt.modification) ? null :
-          elt.modification.map((m: ModificationJSON) => modificationFromJSON(schema, m)))
-      }
-    }
-    return new ChangeSet(sections, data)
-  }
-
-  map(other: ChangeSet, doc: DocNode, before: boolean = false): ChangeSet {
-    return map(this, other, doc, before, true)
-  }
-
-  compose(other: ChangeSet): ChangeSet {
-    return compose(this, other, true) as ChangeSet
-  }
-
-  invert(doc: DocNode) {
-    let sections: number[] = [], data: SectionData[] = []
-    for (let i = 0, iS = 0, pos = 0; iS < this.sections.length; iS += 2, i++) {
-      let len = this.sections[iS], ins = this.sections[iS + 1]
-      if (ins >= 0) {
-        addSection(sections, data, ins, len, doc.slice(pos, pos + len))
-      } else {
-        let mods = this.data[i] as readonly Modification[] | null
-        let at = pos, end = pos + len
-        if (mods) doc.iterate(pos, end, (node, nodePos) => {
-          if (node.isLeaf || nodePos >= pos && nodePos < end) {
-            let [from, to] = node.isText
-              ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)]
-              : [nodePos, nodePos + 1]
-            if (at < from) addSection(sections, data, from - at, -1, null)
-            addSection(sections, data, to - from, -2, invertMods(mods!, node))
-            at = to
-          }
-        })
-        if (at < end) addSection(sections, data, end - at, -1, null)
-      }
-      pos += len
-    }
-    return new ChangeSet(sections, data)
-  }
-
-  /// Returns the change itself if it can be applied to this document
-  /// and produce a valid document, or a modified version of the
-  /// change that _is_ correct.
-  correct(doc: DocNode, local = false) {
-    let fitter = new ChangeFitter(doc, local)
-    for (let i = 0, iS = 0, pos = 0; i < this.data.length; i++) {
-      let len = this.sections[iS++], ins = this.sections[iS++]
-      if (ins < 0) fitter.preserved(pos, pos += len)
-      else fitter.replaced(this.data[i] as Slice, pos, pos += len)
-    }
-    let fit = fitter.finish()
-    return fit ? this.compose(fit) : this
-  }
-
-  /// Iterate over the ranges in this changeset, calling `replaced`
-  /// for ranges that have been replaced, and `preserved` for ranges
-  /// that are either preserved as-is (when `modifications` is null)
-  /// or only have properties modified.
-  iterChanges(replaced: (fromA: number, toA: number, fromB: number, toB: number, inserted: Slice) => void,
-              preserved?: (fromA: number, toA: number, fromB: number, toB: number, modifications: readonly Modification[] | null) => void) {
-    for (let posA = 0, posB = 0, i = 0, iS = 0; i < this.data.length;) {
-      let len = this.sections[iS++], ins = this.sections[iS++], data = this.data[i++]
-      if (ins < 0) {
-        if (preserved) preserved(posA, posA + len, posB, posB + len, data as any)
-        posA += len; posB += len
-      } else {
-        replaced(posA, posA += len, posB, posB += ins, data as Slice)
-      }
-    }
-  }
-
   validate(schema: Schema) {
     for (let val of this.data) {
       if (val instanceof Slice) val.validate(schema)
@@ -466,6 +420,14 @@ export class ChangeSet extends ChangeDesc {
     }
     return result
   }
+
+  static composeSections(a: ChangeSet.Sections, b: ChangeSet.Sections): ChangeSet.Sections {
+    return compose(a, b).sections
+  }
+}
+
+export namespace ChangeSet {
+  export type Sections = readonly number[]
 }
 
 class ChangeSetBuilder {
@@ -578,7 +540,7 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fi
   // has been applied. Assumes both start at the same document (`doc`).
   let sections: number[] = [], data: SectionData[] = []
   let fitter = fit ? new ChangeFitter(doc, false) : null
-  let a = new SectionIter(setA), b = new SectionIter(setB), pos = 0
+  let a = new SectionIter(setA.sections, setA.data), b = new SectionIter(setB.sections, setB.data), pos = 0
   // Iterate over both sets in parallel. inserted tracks, for changes
   // in A that have to be processed piece-by-piece, whether their
   // content has been inserted already, and refers to the section
@@ -645,12 +607,15 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: DocNode, before: boolean, fi
   }
 }
 
-function compose<T extends ChangeDesc>(chA: T, chB: T, isSet: boolean): ChangeSet | ChangeDesc {
-  let sections: number[] = [], data: SectionData[] | null = isSet ? [] : null
-  let a = new SectionIter(chA), b = new SectionIter(chB)
+function compose(
+  sectionsA: ChangeSet.Sections, sectionsB: ChangeSet.Sections,
+  dataA?: readonly SectionData[], dataB?: readonly SectionData[]
+): {sections: ChangeSet.Sections, data: readonly SectionData[] | null} {
+  let sections: number[] = [], data: SectionData[] | null = dataA ? [] : null
+  let a = new SectionIter(sectionsA, dataA), b = new SectionIter(sectionsB, dataB)
   for (let open = false;;) {
     if (a.done && b.done) {
-      return isSet ? new ChangeSet(sections, data!) : new ChangeDesc(sections)
+      return {sections, data}
     } else if (a.ins == 0) { // Deletion in A
       addSection(sections, data, a.len, 0, a.slice, open)
       a.next()
@@ -1017,12 +982,12 @@ class SectionIter {
   off!: number
   ins!: number
 
-  constructor(readonly set: ChangeDesc) {
+  constructor(readonly sections: ChangeSet.Sections, readonly data?: readonly SectionData[]) {
     this.next()
   }
 
   next() {
-    let {sections} = this.set
+    let {sections} = this
     if (this.i < sections.length) {
       this.len = sections[this.i++]
       this.ins = sections[this.i++]
@@ -1039,15 +1004,11 @@ class SectionIter {
   get len2() { return this.ins < 0 ? this.len : this.ins }
 
   get mods() {
-    if (this.set instanceof ChangeSet)
-      return this.set.data[(this.i - 2) >> 1] as readonly Modification[] | null
-    return null
+    return this.data ? this.data[(this.i - 2) >> 1] as readonly Modification[] | null : null
   }
 
   get slice() {
-    if (this.set instanceof ChangeSet)
-      return this.set.data[(this.i - 2) >> 1] as Slice
-    return Slice.empty
+    return this.data ? this.data[(this.i - 2) >> 1] as Slice : Slice.empty
   }
 
   slicePart(len?: number) {

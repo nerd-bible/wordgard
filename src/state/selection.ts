@@ -1,4 +1,4 @@
-import {Schema, DocNode, Node, Tag, ChangeDesc, Prop, Pos, NodePos} from "wordgard/doc"
+import {Schema, DocNode, Node, Tag, ChangeSet, Prop, Pos, NodePos} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
@@ -159,7 +159,7 @@ export class EditorSelection {
 
   /// Map a selection through a change. Used to adjust the selection
   /// position for changes.
-  map(change: ChangeDesc, assoc = -1): EditorSelection {
+  map(change: ChangeSet, assoc = -1): EditorSelection {
     if (change.empty) return this
     let main = EditorSelection.mapRange(change, this.from, this.to, assoc)
     let ranges = this.ranges.map(r => r.from == this.from && r.to == this.to ? main
@@ -258,7 +258,7 @@ export class EditorSelection {
   }
 
   /// @internal
-  static mapRange(change: ChangeDesc, from: number, to: number, assoc = -1) {
+  static mapRange(change: ChangeSet, from: number, to: number, assoc = -1) {
     if (from == to) {
       let pos = change.mapPos(from, assoc)
       return {from: pos, to: pos}

@@ -1,5 +1,5 @@
 import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
-import {DocNode, Node, basicBuilders, maybeTag, ChangeDesc, basicSchema} from "wordgard/doc"
+import {DocNode, Node, basicBuilders, maybeTag, ChangeSet, basicSchema} from "wordgard/doc"
 import {EditorState, EditorSelection, Transaction, StateEffect, StateField, type StateCommand} from "wordgard/state"
 import ist from "ist"
 
@@ -450,7 +450,7 @@ describe("history", () => {
 
       eq(other: Comment) { return this.from == other.from && this.to == other.to && this.text == other.text }
     }
-    function mapComment(comment: Comment, mapping: ChangeDesc) {
+    function mapComment(comment: Comment, mapping: ChangeSet) {
       let from = mapping.mapPos(comment.from, 1), to = mapping.mapPos(comment.to, -1)
       return from >= to ? undefined : new Comment(from, to, comment.text)
     }

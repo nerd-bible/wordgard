@@ -1,5 +1,5 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
-import {Prop, Pos, Node, Tag, Walker, ChangeDesc, MapMode,
+import {Prop, Pos, Node, Tag, Walker, ChangeSet, MapMode,
         ElementShape, AttributeShape, Elt, pushAttribute,
         mergeAttributes, readAttributes} from "wordgard/doc"
 import {Attrs} from "./attributes"
@@ -330,7 +330,7 @@ export class PointSet<Value> {
 
   get length() { return this.positions.length }
 
-  map(changes: ChangeDesc, side?: (value: Value) => number) {
+  map(changes: ChangeSet, side?: (value: Value) => number) {
     if (changes.empty) return this
     let positions = this.positions.slice()
     let pos = 0, i = 0
@@ -534,7 +534,7 @@ export class RangeSet<Value> {
 
   get length() { return this.from.length }
 
-  map(changes: ChangeDesc) {
+  map(changes: ChangeSet) {
     if (changes.empty || !this.length) return this
     let from = this.from.slice(), to = this.to.slice()
     let pos = 0, i = 0
@@ -727,7 +727,7 @@ function compareFacet<
     type: {empty: T}
   }, U extends {set: (state: EditorState) => T}
 >(
-  stateA: EditorState, stateB: EditorState, change: ChangeDesc,
+  stateA: EditorState, stateB: EditorState,
   facet: Facet<U>, 
   fromA: number, fromB: number, len: number,
   add: (from: number, to: number) => void
@@ -759,7 +759,7 @@ function compareGlobal(stateA: EditorState, stateB: EditorState, facet: Facet<an
 // Compare ranges and points in decoration facets for unchanged ranges
 // in the given change desc. Returns an array using the section format
 // used in change descs.
-export function findChangedRanges(prev: EditorState, state: EditorState, change: ChangeDesc) {
+export function findChangedRanges(prev: EditorState, state: EditorState, sections: ChangeSet.Sections) {
   let result: number[] = []
   let globalShapeChange = compareGlobal(prev, state, tagShapes)
   let globalChange = globalShapeChange || compareGlobal(prev, state, tagWidgets) ||
@@ -768,7 +768,7 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
   // their atomicity changed, and mark a replace for the whole node if
   // it did.
   let shapeChanges: boolean | number[] = globalShapeChange
-  for (let sections = change.sections, i = 0, posA = 0, posB = 0; i < sections.length;) {
+  for (let i = 0, posA = 0, posB = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++]
     if (ins == -1 && globalChange) {
       addSection(result, len, -2)
@@ -780,11 +780,9 @@ export function findChangedRanges(prev: EditorState, state: EditorState, change:
         if (from < curPos) { ranges.push(cur = []); curPos = 0 }
         addRange(cur, from, to)
       }
-      compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, change, rangeDecorations,
-                                                              posA, posB, len, add)
-      compareFacet<PointSet<any>, WidgetSource<any>>(prev, state, change, widgets,
-                                                     posA, posB, len, add)
-      compareFacet<PointSet<any>, ShapeOverride<any>>(prev, state, change, shapeSources, posA, posB, len, from => {
+      compareFacet<RangeSet<any>, RangeDecorationSource<any>>(prev, state, rangeDecorations, posA, posB, len, add)
+      compareFacet<PointSet<any>, WidgetSource<any>>(prev, state, widgets, posA, posB, len, add)
+      compareFacet<PointSet<any>, ShapeOverride<any>>(prev, state, shapeSources, posA, posB, len, from => {
         add(from, from + 1)
         if (shapeChanges === false) shapeChanges = []
         if (typeof shapeChanges != "boolean") shapeChanges.push(from)
@@ -812,7 +810,7 @@ function addAtomicityChanges(
   sections: number[],
   prev: EditorState, state: EditorState,
   changes: boolean | number[]
-): readonly number[] {
+): ChangeSet.Sections {
   let added: number[] = []
   if (Array.isArray(changes)) {
     let scan = prev.doc.resolve(0), last = -1, sectionPos = 0, sectionI = 0, off = 0
@@ -858,7 +856,7 @@ function addAtomicityChanges(
     pos = to
   }
   if (pos < prev.doc.length) changedSections.push(prev.doc.length - pos, -1)
-  return new ChangeDesc(changedSections).composeDesc(new ChangeDesc(sections)).sections
+  return ChangeSet.composeSections(changedSections, sections)
 }
 
 function atomicShape(tag: Tag.Type<any>, shapes: readonly TagShape[]) {

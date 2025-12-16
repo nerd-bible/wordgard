@@ -1,5 +1,5 @@
 import {EditorState, Transaction, Facet, StateEffect, Extension, EditorSelection} from "wordgard/state"
-import {ChangeSet, ChangeDesc} from "wordgard/doc"
+import {ChangeSet} from "wordgard/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
@@ -37,7 +37,7 @@ export class ScrollTarget {
     readonly xMargin: number = 5,
   ) {}
 
-  map(changes: ChangeDesc) {
+  map(changes: ChangeSet) {
     return changes.empty ? this :
       new ScrollTarget(this.range.map(changes), this.y, this.x, this.yMargin, this.xMargin)
   }

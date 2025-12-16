@@ -1,4 +1,4 @@
-import {Node, Tag, Prop, ChangeDesc, compareAttributes, Elt, Attributes,
+import {Node, Tag, Prop, compareAttributes, Elt, ChangeSet, Attributes,
         pushAttribute, noAttributes} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
@@ -344,11 +344,11 @@ export class DocTile extends CompositeTile {
 
   get node() { return this.state.doc }
 
-  update(state: EditorState, changes: ChangeDesc, composition?: CompositionInfo | null) {
+  update(state: EditorState, changes: ChangeSet.Sections, composition?: CompositionInfo | null) {
     return this.updateRanges(state, findChangedRanges(this.state, state, changes), composition)
   }
 
-  updateRanges(state: EditorState, sections: readonly number[], composition?: CompositionInfo | null) {
+  updateRanges(state: EditorState, sections: ChangeSet.Sections, composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
     if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
       return this
@@ -1034,7 +1034,7 @@ const imgHack = Widget.create({
   render() { return document.createElement("img") }
 })
 
-function separateComposition(sections: readonly number[], comp: CompositionInfo) {
+function separateComposition(sections: ChangeSet.Sections, comp: CompositionInfo) {
   let result: number[] = [], diff = 0
   let {fromA, toA} = comp, compIns = comp.text.length
   for (let posA = 0, done = false, i = 0; i < sections.length;) {

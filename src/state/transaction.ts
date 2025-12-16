@@ -1,4 +1,4 @@
-import {DocNode, ChangeSet, ChangeDesc, ChangeSpec} from "wordgard/doc"
+import {DocNode, ChangeSet, ChangeSpec} from "wordgard/doc"
 import {EditorState} from "./state"
 import {transactionFilter, transactionExtender, Extension, Compartment} from "./facet"
 import {EditorSelection, SelectionSpec, normalize} from "./selection"
@@ -39,7 +39,7 @@ interface StateEffectSpec<Value> {
   /// mapping. When not given, the effects will simply not be mapped.
   /// When the function returns `undefined`, that means the mapping
   /// deletes the effect.
-  map?: (value: Value, mapping: ChangeDesc) => Value | undefined
+  map?: (value: Value, mapping: ChangeSet) => Value | undefined
 }
 
 /// State effects can be used to represent additional effects
@@ -57,7 +57,7 @@ export class StateEffect<Value> {
 
   /// Map this effect through a position mapping. Will return
   /// `undefined` when that ends up deleting the effect.
-  map(mapping: ChangeDesc): StateEffect<Value> | undefined {
+  map(mapping: ChangeSet): StateEffect<Value> | undefined {
     let mapped = this.type.map(this.value, mapping)
     return mapped === undefined ? undefined : mapped == this.value ? this : new StateEffect(this.type, mapped)
   }
@@ -76,7 +76,7 @@ export class StateEffect<Value> {
   }
 
   /// Map an array of effects through a change set.
-  static mapEffects(effects: readonly StateEffect<any>[], mapping: ChangeDesc) {
+  static mapEffects(effects: readonly StateEffect<any>[], mapping: ChangeSet) {
     if (!effects.length) return effects
     let result = []
     for (let effect of effects) {
@@ -108,7 +108,7 @@ export namespace StateEffect {
       // `StateEffect.is` mysteriously stops working when these properly
       // have type `Value`.
       /// @internal
-      readonly map: (value: any, mapping: ChangeDesc) => any | undefined
+      readonly map: (value: any, mapping: ChangeSet) => any | undefined
     ) {}
 
     /// Create a [state effect](#state.StateEffect) instance of this
