@@ -306,13 +306,13 @@ export class Node {
     if (to >= this.length) content.push(CloseToken)
   }
 
-  get isInline() { return this.tag.isInline }
-  get isText() { return this.tag.isText }
-  get isBlock() { return this.tag.isBlock }
-  get inlineContent() { return this.tag.inlineContent }
-  get isTextblock() { return this.tag.isTextblock }
-  get isLeaf() { return this.tag.isLeaf }
-  get isDoc() { return this.tag.isDoc }
+  get isInline() { return this.type.isInline }
+  get isText() { return this.type.isText }
+  get isBlock() { return this.type.isBlock }
+  get inlineContent() { return this.type.inlineContent }
+  get isTextblock() { return this.type.isTextblock }
+  get isLeaf() { return this.type.isLeaf }
+  get isDoc() { return this.type.isDoc }
 
   get firstChild(): Node | null {
     return this.children.length ? this.children[0] : null

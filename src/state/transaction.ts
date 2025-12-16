@@ -23,8 +23,7 @@ export class Annotation<T> {
   static define<T>() { return new Annotation.Type<T>() }
 
   // This is just to get less sloppy typing (where StateEffect is a subtype of Annotation)
-  // @ts-ignore
-  private _isAnnotation!: true
+  declare private _isAnnotation: true
 }
 
 export namespace Annotation {

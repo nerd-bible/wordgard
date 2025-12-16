@@ -151,7 +151,7 @@ export class NodePos {
   get doc(): DocNode {
     let n: NodePos = this
     while (n.parent) n = n.parent
-    if (!(n.node.isDoc)) throw new Error("Outer parent node a document")
+    if (!(n.node.isDoc)) throw new Error("Outer parent not a document")
     return n.node as DocNode
   }
 
