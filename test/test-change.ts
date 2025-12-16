@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Node, DocNode, Tag, Prop,
-        ChangeSet, type ChangeSpec, type Token,
+        ChangeSet, type Token,
         Schema, basicSchema, basicBuilders, tag, maybeTag,
         ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "wordgard/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
@@ -11,7 +11,7 @@ type ChangeData = (Token | string)[] | {add: Prop<any>} | {remove: Prop<any>}
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
 function mk(doc: DocNode, changes: readonly ChangeData[]) {
-  return ChangeSet.create(doc, changes.map((ch, i): ChangeSpec => {
+  return ChangeSet.create(doc, changes.map((ch, i): ChangeSet.Spec => {
     let from = tag(doc, i * 2)
     if (from == null) throw new Error(`No start position defined for change ${i}`)
     let to = maybeTag(doc, i * 2 + 1) ?? from

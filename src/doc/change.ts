@@ -133,8 +133,6 @@ export type Change = {
   remove?: Prop<any>
 }
 
-export type ChangeSpec = Change | {correct: ChangeSpec, local?: boolean} | ChangeSet | readonly ChangeSpec[]
-
 type SectionData = Slice | readonly Modification[] | null
 
 const applyCache = new WeakMap<ChangeSet, {a: DocNode, b: DocNode}>()
@@ -394,7 +392,7 @@ export class ChangeSet {
     }
   }
 
-  static create(doc: DocNode, spec: ChangeSpec): ChangeSet {
+  static create(doc: DocNode, spec: ChangeSet.Spec): ChangeSet {
     return createChangeSet(doc, spec)
   }
 
@@ -428,6 +426,8 @@ export class ChangeSet {
 
 export namespace ChangeSet {
   export type Sections = readonly number[]
+
+  export type Spec = Change | {correct: ChangeSet.Spec, local?: boolean} | ChangeSet | readonly ChangeSet.Spec[]
 }
 
 class ChangeSetBuilder {
@@ -438,7 +438,7 @@ class ChangeSetBuilder {
   pos = 0
 }
 
-function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): ChangeSet {
+function createChangeSet(doc: DocNode, spec: ChangeSet.Spec, mayCorrect = true): ChangeSet {
   let cur: ChangeSetBuilder | null = null
   let accum: ChangeSet | null = null
   let doCorrect: boolean = false
@@ -463,7 +463,7 @@ function createChangeSet(doc: DocNode, spec: ChangeSpec, mayCorrect = true): Cha
     cur.pos = to
   }
 
-  let build = (spec: ChangeSpec) => {
+  let build = (spec: ChangeSet.Spec) => {
     if (Array.isArray(spec)) {
       for (let elt of spec) build(elt)
     } else if (spec instanceof ChangeSet) {

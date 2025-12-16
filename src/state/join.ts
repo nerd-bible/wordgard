@@ -1,4 +1,4 @@
-import {ChangeSet, ChangeSpec, Node} from "wordgard/doc"
+import {ChangeSet, Node} from "wordgard/doc"
 import {resolveTransactionInner, mergeTransaction, Transaction} from "./transaction"
 import {EditorState} from "./state"
 
@@ -10,7 +10,7 @@ export function autoJoinBlocks(state: EditorState, tr: Transaction.Spec): Transa
   if (!tr.changes) return tr
   let changes = ChangeSet.create(state.doc, tr.changes), doc = changes.apply(state.doc)
   if (changes.empty) return tr
-  let append: ChangeSpec[] = []
+  let append: ChangeSet.Spec[] = []
   let cursor = doc.resolve(0), check = (pos: number) => {
     cursor = cursor.advance(pos - cursor.pos)
     let before = cursor.nodeBefore, after = cursor.nodeAfter

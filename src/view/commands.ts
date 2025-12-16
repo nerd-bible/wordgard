@@ -1,5 +1,4 @@
-import {Node, Tag, Prop, NodePos, Slice, Text, Token,
-        ChangeSpec, ChangeSet, CloseToken,
+import {Node, Tag, Prop, NodePos, Slice, Text, Token, CloseToken, ChangeSet,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
         unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "wordgard/doc"
 import {EditorSelection, StateCommand, EditorState, Transaction, Direction, autoJoinBlocks} from "wordgard/state"
@@ -127,7 +126,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
       if (p == after) break
     }
   }
-  let changes: ChangeSpec[] = [{
+  let changes: ChangeSet.Spec[] = [{
     from: sel.from.pos, to: sel.to.pos,
     insert: tokens
   }]
@@ -359,7 +358,7 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
 
 export function setTextblockType(tag: Tag<any>): StateCommand {
   return ({state, dispatch}) => {
-    let changes: ChangeSpec[] = []
+    let changes: ChangeSet.Spec[] = []
     for (let block of selectedTextblocks(state)) {
       if (!block.node.tag.eq(tag) && block.parent && block.parent.node.type.canContain(tag.type)) {
         changes.push({from: block.before, to: block.before + 1, insert: [block.node.tag.changeType(tag)]})
@@ -374,7 +373,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
 
 export function wrapBlock(wrapper: Tag<any>): StateCommand {
   return ({state, dispatch}) => {
-    let changes: ChangeSpec[] = [], lastTo = -1
+    let changes: ChangeSet.Spec[] = [], lastTo = -1
     for (let {from, to} of state.selection.ranges) {
       let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
       if (!range || range.from.pos < lastTo) continue
@@ -392,7 +391,7 @@ export function unwrapBlockType(type: Tag.Type<any> | Tag<any> | ((tag: Tag<any>
     : type instanceof Tag ? tag => tag.type == type.type
     : tag => tag.type == type
   return ({state, dispatch}) => {
-    let targets: NodePos[] = [], changes: ChangeSpec[] = []
+    let targets: NodePos[] = [], changes: ChangeSet.Spec[] = []
     for (let {from, to} of state.selection.ranges) {
       if (!targets.some(t => t.after > from && t.before < to)) {
         let result = findUnwrappable(state.doc.resolve(from), state.doc.resolve(to), pred)
@@ -506,7 +505,7 @@ function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
     }
   }
   if (!plan.length) return null
-  let changes: ChangeSpec[] = []
+  let changes: ChangeSet.Spec[] = []
   for (let step of plan) {
     if ("wrap" in step) { // Wrap block in a list
       let {wrap, item} = step, prev, next
@@ -562,7 +561,7 @@ function removeList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
     }
   }
   if (!plan.length) return null
-  let changes: ChangeSpec[] = []
+  let changes: ChangeSet.Spec[] = []
   for (let {item, rewrap} of plan) {
     let openFrom = item.before, openTo = item.start, open: Token[] = rewrap ? [rewrap] : []
     if (item.isFirst) openFrom--

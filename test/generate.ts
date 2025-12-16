@@ -1,6 +1,5 @@
 import {Node, Tag, Prop, DocNode,
-        Slice, type Token, CloseToken, ChangeSet,
-        basicBuilders, type ChangeSpec,
+        Slice, type Token, CloseToken, ChangeSet, basicBuilders,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "wordgard/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
@@ -99,7 +98,7 @@ export function rChangeSpec(doc: DocNode) {
   throw new Error("Failed to generate a change for document " + doc)
 }
 
-const generators: ((doc: DocNode) => ChangeSpec | null)[] = [
+const generators: ((doc: DocNode) => ChangeSet.Spec | null)[] = [
   // Insert a few characters
   doc => {
     let pos = doc.resolve(r(doc.length))
@@ -168,7 +167,7 @@ function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, 
 }
 
 export function rChange(doc: DocNode, parts = 1) {
-  let specs: ChangeSpec[] = []
+  let specs: ChangeSet.Spec[] = []
   for (let i = 0; i < parts; i++) specs.push(rChangeSpec(doc))
   return ChangeSet.create(doc, {correct: specs})
 }

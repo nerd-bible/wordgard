@@ -1,4 +1,4 @@
-import {DocNode, ChangeSet, ChangeSpec} from "wordgard/doc"
+import {DocNode, ChangeSet} from "wordgard/doc"
 import {EditorState} from "./state"
 import {transactionFilter, transactionExtender, Extension, Compartment} from "./facet"
 import {EditorSelection, SelectionSpec, normalize} from "./selection"
@@ -128,7 +128,7 @@ export namespace Transaction {
   /// [`EditorState.update`](#state.EditorState.update) method.
   export interface Spec {
     /// The changes to the document made by this transaction.
-    changes?: ChangeSpec
+    changes?: ChangeSet.Spec
     /// When set, this transaction explicitly updates the selection.
     /// Offsets in this selection should refer to the document as it is
     /// _after_ the transaction.

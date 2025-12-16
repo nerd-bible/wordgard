@@ -1,7 +1,7 @@
 import {EditorView, toggleProp, setTextblockType, wrapBlock, unwrapBlockType,
         toggleList, listIsActive, showDialog} from "wordgard/view"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
-import {Prop, Tag, NodePos, canAddPropInRange, ChangeSpec,
+import {Prop, Tag, NodePos, canAddPropInRange, ChangeSet,
         Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/doc"
 import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
@@ -200,7 +200,7 @@ export const ToggleLink = new MenuButton({
   run(view) {
     let {selection, doc} = view.state
     if (selection.empty) return false
-    let remove: ChangeSpec[] = []
+    let remove: ChangeSet.Spec[] = []
     for (let {from, to} of selection.ranges) doc.iterate(from, to, (node, pos) => {
       let has = node.tag.hasProp(Link)
       if (has) remove.push({from: pos, to: pos + node.length, remove: has})

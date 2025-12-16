@@ -1,4 +1,4 @@
-import {Node, Tag, NodePos, Walker, ChangeSpec} from "wordgard/doc"
+import {Node, Tag, NodePos, Walker, ChangeSet} from "wordgard/doc"
 import {Facet, Extension, transactionFilter} from "./facet"
 import {Transaction} from "./transaction"
 import {EditorState} from "./state"
@@ -123,7 +123,7 @@ export class Correction {
     /// @internal
     readonly tag: (t: Tag.Type<any>) => boolean,
     /// @internal
-    readonly correct: (node: NodePos, state: EditorState) => ChangeSpec | null
+    readonly correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null
   ) {
     this.extension = [
       corrections.of(this),
@@ -136,7 +136,7 @@ export class Correction {
     if (!tr.docChanged) return tr
     let plan = planCache.get(tr)
     if (!plan) planCache.set(tr, plan = scanTransaction(tr))
-    let changes: ChangeSpec[] = []
+    let changes: ChangeSet.Spec[] = []
     for (let elt of plan) if (elt.correction == this) {
       let change = this.correct(elt.node, tr.startState)
       if (change) changes.push(change)
@@ -149,7 +149,7 @@ export class Correction {
   /// nodes in an existing document. If the correction makes any
   /// changes, the method returns a transaction with those changes.
   scan(state: EditorState) {
-    let changes: ChangeSpec[] = []
+    let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
       if (this.tag(node.type)) {
         let at = state.doc.resolve(pos)
@@ -164,20 +164,20 @@ export class Correction {
   /// Create a correction that runs whenever the child list of a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onChildList(tag: Tag.Selector, correct: (node: NodePos, state: EditorState) => ChangeSpec | null) {
+  static onChildList(tag: Tag.Selector, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
     return new Correction(CorrectionEvent.ChildList, Tag.select(tag), correct)
   }
 
   /// Create a correction that runs whenever any content inside a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onContent(tag: Tag.Selector, correct: (node: NodePos, state: EditorState) => ChangeSpec | null) {
+  static onContent(tag: Tag.Selector, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
     return new Correction(CorrectionEvent.Content, Tag.select(tag), correct)
   }
 
   /// Define a correction that runs whenever the set of props on a tag
   /// matching a selector changes.
-  static onProps(tag: Tag.Selector, correct: (node: NodePos, state: EditorState) => ChangeSpec | null) {
+  static onProps(tag: Tag.Selector, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
     return new Correction(CorrectionEvent.Props, Tag.select(tag), correct)
   }
 }

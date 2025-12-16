@@ -2,11 +2,11 @@ import {DocNode, Tag, Text} from "./node"
 import {Pos, NodePos} from "./pos"
 import {Prop} from "./prop"
 import {Schema} from "./schema"
-import {ChangeSpec} from "./change"
+import {ChangeSet} from "./change"
 import {Token, CloseToken} from "./slice"
 
 export function clearNonFitting(node: NodePos, type: Tag.Type<any>) {
-  let changes: ChangeSpec[] = []
+  let changes: ChangeSet.Spec[] = []
   for (let i = 0, pos = node.start; i < node.node.children.length; i++) {
     let child = node.node.children[i], end = pos + child.length
     if (!type.canContain(child.type)) changes.push({from: pos, to: end})
@@ -42,7 +42,7 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Tag<any>) {
 /// It is recommended to use [`findWrappable`](#view.findWrappable)
 /// for finding wrap positions in non-trivial situations.
 export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Tag<any>) {
-  let changes: ChangeSpec[] = [], parent = range.from.parent.node
+  let changes: ChangeSet.Spec[] = [], parent = range.from.parent.node
   for (let i = range.from.index, openWrappers = 0, pos = range.from.pos;; i++) {
     let tokens: Token[] = []
     for (let j = 0; j < openWrappers; j++) tokens.push(CloseToken)
@@ -111,8 +111,8 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Tag) => bo
 
 /// Unwrap the given block node, or the node's children between `from`
 /// and `to`.
-export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeSpec {
-  let changes: ChangeSpec[] = [], {schema} = block.doc
+export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeSet.Spec {
+  let changes: ChangeSet.Spec[] = [], {schema} = block.doc
   let outer = block.parent!.node, wrapText = textblockChild(schema, outer.type)
 
   // The start of the gap we're currently moving over
@@ -200,8 +200,8 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
   return changes
 }
 
-export function joinBlocks(before: NodePos, after: NodePos): ChangeSpec[] {
-  let changes: ChangeSpec[] = [{from: before.end, to: after.start}]
+export function joinBlocks(before: NodePos, after: NodePos): ChangeSet.Spec[] {
+  let changes: ChangeSet.Spec[] = [{from: before.end, to: after.start}]
   let dBefore = before.depth, dAfter = after.depth
   let tokensAfter: Token[] = [], posAfter = after.after, end = posAfter
   if (dBefore > dAfter) {
