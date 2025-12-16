@@ -2,8 +2,7 @@ import {Schema} from "./schema"
 import {Tag, Node, DocNode, Text} from "./node"
 import {Prop} from "./prop"
 import {Slice, Token, CloseToken} from "./slice"
-import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule} from "./spec"
-import {isElementShape, Reject} from "./shape"
+import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule, isElementShape, Reject} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 

@@ -1,8 +1,7 @@
-import {isElementShape, AttributeShape, ElementShape} from "./shape"
+import {isElementShape, AttributeShape, ElementShape, ElementParseRule, AttributeParseRule} from "./shape"
 import {compareDeep, eqArray, none, splitGroups} from "./helper"
 import {SchemaElement} from "./schema"
 import {Tag} from "./node"
-import {ElementParseRule, AttributeParseRule} from "./spec"
 
 function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)

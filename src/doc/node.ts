@@ -5,8 +5,7 @@ import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
-import {ElementShape, StructureShape} from "./shape"
-import {ElementParseRule} from "./spec"
+import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
 const enum TagFlag {
   None = 0,
