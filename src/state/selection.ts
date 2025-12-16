@@ -356,7 +356,7 @@ function scanNormalFrom(
         p += nextNode.length * step
       } else {
         if (!forward) index--
-        parent = new NodePos(parent, nextNode, p - (forward ? 0 : nextNode.length) + 1, index)
+        parent = new NodePos(parent, nextNode, forward ? p : p - nextNode.length, index)
         p += step
         index = forward ? 0 : nextNode.children.length
       }

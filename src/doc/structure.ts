@@ -179,7 +179,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
             // If it doesn't fit directly but can be moved into a
             // different text block, do that
             replaceGap(pos + 1, [wrapText!])
-            changes.push(clearNonFitting(new NodePos(parent, next, pos + 1, index), wrapText!.type))
+            changes.push(clearNonFitting(new NodePos(parent, next, pos, index), wrapText!.type))
           }
           pos += next.length
           index++
@@ -191,7 +191,7 @@ export function unwrapBlock(block: NodePos, from?: number, to?: number): ChangeS
         index++
       } else {
         // Enter anything else
-        parent = new NodePos(parent, next, pos + 1, index)
+        parent = new NodePos(parent, next, pos, index)
         index = 0
         pos++
       }

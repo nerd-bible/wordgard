@@ -240,6 +240,7 @@ function checkTagName(name: string) {
     throw new Error(`Tag name ${name} is reserved`)
 }
 
+// FIXME reuse leaf nodes by tag somehow
 export class Node {
   contentLength: number
   tag: Tag<unknown>

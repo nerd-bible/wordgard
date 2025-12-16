@@ -100,7 +100,7 @@ export class Pos {
     let base = this.resolve(doc, pos)
     if (base.inText) return null
     let after = base.nodeAfter
-    return after && !after.isText ? new NodePos(base.parent, after, pos + 1, base.index) : null
+    return after && !after.isText ? new NodePos(base.parent, after, pos, base.index) : null
   }
 }
 
@@ -109,40 +109,37 @@ let cachePos = 0
 
 function cacheFor(doc: DocNode) {
   let found = posCache.get(doc)
-  if (!found) posCache.set(doc, found = {top: new NodePos(null, doc, 0, 0), cache: []})
+  if (!found) posCache.set(doc, found = {top: new NodePos(null, doc, -1, 0), cache: []})
   return found
 }
 
 export class NodePos {
-  private readonly _start: number
-
   constructor(
     readonly parent: NodePos | null,
     readonly node: Node,
-    start: number,
+    /// @internal
+    readonly pos: number,
     readonly index: number
-  ) {
-    this._start = start
-  }
+  ) {}
 
   get before() {
-    if (!this.parent) throw new Error("Accessing `before` on the top level node")
-    return this._start - 1
+    if (this.pos < 0) throw new Error("Accessing `before` on the top level node")
+    return this.pos
   }
 
   get after() {
-    if (!this.parent) throw new Error("Accessing `after` on the top level node")
-    return this._start - 1 + this.node.length
+    if (this.pos < 0) throw new Error("Accessing `after` on the top level node")
+    return this.pos + this.node.length
   }
 
   get start() {
     if (this.node.isLeaf) throw new Error("Accessing `start` on a leaf node")
-    return this._start
+    return this.pos + 1
   }
 
   get end() {
     if (this.node.isLeaf) throw new Error("Accessing `end` on a leaf node")
-    return this._start + this.node.contentLength
+    return this.pos + 1 + this.node.contentLength
   }
 
   get depth() {
@@ -198,8 +195,8 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
         pos = end
         index++
       } else {
-        pos++
         parent = new NodePos(parent, next, pos, index)
+        pos++
         node = next
         index = 0
       }

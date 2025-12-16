@@ -85,7 +85,7 @@ function findTextblockVertically(view: EditorView, from: number, forward: boolea
         continue
       }
       let nextPos = pos - (forward ? 0 : next.length)
-      let node = new NodePos(parent, next, nextPos + 1, index - (forward ? 0 : 1))
+      let node = new NodePos(parent, next, nextPos, index - (forward ? 0 : 1))
       if (!next.inlineContent && next.type.orientation == "row") {
         // Find the child closest to the given x
         let closest = -1, closestPos = -1, closestDist = -1
