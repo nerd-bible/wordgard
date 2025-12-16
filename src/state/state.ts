@@ -1,6 +1,6 @@
 import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
-import {Transaction, TransactionSpec, resolveTransaction, asArray, StateEffect} from "./transaction"
+import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,
         DynamicSlot, ensureAddr, getAddr, transactionFilter,
         transactionExtender, Compartment, schemaElement} from "./facet"
@@ -146,7 +146,7 @@ export class EditorState {
   /// transaction contains the combined effect of all the different
   /// specs. For [selection](#state.TransactionSpec.selection), later
   /// specs take precedence over earlier ones.
-  update(...specs: readonly TransactionSpec[]): Transaction {
+  update(...specs: readonly Transaction.Spec[]): Transaction {
     return resolveTransaction(this, specs, true)
   }
 

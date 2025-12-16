@@ -1,5 +1,5 @@
 import {SchemaElement, Tag, Prop} from "wordgard/doc"
-import {Transaction, TransactionSpec, StateEffect} from "./transaction"
+import {Transaction, StateEffect} from "./transaction"
 import {EditorState} from "./state"
 
 /// Extension values can be
@@ -481,10 +481,10 @@ export const schemaElement = Facet.define<SchemaElement | readonly SchemaElement
   combine: values => values.reduce((set: readonly SchemaElement[], elt) => set.concat(elt), none)
 })
 
-export const transactionFilter = Facet.define<(tr: Transaction) => TransactionSpec | readonly TransactionSpec[]>()
+export const transactionFilter = Facet.define<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>()
 
 export const transactionExtender =
-  Facet.define<(tr: Transaction) => Pick<TransactionSpec, "effects" | "annotations"> | null>()
+  Facet.define<(tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null>()
 
 /// Extension compartments can be used to make a configuration
 /// dynamic. By [wrapping](#state.Compartment.of) part of your

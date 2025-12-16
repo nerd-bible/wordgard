@@ -1,6 +1,6 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, overrideShape} from "wordgard/view"
-import {EditorState, type Extension, StateField, type TransactionSpec, StateEffect} from "wordgard/state"
+import {EditorState, type Extension, StateField, Transaction, StateEffect} from "wordgard/state"
 import {DocNode, Tag, basicBuilders, CodeBlock, Node,
         Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "wordgard/doc"
 import ist from "ist"
@@ -12,7 +12,7 @@ function render(doc: DocNode, ...config: Extension[]) {
   return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 
-function update(node: InstanceType<typeof DocTile>, spec: TransactionSpec) {
+function update(node: InstanceType<typeof DocTile>, spec: Transaction.Spec) {
   let tr = node.state.update(spec)
   return node.update(tr.state, tr.changes)
 }

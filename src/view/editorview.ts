@@ -1,4 +1,4 @@
-import {EditorState, Transaction, TransactionSpec, Extension, Prec,
+import {EditorState, Transaction, Extension, Prec,
         EditorSelection, StateEffect, Facet, EditorStateSpec} from "wordgard/state"
 import {ChangeDesc} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
@@ -195,10 +195,10 @@ export class EditorView {
   /// these define a single transaction (the specs will be merged),
   /// not a sequence of transactions.
   dispatch(tr: Transaction): void
-  dispatch(...specs: TransactionSpec[]): void
-  dispatch(...input: (Transaction | TransactionSpec)[]) {
+  dispatch(...specs: Transaction.Spec[]): void
+  dispatch(...input: (Transaction | Transaction.Spec)[]) {
     if (input.length == 1 && input[0] instanceof Transaction) this.update(input[0])
-    else this.update(this.state.update(...input as TransactionSpec[]))
+    else this.update(this.state.update(...input as Transaction.Spec[]))
   }
 
   /// Update the view for the given transaction. Updates

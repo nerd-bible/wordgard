@@ -1,12 +1,12 @@
 import {ChangeSet, ChangeSpec, Node} from "wordgard/doc"
-import {resolveTransactionInner, mergeTransaction, TransactionSpec} from "./transaction"
+import {resolveTransactionInner, mergeTransaction, Transaction} from "./transaction"
 import {EditorState} from "./state"
 
 /// Post-process the given transaction spec to check for any block
 /// boundaries touched by the changes in it that can be
 /// [auto-joined](#doc.NodeSpec.autoJoin). If any are found, the spec
 /// is updated to perform those joins.
-export function autoJoinBlocks(state: EditorState, tr: TransactionSpec): TransactionSpec {
+export function autoJoinBlocks(state: EditorState, tr: Transaction.Spec): Transaction.Spec {
   if (!tr.changes) return tr
   let changes = ChangeSet.create(state.doc, tr.changes), doc = changes.apply(state.doc)
   if (changes.empty) return tr

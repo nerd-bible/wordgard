@@ -123,44 +123,46 @@ StateEffect.appendConfig = StateEffect.define<Extension>()
 
 Compartment.reconfigureCompartment = StateEffect.define<{compartment: Compartment, extension: Extension}>()
 
-/// Describes a [transaction](#state.Transaction) when calling the
-/// [`EditorState.update`](#state.EditorState.update) method.
-export interface TransactionSpec {
-  /// The changes to the document made by this transaction.
-  changes?: ChangeSpec
-  /// When set, this transaction explicitly updates the selection.
-  /// Offsets in this selection should refer to the document as it is
-  /// _after_ the transaction.
-  selection?: EditorSelection | SelectionSpec | undefined,
-  /// When true, cursor ranges in the provided selection will be
-  /// [normalized](#state.EditorSelection.normalize) in the created
-  /// state.
-  normalizeSelection?: boolean,
-  /// Attach [state effects](#state.StateEffect) to this transaction.
-  /// Again, when they contain positions and this same spec makes
-  /// changes, those positions should refer to positions in the
-  /// updated document.
-  effects?: StateEffect<any> | readonly StateEffect<any>[],
-  /// Set [annotations](#state.Annotation) for this transaction.
-  annotations?: Annotation<any> | readonly Annotation<any>[],
-  /// Shorthand for `annotations:` [`Transaction.userEvent`](#state.Transaction^userEvent)`.of(...)`.
-  userEvent?: string,
-  /// When set to `true`, the transaction is marked as needing to
-  /// scroll the current selection into view.
-  scrollIntoView?: boolean,
-  /// By default, transactions can be modified by [transaction
-  /// filters](#state.EditorState^transactionFilter). You can set this
-  /// to `false` to disable that. This can be necessary for
-  /// transactions that, for example, include annotations that must be
-  /// kept consistent with their changes.
-  filter?: boolean,
-  /// Normally, when multiple specs are combined (for example by
-  /// [`EditorState.update`](#state.EditorState.update)), the
-  /// positions in `changes` are taken to refer to the document
-  /// positions in the initial document. When a spec has `sequental`
-  /// set to true, its positions will be taken to refer to the
-  /// document created by the specs before it instead.
-  sequential?: boolean
+export namespace Transaction {
+  /// Describes a [transaction](#state.Transaction) when calling the
+  /// [`EditorState.update`](#state.EditorState.update) method.
+  export interface Spec {
+    /// The changes to the document made by this transaction.
+    changes?: ChangeSpec
+    /// When set, this transaction explicitly updates the selection.
+    /// Offsets in this selection should refer to the document as it is
+    /// _after_ the transaction.
+    selection?: EditorSelection | SelectionSpec | undefined,
+    /// When true, cursor ranges in the provided selection will be
+    /// [normalized](#state.EditorSelection.normalize) in the created
+    /// state.
+    normalizeSelection?: boolean,
+    /// Attach [state effects](#state.StateEffect) to this transaction.
+    /// Again, when they contain positions and this same spec makes
+    /// changes, those positions should refer to positions in the
+    /// updated document.
+    effects?: StateEffect<any> | readonly StateEffect<any>[],
+    /// Set [annotations](#state.Annotation) for this transaction.
+    annotations?: Annotation<any> | readonly Annotation<any>[],
+    /// Shorthand for `annotations:` [`Transaction.userEvent`](#state.Transaction^userEvent)`.of(...)`.
+    userEvent?: string,
+    /// When set to `true`, the transaction is marked as needing to
+    /// scroll the current selection into view.
+    scrollIntoView?: boolean,
+    /// By default, transactions can be modified by [transaction
+    /// filters](#state.EditorState^transactionFilter). You can set this
+    /// to `false` to disable that. This can be necessary for
+    /// transactions that, for example, include annotations that must be
+    /// kept consistent with their changes.
+    filter?: boolean,
+    /// Normally, when multiple specs are combined (for example by
+    /// [`EditorState.update`](#state.EditorState.update)), the
+    /// positions in `changes` are taken to refer to the document
+    /// positions in the initial document. When a spec has `sequental`
+    /// set to true, its positions will be taken to refer to the
+    /// document created by the specs before it instead.
+    sequential?: boolean
+  }
 }
 
 /// Changes to the editor state are grouped into transactions.
@@ -352,7 +354,7 @@ export function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec,
   }
 }
 
-export function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): ResolvedSpec {
+export function resolveTransactionInner(doc: DocNode, spec: Transaction.Spec): ResolvedSpec {
   let sel = spec.selection, annotations = asArray(spec.annotations)
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   return {
@@ -365,7 +367,7 @@ export function resolveTransactionInner(doc: DocNode, spec: TransactionSpec): Re
   }
 }
 
-export function resolveTransaction(state: EditorState, specs: readonly TransactionSpec[], filter: boolean): Transaction {
+export function resolveTransaction(state: EditorState, specs: readonly Transaction.Spec[], filter: boolean): Transaction {
   let s = resolveTransactionInner(state.doc, specs.length ? specs[0] : {})
   if (specs.length && specs[0].filter === false) filter = false
   for (let i = 1; i < specs.length; i++) {
