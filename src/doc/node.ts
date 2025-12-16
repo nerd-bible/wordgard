@@ -63,6 +63,10 @@ export class Tag<Param = unknown> {
     return new Node(this, this.type.checkChildren(joinText(children || none)))
   }
 
+  is<T>(type: Tag.Type<T>): this is Tag<T> {
+    return this.type == type as Tag.Type<any>
+  }
+
   eq(other: Tag<any>) {
     return this == other || this.type == other.type && !this.isDoc && compareDeep(this.param, other.param) && this.sameProps(other)
   }
@@ -120,6 +124,19 @@ export class Tag<Param = unknown> {
       for (let {name, value} of this.props) result.props![name] = value
     }
     return result
+  }
+
+  static select(selector: Tag.Selector | undefined): (type: Tag.Type<any>) => boolean {
+    if (typeof selector == "string") {
+      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
+      let groups = selector.split(/ /)
+      return t => groups.some(g => t.isInGroup(g))
+    }
+    if (selector instanceof Tag) {
+      if (selector != selector.type.default) throw new Error("Tags used as tag selectors must be their type's default instance")
+      selector = selector.type
+    }
+    return selector instanceof Tag.Type ? t => t === selector : selector ? t => selector.includes(t) : () => true
   }
 }
 
@@ -213,6 +230,8 @@ export namespace Tag {
     get isDoc() { return (this.flags & TagFlag.Doc) > 0 }
     get isList() { return (this.flags & TagFlag.List) > 0 }
   }
+
+  export type Selector = Tag<any> | Tag.Type<any> | readonly Tag.Type<any>[] | string
 }
 
 function checkTagName(name: string) {

@@ -5,7 +5,7 @@ import {Prop, Pos, Node, Tag, Walker, ChangeDesc, MapMode,
 import {Attrs} from "./attributes"
 import {type EditorView} from "./editorview"
 
-export type WidgetSpec<T> = {
+export type WidgetSpec<T> = { // FIXME move to Widget.Spec
   render: (value: T) => HTMLElement | Text
   eq?: (a: T, b: T) => boolean
   destroy?: (value: T) => void
@@ -61,10 +61,8 @@ export type Shape = Widget<any> | DecoElt
 
 enum WidgetPlace { Before, After, Start, End }
 
-export type TagSelector = Tag<any> | Tag.Type<any> | readonly Tag.Type<any>[] | string
-
 export function tagShape(spec: {
-  tag: TagSelector,
+  tag: Tag.Selector,
   shape: Shape | ((tag: Tag<any>) => Shape),
   atom?: boolean
 }): Extension {
@@ -77,7 +75,7 @@ export function tagShape(spec: {
     else if (atom != !shape.hasContent) throw new Error("'atom' and 'shape' field disagree on atomicity")
     shapeFunc = tag => addPropAttributes(shape, tag)
   }
-  return new TagShape(tagPredicate(tag), memo(shapeFunc), atom)
+  return new TagShape(Tag.select(tag), memo(shapeFunc), atom)
 }
 
 class TagShape {
@@ -110,7 +108,7 @@ export type WidgetDeco<Param> = {
 }
 
 export function tagDecoration(spec: {
-  tag: TagSelector
+  tag: Tag.Selector
   deco: WrapperDeco<Tag> | AttributeDeco<Tag> | WidgetDeco<Tag>
 }): Extension {
   if ((spec.deco as WrapperDeco<Tag>).element) {
@@ -120,13 +118,6 @@ export function tagDecoration(spec: {
   } else {
     return new TagAttributeSource(spec.tag, spec.deco as AttributeDeco<Tag>)
   }
-}
-
-function tagPredicate(selector?: TagSelector): (tag: Tag.Type<any>) => boolean {
-  return typeof selector == "string" ? t => t.isInGroup(selector)
-    : selector instanceof Tag.Type ? t => t == selector
-    : selector instanceof Tag ? t => t == selector.type
-    : selector ? t => selector.includes(t) : () => true
 }
 
 function memo<T, A extends Object>(f: (arg: A) => T) {
@@ -163,10 +154,10 @@ class TagWidgetSource {
   widget: (tag: Tag) => Widget<any>
   extension: Extension
 
-  constructor(tag: TagSelector, deco: WidgetDeco<Tag>) {
+  constructor(tag: Tag.Selector, deco: WidgetDeco<Tag>) {
     let {place, widget} = deco
     this.place = typeof place == "string" ? WidgetPlace[place] : place
-    this.pred = tagPredicate(tag)
+    this.pred = Tag.select(tag)
     this.widget = typeof widget == "function" ? memo(widget) : () => widget
     this.extension = tagWidgets.of(this)
   }
@@ -181,8 +172,8 @@ export class TagWrapperSource {
   spanning: boolean
   extension: Extension
 
-  constructor(tag: TagSelector, deco: WrapperDeco<Tag>) {
-    this.pred = tagPredicate(tag)
+  constructor(tag: Tag.Selector, deco: WrapperDeco<Tag>) {
+    this.pred = Tag.select(tag)
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
       let elt = new Elt<never>(element, readAttributes(attributes), null)
@@ -204,8 +195,8 @@ export class TagAttributeSource {
   value: string | ((tag: Tag) => string)
   extension: Extension
 
-  constructor(tag: TagSelector, deco: AttributeDeco<Tag>) {
-    this.pred = tagPredicate(tag)
+  constructor(tag: Tag.Selector, deco: AttributeDeco<Tag>) {
+    this.pred = Tag.select(tag)
     this.attribute = deco.attribute
     this.value = deco.value
     this.extension = tagAttributes.of(this)
@@ -231,13 +222,13 @@ export class RangeDecorationSource<T> {
   extension: Extension
 
   constructor(config: {
-    tag?: TagSelector
+    tag?: Tag.Selector
     scope?: DecorationScope
     deco: WrapperDeco<T> | AttributeDeco<T>
     set: (state: EditorState) => RangeSet<T>
     rank?: number
   }) {
-    this.pred = tagPredicate(config.tag)
+    this.pred = Tag.select(config.tag)
     this.scope = config.scope ?? DecorationScope.InlineAtom
     this.set = config.set
     if ((config.deco as WrapperDeco<T>).element) {
