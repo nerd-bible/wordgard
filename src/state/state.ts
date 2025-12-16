@@ -40,16 +40,18 @@ function readDoc(schema: Schema, doc: DocSource): DocNode {
 
 type DocSource = DocNode | HTMLElement | DocumentFragment | string | NodeJSON | ((schema: Schema) => DocNode)
 
-/// Options passed when [creating](#state.EditorState^create) an
-/// editor state.
-export interface EditorStateSpec {
-  /// The initial document.
-  doc: DocSource
-  /// The starting selection. Defaults to a cursor at the start of the
-  /// document.
-  selection?: EditorSelection | SelectionSpec | ((doc: DocNode) => EditorSelection)
-  /// Configuration for this state.
-  config?: Extension | Configuration
+export namespace EditorState {
+  /// Options passed when [creating](#state.EditorState^create) an
+  /// editor state.
+  export interface Spec {
+    /// The initial document.
+    doc: DocSource
+    /// The starting selection. Defaults to a cursor at the start of the
+    /// document.
+    selection?: EditorSelection | SelectionSpec | ((doc: DocNode) => EditorSelection)
+    /// Configuration for this state.
+    config?: Extension | Configuration
+  }
 }
 
 /// The editor state class is a persistent (immutable) data structure.
@@ -235,7 +237,7 @@ export class EditorState {
   /// Create a new state. You'll usually only need this when
   /// initializing an editor—updated states are created by applying
   /// transactions.
-  static create(spec: EditorStateSpec): EditorState {
+  static create(spec: EditorState.Spec): EditorState {
     let config = spec.config instanceof Configuration ? spec.config : Configuration.resolve(spec.config || [], new Map)
     let configSchema = config.staticFacet(schemaElement)
     let schema = spec.doc instanceof DocNode ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)

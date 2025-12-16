@@ -1,11 +1,12 @@
 import {Slice, Token, TokenType, CloseToken} from "./slice"
 import {TextOutput} from "./text"
-import {TagSpec} from "./spec"
 import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
+import {ElementShape, StructureShape} from "./shape"
+import {ElementParseRule} from "./spec"
 
 const enum TagFlag {
   None = 0,
@@ -17,7 +18,7 @@ const enum TagFlag {
   List = 64
 }
 
-function flagsFor(spec: TagSpec<any>, inline: boolean) {
+function flagsFor(spec: Tag.Spec<any>, inline: boolean) {
   let flags = inline ? TagFlag.Inline : TagFlag.None
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= TagFlag.InlineContent
@@ -38,12 +39,12 @@ export class Tag<Param = unknown> {
 
   get name() { return this.type.name }
 
-  static defineInline(name: string, spec: TagSpec<null>): Tag<null> {
+  static defineInline(name: string, spec: Tag.Spec<null>): Tag<null> {
     checkTagName(name)
     return new Tag.Type<null>(name, flagsFor(spec, true) | TagFlag.NullParam, spec).default!
   }
 
-  static defineBlock(name: string, spec: TagSpec<null>): Tag<null> {
+  static defineBlock(name: string, spec: Tag.Spec<null>): Tag<null> {
     checkTagName(name)
     return new Tag.Type<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
   }
@@ -157,7 +158,7 @@ export namespace Tag {
       readonly name: string,
       /// @internal
       readonly flags: TagFlag,
-      readonly spec: TagSpec<Param>
+      readonly spec: Tag.Spec<Param>
     ) {
       let groups = this.groups = [name, "*"]
       if (flags & TagFlag.Inline) groups.push("Inline")
@@ -176,12 +177,12 @@ export namespace Tag {
         throw new Error("Inline tags with block content must be marked as atoms")
     }
 
-    static defineInline<T>(name: string, spec: TagSpec<T>) {
+    static defineInline<T>(name: string, spec: Tag.Spec<T>) {
       checkTagName(name)
       return new Tag.Type<T>(name, flagsFor(spec, true), spec)
     }
 
-    static defineBlock<T>(name: string, spec: TagSpec<T>) {
+    static defineBlock<T>(name: string, spec: Tag.Spec<T>) {
       checkTagName(name)
       return new Tag.Type<T>(name, flagsFor(spec, false), spec)
     }
@@ -232,6 +233,77 @@ export namespace Tag {
   }
 
   export type Selector = Tag<any> | Tag.Type<any> | readonly Tag.Type<any>[] | string
+
+  // FIXME split inline and block specs?
+  export type Spec<Param> = {
+    blockContent?: string
+    inlineContent?: string | true
+    defaultParam?: Param extends null ? never : Param
+    /// A function or type name used to validate this tag's parameter
+    /// value. This will be used when deserializing the attribute from
+    /// JSON. When a string, it should be a `|`-separated string of
+    /// primitive types (`"number"`, `"string"`, `"boolean"`, `"null"`,
+    /// and `"undefined"`), and the library will raise an error when the
+    /// value is not one of those types. When a function, it should
+    /// raise an error if the value doesn't have the expected type or
+    /// shape.
+    validateParam?: string | ((param: Param) => void)
+    group?: string
+    toText?: (node: Node) => string
+    shape: ElementShape<Param> | StructureShape<Param>
+    parseRules?: readonly ElementParseRule<Param>[]
+    preserveWhitespace?: boolean
+    /// Whether the sides of this node act as a 'barrier' when
+    /// [normalizing](#state.EditorSelection.normalize) a cursor
+    /// position. By default, block nodes that are
+    /// [isolating](#state.Tag.Spec.isolating),
+    /// [atomic](#state.EditorState.isAtom), or whitepace-preserving act
+    /// as barriers.
+    cursorBarrier?: boolean
+    /// Indicates that this type of block is the default generic block
+    /// type in parent nodes where it may occur (which is appropriate
+    /// for, for example, paragraphs tags). Default blocks should not
+    /// have a required param. When not specified, the configuration
+    /// precedence order determines which child type is the default.
+    defaultBlock?: boolean
+    /// Makes this tag the canonical line break for the schema. The node
+    /// must be inline and a leaf, and have no required parameter. Nodes
+    /// marked as line breaks will be parsed from and serialized to
+    /// newline characters inside
+    /// [whitespace-preserving](#state.Tag.Spec.preserveWhitespace)
+    /// nodes.
+    isLineBreak?: boolean
+    /// Indicates that this node represents a list, which makes some
+    /// commands behave specially on it.
+    isList?: boolean
+    isolating?: boolean
+    /// Block containers are, by default, assumed to arrange their
+    /// children vertically below each other (`"column"`). You can set this
+    /// to `"row"` to tell the editor that this container's children
+    /// are horizontally next to each other.
+    orientation?: "row" | "column"
+    /// Defining nodes are preserved (when possible) when their content
+    /// is duplicated (dragged, pasted, etc) into a new position.
+    /// Defaults to false.
+    defining?: boolean
+    /// Neutral nodes can be completely replaced when their entire
+    /// content gets replaced. Defaults to `!defining`.
+    neutral?: boolean
+    /// Whether block nodes of this type should be automatically joined
+    /// when they become adjacent through an edit. Defaults to false.
+    /// Note that editing commands need to explicitly call
+    /// [`autoJoinBlocks`](#state.autoJoinBlocks) for joining to happen.
+    autoJoin?: boolean | ((before: Tag, after: Tag) => boolean)
+    /// By default, splitting a textblock at the end will revert the new
+    /// block to the default type of textblock at that position. Setting
+    /// this to true on a textblock type will prevent that behavior.
+    preserveOnSplitAtEnd?: boolean
+    /// For inline nodes with inline content, this determines whether
+    /// there are normalized cursor positions directly inside the node.
+    /// The default is to only have cursor positions right outside the
+    /// node.
+    cursorInsideBounds?: boolean
+  }
 }
 
 function checkTagName(name: string) {

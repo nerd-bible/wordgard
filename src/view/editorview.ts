@@ -1,5 +1,5 @@
 import {EditorState, Transaction, Extension, Prec,
-        EditorSelection, StateEffect, Facet, EditorStateSpec} from "wordgard/state"
+        EditorSelection, StateEffect, Facet} from "wordgard/state"
 import {ChangeDesc} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
@@ -28,7 +28,7 @@ import {cursorBlinkRate} from "./drawcursor"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
-export interface EditorViewSpec extends Partial<EditorStateSpec> {
+export interface EditorViewSpec extends Partial<EditorState.Spec> {
   /// The view's initial state. If not given, a new state is created
   /// by passing this configuration object to
   /// [`EditorState.create`](#state.EditorState^create), using its
@@ -149,7 +149,7 @@ export class EditorView {
 
     if (!spec.state && !spec.doc)
       throw new Error("When EditorViewSpec.state isn't given, the doc field must be present")
-    this.viewState = new ViewState(spec.state || EditorState.create(spec as EditorStateSpec))
+    this.viewState = new ViewState(spec.state || EditorState.create(spec as EditorState.Spec))
     if (spec.scrollTo && spec.scrollTo.is(scrollIntoView))
       this.viewState.scrollTarget = spec.scrollTo.value.clip(this.viewState.state)
     this.plugins = this.state.facet(viewPlugin).map(spec => new PluginInstance(spec))

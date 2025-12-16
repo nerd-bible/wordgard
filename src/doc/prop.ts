@@ -1,8 +1,8 @@
-import {PropSpec} from "./spec"
 import {isElementShape, AttributeShape, ElementShape} from "./shape"
 import {compareDeep, eqArray, none, splitGroups} from "./helper"
 import {SchemaElement} from "./schema"
 import {Tag} from "./node"
+import {ElementParseRule, AttributeParseRule} from "./spec"
 
 function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)
@@ -57,7 +57,7 @@ export class Prop<Value = unknown> {
 
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
-  static define(name: string, spec: PropSpec<null>): Prop<null> {
+  static define(name: string, spec: Prop.Spec<null>): Prop<null> {
     return new Prop.Type<null>(name, spec, true).default!
   }
 
@@ -122,7 +122,7 @@ export namespace Prop {
 
     constructor(
       readonly name: string,
-      readonly spec: PropSpec<Value>,
+      readonly spec: Prop.Spec<Value>,
       isFlag: boolean
     ) {
       this.targetGroups = spec.tags == null ? ["Inline:Leaf"] : splitGroups(spec.tags)
@@ -157,8 +157,44 @@ export namespace Prop {
       return null
     }
 
-    static define<Value>(name: string, spec: PropSpec<Value>) {
+    static define<Value>(name: string, spec: Prop.Spec<Value>) {
       return new Prop.Type<Value>(name, spec, false)
     }
+  }
+
+  export type Spec<Value> = {
+    /// Which node tags this prop may apply to, as a space separated
+    /// string of tag or group names. The default is `"Inline:Leaf"`.
+    tags?: string
+    /// Determines the position of this prop relative to other props.
+    /// Props with lower rank appear first in prop set arrays, and are
+    /// rendered around higher rank props in DOM representation. Ties
+    /// are broken by name.
+    rank?: number
+    /// Whether this mark should be active when the cursor is positioned
+    /// at its end (or at its start when that is also the start of the
+    /// parent node). Defaults to true.
+    inclusive?: boolean
+    /// Whether this prop can span across multiple nodes, or refers to
+    /// an individual node. Only spanning props can be added to text.
+    /// Spanning props with an element representation can be drawn as
+    /// elements containing multiple nodes, unless another, lower-ranked
+    /// prop requires the nodes to be wrapped separately. Defaults to
+    /// true for specs with an element representation, false
+    /// for specs with an attribute representation.
+    spanning?: boolean
+    /// Used by `Tag.split` to determine whether to keep this prop in
+    /// the split-off tag. `atEnd` will be true if the split happens at
+    /// the end of the node's content.
+    keepOnSplit?: boolean | ((tag: Tag<unknown>, atEnd: boolean) => boolean)
+    /// Used by `Tag.changeType` to decide whether props of this type
+    /// are preserved after the type change.
+    keepOnTypeChange?: boolean | ((from: Tag<unknown>, to: Tag.Type<unknown>) => boolean)
+    /// A function or type name used to validate values of this prop.
+    /// See [`Tag.Spec.validateParam`](#doc.Tag.Spec.validateParam).
+    validate?: string | ((value: Value) => void)
+    set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
+    shape: ElementShape<Value> | AttributeShape<Value>
+    parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
   }
 }
