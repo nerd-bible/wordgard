@@ -3,10 +3,9 @@ import {Prop} from "./prop"
 import {none} from "./helper"
 
 export interface Walker {
-  skip(node: Node, pos: number): void
-  // FIXME weird interface
-  enter(tag: Tag, pos: number, node?: Node): void | boolean
-  leave(tag: Tag | undefined, pos: number): void
+  skip(node: Node, pos: number, parent: NodePos, index: number): void
+  enter(node: Node, pos: number, parent: NodePos, index: number): void | boolean
+  leave(tag: Tag | undefined, pos: number, parent: NodePos | null, index: number): void
 }
 
 export class Pos {
@@ -172,7 +171,7 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
   if (inText) {
     let text = node.children[index]
     let textStart = pos - inText, textEnd = textStart + text.length
-    if (walk) walk.skip(text.sliceText(inText, Math.min(text.length, target - textStart)), pos)
+    if (walk) walk.skip(text.sliceText(inText, Math.min(text.length, target - textStart)), pos, parent, index)
     if (target < textEnd)
       return new Pos(parent, target, index, target - textStart)
     pos = textEnd
@@ -181,7 +180,7 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
   while (pos < target) {
     if (index == node.children.length) {
       if (!parent.parent) throw new Error("Moving past end of document")
-      if (walk) walk.leave(node.tag, pos)
+      if (walk) walk.leave(node.tag, pos, parent.parent, parent.index)
       ;({index, parent} = parent)
       node = parent.node
       index++
@@ -189,13 +188,13 @@ function advancePos(distance: number, parent: NodePos, pos: number, index: numbe
     } else {
       let next = node.children[index], end = pos + next.length
       if (target >= end && (!full || next.isLeaf)) {
-        if (walk) walk.skip(next, pos)
+        if (walk) walk.skip(next, pos, parent, index)
         pos = end
         index++
       } else if (next.isText) {
-        if (walk) walk.skip(next.sliceText(0, target - pos), pos)
+        if (walk) walk.skip(next.sliceText(0, target - pos), pos, parent, index)
         return new Pos(parent, target, index, target - pos)
-      } else if (walk && walk.enter(next.tag, pos, next) == false) {
+      } else if (walk && walk.enter(next, pos, parent, index) == false) {
         pos = end
         index++
       } else {

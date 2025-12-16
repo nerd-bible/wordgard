@@ -1,11 +1,16 @@
 import type {Node, NodeJSON, TagJSON, Tag} from "./node"
 import {TextOutput} from "./text"
 import {Schema} from "./schema"
-import {Walker} from "./pos"
 
 export const enum TokenType { Open, Close, Node }
 
 export type CloseToken = {tokenType: TokenType.Close}
+
+export interface SliceWalker {
+  skip(node: Node, pos: number): void
+  enterTag(tag: Tag, pos: number): void
+  leave(tag: Tag | undefined, pos: number): void
+}
 
 export const CloseToken = {
   tokenType: TokenType.Close as TokenType.Close,
@@ -52,10 +57,10 @@ export class Slice {
     return true
   }
 
-  run(track: Walker, startPos = 0) {
+  run(track: SliceWalker, startPos = 0) {
     let pos = startPos
     for (let elt of this.content) {
-      if (elt.tokenType == TokenType.Open) track.enter(elt, pos++)
+      if (elt.tokenType == TokenType.Open) track.enterTag(elt, pos++)
       else if (elt.tokenType == TokenType.Node) { track.skip(elt, pos); pos += elt.length }
       else track.leave(undefined, pos++)
     }

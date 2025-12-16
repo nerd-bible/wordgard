@@ -1109,21 +1109,21 @@ export class DecoIterator {
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers, true))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
-      enter: (tag, pos, node) => {
-        if (started) this.widgets(tag, WidgetPlace.Before, walker)
+      enter: (node, pos) => {
+        if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
         let shape
         if (pendingShape && pendingShapePos == pos) {
           shape = pendingShape.shape(pendingShapeValue)
           pendingShape = undefined
         } else {
-          shape = this.tagShape(tag, iter.active)
+          shape = this.tagShape(node.tag, iter.active)
         }
-        let wrappers = nodeWrappers(tag, iter.active, this.globalWrappers, !shape.hasContent)
+        let wrappers = nodeWrappers(node.tag, iter.active, this.globalWrappers, !shape.hasContent)
         let atom = !shape.hasContent
         if (atom) walker.node(node!, shape, wrappers)
         else walker.enter(node!, shape as DecoElt, wrappers)
-        this.widgets(tag, WidgetPlace.Start, walker)
+        this.widgets(node.tag, WidgetPlace.Start, walker)
         return !atom
       },
       leave: tag => {

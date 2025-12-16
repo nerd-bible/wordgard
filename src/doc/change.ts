@@ -29,7 +29,11 @@ class Builder implements Walker {
     node.pushTo(this.stack.children)
   }    
 
-  enter(tag: Tag) {
+  enter(node: Node) {
+    this.enterTag(node.tag)
+  }
+
+  enterTag(tag: Tag) {
     if (this.modifications) tag = applyModifications(this.modifications, tag)
     this.stack = new BuildContext(tag, this.stack)
   }
@@ -915,7 +919,9 @@ class ChangeFitter implements Walker {
     this.pos += node.length
   }
 
-  enter(tag: Tag) {
+  enter(node: Node) { this.enterTag(node.tag) }
+
+  enterTag(tag: Tag) {
     if (this.inserting) this.inputDelta++
     if (this.doubleDeleteDelta > 0) {
       this.doubleDeleteDelta--
