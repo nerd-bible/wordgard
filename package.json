@@ -30,7 +30,8 @@
     "@types/mocha": "^24.10.2",
     "mocha": "^11.7.5",
     "ist": "^1.1.7",
-    "esmoduleserve": "^0.3.1"
+    "esmoduleserve": "^0.3.1",
+    "@swc/wasm-typescript": "^1.15.3"
   },
   "engines": {"node": ">=22"}
 }
