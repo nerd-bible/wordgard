@@ -1,11 +1,11 @@
 import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
-import {DocNode, Node, basicBuilders, maybeTag, ChangeSet, basicSchema} from "wordgard/doc"
+import {Plot, Leaf, basicBuilders, maybeTag, ChangeSet, basicSchema} from "wordgard/doc"
 import {EditorState, EditorSelection, Transaction, StateEffect, StateField, type StateCommand} from "wordgard/state"
 import ist from "ist"
 
 const {doc, p} = basicBuilders
 
-function mkState(d: DocNode = doc(p(0)), cfg?: Parameters<typeof history>[0]) {
+function mkState(d: Plot.Doc = doc(p(0)), cfg?: Parameters<typeof history>[0]) {
   let from = maybeTag(d, 0), to = maybeTag(d, 1) ?? from
   return EditorState.create({
     config: [history(cfg)],
@@ -15,11 +15,11 @@ function mkState(d: DocNode = doc(p(0)), cfg?: Parameters<typeof history>[0]) {
 }
 
 function type(state: EditorState, text: string, at = state.selection.head) {
-  return state.update({changes: {from: at, insert: [Node.text(text)]},
+  return state.update({changes: {from: at, insert: [Leaf.text(text)]},
                        selection: {anchor: at + text.length}}).state
 }
 function timedType(state: EditorState, text: string, atTime: number) {
-  return state.update({changes: {from: state.selection.head, insert: [Node.text(text)]},
+  return state.update({changes: {from: state.selection.head, insert: [Leaf.text(text)]},
                        selection: {anchor: state.selection.head + text.length},
                        annotations: Transaction.time.of(atTime)}).state
 }
@@ -27,7 +27,7 @@ function isolate(state: EditorState) {
   return state.update({annotations: isolateHistory.of("before")}).state
 }
 function receive(state: EditorState, text: string, from: number, to = from) {
-  return state.update({changes: {from, to, insert: [Node.text(text)]},
+  return state.update({changes: {from, to, insert: [Leaf.text(text)]},
                        annotations: Transaction.addToHistory.of(false)}).state
 }
 function command(state: EditorState, cmd: StateCommand, success: boolean | null = true) {
@@ -106,7 +106,7 @@ describe("history", () => {
       if (!adj) return false
       let space = false
       if (adj) tr.changes.iterChanges((fA, tA, fB, tB, slice) => {
-        if (slice.content.some(t => t instanceof Node && t.isText && t.text!.slice(0, 1) == " ")) space = true
+        if (slice.content.some(t => t instanceof Leaf && Leaf.Text.chk(t) && t.param.slice(0, 1) == " ")) space = true
       })
       return !space
     }})
@@ -271,7 +271,7 @@ describe("history", () => {
     state = state.update({selection: {anchor: 1, head: 3}}).state
     const selection = state.selection
     state = state.update({
-      changes: {from: selection.from, to: selection.to, insert: [Node.text("hello")]},
+      changes: {from: selection.from, to: selection.to, insert: [Leaf.text("hello")]},
       selection: {anchor: selection.from + 5}
     }).state
     const selection2 = state.selection
@@ -352,20 +352,20 @@ describe("history", () => {
 
   it("isolates transactions when asked to", () => {
     let state = mkState()
-    state = state.update({changes: {from: 1, insert: [Node.text("a")]}, annotations: isolateHistory.of("after")}).state
-    state = state.update({changes: {from: 2, insert: [Node.text("b")]}}).state
-    state = state.update({changes: {from: 3, insert: [Node.text("c")]}, annotations: isolateHistory.of("after")}).state
-    state = state.update({changes: {from: 4, insert: [Node.text("d")]}}).state
-    state = state.update({changes: {from: 5, insert: [Node.text("e")]}, annotations: isolateHistory.of("full")}).state
-    state = state.update({changes: {from: 6, insert: [Node.text("f")]}}).state
+    state = state.update({changes: {from: 1, insert: [Leaf.text("a")]}, annotations: isolateHistory.of("after")}).state
+    state = state.update({changes: {from: 2, insert: [Leaf.text("b")]}}).state
+    state = state.update({changes: {from: 3, insert: [Leaf.text("c")]}, annotations: isolateHistory.of("after")}).state
+    state = state.update({changes: {from: 4, insert: [Leaf.text("d")]}}).state
+    state = state.update({changes: {from: 5, insert: [Leaf.text("e")]}, annotations: isolateHistory.of("full")}).state
+    state = state.update({changes: {from: 6, insert: [Leaf.text("f")]}}).state
     ist(undoDepth(state), 5)
   })
 
   it("can group events around a non-history transaction", () => {
     let state = mkState()
-    state = state.update({changes: {from: 1, insert: [Node.text("a")]}}).state
-    state = state.update({changes: {from: 2, insert: [Node.text("b")]}, annotations: Transaction.addToHistory.of(false)}).state
-    state = state.update({changes: {from: 2, insert: [Node.text("c")]}}).state
+    state = state.update({changes: {from: 1, insert: [Leaf.text("a")]}}).state
+    state = state.update({changes: {from: 2, insert: [Leaf.text("b")]}, annotations: Transaction.addToHistory.of(false)}).state
+    state = state.update({changes: {from: 2, insert: [Leaf.text("c")]}}).state
     state = command(state, undo)
     ist(state.doc, doc(p("b")), eq)
   })
@@ -376,8 +376,8 @@ describe("history", () => {
       anchor: 1,
       ranges: [{from: 1, to: 1}, {from: 2, to: 2}, {from: 3, to: 3}]
     })}).state
-    state = state.update({changes: {from: 1, to: 4, insert: [Node.text("d")]}}).state
-    state = state.update({changes: [{from: 1, insert: [Node.text("x")]}, {from: 2, insert: [Node.text("y")]}],
+    state = state.update({changes: {from: 1, to: 4, insert: [Leaf.text("d")]}}).state
+    state = state.update({changes: [{from: 1, insert: [Leaf.text("x")]}, {from: 2, insert: [Leaf.text("y")]}],
                           annotations: Transaction.addToHistory.of(false)}).state
     state = command(state, undo)
     ist(state.doc, doc(p("xabcy")), eq)
@@ -399,7 +399,7 @@ describe("history", () => {
       anchor: 1,
       ranges: [2, 5, 8].map(n => ({from: n, to: n}))
     })}).state
-    state = state.update({changes: [1, 4, 7].map(n => ({from: n, insert: [Node.text("-")]}))}).state
+    state = state.update({changes: [1, 4, 7].map(n => ({from: n, insert: [Leaf.text("-")]}))}).state
     state = command(state, undo)
     state = state.update({selection:  {anchor: 1}}).state
     state = command(state, redo)
@@ -489,11 +489,11 @@ describe("history", () => {
       state = state.update({effects: addComment.of(new Comment(1, 4, "c1")),
                             annotations: isolateHistory.of("full")}).state
       ist(commentStr(state), "c1@1")
-      state = state.update({changes: {from: 4, to: 5, insert: [Node.text("---")]},
+      state = state.update({changes: {from: 4, to: 5, insert: [Leaf.text("---")]},
                             annotations: isolateHistory.of("full"),
                             effects: addComment.of(new Comment(7, 10, "c2"))}).state
       ist(commentStr(state), "c1@1,c2@7")
-      state = state.update({changes: {from: 1, insert: [Node.text("---")]},
+      state = state.update({changes: {from: 1, insert: [Leaf.text("---")]},
                             annotations: Transaction.addToHistory.of(false)}).state
       ist(commentStr(state), "c1@4,c2@10")
       state = command(state, undo)
@@ -506,7 +506,7 @@ describe("history", () => {
       state = command(state, redo)
       ist(commentStr(state), "c1@4,c2@10")
       ist(state.doc, doc(p("---one---two foo")), eq)
-      state = command(state, undo).update({changes: {from: 11, to: 12, insert: [Node.text("---")]},
+      state = command(state, undo).update({changes: {from: 11, to: 12, insert: [Leaf.text("---")]},
                                            annotations: Transaction.addToHistory.of(false)}).state
       state = state.update({effects: addComment.of(new Comment(14, 17, "c3")),
                             annotations: isolateHistory.of("full")}).state
@@ -534,7 +534,7 @@ describe("history", () => {
     it("survives serialization", () => {
       let state = mkState(doc(p("abcd")))
       state = state.update({changes: {from: 4, to: 5}}).state
-      state = state.update({changes: {from: 1, insert: [Node.text("d")]}}).state
+      state = state.update({changes: {from: 1, insert: [Leaf.text("d")]}}).state
       state = command(state, undo)
       let jsonConf = {history: historyField}
       let json = JSON.stringify(state.toJSON(jsonConf))

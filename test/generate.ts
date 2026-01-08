@@ -1,5 +1,5 @@
-import {Node, Tag, Prop, DocNode,
-        Slice, type Token, CloseToken, ChangeSet, basicBuilders,
+import {Plot, Part, Prop, Leaf,
+        Slice, type Token, ChangeSet, basicBuilders,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "wordgard/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
@@ -10,11 +10,11 @@ export const Comment = Prop.Type.define<readonly number[]>("Comment", {
   shape: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
 
-export function open(node: Node) { return node.tag }
-export const close = CloseToken
+export function open(node: Plot) { return node.label }
+export const close = Plot.End
 
 export function slice(...tokens: (Token | string)[]) {
-  return new Slice(tokens.map(t => typeof t == "string" ? Node.text(t) : t))
+  return new Slice(tokens.map(t => typeof t == "string" ? Leaf.text(t) : t))
 }
 
 export function permute<T>(array: readonly T[]): readonly (readonly T[])[] {
@@ -39,16 +39,16 @@ function rWord(len = 2 + r(5)) {
 }
 
 export function rDoc(minLength: number) {
-  let stack: {tag: Tag, children: Node[]}[] = [{tag: doc().tag, children: []}]
+  let stack: {tag: Plot.Label.Any, children: Part[]}[] = [{tag: doc().label, children: []}]
   let len = 0
   function open() {
     while (!r(5)) {
       for (let type of r(1) ? [blockquote()] : [r(1) ? ul() : ol(), li()]) {
-        stack.push({tag: type.tag, children: []})
+        stack.push({tag: type.label, children: []})
         len++
       }
     }
-    stack.push({tag: (r(5) ? p() : r(2) ? pre() : h1()).tag, children: []})
+    stack.push({tag: (r(5) ? p() : r(2) ? pre() : h1()).label, children: []})
     len++
   }
   function closeOne() {
@@ -64,23 +64,23 @@ export function rDoc(minLength: number) {
     open()
     let props: readonly Prop[] = []
     for (let i = 0, elements = r(7); i < elements * 2 - 1; i++) {
-      let node: Node
+      let node: Part
       if (i % 2) {
         if (props.length && !r(3))
           props = props[r(props.length)].removeFromSet(props)
-        node = Node.text(" ", props)
+        node = Leaf.text(" ", props)
       } else {
         if (!r(5)) {
           let prop = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of("/" + rWord()))
           props = prop.addToSet(props)
         }
-        node = r(5) ? Node.text(rWord()) : r(2) ? br() : img(rWord() + ".svg")
+        node = r(5) ? Leaf.text(rWord()) : r(2) ? br() : img(rWord() + ".svg")
         node = node.withProps(props)
       }
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
-      if (node.isText && last && last.isText && last.tag.sameProps(node.tag))
-        children[children.length - 1] = Node.text(last.text! + node.text!, node.tag.props)
+      if (Leaf.Text.chk(node) && last && Leaf.Text.chk(last) && Prop.sameSet(last.props, node.props))
+        children[children.length - 1] = Leaf.text(last.param + node.param, node.label.props)
       else 
         children.push(node)
     }
@@ -90,7 +90,7 @@ export function rDoc(minLength: number) {
   return doc(stack[0].children)
 }
 
-export function rChangeSpec(doc: DocNode) {
+export function rChangeSpec(doc: Plot.Doc) {
   for (let i = 0; i < 100; i++) {
     let change = generators[r(generators.length)](doc)
     if (change) return change
@@ -98,38 +98,39 @@ export function rChangeSpec(doc: DocNode) {
   throw new Error("Failed to generate a change for document " + doc)
 }
 
-const generators: ((doc: DocNode) => ChangeSet.Spec | null)[] = [
+const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
   // Insert a few characters
   doc => {
     let pos = doc.resolve(r(doc.length))
-    return pos.parent.node.inlineContent ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
+    return pos.parent.part.inlineContent ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
   },
   // Delete some inline content
   doc => {
     let pos = r(doc.length), cx = doc.resolve(pos).parent
-    if (!cx.node.inlineContent || cx.start == cx.end) return null
+    if (!cx.part.inlineContent || cx.start == cx.end) return null
     let from = pos > cx.start ? pos - 1 : pos
     return {from, to: pos < cx.end && (from == pos || r(2)) ? pos + 1 : pos}
   },
   // Join two adjacent blocks
   doc => scanBlocks(doc, (node, pos, parent, index) => {
-    if (index && parent.children[index - 1].type.sharesContent(node.tag.type))
+    let prev: Part | undefined
+    if (index && !(prev = parent.content[index - 1]).isLeaf && prev.type.sharesContent(node.label.type))
       return {from: pos - 1, to: pos + 1}
   }),
   // Lift a block's content out to its parent
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.sharesContent(node.tag.type))
+    if (parent.type.sharesContent(node.label.type))
       return [{from: pos, to: pos + 1}, {from: pos + node.length - 1, to: pos + node.length}]
   }),
   // Wrap a block in a blockquote
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.tag.type))
+    if (parent.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.label.type))
       return [{from: pos, insert: slice(open(blockquote()))},
               {from: pos + node.length, insert: slice(close)}]
   }),
   // Delete an entire node
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.children.length > 1) return {from: pos, to: pos + node.length}
+    if (parent.content.length > 1) return {from: pos, to: pos + node.length}
   }),
   // Mark some inline content
   doc => {
@@ -138,8 +139,8 @@ const generators: ((doc: DocNode) => ChangeSet.Spec | null)[] = [
   },
   // Remove a prop from some textblock
   doc => scanBlocks(doc, (node, pos) => {
-    if (node.isTextblock) for (let i = 0; i < node.children.length; i++) {
-      let props = node.children[i].tag.props
+    if (node.isTextblock) for (let i = 0; i < node.content.length; i++) {
+      let props = node.content[i].label.props
       if (props.length) {
         return {from: pos, to: pos + node.length, remove: props[r(props.length)]}
       }
@@ -147,16 +148,18 @@ const generators: ((doc: DocNode) => ChangeSet.Spec | null)[] = [
   }),
   // Change a prop on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
-    if (node.tag == CodeBlock)
+    if (node.label == CodeBlock)
       return {from: pos, add: CodeBlockLanguage.of(rWord())}
   })
 ]
 
-function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, index: number) => T | null | undefined): T | null {
+function scanBlocks<T>(doc: Plot.Doc, f: (node: Plot, pos: number, parent: Plot, index: number) => T | null | undefined): T | null {
   let found: T[] = []
-  function explore(node: Node, off: number) {
-    for (let i = 0, pos = off; i < node.children.length; i++) {
-      let child = node.children[i], val = f(child, pos, node, i)
+  function explore(node: Plot, off: number) {
+    for (let i = 0, pos = off; i < node.content.length; i++) {
+      let child = node.content[i]
+      if (child.isLeaf) continue
+      let val = f(child, pos, node, i)
       if (val != null) found.push(val)
       if (!child.inlineContent) explore(child, pos + 1)
       pos += child.length
@@ -166,7 +169,7 @@ function scanBlocks<T>(doc: DocNode, f: (node: Node, pos: number, parent: Node, 
   return found.length ? found[r(found.length)] : null
 }
 
-export function rChange(doc: DocNode, parts = 1) {
+export function rChange(doc: Plot.Doc, parts = 1) {
   let specs: ChangeSet.Spec[] = []
   for (let i = 0; i < parts; i++) specs.push(rChangeSpec(doc))
   return ChangeSet.create(doc, {correct: specs})

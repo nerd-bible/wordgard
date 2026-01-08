@@ -1,6 +1,6 @@
 import {EditorState, Transaction, StateField, StateCommand, StateEffect,
         Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "wordgard/state"
-import {DocNode, ChangeSet, ChangeSetJSON} from "wordgard/doc"
+import {Plot, ChangeSet, ChangeSetJSON} from "wordgard/doc"
 import {KeyBinding, EditorView} from "wordgard/view"
 
 const enum BranchName { Done, Undone }
@@ -183,7 +183,7 @@ class Branch {
     // that doesn't have this change yet, which is both the start doc
     // for the mapping change and `this.changes`, which is needed to
     // be able to perform further mapping on these.
-    readonly mapped: {change: ChangeSet, doc: DocNode} | null,
+    readonly mapped: {change: ChangeSet, doc: Plot.Doc} | null,
     // The selection before this event
     readonly startSelection: EditorSelection,
     readonly next: Branch | null
@@ -234,7 +234,7 @@ class Branch {
   }
 
   // Add a mapping to this change
-  addMapping(change: ChangeSet, startDoc: DocNode | null) {
+  addMapping(change: ChangeSet, startDoc: Plot.Doc | null) {
     return new Branch(this.changes, this.effects, this.mapped
       ? {change: this.mapped.change.compose(change), doc: this.mapped.doc}
       : {change, doc: startDoc!}, this.startSelection, this.next)

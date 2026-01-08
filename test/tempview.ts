@@ -2,7 +2,7 @@
 
 import {EditorView} from "wordgard/view"
 import {type Extension} from "wordgard/state"
-import {DocNode, maybeTag} from "wordgard/doc"
+import {Plot, maybeTag} from "wordgard/doc"
 
 const workspace: HTMLElement = document.querySelector("#workspace")! as HTMLElement
 
@@ -11,7 +11,7 @@ let hide: any = null
 
 /// Create a hidden view with the given document and extensions that
 /// lives until the next call to `tempView`.
-export function tempView(doc: string | DocNode, config: Extension = []): EditorView {
+export function tempView(doc: string | Plot.Doc, config: Extension = []): EditorView {
   if (currentTempView) {
     currentTempView.dom.remove()
     currentTempView = null

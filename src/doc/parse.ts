@@ -1,7 +1,7 @@
 import {Schema} from "./schema"
-import {Tag, Node, DocNode, Text} from "./node"
+import {Plot, Part, Leaf} from "./node"
 import {Prop} from "./prop"
-import {Slice, Token, CloseToken} from "./slice"
+import {Slice, Token} from "./slice"
 import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule, isElementShape, Reject} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
@@ -24,9 +24,14 @@ class RuleSet {
       if (isElementShape(shape) && shape.element) rules.push({
         selector: shape.selector || shape.element,
         readElement: shape.readElement,
-        tag
+        leaf: tag.isLeaf ? tag : undefined,
+        plot: tag.isLeaf ? undefined : tag
       })
-      if (parseRules) for (let rule of parseRules) rules.push({...rule, tag: rule.tag || tag})
+      if (parseRules) for (let rule of parseRules) rules.push({
+        ...rule,
+        leaf: rule.leaf || (tag.isLeaf ? tag : undefined),
+        plot: rule.plot || (tag.isLeaf ? undefined : tag)
+      })
     }
     for (let prop of schema.props) {
       let {shape, parseRules} = prop.spec
@@ -74,7 +79,7 @@ export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, op
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [], false)
   cx.sync(top)
-  return cx.finishNode(cx.top) as DocNode
+  return cx.finishNode(cx.top) as Plot.Doc
 }
 
 export enum OpenSide { None = 0, Start = 1, End = 2, Both = 3 }
@@ -84,21 +89,21 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [], true)
   cx.sync(top)
-  let tokens: Token[] = [], context: Tag[] = []
-  let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
+  let tokens: Token[] = [], context: Plot.Label.Any[] = []
+  let emitTokens = (children: readonly Part[], openStart: boolean, openEnd: boolean) => {
     for (let i = 0; i < children.length; i++) {
       let child = children[i]
       if (openStart && i == 0 && !child.isLeaf && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
         if (children.length == 1 && openEnd && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
-          emitTokens(child.children, true, true)
+          emitTokens(child.content, true, true)
         } else {
-          emitTokens(child.children, true, false)
-          tokens.push(CloseToken)
+          emitTokens(child.content, true, false)
+          tokens.push(Plot.End)
         }
-        context.push(children[0].tag)
+        context.push(child.label)
       } else if (openEnd && i == children.length - 1 && !child.isLeaf && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
-        tokens.push(child.tag)
-        emitTokens(child.children, false, true)
+        tokens.push(child.label)
+        emitTokens((child as Plot).content, false, true)
       } else {
         tokens.push(child)
       }
@@ -117,7 +122,7 @@ const enum CxFlag {
 
 class ParseContext {
   rules: RuleSet
-  open: Map<Node, CxFlag> = new Map
+  open: Map<Plot, CxFlag> = new Map
 
   constructor(readonly schema: Schema, readonly options: ParseOptions, public top: NodeContext) {
     this.rules = RuleSet.fromSchema(schema)
@@ -132,7 +137,7 @@ class ParseContext {
 
   ignoreElement(elt: HTMLElement, props: readonly Prop[]) {
     if (elt.nodeName == "BR" && !this.top.tag.inlineContent)
-      this.findPlace(Text.of("-"), props, false)
+      this.findPlace(Leaf.Text.of("-"), props, false)
   }
 
   parseElement(elt: HTMLElement, props: readonly Prop[], endOfSlice: boolean) {
@@ -159,20 +164,22 @@ class ParseContext {
 
   parseElementByRule(elt: HTMLElement, match: {rule: ElementParseRule<unknown>, value?: unknown},
                      props: readonly Prop[], endOfSlice: boolean) {
-    let sync, tag, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
-    if (rule.tag) {
-      tag = rule.tag instanceof Tag ? rule.tag :
-        rule.tag instanceof Tag.Type ? (hasValue ? rule.tag.of(match.value) : rule.tag.default) : null
-      if (!tag) throw new Error(`Parse rule for ${rule.selector} does not produce a tag`)
-      if (tag.isLeaf) {
-        this.insertNode(tag.create(), props)
-      } else {
-        let innerProps = this.enter(tag, props, endOfSlice, elt)
-        if (innerProps) {
-          sync = true
-          props = innerProps
-        }
+    let sync, plot, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
+    if (rule.plot) {
+      plot = rule.plot instanceof Plot.Label ? rule.plot :
+        rule.plot instanceof Plot.Type ? (hasValue ? rule.plot.of(match.value) : rule.plot.default) : null
+      if (!plot) throw new Error(`Parse rule for ${rule.selector} is missing a parameter`)
+      let innerProps = this.enter(plot, props, endOfSlice, elt)
+      if (innerProps) {
+        sync = true
+        props = innerProps
       }
+    } else if (rule.leaf) {
+      let leaf = rule.leaf instanceof Leaf ? rule.leaf :
+        rule.leaf instanceof Leaf.Type ? (hasValue ? rule.leaf.of(match.value) : rule.leaf.default) : null
+      if (!leaf) throw new Error(`Parse rule for ${rule.selector} is missing a parameter`)
+      this.insertNode(leaf, props)
+      isLeaf = true
     } else {
       let prop = rule.prop instanceof Prop ? rule.prop :
         rule.prop instanceof Prop.Type ? (hasValue ? rule.prop.of(match.value) : rule.prop.default) : null
@@ -181,7 +188,7 @@ class ParseContext {
     }
     let startIn = this.top
 
-    if (!tag || !tag.isLeaf) {
+    if (!plot || !isLeaf) {
       let content = elt
       if (typeof rule.contentElement == "string") content = elt.querySelector(rule.contentElement) || elt
       else if (typeof rule.contentElement == "function") content = rule.contentElement(elt)
@@ -203,20 +210,20 @@ class ParseContext {
       if (/^ /.test(text)) {
         let nodeBefore = this.top.children[this.top.children.length - 1]
         if (nodeBefore
-            ? nodeBefore.tag == this.schema.lineBreak || nodeBefore.isText && / $/.test(nodeBefore.text!)
+            ? nodeBefore.label == this.schema.lineBreak || Leaf.Text.chk(nodeBefore) && / $/.test(nodeBefore.param!)
             : !(this.top.flags & CxFlag.OpenStart))
           text = text.slice(1)
       }
-      if (text) this.insertNode(Node.text(text), props)
+      if (text) this.insertNode(Leaf.text(text), props)
     } else if (this.top.tag.type.preserveWhitespace && this.schema.lineBreak) {
       let lines = text.split(/\r?\n|\r/g)
       for (let i = 0; i < lines.length; i++) {
-        if (i) this.insertNode(this.schema.lineBreak.create(), props)
-        if (lines[i]) this.insertNode(Node.text(lines[i]), props)
+        if (i) this.insertNode(this.schema.lineBreak, props)
+        if (lines[i]) this.insertNode(Leaf.text(lines[i]), props)
       }
     } else {
       text = text.replace(/\r?\n|\r/g, " ")
-      if (text) this.insertNode(Node.text(text), props)
+      if (text) this.insertNode(Leaf.text(text), props)
     }
   }
 
@@ -249,13 +256,13 @@ class ParseContext {
     return props
   }
 
-  insertNode(node: Node, props: readonly Prop[]) {
-    let innerProps = this.findPlace(node.tag, props, false)
+  insertNode(node: Part, props: readonly Prop[]) {
+    let innerProps = this.findPlace(node.label, props, false)
     if (innerProps) {
-      let top = this.top, tag = node.tag
-      for (let p of innerProps) if (p.type.canTarget(tag.type)) tag = tag.addProp(p)
-      for (let p of node.tag.props) tag = tag.addProp(p)
-      tag.create(node.children).pushTo(top.children)
+      let top = this.top
+      for (let p of innerProps) if (p.type.canTarget(node.type)) node = node.withProps(p.addToSet(node.props))
+      for (let p of node.label.props) node = node.withProps(p.addToSet(node.props))
+      node.pushTo(top.children)
       return true
     }
     return false
@@ -265,7 +272,7 @@ class ParseContext {
   // context. May add intermediate wrappers and/or leave non-solid
   // nodes that we're in. Returns null if no place could be created, a
   // set of prop values not applied to wrappers otherwise.
-  findPlace(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean): readonly Prop[] | null {
+  findPlace(tag: Part.Tag, props: readonly Prop[], endOfSlice: boolean): readonly Prop[] | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
       let found = this.schema.findWrapping(cx.tag.type, tag.type)
@@ -283,7 +290,7 @@ class ParseContext {
     return props
   }
 
-  enter(tag: Tag<unknown>, props: readonly Prop[], endOfSlice: boolean, elt: HTMLElement) {
+  enter(tag: Plot.Label.Any, props: readonly Prop[], endOfSlice: boolean, elt: HTMLElement) {
     let innerProps = this.findPlace(tag, props, endOfSlice)
     if (innerProps) innerProps = this.enterInner(tag, props, endOfSlice, elt)
     return innerProps
@@ -291,10 +298,10 @@ class ParseContext {
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(tag: Tag<any>, props: readonly Prop[], endOfSlice: boolean, element: HTMLElement | null) {
+  enterInner(tag: Plot.Label.Any, props: readonly Prop[], endOfSlice: boolean, element: HTMLElement | null) {
     props = props.filter(p => {
       if (!p.type.canTarget(tag.type)) return true
-      tag = tag.addProp(p)
+      tag = tag.withProps(p.addToSet(tag.props))
       return false
     })
     let open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
@@ -324,8 +331,8 @@ class ParseContext {
     if (!(cx.flags & CxFlag.OpenEnd) && cx.children.length && !cx.tag.type.preserveWhitespace &&
         this.options.collapseWhiteSpace !== false) {
       let last = cx.children[cx.children.length - 1], m
-      if (last.isText && (m = /[ \t\r\n\u000c]+$/.exec(last.text!))) {
-        let len = last.text!.length - m[0].length
+      if (last.isText && (m = /[ \t\r\n\u000c]+$/.exec(last.param as string))) {
+        let len = last.length - m[0].length
         if (!len) cx.children.pop()
         else cx.children[cx.children.length - 1] = last.sliceText(0, len)
       }
@@ -340,9 +347,9 @@ class ParseContext {
 }
 
 class NodeContext {
-  children: Node[] = []
+  children: Part[] = []
 
-  constructor(readonly tag: Tag<any>,
+  constructor(readonly tag: Plot.Label.Any,
               readonly flags: CxFlag,
               readonly parent: NodeContext | null) {}
 
@@ -379,22 +386,24 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
 
 function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
   let rules = RuleSet.fromSchema(schema) // FIXME avoid recomputing these
-  let tags: Tag.Type<any>[] = []
+  let tags: Part.Type<any>[] = []
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {
-      tags.push(Text)
+      tags.push(Leaf.Text)
     } else if (node.nodeType == 1) {
       let match = rules.matchElement(node as HTMLElement)
-      if (match && match.rule.tag) {
-        tags.push(match.rule.tag instanceof Tag ? match.rule.tag.type : match.rule.tag)
+      if (match && match.rule.leaf) {
+        tags.push(match.rule.leaf instanceof Leaf ? match.rule.leaf.type : match.rule.leaf)
+      } else if (match && match.rule.plot) {
+        tags.push(match.rule.plot instanceof Plot.Label ? match.rule.plot.type : match.rule.plot)
       } else if (!(match && match.rule.ignore)) {
         for (let ch = node.firstChild; ch; ch = ch.nextSibling) explore(ch)
       }
     }
   }
   explore(content)
-  let best: Tag | undefined, bestCost = 0
-  scan: for (let parent of schema.tags) if (parent.default) {
+  let best: Plot.Label.Any | undefined, bestCost = 0
+  scan: for (let parent of schema.tags) if (!parent.isLeaf && parent.default) {
     let cost = parent.isDoc ? -1 : 0
     for (let child of tags) {
       let fit = schema.findWrapping(parent, child)

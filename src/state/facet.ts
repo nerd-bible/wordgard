@@ -1,4 +1,4 @@
-import {SchemaElement, Tag, Prop} from "wordgard/doc"
+import {SchemaElement, Plot, Leaf, Prop} from "wordgard/doc"
 import {Transaction, StateEffect} from "./transaction"
 import {EditorState} from "./state"
 
@@ -625,7 +625,9 @@ function flatten(extension: Extension, compartments: Map<Compartment, Extension>
     } else if (ext instanceof FacetProvider) {
       result[prec].push(ext)
       if (ext.facet.extensions) inner(ext.facet.extensions, Prec_.default)
-    } else if (ext instanceof Tag || ext instanceof Tag.Type || ext instanceof Prop || ext instanceof Prop.Type) {
+    } else if (ext instanceof Plot.Label || ext instanceof Plot.Type ||
+               ext instanceof Leaf || ext instanceof Leaf.Type ||
+               ext instanceof Prop || ext instanceof Prop.Type) {
       result[prec].push(schemaElement.of(ext) as FacetProvider<any>)
     } else {
       let content = (ext as any).extension

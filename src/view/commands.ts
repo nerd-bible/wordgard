@@ -1,4 +1,4 @@
-import {Node, Tag, Prop, NodePos, Slice, Text, Token, CloseToken, ChangeSet,
+import {Plot, Part, Prop, PartPos, PlotPos, Slice, Leaf, Token, ChangeSet,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
         unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "wordgard/doc"
 import {EditorSelection, StateCommand, EditorState, Transaction, Direction, autoJoinBlocks} from "wordgard/state"
@@ -20,9 +20,9 @@ export type Command = (target: EditorView) => boolean
 export const insertLineBreak: StateCommand = ({state, dispatch}) => {
   let {doc, sel} = state
   let brk = doc.schema.lineBreak
-  if (!brk || !sel.from.parent.node.type.canContain(brk.type)) return false
+  if (!brk || !sel.from.parent.part.type.canContain(brk.type)) return false
   dispatch(state.update({
-    changes: {from: sel.from.pos, to: sel.to.pos, insert: [brk.create()], fit: true},
+    changes: {from: sel.from.pos, to: sel.to.pos, insert: [brk], fit: true},
     selection: {anchor: sel.from.pos + 1},
     scrollIntoView: true,
     userEvent: "insert.linebreak"
@@ -33,11 +33,11 @@ export const insertLineBreak: StateCommand = ({state, dispatch}) => {
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
   let {doc, sel} = state
   let block = sel.from.parent
-  if (!block.node.isTextblock || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
+  if (!block.part.isTextblock || !block.part.type.preserveWhitespace || block.start != sel.to.parent.start) return false
   let props = state.selection.props || sel.from.props(sel.to)
   dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos,
-              insert: [(doc.schema.lineBreak ? doc.schema.lineBreak.create() : Node.text("\n")).withProps(props)]},
+              insert: [(doc.schema.lineBreak ? doc.schema.lineBreak : Leaf.text("\n")).withProps(props)]},
     selection: EditorSelection.cursor(sel.from.pos + 1, -1),
     scrollIntoView: true,
     userEvent: "input"
@@ -49,10 +49,10 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
 /// default textblock in its position.
 export const createTextblock: StateCommand = ({state, dispatch}) => {
   let sel = state.sel
-  if (sel.head.parent.node.inlineContent || sel.anchor.parent.node.inlineContent) return false
-  let wrap = state.doc.schema.findWrapping(sel.from.parent.node.type, Text)
+  if (sel.head.parent.part.inlineContent || sel.anchor.parent.part.inlineContent) return false
+  let wrap = state.doc.schema.findWrapping(sel.from.parent.part.type, Leaf.Text)
   if (!wrap) return false
-  let content: Node[] = []
+  let content: Plot[] = []
   for (let i = wrap.length - 1; i >= 0; i--) content = [wrap[i].create(content)]
   let slice = new Slice(content)
   dispatch(state.update({
@@ -73,7 +73,7 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
   for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
        level; first = false, index = level.index, level = level.parent) {
-    if (!first && level.node.type.canContain(block.node.type)) {
+    if (!first && level.part.type.canContain(block.part.type)) {
       dispatch(state.update({
         changes: [
           {from: start, to: block.before, insert: before},
@@ -84,13 +84,13 @@ export const liftEmptyBlock: StateCommand = ({state, dispatch}) => {
       }))
       return true
     }
-    if (level.node.isInline || level.node.type.isolating) break
+    if (level.part.isInline || level.part.type.isolating) break
     if (index) atStart = false
     if (atStart) start--
-    else before.push(CloseToken)
-    if (index < level.node.children.length - 1) atEnd = false
+    else before.push(Plot.End)
+    if (index < level.part.content.length - 1) atEnd = false
     if (atEnd) end++
-    else after.unshift(level.node.tag.split(false))
+    else after.unshift(level.part.label.split(false))
   }
   return false
 }
@@ -103,23 +103,23 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
   if (!before || !before.parent) return false
   let tokens: Token[] = []
   for (let p = sel.from.parent;; p = p.parent!) {
-    tokens.push(CloseToken)
+    tokens.push(Plot.End)
     if (p == before) break
   }
 
-  if (!before.parent.node.type.isList && before.isFirst && before.parent.parent?.node.type.isList)
-    tokens.push(CloseToken, before.parent.node.tag.split(false))
+  if (!before.parent.part.type.isList && before.isFirst && before.parent.parent?.part.type.isList)
+    tokens.push(Plot.End, before.parent.part.label.split(false))
 
   let after = sel.to.textblockParent
   if (after) {
     let atEnd = true, insert = tokens.length
     for (let p = sel.to.parent, index = sel.to.index;; index = p.index + 1, p = p.parent!) {
-      if (index < p.node.children.length) atEnd = false
-      let tag = p.node.tag.split(atEnd), nextTag = atEnd && !p.node.type.spec.preserveOnSplitAtEnd ? null : tag
-      if (!nextTag || !p.parent!.node.type.canContain(tag.type)) {
+      if (index < p.part.content.length) atEnd = false
+      let tag = p.part.label.split(atEnd), nextTag = atEnd && !p.part.type.spec.preserveOnSplitAtEnd ? null : tag
+      if (!nextTag || !p.parent!.part.type.canContain(tag.type)) {
         if (!atEnd) return false
-        let defaultType = state.doc.schema.defaultContentType(p.parent!.node.type)
-        if (defaultType) tag = tag.changeType(defaultType)
+        let defaultType = state.doc.schema.defaultContentType(p.parent!.part.type)
+        if (defaultType && !defaultType.isLeaf) tag = tag.changeType(defaultType)
         else return false
       }
       tokens.splice(insert, 0, tag)
@@ -131,11 +131,11 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
     insert: tokens
   }]
   if (sel.from.isAtStart(before)) {
-    let deflt = state.doc.schema.defaultContentType(before.parent.node.type)
-    if (deflt && !deflt.eq(before.node.tag))
+    let deflt = state.doc.schema.defaultContentType(before.parent.part.type)
+    if (deflt && !deflt.isLeaf && !deflt.eq(before.part.label))
       changes.unshift({
         from: before.before, to: before.start,
-        insert: [before.node.tag.changeType(deflt)]
+        insert: [before.part.label.changeType(deflt)]
       })
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
@@ -162,27 +162,27 @@ export const deleteSelection: StateCommand = ({state, dispatch}) => {
 export const joinBackward: StateCommand = ({state, dispatch}) => {
   let {head, empty} = state.sel, block = head.textblockParent
   if (!empty || !block || !head.isAtStart(block)) return false
-  let scan = block, target = scan.node
+  let scan = block, target = scan.part
   while (!scan.index) {
     if (!scan.parent) return false
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock) return false
+    if (scan.part.type.isolating || !scan.part.isBlock) return false
   }
-  let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
-  while (!before.isTextblock) {
-    if (before.type.isolating || state.isAtom(pos - before.length, before) || !before.isBlock) return false
-    let last = before.children.length - 1
+  let before = scan.previousSibling!, parent = scan.parent!.part, pos = scan.start - 1
+  while (before.isLeaf || !before.isTextblock) {
+    if (before.isLeaf || before.type.isolating || state.isAtom(pos - before.length, before) || !before.isBlock) return false
+    let last = before.content.length - 1
     if (last < 0) return false
     parent = before
-    before = before.children[last]
+    before = before.content[last]
     pos--
   }
   let changes = joinBlocks(state.doc.resolve(pos - 1).parent, block)
     .concat(clearNonFitting(block, before.type))
-  if (!before.children.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
+  if (!before.content.length && !before.label.eq(target.label) && parent.type.canContain(target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
-      insert: [before.tag.changeType(target.tag)]
+      insert: [before.label.changeType(target.label)]
     })
   let changeSet = ChangeSet.create(state.doc, changes)
   dispatch(state.update({
@@ -200,9 +200,9 @@ export const joinListItems: StateCommand = ({state, dispatch}) => {
   for (let scan = head.parent;;) {
     let next = scan.parent
     if (!next) return false
-    if (scan.node.isBlock && next.node.type.isList) {
+    if (scan.part.isBlock && next.part.type.isList) {
       let prev = scan.previousSibling
-      if (!prev || scan.node.children.some(ch => !prev.type.canContain(ch.type))) return false
+      if (!prev || !prev.isLeaf && scan.part.content.some(ch => !prev.type.canContain(ch.type))) return false
       dispatch(state.update({
         changes: {from: scan.before - 1, to: scan.before + 1},
         userEvent: "join.backward.list",
@@ -218,28 +218,28 @@ export const joinListItems: StateCommand = ({state, dispatch}) => {
 export const joinForward: StateCommand = ({state, dispatch}) => {
   let {head, empty} = state.sel, block = head.textblockParent
   if (!empty || !block || !head.isAtEnd(block)) return false
-  let scan = block, target = scan.node
+  let scan = block, target = scan.part
   for (;;) {
     if (!scan.parent) return false
-    if (scan.index < scan.parent.node.children.length - 1) break
+    if (scan.index < scan.parent.part.content.length - 1) break
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock) return false
+    if (scan.part.type.isolating || !scan.part.isBlock) return false
   }
-  let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
-  while (!after.isTextblock) {
-    if (after.type.isolating || state.isAtom(pos, after) || !after.isBlock) return false
-    if (!after.children.length) return false
+  let after = scan.nextSibling!, parent = scan.parent.part, pos = scan.after
+  while (after.isLeaf || !after.isTextblock) {
+    if (after.isLeaf || after.type.isolating || state.isAtom(pos, after) || !after.isBlock) return false
+    if (!after.content.length) return false
     parent = after
-    after = after.children[0]
+    after = after.content[0]
     pos++
   }
-  let blockAfter = state.doc.resolveNode(pos)!
+  let blockAfter = state.doc.resolveNode(pos) as PlotPos
   let changes = joinBlocks(block, blockAfter)
     .concat(clearNonFitting(blockAfter, target.type))
-  if (!target.children.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
+  if (!target.content.length && !target.label.eq(after.label) && parent.type.canContain(after.type))
     changes.push({
       from: block.before, to: block.start,
-      insert: [target.tag.changeType(after.tag)]
+      insert: [target.label.changeType(after.label)]
     })
   dispatch(state.update({
     changes,
@@ -253,8 +253,8 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
   let sel = state.sel
   if (!sel.empty) return false
   if (sel.head.inText) {
-    let before = sel.head.nodeBefore!
-    let size = before.length - findClusterBreak(before.text!, before.length, false)
+    let before = sel.head.nodeBefore! as Leaf<string>
+    let size = before.length - findClusterBreak(before.param, before.length, false)
     dispatch(state.update(autoJoinBlocks(state, {
       changes: {from: sel.head.pos - size, to: sel.head.pos},
       scrollIntoView: true,
@@ -265,22 +265,22 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
 
   let {parent: scan, index, pos} = sel.head
   while (!index) {
-    if (scan.node.type.isolating || !scan.parent) return false
+    if (scan.part.type.isolating || !scan.parent) return false
     index = scan.index
     scan = scan.parent
     pos--
   }
-  let before = scan.node.children[index - 1]
+  let before = scan.part.content[index - 1]
   for (;;) {
-    if (before.type.isolating) return false
-    if (state.isAtom(pos - before.length, before)) break
-    let last = before.children.length - 1
+    if (!before.isLeaf && before.type.isolating) return false
+    if (before.isLeaf || state.isAtom(pos - before.length, before)) break
+    let last = before.content.length - 1
     if (last < 0) return false
-    before = before.children[last]
+    before = before.content[last]
     pos--
   }
-  if (before.isText) {
-    let size = before.length - findClusterBreak(before.text!, before.length, false)
+  if (Leaf.Text.chk(before)) {
+    let size = before.length - findClusterBreak(before.param, before.length, false)
     dispatch(state.update({
       changes: {from: pos - size, to: pos},
       scrollIntoView: true,
@@ -289,8 +289,8 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
     return true
   }
   let from = pos - before.length, to = pos
-  let parent: NodePos | null = state.doc.resolve(pos).parent
-  while (parent && parent.node.isBlock && parent.node.children.length == 1) {
+  let parent: PlotPos | null = state.doc.resolve(pos).parent
+  while (parent && parent.part.isBlock && parent.part.content.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -307,8 +307,8 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   let sel = state.sel
   if (!sel.empty) return false
   if (sel.head.inText) {
-    let after = sel.head.nodeAfter!
-    let size = findClusterBreak(after.text!, 0)
+    let after = sel.head.nodeAfter as Leaf<string>
+    let size = findClusterBreak(after.param, 0)
     dispatch(state.update(autoJoinBlocks(state, {
       changes: {from: sel.head.pos, to: sel.head.pos + size},
       scrollIntoView: true,
@@ -318,22 +318,22 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   }
 
   let {parent: scan, index, pos} = sel.head
-  while (index == scan.node.children.length) {
-    if (scan.node.type.isolating || !scan.parent) return false
+  while (index == scan.part.content.length) {
+    if (scan.part.type.isolating || !scan.parent) return false
     index = scan.index + 1
     scan = scan.parent
     pos++
   }
-  let after = scan.node.children[index]
+  let after = scan.part.content[index]
   for (;;) {
-    if (after.type.isolating) return false
-    if (state.isAtom(pos, after)) break
-    if (!after.children.length) return false
-    after = after.children[0]
+    if (!after.isLeaf && after.type.isolating) return false
+    if (after.isLeaf || state.isAtom(pos, after)) break
+    if (!after.content.length) return false
+    after = after.content[0]
     pos++
   }
-  if (after.isText) {
-    let size = findClusterBreak(after.text!, 0)
+  if (Leaf.Text.chk(after)) {
+    let size = findClusterBreak(after.param, 0)
     dispatch(state.update({
       changes: {from: pos, to: pos + size},
       scrollIntoView: true,
@@ -342,8 +342,8 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
     return true
   }
   let from = pos, to = pos + after.length
-  let parent: NodePos | null = state.doc.resolve(pos).parent
-  while (parent && parent.node.isBlock && parent.node.children.length == 1) {
+  let parent: PlotPos | null = state.doc.resolve(pos).parent
+  while (parent && parent.part.isBlock && parent.part.content.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -356,12 +356,12 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   return true
 }
 
-export function setTextblockType(tag: Tag<any>): StateCommand {
+export function setTextblockType(tag: Plot.Label.Any): StateCommand {
   return ({state, dispatch}) => {
     let changes: ChangeSet.Spec[] = []
     for (let block of selectedTextblocks(state)) {
-      if (!block.node.tag.eq(tag) && block.parent && block.parent.node.type.canContain(tag.type)) {
-        changes.push({from: block.before, to: block.before + 1, insert: [block.node.tag.changeType(tag)]})
+      if (!block.part.label.eq(tag) && block.parent && block.parent.part.type.canContain(tag.type)) {
+        changes.push({from: block.before, to: block.before + 1, insert: [block.part.label.changeType(tag)]})
         for (let ch of clearNonFitting(block, tag.type)) changes.push(ch)
       }
     }
@@ -371,7 +371,7 @@ export function setTextblockType(tag: Tag<any>): StateCommand {
   }
 }
 
-export function wrapBlock(wrapper: Tag<any>): StateCommand {
+export function wrapBlock(wrapper: Plot.Label.Any): StateCommand {
   return ({state, dispatch}) => {
     let changes: ChangeSet.Spec[] = [], lastTo = -1
     for (let {from, to} of state.selection.ranges) {
@@ -386,12 +386,12 @@ export function wrapBlock(wrapper: Tag<any>): StateCommand {
   }
 }
 
-export function unwrapBlockType(type: Tag.Type<any> | Tag<any> | ((tag: Tag<any>) => boolean)): StateCommand {
-  let pred: (tag: Tag<any>) => boolean = typeof type == "function" ? type
-    : type instanceof Tag ? tag => tag.type == type.type
+export function unwrapBlockType(type: Plot.Type<any> | Plot.Label.Any | ((tag: Plot.Label.Any) => boolean)): StateCommand {
+  let pred: (tag: Plot.Label.Any) => boolean = typeof type == "function" ? type
+    : type instanceof Plot.Label ? tag => tag.type == type.type
     : tag => tag.type == type
   return ({state, dispatch}) => {
-    let targets: NodePos[] = [], changes: ChangeSet.Spec[] = []
+    let targets: PartPos[] = [], changes: ChangeSet.Spec[] = []
     for (let {from, to} of state.selection.ranges) {
       if (!targets.some(t => t.after > from && t.before < to)) {
         let result = findUnwrappable(state.doc.resolve(from), state.doc.resolve(to), pred)
@@ -435,11 +435,11 @@ export function toggleProp(prop: Prop<any>): StateCommand {
 }
 
 function selectedTextblocks(state: EditorState) {
-  let textblocks: NodePos[] = [], lastBlock = -1
+  let textblocks: PlotPos[] = [], lastBlock = -1
   for (let {from, to} of state.selection.ranges) {
     state.doc.iterate(from, to, (node, pos, parent) => {
-      if (node.isTextblock && pos > lastBlock) {
-        textblocks.push(state.doc.resolveNode(pos)!)
+      if (!node.isLeaf && node.isTextblock && pos > lastBlock) {
+        textblocks.push(state.doc.resolveNode(pos) as PlotPos)
         lastBlock = pos
       }
     })
@@ -447,7 +447,7 @@ function selectedTextblocks(state: EditorState) {
   return textblocks
 }
 
-export function toggleList(listTag: Tag<any>): StateCommand {
+export function toggleList(listTag: Plot.Label.Any): StateCommand {
   return ({state, dispatch}) => {
     let blocks = selectedTextblocks(state)
     if (!blocks.length) return false
@@ -457,44 +457,44 @@ export function toggleList(listTag: Tag<any>): StateCommand {
   }
 }
 
-export const listIsActive = (listTag: Tag<any>): (state: EditorState) => boolean => state => {
+export const listIsActive = (listTag: Plot.Label.Any): (state: EditorState) => boolean => state => {
   return selectedTextblocks(state).every(b => {
     let item = isListItem(b)
-    return item && item.parent!.node.type == listTag.type
+    return item && item.parent!.part.type == listTag.type
   })
 }
 
-function isListItem(node: NodePos) {
+function isListItem(node: PartPos): PlotPos | null {
   for (let first = true;;) {
     let {parent} = node
     if (!parent) return null
-    if (parent.node.tag.type.isList) return first ? node : null
+    if (parent.part.label.type.isList) return first ? node as PlotPos : null
     first = node.isFirst
     node = parent
   }
 }
 
-function autoJoin(a: Tag<any>, b: Tag<any>) {
+function autoJoin(a: Plot.Label.Any, b: Plot.Label.Any) {
   let {autoJoin} = a.type.spec
   return typeof autoJoin == "function" ? autoJoin(a, b) : typeof autoJoin == "boolean" ? autoJoin : a.eq(b)
 }
 
-function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
-  let plan: ({wrap: NodePos, item: Tag<any>} | {change: NodePos, item: NodePos})[] = []
+function addList(state: EditorState, blocks: PlotPos[], listTag: Plot.Label.Any) {
+  let plan: ({wrap: PlotPos, item: Plot.Label.Any} | {change: PartPos, item: PartPos})[] = []
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let lastItem = -1
   for (let block of blocks) {
     let item = isListItem(block), wrap
-    if (!item && block.parent && block.parent.node.type.canContain(listTag.type) &&
-        ((wrap = state.doc.schema.findWrapping(listTag.type, block.node.type)) && wrap.length == 1 ||
-          (wrap = state.doc.schema.findWrapping(listTag.type, Text)) && wrap.length == 1)) {
+    if (!item && block.parent && block.parent.part.type.canContain(listTag.type) &&
+        ((wrap = state.doc.schema.findWrapping(listTag.type, block.part.type)) && wrap.length == 1 ||
+          (wrap = state.doc.schema.findWrapping(listTag.type, Leaf.Text)) && wrap.length == 1)) {
       chAfter.add(block.before)
       chBefore.add(block.after)
       plan.push({wrap: block, item: wrap[0]})
       lastItem = block.before
-    } else if (item?.parent && item.parent.node.tag.type != listTag.type &&
-               listTag.type.canContain(item.node.type) &&
-               item.parent.parent && item.parent.parent.node.type.canContain(listTag.type) &&
+    } else if (item?.parent && item.parent.part.label.type != listTag.type &&
+               listTag.type.canContain(item.part.type) &&
+               item.parent.parent && item.parent.parent.part.type.canContain(listTag.type) &&
                item.before != lastItem) {
       chAfter.add(item.before)
       chBefore.add(item.after)
@@ -511,30 +511,31 @@ function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
       let {wrap, item} = step, prev, next
       let openTo = item.isTextblock ? wrap.start : wrap.before, openFrom = wrap.before, open: Token[] = [item]
       if (chBefore.has(wrap.before)) {} // Block above is also included in change
-      else if ((prev = wrap.previousSibling) && prev.tag.eq(listTag)) openFrom-- // Join to list above
+      else if ((prev = wrap.previousSibling) && prev.label.eq(listTag)) openFrom-- // Join to list above
       else open.unshift(listTag) // Start new list
       changes.push({from: openFrom, to: openTo, insert: open})
-      let closeFrom = item.isTextblock ? wrap.end : wrap.after, closeTo = wrap.after, close: Token[] = [CloseToken]
+      let closeFrom = item.isTextblock ? wrap.end : wrap.after, closeTo = wrap.after, close: Token[] = [Plot.End]
       if (chAfter.has(wrap.after)) {} // Block below included in change
-      else if ((next = wrap.nextSibling) && next.tag.type == listTag.type && autoJoin(next.tag, listTag)) closeTo++ // Join
-      else close.push(CloseToken) // End list
+      else if ((next = wrap.nextSibling) && listTag.type.chk(next.label) && autoJoin(next.label, listTag))
+        closeTo++ // Join
+      else close.push(Plot.End) // End list
       changes.push({from: closeFrom, to: closeTo, insert: close})
     } else { // Change other list
       let {item} = step, prev, next
       if (item.isFirst) {
         if (chBefore.has(item.before - 1)) // Right after an item produced by another change, delete open token
           changes.push({from: item.before - 1, to: item.before})
-        else if ((prev = item.parent!.previousSibling) && prev.tag.type == listTag.type) // Join to list above
+        else if ((prev = item.parent!.previousSibling) && prev.label.type == listTag.type) // Join to list above
           changes.push({from: item.before - 2, to: item.before})
         else // Change open token
           changes.push({from: item.before - 1, to: item.before, insert: [listTag]})
       } else if (!chBefore.has(item.before)) { // Start a new list
-        changes.push({from: item.before, insert: [CloseToken, listTag]})
+        changes.push({from: item.before, insert: [Plot.End, listTag]})
       }
       if (item.isLast) {
         if (chAfter.has(item.after + 1)) { // Before item produced by other change, drop close token
           changes.push({from: item.after, to: item.after + 1})
-        } else if ((next = item.parent!.nextSibling) && autoJoin(next.tag, listTag)) { // Join to list below
+        } else if ((next = item.parent!.nextSibling) && !next.isLeaf && autoJoin(next.label, listTag)) { // Join to list below
           changes.push({from: item.after, to: item.after + 2})
         }
       }
@@ -543,19 +544,19 @@ function addList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
   return state.update({changes, userEvent: "wrap.list"})
 }
 
-function removeList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
-  let plan: {item: NodePos, rewrap: Tag<any> | null}[] = [], lastItem = -1
+function removeList(state: EditorState, blocks: PartPos[], listTag: Plot.Label.Any) {
+  let plan: {item: PlotPos, rewrap: Plot.Label.Any | null}[] = [], lastItem = -1
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   for (let block of blocks) {
     let item = isListItem(block)
     if (!item) continue
-    let list = item.parent!, parent = list.parent, rewrap: Tag<any> | null = null
-    if (parent && list.node.type == listTag.type && item.before != lastItem &&
-        (item.node.isTextblock
-          ? (rewrap = state.doc.schema.defaultContentType(parent.node.type)) && rewrap.isTextblock
-          : parent.node.type.canContain(block.node.type))) {
+    let list = item.parent!, parent = list.parent, rewrap: Part.Tag | null = null
+    if (parent && listTag.type.chk(list.part) && item.before != lastItem &&
+        (item.part.isTextblock
+          ? (rewrap = state.doc.schema.defaultContentType(parent.part.type)) && !rewrap.isLeaf && rewrap.isTextblock
+          : parent.part.type.canContain(block.part.type))) {
       lastItem = item.before
-      plan.push({item, rewrap})
+      plan.push({item, rewrap: rewrap as Plot.Label.Any})
       chAfter.add(item.before)
       chBefore.add(item.after)
     }
@@ -565,7 +566,7 @@ function removeList(state: EditorState, blocks: NodePos[], listTag: Tag<any>) {
   for (let {item, rewrap} of plan) {
     let openFrom = item.before, openTo = item.start, open: Token[] = rewrap ? [rewrap] : []
     if (item.isFirst) openFrom--
-    else if (!chBefore.has(item.before)) open.unshift(CloseToken)
+    else if (!chBefore.has(item.before)) open.unshift(Plot.End)
     changes.push({from: openFrom, to: openTo, insert: open})
     let closeFrom = rewrap ? item.after : item.end, closeTo = item.after, close: Token[] = []
     if (item.isLast) closeTo++
@@ -586,7 +587,7 @@ function setSelection(state: EditorState, dispatch: (tr: Transaction) => void, s
 
 function ltrAtCursor(state: EditorState) {
   let block = state.sel.head.textblockParent
-  return state.textDirection(block ? block.node.tag : undefined) == Direction.LTR
+  return state.textDirection(block ? block.part.label : undefined) == Direction.LTR
 }
 
 function cursorByChar(state: EditorState, dispatch: (tr: Transaction) => void, forward: boolean) {

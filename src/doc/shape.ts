@@ -1,4 +1,4 @@
-import {Tag} from "./node"
+import {Plot, Leaf, Part} from "./node"
 import {Prop} from "./prop"
 
 export class Elt<T> {
@@ -174,14 +174,14 @@ export function isStructureShape<T>(
   return (repr as StructureShape<any>).structure != null
 }
 
-export class NodeShape<Param> {
+export class PartShape<Param> {
   constructor(
     readonly atom: boolean,
     readonly create: (param: Param) => Elt<string>,
     readonly spec: ElementShape<Param> | StructureShape<Param>
   ) {}
 
-  static from<Param>(tag: Tag.Type<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
+  static from<Param>(tag: Part.Type<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
     if (isElementShape(spec)) {
       if (atom == null) atom = tag.isLeaf
@@ -206,13 +206,14 @@ export class NodeShape<Param> {
       }
     }
     if (atom == false && tag.isLeaf) throw new Error(`Leaf tag ${tag.name}'s shape must be atomic`)
-    return new NodeShape<Param>(atom, create, spec)
+    return new PartShape<Param>(atom, create, spec)
   }
 }
 
 export interface ElementParseRule<Param> {
   selector: string
-  tag?: Tag.Type<Param> | Tag<Param>
+  plot?: Plot.Label<Param> | Plot.Type<Param>
+  leaf?: Leaf<Param> | Leaf.Type<Param>
   prop?: Prop.Type<Param> | Prop<Param>
   ignore?: boolean | "skip"
   param?: Param

@@ -1,12 +1,12 @@
 import {EditorView, ContentPos, Widget, PointSet, WidgetSource} from "wordgard/view"
 import {EditorState, type Extension} from "wordgard/state"
-import {DocNode, basicBuilders} from "wordgard/doc"
+import {Plot, basicBuilders} from "wordgard/doc"
 import ist from "ist"
 
 const {DocTile} = EditorView as any
 const {doc, p, $img, hr} = basicBuilders
 
-function render(doc: DocNode, ...config: Extension[]) {
+function render(doc: Plot.Doc, ...config: Extension[]) {
   return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 

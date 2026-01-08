@@ -1,4 +1,4 @@
-import {DocNode, ChangeSet} from "wordgard/doc"
+import {Plot, ChangeSet} from "wordgard/doc"
 import {EditorState} from "./state"
 import {transactionFilter, transactionExtender, Extension, Compartment} from "./facet"
 import {EditorSelection, SelectionSpec, normalize} from "./selection"
@@ -174,7 +174,7 @@ export namespace Transaction {
 /// [`EditorView.dispatch`](#view.EditorView.dispatch).
 export class Transaction {
   /// @internal
-  _doc: DocNode | null = null
+  _doc: Plot.Doc | null = null
   /// @internal
   _selection: EditorSelection | null = null
   /// @internal
@@ -333,7 +333,7 @@ type ResolvedSpec = {
   scrollIntoView: boolean
 }
 
-export function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
+export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
   let mapForA, mapForB, changes
   if (sequential) {
     mapForA = b.changes
@@ -354,7 +354,7 @@ export function mergeTransaction(doc: DocNode, a: ResolvedSpec, b: ResolvedSpec,
   }
 }
 
-export function resolveTransactionInner(doc: DocNode, spec: Transaction.Spec): ResolvedSpec {
+export function resolveTransactionInner(doc: Plot.Doc, spec: Transaction.Spec): ResolvedSpec {
   let sel = spec.selection, annotations = asArray(spec.annotations)
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   return {
@@ -408,5 +408,5 @@ function extendTransaction(tr: Transaction) {
 const none: readonly any[] = []
 
 export function asArray<T>(value: undefined | T | readonly T[]): readonly T[] {
-  return value == null ? none : Array.isArray(value) ? value : [value]
+  return value == null ? none : Array.isArray(value) ? value : [value as T]
 }

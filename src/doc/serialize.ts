@@ -1,4 +1,4 @@
-import {DocNode, Node, Tag} from "./node"
+import {Plot, Part, Leaf} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType} from "./slice"
 import {Prop} from "./prop"
@@ -76,48 +76,46 @@ class HTMLContext extends Context {
   }
 }
 
-export function serialize(doc: DocNode, options: SerializeOptions = {}) {
+export function serialize(doc: Plot.Doc, options: SerializeOptions = {}) {
   let cx = new DOMContext(options, doc.schema)
-  serializeChildren(doc.children, cx)
+  serializeChildren(doc.content, cx)
   return cx.top as DocumentFragment
 }
 
-export function serializeHTML(doc: DocNode, options: SerializeOptions = {}) {
+export function serializeHTML(doc: Plot.Doc, options: SerializeOptions = {}) {
   let cx = new HTMLContext(options, doc.schema)
-  serializeChildren(doc.children, cx)
+  serializeChildren(doc.content, cx)
   return cx.html
 }
 
-export function serializeNode(node: Node, options: SerializeOptions & {schema: Schema}): HTMLElement | Text {
+export function serializeNode(node: Plot, options: SerializeOptions & {schema: Schema}): HTMLElement | Text {
   let cx = new DOMContext(options, options.schema)
   serializeChildren([node], cx)
   return cx.top.firstChild as (HTMLElement | Text)
 }
 
-const genericTag = Tag.defineBlock("generic", {
+const genericTag = Plot.defineBlock("generic", {
   shape: {element: "div"}
 })
 
-type Nodeish = {tag: Tag<any>, children: readonly Nodeish[]}
-
 function flattenSlice(
   content: readonly Token[],
-  context: readonly Tag[], includeContext: number,
+  context: readonly Plot.Label.Any[], includeContext: number,
   openProp?: Prop.Type<string>
-): readonly Nodeish[] {
-  let depth = 0, i = 0, scan = (inner: boolean): readonly Nodeish[] => {
-    let result: Nodeish[] = []
+): readonly Part[] {
+  let depth = 0, i = 0, scan = (inner: boolean): readonly Part[] => {
+    let result: Part[] = []
     for (; i < content.length;) {
       let tok = content[i++]
       if (tok.tokenType == TokenType.Close) {
         if (inner) break
         let tag = depth < context.length ? context[depth++] : genericTag
-        if (openProp) tag = tag.addProp(openProp.of("start"))
-        result = [{tag, children: result}]
+        if (openProp) tag = tag.withProps(openProp.of("start").addToSet(tag.props))
+        result = [tag.create(result)]
       } else if (tok.tokenType == TokenType.Open) {
         let content = scan(true), tag = tok
-        if (openProp) tag = tag.addProp(openProp.of("end"))
-        result.push({tag, children: content})
+        if (openProp) tag = tag.withProps(openProp.of("end").addToSet(tag.props))
+        result.push(tag.create(content))
       } else {
         result.push(tok)
       }
@@ -127,8 +125,8 @@ function flattenSlice(
   let result = scan(false)
   while (depth < includeContext && depth < context.length) {
     let tag = context[depth++]
-    if (openProp) tag = tag.addProp(openProp.of("start end"))
-    result = [{tag, children: result}]
+    if (openProp) tag = tag.withProps(openProp.of("start end").addToSet(tag.props))
+    result = [tag.create(result)]
   }
   return result
 }
@@ -136,7 +134,7 @@ function flattenSlice(
 export function serializeSlice(slice: Slice, options: SerializeOptions & {
   schema: Schema,
   openProp?: Prop.Type<string>,
-  context?: readonly Tag[],
+  context?: readonly Plot.Label.Any[],
   includeContext?: number
 }): DocumentFragment {
   let cx = new DOMContext(options, options.schema)
@@ -147,7 +145,7 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
 export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
   schema: Schema,
   openProp?: Prop.Type<string>,
-  context?: readonly Tag[],
+  context?: readonly Plot.Label.Any[],
   includeContext?: number
 }): string {
   let cx = new HTMLContext(options, options.schema)
@@ -155,9 +153,9 @@ export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
   return cx.html
 }
 
-function serializeNodeInner(node: Nodeish, cx: Context) {
+function serializeNodeInner(node: Part, cx: Context) {
   let propAttrs: string[] = []
-  for (let prop of node.tag.props) if (!prop.type.element) {
+  for (let prop of node.label.props) if (!prop.type.element) {
     let repr = prop.type.repr as AttributeShape<any>
     let name = repr.attribute
     let value = typeof repr.value == "function" ? repr.value(prop.value) : repr.value ?? prop.value as string
@@ -169,25 +167,25 @@ function serializeNodeInner(node: Nodeish, cx: Context) {
       pushAttribute(propAttrs, name, value)
     }
   }
-  let renderContent = (cx: Context) => {
-    let {children} = node
-    if (cx.emitNewlines && node.tag.type.preserveWhitespace && cx.schema.lineBreak)
-      children = lineBreaksToNewlines(children, cx.schema.lineBreak)
-    serializeChildren(children, cx)
+  let renderContent = node.isLeaf ? () => {} : (cx: Context) => {
+    let {content} = node
+    if (cx.emitNewlines && node.type.preserveWhitespace && cx.schema.lineBreak)
+      content = lineBreaksToNewlines(content, cx.schema.lineBreak)
+    serializeChildren(content, cx)
   }
-  let repr = node.tag.type.spec.shape
-  if (node.tag.isText) {
+  let repr = node.type.spec.shape
+  if (Leaf.Text.chk(node)) {
     if (propAttrs.length) cx.openElt("span", propAttrs)
-    cx.emitText(node.tag.param)
+    cx.emitText(node.param)
     if (propAttrs.length) cx.closeElt()
   } else if (isElementShape(repr)) {
-    let attrs = typeof repr.attributes == "function" ? repr.attributes(node.tag.param) : repr.attributes
+    let attrs = typeof repr.attributes == "function" ? repr.attributes(node.label.param) : repr.attributes
     let allAttrs = !attrs ? propAttrs : mergeAttributes(readAttributes(attrs), propAttrs)
     cx.openElt(repr.element, allAttrs)
     renderContent(cx)
     cx.closeElt()
   } else {
-    let elt = typeof repr.structure == "function" ? repr.structure(node.tag.param) : repr.structure
+    let elt = typeof repr.structure == "function" ? repr.structure(node.label.param) : repr.structure
     if (propAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, propAttrs), elt.children)
     serializeStructure(elt, cx, renderContent)
   }
@@ -206,24 +204,24 @@ function serializeStructure(elt: Elt<string>, cx: Context, content: (cx: Context
   cx.closeElt()
 }
 
-function lineBreaksToNewlines(nodes: readonly Nodeish[], lineBreak: Tag<any>) {
-  if (!nodes.some(n => n.tag == lineBreak)) return nodes
-  let result: Nodeish[] = [], lastText = false
+function lineBreaksToNewlines(nodes: readonly Part[], lineBreak: Leaf.Any) {
+  if (!nodes.some(n => lineBreak.type.chk(n))) return nodes
+  let result: Part[] = [], lastText = false
   for (let node of nodes) {
-    let next = node.tag == lineBreak ? Node.text("\n", node.tag.props) : node
-    if (lastText && next instanceof Node) next.pushTo(result as Node[])
+    let next = lineBreak.type.chk(node) ? Leaf.text("\n", node.props) : node
+    if (lastText && next instanceof Plot) next.pushTo(result as Plot[])
     else result.push(next)
-    lastText = next.tag.isText
+    lastText = next.isText
   }
   return result
 }
 
-function serializeChildren(children: readonly Nodeish[], cx: Context) {
+function serializeChildren(children: readonly Part[], cx: Context) {
   let active: Prop[] = []
   for (let child of children) {
-    if (active.length || child.tag.props.some(p => isElementShape(p.type.repr))) {
+    if (active.length || child.props.some(p => isElementShape(p.type.repr))) {
       let keep = 0, rendered = 0, eltProps = []
-      for (let prop of child.tag.props)
+      for (let prop of child.props)
         if (isElementShape(prop.type.repr)) eltProps.push(prop)
       while (keep < active.length && rendered < eltProps.length) {
         let next = eltProps[rendered]

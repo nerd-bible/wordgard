@@ -1,4 +1,4 @@
-import {Node, Tag, Prop, compareAttributes, Elt, ChangeSet, Attributes,
+import {Plot, Part, Prop, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
         pushAttribute, noAttributes} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
@@ -73,7 +73,7 @@ export abstract class Tile {
   get isSpanning() { return false }
   get isComposition() { return (this.flags & TileFlag.Composition) > 0 }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
-  get node(): Node | null { return null }
+  get node(): Part | null { return null }
 
   posBeforeChild(child: Tile, ownStart = this.posAtStart): number {
     for (let i = 0, pos = ownStart;; i++) {
@@ -220,10 +220,10 @@ export class CompositeTile extends Tile {
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
                    orientation: Orientation): PosAssoc {
     let {node} = this, outerOrientation = orientation
-    if (node) {
+    if (node && !node.isLeaf) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) {
-        textblock = TextblockMap.get(start, state.doc.nodeAt(start - 1)!, state.textDirection(node.tag))
+        textblock = TextblockMap.get(start, state.doc.partAt(start - 1) as Plot, state.textDirection(node.label))
       } else if (node.isBlock) {
         textblock = null
       }
@@ -322,7 +322,7 @@ class RowScan<T> {
 export function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
   if (textblock === undefined) {
     let {textblockParent: block} = state.doc.resolve(pos)
-    textblock = block ? TextblockMap.get(block.start, block.node, state.textDirection()) : null
+    textblock = block ? TextblockMap.get(block.start, block.part, state.textDirection()) : null
   }
   if (!textblock) return state.textDirection()
   let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)
@@ -469,7 +469,7 @@ export class EltTile extends CompositeTile {
   declare dom: HTMLElement
   declare parent: CompositeTile
 
-  constructor(readonly elt: DecoElt, readonly _node: Node | null, flags: number, length: number, dom: HTMLElement) {
+  constructor(readonly elt: DecoElt, readonly _node: Part | null, flags: number, length: number, dom: HTMLElement) {
     super(dom, flags)
     this.length = length
   }
@@ -485,7 +485,7 @@ export class EltTile extends CompositeTile {
     return this.elt.hasContent ? this : null
   }
 
-  static of(elt: DecoElt, node: Node | null, flags: number, length: number, dom?: HTMLElement | null) {
+  static of(elt: DecoElt, node: Part | null, flags: number, length: number, dom?: HTMLElement | null) {
     return new EltTile(elt, node, flags, length, dom || eltDOM(elt))
   }
 }
@@ -499,7 +499,7 @@ function eltDOM(elt: DecoElt) {
 export class WidgetTile extends Tile {
   constructor(
     readonly widget: Widget<any>,
-    readonly _node: Node | null,
+    readonly _node: Part | null,
     flags: TileFlag,
     length: number = 0,
     dom?: HTMLElement | Text
@@ -581,7 +581,7 @@ export class TextTile extends Tile {
   }
 }
 
-function buildFromShape(shape: Shape, node: Node | null, nodeInner = false) {
+function buildFromShape(shape: Shape, node: Part | null, nodeInner = false) {
   if (shape instanceof Elt) {
     let outer = EltTile.of(shape, node,
                            (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasContent ? TileFlag.Point : 0) |
@@ -595,7 +595,7 @@ function buildFromShape(shape: Shape, node: Node | null, nodeInner = false) {
   }
 }
 
-function copyEltShape(tile: EltTile, node: Node | null): EltTile {
+function copyEltShape(tile: EltTile, node: Part | null): EltTile {
   let outer = EltTile.of(tile.elt, node, tile.flags, tile.length, tile.dom)
   if (!tile.elt.hasContent) {
     for (let ch of tile.children) outer.addChild(copyShape(ch as EltTile | WidgetTile))
@@ -603,7 +603,7 @@ function copyEltShape(tile: EltTile, node: Node | null): EltTile {
   return outer
 }
 
-function copyWidgetShape(tile: WidgetTile, node: Node | null): WidgetTile {
+function copyWidgetShape(tile: WidgetTile, node: Part | null): WidgetTile {
   return new WidgetTile(tile.widget, node, tile.flags, tile.length, tile.dom)
 }
 
@@ -830,7 +830,7 @@ class ContentUpdate {
     let start = this.posB, end = this.posB + len
     this.deco.walk(start, includeStart, end, {
       enter: (node, elt, wrappers) => {
-        this.openWrappers(wrappers, node.tag, reuse)
+        this.openWrappers(wrappers, node.label, reuse)
         let tile: EltTile | undefined
         if (reuse) {
           let nodeTile = this.old.tileAfter()
@@ -858,7 +858,7 @@ class ContentUpdate {
         this.posB++
       },
       node: (node, shape, wrappers) => {
-        this.openWrappers(wrappers, node.tag, reuse)
+        this.openWrappers(wrappers, node.label, reuse)
         let tile: Tile | undefined
         if (reuse || node.isText && this.posB == start) {
           let nodeTile = this.old.tileAfter()
@@ -868,11 +868,11 @@ class ContentUpdate {
               this.reused.set(nodeTile, Reused.DOM)
               updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
               tile = copyEltShape(nodeTile, node)
-            } else if (node.isText && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
+            } else if (Leaf.Text.chk(node) && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
                        (reuse || this.posB == start)) {
-              if (nodeTile.text != node.text) {
-                nodeTile.dom.nodeValue = node.text!
-                tile = new TextTile(node.text!, nodeTile.dom)
+              if (nodeTile.text != node.param) {
+                nodeTile.dom.nodeValue = node.param
+                tile = new TextTile(node.param, nodeTile.dom)
                 this.reused.set(nodeTile, Reused.DOM)
               } else {
                 tile = nodeTile
@@ -885,7 +885,7 @@ class ContentUpdate {
           }
         }
         if (!tile) {
-          if (node.isText) this.addText(node.text!)
+          if (Leaf.Text.chk(node)) this.addText(node.param)
           else tile = buildFromShape(shape, node)
         }
         if (tile) this.new.addChild(tile)
@@ -905,7 +905,8 @@ class ContentUpdate {
   }
 
   up() {
-    if (this.new instanceof EltTile && this.new.node?.isTextblock) {
+    let node = this.new.node
+    if (node && !node.isLeaf && node.isTextblock) {
       let i = this.new.children.length - 1
       let last = i < 0 ? null : this.new.children[i]
       if (last instanceof WidgetTile && last.widget.type == brHack.type) {
@@ -931,7 +932,7 @@ class ContentUpdate {
     while (!(this.new.isNode || this.new.isDoc)) this.up()
   }
 
-  openWrappers(wrappers: readonly WrapperSource[], tag: Tag, reuse: boolean) {
+  openWrappers(wrappers: readonly WrapperSource[], tag: Part.Tag, reuse: boolean) {
     for (let src of wrappers) {
       this.openWrapper(renderWrapper(src, tag), src.spanning, reuse)
     }

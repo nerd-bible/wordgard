@@ -1,39 +1,45 @@
-import {Node, DocNode, Tag} from "./node"
+import {Plot, Leaf, Part} from "./node"
 import {Prop} from "./prop"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"
 
-type ContentSpec = Node | string | number | null | readonly ContentSpec[]
+type ContentSpec = Part | string | number | null | readonly ContentSpec[]
 
 export type NodeBuilder<Source> =
-  Source extends Prop<any> | Tag<any> ? (...children: ContentSpec[]) => Node :
-  Source extends Prop.Type<infer Value> ? (value: Value, ...children: ContentSpec[]) => Node :
-  Source extends Tag.Type<infer Param> ? (param: Param, ...children: ContentSpec[]) => Node :
-  Source extends Schema ? (...children: ContentSpec[]) => DocNode :
+  Source extends Prop<any> | Plot.Label.Any ? (...children: ContentSpec[]) => Plot :
+  Source extends Prop.Type<infer Value> ? (value: Value, ...children: ContentSpec[]) => Plot :
+  Source extends Plot.Type<infer Param> ? (param: Param, ...children: ContentSpec[]) => Plot :
+  Source extends Leaf.Any ? () => Leaf.Any : // FIXME make these values, not functions?
+  Source extends Leaf.Type<infer Param> ? (param: Param) => Leaf<Param> :
+  Source extends Schema ? (...children: ContentSpec[]) => Plot.Doc :
   never
 
-export function builder<Source extends Prop<any> | Tag<any> | Prop.Type<any> | Tag.Type<any> | Schema>(
+export function builder<Source extends Prop<any> | Prop.Type<any> | Part.Type<any> | Leaf.Any | Plot.Label.Any | Schema>(
   source: Source
 ): NodeBuilder<Source> {
-  return (source instanceof Tag
+  return (source instanceof Plot.Label
     ? (...children: ContentSpec[]) => source.create(collectChildren(children))
     : source instanceof Prop
     ? (...children: ContentSpec[]) => fragment(children, source)
-    : source instanceof Tag.Type
+    : source instanceof Plot.Type
     ? (param: any, ...children: ContentSpec[]) => source.of(param).create(collectChildren(children))
+    : source instanceof Leaf.Type
+    ? (param: any) => source.of(param)
+    : source instanceof Leaf
+    ? (param: any) => source
     : source instanceof Schema
     ? (...children: ContentSpec[]) => source.doc(collectChildren(children))
-    : (value: any, ...children: ContentSpec[]) => fragment(children, source.of(value))
+    : (value: any, ...children: ContentSpec[]) => fragment(children, (source as any as Prop.Type<any>).of(value))
   ) as any
 }
 
-const InlineFragment = Tag.defineInline("Fragment", {
+const InlineFragment = Plot.defineInline("Fragment", {
   shape: {element: "span"},
   inlineContent: true
 })
-const BlockFragment = Tag.defineBlock("Fragment", {
+const BlockFragment = Plot.defineBlock("Fragment", {
   shape: {element: "div"},
   blockContent: "_"
 })
@@ -43,23 +49,23 @@ function fragment(children: ContentSpec[], prop: Prop) {
   return (chs.length && chs[0].isBlock ? BlockFragment : InlineFragment).create(chs)
 }
   
-const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()
+const tagMap = new WeakMap<readonly Part[], {[label: number]: number}>()
 
-function addProp(node: Node, prop?: Prop) {
-  return prop ? node.tag.addProp(prop).create(node.children) : node
+function addProp(part: Part, prop?: Prop) {
+  return prop ? part.withProps(prop.addToSet(part.label.props)) : part
 }
 
-function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
+function collectChildren(spec: ContentSpec, prop?: Prop, list: Plot[] = []) {
   if (Array.isArray(spec)) {
     for (let elt of spec) collectChildren(elt, prop, list)
   } else if (typeof spec == "string") {
-    addProp(Node.text(spec), prop).pushTo(list)
-  } else if (spec instanceof Node) {
-    if (spec.tag == InlineFragment || spec.tag == BlockFragment) {
-      copyTags(spec.children, list, 0)
-      for (let ch of spec.children) collectChildren(ch, prop, list)
+    addProp(Leaf.text(spec), prop).pushTo(list)
+  } else if (spec instanceof Plot) {
+    if (spec.label == InlineFragment || spec.label == BlockFragment) {
+      copyTags(spec.content, list, 0)
+      for (let ch of spec.content) collectChildren(ch, prop, list)
     } else {
-      copyTags(spec.children, list, 1)
+      copyTags(spec.content, list, 1)
       addProp(spec, prop).pushTo(list)
     }
   } else if (typeof spec == "number") {
@@ -70,7 +76,7 @@ function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
   return list
 }
 
-function copyTags(source: readonly Node[], dest: readonly Node[], extraOffset: number) {
+function copyTags(source: readonly Part[], dest: readonly Plot[], extraOffset: number) {
   let srcTags = tagMap.get(source)
   if (srcTags) {
     let destTags = tagMap.get(dest)
@@ -80,16 +86,16 @@ function copyTags(source: readonly Node[], dest: readonly Node[], extraOffset: n
   }
 }
 
-function contentLength(nodes: readonly Node[]) {
+function contentLength(nodes: readonly Plot[]) {
   return nodes.reduce((l, n) => l + n.length, 0)
 }
 
-export function maybeTag(node: Node, id: number): number | undefined {
-  let tags = tagMap.get(node.children)
+export function maybeTag(node: Plot, id: number): number | undefined {
+  let tags = tagMap.get(node.content)
   return tags && tags[id]
 }
 
-export function tag(node: Node, id: number): number {
+export function tag(node: Plot, id: number): number {
   let value = maybeTag(node, id)
   if (value == null) throw new Error(`Undefined tag ${id}`)
   return value

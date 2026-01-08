@@ -1,6 +1,6 @@
 import ist from "ist"
 import {EditorState, Facet, type Extension, Prec, StateField, StateEffect} from "wordgard/state"
-import {Node, basicBuilders} from "wordgard/doc"
+import {Leaf, basicBuilders} from "wordgard/doc"
 
 const {doc, p} = basicBuilders
 
@@ -70,7 +70,7 @@ describe("EditorState facets", () => {
     let count = 0
     let st = mk(num.compute(state => (state.doc, count++)))
     ist(st.facet(num).join(), "0")
-    st = st.update({changes: {insert: [Node.text("hello")], from: 1}}).state
+    st = st.update({changes: {insert: [Leaf.text("hello")], from: 1}}).state
     ist(st.facet(num).join(), "1")
     st = st.update({}).state
     ist(st.facet(num).join(), "1")
@@ -80,7 +80,7 @@ describe("EditorState facets", () => {
     let count = 0
     let st = mk(num.compute(state => (state.selection, count++)))
     ist(st.facet(num).join(), "0")
-    st = st.update({changes: {insert: [Node.text("hello")], from: 1}}).state
+    st = st.update({changes: {insert: [Leaf.text("hello")], from: 1}}).state
     ist(st.facet(num).join(), "1")
     st = st.update({selection: {anchor: 2}}).state
     ist(st.facet(num).join(), "2")
@@ -91,7 +91,7 @@ describe("EditorState facets", () => {
   it("derives dependencies of computed facets", () => {
     let ran = 0
     let st = mk(num.compute(state => { ran++; return state.doc.length + state.facet(str).length }))
-    st = st.update({changes: {from: 1, insert: [Node.text("---")]}}).state
+    st = st.update({changes: {from: 1, insert: [Leaf.text("---")]}}).state
     ist(st.facet(num)[0], 5)
     ist(ran, 2)
     st = st.update({selection: {anchor: 2}}).state
@@ -104,7 +104,7 @@ describe("EditorState facets", () => {
   it("can provide multiple values at once", () => {
     let st = mk(num.computeN(s => s.doc.length % 2 ? [100, 10] : []), num.of(1))
     ist(st.facet(num).join(), "1")
-    st = st.update({changes: {insert: [Node.text("hello")], from: 1}}).state
+    st = st.update({changes: {insert: [Leaf.text("hello")], from: 1}}).state
     ist(st.facet(num).join(), "100,10,1")
   })
 
@@ -118,7 +118,7 @@ describe("EditorState facets", () => {
     let f = Facet.define<number, number>({combine: ns => ns.reduce((a, b) => a + b, 0)})
     let st = mk(f.of(1), f.compute(s => s.doc.length), f.of(3))
     ist(st.facet(f), 6)
-    st = st.update({changes: {insert: [Node.text("hello")], from: 1}}).state
+    st = st.update({changes: {insert: [Leaf.text("hello")], from: 1}}).state
     ist(st.facet(f), 11)
   })
 

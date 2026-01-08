@@ -2,7 +2,7 @@ import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlock, unwrapBlockType, toggleList, toggleProp} from "wordgard/view"
-import {Node, Tag, Prop, DocNode, Schema, basicSchema, basicBuilders, maybeTag, builder,
+import {Plot, Prop, Leaf, Schema, basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/doc"
 import {EditorState, type StateCommand, EditorSelection} from "wordgard/state"
@@ -12,7 +12,7 @@ const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuil
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
-function selectionFrom(doc: DocNode) {
+function selectionFrom(doc: Plot.Doc) {
   let ranges: {from: number, to: number}[] = []
   for (let i = 0;; i += 2) {
     let head = maybeTag(doc, i)
@@ -23,7 +23,7 @@ function selectionFrom(doc: DocNode) {
   }
 }
 
-function test(doc: DocNode, command: StateCommand, expect?: DocNode) {
+function test(doc: Plot.Doc, command: StateCommand, expect?: Plot.Doc) {
   let state = EditorState.create({
     doc,
     selection: selectionFrom(doc)
@@ -50,7 +50,7 @@ function testSelProps(before: readonly Prop<any>[] | undefined, command: StateCo
   ist(state.selection.props!, expect, Prop.sameSet)
 }
 
-let TextOnly = Tag.defineBlock("TextOnly", {
+let TextOnly = Plot.defineBlock("TextOnly", {
   inlineContent: "Text",
   shape: {element: "div"},
   group: "Block"
@@ -70,12 +70,12 @@ let PreservedProp = Prop.define("PreservedProp", {
   shape: {element: "prop2"}
 }), pp = builder(PreservedProp)
 
-let InlineSpan = Tag.defineInline("InlineSpan", {
+let InlineSpan = Plot.defineInline("InlineSpan", {
   inlineContent: true,
   shape: {element: "span"}
 }), sp = builder(InlineSpan)
 
-let InlineAtom = Tag.defineInline("InlineAtom", {
+let InlineAtom = Plot.defineInline("InlineAtom", {
   inlineContent: true,
   shape: {element: "var", atom: true},
 }), at = builder(InlineAtom)
@@ -440,7 +440,7 @@ describe("setTextblockType", () => {
   })
 
   it("returns false at the top level", () => {
-    let s = Schema.define([Tag.defineDoc({inlineContent: true}), Paragraph])
+    let s = Schema.define([Plot.defineDoc({inlineContent: true}), Paragraph])
     test(s.doc([]), setTextblockType(Paragraph))
   })
 
@@ -551,11 +551,11 @@ describe("unwrapBlock", () => {
   })
 
   it("can unwrap textblock list items", () => {
-    let list = Tag.defineBlock("List", {shape: {element: "ul"}, group: "Block", blockContent: "Item"})
-    let item = Tag.defineBlock("Item", {shape: {element: "li"}, inlineContent: true})
+    let list = Plot.defineBlock("List", {shape: {element: "ul"}, group: "Block", blockContent: "Item"})
+    let item = Plot.defineBlock("Item", {shape: {element: "li"}, inlineContent: true})
     let s = Schema.define([...basicSchema.tags, list, item])
     let state = EditorState.create({
-      doc: s.doc([list.create([item.create([Node.text("a")]), item.create([Node.text("b")])])]),
+      doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),
       selection: {anchor: 0, head: 8}
     })
     unwrapBlockType(list)({state, dispatch: tr => state = tr.state})
@@ -639,22 +639,22 @@ describe("toggleList", () => {
   })
 
   describe("with textblock items", () => {
-    let InlineListItem = Tag.defineBlock("ListItem", {
+    let InlineListItem = Plot.defineBlock("ListItem", {
       inlineContent: true,
       shape: {element: "li"}
     })
-    let InlineOrderedList = Tag.defineBlock("OrderedList", {
+    let InlineOrderedList = Plot.defineBlock("OrderedList", {
       blockContent: "ListItem",
       shape: {element: "ol"},
       isList: true
     })
-    let InlineBulletList = Tag.defineBlock("BulletList", {
+    let InlineBulletList = Plot.defineBlock("BulletList", {
       blockContent: "ListItem",
       shape: {element: "ul"},
       isList: true
     })
     let InlineListSchema = Schema.define([
-      Tag.defineDoc({blockContent: "Paragraph OrderedList BulletList"}),
+      Plot.defineDoc({blockContent: "Paragraph OrderedList BulletList"}),
       Paragraph,
       InlineListItem,
       InlineOrderedList,

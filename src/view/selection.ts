@@ -1,5 +1,5 @@
 import {EditorSelection, Direction} from "wordgard/state"
-import {NodePos} from "wordgard/doc"
+import {PlotPos} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
@@ -72,25 +72,25 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
 function findTextblockVertically(view: EditorView, from: number, forward: boolean, x: number) {
   let {parent, index, pos} = view.state.doc.resolve(from)
   for (;;) {
-    if (parent.node.type.orientation == "row" || forward ? index == parent.node.children.length : !index) {
+    if (parent.part.type.orientation == "row" || forward ? index == parent.part.content.length : !index) {
       if (!parent.parent) return null
       index = parent.index + (forward ? 1 : 0)
       pos += (forward ? 1 : -1)
       parent = parent.parent
     } else {
-      let next = parent.node.children[index - (forward ? 0 : 1)]
-      if (view.state.isAtom(pos - (forward ? 0 : next.length), next)) {
+      let next = parent.part.content[index - (forward ? 0 : 1)]
+      if (next.isLeaf || view.state.isAtom(pos - (forward ? 0 : next.length), next)) {
         index += forward ? 1 : -1
         pos += (forward ? 1 : -1) * next.length
         continue
       }
       let nextPos = pos - (forward ? 0 : next.length)
-      let node = new NodePos(parent, next, nextPos, index - (forward ? 0 : 1))
+      let node = new PlotPos(parent, next, nextPos, index - (forward ? 0 : 1))
       if (!next.inlineContent && next.type.orientation == "row") {
         // Find the child closest to the given x
         let closest = -1, closestPos = -1, closestDist = -1
-        for (let chPos = nextPos + 1, i = 0; i < next.children.length; i++) {
-          let ch = next.children[i]
+        for (let chPos = nextPos + 1, i = 0; i < next.content.length; i++) {
+          let ch = next.content[i]
           let {tile} = view.docTile.resolve(chPos + 1, 0)
           let rect = (tile.dom as HTMLElement).getBoundingClientRect()
           let dist = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
@@ -108,7 +108,7 @@ function findTextblockVertically(view: EditorView, from: number, forward: boolea
         return node
       } else {
         parent = node
-        index = forward ? 0 : next.children.length
+        index = forward ? 0 : next.content.length
         pos += forward ? 1 : -1
       }
     }
@@ -119,7 +119,7 @@ export function moveToLineBoundary(view: EditorView, start: EditorSelection, for
   let block = view.state.doc.resolve(start.head).textblockParent
   if (!block) return null
   let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
-  let dir = view.state.textDirection(block.node.tag)
+  let dir = view.state.textDirection(block.part.label)
   let blockRect = (view.docTile.resolve(block.start, 0).dom as HTMLElement).getBoundingClientRect()
   let {pos} = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
                                 y: (startCoords.top + startCoords.bottom) / 2})

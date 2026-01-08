@@ -1,23 +1,23 @@
 import ist from "ist"
-import {DocNode, Node, basicBuilders, builder, Prop, Slice, CloseToken, type Token,
+import {Plot, Leaf, basicBuilders, builder, Prop, Slice, type Token,
         serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice, OpenSide, type ParseOptions,
         Schema, basicSchema, tag} from "wordgard/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
-function html(doc: DocNode) {
+function html(doc: Plot.Doc) {
   let wrap = document.createElement("div")
   wrap.appendChild(serialize(doc))
   return wrap.innerHTML
 }
 
-function istHTML(doc: DocNode, expected: string) {
+function istHTML(doc: Plot.Doc, expected: string) {
   ist(html(doc), expected)
   ist(serializeHTML(doc), expected)
 }
 
-function istSliceHTML(doc: DocNode, expected: string, options?: any) {
+function istSliceHTML(doc: Plot.Doc, expected: string, options?: any) {
   let wrap = document.createElement("div")
   let slice = doc.slice(tag(doc, 0), tag(doc, 1)), opts = {
     ...options,
@@ -183,11 +183,11 @@ describe("parseSlice", () => {
   }
 
   function slice(children: (string | Token)[]) {
-    return new Slice(children.map(ch => typeof ch == "string" ? Node.text(ch) : ch))
+    return new Slice(children.map(ch => typeof ch == "string" ? Leaf.text(ch) : ch))
   }
 
   it("can parse a simple slice", () => {
-    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", CloseToken, p().tag, "Two"]), eq)
+    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", Plot.End, p().label, "Two"]), eq)
   })
 
   it("can parse text at the top level", () => {
@@ -203,7 +203,7 @@ describe("parseSlice", () => {
   })
 
   it("doesn't open leaf nodes", () => {
-    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), p().tag, "A", br()]), eq)
+    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), p().label, "A", br()]), eq)
   })
 
   function isOpen(elt: HTMLElement) {
@@ -212,6 +212,6 @@ describe("parseSlice", () => {
 
   it("can query the DOM for open structure", () => {
     ist(parse('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}).slice,
-        slice([p().tag, "hi"]), eq)
+        slice([p().label, "hi"]), eq)
   })
 })

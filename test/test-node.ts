@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Node, Tag, basicBuilders, tag, Paragraph, Image, basicSchema as schema} from "wordgard/doc"
+import {Plot, Leaf, basicBuilders, tag, Paragraph, Image, basicSchema as schema} from "wordgard/doc"
 const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilders
 
 describe("Node", () => {
@@ -21,16 +21,16 @@ describe("Node", () => {
   })
 
   describe("iterate", () => {
-    function iterate(doc: Node, ...nodes: string[]) {
+    function iterate(doc: Plot, ...nodes: string[]) {
       let i = 0
       doc.iterate(tag(doc, 1), tag(doc, 2), (node, pos) => {
         if (i == nodes.length)
-          throw new Error("More nodes iterated than listed (" + node.tag.name + ")")
-        let compare = node.isText ? node.text! : node.tag.name
+          throw new Error("More nodes iterated than listed (" + node.label.name + ")")
+        let compare = Leaf.Text.chk(node) ? node.param : node.name
         if (compare != nodes[i++])
           throw new Error("Expected " + JSON.stringify(nodes[i - 1]) + ", got " + JSON.stringify(compare))
-        if (!node.isText && doc.nodeAt(pos) != node)
-          throw new Error("Pos " + pos + " does not point at node " + node + " " + doc.nodeAt(pos))
+        if (!node.isText && doc.partAt(pos) != node)
+          throw new Error("Pos " + pos + " does not point at node " + node + " " + doc.partAt(pos))
       })
     }
 
@@ -66,7 +66,7 @@ describe("Node", () => {
       ist(doc(p("a"), blockquote(blockquote(p("b")))).textContent(), "a\nb")
     })
 
-    let BlockLeaf = Tag.defineBlock("BlockLeaf", {group: "Block", shape: {element: "div"}})
+    let BlockLeaf = Plot.defineBlock("BlockLeaf", {group: "Block", shape: {element: "div"}})
 
     it("doesn't add block separator around non-rendered leaf nodes", () => {
       ist(blockquote(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
@@ -87,12 +87,12 @@ describe("Node", () => {
 
   describe("create", () => {
     it("fills params", () => {
-      let i = Image.of("x.jpg").create()
-      ist(i.tag.param, "x.jpg")
+      let i = Image.of("x.jpg")
+      ist(i.param, "x.jpg")
     })
 
     it("allows child nodes", () => {
-      ist(Paragraph.create([Node.text("a")]), p("a"), eq)
+      ist(Paragraph.create([Leaf.text("a")]), p("a"), eq)
     })
 
     it("disallows incorrect child nodes", () => {
@@ -101,8 +101,8 @@ describe("Node", () => {
   })
 
   describe("toJSON", () => {
-    function roundTrip(doc: Node) {
-      ist(schema.nodeFromJSON(doc.toJSON()), doc, eq)
+    function roundTrip(doc: Plot) {
+      ist(schema.partFromJSON(doc.toJSON()), doc, eq)
     }
 
     it("can serialize a simple node", () => roundTrip(doc(p("foo"))))
@@ -121,14 +121,14 @@ describe("Node", () => {
 
     it("complains about incorrect param types", () => {
       let json = doc(h1()).toJSON()
-      json.children![0].param = "huh"
-      ist.throws(() => schema.nodeFromJSON(json), /Expected value of type number/)
+      json.content![0].param = "huh"
+      ist.throws(() => schema.partFromJSON(json), /Expected value of type number/)
     })
 
     it("complains about incorrect prop types", () => {
       let json = doc(p($a("hi"))).toJSON()
-      json.children![0].children![0].props!.Link = [1, 2, 3]
-      ist.throws(() => schema.nodeFromJSON(json), /Expected value of type string/)
+      json.content![0].content![0].props!.Link = [1, 2, 3]
+      ist.throws(() => schema.partFromJSON(json), /Expected value of type string/)
     })
   })
 })

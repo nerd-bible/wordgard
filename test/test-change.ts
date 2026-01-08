@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Node, DocNode, Tag, Prop,
+import {Plot, Prop,
         ChangeSet, type Token,
         Schema, basicSchema, basicBuilders, tag, maybeTag,
         ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "wordgard/doc"
@@ -10,7 +10,7 @@ type ChangeData = (Token | string)[] | {add: Prop<any>} | {remove: Prop<any>}
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
-function mk(doc: DocNode, changes: readonly ChangeData[]) {
+function mk(doc: Plot.Doc, changes: readonly ChangeData[]) {
   return ChangeSet.create(doc, changes.map((ch, i): ChangeSet.Spec => {
     let from = tag(doc, i * 2)
     if (from == null) throw new Error(`No start position defined for change ${i}`)
@@ -25,7 +25,7 @@ function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }
 
 describe("ChangeSet", () => {
   describe("apply", () => {
-    function testApply(doc: DocNode, changes: ChangeData[], expect: Node) {
+    function testApply(doc: Plot.Doc, changes: ChangeData[], expect: Plot) {
       ist(mk(doc, changes).apply(doc), expect, eq)
     }
 
@@ -145,8 +145,8 @@ describe("ChangeSet", () => {
     })
 
     it("exits wrapper nodes when possible", () => {
-      let Wrapper = Tag.defineBlock("Wrapper", {blockContent: "Inner Block", group: "Block", shape: {element: "wrapper"}})
-      let Inner = Tag.defineBlock("Inner", {shape: {element: "inner"}})
+      let Wrapper = Plot.defineBlock("Wrapper", {blockContent: "Inner Block", group: "Block", shape: {element: "wrapper"}})
+      let Inner = Plot.defineBlock("Inner", {shape: {element: "inner"}})
       let schema = Schema.define([...basicSchema.tags, Wrapper, Inner])
       let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, insert: slice(Inner.create()), fit: true})
       ist(ch.apply(doc), schema.doc([Wrapper.create([Inner.create()]), p()]), eq)
@@ -253,7 +253,7 @@ describe("ChangeSet", () => {
       wrap: ChangeSet.create(d, [{from: 0, insert: slice(open(ol()), open(li()))}, {from: 16, insert: slice(close, close)}])
     }
 
-    function testCompose(set: (keyof typeof changes)[], expect: DocNode) {
+    function testCompose(set: (keyof typeof changes)[], expect: Plot.Doc) {
       for (let order of permute(set)) {
         it(`correctly composes ${order.join("/")}`, () => {
           let ch = changes[order[0]]
@@ -351,7 +351,7 @@ describe("ChangeSet", () => {
       }
     })
 
-    function runTriplet(doc: DocNode, changes: [ChangeSet, ChangeSet, ChangeSet]) {
+    function runTriplet(doc: Plot.Doc, changes: [ChangeSet, ChangeSet, ChangeSet]) {
       let clients = changes.map(ch => ({doc: ch.apply(doc), unconf: ch as ChangeSet | null, syncedDoc: doc}))
       try {
         for (let sender of clients) {
@@ -424,7 +424,7 @@ describe("ChangeSet", () => {
   })
 
   describe("invert", () => {
-    function testInv(doc: DocNode, changes: ChangeData[]) {
+    function testInv(doc: Plot.Doc, changes: ChangeData[]) {
       let ch = mk(doc, changes)
       let changed = ch.apply(doc), reverted = ch.invert(doc).apply(changed)
       ist(reverted, doc, eq)

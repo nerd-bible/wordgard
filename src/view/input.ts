@@ -1,5 +1,5 @@
 import {EditorSelection, EditorState, Annotation} from "wordgard/state"
-import {Slice, Node, ChangeSet, Prop} from "wordgard/doc"
+import {Slice, Leaf, ChangeSet, Prop} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
@@ -591,7 +591,7 @@ observers.compositionstart = observers.compositionupdate = (view, event: Composi
     if (!view.inputState.composing.changes && !event.data) {
       let sel = view.state.sel, props = sel.props || sel.from.props()
       if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
-          !eqArray(sel.head.nodeBefore?.tag.props, props))
+          !eqArray(sel.head.nodeBefore?.label.props, props))
         wrap = props
     }
 
@@ -727,7 +727,7 @@ handlers.input = (view, event: InputEvent) => {
 }
 
 function textSlice(text: string, props: readonly Prop<any>[]) {
-  return new Slice([Node.text(text.replace(/\r\n?|\n/g, " "), props)])
+  return new Slice([Leaf.text(text.replace(/\r\n?|\n/g, " "), props)])
 }
 
 function inputEventRange(event: InputEvent, view: EditorView) {

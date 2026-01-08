@@ -1,4 +1,4 @@
-import {Schema, Tag, DocNode, Node, NodeJSON, parseDoc} from "wordgard/doc"
+import {Schema, Plot, Part, parseDoc} from "wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,
@@ -22,12 +22,12 @@ function readHTML(html: string): HTMLElement {
   return elt
 }
 
-function readDoc(schema: Schema, doc: DocSource): DocNode {
-  if (doc instanceof DocNode) {
+function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
+  if (doc instanceof Plot.Doc) {
     if (doc.schema != schema) {
       if (doc.schema.elements.some(e => !schema.elements.includes(e)))
         throw new Error("Schema mismatch between document and editor configuration")
-      return schema.doc(doc.children)
+      return schema.doc(doc.content)
     }
     return doc
   }
@@ -35,10 +35,10 @@ function readDoc(schema: Schema, doc: DocSource): DocNode {
   if (typeof doc == "string") doc = readHTML(doc)
   let {nodeType} = doc as any
   if (nodeType === 1 || nodeType === 11) return parseDoc(schema, doc as HTMLElement | DocumentFragment)
-  return schema.docFromJSON(doc as NodeJSON)
+  return schema.docFromJSON(doc as Part.JSON)
 }
 
-type DocSource = DocNode | HTMLElement | DocumentFragment | string | NodeJSON | ((schema: Schema) => DocNode)
+type DocSource = Plot.Doc | HTMLElement | DocumentFragment | string | Part.JSON | ((schema: Schema) => Plot.Doc)
 
 export namespace EditorState {
   /// Options passed when [creating](#state.EditorState^create) an
@@ -48,7 +48,7 @@ export namespace EditorState {
     doc: DocSource
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
-    selection?: EditorSelection | SelectionSpec | ((doc: DocNode) => EditorSelection)
+    selection?: EditorSelection | SelectionSpec | ((doc: Plot.Doc) => EditorSelection)
     /// Configuration for this state.
     config?: Extension | Configuration
   }
@@ -71,7 +71,7 @@ export class EditorState {
   private constructor(
     /// The configuration 
     readonly config: Configuration,
-    private _doc: DocNode,
+    private _doc: Plot.Doc,
     private _selection: EditorSelection,
     /// @internal
     readonly values: any[],
@@ -240,7 +240,7 @@ export class EditorState {
   static create(spec: EditorState.Spec): EditorState {
     let config = spec.config instanceof Configuration ? spec.config : Configuration.resolve(spec.config || [], new Map)
     let configSchema = config.staticFacet(schemaElement)
-    let schema = spec.doc instanceof DocNode ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
+    let schema = spec.doc instanceof Plot.Doc ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? selectionAtStart({
       doc,
@@ -254,7 +254,7 @@ export class EditorState {
   }
 
   /// @internal
-  static fromConfig(config: Configuration, doc: DocNode, selection: EditorSelection) {
+  static fromConfig(config: Configuration, doc: Plot.Doc, selection: EditorSelection) {
     selection.check(doc)
     if (config.staticFacet(EditorState.validateDoc)) doc.schema.validate(doc)
     return new EditorState(config, doc, selection, config.dynamicSlots.map(() => null),
@@ -321,9 +321,9 @@ export class EditorState {
   /// in that block, or given `null` to query the direction outside of
   /// textblocks. When multiple values are given, they are consulted
   /// in order of precedence.
-  static textDirection = Facet.define<Direction | ((tag?: Tag) => Direction | null), (tag?: Tag) => Direction>({
+  static textDirection = Facet.define<Direction | ((tag?: Plot.Label.Any) => Direction | null), (tag?: Plot.Label.Any) => Direction>({
     combine(values) {
-      return (tag?: Tag) => {
+      return (tag?: Plot.Label.Any) => {
         for (let elt of values) {
           if (typeof elt != "function") return elt
           let result = elt(tag)
@@ -355,16 +355,16 @@ export class EditorState {
   }
 
   /// @hidden
-  static isAtom = Facet.define<(state: EditorState, node: Node, pos: number) => boolean | null>()
+  static isAtom = Facet.define<(state: EditorState, node: Plot, pos: number) => boolean | null>()
 
-  isAtom(pos: number, node: Node = this.doc.nodeAt(pos)!) {
+  isAtom(pos: number, node: Part = this.doc.partAt(pos)!) {
     if (!node) throw new Error("No node at position " + pos)
     if (node.isLeaf) return true
     for (let src of this.facet(EditorState.isAtom)) {
       let result = src(this, node, pos)
       if (result != null) return result
     }
-    return node.tag.type.shape.atom
+    return node.label.type.shape.atom
   }
 
   /// Facet used to register a hook that gets a chance to update or

@@ -1,15 +1,15 @@
 import ist from "ist"
-import {Pos, type Walker, DocNode, basicBuilders, tag} from "wordgard/doc"
+import {Pos, type Walker, Plot, Leaf, PlotPos, basicBuilders, tag} from "wordgard/doc"
 const {doc, p, br, li, ul, $img} = basicBuilders
 
-function testPos(name: string, doc: DocNode, ...contexts: ([string, number] | [string, number, number])[]) {
+function testPos(name: string, doc: Plot.Doc, ...contexts: ([string, number] | [string, number, number])[]) {
   it(name, () => {
     let p = tag(doc, 0), pos = doc.resolve(p)
     ist(pos.pos, p)
     ist(pos.depth, contexts.length - 1)
     for (let i = 0, {parent, index, inText} = pos; i < contexts.length; i++) {
       let [name, idx, txt = 0] = contexts[i]
-      ist(parent.node.name, name)
+      ist(parent.part.name, name)
       ist(index, idx)
       ist(inText, txt)
       index = parent.index
@@ -34,9 +34,9 @@ describe("Context", () => {
       " b CLOSE OPEN(Paragraph) CLOSE CLOSE CLOSE"
     let found: string[] = []
     let walker: Walker = {
-      enter: n => { found.push(`OPEN(${n.name})`) },
-      skip: n => { found.push(n.text ?? n.name) },
-      leave: () => { found.push("CLOSE") }
+      enterPlot: n => { found.push(`OPEN(${n.name})`) },
+      skip: n => { found.push(Leaf.Text.chk(n) ? n.param : n.name) },
+      leavePlot: () => { found.push("CLOSE") }
     }
     for (let i = 0; i < d.length; i++) cx = cx.advance(1, walker)
     ist(found.join(" "), tokens)
@@ -66,7 +66,7 @@ describe("Context", () => {
     let d = doc(p("abc", $img()))
     ist(d.resolveNode(1), null)
     ist(d.resolveNode(5), null)
-    let pPos = d.resolveNode(0)!, iPos = d.resolveNode(4)!
+    let pPos = d.resolveNode(0) as PlotPos, iPos = d.resolveNode(4) as PlotPos
     ist(pPos.before, 0)
     ist(pPos.start, 1)
     ist(pPos.after, 6)

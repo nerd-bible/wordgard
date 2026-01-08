@@ -1,27 +1,27 @@
-import {Node, Tag, TagJSON, NodeJSON, Text, DocNode} from "./node"
+import {Plot, Part, Leaf} from "./node"
 import {Prop} from "./prop"
 import {none, validate} from "./helper"
 import {elt, Reject} from "./shape"
 
-export type SchemaElement = Tag<any> | Tag.Type<any> | Prop<any> | Prop.Type<any>
+export type SchemaElement = Leaf.Any | Plot.Label.Any | Part.Type<any> | Prop<any> | Prop.Type<any>
 
 // FIXME maybe don't store these forever
 const schemaCache = new Set<Schema>()
 
 export class Schema {
-  private tagsByName: {[name: string]: Tag.Type<unknown>} = Object.create(null)
+  private tagsByName: {[name: string]: Part.Type<unknown>} = Object.create(null)
   private propsByName: {[name: string]: Prop.Type<any>} = Object.create(null)
-  private wrappingCache: {[key: string]: readonly Tag[] | null} = Object.create(null)
-  readonly docTag: Tag<Schema>
+  private wrappingCache: {[key: string]: readonly Plot.Label.Any[] | null} = Object.create(null)
+  readonly docTag: Plot.Label<Schema>
   /// All the schema elements that make up this schema. Useful if you
   /// want to include the schema as a whole in an editor configuration.
   elements: readonly SchemaElement[]
 
   private constructor(
-    readonly tags: readonly Tag.Type<unknown>[],
+    readonly tags: readonly Part.Type<unknown>[],
     readonly props: readonly Prop.Type<any>[],
-    docType: Tag.Type<Schema>,
-    readonly lineBreak: Tag<unknown> | null
+    docType: Plot.Type<Schema>,
+    readonly lineBreak: Leaf<unknown> | null
   ) {
     this.docTag = docType.of(this)
     for (let tag of tags) this.tagsByName[tag.name] = tag
@@ -29,17 +29,21 @@ export class Schema {
     this.elements = (tags as SchemaElement[]).concat(props)
   }
 
-  doc(children: readonly Node[]) {
-    return new DocNode(this.docTag, this.docTag.type.checkChildren(children))
+  doc(children: readonly Part[]) {
+    return new Plot.Doc(this.docTag, this.docTag.type.checkChildren(children))
   }
 
-  validate(node: Node) {
-    this.validateTag(node.tag)
-    for (let ch of node.children) this.validate(ch)
+  validate(part: Part) {
+    if (part.isLeaf) {
+      this.validateTag(part)
+    } else {
+      this.validateTag(part.label)
+      for (let ch of part.content) this.validate(ch)
+    }
   }
 
   /// @internal
-  validateTag(tag: Tag<any>) {
+  validateTag(tag: Part | Plot.Label.Any) {
     if (this.tagsByName[tag.name] != tag.type)
       throw new Error(`Tag type ${tag.name} not in schema`)
     for (let prop of tag.props) this.validateProp(prop)
@@ -51,26 +55,27 @@ export class Schema {
       throw new Error(`Prop type ${prop.name} not in schema`)
   }
 
-  defaultContentType(parent: Tag.Type<any>) {
+  // FIXME maybe have a different one for plot types
+  defaultContentType(parent: Plot.Type<any>) {
     for (let tag of this.tags) if (parent.canContain(tag) && tag.default) return tag.default
     return null
   }
 
-  createDefault(parent: Tag.Type<any>): Node {
+  createDefault(parent: Plot.Type<any>): Part {
     let child = this.defaultContentType(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
-    if (child.isLeaf || child.inlineContent) return child.create()
-    return child.create([this.createDefault(child.type)])
+    if (child.isLeaf) return child
+    return child.create(child.inlineContent ? [] : [this.createDefault(child.type)])
   }
 
-  findWrapping(parent: Tag.Type<any>, child: Tag.Type<any>): readonly Tag[] | null {
+  findWrapping(parent: Plot.Type<any>, child: Part.Type<any>): readonly Plot.Label.Any[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  private findWrappingInner(parent: Tag.Type<any>, child: Tag.Type<any>): readonly Tag[] | null {
-    let seen: Set<Tag.Type<unknown>> = new Set, work: Tag[][] = [[]]
+  private findWrappingInner(parent: Plot.Type<any>, child: Part.Type<any>): readonly Plot.Label.Any[] | null {
+    let seen: Set<Part.Type<unknown>> = new Set, work: Plot.Label.Any[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
       for (let tag of this.tags) if (at.canContain(tag)) {
@@ -86,23 +91,21 @@ export class Schema {
 
   getProp(name: string): Prop.Type<any> | undefined { return this.propsByName[name] }
 
-  getTag(name: string): Tag.Type<unknown> | undefined { return this.tagsByName[name] }
-
   static define(spec: readonly SchemaElement[]) {
     for (let cached of schemaCache)
       if (cached.elements.length == spec.length && cached.elements.every((e, i) => e == spec[i]))
         return cached
 
-    let tags: Tag.Type<any>[] = [Text], props: Prop.Type<unknown>[] = []
+    let tags: Part.Type<any>[] = [Leaf.Text], props: Prop.Type<unknown>[] = []
     let defaultI = 0
     let tagNames: Set<string> = new Set, propNames: Set<string> = new Set
     for (let elt of spec) {
-      if (elt instanceof Tag || elt instanceof Prop) elt = elt.type
-      if (elt instanceof Tag.Type) {
+      if (elt instanceof Plot.Label || elt instanceof Leaf || elt instanceof Prop) elt = elt.type
+      if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
-        if (elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
+        if (!elt.isLeaf && elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
         else tags.push(elt)
       } else if (elt instanceof Prop.Type) {
         if (props.includes(elt)) continue
@@ -113,17 +116,18 @@ export class Schema {
         throw new Error("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
     }
-    let docTag: Tag.Type<Schema> | null = null
-    let lineBreak: Tag<any> | null = null
+    let docTag: Plot.Type<Schema> | null = null
+    let lineBreak: Leaf<any> | null = null
     for (let tag of tags) {
-      if (tag.isDoc) docTag = tag
-      if (tag.spec.isLineBreak) {
-        if (tag.isBlock || !tag.isLeaf || !tag.default)
-          throw new Error("Line break tags must be inline leaves with a default param")
-        if (lineBreak) throw new Error("Multiple line break tags provided")
-        lineBreak = tag.default
-      }
-      if (!tag.isLeaf) {
+      if (tag.isLeaf) {
+        if (tag.spec.isLineBreak) {
+          if (tag.isBlock || !tag.default)
+            throw new Error("Line break tags must be inline leaves with a default param")
+          if (lineBreak) throw new Error("Multiple line break tags provided")
+          lineBreak = tag.default
+        }
+      } else {
+        if (tag.isDoc) docTag = tag
         let sawDefaultable = false
         for (let child of tags) if (tag.canContain(child)) {
           if (child.default) sawDefaultable = true
@@ -136,7 +140,7 @@ export class Schema {
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
-    let schema = new Schema(tags, props, docTag, lineBreak as Tag<unknown> | null)
+    let schema = new Schema(tags, props, docTag, lineBreak as Leaf<unknown> | null)
     schemaCache.add(schema)
     return schema
   }
@@ -144,28 +148,29 @@ export class Schema {
   append(other: Schema | readonly SchemaElement[]) {
     let add: SchemaElement[] = []
     for (let elt of (other instanceof Schema ? other.elements : other)) {
-      if (elt instanceof Tag || elt instanceof Prop) elt = elt.type
-      if ((elt instanceof Tag.Type ? this.tagsByName : this.propsByName)[elt.name] != elt) add.push(elt)
+      if (elt instanceof Leaf || elt instanceof Plot.Label || elt instanceof Prop) elt = elt.type
+      if ((elt instanceof Prop.Type ? this.propsByName : this.tagsByName)[elt.name] != elt) add.push(elt)
     }
     return add.length ? Schema.define(this.elements.concat(add)) : this
   }
 
-  nodeFromJSON(json: NodeJSON) {
+  partFromJSON(json: Part.JSON): Part {
     let tag = this.tagFromJSON(json), children = none
-    if (json.children && Array.isArray(json.children))
-      children = json.children.map(c => this.nodeFromJSON(c))
+    if (tag.isLeaf) return tag
+    if (json.content && Array.isArray(json.content))
+      children = json.content.map(c => this.partFromJSON(c))
     if (tag.type.isDoc) return this.doc(children)
     return tag.create(children)
   }
 
-  tagFromJSON(json: TagJSON) {
+  tagFromJSON(json: Part.JSON) {
     if (!json || typeof json != "object" || !(json.type in this.tagsByName))
       throw new Error("Invalid tag JSON")
     let type = this.tagsByName[json.type]
     let props = json.props ? this.propsFromJSON(json.props) : none
-    let tag = "param" in json ? new Tag(type, validate(type.spec.validateParam, json.param), props)
+    let tag = "param" in json ? type.of(validate(type.spec.validateParam, json.param), props)
       : !type.default ? null
-      : props.length ? new Tag(type, type.default.param, props) : type.default
+      : props.length ? type.of(type.default.param, props) : type.default
     if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
     return tag
   }
@@ -181,21 +186,21 @@ export class Schema {
     return props
   }
 
-  docFromJSON(json: NodeJSON) {
+  docFromJSON(json: Part.JSON) {
     if (!json || json.type != this.docTag.name)
       throw new Error("Invalid document JSON")
-    return this.nodeFromJSON(json) as DocNode
+    return this.partFromJSON(json) as Plot.Doc
   }
 }
 
-export const Paragraph = Tag.defineBlock("Paragraph", {
+export const Paragraph = Plot.defineBlock("Paragraph", {
   inlineContent: true,
   group: "Block",
   defaultBlock: true,
   shape: {element: "p"}
 })
 
-export const Heading = Tag.Type.defineBlock("Heading", {
+export const Heading = Plot.Type.defineBlock("Heading", {
   defaultParam: 1,
   validateParam: "number",
   inlineContent: true,
@@ -212,7 +217,7 @@ export const Heading = Tag.Type.defineBlock("Heading", {
   ]
 })
 
-export const CodeBlock = Tag.defineBlock("CodeBlock", {
+export const CodeBlock = Plot.defineBlock("CodeBlock", {
   inlineContent: true,
   group: "Block",
   shape: {element: "pre"},
@@ -225,14 +230,14 @@ export const CodeBlockLanguage = Prop.Type.define("CodeBlockLanguage", {
   shape: {attribute: "data-language", readAttribute: x => x}
 })
 
-export const Blockquote = Tag.defineBlock("Blockquote", {
+export const Blockquote = Plot.defineBlock("Blockquote", {
   blockContent: "Block",
   group: "Block",
   shape: {element: "blockquote"},
   autoJoin: true
 })
 
-export const OrderedList = Tag.Type.defineBlock("OrderedList", {
+export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
   blockContent: "ListItem",
@@ -246,7 +251,7 @@ export const OrderedList = Tag.Type.defineBlock("OrderedList", {
   autoJoin: (a, b) => b.param == 1
 })
 
-export const BulletList = Tag.defineBlock("BulletList", {
+export const BulletList = Plot.defineBlock("BulletList", {
   blockContent: "ListItem",
   group: "Block",
   isList: true,
@@ -254,19 +259,19 @@ export const BulletList = Tag.defineBlock("BulletList", {
   autoJoin: true
 })
 
-export const ListItem = Tag.defineBlock("ListItem", {
+export const ListItem = Plot.defineBlock("ListItem", {
   blockContent: "Block",
   shape: {element: "li"},
   defining: true,
 })
 
-export const HorizontalRule = Tag.defineBlock("HorizontalRule", {
+export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
   group: "Block",
   shape: {element: "hr"},
   toText: () => "---"
 })
 
-export const Image = Tag.Type.defineInline<string>("Image", {
+export const Image = Leaf.Type.defineInline<string>("Image", {
   validateParam: "string",
   shape: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
@@ -277,7 +282,7 @@ export const ImageAlt = Prop.Type.define<string>("ImageAlt", {
   shape: {attribute: "alt", readAttribute: x => x}
 })
 
-export const LineBreak = Tag.defineInline("LineBreak", {
+export const LineBreak = Leaf.defineInline("LineBreak", {
   isLineBreak: true,
   toText: () => "\n",
   shape: {element: "br"}
@@ -320,7 +325,7 @@ export const Code = Prop.define("Code", {
   shape: {element: "code"}
 })
 
-export const Doc = Tag.defineDoc({
+export const Doc = Plot.defineDoc({
   blockContent: "Block"
 })
 

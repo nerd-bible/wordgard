@@ -1,19 +1,19 @@
 import ist from "ist"
-import {Schema, basicSchema, DocNode, Tag, basicBuilders, builder, maybeTag} from "wordgard/doc"
+import {Schema, basicSchema, Plot, basicBuilders, builder, maybeTag} from "wordgard/doc"
 import {EditorSelection, EditorState, Direction} from "wordgard/state"
 const {p, hr, blockquote, pre, $img} = basicBuilders
 
-let Iso = Tag.defineBlock("Iso", {
+let Iso = Plot.defineBlock("Iso", {
   blockContent: "Block",
   group: "Block",
   isolating: true,
   shape: {element: "div"}
 }), iso = builder(Iso)
-let InlineA = Tag.defineInline("InlineA", {
+let InlineA = Plot.defineInline("InlineA", {
   inlineContent: true,
   shape: {element: "span"}
 }), a = builder(InlineA)
-let InlineB = Tag.defineInline("InlineB", {
+let InlineB = Plot.defineInline("InlineB", {
   inlineContent: true,
   cursorInsideBounds: true,
   shape: {element: "span"}
@@ -33,7 +33,7 @@ function normalPositions(state: EditorState) {
 }
 
 describe("nextNormalCursor", () => {
-  function testNormal(doc: DocNode) {
+  function testNormal(doc: Plot.Doc) {
     let state = EditorState.create({doc}), forward = normalPositions(state), back = []
     let expect = []
     for (let i = 0;; i++) {

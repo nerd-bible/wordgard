@@ -1,5 +1,5 @@
-import {Slice, Text, Node, Prop, Tag, Pos, serializeSlice, parseSlice,
-        OpenSide, Token, CloseToken} from "wordgard/doc"
+import {Slice, Leaf, Plot, Prop, Pos, serializeSlice, parseSlice,
+        OpenSide, Token} from "wordgard/doc"
 import {Facet, EditorState} from "wordgard/state"
 import browser from "./browser"
 
@@ -66,8 +66,8 @@ function isOpen(elt: HTMLElement) {
 export function readClipboard(state: EditorState, data: DataTransfer, targetContext: Pos, plain: boolean) {
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
-  let slice: Slice, context: readonly Tag[] = []
-  if (text && (targetContext.parent.node.type.preserveWhitespace || !html || plain)) {
+  let slice: Slice, context: readonly Plot.Label.Any[] = []
+  if (text && (targetContext.parent.part.type.preserveWhitespace || !html || plain)) {
     for (let filter of state.facet(clipboardInputTextFilter)) text = filter(text, state)
     slice = readClipboardText(state, text, targetContext, plain)
   } else if (!html) {
@@ -95,20 +95,20 @@ function readClipboardText(state: EditorState, text: string, context: Pos, plain
   }
 
   let props = plain ? [] : context.props()
-  if (context.parent.node.type.preserveWhitespace) return new Slice([Node.text(text.replace(/\r?\n|\r/g, "\n"), props)])
+  if (context.parent.part.type.preserveWhitespace) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), props)])
   let lines = text.split(/(?:\r\n?|\n)+/)
-  let content: Token[] = lines[0] ? [Node.text(lines[0], props)] : []
+  let content: Token[] = lines[0] ? [Leaf.text(lines[0], props)] : []
   if (lines.length == 1) return new Slice(content)
-  let parent = (context.parent.node.inlineContent ? context.parent.parent || context.parent : context.parent).node.tag
-  let wrapping = state.doc.schema.findWrapping(parent.type, Text)
-  if (!wrapping || !wrapping.length) return new Slice([Node.text(text.replace(/\r?\n|\r/g, " "), props)])
+  let parent = (context.parent.part.inlineContent ? context.parent.parent || context.parent : context.parent).part.label
+  let wrapping = state.doc.schema.findWrapping(parent.type, Leaf.Text)
+  if (!wrapping || !wrapping.length) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, " "), props)])
   let wrapper = wrapping[wrapping.length - 1]
-  content.push(CloseToken)
+  content.push(Plot.End)
   for (let i = 1; i < lines.length - 1; i++)
-    content.push(wrapper.create(lines[i] ? [Node.text(lines[i], props)] : []))
+    content.push(wrapper.create(lines[i] ? [Leaf.text(lines[i], props)] : []))
   content.push(wrapper)
   let last = lines[lines.length - 1]
-  if (last) content.push(Node.text(last, props))
+  if (last) content.push(Leaf.text(last, props))
   return new Slice(content)
 }
 

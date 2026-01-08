@@ -1,34 +1,32 @@
-import type {Node, NodeJSON, TagJSON, Tag} from "./node"
+import type {Plot, Part, Leaf} from "./node"
 import {TextOutput} from "./text"
 import {Schema} from "./schema"
 
-export const enum TokenType { Open, Close, Node }
+export const enum TokenType { Open, Close, Part }
 
-export type CloseToken = {tokenType: TokenType.Close}
+export const End = {
+  tokenType: TokenType.Close,
+  /// @internal
+  toString() { return "[end]" }
+} as {tokenType: TokenType.Close}
 
 export interface SliceWalker {
-  skip(node: Node, pos: number): void
-  enterTag(tag: Tag, pos: number): void
-  leave(tag: Tag | undefined, pos: number): void
+  part(part: Part, pos: number): void
+  open(label: Plot.Label.Any, pos: number): void
+  close(pos: number): void
 }
 
-export const CloseToken = {
-  tokenType: TokenType.Close as TokenType.Close,
-  /// @internal
-  toString() { return "CLOSE" }
-} as CloseToken
-
-export type Token = Node | Tag<any> | CloseToken
+export type Token = Part | Plot.Label.Any | typeof Plot.End
 
 export class Slice {
   readonly length: number
 
   constructor(readonly content: readonly Token[]) {
-    this.length = content.reduce((l, e) => l + (e.tokenType == TokenType.Node ? e.length : 1), 0)
+    this.length = content.reduce((l, e) => l + (e.tokenType == TokenType.Part ? e.length : 1), 0)
   }
 
   toJSON(): SliceJSON {
-    return this.content.map(e => e.tokenType == TokenType.Node ? {node: e.toJSON()}
+    return this.content.map(e => e.tokenType == TokenType.Part ? {node: e.toJSON()}
       : e.tokenType == TokenType.Open ? {open: e.toJSON()} : {close: true})
   }
 
@@ -36,8 +34,8 @@ export class Slice {
     if (!Array.isArray(json)) throw new Error("Invalid slice JSON")
     return new Slice(json.map(value => {
       if (value.open) return schema.tagFromJSON(value.open)
-      if (value.close) return CloseToken
-      if (value.node) return schema.nodeFromJSON(value.node)
+      if (value.close) return End
+      if (value.node) return schema.partFromJSON(value.node)
       throw new Error("Invalid slice JSON")
     }))
   }
@@ -46,10 +44,10 @@ export class Slice {
     if (other.content.length != this.content.length) return false
     for (let i = 0; i < this.content.length; i++) {
       let a = this.content[i], b = other.content[i]
-      if (a == CloseToken) {
-        if (b != CloseToken) return false
-      } else if (a.tokenType == TokenType.Node) {
-        if (!((b.tokenType == TokenType.Node) && a.eq(b))) return false
+      if (a == End) {
+        if (b != End) return false
+      } else if (a.tokenType == TokenType.Part) {
+        if (!((b.tokenType == TokenType.Part) && a.eq(b))) return false
       } else if (a.tokenType == TokenType.Open) {
         if (!((b.tokenType == TokenType.Open) && a.eq(b))) return false
       }
@@ -60,9 +58,9 @@ export class Slice {
   run(track: SliceWalker, startPos = 0) {
     let pos = startPos
     for (let elt of this.content) {
-      if (elt.tokenType == TokenType.Open) track.enterTag(elt, pos++)
-      else if (elt.tokenType == TokenType.Node) { track.skip(elt, pos); pos += elt.length }
-      else track.leave(undefined, pos++)
+      if (elt.tokenType == TokenType.Open) track.open(elt, pos++)
+      else if (elt.tokenType == TokenType.Part) { track.part(elt, pos); pos += elt.length }
+      else track.close(pos++)
     }
   }
 
@@ -71,10 +69,10 @@ export class Slice {
     let result: Token[] = [], off = 0
     for (let elt of this.content) {
       let start = off
-      off += elt.tokenType == TokenType.Node ? elt.length : 1
+      off += elt.tokenType == TokenType.Part ? elt.length : 1
       if (off <= from) continue
       if (start < from || off > to) {
-        let inner = (elt as Node).slice(Math.max(0, from - start), Math.min((elt as Node).length, to - start))
+        let inner = (elt as Plot).slice(Math.max(0, from - start), Math.min((elt as Plot).length, to - start))
         for (let elt of inner.content) result.push(elt)
       } else {
         result.push(elt)
@@ -87,9 +85,9 @@ export class Slice {
   concat(other: Slice) {
     let content = this.content.slice()
     let i = 0
-    if (content.length && other.content.length && other.content[0].tokenType == TokenType.Node &&
-        content[content.length - 1].tokenType == TokenType.Node) {
-      other.content[0].pushTo(content as Node[])
+    if (content.length && other.content.length && other.content[0].tokenType == TokenType.Part &&
+        content[content.length - 1].tokenType == TokenType.Part) {
+      other.content[0].pushTo(content as Part[])
       i = 1
     }
     for (; i < other.content.length; i++) content.push(other.content[i])
@@ -98,22 +96,23 @@ export class Slice {
 
   validate(schema: Schema) {
     for (let tok of this.content) {
-      if (tok.tokenType == TokenType.Node) schema.validate(tok)
+      if (tok.tokenType == TokenType.Part) schema.validate(tok)
       else if (tok.tokenType == TokenType.Open) schema.validateTag(tok)
     }
   }
 
   textContent(options: {
     blockSeparator?: string,
-    leafText?: string | ((node: Node) => string)
+    leafText?: string | ((node: Leaf.Any) => string)
   } = {}) {
     let {blockSeparator = "\n", leafText} = options
     let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
     for (let tok of this.content) {
       if (tok.tokenType == TokenType.Open) {
         if (tok.isTextblock) out.openBlock()
-      } else if (tok.tokenType == TokenType.Node) {
-        tok.iterate(node => !out.serialize(node))
+      } else if (tok.tokenType == TokenType.Part) {
+        if (tok.isLeaf) out.serialize(tok)
+        else tok.iterate(node => !out.serialize(node))
       }
     }
     return out.text
@@ -126,4 +125,4 @@ export class Slice {
   }
 }
 
-export type SliceJSON = readonly ({node: NodeJSON} | {open: TagJSON} | {close: true})[]
+export type SliceJSON = readonly ({node: Part.JSON} | {open: Part.JSON} | {close: true})[]

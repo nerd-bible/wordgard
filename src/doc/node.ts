@@ -1,124 +1,67 @@
-import {Slice, Token, TokenType, CloseToken} from "./slice"
+import {Slice, Token, TokenType, End} from "./slice"
 import {TextOutput} from "./text"
-import {NodeShape} from "./shape"
+import {PartShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos} from "./pos"
 import {Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
-const enum TagFlag {
+const enum PartFlag { // FIXME drop some of these?
   None = 0,
   Inline = 1,
   InlineContent = 2,
-  Leaf = 8,
   Doc = 16,
   NullParam = 32,
   List = 64
 }
 
-function flagsFor(spec: Tag.Spec<any>, inline: boolean) {
-  let flags = inline ? TagFlag.Inline : TagFlag.None
-  if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
-  if (spec.inlineContent) flags |= TagFlag.InlineContent
-  else if (!spec.blockContent) flags |= TagFlag.Leaf
-  if (spec.isList) flags |= TagFlag.List
-  return flags
-}
-
-export class Tag<Param = unknown> {
-  constructor(
-    readonly type: Tag.Type<Param>,
-    readonly param: Param,
-    readonly props: readonly Prop<unknown>[]
-  ) {
-    for (let prop of props) if (!prop.type.canTarget(this.type))
-      this.props = prop.removeFromSet(this.props)
-  }
+export class Leaf<Param> {
+  constructor(readonly type: Leaf.Type<Param>, readonly param: Param, readonly props: readonly Prop<unknown>[]) {}
 
   get name() { return this.type.name }
-
-  static defineInline(name: string, spec: Tag.Spec<null>): Tag<null> {
-    checkTagName(name)
-    return new Tag.Type<null>(name, flagsFor(spec, true) | TagFlag.NullParam, spec).default!
-  }
-
-  static defineBlock(name: string, spec: Tag.Spec<null>): Tag<null> {
-    checkTagName(name)
-    return new Tag.Type<null>(name, flagsFor(spec, false) | TagFlag.NullParam, spec).default!
-  }
-
-  static defineDoc(spec: {inlineContent?: string | true, blockContent?: string}) {
-    if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
-    let flags = TagFlag.NullParam | TagFlag.Doc
-    if (spec.inlineContent) flags |= TagFlag.InlineContent
-    return new Tag.Type<Schema>("Doc", flags, {
-      ...spec,
-      shape: {element: ""}
-    })
-  }
-
-  create(children?: readonly Node[]): Node {
-    if (this.isDoc) throw new Error("Document nodes must be created with schema.doc()")
-    return new Node(this, this.type.checkChildren(joinText(children || none)))
-  }
-
-  is<T>(type: Tag.Type<T>): this is Tag<T> {
-    return this.type == type as Tag.Type<any>
-  }
-
-  eq(other: Tag<any>) {
-    return this == other || this.type == other.type && !this.isDoc && compareDeep(this.param, other.param) && this.sameProps(other)
-  }
-
-  sameProps(other: Tag<any>) {
-    return this == other || Prop.sameSet(this.props, other.props)
-  }
+  get label() { return this }
 
   prop<Value>(prop: Prop.Type<Value>): Value | undefined {
     for (let v of this.props) if (v.type == prop) return v.value as Value
     return undefined
   }
 
-  addProp(prop: Prop<any>) { return this.type.of(this.param, prop.addToSet(this.props)) }
-  removeProp(prop: Prop<any> | Prop.Type<any>) { return this.type.of(this.param, prop.removeFromSet(this.props)) }
-  hasProp(prop: Prop<any> | Prop.Type<any>) { return prop.isInSet(this.props) }
+  eq(other: Part | Part.Tag): boolean {
+    return this == other || other.isLeaf && this.type == other.type && compareDeep(this.param, other.param) &&
+      Prop.sameSet(this.props, other.props)
+  }
 
-  withProps(props: readonly Prop<any>[]) {
+  is<T>(type: Leaf.Type<T>): this is Leaf<T> {
+    return this.type == type as Leaf.Type<any>
+  }
+
+  static defineInline(name: string, spec: Leaf.Spec<null>): Leaf<null> {
+    checkTagName(name)
+    return new Leaf.Type<null>(name, flagsFor(spec, true) | PartFlag.NullParam, spec).default!
+  }
+
+  static defineBlock(name: string, spec: Leaf.Spec<null>): Leaf<null> {
+    checkTagName(name)
+    return new Leaf.Type<null>(name, flagsFor(spec, false) | PartFlag.NullParam, spec).default!
+  }
+
+  withProps(props: readonly Prop<unknown>[]) {
     return Prop.sameSet(this.props, props) ? this : this.type.of(this.param, props)
   }
 
-  split(atEnd: boolean) {
-    return this.props.length ? this.withProps(this.props.filter(p => {
-      let {keepOnSplit} = p.type.spec
-      return keepOnSplit && (keepOnSplit === true || keepOnSplit(this as Tag<any>, atEnd))
-    })) : this
-  }
-
-  changeType(to: Tag<any>) {
-    if (!this.props.length) return to
-    let props = to.props
-    for (let prop of this.props) if (prop.type.canTarget(to.type) && (prop.type.set || !prop.isInSet(props))) {
-      let {keepOnTypeChange} = prop.type.spec
-      if (keepOnTypeChange && (keepOnTypeChange === true || keepOnTypeChange(this as Tag<any>, to.type)))
-        props = prop.addToSet(props)
-    }
-    return to.withProps(props)
-  }
+  get tokenType(): TokenType.Part { return TokenType.Part }
 
   get isInline() { return this.type.isInline }
-  get isText() { return this.type.isText }
   get isBlock() { return this.type.isBlock }
-  get inlineContent() { return this.type.inlineContent }
-  get isTextblock() { return this.type.isTextblock }
-  get isLeaf() { return this.type.isLeaf }
-  get isDoc() { return this.type.isDoc }
+  get isLeaf(): true { return true }
+  get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
 
-  get tokenType(): TokenType.Open { return TokenType.Open }
+  get length(): number { return this.is(Leaf.Text) ? this.param.length : 1 }
 
-  toJSON(): TagJSON {
-    let result: TagJSON = {type: this.name}
-    if (this != this.type.default && !this.isDoc) result.param = this.param
+  toJSON(): Part.JSON {
+    let result: Part.JSON = {type: this.name}
+    if (this != this.type.default) result.param = this.param
     if (this.props.length) {
       result.props = Object.create(null)
       for (let {name, value} of this.props) result.props![name] = value
@@ -126,117 +69,109 @@ export class Tag<Param = unknown> {
     return result
   }
 
-  static select(selector: Tag.Selector | undefined): (type: Tag.Type<any>) => boolean {
-    if (typeof selector == "string") {
-      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
-      let groups = selector.split(/ /)
-      return t => groups.some(g => t.isInGroup(g))
-    }
-    if (selector instanceof Tag) {
-      if (selector != selector.type.default) throw new Error("Tags used as tag selectors must be their type's default instance")
-      selector = selector.type
-    }
-    return selector instanceof Tag.Type ? t => t === selector : selector ? t => selector.includes(t) : () => true
+  join(onto: Part) {
+    if (!this.is(Leaf.Text) || !Leaf.Text.chk(onto) || !Prop.sameSet(this.props, onto.props)) return null
+    return Leaf.text(onto.param + this.param, this.props)
+  }
+
+  pushTo(parts: Part[]) {
+    let joined = parts.length && this.join(parts[parts.length - 1])
+    if (joined) parts[parts.length - 1] = joined
+    else parts.push(this)
+  }
+
+  sliceText(from: number, to?: number) {
+    if (!this.is(Leaf.Text)) throw new Error("Calling sliceText on a non-text node")
+    if (to == null) to = this.param.length
+    if (!from && to == this.param.length) return this
+    return Leaf.Text.of(this.param.slice(Math.max(from, 0), Math.max(0, to)), this.props)
+  }
+
+  static text(text: string, props: readonly Prop<any>[] = none) {
+    return Leaf.Text.of(text, props)
   }
 }
 
-export namespace Tag {
+export namespace Leaf {
   export class Type<Param> {
-    groups: readonly string[]
-    contentGroups: readonly string[]
-    readonly childCache: Map<Tag.Type<unknown>, boolean> = new Map
-    readonly isolating: boolean
-    readonly defining: boolean
-    readonly neutral: boolean
-    readonly preserveWhitespace: boolean
-    readonly orientation: "row" | "column"
-    readonly default: Tag<Param> | null
-    readonly shape: NodeShape<Param>
+    readonly default: Leaf<Param> | null
+    readonly groups: readonly string[]
+    readonly shape: PartShape<Param>
 
     constructor(
       readonly name: string,
-      /// @internal
-      readonly flags: TagFlag,
-      readonly spec: Tag.Spec<Param>
+      readonly flags: PartFlag,
+      readonly spec: Leaf.Spec<Param>
     ) {
-      let groups = this.groups = [name, "*"]
-      if (flags & TagFlag.Inline) groups.push("Inline")
-      if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
-      let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
-      this.contentGroups = content ? splitGroups(content) : none
-      this.isolating = !!spec.isolating
-      this.defining = !!spec.defining
-      this.neutral = spec.neutral ?? !this.defining
-      this.preserveWhitespace = !!spec.preserveWhitespace
-      this.orientation = flags & TagFlag.InlineContent ? "row" : spec.orientation || "column"
-      this.shape = NodeShape.from(this, spec.shape)
-      this.default = "defaultParam" in spec ? new Tag(this, spec.defaultParam!, none) :
-        (flags & TagFlag.NullParam) ? new Tag(this, null as any, none) : null
-      if (!this.shape.atom && this.isInline && !this.inlineContent)
-        throw new Error("Inline tags with block content must be marked as atoms")
+      this.default = "defaultParam" in spec ? new Leaf(this, spec.defaultParam!, none) :
+        (flags & PartFlag.NullParam) ? new Leaf(this, null as any, none) : null
+      this.groups = typeGroups(this)
+      this.shape = PartShape.from(this, spec.shape)
     }
 
-    static defineInline<T>(name: string, spec: Tag.Spec<T>) {
+    static defineInline<T>(name: string, spec: Leaf.Spec<T>) {
       checkTagName(name)
-      return new Tag.Type<T>(name, flagsFor(spec, true), spec)
+      return new Leaf.Type<T>(name, flagsFor(spec, true), spec)
     }
 
-    static defineBlock<T>(name: string, spec: Tag.Spec<T>) {
+    static defineBlock<T>(name: string, spec: Leaf.Spec<T>) {
       checkTagName(name)
-      return new Tag.Type<T>(name, flagsFor(spec, false), spec)
+      return new Leaf.Type<T>(name, flagsFor(spec, false), spec)
     }
 
     of(param: Param, props: readonly Prop<any>[] = none) {
       if (!props.length && this.default && compareDeep(this.default.param, param)) return this.default
-      return new Tag(this, param, props)
+      return new Leaf(this, param, props)
     }
 
-    isInGroup(group: string) {
-      let mod = group.indexOf(":")
-      if (mod > -1) {
-        let modName = group.slice(mod + 1)
-        if (modName == "Leaf" && !this.isLeaf) return false
-        group = group.slice(0, mod)
-      }
-      return group == "_" || this.groups.includes(group)
-    }
+    isInGroup(group: string) { return isInGroup(this, group) }
 
-    canContain(child: Tag.Type<any>) {
-      let result = this.childCache.get(child)
-      if (result == null) {
-        result = (child.flags & TagFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
-        this.childCache.set(child, result)
-      }
-      return result
-    }
+    get isInline() { return (this.flags & PartFlag.Inline) > 0 }
+    get isBlock() { return (this.flags & PartFlag.Inline) == 0 }
+    get isLeaf(): true { return true }
 
-    sharesContent(other: Tag.Type<any>) {
-      return other.contentGroups.some(g => this.contentGroups.includes(g))
-    }
-
-    checkChildren(children: readonly Node[]) {
-      for (let child of children)
-        if (!this.canContain(child.type))
-          throw new Error(`${child.name} is not a valid child of ${this.name}`)
-      return children
-    }
-
-    get isInline() { return (this.flags & TagFlag.Inline) > 0 }
-    get isText() { return (this as Tag.Type<any>) == Text }
-    get isBlock() { return (this.flags & TagFlag.Inline) == 0 }
-    get inlineContent() { return (this.flags & TagFlag.InlineContent) > 0 }
-    get isTextblock() { return this.isBlock && this.inlineContent }
-    get isLeaf() { return (this.flags & TagFlag.Leaf) > 0 }
-    get isDoc() { return (this.flags & TagFlag.Doc) > 0 }
-    get isList() { return (this.flags & TagFlag.List) > 0 }
+    // FIXME find a better name
+    chk(part: Part): part is Leaf<Param>
+    chk(tag: Part.Tag): tag is Leaf<Param>
+    chk(obj: Part | Part.Tag) { return obj.type == this }
   }
 
-  export type Selector = Tag<any> | Tag.Type<any> | readonly Tag.Type<any>[] | string
+  export interface Spec<Param> extends Part.Spec<Param> {
+    /// Makes this tag the canonical line break for the schema. The node
+    /// must be inline and a leaf, and have no required parameter. Nodes
+    /// marked as line breaks will be parsed from and serialized to
+    /// newline characters inside
+    /// [whitespace-preserving](#state.Tag.Spec.preserveWhitespace)
+    /// nodes.
+    isLineBreak?: boolean
+    toText?(node: Leaf.Any): string
+  }
 
-  // FIXME split inline and block specs?
-  export type Spec<Param> = {
-    blockContent?: string
-    inlineContent?: string | true
+  export type Any = Omit<Leaf<unknown>, "type" | "label" | "withProps"> & {
+    type: Leaf.Type<any>,
+    label: Leaf.Any,
+    withProps(props: readonly Prop[]): Leaf.Any
+  }
+
+  export const Text = new Leaf.Type<string>("Text", PartFlag.Inline, {
+    shape: {element: ""}
+  })
+}
+
+function checkTagName(name: string) {
+  if (/[\s:]/.test(name)) throw new Error(`Tag names may not include space or colon characters (${name})`)
+  if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
+    throw new Error(`Tag name ${name} is reserved`)
+}
+
+export type Part = Plot | Leaf.Any
+
+export namespace Part {
+  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
+
+  export type Tag = Leaf.Any | Plot.Label.Any
+
+  export interface Spec<Param> {
     defaultParam?: Param extends null ? never : Param
     /// A function or type name used to validate this tag's parameter
     /// value. This will be used when deserializing the attribute from
@@ -248,10 +183,354 @@ export namespace Tag {
     /// shape.
     validateParam?: string | ((param: Param) => void)
     group?: string
-    toText?: (node: Node) => string
     shape: ElementShape<Param> | StructureShape<Param>
     parseRules?: readonly ElementParseRule<Param>[]
-    preserveWhitespace?: boolean
+  }
+
+  export type Selector = Leaf.Any | Plot.Label.Any | Part.Type<any> | string | readonly Part.Selector[]
+
+  export function selector(selector?: Part.Selector): (type: Part.Type<any>) => boolean {
+    if (!selector) return () => true
+    if (Array.isArray(selector)) {
+      let inner = selector.map(Part.selector)
+      return type => inner.some(s => s(type))
+    }
+    if (typeof selector == "string") {
+      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
+      let groups = selector.split(/ /)
+      return t => groups.some(g => t.isInGroup(g))
+    }
+    // FIXME have a Part.is predicate?
+    let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
+      : (selector as Leaf<any> | Plot.Label<any>).type
+    return t => t === type
+  }
+
+  export interface JSON {
+    type: string
+    param?: any
+    props?: {[name: string]: any}
+    content?: readonly Part.JSON[]
+  }
+}
+
+export class Plot {
+  contentLength: number
+  label: Plot.Label.Any
+
+  constructor(
+    tag: Plot.Label.Any,
+    readonly content: readonly Part[],
+  ) {
+    this.label = tag
+    this.contentLength = content.reduce((s, c) => s + c.length, 0)
+  }
+
+  get name() { return this.label.name }
+  get type() { return this.label.type }
+  get props() { return this.label.props }
+
+  get length() {
+    return 2 + this.contentLength
+  }
+
+  eq(other: Part | Part.Tag): boolean {
+    return this == other || other instanceof Plot && this.label.eq(other.label) && eqArray(this.content, other.content)
+  }
+
+  slice(from: number, to = this.length) {
+    if (from == to) return Slice.empty
+    let content: Token[] = []
+    this.slicePlot(content, from, to)
+    return new Slice(content)
+  }
+
+  /// @internal
+  slicePlot(out: Token[], from: number, to: number) {
+    if (from <= 0) {
+      if (to >= this.length) {
+        out.push(this)
+        return
+      }
+      out.push(this.label)
+    }
+    sliceContent(out, this.content, from - 1, to - 1)
+    if (to >= this.length) out.push(Plot.End)
+  }
+
+  get isText(): false { return false }
+  get isInline() { return this.type.isInline }
+  get isBlock() { return this.type.isBlock }
+  get inlineContent() { return this.type.inlineContent }
+  get isTextblock() { return this.type.isTextblock }
+  get isLeaf(): false { return false }
+  get isDoc() { return this.type.isDoc }
+
+  get firstPart(): Part | null {
+    return this.content.length ? this.content[0] : null
+  }
+
+  get lastPart(): Part | null {
+    let last = this.content.length - 1
+    return last < 0 ? null : this.content[last]
+  }
+
+  /// Iterate though the given range (or the entire document, when
+  /// given only one argument), and call the given function on every
+  /// node that overlaps the given range, outer nodes before inner
+  /// nodes. When the function returns `false` for a node, descendents
+  /// of that node are not iterated.
+  iterate(from: number, to: number, f: (part: Part, pos: number, parent: Plot | null, index: number) => boolean | void): void
+  iterate(f: (part: Part, pos: number, parent: Plot | null, index: number) => boolean | void): void
+  iterate(a: number | ((part: Part, pos: number, parent: Plot | null, index: number) => boolean | void),
+          b?: number, c?: (node: Part, pos: number, parent: Plot | null, index: number) => boolean | void): void {
+    let [from, to, f] = typeof a == "number" ? [a, b!, c!] : [0, this.length, a]
+    if (this.isDoc || f(this, 0, null, 0) !== false)
+      this.iterInner(0, from, to, f)
+  }
+
+  partAt(pos: number): Part | null {
+    for (let part of this.content) {
+      if (pos == 0) return part
+      if (pos < part.length) return part.isLeaf ? null : part.partAt(pos - 1)
+      pos -= part.length
+    }
+    return null
+  }
+
+  /// @internal
+  iterInner(contentStart: number, from: number, to: number,
+            f: (part: Part, pos: number, parent: Plot | null, index: number) => boolean | void) {
+    for (let pos = contentStart, i = 0; i < this.content.length; i++) {
+      if (pos >= to) break
+      let part = this.content[i], start = pos
+      pos += part.length
+      if (pos <= from) continue
+      if (f(part, start, this, i) !== false && !part.isLeaf) part.iterInner(start + 1, from, to, f)
+    }
+  }
+
+  /// @internal
+  toString() {
+    return this.name + propString(this.label.props) + "(" + this.content.join() + ")"
+  }
+
+  toJSON(): Part.JSON {
+    let result = this.label.toJSON()
+    if (this.content.length) result.content = this.content.map(c => c.toJSON())
+    return result
+  }
+
+  textContent(options: {
+    from?: number, to?: number,
+    blockSeparator?: string,
+    leafText?: string | ((node: Leaf.Any) => string)
+  } = {}) {
+    let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
+    let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
+    this.iterate(from, to, (part, pos) => {
+      return !out.serialize(Leaf.Text.chk(part) ? part.sliceText(Math.max(0, from - pos), Math.min(part.length, to - pos)) : part)
+    })
+    return out.text
+  }
+
+  prop<Value>(prop: Prop.Type<Value>): Value | undefined { return this.label.prop(prop) }
+
+  join(other: Part) { return null }
+
+  pushTo(parts: Part[]) { parts.push(this) }
+
+  withProps(props: readonly Prop[]) {
+    return Prop.sameSet(this.label.props, props) ? this : this.label.withProps(props).create(this.content)
+  }
+
+  get tokenType(): TokenType.Part { return TokenType.Part }
+
+  static defineInline(name: string, spec: Plot.Spec<null>): Plot.Label<null> {
+    checkTagName(name)
+    return new Plot.Type<null>(name, flagsFor(spec, true) | PartFlag.NullParam, spec).default!
+  }
+
+  static defineBlock(name: string, spec: Plot.Spec<null>): Plot.Label<null> {
+    checkTagName(name)
+    return new Plot.Type<null>(name, flagsFor(spec, false) | PartFlag.NullParam, spec).default!
+  }
+
+  static defineDoc(spec: {inlineContent?: string | true, blockContent?: string}) {
+    if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
+    let flags = PartFlag.NullParam | PartFlag.Doc
+    if (spec.inlineContent) flags |= PartFlag.InlineContent
+    return new Plot.Type<Schema>("Doc", flags, {
+      ...spec,
+      shape: {element: ""}
+    })
+  }
+
+  static End = End
+}
+
+export namespace Plot {
+  export class Label<Param> {
+    constructor(readonly type: Plot.Type<Param>, readonly param: Param, readonly props: readonly Prop<unknown>[]) {}
+
+    prop<Value>(prop: Prop.Type<Value>): Value | undefined {
+      for (let v of this.props) if (v.type == prop) return v.value as Value
+      return undefined
+    }
+
+    get name() { return this.type.name }
+
+    eq(other: Part | Part.Tag): boolean {
+      return this == other || other instanceof Plot.Label && !this.isDoc && compareDeep(this.param, other.param) &&
+        Prop.sameSet(this.props, other.props)
+    }
+
+    get isInline() { return this.type.isInline }
+    get isBlock() { return this.type.isBlock }
+
+    withProps(props: readonly Prop[]) {
+      return Prop.sameSet(this.props, props) ? this : this.type.of(this.param, props)
+    }
+
+    create(children?: readonly Part[]): Plot {
+      if (this.isDoc) throw new Error("Document nodes must be created with schema.doc()")
+      return new Plot(this, this.type.checkChildren(joinText(children || none)))
+    }
+
+    is<T>(type: Plot.Type<T>): this is Plot.Label<T> {
+      return this.type == type as Plot.Type<any>
+    }
+
+    split(atEnd: boolean) {
+      return this.props.length ? this.withProps(this.props.filter(p => {
+        let {keepOnSplit} = p.type.spec
+        return keepOnSplit && (keepOnSplit === true || keepOnSplit(this, atEnd))
+      })) : this
+    }
+
+    changeType(to: Plot.Label.Any) {
+      if (!this.props.length) return to
+      let props = to.props
+      for (let prop of this.props) if (prop.type.canTarget(to.type) && (prop.type.set || !prop.isInSet(props))) {
+        let {keepOnTypeChange} = prop.type.spec
+        if (keepOnTypeChange && (keepOnTypeChange === true || keepOnTypeChange(this, to)))
+          props = prop.addToSet(props)
+      }
+      return to.withProps(props)
+    }
+
+    get tokenType(): TokenType.Open { return TokenType.Open }
+
+    get inlineContent() { return this.type.inlineContent }
+    get isTextblock() { return this.type.isTextblock }
+    get isLeaf(): false { return false }
+    get isDoc() { return this.type.isDoc }
+
+    toJSON(): Part.JSON {
+      let result: Part.JSON = {type: this.name}
+      if (this != this.type.default && !this.isDoc) result.param = this.param
+      if (this.props.length) {
+        result.props = Object.create(null)
+        for (let {name, value} of this.props) result.props![name] = value
+      }
+      return result
+    }
+  }
+
+  export namespace Label {
+    export type Any = Omit<Plot.Label<unknown>, "type" | "split" | "withProps"> & {
+      type: Plot.Type<any>,
+      split(atEnd: boolean): Plot.Label.Any
+      withProps(props: readonly Prop[]): Plot.Label.Any
+    }
+  }
+
+  export class Type<Param> {
+    readonly default: Plot.Label<Param> | null
+    readonly contentGroups: readonly string[]
+    readonly childCache: Map<Part.Type<any>, boolean> = new Map
+    readonly isolating: boolean
+    readonly defining: boolean
+    readonly neutral: boolean
+    readonly preserveWhitespace: boolean
+    readonly orientation: "row" | "column"
+    readonly groups: readonly string[]
+    readonly shape: PartShape<Param>
+
+    constructor(
+      readonly name: string,
+      readonly flags: PartFlag,
+      readonly spec: Plot.Spec<Param>
+    ) {
+      let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
+      this.contentGroups = content ? splitGroups(content) : none
+      this.isolating = !!spec.isolating
+      this.defining = !!spec.defining
+      this.neutral = spec.neutral ?? !this.defining
+      this.preserveWhitespace = !!spec.preserveWhitespace
+      this.orientation = flags & PartFlag.InlineContent ? "row" : spec.orientation || "column"
+      this.default = "defaultParam" in spec ? new Plot.Label(this, spec.defaultParam!, none) :
+        (flags & PartFlag.NullParam) ? new Plot.Label(this, null as any, none) : null
+      this.groups = typeGroups(this)
+      this.shape = PartShape.from(this, spec.shape)
+      if (!this.shape.atom && this.isInline && !this.inlineContent)
+        throw new Error("Inline tags with block content must be marked as atoms")
+    }
+
+    static defineInline<T>(name: string, spec: Plot.Spec<T>) {
+      checkTagName(name)
+      return new Plot.Type<T>(name, flagsFor(spec, true), spec)
+    }
+
+    static defineBlock<T>(name: string, spec: Plot.Spec<T>) {
+      checkTagName(name)
+      return new Plot.Type<T>(name, flagsFor(spec, false), spec)
+    }
+
+    of(param: Param, props: readonly Prop<any>[] = none) {
+      if (!props.length && this.default && compareDeep(this.default.param, param)) return this.default
+      return new Plot.Label(this, param, props)
+    }
+
+    canContain(child: Part.Type<any>) {
+      let result = this.childCache.get(child)
+      if (result == null) {
+        result = (child.flags & PartFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
+        this.childCache.set(child, result)
+      }
+      return result
+    }
+
+    sharesContent(other: Plot.Type<any>) {
+      return other.contentGroups.some(g => this.contentGroups.includes(g))
+    }
+
+    checkChildren(children: readonly Part[]) {
+      for (let child of children)
+        if (!this.canContain(child.type))
+          throw new Error(`${child.name} is not a valid child of ${this.name}`)
+      return children
+    }
+
+    isInGroup(group: string) { return isInGroup(this, group) }
+
+    get isInline() { return (this.flags & PartFlag.Inline) > 0 }
+    get isBlock() { return (this.flags & PartFlag.Inline) == 0 }
+    get inlineContent() { return (this.flags & PartFlag.InlineContent) > 0 }
+    get isTextblock() { return this.isBlock && this.inlineContent }
+    get isDoc() { return (this.flags & PartFlag.Doc) > 0 }
+    get isList() { return (this.flags & PartFlag.List) > 0 }
+    get isLeaf(): false { return false }
+
+    chk(part: Part): part is Plot
+    chk(tag: Part.Tag): tag is Plot.Label<Param>
+    chk(obj: Part | Part.Tag) { return obj.type == this }
+  }
+
+  export interface Spec<Param> extends Part.Spec<Param> {
+    blockContent?: string
+    inlineContent?: string | true
+
     /// Whether the sides of this node act as a 'barrier' when
     /// [normalizing](#state.EditorSelection.normalize) a cursor
     /// position. By default, block nodes that are
@@ -265,13 +544,7 @@ export namespace Tag {
     /// have a required param. When not specified, the configuration
     /// precedence order determines which child type is the default.
     defaultBlock?: boolean
-    /// Makes this tag the canonical line break for the schema. The node
-    /// must be inline and a leaf, and have no required parameter. Nodes
-    /// marked as line breaks will be parsed from and serialized to
-    /// newline characters inside
-    /// [whitespace-preserving](#state.Tag.Spec.preserveWhitespace)
-    /// nodes.
-    isLineBreak?: boolean
+    preserveWhitespace?: boolean
     /// Indicates that this node represents a list, which makes some
     /// commands behave specially on it.
     isList?: boolean
@@ -292,7 +565,7 @@ export namespace Tag {
     /// when they become adjacent through an edit. Defaults to false.
     /// Note that editing commands need to explicitly call
     /// [`autoJoinBlocks`](#state.autoJoinBlocks) for joining to happen.
-    autoJoin?: boolean | ((before: Tag, after: Tag) => boolean)
+    autoJoin?: boolean | ((before: Plot.Label.Any, after: Plot.Label.Any) => boolean)
     /// By default, splitting a textblock at the end will revert the new
     /// block to the default type of textblock at that position. Setting
     /// this to true on a textblock type will prevent that behavior.
@@ -303,258 +576,103 @@ export namespace Tag {
     /// node.
     cursorInsideBounds?: boolean
   }
-}
 
-function checkTagName(name: string) {
-  if (/[\s:]/.test(name)) throw new Error(`Tag names may not include space or colon characters (${name})`)
-  if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
-    throw new Error(`Tag name ${name} is reserved`)
-}
-
-// FIXME reuse leaf nodes by tag somehow
-export class Node {
-  contentLength: number
-  tag: Tag<unknown>
-
-  constructor(
-    tag: Tag<any>,
-    readonly children: readonly Node[],
-  ) {
-    this.tag = tag
-    this.contentLength = children.reduce((s, c) => s + c.length, 0)
-  }
-
-  get name() { return this.tag.name }
-  get type() { return this.tag.type }
-
-  get length() {
-    return this.type == Text ? (this.tag.param as string).length : this.isLeaf ? 1 : 2 + this.contentLength
-  }
-
-  get text(): string | null { return this.type == Text ? this.tag.param as string : null }
-
-  sliceText(from: number, to?: number) {
-    let {text} = this
-    if (text == null) throw new Error("Calling sliceText on a non-text node")
-    if (to == null) to = text.length
-    if (!from && to == text.length) return this
-    return new Node(Text.of(text.slice(Math.max(from, 0), Math.max(0, to)), this.tag.props), none)
-  }    
-
-  pushTo(nodes: Node[]) {
-    let last = nodes.length - 1
-    if (last >= 0 && this.isText && nodes[last].isText && nodes[last].tag.sameProps(this.tag))
-      nodes[last] = Node.text(nodes[last].text! + this.text!, this.tag.props)
-    else
-      nodes.push(this)
-  }
-
-  eq(other: Node): boolean {
-    return this == other || this.tag.eq(other.tag) && eqArray(this.children, other.children)
-  }
-
-  slice(from: number, to = this.length) {
-    if (from == to) return Slice.empty
-    let content: Token[] = []
-    this.sliceNode(content, from, to)
-    return new Slice(content)
-  }
-
-  /// @internal
-  sliceNode(content: Token[], from: number, to: number) {
-    if (this.isText) {
-      if (from < to) content.push(this.sliceText(from, to))
-      return
+  // FIXME the use of schema objects as param conflicts with the
+  // plain JSON structure that we assume params have
+  export class Doc extends Plot {
+    constructor(tag: Plot.Label<Schema>, children: readonly Part[]) {
+      super(tag, children)
     }
-    if (from <= 0) {
-      if (to >= this.length) {
-        content.push(this)
-        return
+
+    get length() { return this.contentLength }
+
+    get schema() { return this.label.param as Schema }
+
+    slicePlot(content: Token[], from: number, to: number) {
+      sliceContent(content, this.content, from, to)
+    }
+
+    resolve(pos: number) {
+      return Pos.resolve(this, pos)
+    }
+
+    resolveNode(pos: number) {
+      return Pos.resolveNode(this, pos)
+    }
+
+    contextAt(pos: number, maxDepth?: number): readonly Plot.Label.Any[] {
+      for (let {parent} = this.resolve(pos), context = [];;) {
+        if (!parent.parent || maxDepth != null && context.length == maxDepth) return context
+        context.push(parent.part.label)
+        parent = parent.parent
       }
-      content.push(this.tag)
-    }
-    sliceContent(content, this.children, from - 1, to - 1)
-    if (to >= this.length) content.push(CloseToken)
-  }
-
-  get isInline() { return this.type.isInline }
-  get isText() { return this.type.isText }
-  get isBlock() { return this.type.isBlock }
-  get inlineContent() { return this.type.inlineContent }
-  get isTextblock() { return this.type.isTextblock }
-  get isLeaf() { return this.type.isLeaf }
-  get isDoc() { return this.type.isDoc }
-
-  get firstChild(): Node | null {
-    return this.children.length ? this.children[0] : null
-  }
-
-  get lastChild(): Node | null {
-    let last = this.children.length - 1
-    return last < 0 ? null : this.children[last]
-  }
-
-  /// Iterate though the given range (or the entire document, when
-  /// given only one argument), and call the given function on every
-  /// node that overlaps the given range, outer nodes before inner
-  /// nodes. When the function returns `false` for a node, descendents
-  /// of that node are not iterated.
-  iterate(from: number, to: number, f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void): void
-  iterate(f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void): void
-  iterate(a: number | ((node: Node, pos: number, parent: Node | null, index: number) => boolean | void),
-          b?: number, c?: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void): void {
-    let [from, to, f] = typeof a == "number" ? [a, b!, c!] : [0, this.length, a]
-    if (this.isDoc || f(this, 0, null, 0) !== false)
-      this.iterInner(0, from, to, f)
-  }
-
-  nodeAt(pos: number): Node | null {
-    for (let child of this.children) {
-      if (pos == 0) return child
-      if (pos < child.length) return child.nodeAt(pos - 1)
-      pos -= child.length
-    }
-    return null
-  }
-
-  /// @internal
-  iterInner(contentStart: number, from: number, to: number,
-            f: (node: Node, pos: number, parent: Node | null, index: number) => boolean | void) {
-    for (let pos = contentStart, i = 0; i < this.children.length; i++) {
-      if (pos >= to) break
-      let child = this.children[i], start = pos
-      pos += child.length
-      if (pos <= from) continue
-      if (f(child, start, this, i) !== false) child.iterInner(start + 1, from, to, f)
-    }
-  }
-
-  /// @internal
-  toString() {
-    let result = this.isText ? JSON.stringify(this.text) : this.name
-    let props = []
-    for (let prop of this.tag.props) if (!prop.spanning) {
-      if (prop.type.default == prop) props.push(prop.type.name)
-      else props.push(`${prop.type.name}=${prop.value}`)
-    }
-    if (props.length) result += `[${props.join()}]`
-    if (!this.isLeaf) result += `(${this.children.join()})`
-    for (let i = this.tag.props.length - 1; i >= 0; i--) {
-      let prop = this.tag.props[i]
-      if (prop.spanning) result = `${prop.type.name}(${result})`
-    }
-    return result
-  }
-
-  toJSON(): NodeJSON {
-    let result = this.tag.toJSON() as NodeJSON
-    if (this.children.length) result.children = this.children.map(c => c.toJSON())
-    return result
-  }
-
-  textContent(options: {
-    from?: number, to?: number,
-    blockSeparator?: string,
-    leafText?: string | ((node: Node) => string)
-  } = {}) {
-    let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
-    let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
-    this.iterate(from, to, (node, pos) => {
-      if (node.isText && (pos < from || pos + node.length > to))
-        node = node.sliceText(Math.max(0, from - pos), Math.min(node.length, to - pos))
-      return !out.serialize(node)
-    })
-    return out.text
-  }
-
-  prop<Value>(prop: Prop.Type<Value>): Value | undefined { return this.tag.prop(prop) }
-
-  withProps(props: readonly Prop<any>[]) {
-    let tag = this.tag.withProps(props)
-    return tag == this.tag ? this : new Node(tag, this.children)
-  }
-
-  get tokenType(): TokenType.Node { return TokenType.Node }
-
-  static text(text: string, props: readonly Prop<any>[] = none) {
-    return new Node(Text.of(text, props), none)
-  }
-}
-
-export interface TagJSON {
-  type: string
-  param?: any
-  props?: {[name: string]: any}
-}
-
-export interface NodeJSON extends TagJSON {
-  children?: readonly NodeJSON[]
-}
-
-export interface MarkJSON {
-  type: string
-  params?: any
-}
-
-// FIXME the use of schema objects as param conflicts with the
-// plain JSON structure that we assume params have
-export class DocNode extends Node {
-  constructor(tag: Tag<Schema>, children: readonly Node[]) {
-    super(tag, children)
-  }
-
-  get length() { return this.contentLength }
-
-  get schema() { return this.tag.param as Schema }
-
-  sliceNode(content: Token[], from: number, to: number) {
-    sliceContent(content, this.children, from, to)
-  }
-
-  resolve(pos: number) {
-    return Pos.resolve(this, pos)
-  }
-
-  resolveNode(pos: number) {
-    return Pos.resolveNode(this, pos)
-  }
-
-  contextAt(pos: number, maxDepth?: number): readonly Tag[] {
-    for (let {parent} = this.resolve(pos), context = [];;) {
-      if (!parent.parent || maxDepth != null && context.length == maxDepth) return context
-      context.push(parent.node.tag)
-      parent = parent.parent
     }
   }
 }
 
-function sliceContent(content: Token[], nodes: readonly Node[], from: number, to: number) {
+function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
+  let flags = inline ? PartFlag.Inline : PartFlag.None
+  if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
+  if (spec.inlineContent) flags |= PartFlag.InlineContent
+  if (spec.isList) flags |= PartFlag.List
+  return flags
+}
+
+function typeGroups(type: Part.Type<any>) {
+  let groups = [type.name, "*"]
+  if (type.flags & PartFlag.Inline) groups.push("Inline")
+  if (type.spec.group) for (let g of splitGroups(type.spec.group)) groups.push(g)
+  return groups
+}
+
+function isInGroup(type: Part.Type<any>, group: string) {
+  let mod = group.indexOf(":")
+  if (mod > -1) {
+    let modName = group.slice(mod + 1)
+    if (modName == "Leaf" && !type.isLeaf) return false
+    group = group.slice(0, mod)
+  }
+  return group == "_" || type.groups.includes(group)
+}
+
+function propString(props: readonly Prop[]) {
+  let values: string[] = []
+  for (let prop of props) {
+    if (prop.type.default == prop) values.push(prop.type.name)
+    else values.push(`${prop.type.name}=${prop.value}`)
+  }
+  return values.length ? `[${values.join()}]` : ""
+}
+
+function sliceContent(out: Token[], content: readonly Part[], from: number, to: number) {
   let off = 0
-  for (let child of nodes) {
+  for (let child of content) {
     if (off >= to) break
     let start = off
     off += child.length
     if (off <= from) continue
-    child.sliceNode(content, from - start, to - start)
+    if (!child.isLeaf) {
+      child.slicePlot(out, from - start, to - start)
+    } else if (child.isText) {
+      out.push(child.sliceText(from - start, to - start))
+    } else {
+      out.push(child)
+    }
   }
 }
 
-export const Text = new Tag.Type<string>("Text", TagFlag.Leaf | TagFlag.Inline, {
-  shape: {element: ""}
-})
-
-function joinText(nodes: readonly Node[]) {
-  if (!nodes.length || nodes[0].isBlock) return nodes
-  let joined: Node[] | undefined
-  for (let i = 0, last = null; i < nodes.length; i++) {
-    let node = nodes[i]
-    if (last && node.isText && last.isText && last.tag.sameProps(node.tag)) {
-      if (!joined) joined = nodes.slice(0, i)
-      last = joined[joined.length - 1] = Node.text(last.text! + node.text!, node.tag.props)
+function joinText(parts: readonly Part[]) {
+  if (!parts.length || parts[0].isBlock) return parts
+  let joined: Part[] | undefined
+  for (let i = 0, last: Leaf.Any | null = null; i < parts.length; i++) {
+    let part = parts[i], join
+    if (join = last && part.join(last)) {
+      if (!joined) joined = parts.slice(0, i)
+      last = joined[joined.length - 1] = join
     } else {
-      last = node
-      if (joined) joined.push(node)
+      last = part.isLeaf ? part : null
+      if (joined) joined.push(part)
     }
   }
-  return joined || nodes
+  return joined || parts
 }

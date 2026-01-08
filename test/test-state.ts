@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Node, Tag, builder, basicBuilders, Prop} from "wordgard/doc"
+import {Plot, Leaf, builder, basicBuilders, Prop} from "wordgard/doc"
 import {EditorState} from "wordgard/state"
 const {doc, p} = basicBuilders
 
@@ -18,12 +18,12 @@ describe("EditorState", () => {
   it("can be updated", () => {
     let {state} = EditorState.create({
       doc: doc(p("!"))
-    }).update({changes: {from: 1, insert: [Node.text("-")]}})
+    }).update({changes: {from: 1, insert: [Leaf.text("-")]}})
     ist(state.doc, doc(p("-!")), eq)
   })
 
   it("checks for tags not in the schema", () => {
-    let Stranger = Tag.defineBlock("Stranger", {
+    let Stranger = Plot.defineBlock("Stranger", {
       group: "Block",
       inlineContent: true,
       shape: {element: "div"}

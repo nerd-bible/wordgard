@@ -1,8 +1,8 @@
-import {Node} from "wordgard/doc"
+import {Plot, Leaf, Part} from "wordgard/doc"
 import {Direction, BidiSpan, computeOrder} from "./bidi"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
-const cache: WeakMap<Node, TextblockMap> = new WeakMap
+const cache: WeakMap<Plot, TextblockMap> = new WeakMap
 
 const enum Section {
   Text = 0,
@@ -16,7 +16,7 @@ const enum Section {
 export class TextblockMap {
   private constructor(
     readonly start: number,
-    readonly node: Node,
+    readonly node: Plot,
     readonly dir: Direction,
     readonly text: string,
     private _order: readonly BidiSpan[] | null,
@@ -33,7 +33,7 @@ export class TextblockMap {
   // FIXME handle isolates
   // FIXME use some kind of world age counter trick to invalidate
   // cache when direction or shape facets change
-  static get(start: number, node: Node, dir: Direction) {
+  static get(start: number, node: Plot, dir: Direction) {
     let cached = cache.get(node)
     if (cached && cached.start == start && cached.dir == dir) return cached
     let result = cached && cached.dir == dir
@@ -43,15 +43,15 @@ export class TextblockMap {
     return result
   }
 
-  static create(start: number, node: Node, dir: Direction) {
+  static create(start: number, node: Plot, dir: Direction) {
     let text = "", sections: number[] = [], sectionPos = 0
     let flush = (upto: number) => {
       if (upto > sectionPos) sections.push((upto - sectionPos) << Section.Shift)
     }
-    let scan = (node: Node, pos: number) => {
-      for (let ch of node.children) {
-        if (ch.isText) {
-          text += ch.text!
+    let scan = (node: Part, pos: number) => {
+      if (!node.isLeaf) for (let ch of node.content) {
+        if (Leaf.Text.chk(ch)) {
+          text += ch.param
         } else if (ch.type.isLeaf) {
           text += "\ufffc"
           if (ch.length > 1) {

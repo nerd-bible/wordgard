@@ -1,6 +1,6 @@
 import ist from "ist"
 import {EditorState, Correction} from "wordgard/state"
-import {Node, Blockquote, Strong, Emphasis, basicBuilders} from "wordgard/doc"
+import {Leaf, Blockquote, Strong, Emphasis, basicBuilders} from "wordgard/doc"
 
 const {doc, p, blockquote, h1, $img, em} = basicBuilders
 
@@ -27,7 +27,7 @@ describe("Correction", () => {
       doc: doc(blockquote(p("abc"), p("def"))),
       config: Correction.onContent(Blockquote, node => { notified.push(node.pos); return null })
     })
-    s = s.update({changes: {from: 2, insert: [Node.text("-")]}}).state
+    s = s.update({changes: {from: 2, insert: [Leaf.text("-")]}}).state
     ist(notified.join(), "0")
     s = s.update({changes: [{from: 1, insert: [p()]}, {from: 7, insert: [p()]}]}).state
     ist(notified.join(), "0,0")
@@ -49,7 +49,7 @@ describe("Correction", () => {
     let s = EditorState.create({
       doc: doc(h1("h"), p("abc")),
       config: Correction.onChildList("Doc", node => {
-        if (node.node.firstChild!.name == "Heading") return null
+        if (node.part.firstPart!.name == "Heading") return null
         return {from: node.start, insert: [h1()]}
       })
     })
@@ -65,7 +65,7 @@ describe("Correction", () => {
     let s = EditorState.create({
       doc: doc(blockquote(h1("h"), p("abc")), blockquote(h1("h"), p("abc"))),
       config: Correction.onChildList("Blockquote", node => {
-        if (node.node.firstChild!.name == "Heading") return null
+        if (node.part.firstPart!.name == "Heading") return null
         return {from: node.start, insert: [h1()]}
       })
     })
@@ -75,8 +75,8 @@ describe("Correction", () => {
 
   it("can apply a correction to a start doc", () => {
     let c = Correction.onContent("Paragraph", node => {
-      if (node.node.contentLength) return null
-      return {from: node.start, insert: [Node.text(".")]}
+      if (node.part.contentLength) return null
+      return {from: node.start, insert: [Leaf.text(".")]}
     })
     let tr = c.scan(EditorState.create({doc: doc(p(), p("a"), p())}))
     ist(tr)

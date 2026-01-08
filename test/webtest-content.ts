@@ -1,14 +1,14 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, overrideShape} from "wordgard/view"
 import {EditorState, type Extension, StateField, Transaction, StateEffect} from "wordgard/state"
-import {DocNode, Tag, basicBuilders, CodeBlock, Node,
+import {Plot, Leaf, basicBuilders, CodeBlock,
         Emphasis, Strong, ImageAlt, Paragraph, Image, elt} from "wordgard/doc"
 import ist from "ist"
 
 const {DocTile} = EditorView as any
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
-function render(doc: DocNode, ...config: Extension[]) {
+function render(doc: Plot.Doc, ...config: Extension[]) {
   return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 
@@ -47,18 +47,18 @@ describe("DocTile", () => {
   })
 
   it("can draw nodes with complicated structure", () => {
-    let FancyBlock = Tag.defineBlock("FancyBlock", {
+    let FancyBlock = Plot.defineBlock("FancyBlock", {
       group: "Block",
       inlineContent: "Inline",
       shape: {
         structure: elt({_: "div", class: "c"}, elt("span", "before"), elt({_: "span", class: "content"}, 0), elt("span", "after"))
       }
     })
-    let tile = render(doc(FancyBlock.create([Node.text("!")])), EditorState.validateDoc.of(false))
+    let tile = render(doc(FancyBlock.create([Leaf.text("!")])), EditorState.validateDoc.of(false))
     ist(tile.dom.innerHTML,
         "<div class=\"c\"><span>before</span><span class=\"content\">!</span><span>after</span></div>")
     tile = update(tile, {changes: [{from: 0, insert: [p("(")]},
-                                   {from: 1, to: 2, insert: [Node.text("?")]},
+                                   {from: 1, to: 2, insert: [Leaf.text("?")]},
                                    {from: 3, insert: [p(")")]}]})
     ist(tile.dom.innerHTML,
         "<p>(</p><div class=\"c\"><span>before</span><span class=\"content\">?</span><span>after</span></div><p>)</p>")
@@ -70,7 +70,7 @@ describe("DocTile", () => {
   })
 
   it("can update for a text change", () => {
-    let node = update(render(doc(p("123"))), {changes: {from: 2, insert: [Node.text("..")]}})
+    let node = update(render(doc(p("123"))), {changes: {from: 2, insert: [Leaf.text("..")]}})
     ist(node.dom.innerHTML, "<p>1..23</p>")
   })
 
@@ -80,7 +80,7 @@ describe("DocTile", () => {
   })
 
   it("can make multiple changes", () => {
-    let node = update(render(doc(p("ab"), p("cd"))), {changes: [{from: 1, insert: [Node.text("..")]}, {from: 2, to: 6}]})
+    let node = update(render(doc(p("ab"), p("cd"))), {changes: [{from: 1, insert: [Leaf.text("..")]}, {from: 2, to: 6}]})
     ist(node.dom.innerHTML, "<p>..ad</p>")
   })
 
@@ -117,7 +117,7 @@ describe("DocTile", () => {
 
   it("properly syncs replacements inside wrappers", () => {
     let node = render(doc(p(strong("abc")), p("def")))
-    ist(update(node, {changes: {from: 2, insert: [Node.text("..", [Strong])]}}).dom.innerHTML,
+    ist(update(node, {changes: {from: 2, insert: [Leaf.text("..", [Strong])]}}).dom.innerHTML,
         "<p><strong>a..bc</strong></p><p>def</p>")
   })
 
@@ -131,7 +131,7 @@ describe("DocTile", () => {
   it("preserves prop wrapper nodes", () => {
     let node = render(doc(p(strong("ab"))))
     let str = node.dom.querySelector("strong")
-    node = update(node, {changes: {from: 2, insert: [Node.text("!")]}})
+    node = update(node, {changes: {from: 2, insert: [Leaf.text("!")]}})
     ist(node.dom.querySelector("strong"), str)
   })
 
@@ -142,14 +142,14 @@ describe("DocTile", () => {
 
   it("fixes textblock breaks on changes", () => {
     let node = render(doc(p(), p("a")))
-    ist(update(node, {changes: [{from: 1, insert: [Node.text("x")]}, {from: 3, to: 4}]}).dom.innerHTML,
+    ist(update(node, {changes: [{from: 1, insert: [Leaf.text("x")]}, {from: 3, to: 4}]}).dom.innerHTML,
         "<p>x</p><p><br></p>")
   })
 
   it("reuses text nodes when changing their start", () => {
     let node = render(doc(p("abc"), p("def")))
     let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
-    node = update(node, {changes: [{from: 1, insert: [Node.text("..")]}, {from: 6, to: 7}]})
+    node = update(node, {changes: [{from: 1, insert: [Leaf.text("..")]}, {from: 6, to: 7}]})
     ist(abc.nodeValue, "..abc")
     ist(def.nodeValue, "ef")
   })
@@ -157,7 +157,7 @@ describe("DocTile", () => {
   it("reuses text nodes when changing their end", () => {
     let node = render(doc(p("abc"), p("def")))
     let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
-    node = update(node, {changes: [{from: 4, insert: [Node.text("..")]}, {from: 8, to: 9}]})
+    node = update(node, {changes: [{from: 4, insert: [Leaf.text("..")]}, {from: 8, to: 9}]})
     ist(abc.nodeValue, "abc..")
     ist(def.nodeValue, "de")
   })
@@ -165,7 +165,7 @@ describe("DocTile", () => {
   it("reuses text nodes when changing their middle", () => {
     let node = render(doc(p("abc"), p("def")))
     let abc = node.dom.firstChild!.firstChild!, def = node.dom.lastChild!.firstChild!
-    node = update(node, {changes: [{from: 2, insert: [Node.text("..")]}, {from: 7, to: 8}]})
+    node = update(node, {changes: [{from: 2, insert: [Leaf.text("..")]}, {from: 7, to: 8}]})
     ist(abc.nodeValue, "a..bc")
     ist(def.nodeValue, "df")
   })
@@ -178,7 +178,7 @@ describe("DocTile", () => {
     })
     const imgWidget = tagShape({
       tag: "Image",
-      shape: t => trackedWidget.of(t.param),
+      shape: t => trackedWidget.of(t.param as string),
       atom: true
     })
 

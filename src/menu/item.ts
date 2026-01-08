@@ -1,7 +1,7 @@
 import {EditorView, toggleProp, setTextblockType, wrapBlock, unwrapBlockType,
         toggleList, listIsActive, showDialog} from "wordgard/view"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
-import {Prop, Tag, NodePos, canAddPropInRange, ChangeSet,
+import {Prop, Plot, PartPos, canAddPropInRange, ChangeSet,
         Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/doc"
 import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
@@ -202,7 +202,7 @@ export const ToggleLink = new MenuButton({
     if (selection.empty) return false
     let remove: ChangeSet.Spec[] = []
     for (let {from, to} of selection.ranges) doc.iterate(from, to, (node, pos) => {
-      let has = node.tag.hasProp(Link)
+      let has = Link.isInSet(node.label.props)
       if (has) remove.push({from: pos, to: pos + node.length, remove: has})
     })
     if (remove.length) {
@@ -228,7 +228,7 @@ export const ToggleLink = new MenuButton({
     let {selection, doc} = state, found = false
     if (!selection.empty) for (let {from, to} of selection.ranges) doc.iterate(from, to, node => {
       if (found) return false
-      if (node.tag.hasProp(Link)) found = true
+      if (Link.isInSet(node.label.props)) found = true
     })
     return found
   },
@@ -267,10 +267,10 @@ export const TextblockStyle = new Submenu({
   width: 10,
 })
 
-function selectionInType(tag: Tag<any>) {
+function selectionInType(tag: Plot.Label.Any) {
   return (state: EditorState) => {
     let {sel} = state, block = sel.head.textblockParent
-    return !!block && block.start == sel.anchor.textblockParent?.start && block.node.tag.eq(tag)
+    return !!block && block.start == sel.anchor.textblockParent?.start && block.part.label.eq(tag)
   }
 }
 
@@ -335,8 +335,8 @@ export const OrderedListButton = new MenuButton({
 export const BlockquoteButton = new MenuButton({
   run: view => unwrapBlockType(Blockquote)(view) || wrapBlock(Blockquote)(view),
   active: state => {
-    for (let cur: NodePos | null = state.sel.head.parent; cur; cur = cur.parent)
-      if (cur.node.type == Blockquote.type) return true
+    for (let cur: PartPos | null = state.sel.head.parent; cur; cur = cur.parent)
+      if (cur.part.type == Blockquote.type) return true
     return false
   },
   label: iconQuote,

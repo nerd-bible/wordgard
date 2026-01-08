@@ -1,18 +1,18 @@
-import {type Node} from "./node"
+import {type Part, type Leaf} from "./node"
 
 export class TextOutput {
   text = ""
   started = false
 
-  constructor(readonly blockSep: string, readonly leafText?: (node: Node) => string) {}
+  constructor(readonly blockSep: string, readonly leafText?: (node: Leaf.Any) => string) {}
 
-  serialize(node: Node): boolean {
-    let nodeText = node.isText ? node.text!
-      : node.type.spec.toText ? node.type.spec.toText(node)
-      : !node.isLeaf ? null
-      : this.leafText ? this.leafText(node)
+  serialize(part: Part): boolean {
+    let nodeText = !part.isLeaf ? null
+      : part.isText ? part.param as string
+      : part.type.spec.toText ? part.type.spec.toText(part)
+      : this.leafText ? this.leafText(part)
       : ""
-    if (node.isBlock && (nodeText || node.isTextblock)) this.openBlock()
+    if (!part.isLeaf && part.isTextblock) this.openBlock()
     if (nodeText != null) { this.text += nodeText; this.started = true }
     return nodeText != null
   }
