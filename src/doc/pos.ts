@@ -202,14 +202,16 @@ function advancePos(distance: number, parent: PlotPos, pos: number, index: numbe
         }
       } else {
         let enter = full || target < end
-        if (enter && walk && walk.enterPlot(next, pos, parent, index) === false && target >= end) enter = false
+        if (walk) {
+          if (!enter) walk.skip(next, pos, parent, index)
+          else if (walk.enterPlot(next, pos, parent, index) === false && target >= end) enter = false
+        }
         if (enter) {
           parent = new PlotPos(parent, next, pos, index)
           pos++
           part = next
           index = 0
         } else {
-          if (walk) walk.skip(next, pos, parent, index)
           pos = end
           index++
         }

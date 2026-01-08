@@ -1163,7 +1163,7 @@ export class DecoIterator {
 
   tagShape(tag: Part.Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape
-    if (Leaf.Text.chk(tag)) for (let src of this.tagShapes) if (src.pred(tag.type)) {
+    if (!Leaf.Text.chk(tag)) for (let src of this.tagShapes) if (src.pred(tag.type)) {
       shape = src.shape(tag)
       break
     }
