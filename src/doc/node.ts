@@ -7,8 +7,6 @@ import {Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
-// FIXME split/rename
-
 const enum NodeFlag { // FIXME drop some of these?
   None = 0,
   Inline = 1,
@@ -18,7 +16,7 @@ const enum NodeFlag { // FIXME drop some of these?
   List = 64
 }
 
-export class Leaf<Param> {
+export class Leaf<Param> implements Node.Shared {
   constructor(readonly type: Leaf.Type<Param>, readonly param: Param, readonly props: readonly Prop<unknown>[]) {}
 
   get name() { return this.type.name }
@@ -169,63 +167,7 @@ export namespace Leaf {
   })
 }
 
-function checkTagName(name: string) {
-  if (/[\s:]/.test(name)) throw new Error(`Tag names may not include space or colon characters (${name})`)
-  if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
-    throw new Error(`Tag name ${name} is reserved`)
-}
-
-export type Node = Plot | Leaf.Any
-
-export namespace Node {
-  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
-
-  export type Tag = Leaf.Any | Plot.Tag.Any
-
-  export interface Spec<Param> {
-    defaultParam?: Param extends null ? never : Param
-    /// A function or type name used to validate this tag's parameter
-    /// value. This will be used when deserializing the attribute from
-    /// JSON. When a string, it should be a `|`-separated string of
-    /// primitive types (`"number"`, `"string"`, `"boolean"`, `"null"`,
-    /// and `"undefined"`), and the library will raise an error when the
-    /// value is not one of those types. When a function, it should
-    /// raise an error if the value doesn't have the expected type or
-    /// shape.
-    validateParam?: string | ((param: Param) => void)
-    group?: string
-    shape: ElementShape<Param> | StructureShape<Param>
-    parseRules?: readonly ElementParseRule<Param>[]
-  }
-
-  export type Selector = Leaf.Any | Plot.Tag.Any | Node.Type<any> | string | readonly Node.Selector[]
-
-  export function selector(selector?: Node.Selector): (type: Node.Type<any>) => boolean {
-    if (!selector) return () => true
-    if (Array.isArray(selector)) {
-      let inner = selector.map(Node.selector)
-      return type => inner.some(s => s(type))
-    }
-    if (typeof selector == "string") {
-      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
-      let groups = selector.split(/ /)
-      return t => groups.some(g => t.isInGroup(g))
-    }
-    // FIXME have a Node.is predicate?
-    let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
-      : (selector as Leaf<any> | Plot.Tag<any>).type
-    return t => t === type
-  }
-
-  export interface JSON {
-    type: string
-    param?: any
-    props?: {[name: string]: any}
-    content?: readonly Node.JSON[]
-  }
-}
-
-export class Plot {
+export class Plot implements Node.Shared {
   contentLength: number
   tag: Plot.Tag.Any
 
@@ -631,6 +573,72 @@ export namespace Plot {
   }
 }
 
+export type Node = Plot | Leaf.Any
+
+export namespace Node {
+  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
+
+  export type Tag = Leaf.Any | Plot.Tag.Any
+
+  export interface Shared {
+    name: string
+    tag: Node.Tag
+    prop<Value>(prop: Prop.Type<Value>): Value | undefined
+    eq(other: Node | Node.Tag): boolean
+    withProps(props: readonly Prop<unknown>[]): Node
+    pushTo(nodes: Node[]): void
+    slice(from: number, to?: number): Slice
+    isInline: boolean
+    isBlock: boolean
+    isLeaf: boolean
+    isText: boolean
+    length: number
+    toJSON(): Node.JSON
+  }
+
+  export interface Spec<Param> {
+    defaultParam?: Param extends null ? never : Param
+    /// A function or type name used to validate this tag's parameter
+    /// value. This will be used when deserializing the attribute from
+    /// JSON. When a string, it should be a `|`-separated string of
+    /// primitive types (`"number"`, `"string"`, `"boolean"`, `"null"`,
+    /// and `"undefined"`), and the library will raise an error when the
+    /// value is not one of those types. When a function, it should
+    /// raise an error if the value doesn't have the expected type or
+    /// shape.
+    validateParam?: string | ((param: Param) => void)
+    group?: string
+    shape: ElementShape<Param> | StructureShape<Param>
+    parseRules?: readonly ElementParseRule<Param>[]
+  }
+
+  export type Selector = Leaf.Any | Plot.Tag.Any | Node.Type<any> | string | readonly Node.Selector[]
+
+  export function selector(selector?: Node.Selector): (type: Node.Type<any>) => boolean {
+    if (!selector) return () => true
+    if (Array.isArray(selector)) {
+      let inner = selector.map(Node.selector)
+      return type => inner.some(s => s(type))
+    }
+    if (typeof selector == "string") {
+      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
+      let groups = selector.split(/ /)
+      return t => groups.some(g => t.isInGroup(g))
+    }
+    // FIXME have a Node.is predicate?
+    let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
+      : (selector as Leaf<any> | Plot.Tag<any>).type
+    return t => t === type
+  }
+
+  export interface JSON {
+    type: string
+    param?: any
+    props?: {[name: string]: any}
+    content?: readonly Node.JSON[]
+  }
+}
+
 function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   let flags = inline ? NodeFlag.Inline : NodeFlag.None
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
@@ -696,4 +704,10 @@ function joinText(nodes: readonly Node[]) {
     }
   }
   return joined || nodes
+}
+
+function checkTagName(name: string) {
+  if (/[\s:]/.test(name)) throw new Error(`Tag names may not include space or colon characters (${name})`)
+  if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
+    throw new Error(`Tag name ${name} is reserved`)
 }
