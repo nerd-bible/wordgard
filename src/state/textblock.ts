@@ -1,4 +1,4 @@
-import {Plot, Leaf, Part} from "wordgard/doc"
+import {Plot, Leaf, Node} from "wordgard/doc"
 import {Direction, BidiSpan, computeOrder} from "./bidi"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
@@ -48,7 +48,7 @@ export class TextblockMap {
     let flush = (upto: number) => {
       if (upto > sectionPos) sections.push((upto - sectionPos) << Section.Shift)
     }
-    let scan = (node: Part, pos: number) => {
+    let scan = (node: Node, pos: number) => {
       if (!node.isLeaf) for (let ch of node.content) {
         if (Leaf.Text.chk(ch)) {
           text += ch.param

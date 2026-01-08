@@ -72,13 +72,13 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
 function findTextblockVertically(view: EditorView, from: number, forward: boolean, x: number) {
   let {parent, index, pos} = view.state.doc.resolve(from)
   for (;;) {
-    if (parent.part.type.orientation == "row" || forward ? index == parent.part.content.length : !index) {
+    if (parent.node.type.orientation == "row" || forward ? index == parent.node.content.length : !index) {
       if (!parent.parent) return null
       index = parent.index + (forward ? 1 : 0)
       pos += (forward ? 1 : -1)
       parent = parent.parent
     } else {
-      let next = parent.part.content[index - (forward ? 0 : 1)]
+      let next = parent.node.content[index - (forward ? 0 : 1)]
       if (next.isLeaf || view.state.isAtom(pos - (forward ? 0 : next.length), next)) {
         index += forward ? 1 : -1
         pos += (forward ? 1 : -1) * next.length
@@ -119,7 +119,7 @@ export function moveToLineBoundary(view: EditorView, start: EditorSelection, for
   let block = view.state.doc.resolve(start.head).textblockParent
   if (!block) return null
   let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
-  let dir = view.state.textDirection(block.part.label)
+  let dir = view.state.textDirection(block.node.tag)
   let blockRect = (view.docTile.resolve(block.start, 0).dom as HTMLElement).getBoundingClientRect()
   let {pos} = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
                                 y: (startCoords.top + startCoords.bottom) / 2})

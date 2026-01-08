@@ -187,7 +187,7 @@ describe("parseSlice", () => {
   }
 
   it("can parse a simple slice", () => {
-    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", Plot.End, p().label, "Two"]), eq)
+    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", Plot.End, p().tag, "Two"]), eq)
   })
 
   it("can parse text at the top level", () => {
@@ -203,7 +203,7 @@ describe("parseSlice", () => {
   })
 
   it("doesn't open leaf nodes", () => {
-    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), p().label, "A", br()]), eq)
+    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), p().tag, "A", br()]), eq)
   })
 
   function isOpen(elt: HTMLElement) {
@@ -212,6 +212,6 @@ describe("parseSlice", () => {
 
   it("can query the DOM for open structure", () => {
     ist(parse('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}).slice,
-        slice([p().label, "hi"]), eq)
+        slice([p().tag, "hi"]), eq)
   })
 })

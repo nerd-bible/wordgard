@@ -1,11 +1,11 @@
-import type {Part, Plot, Leaf} from "./node"
+import type {Node, Plot, Leaf} from "./node"
 import {Prop} from "./prop"
 import {none} from "./helper"
 
 export interface Walker {
-  skip(part: Part, pos: number, parent: PlotPos, index: number): void
+  skip(node: Node, pos: number, parent: PlotPos, index: number): void
   enterPlot(node: Plot, pos: number, parent: PlotPos, index: number): void | boolean
-  leavePlot(label: Plot.Label.Any | undefined, pos: number, parent: PlotPos | null, index: number): void
+  leavePlot(tag: Plot.Tag.Any | undefined, pos: number, parent: PlotPos | null, index: number): void
 }
 
 export class Pos {
@@ -25,20 +25,20 @@ export class Pos {
   }
 
   get nodeAfter() {
-    if (this.index == this.parent.part.content.length) return null
-    let node = this.parent.part.content[this.index]
+    if (this.index == this.parent.node.content.length) return null
+    let node = this.parent.node.content[this.index]
     return this.inText ? (node as Leaf<string>).sliceText(this.inText) : node
   }
 
   get nodeBefore() {
-    if (this.inText) return (this.parent.part.content[this.index] as Leaf<string>).sliceText(0, this.inText)
-    return this.index ? this.parent.part.content[this.index - 1] : null
+    if (this.inText) return (this.parent.node.content[this.index] as Leaf<string>).sliceText(0, this.inText)
+    return this.index ? this.parent.node.content[this.index - 1] : null
   }
 
   get textblockParent() {
     for (let p: PlotPos | null = this.parent;; p = p.parent) {
-      if (!p || !p.part.inlineContent) return null
-      if (p.part.isTextblock) return p
+      if (!p || !p.node.inlineContent) return null
+      if (p.node.isTextblock) return p
     }
   }
 
@@ -53,7 +53,7 @@ export class Pos {
   isAtEnd(parent: PlotPos) {
     if (this.inText) return false
     for (let p: PlotPos | null = this.parent, index = this.index;; index = p.index + 1, p = p.parent) {
-      if (!p || index < p.part.content.length) return false
+      if (!p || index < p.node.content.length) return false
       if (p == parent) return true
     }
   }
@@ -63,11 +63,11 @@ export class Pos {
   get doc() { return this.parent.doc }
 
   props(across?: Pos) {
-    if (this.inText && !across) return this.parent.part.content[this.index].label.props
+    if (this.inText && !across) return this.parent.node.content[this.index].tag.props
     let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
     let before = from.nodeBefore, after = to.nodeAfter
     let [main, sec]: [readonly Prop[], readonly Prop[]] =
-      before ? [before.label.props, after ? after.label.props : none] : [after ? after.label.props : none, none]
+      before ? [before.tag.props, after ? after.tag.props : none] : [after ? after.tag.props : none, none]
     return main.filter(p => p.type.spanning && (p.type.inclusive || p.isInSet(sec)))
   }
 
@@ -100,7 +100,7 @@ export class Pos {
     let base = this.resolve(doc, pos)
     if (base.inText) return null
     let after = base.nodeAfter
-    return after && !after.isText ? new (after.isLeaf ? PartPos : PlotPos)(base.parent, after, pos, base.index) : null
+    return after && !after.isText ? new (after.isLeaf ? NodePos : PlotPos)(base.parent, after, pos, base.index) : null
   }
 }
 
@@ -113,10 +113,10 @@ function cacheFor(doc: Plot.Doc) {
   return found
 }
 
-export class PartPos {
+export class NodePos {
   constructor(
     readonly parent: PlotPos | null,
-    readonly part: Part,
+    readonly node: Node,
     /// @internal
     readonly pos: number,
     readonly index: number
@@ -129,51 +129,51 @@ export class PartPos {
 
   get after() {
     if (this.pos < 0) throw new Error("Accessing `after` on the top level node")
-    return this.pos + this.part.length
+    return this.pos + this.node.length
   }
 
   get depth() {
     let d = 0
-    for (let n: PartPos = this; n.parent; n = n.parent) d++
+    for (let n: NodePos = this; n.parent; n = n.parent) d++
     return d
   }
 
   get doc(): Plot.Doc {
-    let n: PartPos = this
+    let n: NodePos = this
     while (n.parent) n = n.parent
-    if (!((n as PlotPos).part.isDoc)) throw new Error("Outer parent not a document")
-    return n.part as Plot.Doc
+    if (!((n as PlotPos).node.isDoc)) throw new Error("Outer parent not a document")
+    return n.node as Plot.Doc
   }
 
   get isFirst() { return !this.parent || this.index == 0 }
-  get isLast() { return !this.parent || this.index == this.parent.part.content.length - 1 }
+  get isLast() { return !this.parent || this.index == this.parent.node.content.length - 1 }
 
-  get nextSibling() { return this.isLast ? null : this.parent!.part.content[this.index + 1] }
-  get previousSibling() { return this.isFirst ? null : this.parent!.part.content[this.index - 1] }
+  get nextSibling() { return this.isLast ? null : this.parent!.node.content[this.index + 1] }
+  get previousSibling() { return this.isFirst ? null : this.parent!.node.content[this.index - 1] }
 }
 
-export class PlotPos extends PartPos {
-  declare part: Plot
+export class PlotPos extends NodePos {
+  declare node: Plot
   
   constructor(
     parent: PlotPos | null,
-    part: Plot,
+    node: Plot,
     pos: number,
     index: number
   ) {
-    super(parent, part, pos, index)
+    super(parent, node, pos, index)
   }
   
   get start() { return this.pos + 1 }
 
-  get end() { return this.pos + 1 + this.part.contentLength }
+  get end() { return this.pos + 1 + this.node.contentLength }
 }
 
 function advancePos(distance: number, parent: PlotPos, pos: number, index: number, inText: number,
                     walk?: Walker, full = false) {
-  let target = pos + distance, {part} = parent
+  let target = pos + distance, {node} = parent
   if (inText) {
-    let text = part.content[index] as Leaf<string>
+    let text = node.content[index] as Leaf<string>
     let textStart = pos - inText, textEnd = textStart + text.length
     if (walk) walk.skip(text.sliceText(inText, Math.min(text.length, target - textStart)), pos, parent, index)
     if (target < textEnd)
@@ -182,15 +182,15 @@ function advancePos(distance: number, parent: PlotPos, pos: number, index: numbe
     index++
   }
   while (pos < target) {
-    if (index == part.content.length) {
+    if (index == node.content.length) {
       if (!parent.parent) throw new Error("Moving past end of document")
-      if (walk) walk.leavePlot(part.label, pos, parent.parent, parent.index)
+      if (walk) walk.leavePlot(node.tag, pos, parent.parent, parent.index)
       ;({index, parent} = parent)
-      part = parent.part
+      node = parent.node
       index++
       pos++
     } else {
-      let next = part.content[index], end = pos + next.length
+      let next = node.content[index], end = pos + next.length
       if (next.isLeaf) {
         if (next.isText && target < end) {
           if (walk) walk.skip(next.sliceText(0, target - pos), pos, parent, index)
@@ -209,7 +209,7 @@ function advancePos(distance: number, parent: PlotPos, pos: number, index: numbe
         if (enter) {
           parent = new PlotPos(parent, next, pos, index)
           pos++
-          part = next
+          node = next
           index = 0
         } else {
           pos = end

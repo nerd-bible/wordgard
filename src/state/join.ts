@@ -1,4 +1,4 @@
-import {ChangeSet, Part} from "wordgard/doc"
+import {ChangeSet, Node} from "wordgard/doc"
 import {resolveTransactionInner, mergeTransaction, Transaction} from "./transaction"
 import {EditorState} from "./state"
 
@@ -16,13 +16,13 @@ export function autoJoinBlocks(state: EditorState, tr: Transaction.Spec): Transa
     let before = cursor.nodeBefore, after = cursor.nodeAfter
     if (before && after && !before.isLeaf && before.isBlock && before.type.chk(after)) {
       let {autoJoin} = after.type.spec
-      if (autoJoin && (typeof autoJoin != "function" || autoJoin(before.label, after.label))) {
+      if (autoJoin && (typeof autoJoin != "function" || autoJoin(before.tag, after.tag))) {
         let from = pos - 1, to = pos + 1
         for (;;) {
-          let last: Part | null = before!.lastPart, first: Part | null = after!.firstPart
+          let last: Node | null = before!.lastChild, first: Node | null = after!.firstChild
           if (!first || !last || first.isLeaf || last.isLeaf || first.type != last.type || first.isInline) break
           autoJoin = last.type.spec.autoJoin
-          if (!autoJoin || (typeof autoJoin == "function" && !autoJoin(last.label, first.label))) break
+          if (!autoJoin || (typeof autoJoin == "function" && !autoJoin(last.tag, first.tag))) break
           from--, to++
           before = last; after = first
         }

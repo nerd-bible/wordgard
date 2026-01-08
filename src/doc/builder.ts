@@ -1,14 +1,14 @@
-import {Plot, Leaf, Part} from "./node"
+import {Plot, Leaf, Node} from "./node"
 import {Prop} from "./prop"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"
 
-type ContentSpec = Part | string | number | null | readonly ContentSpec[]
+type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
 export type NodeBuilder<Source> =
-  Source extends Prop<any> | Plot.Label.Any ? (...children: ContentSpec[]) => Plot :
+  Source extends Prop<any> | Plot.Tag.Any ? (...children: ContentSpec[]) => Plot :
   Source extends Prop.Type<infer Value> ? (value: Value, ...children: ContentSpec[]) => Plot :
   Source extends Plot.Type<infer Param> ? (param: Param, ...children: ContentSpec[]) => Plot :
   Source extends Leaf.Any ? () => Leaf.Any : // FIXME make these values, not functions?
@@ -16,10 +16,10 @@ export type NodeBuilder<Source> =
   Source extends Schema ? (...children: ContentSpec[]) => Plot.Doc :
   never
 
-export function builder<Source extends Prop<any> | Prop.Type<any> | Part.Type<any> | Leaf.Any | Plot.Label.Any | Schema>(
+export function builder<Source extends Prop<any> | Prop.Type<any> | Node.Type<any> | Leaf.Any | Plot.Tag.Any | Schema>(
   source: Source
 ): NodeBuilder<Source> {
-  return (source instanceof Plot.Label
+  return (source instanceof Plot.Tag
     ? (...children: ContentSpec[]) => source.create(collectChildren(children))
     : source instanceof Prop
     ? (...children: ContentSpec[]) => fragment(children, source)
@@ -49,19 +49,19 @@ function fragment(children: ContentSpec[], prop: Prop) {
   return (chs.length && chs[0].isBlock ? BlockFragment : InlineFragment).create(chs)
 }
   
-const tagMap = new WeakMap<readonly Part[], {[label: number]: number}>()
+const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()
 
-function addProp(part: Part, prop?: Prop) {
-  return prop ? part.withProps(prop.addToSet(part.label.props)) : part
+function addProp(node: Node, prop?: Prop) {
+  return prop ? node.withProps(prop.addToSet(node.props)) : node
 }
 
-function collectChildren(spec: ContentSpec, prop?: Prop, list: Part[] = []) {
+function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
   if (Array.isArray(spec)) {
     for (let elt of spec) collectChildren(elt, prop, list)
   } else if (typeof spec == "string") {
     addProp(Leaf.text(spec), prop).pushTo(list)
   } else if (spec instanceof Plot) {
-    if (spec.label == InlineFragment || spec.label == BlockFragment) {
+    if (spec.tag == InlineFragment || spec.tag == BlockFragment) {
       copyTags(spec.content, list, 0)
       for (let ch of spec.content) collectChildren(ch, prop, list)
     } else {
@@ -78,7 +78,7 @@ function collectChildren(spec: ContentSpec, prop?: Prop, list: Part[] = []) {
   return list
 }
 
-function copyTags(source: readonly Part[], dest: readonly Part[], extraOffset: number) {
+function copyTags(source: readonly Node[], dest: readonly Node[], extraOffset: number) {
   let srcTags = tagMap.get(source)
   if (srcTags) {
     let destTags = tagMap.get(dest)
@@ -88,7 +88,7 @@ function copyTags(source: readonly Part[], dest: readonly Part[], extraOffset: n
   }
 }
 
-function contentLength(nodes: readonly Part[]) {
+function contentLength(nodes: readonly Node[]) {
   return nodes.reduce((l, n) => l + n.length, 0)
 }
 

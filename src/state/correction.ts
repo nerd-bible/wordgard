@@ -1,4 +1,4 @@
-import {Part, PlotPos, PartPos, Walker, ChangeSet} from "wordgard/doc"
+import {Node, PlotPos, NodePos, Walker, ChangeSet} from "wordgard/doc"
 import {Facet, Extension, transactionFilter} from "./facet"
 import {Transaction} from "./transaction"
 import {EditorState} from "./state"
@@ -9,24 +9,24 @@ const enum CorrectionEvent {
   Props = 2,
 }
 
-type PlanElt<PosType extends PartPos> = {node: PosType, correction: Correction<PosType>}
+type PlanElt<PosType extends NodePos> = {node: PosType, correction: Correction<PosType>}
 
 function scanTransaction(tr: Transaction) {
   let [childList, content, props] = tr.startState.facet(corrections)
   let plan: PlanElt<any>[] = []
   let queried: Set<number> = new Set, newNode = childList.concat(content)
   let updateWalker: Walker | undefined
-  let checkProps = (node: Part, pos: number, parent: PlotPos, index: number) => {
+  let checkProps = (node: Node, pos: number, parent: PlotPos, index: number) => {
     for (let correction of props) if (correction.tag(node.type))
-      plan.push({node: new PartPos(parent, node, pos, index), correction})
+      plan.push({node: new NodePos(parent, node, pos, index), correction})
   }
   if (props.length) updateWalker = {
     enterPlot: checkProps,
-    skip(node: Part, pos: number, parent: PlotPos, index: number) {
+    skip(node: Node, pos: number, parent: PlotPos, index: number) {
       // Back up to the start of the node
-      if (node.isText && !parent.part.content.includes(node)) {
+      if (node.isText && !parent.node.content.includes(node)) {
         for (let off = parent.start, i = 0;; i++) {
-          let next = parent.part.content[i], end = off + next.length
+          let next = parent.node.content[i], end = off + next.length
           if (end > pos) {
             node = next
             pos = off
@@ -68,13 +68,13 @@ function scanTransaction(tr: Transaction) {
       for (let pA = posA.parent, pB = posB.parent;;) {
         if (queried.has(pB.start - 1)) break
         queried.add(pB.start - 1)
-        if (childList.some(c => c.tag(pA.part.type))) {
-          let chA = pA.part.content, chB = pB.part.content
-          if (chA.length != chB.length || chA.some((ch, i) => !ch.label.eq(chB[i].label))) {
-            for (let correction of childList) if (correction.tag(pA.part.type)) plan.push({node: pB, correction})
+        if (childList.some(c => c.tag(pA.node.type))) {
+          let chA = pA.node.content, chB = pB.node.content
+          if (chA.length != chB.length || chA.some((ch, i) => !ch.tag.eq(chB[i].tag))) {
+            for (let correction of childList) if (correction.tag(pA.node.type)) plan.push({node: pB, correction})
           }
         }
-        for (let correction of content) if (correction.tag(pB.part.type)) plan.push({node: pB, correction})
+        for (let correction of content) if (correction.tag(pB.node.type)) plan.push({node: pB, correction})
         if (!pB.parent) break
         pA = pA.parent!; pB = pB.parent
       }
@@ -85,9 +85,9 @@ function scanTransaction(tr: Transaction) {
   return plan
 }
 
-const corrections = Facet.define<Correction<PartPos>, readonly (readonly Correction<PartPos>[])[]>({
+const corrections = Facet.define<Correction<NodePos>, readonly (readonly Correction<NodePos>[])[]>({
   combine(corrections) {
-    let buckets: Correction<PartPos>[][] = [[], [], []]
+    let buckets: Correction<NodePos>[][] = [[], [], []]
     for (let c of corrections) buckets[c.event].push(c)
     return buckets
   }
@@ -115,7 +115,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 /// and not be checked. Such a transaction may for example be created
 /// by concurrent collaborative changes or undone changes that
 /// interact with non-undoable changes.
-export class Correction<PosType extends PartPos> {
+export class Correction<PosType extends NodePos> {
   /// To take effect, corrections must be included in an editor
   /// configuration as extensions.
   extension: Extension
@@ -124,7 +124,7 @@ export class Correction<PosType extends PartPos> {
     /// @internal
     readonly event: CorrectionEvent,
     /// @internal
-    readonly tag: (t: Part.Type<any>) => boolean,
+    readonly tag: (t: Node.Type<any>) => boolean,
     /// @internal
     readonly correct: (node: PosType, state: EditorState) => ChangeSet.Spec | null
   ) {
@@ -166,20 +166,20 @@ export class Correction<PosType extends PartPos> {
   /// Create a correction that runs whenever the child list of a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onChildList(tag: Part.Selector, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.ChildList, Part.selector(tag), correct as any)
+  static onChildList(tag: Node.Selector, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<PlotPos>(CorrectionEvent.ChildList, Node.selector(tag), correct as any)
   }
 
   /// Create a correction that runs whenever any content inside a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onContent(tag: Part.Selector, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.Content, Part.selector(tag), correct as any)
+  static onContent(tag: Node.Selector, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<PlotPos>(CorrectionEvent.Content, Node.selector(tag), correct as any)
   }
 
   /// Define a correction that runs whenever the set of props on a tag
   /// matching a selector changes.
-  static onProps(tag: Part.Selector, correct: (node: PartPos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.Props, Part.selector(tag), correct)
+  static onProps(tag: Node.Selector, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<PlotPos>(CorrectionEvent.Props, Node.selector(tag), correct)
   }
 }

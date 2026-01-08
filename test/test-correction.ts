@@ -49,7 +49,7 @@ describe("Correction", () => {
     let s = EditorState.create({
       doc: doc(h1("h"), p("abc")),
       config: Correction.onChildList("Doc", node => {
-        if (node.part.firstPart!.name == "Heading") return null
+        if (node.node.firstChild!.name == "Heading") return null
         return {from: node.start, insert: [h1()]}
       })
     })
@@ -65,7 +65,7 @@ describe("Correction", () => {
     let s = EditorState.create({
       doc: doc(blockquote(h1("h"), p("abc")), blockquote(h1("h"), p("abc"))),
       config: Correction.onChildList("Blockquote", node => {
-        if (node.part.firstPart!.name == "Heading") return null
+        if (node.node.firstChild!.name == "Heading") return null
         return {from: node.start, insert: [h1()]}
       })
     })
@@ -75,7 +75,7 @@ describe("Correction", () => {
 
   it("can apply a correction to a start doc", () => {
     let c = Correction.onContent("Paragraph", node => {
-      if (node.part.contentLength) return null
+      if (node.node.contentLength) return null
       return {from: node.start, insert: [Leaf.text(".")]}
     })
     let tr = c.scan(EditorState.create({doc: doc(p(), p("a"), p())}))

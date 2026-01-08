@@ -1,5 +1,5 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
-import {Prop, Pos, Plot, Leaf, Part, Walker, ChangeSet, MapMode,
+import {Prop, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
         ElementShape, AttributeShape, Elt, pushAttribute,
         mergeAttributes, readAttributes} from "wordgard/doc"
 import {Attrs} from "./attributes"
@@ -62,11 +62,11 @@ export type Shape = Widget<any> | DecoElt
 enum WidgetPlace { Before, After, Start, End }
 
 export function tagShape(spec: {
-  tag: Part.Selector,
-  shape: Shape | ((tag: Part.Tag) => Shape),
+  tag: Node.Selector,
+  shape: Shape | ((tag: Node.Tag) => Shape),
   atom?: boolean
 }): Extension {
-  let {tag, shape, atom} = spec, shapeFunc: (tag: Part.Tag) => Shape
+  let {tag, shape, atom} = spec, shapeFunc: (tag: Node.Tag) => Shape
   if (typeof shape == "function") {
     if (atom == null) throw new Error("Dynamic tag shapes must provide an 'atom' field")
     shapeFunc = tag => addPropAttributes(shape(tag), tag)
@@ -75,14 +75,14 @@ export function tagShape(spec: {
     else if (atom != !shape.hasContent) throw new Error("'atom' and 'shape' field disagree on atomicity")
     shapeFunc = tag => addPropAttributes(shape, tag)
   }
-  return new TagShape(Part.selector(tag), memo(shapeFunc), atom)
+  return new TagShape(Node.selector(tag), memo(shapeFunc), atom)
 }
 
 class TagShape {
   extension: Extension
 
-  constructor(readonly pred: (tag: Part.Type<any>) => boolean,
-              readonly shape: (tag: Part.Tag) => Shape,
+  constructor(readonly pred: (tag: Node.Type<any>) => boolean,
+              readonly shape: (tag: Node.Tag) => Shape,
               readonly atom: boolean) {
     this.extension = [tagShapes.of(this), atomicDecorations]
   }
@@ -108,15 +108,15 @@ export type WidgetDeco<Param> = {
 }
 
 export function tagDecoration(spec: {
-  tag: Part.Selector
-  deco: WrapperDeco<Part.Tag> | AttributeDeco<Part.Tag> | WidgetDeco<Part.Tag>
+  tag: Node.Selector
+  deco: WrapperDeco<Node.Tag> | AttributeDeco<Node.Tag> | WidgetDeco<Node.Tag>
 }): Extension {
-  if ((spec.deco as WrapperDeco<Part.Tag>).element) {
-    return new TagWrapperSource(spec.tag, spec.deco as WrapperDeco<Part.Tag>)
+  if ((spec.deco as WrapperDeco<Node.Tag>).element) {
+    return new TagWrapperSource(spec.tag, spec.deco as WrapperDeco<Node.Tag>)
   } else if ((spec.deco as WidgetDeco<any>).widget) {
-    return new TagWidgetSource(spec.tag, spec.deco as WidgetDeco<Part.Tag>)
+    return new TagWidgetSource(spec.tag, spec.deco as WidgetDeco<Node.Tag>)
   } else {
-    return new TagAttributeSource(spec.tag, spec.deco as AttributeDeco<Part.Tag>)
+    return new TagAttributeSource(spec.tag, spec.deco as AttributeDeco<Node.Tag>)
   }
 }
 
@@ -129,7 +129,7 @@ function memo<T, A extends Object>(f: (arg: A) => T) {
   }
 }
 
-function addPropAttributes(shape: Shape, tag: Part.Tag) {
+function addPropAttributes(shape: Shape, tag: Node.Tag) {
   let attrs: string[] | undefined
   for (let prop of tag.props) if (!prop.type.element) {
     let repr = prop.type.repr as AttributeShape<any>
@@ -144,20 +144,20 @@ function addPropAttributes(shape: Shape, tag: Part.Tag) {
   return shape
 }
 
-const baseTagShape = memo((tag: Part.Tag): Shape => {
+const baseTagShape = memo((tag: Node.Tag): Shape => {
   return addPropAttributes(Leaf.Text.chk(tag) ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
 })
 
 class TagWidgetSource {
   place: WidgetPlace
-  pred: (tag: Part.Type<any>) => boolean
-  widget: (tag: Part.Tag) => Widget<any>
+  pred: (tag: Node.Type<any>) => boolean
+  widget: (tag: Node.Tag) => Widget<any>
   extension: Extension
 
-  constructor(tag: Part.Selector, deco: WidgetDeco<Part.Tag>) {
+  constructor(tag: Node.Selector, deco: WidgetDeco<Node.Tag>) {
     let {place, widget} = deco
     this.place = typeof place == "string" ? WidgetPlace[place] : place
-    this.pred = Part.selector(tag)
+    this.pred = Node.selector(tag)
     this.widget = typeof widget == "function" ? memo(widget) : () => widget
     this.extension = tagWidgets.of(this)
   }
@@ -166,14 +166,14 @@ class TagWidgetSource {
 export const tagWidgets = Facet.define<TagWidgetSource>()
 
 export class TagWrapperSource {
-  pred: (tag: Part.Type<any>) => boolean
-  wrapper: (tag: Part.Tag) => DecoElt
+  pred: (tag: Node.Type<any>) => boolean
+  wrapper: (tag: Node.Tag) => DecoElt
   rank: number
   spanning: boolean
   extension: Extension
 
-  constructor(tag: Part.Selector, deco: WrapperDeco<Part.Tag>) {
-    this.pred = Part.selector(tag)
+  constructor(tag: Node.Selector, deco: WrapperDeco<Node.Tag>) {
+    this.pred = Node.selector(tag)
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
       let elt = new Elt<never>(element, readAttributes(attributes), null)
@@ -190,13 +190,13 @@ export class TagWrapperSource {
 export const tagWrappers = Facet.define<TagWrapperSource>()
 
 export class TagAttributeSource {
-  pred: (tag: Part.Type<any>) => boolean
+  pred: (tag: Node.Type<any>) => boolean
   attribute: string
-  value: string | ((tag: Part.Tag) => string)
+  value: string | ((tag: Node.Tag) => string)
   extension: Extension
 
-  constructor(tag: Part.Selector, deco: AttributeDeco<Part.Tag>) {
-    this.pred = Part.selector(tag)
+  constructor(tag: Node.Selector, deco: AttributeDeco<Node.Tag>) {
+    this.pred = Node.selector(tag)
     this.attribute = deco.attribute
     this.value = deco.value
     this.extension = tagAttributes.of(this)
@@ -212,7 +212,7 @@ export enum DecorationScope {
 }
 
 export class RangeDecorationSource<T> {
-  pred: (tag: Part.Type<any>) => boolean
+  pred: (tag: Node.Type<any>) => boolean
   scope: DecorationScope
   wrapper: ((value: T) => DecoElt) | null = null
   rank: number = 0
@@ -222,13 +222,13 @@ export class RangeDecorationSource<T> {
   extension: Extension
 
   constructor(config: {
-    tag?: Part.Selector
+    tag?: Node.Selector
     scope?: DecorationScope
     deco: WrapperDeco<T> | AttributeDeco<T>
     set: (state: EditorState) => RangeSet<T>
     rank?: number
   }) {
-    this.pred = Part.selector(config.tag)
+    this.pred = Node.selector(config.tag)
     this.scope = config.scope ?? DecorationScope.InlineAtom
     this.set = config.set
     if ((config.deco as WrapperDeco<T>).element) {
@@ -271,7 +271,7 @@ export const widgets = Facet.define<WidgetSource<any>>()
 
 export function overrideShape<T>(spec: {
   set: (state: EditorState) => PointSet<T>,
-  check?: (node: Part) => boolean,
+  check?: (node: Node) => boolean,
   // FIXME document that this must not be expensive
   shape: Shape | ((value: T) => Shape),
   atom?: boolean
@@ -293,7 +293,7 @@ class ShapeOverride<T> {
   constructor(
     readonly set: (state: EditorState) => PointSet<T>,
     readonly shape: (value: T) => Shape,
-    readonly check: (node: Part) => boolean,
+    readonly check: (node: Node) => boolean,
     readonly atom: boolean
   ) {
     this.extension = [shapeSources.of(this), atomicDecorations]
@@ -834,13 +834,13 @@ function addAtomicityChanges(
         addRange(added, posA, posA + node.length)
     }
   } else if (changes) {
-    let changedTags = new Set<Part.Type<any>>()
+    let changedTags = new Set<Node.Type<any>>()
     let a = prev.facet(tagShapes), b = state.facet(tagShapes)
     for (let tag of state.doc.schema.tags) {
       if (atomicShape(tag, a) != atomicShape(tag, b)) changedTags.add(tag)
     }
     if (changedTags.size) prev.doc.iterate((node, pos) => {
-      if (changedTags.has(node.label.type)) {
+      if (changedTags.has(node.tag.type)) {
         added.push(pos, pos + node.length)
         return false
       }
@@ -859,7 +859,7 @@ function addAtomicityChanges(
   return ChangeSet.composeSections(changedSections, sections)
 }
 
-function atomicShape(tag: Part.Type<any>, shapes: readonly TagShape[]) {
+function atomicShape(tag: Node.Type<any>, shapes: readonly TagShape[]) {
   for (let s of shapes) if (s.pred(tag)) return s.atom
   return tag.shape.atom
 }
@@ -884,7 +884,7 @@ function addSection(sections: number[], len: number, ins: number) {
 export interface DecoWalker {
   enter(node: Plot, shape: DecoElt, wrappers: readonly WrapperSource[]): void
   leave(): void
-  node(node: Part, shape: Shape, wrappers: readonly WrapperSource[]): void
+  node(node: Node, shape: Shape, wrappers: readonly WrapperSource[]): void
   widget(widget: Widget<any>, side: number): void
 }
 
@@ -1005,7 +1005,7 @@ export type WrapperSource = Prop<any> | TagWrapperSource | RangeIterator<any, Ra
 // Note that the return value contains range iterators, and those will
 // become invalid as soon as they are advanced further.
 function nodeWrappers(
-  tag: Part.Tag,
+  tag: Node.Tag,
   active: readonly RangeIterator<any, RangeDecorationSource<any>>[],
   global: readonly TagWrapperSource[],
   atom: boolean
@@ -1027,12 +1027,12 @@ function nodeWrappers(
   return wrappers
 }
 
-function tagScope(tag: Part.Tag, atom: boolean): DecorationScope {
+function tagScope(tag: Node.Tag, atom: boolean): DecorationScope {
   return DecorationScope.All |
     (atom ? DecorationScope.Atom | (tag.isInline ? DecorationScope.InlineAtom : 0) : 0)
 }
 
-export function renderWrapper(src: WrapperSource, tag: Part.Tag): DecoElt {
+export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
   if (src instanceof TagWrapperSource) return src.wrapper(tag)
   if (src instanceof RangeIterator) return src.source.wrapper!(src.value)
   return renderPropWrapper(src)
@@ -1073,7 +1073,7 @@ export class DecoIterator {
     }
   }
 
-  widgets(tag: Part.Tag, place: WidgetPlace, walker: DecoWalker) {
+  widgets(tag: Node.Tag, place: WidgetPlace, walker: DecoWalker) {
     for (let src of this.globalWidgets) {
       if (src.place == place && src.pred(tag.type)) {
         let widget = src.widget(tag)
@@ -1093,35 +1093,35 @@ export class DecoIterator {
 
     let wrap: Walker = {
       skip: (node, pos) => { // Only done for leaf nodes.
-        if (started) this.widgets(node.label, WidgetPlace.Before, walker)
+        if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
         let shape
         if (pendingShape && pendingShapePos == pos && pendingShape.check(node)) {
           shape = pendingShape.shape(pendingShapeValue)
           pendingShape = undefined
         } else {
-          shape = this.tagShape(node.label, iter.active)
+          shape = this.tagShape(node.tag, iter.active)
         }
         pendingShape = undefined
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
-        walker.node(node, shape, nodeWrappers(node.label, iter.active, this.globalWrappers, true))
-        this.widgets(node.label, WidgetPlace.After, walker)
+        walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers, true))
+        this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enterPlot: (node, pos) => {
-        if (started) this.widgets(node.label, WidgetPlace.Before, walker)
+        if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
         let shape
         if (pendingShape && pendingShapePos == pos) {
           shape = pendingShape.shape(pendingShapeValue)
           pendingShape = undefined
         } else {
-          shape = this.tagShape(node.label, iter.active)
+          shape = this.tagShape(node.tag, iter.active)
         }
-        let wrappers = nodeWrappers(node.label, iter.active, this.globalWrappers, !shape.hasContent)
+        let wrappers = nodeWrappers(node.tag, iter.active, this.globalWrappers, !shape.hasContent)
         let atom = !shape.hasContent
         if (atom) walker.node(node!, shape, wrappers)
         else walker.enter(node!, shape as DecoElt, wrappers)
-        this.widgets(node.label, WidgetPlace.Start, walker)
+        this.widgets(node.tag, WidgetPlace.Start, walker)
         return !atom
       },
       leavePlot: tag => {
@@ -1134,8 +1134,8 @@ export class DecoIterator {
 
     if (inclusiveStart) {
       let before = pos.nodeBefore
-      if (before) this.widgets(before.label, WidgetPlace.After, walker)
-      else this.widgets(pos.parent.part.label, WidgetPlace.Start, walker)
+      if (before) this.widgets(before.tag, WidgetPlace.After, walker)
+      else this.widgets(pos.parent.node.tag, WidgetPlace.Start, walker)
     }
 
     for (; !iter.next().done;) {
@@ -1156,12 +1156,12 @@ export class DecoIterator {
     if (pos.pos < to) pos = pos.walk(to - pos.pos, wrap)
 
     let after = pos.nodeAfter
-    if (after) this.widgets(after!.label, WidgetPlace.Before, walker)
-    else this.widgets(pos.parent.part.label, WidgetPlace.End, walker)
+    if (after) this.widgets(after!.tag, WidgetPlace.Before, walker)
+    else this.widgets(pos.parent.node.tag, WidgetPlace.End, walker)
     this.pos = pos
   }
 
-  tagShape(tag: Part.Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
+  tagShape(tag: Node.Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape
     if (!Leaf.Text.chk(tag)) for (let src of this.tagShapes) if (src.pred(tag.type)) {
       shape = src.shape(tag)

@@ -1,4 +1,4 @@
-import {Plot, Part} from "./node"
+import {Plot, Node} from "./node"
 import {Prop, subtractSet} from "./prop"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType, SliceJSON} from "./slice"
@@ -7,7 +7,7 @@ import {validate} from "./helper"
 
 class BuildContext {
   children: Plot[] = []
-  constructor(readonly label: Plot.Label.Any, readonly parent: BuildContext | null) {}
+  constructor(readonly tag: Plot.Tag.Any, readonly parent: BuildContext | null) {}
 }
 
 class Builder implements Walker {
@@ -17,19 +17,19 @@ class Builder implements Walker {
 
   constructor(doc: Plot.Doc) {
     this.schema = doc.schema
-    this.stack = new BuildContext(doc.label, null)
+    this.stack = new BuildContext(doc.tag, null)
   }
 
-  add(part: Part) {
+  add(node: Node) {
     if (this.modifications) {
-      if (!part.isLeaf) throw new Error("Invalid modification on non-leaf node")
-      part = part.withProps(applyModifications(this.modifications, part.props, part.type))
+      if (!node.isLeaf) throw new Error("Invalid modification on non-leaf node")
+      node = node.withProps(applyModifications(this.modifications, node.props, node.type))
     }
-    part.pushTo(this.stack.children)
+    node.pushTo(this.stack.children)
   }    
 
   enterPlot(plot: Plot) {
-    this.open(plot.label)
+    this.open(plot.tag)
   }
 
   leavePlot() {
@@ -37,28 +37,28 @@ class Builder implements Walker {
     if (!this.stack.parent) throw new Error("Surplus close token after " + this.stack.children)
     let top = this.stack
     this.stack = this.stack.parent
-    if (!top.children.length && !top.label.isLeaf && !top.label.inlineContent)
+    if (!top.children.length && !top.tag.isLeaf && !top.tag.inlineContent)
       throw new Error(`Invalid change creating an empty block-child node`)
-    this.add(top.label.create(top.children))
+    this.add(top.tag.create(top.children))
   }
 
-  skip(part: Part) {
-    this.add(part)
+  skip(node: Node) {
+    this.add(node)
   }
 
-  open(label: Plot.Label.Any) {
-    if (this.modifications) label = label.withProps(applyModifications(this.modifications, label.props, label.type))
-    this.stack = new BuildContext(label, this.stack)
+  open(tag: Plot.Tag.Any) {
+    if (this.modifications) tag = tag.withProps(applyModifications(this.modifications, tag.props, tag.type))
+    this.stack = new BuildContext(tag, this.stack)
   }
 
   close() { this.leavePlot() }
 
-  part(part: Part) { this.skip(part) }
+  node(node: Node) { this.skip(node) }
 
   finish() {
-    let {label, children, parent} = this.stack
+    let {tag, children, parent} = this.stack
     if (parent) throw new Error("Invalid change")
-    if (!children.length && !label.inlineContent)
+    if (!children.length && !tag.inlineContent)
       throw new Error(`Invalid change creating an empty block-child node`)
     return this.schema.doc(children)
   }
@@ -69,7 +69,7 @@ type Modification = {add: Prop} | {remove: Prop}
 function isAdd(m: Modification): m is {add: Prop} { return !!(m as any).add }
 function isRemove(m: Modification): m is {remove: Prop} { return !!(m as any).remove }
 
-function applyModifications(modifications: readonly Modification[], props: readonly Prop[], type: Part.Type<any>) {
+function applyModifications(modifications: readonly Modification[], props: readonly Prop[], type: Node.Type<any>) {
   for (const m of modifications) {
     if (isAdd(m)) {
       if (!m.add.type.canTarget(type))
@@ -129,7 +129,7 @@ export type Change = {
   /// innermost tag first, as in
   /// [`DocNode.contextAt`](#doc.DocNode.contextAt)) may be used as
   /// wrappers when fitting the slice.
-  fit?: boolean | readonly Plot.Label.Any[]
+  fit?: boolean | readonly Plot.Tag.Any[]
   /// Add the given prop to this change's range.
   add?: Prop<any>
   /// Remove the given prop from this range.
@@ -259,13 +259,13 @@ export class ChangeSet {
       } else {
         let mods = this.data[i] as readonly Modification[] | null
         let at = pos, end = pos + len
-        if (mods) doc.iterate(pos, end, (part, nodePos) => {
-          if (part.isLeaf || nodePos >= pos && nodePos < end) {
-            let [from, to] = part.isText
-              ? [Math.max(at, nodePos), Math.min(end, nodePos + part.length)]
+        if (mods) doc.iterate(pos, end, (node, nodePos) => {
+          if (node.isLeaf || nodePos >= pos && nodePos < end) {
+            let [from, to] = node.isText
+              ? [Math.max(at, nodePos), Math.min(end, nodePos + node.length)]
               : [nodePos, nodePos + 1]
             if (at < from) addSection(sections, data, from - at, -1, null)
-            addSection(sections, data, to - from, -2, invertMods(mods!, part.label))
+            addSection(sections, data, to - from, -2, invertMods(mods!, node.tag))
             at = to
           }
         })
@@ -487,7 +487,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
           let mods: Modification[] = [{add}]
           markableSections(doc, from, to, add.type.spanning, (node, from, to) => {
             if (!add.type.canTarget(node.type)) return false
-            let has = add.type.isInSet(node.label.props)
+            let has = add.type.isInSet(node.tag.props)
             if (add.type.set) {
               let modsHere = mods
               if (has) {
@@ -505,7 +505,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
         if (remove) {
           let mods: Modification[] = [{remove}]
           markableSections(doc, from, to, remove.type.spanning, (node, from, to) => {
-            const has = remove.isInSet(node.label.props)
+            const has = remove.isInSet(node.tag.props)
             if (!has || !remove.type.canTarget(node.type)) return false
             let modsHere = mods
             if (remove.type.set) {
@@ -663,7 +663,7 @@ function modCancels(mod: Modification, other: Modification) {
   }
 }
 
-function invertMods(mods: readonly Modification[], target: Part.Tag): readonly Modification[] {
+function invertMods(mods: readonly Modification[], target: Node.Tag): readonly Modification[] {
   return mods.map(mod => {
     if (isRemove(mod)) return {add: mod.remove}
     if (!mod.add.type.set) {
@@ -680,12 +680,12 @@ function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
   for (let tok of slice.content) {
     if (tok.tokenType == TokenType.Open) {
       content.push(tok.withProps(applyModifications(mods, tok.props, tok.type)))
-    } else if (tok.tokenType == TokenType.Part) {
-      let part = tok.withProps(applyModifications(mods, tok.props, tok.type))
-      if (content.length && content[content.length - 1].tokenType == TokenType.Part)
-        part.pushTo(content as Plot[])
+    } else if (tok.tokenType == TokenType.Node) {
+      let node = tok.withProps(applyModifications(mods, tok.props, tok.type))
+      if (content.length && content[content.length - 1].tokenType == TokenType.Node)
+        node.pushTo(content as Plot[])
       else
-        content.push(part)
+        content.push(node)
     } else {
       content.push(tok)
     }
@@ -703,7 +703,7 @@ class FitLevel {
   flags = FitFlag.None
 
   constructor(
-    readonly tag: Plot.Label.Any,
+    readonly tag: Plot.Tag.Any,
     readonly next: FitLevel | null,
   ) {
     if (!this.tag.inlineContent && !this.tag.isLeaf) this.flags |= FitFlag.NeedsChild
@@ -735,7 +735,7 @@ class ChangeFitter implements Walker {
   nextSync = -1
 
   constructor(readonly doc: Plot.Doc, readonly local: boolean) {
-    this.stack = new FitLevel(doc.label, null)
+    this.stack = new FitLevel(doc.tag, null)
     this.inputPos = this.delInputPos = Pos.atStart(doc)
   }
 
@@ -796,9 +796,9 @@ class ChangeFitter implements Walker {
       this.nextSync = Math.max(this.nextSync, localSyncPosAfter(this.inputPos = this.getPos(to)))
   }
 
-  fit(tag: Part.Tag) {
+  fit(tag: Node.Tag) {
     if (this.stack.tag.type.canContain(tag.type)) return true
-    let fix: {leave: number, enter: readonly Plot.Label.Any[], cost: number, context: boolean} | null = null
+    let fix: {leave: number, enter: readonly Plot.Tag.Any[], cost: number, context: boolean} | null = null
     let dDelta = this.stackDelta - this.inputDelta
     for (let level: FitLevel | null = this.stack, leave = 0, leaveCost = 0; level; level = level.next, leave++) {
       if (fix && leaveCost > fix.cost) break
@@ -811,12 +811,12 @@ class ChangeFitter implements Walker {
       if (this.activeContextPos == this.pos) {
         let top = this.activeContext?.parent || null
         for (let cx = top, i = 1; cx; cx = cx.parent, i++) {
-          if (level.tag.type.canContain(cx.part.type)) {
+          if (level.tag.type.canContain(cx.node.type)) {
             let cost = leaveCost + i * 2 - Math.max(0, Math.min(-dDelta, i))
             if (!fix || fix.cost > cost || !fix.context) {
-              let enter: Plot.Label.Any[] = []
+              let enter: Plot.Tag.Any[] = []
               for (let scan = top;; scan = scan!.parent) {
-                enter.unshift(scan!.part.label)
+                enter.unshift(scan!.node.tag)
                 if (scan == cx) break
               }
               fix = {leave, enter, cost, context: true}
@@ -847,7 +847,7 @@ class ChangeFitter implements Walker {
     let cur = [], sync = []
     for (let l = this.stack as FitLevel | null; l; l = l.next) cur.push(l)
     cur.reverse()
-    for (let level: PlotPos | null = context.parent; level; level = level.parent) sync.push(level.part.label)
+    for (let level: PlotPos | null = context.parent; level; level = level.parent) sync.push(level.node.tag)
     sync.reverse()
     while (cur.length > sync.length) { this.insertClose(); cur.pop() }
     for (let d = 1; d < Math.min(sync.length, cur.length); d++) {
@@ -879,28 +879,28 @@ class ChangeFitter implements Walker {
     }
   }
 
-  open(label: Plot.Label.Any) { this.enter(label) }
+  open(tag: Plot.Tag.Any) { this.enter(tag) }
   close() { this.leavePlot() }
-  part(part: Part) { this.skip(part) }
+  node(node: Node) { this.skip(node) }
 
-  skip(part: Part) {
-    if (this.fit(part.label))
+  skip(node: Node) {
+    if (this.fit(node.tag))
       this.stack.flags &= ~FitFlag.NeedsChild
     else
-      this.patch(part.length)
-    this.pos += part.length
+      this.patch(node.length)
+    this.pos += node.length
   }
 
-  enterPlot(node: Plot) { this.enter(node.label) }
+  enterPlot(node: Plot) { this.enter(node.tag) }
 
-  enter(label: Plot.Label.Any) {
+  enter(tag: Plot.Tag.Any) {
     if (this.inserting) this.inputDelta++
     if (this.doubleDeleteDelta > 0) {
       this.doubleDeleteDelta--
       this.patch(1)
-    } else if (this.fit(label)) {
+    } else if (this.fit(tag)) {
       this.stack.flags &= ~FitFlag.NeedsChild
-      this.stack = new FitLevel(label, this.stack)
+      this.stack = new FitLevel(tag, this.stack)
       if (this.inserting) this.stackDelta++
     } else {
       this.patch(1)
@@ -949,14 +949,14 @@ class ChangeFitter implements Walker {
 function localSyncPosAfter(pos: Pos) {
   let found = pos.pos
   for (let cx = pos.parent, index = pos.index;; index = cx.index, cx = cx.parent) {
-    if (!cx.parent || !cx.part.inlineContent && index != cx.part.content.length - 1) break
+    if (!cx.parent || !cx.node.inlineContent && index != cx.node.content.length - 1) break
     found = cx.after
   }
   return found
 }
 
 function markableSections(doc: Plot.Doc, from: number, to: number, spanning: boolean,
-                          f: (n: Part, from: number, to: number) => boolean) {
+                          f: (n: Node, from: number, to: number) => boolean) {
   doc.iterate(from, to, (node, pos) => {
     if ((pos >= from && pos + (spanning ? node.length : 1) <= to) || node.isText) {
       if (node.isText ? f(node, Math.max(pos, from), Math.min(pos + node.length, to)) : f(node, pos, pos + 1))
@@ -1063,15 +1063,15 @@ function addSection(sections: number[], data: SectionData[] | null,
 
 function fitsTrivially(from: Pos, to: Pos, slice: Slice) {
   return from.parent.start == to.parent.start &&
-    slice.content.every(tok => tok.tokenType == TokenType.Part && from.parent.part.type.canContain(tok.type))
+    slice.content.every(tok => tok.tokenType == TokenType.Node && from.parent.node.type.canContain(tok.type))
 }
 
 function finishCx(cx: BuildContext, schema: Schema) {
-  return cx.label.create(cx.children.length || cx.label.inlineContent ? cx.children
-                       : [schema.createDefault(cx.label.type)])
+  return cx.tag.create(cx.children.length || cx.tag.inlineContent ? cx.children
+                       : [schema.createDefault(cx.tag.type)])
 }
 
-function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Label.Any[], depth: number, closeEnd = false) {
+function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Tag.Any[], depth: number, closeEnd = false) {
   let top: Token[] = [], stack: BuildContext | null = null
   for (let i = depth - 1; i >= 0; i--) stack = new BuildContext(context[i], stack)
   for (let token of slice.content) {
@@ -1100,11 +1100,11 @@ function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Label.A
 
 function splatContext(top: Token[], cx: BuildContext) {
   if (cx.parent) splatContext(top, cx.parent)
-  top.push(cx.label)
+  top.push(cx.tag)
   for (let ch of cx.children) top.push(ch)
 }
 
-function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context: readonly Plot.Label.Any[]) {
+function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context: readonly Plot.Tag.Any[]) {
   if (!slice.length) return fitDeletion(doc, from, to)
   if (fitsTrivially(from, to, slice)) return {from: from.pos, to: to.pos, slice}
 
@@ -1124,15 +1124,15 @@ function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context
            start = from.pos, end = to.pos;
        cxFrom.parent;
        cxFrom = cxFrom.parent, start--, fromDepth--) {
-    if (cxFrom.start != start || cxFrom.part.type.isolating) break
+    if (cxFrom.start != start || cxFrom.node.type.isolating) break
     while (toDepth > fromDepth) { cxTo = cxTo.parent!; toDepth--; end++ }
-    if (cxTo.end != end || cxTo.part.type.isolating) toEnded = true
-    if (!cxFrom.part.type.neutral) neutral = false
+    if (cxTo.end != end || cxTo.node.type.isolating) toEnded = true
+    if (!cxFrom.node.type.neutral) neutral = false
     for (let i = -1, tag; i < context.length; i++) {
       if (i >= 0) tag = context[i]
-      else if (slice.content[0].tokenType == TokenType.Part) tag = slice.content[0].label
+      else if (slice.content[0].tokenType == TokenType.Node) tag = slice.content[0].tag
       else continue
-      if (cxFrom.parent.part.type.canContain(tag.type)) {
+      if (cxFrom.parent.node.type.canContain(tag.type)) {
         if (!toEnded && fromDepth == toDepth) {
           let cost = (neutral ? 0 : 2) + (i < preferredContext ? context.length - i : i - preferredContext)
           if (foundCost > cost) {
@@ -1151,7 +1151,7 @@ function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context
   if (found) return found
 
   for (let i = 0; i < context.length; i++) {
-    if (from.parent.part.type.canContain(context[i].type)) {
+    if (from.parent.node.type.canContain(context[i].type)) {
       slice = closeSlice(doc.schema, slice, context, i + 1, true)
       break
     }
@@ -1168,7 +1168,7 @@ function fitDeletion(doc: Plot.Doc, from: Pos, to: Pos) {
   for (let cx = from.parent, cxTo = to.parent, depth = from.depth, start = from.pos, end = to.pos;
        cx.parent; start--, cx = cx.parent, depth--) {
     // If there is content before from, or this is an isolating node, stop
-    if (cx.start != start || cx.part.type.isolating) break
+    if (cx.start != start || cx.node.type.isolating) break
     while (toDepth > depth) { cxTo = cxTo.parent!; toDepth--; end++ }
     let toAtEnd = toDepth == depth && cxTo.end == end // Check for content before to
     // If this is a deletion starting at the start of a node and
@@ -1179,8 +1179,8 @@ function fitDeletion(doc: Plot.Doc, from: Pos, to: Pos) {
     // non-inline content, and the range isn't inside a single
     // textblock, pick the outermost such range and delete it
     // entirely.
-    if (!cx.part.inlineContent && toAtEnd && cx.parent.start == cxTo.parent!.start &&
-        !(from.parent.start == to.parent.start && from.parent.part.inlineContent))
+    if (!cx.node.inlineContent && toAtEnd && cx.parent.start == cxTo.parent!.start &&
+        !(from.parent.start == to.parent.start && from.parent.node.inlineContent))
       covered = {from: cx.before, to: cxTo.after, slice: Slice.empty}
   }
   return covered || {from: from.pos, to: to.pos, slice: Slice.empty}

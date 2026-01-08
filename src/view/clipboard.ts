@@ -66,8 +66,8 @@ function isOpen(elt: HTMLElement) {
 export function readClipboard(state: EditorState, data: DataTransfer, targetContext: Pos, plain: boolean) {
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
-  let slice: Slice, context: readonly Plot.Label.Any[] = []
-  if (text && (targetContext.parent.part.type.preserveWhitespace || !html || plain)) {
+  let slice: Slice, context: readonly Plot.Tag.Any[] = []
+  if (text && (targetContext.parent.node.type.preserveWhitespace || !html || plain)) {
     for (let filter of state.facet(clipboardInputTextFilter)) text = filter(text, state)
     slice = readClipboardText(state, text, targetContext, plain)
   } else if (!html) {
@@ -95,11 +95,11 @@ function readClipboardText(state: EditorState, text: string, context: Pos, plain
   }
 
   let props = plain ? [] : context.props()
-  if (context.parent.part.type.preserveWhitespace) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), props)])
+  if (context.parent.node.type.preserveWhitespace) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), props)])
   let lines = text.split(/(?:\r\n?|\n)+/)
   let content: Token[] = lines[0] ? [Leaf.text(lines[0], props)] : []
   if (lines.length == 1) return new Slice(content)
-  let parent = (context.parent.part.inlineContent ? context.parent.parent || context.parent : context.parent).part.label
+  let parent = (context.parent.node.inlineContent ? context.parent.parent || context.parent : context.parent).node.tag
   let wrapping = state.doc.schema.findWrapping(parent.type, Leaf.Text)
   if (!wrapping || !wrapping.length) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, " "), props)])
   let wrapper = wrapping[wrapping.length - 1]

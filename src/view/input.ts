@@ -591,7 +591,7 @@ observers.compositionstart = observers.compositionupdate = (view, event: Composi
     if (!view.inputState.composing.changes && !event.data) {
       let sel = view.state.sel, props = sel.props || sel.from.props()
       if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
-          !eqArray(sel.head.nodeBefore?.label.props, props))
+          !eqArray(sel.head.nodeBefore?.tag.props, props))
         wrap = props
     }
 

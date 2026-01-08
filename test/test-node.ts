@@ -25,12 +25,12 @@ describe("Node", () => {
       let i = 0
       doc.iterate(tag(doc, 1), tag(doc, 2), (node, pos) => {
         if (i == nodes.length)
-          throw new Error("More nodes iterated than listed (" + node.label.name + ")")
+          throw new Error("More nodes iterated than listed (" + node.name + ")")
         let compare = Leaf.Text.chk(node) ? node.param : node.name
         if (compare != nodes[i++])
           throw new Error("Expected " + JSON.stringify(nodes[i - 1]) + ", got " + JSON.stringify(compare))
-        if (!node.isText && doc.partAt(pos) != node)
-          throw new Error("Pos " + pos + " does not point at node " + node + " " + doc.partAt(pos))
+        if (!node.isText && doc.nodeAt(pos) != node)
+          throw new Error("Pos " + pos + " does not point at node " + node + " " + doc.nodeAt(pos))
       })
     }
 
@@ -102,7 +102,7 @@ describe("Node", () => {
 
   describe("toJSON", () => {
     function roundTrip(doc: Plot) {
-      ist(schema.partFromJSON(doc.toJSON()), doc, eq)
+      ist(schema.nodeFromJSON(doc.toJSON()), doc, eq)
     }
 
     it("can serialize a simple node", () => roundTrip(doc(p("foo"))))
@@ -122,13 +122,13 @@ describe("Node", () => {
     it("complains about incorrect param types", () => {
       let json = doc(h1()).toJSON()
       json.content![0].param = "huh"
-      ist.throws(() => schema.partFromJSON(json), /Expected value of type number/)
+      ist.throws(() => schema.nodeFromJSON(json), /Expected value of type number/)
     })
 
     it("complains about incorrect prop types", () => {
       let json = doc(p($a("hi"))).toJSON()
       json.content![0].content![0].props!.Link = [1, 2, 3]
-      ist.throws(() => schema.partFromJSON(json), /Expected value of type string/)
+      ist.throws(() => schema.nodeFromJSON(json), /Expected value of type string/)
     })
   })
 })

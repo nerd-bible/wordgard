@@ -1,4 +1,4 @@
-import {Plot, Part, Leaf} from "./node"
+import {Plot, Node, Leaf} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType} from "./slice"
 import {Prop} from "./prop"
@@ -100,11 +100,11 @@ const genericTag = Plot.defineBlock("generic", {
 
 function flattenSlice(
   content: readonly Token[],
-  context: readonly Plot.Label.Any[], includeContext: number,
+  context: readonly Plot.Tag.Any[], includeContext: number,
   openProp?: Prop.Type<string>
-): readonly Part[] {
-  let depth = 0, i = 0, scan = (inner: boolean): readonly Part[] => {
-    let result: Part[] = []
+): readonly Node[] {
+  let depth = 0, i = 0, scan = (inner: boolean): readonly Node[] => {
+    let result: Node[] = []
     for (; i < content.length;) {
       let tok = content[i++]
       if (tok.tokenType == TokenType.Close) {
@@ -134,7 +134,7 @@ function flattenSlice(
 export function serializeSlice(slice: Slice, options: SerializeOptions & {
   schema: Schema,
   openProp?: Prop.Type<string>,
-  context?: readonly Plot.Label.Any[],
+  context?: readonly Plot.Tag.Any[],
   includeContext?: number
 }): DocumentFragment {
   let cx = new DOMContext(options, options.schema)
@@ -145,7 +145,7 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
 export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
   schema: Schema,
   openProp?: Prop.Type<string>,
-  context?: readonly Plot.Label.Any[],
+  context?: readonly Plot.Tag.Any[],
   includeContext?: number
 }): string {
   let cx = new HTMLContext(options, options.schema)
@@ -153,9 +153,9 @@ export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
   return cx.html
 }
 
-function serializeNodeInner(node: Part, cx: Context) {
+function serializeNodeInner(node: Node, cx: Context) {
   let propAttrs: string[] = []
-  for (let prop of node.label.props) if (!prop.type.element) {
+  for (let prop of node.tag.props) if (!prop.type.element) {
     let repr = prop.type.repr as AttributeShape<any>
     let name = repr.attribute
     let value = typeof repr.value == "function" ? repr.value(prop.value) : repr.value ?? prop.value as string
@@ -179,13 +179,13 @@ function serializeNodeInner(node: Part, cx: Context) {
     cx.emitText(node.param)
     if (propAttrs.length) cx.closeElt()
   } else if (isElementShape(repr)) {
-    let attrs = typeof repr.attributes == "function" ? repr.attributes(node.label.param) : repr.attributes
+    let attrs = typeof repr.attributes == "function" ? repr.attributes(node.tag.param) : repr.attributes
     let allAttrs = !attrs ? propAttrs : mergeAttributes(readAttributes(attrs), propAttrs)
     cx.openElt(repr.element, allAttrs)
     renderContent(cx)
     cx.closeElt()
   } else {
-    let elt = typeof repr.structure == "function" ? repr.structure(node.label.param) : repr.structure
+    let elt = typeof repr.structure == "function" ? repr.structure(node.tag.param) : repr.structure
     if (propAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, propAttrs), elt.children)
     serializeStructure(elt, cx, renderContent)
   }
@@ -204,9 +204,9 @@ function serializeStructure(elt: Elt<string>, cx: Context, content: (cx: Context
   cx.closeElt()
 }
 
-function lineBreaksToNewlines(nodes: readonly Part[], lineBreak: Leaf.Any) {
+function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Leaf.Any) {
   if (!nodes.some(n => lineBreak.type.chk(n))) return nodes
-  let result: Part[] = [], lastText = false
+  let result: Node[] = [], lastText = false
   for (let node of nodes) {
     let next = lineBreak.type.chk(node) ? Leaf.text("\n", node.props) : node
     if (lastText && next instanceof Plot) next.pushTo(result as Plot[])
@@ -216,7 +216,7 @@ function lineBreaksToNewlines(nodes: readonly Part[], lineBreak: Leaf.Any) {
   return result
 }
 
-function serializeChildren(children: readonly Part[], cx: Context) {
+function serializeChildren(children: readonly Node[], cx: Context) {
   let active: Prop[] = []
   for (let child of children) {
     if (active.length || child.props.some(p => isElementShape(p.type.repr))) {

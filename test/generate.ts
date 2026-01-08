@@ -1,4 +1,4 @@
-import {Plot, Part, Prop, Leaf,
+import {Plot, Node, Prop, Leaf,
         Slice, type Token, ChangeSet, basicBuilders,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "wordgard/doc"
@@ -10,7 +10,7 @@ export const Comment = Prop.Type.define<readonly number[]>("Comment", {
   shape: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
 
-export function open(node: Plot) { return node.label }
+export function open(node: Plot) { return node.tag }
 export const close = Plot.End
 
 export function slice(...tokens: (Token | string)[]) {
@@ -39,16 +39,16 @@ function rWord(len = 2 + r(5)) {
 }
 
 export function rDoc(minLength: number) {
-  let stack: {tag: Plot.Label.Any, children: Part[]}[] = [{tag: doc().label, children: []}]
+  let stack: {tag: Plot.Tag.Any, children: Node[]}[] = [{tag: doc().tag, children: []}]
   let len = 0
   function open() {
     while (!r(5)) {
       for (let type of r(1) ? [blockquote()] : [r(1) ? ul() : ol(), li()]) {
-        stack.push({tag: type.label, children: []})
+        stack.push({tag: type.tag, children: []})
         len++
       }
     }
-    stack.push({tag: (r(5) ? p() : r(2) ? pre() : h1()).label, children: []})
+    stack.push({tag: (r(5) ? p() : r(2) ? pre() : h1()).tag, children: []})
     len++
   }
   function closeOne() {
@@ -64,7 +64,7 @@ export function rDoc(minLength: number) {
     open()
     let props: readonly Prop[] = []
     for (let i = 0, elements = r(7); i < elements * 2 - 1; i++) {
-      let node: Part
+      let node: Node
       if (i % 2) {
         if (props.length && !r(3))
           props = props[r(props.length)].removeFromSet(props)
@@ -80,7 +80,7 @@ export function rDoc(minLength: number) {
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
       if (Leaf.Text.chk(node) && last && Leaf.Text.chk(last) && Prop.sameSet(last.props, node.props))
-        children[children.length - 1] = Leaf.text(last.param + node.param, node.label.props)
+        children[children.length - 1] = Leaf.text(last.param + node.param, node.tag.props)
       else 
         children.push(node)
     }
@@ -102,29 +102,29 @@ const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
   // Insert a few characters
   doc => {
     let pos = doc.resolve(r(doc.length))
-    return pos.parent.part.inlineContent ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
+    return pos.parent.node.inlineContent ? {from: pos.pos, insert: slice(rWord(1 + r(3)))} : null
   },
   // Delete some inline content
   doc => {
     let pos = r(doc.length), cx = doc.resolve(pos).parent
-    if (!cx.part.inlineContent || cx.start == cx.end) return null
+    if (!cx.node.inlineContent || cx.start == cx.end) return null
     let from = pos > cx.start ? pos - 1 : pos
     return {from, to: pos < cx.end && (from == pos || r(2)) ? pos + 1 : pos}
   },
   // Join two adjacent blocks
   doc => scanBlocks(doc, (node, pos, parent, index) => {
-    let prev: Part | undefined
-    if (index && !(prev = parent.content[index - 1]).isLeaf && prev.type.sharesContent(node.label.type))
+    let prev: Node | undefined
+    if (index && !(prev = parent.content[index - 1]).isLeaf && prev.type.sharesContent(node.tag.type))
       return {from: pos - 1, to: pos + 1}
   }),
   // Lift a block's content out to its parent
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.sharesContent(node.label.type))
+    if (parent.type.sharesContent(node.tag.type))
       return [{from: pos, to: pos + 1}, {from: pos + node.length - 1, to: pos + node.length}]
   }),
   // Wrap a block in a blockquote
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.label.type))
+    if (parent.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.tag.type))
       return [{from: pos, insert: slice(open(blockquote()))},
               {from: pos + node.length, insert: slice(close)}]
   }),
@@ -140,7 +140,7 @@ const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
   // Remove a prop from some textblock
   doc => scanBlocks(doc, (node, pos) => {
     if (node.isTextblock) for (let i = 0; i < node.content.length; i++) {
-      let props = node.content[i].label.props
+      let props = node.content[i].tag.props
       if (props.length) {
         return {from: pos, to: pos + node.length, remove: props[r(props.length)]}
       }
@@ -148,7 +148,7 @@ const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
   }),
   // Change a prop on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
-    if (node.label == CodeBlock)
+    if (node.tag == CodeBlock)
       return {from: pos, add: CodeBlockLanguage.of(rWord())}
   })
 ]

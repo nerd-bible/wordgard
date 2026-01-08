@@ -1,24 +1,24 @@
-import {Plot, Part, Leaf} from "./node"
+import {Plot, Node, Leaf} from "./node"
 import {Prop} from "./prop"
 import {none, validate} from "./helper"
 import {elt, Reject} from "./shape"
 
-export type SchemaElement = Leaf.Any | Plot.Label.Any | Part.Type<any> | Prop<any> | Prop.Type<any>
+export type SchemaElement = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Prop<any> | Prop.Type<any>
 
 // FIXME maybe don't store these forever
 const schemaCache = new Set<Schema>()
 
 export class Schema {
-  private tagsByName: {[name: string]: Part.Type<unknown>} = Object.create(null)
+  private tagsByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
   private propsByName: {[name: string]: Prop.Type<any>} = Object.create(null)
-  private wrappingCache: {[key: string]: readonly Plot.Label.Any[] | null} = Object.create(null)
-  readonly docTag: Plot.Label<Schema>
+  private wrappingCache: {[key: string]: readonly Plot.Tag.Any[] | null} = Object.create(null)
+  readonly docTag: Plot.Tag<Schema>
   /// All the schema elements that make up this schema. Useful if you
   /// want to include the schema as a whole in an editor configuration.
   elements: readonly SchemaElement[]
 
   private constructor(
-    readonly tags: readonly Part.Type<unknown>[],
+    readonly tags: readonly Node.Type<unknown>[],
     readonly props: readonly Prop.Type<any>[],
     docType: Plot.Type<Schema>,
     readonly lineBreak: Leaf<unknown> | null
@@ -29,21 +29,21 @@ export class Schema {
     this.elements = (tags as SchemaElement[]).concat(props)
   }
 
-  doc(children: readonly Part[]) {
+  doc(children: readonly Node[]) {
     return new Plot.Doc(this.docTag, this.docTag.type.checkChildren(children))
   }
 
-  validate(part: Part) {
-    if (part.isLeaf) {
-      this.validateTag(part)
+  validate(node: Node) {
+    if (node.isLeaf) {
+      this.validateTag(node)
     } else {
-      this.validateTag(part.label)
-      for (let ch of part.content) this.validate(ch)
+      this.validateTag(node.tag)
+      for (let ch of node.content) this.validate(ch)
     }
   }
 
   /// @internal
-  validateTag(tag: Part | Plot.Label.Any) {
+  validateTag(tag: Node | Plot.Tag.Any) {
     if (this.tagsByName[tag.name] != tag.type)
       throw new Error(`Tag type ${tag.name} not in schema`)
     for (let prop of tag.props) this.validateProp(prop)
@@ -61,21 +61,21 @@ export class Schema {
     return null
   }
 
-  createDefault(parent: Plot.Type<any>): Part {
+  createDefault(parent: Plot.Type<any>): Node {
     let child = this.defaultContentType(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     if (child.isLeaf) return child
     return child.create(child.inlineContent ? [] : [this.createDefault(child.type)])
   }
 
-  findWrapping(parent: Plot.Type<any>, child: Part.Type<any>): readonly Plot.Label.Any[] | null {
+  findWrapping(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag.Any[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  private findWrappingInner(parent: Plot.Type<any>, child: Part.Type<any>): readonly Plot.Label.Any[] | null {
-    let seen: Set<Part.Type<unknown>> = new Set, work: Plot.Label.Any[][] = [[]]
+  private findWrappingInner(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag.Any[] | null {
+    let seen: Set<Node.Type<unknown>> = new Set, work: Plot.Tag.Any[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
       for (let tag of this.tags) if (at.canContain(tag)) {
@@ -96,11 +96,11 @@ export class Schema {
       if (cached.elements.length == spec.length && cached.elements.every((e, i) => e == spec[i]))
         return cached
 
-    let tags: Part.Type<any>[] = [Leaf.Text], props: Prop.Type<unknown>[] = []
+    let tags: Node.Type<any>[] = [Leaf.Text], props: Prop.Type<unknown>[] = []
     let defaultI = 0
     let tagNames: Set<string> = new Set, propNames: Set<string> = new Set
     for (let elt of spec) {
-      if (elt instanceof Plot.Label || elt instanceof Leaf || elt instanceof Prop) elt = elt.type
+      if (elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Prop) elt = elt.type
       if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
@@ -148,22 +148,22 @@ export class Schema {
   append(other: Schema | readonly SchemaElement[]) {
     let add: SchemaElement[] = []
     for (let elt of (other instanceof Schema ? other.elements : other)) {
-      if (elt instanceof Leaf || elt instanceof Plot.Label || elt instanceof Prop) elt = elt.type
+      if (elt instanceof Leaf || elt instanceof Plot.Tag || elt instanceof Prop) elt = elt.type
       if ((elt instanceof Prop.Type ? this.propsByName : this.tagsByName)[elt.name] != elt) add.push(elt)
     }
     return add.length ? Schema.define(this.elements.concat(add)) : this
   }
 
-  partFromJSON(json: Part.JSON): Part {
+  nodeFromJSON(json: Node.JSON): Node {
     let tag = this.tagFromJSON(json), children = none
     if (tag.isLeaf) return tag
     if (json.content && Array.isArray(json.content))
-      children = json.content.map(c => this.partFromJSON(c))
+      children = json.content.map(c => this.nodeFromJSON(c))
     if (tag.type.isDoc) return this.doc(children)
     return tag.create(children)
   }
 
-  tagFromJSON(json: Part.JSON) {
+  tagFromJSON(json: Node.JSON) {
     if (!json || typeof json != "object" || !(json.type in this.tagsByName))
       throw new Error("Invalid tag JSON")
     let type = this.tagsByName[json.type]
@@ -186,10 +186,10 @@ export class Schema {
     return props
   }
 
-  docFromJSON(json: Part.JSON) {
+  docFromJSON(json: Node.JSON) {
     if (!json || json.type != this.docTag.name)
       throw new Error("Invalid document JSON")
-    return this.partFromJSON(json) as Plot.Doc
+    return this.nodeFromJSON(json) as Plot.Doc
   }
 }
 

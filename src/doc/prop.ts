@@ -1,7 +1,7 @@
 import {isElementShape, AttributeShape, ElementShape, ElementParseRule, AttributeParseRule} from "./shape"
 import {compareDeep, eqArray, none, splitGroups} from "./helper"
 import {SchemaElement} from "./schema"
-import {Part, Plot} from "./node"
+import {Node, Plot} from "./node"
 
 function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)
@@ -138,7 +138,7 @@ export namespace Prop {
 
     get schemaElement(): SchemaElement { return this }
 
-    canTarget(tag: Part.Type<any>) {
+    canTarget(tag: Node.Type<any>) {
       return this.targetGroups.some(g => tag.isInGroup(g))
     }
 
@@ -185,10 +185,10 @@ export namespace Prop {
     /// Used by `Tag.split` to determine whether to keep this prop in
     /// the split-off tag. `atEnd` will be true if the split happens at
     /// the end of the node's content.
-    keepOnSplit?: boolean | ((tag: Plot.Label.Any, atEnd: boolean) => boolean)
+    keepOnSplit?: boolean | ((tag: Plot.Tag.Any, atEnd: boolean) => boolean)
     /// Used by `Tag.changeType` to decide whether props of this type
     /// are preserved after the type change.
-    keepOnTypeChange?: boolean | ((from: Plot.Label.Any, to: Plot.Label.Any) => boolean)
+    keepOnTypeChange?: boolean | ((from: Plot.Tag.Any, to: Plot.Tag.Any) => boolean)
     /// A function or type name used to validate values of this prop.
     /// See [`Tag.Spec.validateParam`](#doc.Tag.Spec.validateParam).
     validate?: string | ((value: Value) => void)

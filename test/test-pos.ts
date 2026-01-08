@@ -9,7 +9,7 @@ function testPos(name: string, doc: Plot.Doc, ...contexts: ([string, number] | [
     ist(pos.depth, contexts.length - 1)
     for (let i = 0, {parent, index, inText} = pos; i < contexts.length; i++) {
       let [name, idx, txt = 0] = contexts[i]
-      ist(parent.part.name, name)
+      ist(parent.node.name, name)
       ist(index, idx)
       ist(inText, txt)
       index = parent.index

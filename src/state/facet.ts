@@ -625,7 +625,7 @@ function flatten(extension: Extension, compartments: Map<Compartment, Extension>
     } else if (ext instanceof FacetProvider) {
       result[prec].push(ext)
       if (ext.facet.extensions) inner(ext.facet.extensions, Prec_.default)
-    } else if (ext instanceof Plot.Label || ext instanceof Plot.Type ||
+    } else if (ext instanceof Plot.Tag || ext instanceof Plot.Type ||
                ext instanceof Leaf || ext instanceof Leaf.Type ||
                ext instanceof Prop || ext instanceof Prop.Type) {
       result[prec].push(schemaElement.of(ext) as FacetProvider<any>)

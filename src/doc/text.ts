@@ -1,4 +1,4 @@
-import {type Part, type Leaf} from "./node"
+import {type Node, type Leaf} from "./node"
 
 export class TextOutput {
   text = ""
@@ -6,13 +6,13 @@ export class TextOutput {
 
   constructor(readonly blockSep: string, readonly leafText?: (node: Leaf.Any) => string) {}
 
-  serialize(part: Part): boolean {
-    let nodeText = !part.isLeaf ? null
-      : part.isText ? part.param as string
-      : part.type.spec.toText ? part.type.spec.toText(part)
-      : this.leafText ? this.leafText(part)
+  serialize(node: Node): boolean {
+    let nodeText = !node.isLeaf ? null
+      : node.isText ? node.param as string
+      : node.type.spec.toText ? node.type.spec.toText(node)
+      : this.leafText ? this.leafText(node)
       : ""
-    if (part.isLeaf ? part.isBlock : part.isTextblock) this.openBlock()
+    if (node.isLeaf ? node.isBlock : node.isTextblock) this.openBlock()
     if (nodeText != null) { this.text += nodeText; this.started = true }
     return nodeText != null
   }

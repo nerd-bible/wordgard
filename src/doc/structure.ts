@@ -7,8 +7,8 @@ import {Token} from "./slice"
 
 export function clearNonFitting(node: PlotPos, type: Plot.Type<any>) {
   let changes: ChangeSet.Spec[] = []
-  for (let i = 0, pos = node.start; i < node.part.content.length; i++) {
-    let child = node.part.content[i], end = pos + child.length
+  for (let i = 0, pos = node.start; i < node.node.content.length; i++) {
+    let child = node.node.content[i], end = pos + child.length
     if (!type.canContain(child.type)) changes.push({from: pos, to: end})
     pos = end
   }
@@ -18,19 +18,19 @@ export function clearNonFitting(node: PlotPos, type: Plot.Type<any>) {
 /// Find a way to wrap the blocks betwen `from` and `to` in a node
 /// with the given tag. Returns precise start and end positions where
 /// a wrap is possible, or null if none is possible.
-export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Label.Any) {
+export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag.Any) {
   let dFrom = from.depth, dTo = to.depth
   let pFrom = from.parent, pTo = to.parent
   while (dFrom > dTo) { pFrom = pFrom.parent!; dFrom-- }
   while (dTo > dFrom) { pTo = pTo.parent!; dTo-- }
   for (;;) {
-    if (!pFrom.parent || pFrom.part.type.isolating) return null
-    if (pFrom.parent.start == pTo.parent!.start && pFrom.parent.part.type.canContain(wrapper.type)) break
+    if (!pFrom.parent || pFrom.node.type.isolating) return null
+    if (pFrom.parent.start == pTo.parent!.start && pFrom.parent.node.type.canContain(wrapper.type)) break
     pFrom = pFrom.parent; pTo = pTo.parent!
   }
   let {schema} = from.doc
   for (let i = pFrom.index; i < pTo.index + 1; i++) {
-    let ch = pFrom.parent.part.content[i]
+    let ch = pFrom.parent.node.content[i]
     if (!schema.findWrapping(wrapper.type, ch.type)) return null
   }
   return {from: new Pos(pFrom.parent, pFrom.before, pFrom.index, 0),
@@ -41,8 +41,8 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Label.Any) {
 /// responsible for verifying that this is actually a valid wrapping.
 /// It is recommended to use [`findWrappable`](#view.findWrappable)
 /// for finding wrap positions in non-trivial situations.
-export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Plot.Label.Any) {
-  let changes: ChangeSet.Spec[] = [], parent = range.from.parent.part
+export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Plot.Tag.Any) {
+  let changes: ChangeSet.Spec[] = [], parent = range.from.parent.node
   for (let i = range.from.index, openWrappers = 0, pos = range.from.pos;; i++) {
     let tokens: Token[] = []
     for (let j = 0; j < openWrappers; j++) tokens.push(Plot.End)
@@ -72,18 +72,18 @@ function textblockChild(schema: Schema, type: Plot.Type<any>) {
 /// Find the set of block nodes around the given range that match the
 /// predicate (if any) and can be unwrapped, meaning their content
 /// gets moved out to a parent node.
-export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Plot.Label.Any) => boolean) {
+export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Plot.Tag.Any) => boolean) {
   let dFrom = from.depth, dTo = to.depth
-  let fromStart = from.parent.part.inlineContent ? from.parent.start : from.pos
-  let fromTextblock = from.textblockParent?.part.type
-  let toEnd = to.parent.part.inlineContent ? to.parent.end : to.pos
+  let fromStart = from.parent.node.inlineContent ? from.parent.start : from.pos
+  let fromTextblock = from.textblockParent?.node.type
+  let toEnd = to.parent.node.inlineContent ? to.parent.end : to.pos
   let innerCandidates: PlotPos[] = []
   let outerCandidates: PlotPos[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
     if (node.isBlock && !node.isLeaf && !node.inlineContent && parent &&
         (fromTextblock ? parent.type.canContain(fromTextblock) : textblockChild(doc.schema, parent.type)) &&
-        (!predicate || predicate(node.label))) {
+        (!predicate || predicate(node.tag))) {
       let pos = doc.resolveNode(p) as PlotPos, depth = pos.depth
       if (pos.before >= fromStart - (dFrom - depth + 1) && pos.after <= toEnd + (dTo - depth + 1))
         innerCandidates.push(pos)
@@ -113,7 +113,7 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Plot.Label
 /// and `to`.
 export function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec {
   let changes: ChangeSet.Spec[] = [], {schema} = block.doc
-  let outer = block.parent!.part, wrapText = textblockChild(schema, outer.type)
+  let outer = block.parent!.node, wrapText = textblockChild(schema, outer.type)
 
   // The start of the gap we're currently moving over
   let gapStart = block.before
@@ -130,7 +130,7 @@ export function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeS
   // Scan through the block
   let parent = block, index = 0, pos = block.start
   for (;;) {
-    if (index == parent.part.content.length) {
+    if (index == parent.node.content.length) {
       if (parent == block) { // End of entire block, delete closing tokens
         let tokens: Token[] = []
         // If parent becomes empty, put in a default replacement block
@@ -150,7 +150,7 @@ export function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeS
         parent = parent.parent!
       }
     } else {
-      let next = parent.part.content[index]
+      let next = parent.node.content[index]
       // Can be lifted
       if (outer.type.canContain(next.type) || wrapText && !next.isLeaf && next.inlineContent) {
         if (from != null && pos + next.length <= from) { // Before from
@@ -166,7 +166,7 @@ export function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeS
           for (let cx = parent, i = tokens.length, atStart = !index;; cx = cx.parent!) {
             if (cx.index > 0) atStart = false
             if (atStart) upto--
-            else tokens.splice(i, 0, cx.part.label.split(false))
+            else tokens.splice(i, 0, cx.node.tag.split(false))
             if (cx == block) break
           }
           replaceGap(upto, tokens)
@@ -205,14 +205,14 @@ export function joinBlocks(before: PlotPos, after: PlotPos): ChangeSet.Spec[] {
   let dBefore = before.depth, dAfter = after.depth
   let tokensAfter: Token[] = [], posAfter = after.after, end = posAfter
   if (dBefore > dAfter) {
-    let extraContext: Plot.Label.Any[] = []
+    let extraContext: Plot.Tag.Any[] = []
     for (let i = dBefore - dAfter, level = before.parent!; i > 0; i--, level = level.parent!)
-      extraContext.push(level.part.label)
+      extraContext.push(level.node.tag)
     let nodeAfter = after.nextSibling
     for (let i = dBefore - dAfter - 1, joining = true; i >= 0; i--) {
       let context = extraContext[i]
       if (!joining || !nodeAfter || !context.type.chk(nodeAfter) || !context.type.spec.autoJoin ||
-          (typeof context.type.spec.autoJoin == "function" && !context.type.spec.autoJoin(context, nodeAfter.label)))
+          (typeof context.type.spec.autoJoin == "function" && !context.type.spec.autoJoin(context, nodeAfter.tag)))
         joining = false
       if (joining) end++
       else tokensAfter.push(Plot.End)
@@ -221,7 +221,7 @@ export function joinBlocks(before: PlotPos, after: PlotPos): ChangeSet.Spec[] {
     for (let i = dAfter - dBefore, level = after, atEnd = true; i > 0; i--, level = level.parent!) {
       if (level.nextSibling) atEnd = false
       if (atEnd) end++
-      else tokensAfter.push(level.parent!.part.label)
+      else tokensAfter.push(level.parent!.node.tag)
     }
   }
   if (tokensAfter.length || end > posAfter)
@@ -232,7 +232,7 @@ export function joinBlocks(before: PlotPos, after: PlotPos): ChangeSet.Spec[] {
 export function canAddPropInRange(doc: Plot.Doc, from: number, to: number, prop: Prop<any> | Prop.Type<any>) {
   let found = false, type = prop instanceof Prop ? prop.type : prop
   doc.iterate(from, to, node => {
-    if (found || prop.isInSet(node.label.props)) return false
+    if (found || prop.isInSet(node.tag.props)) return false
     if (type.canTarget(node.type)) found = true
     return true
   })
