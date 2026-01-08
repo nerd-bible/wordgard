@@ -1,4 +1,4 @@
-import {Part, Plot, PlotPos, PartPos, Walker, ChangeSet} from "wordgard/doc"
+import {Part, PlotPos, PartPos, Walker, ChangeSet} from "wordgard/doc"
 import {Facet, Extension, transactionFilter} from "./facet"
 import {Transaction} from "./transaction"
 import {EditorState} from "./state"
@@ -155,11 +155,7 @@ export class Correction<PosType extends PartPos> {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
       if (this.tag(node.type) && (this.event == CorrectionEvent.Props || !node.isLeaf)) {
-        let at = state.doc.resolve(pos)
-        let nodePos = this.event == CorrectionEvent.Props
-          ? new PartPos(at.parent, at.nodeAfter!, pos, at.index)
-          : new PlotPos(at.parent, at.nodeAfter as Plot, pos, at.index)
-        let change = this.correct(nodePos as PosType, state)
+        let change = this.correct(state.doc.resolveNode(pos) as PosType, state)
         if (change) changes.push(change)
       }
     })

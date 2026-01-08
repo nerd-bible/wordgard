@@ -100,7 +100,7 @@ export class Pos {
     let base = this.resolve(doc, pos)
     if (base.inText) return null
     let after = base.nodeAfter
-    return after && !after.isText ? new PartPos(base.parent, after, pos, base.index) : null
+    return after && !after.isText ? new (after.isLeaf ? PartPos : PlotPos)(base.parent, after, pos, base.index) : null
   }
 }
 
@@ -209,6 +209,7 @@ function advancePos(distance: number, parent: PlotPos, pos: number, index: numbe
           part = next
           index = 0
         } else {
+          if (walk) walk.skip(next, pos, parent, index)
           pos = end
           index++
         }

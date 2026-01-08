@@ -55,7 +55,7 @@ function addProp(part: Part, prop?: Prop) {
   return prop ? part.withProps(prop.addToSet(part.label.props)) : part
 }
 
-function collectChildren(spec: ContentSpec, prop?: Prop, list: Plot[] = []) {
+function collectChildren(spec: ContentSpec, prop?: Prop, list: Part[] = []) {
   if (Array.isArray(spec)) {
     for (let elt of spec) collectChildren(elt, prop, list)
   } else if (typeof spec == "string") {
@@ -68,6 +68,8 @@ function collectChildren(spec: ContentSpec, prop?: Prop, list: Plot[] = []) {
       copyTags(spec.content, list, 1)
       addProp(spec, prop).pushTo(list)
     }
+  } else if (spec instanceof Leaf) {
+    addProp(spec, prop).pushTo(list)
   } else if (typeof spec == "number") {
     let tags = tagMap.get(list)
     if (!tags) tagMap.set(list, tags = Object.create(null))
@@ -76,7 +78,7 @@ function collectChildren(spec: ContentSpec, prop?: Prop, list: Plot[] = []) {
   return list
 }
 
-function copyTags(source: readonly Part[], dest: readonly Plot[], extraOffset: number) {
+function copyTags(source: readonly Part[], dest: readonly Part[], extraOffset: number) {
   let srcTags = tagMap.get(source)
   if (srcTags) {
     let destTags = tagMap.get(dest)
@@ -86,7 +88,7 @@ function copyTags(source: readonly Part[], dest: readonly Plot[], extraOffset: n
   }
 }
 
-function contentLength(nodes: readonly Plot[]) {
+function contentLength(nodes: readonly Part[]) {
   return nodes.reduce((l, n) => l + n.length, 0)
 }
 

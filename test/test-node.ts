@@ -16,7 +16,7 @@ describe("Node", () => {
 
     it("shows marks", () => {
       ist(doc(p("foo", em("bar", strong("quux")), code("baz"))).toString(),
-          'Doc(Paragraph("foo",Emphasis("bar"),Emphasis(Strong("quux")),Code("baz")))')
+          'Doc(Paragraph("foo","bar"[Emphasis],"quux"[Emphasis,Strong],"baz"[Code]))')
     })
   })
 

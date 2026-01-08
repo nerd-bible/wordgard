@@ -2,7 +2,7 @@ import {Slice, Token, TokenType, End} from "./slice"
 import {TextOutput} from "./text"
 import {PartShape} from "./shape"
 import {Schema} from "./schema"
-import {Pos} from "./pos"
+import {Pos, PlotPos} from "./pos"
 import {Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
@@ -80,6 +80,10 @@ export class Leaf<Param> {
     else parts.push(this)
   }
 
+  slice(from: number, to = this.length) {
+    return from == to ? Slice.empty : new Slice([this.is(Leaf.Text) ? this.sliceText(from, to) : this])
+  }
+
   sliceText(from: number, to?: number) {
     if (!this.is(Leaf.Text)) throw new Error("Calling sliceText on a non-text node")
     if (to == null) to = this.param.length
@@ -89,6 +93,11 @@ export class Leaf<Param> {
 
   static text(text: string, props: readonly Prop<any>[] = none) {
     return Leaf.Text.of(text, props)
+  }
+
+  /// @internal
+  toString() {
+    return (this.is(Leaf.Text) ? JSON.stringify(this.param) : this.name) + propString(this.props)
   }
 }
 
@@ -381,8 +390,8 @@ export namespace Plot {
     get name() { return this.type.name }
 
     eq(other: Part | Part.Tag): boolean {
-      return this == other || other instanceof Plot.Label && !this.isDoc && compareDeep(this.param, other.param) &&
-        Prop.sameSet(this.props, other.props)
+      return this == other || other instanceof Plot.Label && !this.isDoc && this.type == other.type &&
+        compareDeep(this.param, other.param) && Prop.sameSet(this.props, other.props)
     }
 
     get isInline() { return this.type.isInline }
@@ -434,6 +443,11 @@ export namespace Plot {
         for (let {name, value} of this.props) result.props![name] = value
       }
       return result
+    }
+
+    /// @internal
+    toString() {
+      return this.type.name + propString(this.props)
     }
   }
 
@@ -598,6 +612,11 @@ export namespace Plot {
 
     resolveNode(pos: number) {
       return Pos.resolveNode(this, pos)
+    }
+
+    resolvePlot(pos: number) {
+      let r = this.resolveNode(pos)
+      return r instanceof PlotPos ? r : null
     }
 
     contextAt(pos: number, maxDepth?: number): readonly Plot.Label.Any[] {

@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Plot, Prop,
+import {Plot, Prop, Leaf,
         ChangeSet, type Token,
         Schema, basicSchema, basicBuilders, tag, maybeTag,
         ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "wordgard/doc"
@@ -146,10 +146,10 @@ describe("ChangeSet", () => {
 
     it("exits wrapper nodes when possible", () => {
       let Wrapper = Plot.defineBlock("Wrapper", {blockContent: "Inner Block", group: "Block", shape: {element: "wrapper"}})
-      let Inner = Plot.defineBlock("Inner", {shape: {element: "inner"}})
+      let Inner = Leaf.defineBlock("Inner", {shape: {element: "inner"}})
       let schema = Schema.define([...basicSchema.tags, Wrapper, Inner])
-      let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, insert: slice(Inner.create()), fit: true})
-      ist(ch.apply(doc), schema.doc([Wrapper.create([Inner.create()]), p()]), eq)
+      let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, insert: slice(Inner), fit: true})
+      ist(ch.apply(doc), schema.doc([Wrapper.create([Inner]), p()]), eq)
     })
 
     it("discards extra close tokens", () => {

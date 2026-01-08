@@ -12,7 +12,7 @@ export class TextOutput {
       : part.type.spec.toText ? part.type.spec.toText(part)
       : this.leafText ? this.leafText(part)
       : ""
-    if (!part.isLeaf && part.isTextblock) this.openBlock()
+    if (part.isLeaf ? part.isBlock : part.isTextblock) this.openBlock()
     if (nodeText != null) { this.text += nodeText; this.started = true }
     return nodeText != null
   }

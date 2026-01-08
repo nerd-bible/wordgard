@@ -66,12 +66,11 @@ describe("Context", () => {
     let d = doc(p("abc", $img()))
     ist(d.resolveNode(1), null)
     ist(d.resolveNode(5), null)
-    let pPos = d.resolveNode(0) as PlotPos, iPos = d.resolveNode(4) as PlotPos
+    let pPos = d.resolvePlot(0)!, iPos = d.resolveNode(4)!
     ist(pPos.before, 0)
     ist(pPos.start, 1)
     ist(pPos.after, 6)
     ist(iPos.before, 4)
     ist(iPos.after, 5)
-    ist.throws(() => iPos.start, /leaf/)
   })
 })
