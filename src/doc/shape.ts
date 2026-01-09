@@ -181,10 +181,10 @@ export class NodeShape<Param> {
     readonly spec: ElementShape<Param> | StructureShape<Param>
   ) {}
 
-  static from<Param>(tag: Node.Type<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
+  static from<Param>(type: Node.Type.Base<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
     if (isElementShape(spec)) {
-      if (atom == null) atom = tag.isLeaf
+      if (atom == null) atom = type.isLeaf
       let {element, attributes} = spec
       if (typeof attributes == "function") {
         create = (param: Param) => new Elt(element, readAttributes(attributes(param)), atom ? noChildren : null)
@@ -195,17 +195,17 @@ export class NodeShape<Param> {
     } else {
       let {structure} = spec
       if (typeof structure == "function") {
-        if (atom == null) throw new Error(`Dynamic structure for tag ${tag.name} must define an \`atom\` field`)
+        if (atom == null) throw new Error(`Dynamic structure for tag ${type.name} must define an \`atom\` field`)
         create = structure
       } else {
         if (atom == null)
           atom = !structure.hasContent
         else if (atom != !structure.hasContent)
-          throw new Error(`Disagreement between \`atom\` field and structure for tag ${tag.name}`)
+          throw new Error(`Disagreement between \`atom\` field and structure for tag ${type.name}`)
         create = () => structure
       }
     }
-    if (atom == false && tag.isLeaf) throw new Error(`Leaf tag ${tag.name}'s shape must be atomic`)
+    if (atom == false && type.isLeaf) throw new Error(`Leaf tag ${type.name}'s shape must be atomic`)
     return new NodeShape<Param>(atom, create, spec)
   }
 }

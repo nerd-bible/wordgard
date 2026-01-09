@@ -12,7 +12,6 @@ export type MenuLabelWidget = {
   update?: (elt: HTMLElement, view: EditorView) => void
 }
 
-// FIXME use 100x100 viewport for these, find better icons
 export type MenuLabel = string | {icon: string, directional?: boolean} | MenuLabelWidget
 
 export function isMenuLabelWidget(label: MenuLabel): label is MenuLabelWidget {

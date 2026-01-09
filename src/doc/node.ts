@@ -7,7 +7,7 @@ import {Prop} from "./prop"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
-const enum NodeFlag { // FIXME drop some of these?
+const enum NodeFlag {
   None = 0,
   Inline = 1,
   InlineContent = 2,
@@ -19,8 +19,6 @@ const enum NodeFlag { // FIXME drop some of these?
 export type Node = Plot | Leaf.Any
 
 export namespace Node {
-  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
-
   export interface Shared {
     name: string
     tag: Node.Tag
@@ -35,6 +33,41 @@ export namespace Node {
     isText: boolean
     length: number
     toJSON(): Node.JSON
+  }
+
+  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
+
+  export namespace Type {
+    export abstract class Base<Param> {
+      readonly groups: readonly string[]
+      readonly shape: NodeShape<Param>
+      abstract default: Node.Tag | null
+
+      constructor(
+        readonly name: string,
+        readonly flags: NodeFlag,
+        readonly spec: Node.Spec<Param>
+      ) {
+        let groups = this.groups = [name, "*"]
+        if (flags & NodeFlag.Inline) groups.push("Inline")
+        if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
+        this.shape = NodeShape.from(this, spec.shape)
+      }
+
+      isInGroup(group: string) {
+        let mod = group.indexOf(":")
+        if (mod > -1) {
+          let modName = group.slice(mod + 1)
+          if (modName == "Leaf" && !this.isLeaf) return false
+          group = group.slice(0, mod)
+        }
+        return group == "_" || this.groups.includes(group)
+      }
+
+      get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
+      get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
+      abstract isLeaf: boolean
+    }
   }
 
   export type Tag = Leaf.Any | Plot.Tag.Any
@@ -152,7 +185,7 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
 
   get length(): number { return this.is(Leaf.Text) ? this.param.length : 1 }
 
-  join(onto: Node) {
+  join(onto: Node): Leaf.Any | null {
     if (!this.is(Leaf.Text) || !Leaf.Text.chk(onto) || !Prop.sameSet(this.props, onto.props)) return null
     return Leaf.text(onto.param + this.param, this.props)
   }
@@ -185,20 +218,14 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
 }
 
 export namespace Leaf {
-  export class Type<Param> {
-    readonly default: Leaf<Param> | null
-    readonly groups: readonly string[]
-    readonly shape: NodeShape<Param>
+  export class Type<Param> extends Node.Type.Base<Param> {
+    default: Leaf<Param> | null
+    declare spec: Leaf.Spec<Param>
 
-    constructor(
-      readonly name: string,
-      readonly flags: NodeFlag,
-      readonly spec: Leaf.Spec<Param>
-    ) {
+    constructor(name: string, flags: NodeFlag, spec: Leaf.Spec<Param>) {
+      super(name, flags, spec)
       this.default = "defaultParam" in spec ? new Leaf(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Leaf(this, null as any, none) : null
-      this.groups = typeGroups(this)
-      this.shape = NodeShape.from(this, spec.shape)
     }
 
     static defineInline<T>(name: string, spec: Leaf.Spec<T>) {
@@ -216,10 +243,6 @@ export namespace Leaf {
       return new Leaf(this, param, props)
     }
 
-    isInGroup(group: string) { return isInGroup(this, group) }
-
-    get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
-    get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
     get isLeaf(): true { return true }
 
     // FIXME find a better name
@@ -468,8 +491,9 @@ export namespace Plot {
     }
   }
 
-  export class Type<Param> {
+  export class Type<Param> extends Node.Type.Base<Param> {
     readonly default: Plot.Tag<Param> | null
+    declare spec: Plot.Spec<Param>
     readonly contentGroups: readonly string[]
     readonly childCache: Map<Node.Type<any>, boolean> = new Map
     readonly isolating: boolean
@@ -477,14 +501,9 @@ export namespace Plot {
     readonly neutral: boolean
     readonly preserveWhitespace: boolean
     readonly orientation: "row" | "column"
-    readonly groups: readonly string[]
-    readonly shape: NodeShape<Param>
 
-    constructor(
-      readonly name: string,
-      readonly flags: NodeFlag,
-      readonly spec: Plot.Spec<Param>
-    ) {
+    constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
+      super(name, flags, spec)
       let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
       this.contentGroups = content ? splitGroups(content) : none
       this.isolating = !!spec.isolating
@@ -494,8 +513,6 @@ export namespace Plot {
       this.orientation = flags & NodeFlag.InlineContent ? "row" : spec.orientation || "column"
       this.default = "defaultParam" in spec ? new Plot.Tag(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Plot.Tag(this, null as any, none) : null
-      this.groups = typeGroups(this)
-      this.shape = NodeShape.from(this, spec.shape)
       if (!this.shape.atom && this.isInline && !this.inlineContent)
         throw new Error("Inline tags with block content must be marked as atoms")
     }
@@ -535,10 +552,6 @@ export namespace Plot {
       return children
     }
 
-    isInGroup(group: string) { return isInGroup(this, group) }
-
-    get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
-    get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
     get inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }
     get isTextblock() { return this.isBlock && this.inlineContent }
     get isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
@@ -643,23 +656,6 @@ function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
   if (spec.isList) flags |= NodeFlag.List
   return flags
-}
-
-function typeGroups(type: Node.Type<any>) {
-  let groups = [type.name, "*"]
-  if (type.flags & NodeFlag.Inline) groups.push("Inline")
-  if (type.spec.group) for (let g of splitGroups(type.spec.group)) groups.push(g)
-  return groups
-}
-
-function isInGroup(type: Node.Type<any>, group: string) {
-  let mod = group.indexOf(":")
-  if (mod > -1) {
-    let modName = group.slice(mod + 1)
-    if (modName == "Leaf" && !type.isLeaf) return false
-    group = group.slice(0, mod)
-  }
-  return group == "_" || type.groups.includes(group)
 }
 
 function propString(props: readonly Prop[]) {
