@@ -34,14 +34,6 @@ export namespace Annotation {
   }
 }
 
-interface StateEffectSpec<Value> {
-  /// Provides a way to map an effect like this through a position
-  /// mapping. When not given, the effects will simply not be mapped.
-  /// When the function returns `undefined`, that means the mapping
-  /// deletes the effect.
-  map?: (value: Value, mapping: ChangeSet) => Value | undefined
-}
-
 /// State effects can be used to represent additional effects
 /// associated with a [transaction](#state.Transaction.effects). They
 /// are often useful to model changes to custom [state
@@ -71,7 +63,7 @@ export class StateEffect<Value> {
   /// doesn't include `undefined`, since that is used in
   /// [mapping](#state.StateEffect.map) to indicate that an effect is
   /// removed.
-  static define<Value = null>(spec: StateEffectSpec<Value> = {}): StateEffect.Type<Value> {
+  static define<Value = null>(spec: StateEffect.Spec<Value> = {}): StateEffect.Type<Value> {
     return new StateEffect.Type(spec.map || (v => v))
   }
 
@@ -114,6 +106,14 @@ export namespace StateEffect {
     /// Create a [state effect](#state.StateEffect) instance of this
     /// type.
     of(value: Value): StateEffect<Value> { return new StateEffect(this, value) }
+  }
+
+  export interface Spec<Value> {
+    /// Provides a way to map an effect like this through a position
+    /// mapping. When not given, the effects will simply not be mapped.
+    /// When the function returns `undefined`, that means the mapping
+    /// deletes the effect.
+    map?: (value: Value, mapping: ChangeSet) => Value | undefined
   }
 }
 
