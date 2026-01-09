@@ -1,8 +1,8 @@
 import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
-        wrapBlock, unwrapBlock, unwrapBlockType, toggleList, toggleProp} from "wordgard/view"
-import {Plot, Prop, Leaf, Schema, basicSchema, basicBuilders, maybeTag, builder,
+        wrapBlock, unwrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/view"
+import {Plot, Mark, Leaf, Schema, basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/doc"
 import {EditorState, type StateCommand, EditorSelection} from "wordgard/state"
@@ -41,13 +41,13 @@ function test(doc: Plot.Doc, command: StateCommand, expect?: Plot.Doc) {
   }
 }
 
-function testSelProps(before: readonly Prop<any>[] | undefined, command: StateCommand, expect: readonly Prop<any>[]) {
+function testSelMarks(before: readonly Mark<any>[] | undefined, command: StateCommand, expect: readonly Mark<any>[]) {
   let state = EditorState.create({
     doc: doc(p()),
     selection: EditorSelection.cursor(1, 0, undefined, before)
   })
   command({state, dispatch: tr => state = tr.state})
-  ist(state.selection.props!, expect, Prop.sameSet)
+  ist(state.selection.marks!, expect, Mark.sameSet)
 }
 
 let TextOnly = Plot.defineBlock("TextOnly", {
@@ -56,19 +56,19 @@ let TextOnly = Plot.defineBlock("TextOnly", {
   group: "Block"
 }), to = builder(TextOnly)
 
-let BlockProp = Prop.define("BlockProp", {
+let BlockMark = Mark.define("BlockMark", {
   keepOnSplit: false,
   keepOnTypeChange: false,
   tags: "Block",
-  shape: {element: "prop1"}
-}), bp = builder(BlockProp)
+  shape: {element: "mark1"}
+}), bp = builder(BlockMark)
 
-let PreservedProp = Prop.define("PreservedProp", {
+let PreservedMark = Mark.define("PreservedMark", {
   keepOnSplit: true,
   keepOnTypeChange: true,
   tags: "Block",
-  shape: {element: "prop2"}
-}), pp = builder(PreservedProp)
+  shape: {element: "mark2"}
+}), pp = builder(PreservedMark)
 
 let InlineSpan = Plot.defineInline("InlineSpan", {
   inlineContent: true,
@@ -80,13 +80,13 @@ let InlineAtom = Plot.defineInline("InlineAtom", {
   shape: {element: "var", atom: true},
 }), at = builder(InlineAtom)
 
-let AtomProp = Prop.define("AtomProp", {
+let AtomMark = Mark.define("AtomMark", {
   tags: "Inline:Leaf InlineAtom",
-  shape: {element: "atom-prop"}
-}), ap = builder(AtomProp)
+  shape: {element: "atom-mark"}
+}), ap = builder(AtomMark)
 
-let schema = Schema.define([...basicSchema.tags, ...basicSchema.props, TextOnly,
-                            BlockProp, PreservedProp, InlineSpan, InlineAtom, AtomProp])
+let schema = Schema.define([...basicSchema.tags, ...basicSchema.marks, TextOnly,
+                            BlockMark, PreservedMark, InlineSpan, InlineAtom, AtomMark])
 let doc = builder(schema)
 
 describe("liftEmptyBlock", () => {
@@ -118,11 +118,11 @@ describe("liftEmptyBlock", () => {
     test(doc(blockquote(blockquote(p(0), p("a")))), liftEmptyBlock, doc(blockquote(p(0), blockquote(p("a")))))
   })
 
-  it("preserves props on nodes it splits", () => {
+  it("preserves marks on nodes it splits", () => {
     test(doc(pp(blockquote(p("a"), p(0), p("b")))), liftEmptyBlock, doc(pp(blockquote(p("a"))), p(0), pp(blockquote(p("b")))))
   })
 
-  it("can drop props on nodes it splits", () => {
+  it("can drop marks on nodes it splits", () => {
     test(doc(bp(blockquote(p("a"), p(0), p("b")))), liftEmptyBlock, doc(bp(blockquote(p("a"))), p(0), blockquote(p("b"))))
   })
 
@@ -196,11 +196,11 @@ describe("splitTextblock", () => {
     test(doc(h1(0, "a")), splitTextblock, doc(p(), h1(0, "a")))
   })
 
-  it("preserves props", () => {
+  it("preserves marks", () => {
     test(doc(pp(p("a", 0, "b"))), splitTextblock, doc(pp(p("a")), pp(p(0, "b"))))
   })
 
-  it("drops props when appropriate", () => {
+  it("drops marks when appropriate", () => {
     test(doc(bp(p("a", 0, "b"))), splitTextblock, doc(bp(p("a")), p(0, "b")))
   })
 
@@ -457,11 +457,11 @@ describe("setTextblockType", () => {
     test(doc(p("a", 0, $img)), setTextblockType(TextOnly), doc(to("a", 0)))
   })
 
-  it("preserves props when appropriate", () => {
+  it("preserves marks when appropriate", () => {
     test(doc(pp(p(0, "a")), p("b", 1)), setTextblockType(Heading.of(1)), doc(pp(h1(0, "a")), h1("b", 1)))
   })
 
-  it("drops props when appropriate", () => {
+  it("drops marks when appropriate", () => {
     test(doc(bp(p(0, "a"))), setTextblockType(Heading.of(1)), doc(h1(0, "a")))
   })
 })
@@ -716,56 +716,56 @@ describe("toggleList", () => {
   })
 })
 
-describe("toggleProp", () => {
+describe("toggleMark", () => {
   it("can add emphasis to a selection", () => {
-    test(doc(p("a", 0, "bc", 1, "d")), toggleProp(Emphasis), doc(p("a", 0, em("bc"), 1, "d")))
+    test(doc(p("a", 0, "bc", 1, "d")), toggleMark(Emphasis), doc(p("a", 0, em("bc"), 1, "d")))
   })
 
   it("can remove emphasis from a selection", () => {
-    test(doc(p("a", 0, em("bc"), 1, "d")), toggleProp(Emphasis), doc(p("a", 0, "bc", 1, "d")))
+    test(doc(p("a", 0, em("bc"), 1, "d")), toggleMark(Emphasis), doc(p("a", 0, "bc", 1, "d")))
   })
 
-  it("adds emphasis to a mixed-prop selection", () => {
-    test(doc(p("a", 0, em("bc"), "d", 1)), toggleProp(Emphasis), doc(p("a", 0, em("bcd"), 1)))
+  it("adds emphasis to a mixed-mark selection", () => {
+    test(doc(p("a", 0, em("bc"), "d", 1)), toggleMark(Emphasis), doc(p("a", 0, em("bcd"), 1)))
   })
 
-  it("stacks added props with others", () => {
-    test(doc(p("a", 0, strong(em("bc")), "d", 1)), toggleProp(Emphasis), doc(p("a", 0, em(strong("bc"), "d"), 1)))
+  it("stacks added marks with others", () => {
+    test(doc(p("a", 0, strong(em("bc")), "d", 1)), toggleMark(Emphasis), doc(p("a", 0, em(strong("bc"), "d"), 1)))
   })
 
-  it("adds selection props", () => {
-    testSelProps(undefined, toggleProp(Emphasis), [Emphasis])
+  it("adds selection marks", () => {
+    testSelMarks(undefined, toggleMark(Emphasis), [Emphasis])
   })
 
-  it("adds selection props to existing set", () => {
-    testSelProps([Strong], toggleProp(Emphasis), [Emphasis, Strong])
+  it("adds selection marks to existing set", () => {
+    testSelMarks([Strong], toggleMark(Emphasis), [Emphasis, Strong])
   })
 
-  it("removes selection props", () => {
-    testSelProps([Emphasis], toggleProp(Emphasis), [])
+  it("removes selection marks", () => {
+    testSelMarks([Emphasis], toggleMark(Emphasis), [])
   })
 
-  it("replaces props of the same type", () => {
-    testSelProps([Link.of("/")], toggleProp(Link.of("#")), [Link.of("#")])
+  it("replaces marks of the same type", () => {
+    testSelMarks([Link.of("/")], toggleMark(Link.of("#")), [Link.of("#")])
   })
 
-  it("doesn't add the same prop on multiple levels", () => {
-    test(doc(p(0, sp("abc"), "d", 1)), toggleProp(Emphasis), doc(p(0, sp(em("abc")), em("d"), 1)))
+  it("doesn't add the same mark on multiple levels", () => {
+    test(doc(p(0, sp("abc"), "d", 1)), toggleMark(Emphasis), doc(p(0, sp(em("abc")), em("d"), 1)))
   })
 
-  it("can add a prop inside an inline node", () => {
-    test(doc(p(sp("a", 0, "b", 1, "c"))), toggleProp(Emphasis), doc(p(sp("a", 0, em("b"), 1, "c"))))
+  it("can add a mark inside an inline node", () => {
+    test(doc(p(sp("a", 0, "b", 1, "c"))), toggleMark(Emphasis), doc(p(sp("a", 0, em("b"), 1, "c"))))
   })
 
-  it("can add a prop to an inline node that partially has it", () => {
-    test(doc(p(0, sp("a", em("b"), "c"), 1)), toggleProp(Emphasis), doc(p(0, sp(em("abc")), 1)))
+  it("can add a mark to an inline node that partially has it", () => {
+    test(doc(p(0, sp("a", em("b"), "c"), 1)), toggleMark(Emphasis), doc(p(0, sp(em("abc")), 1)))
   })
 
   it("will not add to both a parent and a child", () => {
-    test(doc(p(0, "a", at("b"), 1)), toggleProp(AtomProp), doc(p(0, ap("a", at("b")), 1)))
+    test(doc(p(0, "a", at("b"), 1)), toggleMark(AtomMark), doc(p(0, ap("a", at("b")), 1)))
   })
 
-  it("will not remove a prop from inside an inline element that supports it", () => {
-    test(doc(p(0, at(ap("b")), 1)), toggleProp(AtomProp), doc(p(0, ap(at(ap("b"))), 1)))
+  it("will not remove a mark from inside an inline element that supports it", () => {
+    test(doc(p(0, at(ap("b")), 1)), toggleMark(AtomMark), doc(p(0, ap(at(ap("b"))), 1)))
   })
 })

@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Plot, Leaf, basicBuilders, builder, Prop, Slice, type Token,
+import {Plot, Leaf, basicBuilders, builder, Mark, Slice, type Token,
         serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice, OpenSide, type ParseOptions,
         Schema, basicSchema, tag} from "wordgard/doc"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -38,12 +38,12 @@ describe("serialize", () => {
     istHTML(doc(p($img)), "<p><img src=\"test.png\"></p>")
   })
 
-  it("can serialize spanning props", () => {
+  it("can serialize spanning marks", () => {
     istHTML(doc(p(em("One", strong($img, "Two")))), "<p><em>One<strong><img src=\"test.png\">Two</strong></em></p>")
   })
 
-  it("can serialize attribute props", () => {
-    let Pr = Prop.Type.define<string>("Pr", {
+  it("can serialize attribute marks", () => {
+    let Pr = Mark.Type.define<string>("Pr", {
       tags: "Paragraph",
       shape: {attribute: "data-p", readAttribute: x => x}
     })
@@ -51,8 +51,8 @@ describe("serialize", () => {
     istHTML(doc(pr("one", p("x"))), "<p data-p=\"one\">x</p>")
   })
 
-  it("can serialize style props", () => {
-    let Ul = Prop.define("Ul", {
+  it("can serialize style marks", () => {
+    let Ul = Mark.define("Ul", {
       tags: "Text",
       shape: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
@@ -84,18 +84,18 @@ describe("serializeSlice", () => {
                  "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  const openProp = Prop.Type.define<string>("Open", {shape: {attribute: "open"}, tags: "*"})
+  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open"}, tags: "*"})
 
   it("can mark open nodes", () => {
     istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),
                  '<p open="start">a</p><blockquote open="end"><p open="end">b</p></blockquote>',
-                 {openProp})
+                 {openMark})
   })
 
   it("can include extra context", () => {
     istSliceHTML(doc(blockquote(ul(li(p(0, "a")), li(p("b"), 1)))),
                  '<ul open="start end"><li open="start"><p open="start">a</p></li><li open="end"><p>b</p></li></ul>',
-                 {openProp, maxDepth: 3, includeContext: 3})
+                 {openMark, maxDepth: 3, includeContext: 3})
   })
 })
 
@@ -165,7 +165,7 @@ describe("parseDoc", () => {
         doc(p(strong(em("A"), "B"))), eq)
   })
 
-  it("clears props via style properties", () => {
+  it("clears marks via style properties", () => {
     ist(parse("<p><strong>a<span style='font-weight: normal'>b</span>c</strong></p>"),
         doc(p(strong("a"), "b", strong("c"))), eq)
   })

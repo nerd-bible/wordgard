@@ -1,5 +1,5 @@
 import {Plot, Leaf, Node} from "./node"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 
 export class Elt<T> {
   constructor(
@@ -214,7 +214,7 @@ export interface ElementParseRule<Param> {
   selector: string
   plot?: Plot.Tag<Param> | Plot.Type<Param>
   leaf?: Leaf<Param> | Leaf.Type<Param>
-  prop?: Prop.Type<Param> | Prop<Param>
+  mark?: Mark.Type<Param> | Mark<Param>
   ignore?: boolean | "skip"
   param?: Param
   readElement?: (element: HTMLElement) => Param | Reject
@@ -227,9 +227,9 @@ export function isElementParseRule(rule: ParseRule): rule is ElementParseRule<un
 
 export interface AttributeParseRule<Param> {
   attribute: string
-  prop?: Prop.Type<Param> | Prop<Param>
-    ignore?: boolean
-  clearProp?: (prop: Prop<unknown>) => boolean
+  mark?: Mark.Type<Param> | Mark<Param>
+  ignore?: boolean
+  clearMark?: (mark: Mark<unknown>) => boolean
   param?: Param
   value?: string
   readAttribute?: (value: string) => Param | Reject

@@ -1,5 +1,5 @@
 import {Plot, Leaf, Node} from "./node"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 import {Schema, basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
@@ -11,15 +11,15 @@ export function builder<Param>(from: Leaf<Param>): Leaf<Param>
 export function builder<Param>(from: Leaf.Type<Param>): (param: Param) => Leaf.Any
 export function builder(from: Plot.Tag.Any): (...children: ContentSpec[]) => Plot
 export function builder<Param>(from: Plot.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
-export function builder<Param>(from: Prop<Param>): (...children: ContentSpec[]) => Plot
-export function builder<Param>(from: Prop.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
+export function builder<Param>(from: Mark<Param>): (...children: ContentSpec[]) => Plot
+export function builder<Param>(from: Mark.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
 export function builder(from: Schema): (...children: ContentSpec[]) => Plot.Doc
 export function builder(
-  from: Prop<any> | Prop.Type<any> | Node.Type<any> | Leaf.Any | Plot.Tag.Any | Schema
+  from: Mark<any> | Mark.Type<any> | Node.Type<any> | Leaf.Any | Plot.Tag.Any | Schema
 ): any {
   return (from instanceof Plot.Tag
     ? (...children: ContentSpec[]) => from.create(collectChildren(children))
-    : from instanceof Prop
+    : from instanceof Mark
     ? (...children: ContentSpec[]) => fragment(children, from)
     : from instanceof Plot.Type
     ? (param: any, ...children: ContentSpec[]) => from.of(param).create(collectChildren(children))
@@ -29,7 +29,7 @@ export function builder(
     ? from
     : from instanceof Schema
     ? (...children: ContentSpec[]) => from.doc(collectChildren(children))
-    : (value: any, ...children: ContentSpec[]) => fragment(children, (from as any as Prop.Type<any>).of(value))
+    : (value: any, ...children: ContentSpec[]) => fragment(children, (from as any as Mark.Type<any>).of(value))
   )
 }
 
@@ -42,32 +42,32 @@ const BlockFragment = Plot.defineBlock("Fragment", {
   blockContent: "_"
 })
 
-function fragment(children: ContentSpec[], prop: Prop) {
-  let chs = collectChildren(children, prop)
+function fragment(children: ContentSpec[], mark: Mark) {
+  let chs = collectChildren(children, mark)
   return (chs.length && chs[0].isBlock ? BlockFragment : InlineFragment).create(chs)
 }
   
 const tagMap = new WeakMap<readonly Node[], {[label: number]: number}>()
 
-function addProp(node: Node, prop?: Prop) {
-  return prop ? node.withProps(prop.addToSet(node.props)) : node
+function addMark(node: Node, mark?: Mark) {
+  return mark ? node.withMarks(mark.addToSet(node.marks)) : node
 }
 
-function collectChildren(spec: ContentSpec, prop?: Prop, list: Node[] = []) {
+function collectChildren(spec: ContentSpec, mark?: Mark, list: Node[] = []) {
   if (Array.isArray(spec)) {
-    for (let elt of spec) collectChildren(elt, prop, list)
+    for (let elt of spec) collectChildren(elt, mark, list)
   } else if (typeof spec == "string") {
-    addProp(Leaf.text(spec), prop).pushTo(list)
+    addMark(Leaf.text(spec), mark).pushTo(list)
   } else if (spec instanceof Plot) {
     if (spec.tag == InlineFragment || spec.tag == BlockFragment) {
       copyTags(spec.content, list, 0)
-      for (let ch of spec.content) collectChildren(ch, prop, list)
+      for (let ch of spec.content) collectChildren(ch, mark, list)
     } else {
       copyTags(spec.content, list, 1)
-      addProp(spec, prop).pushTo(list)
+      addMark(spec, mark).pushTo(list)
     }
   } else if (spec instanceof Leaf) {
-    addProp(spec, prop).pushTo(list)
+    addMark(spec, mark).pushTo(list)
   } else if (typeof spec == "number") {
     let tags = tagMap.get(list)
     if (!tags) tagMap.set(list, tags = Object.create(null))

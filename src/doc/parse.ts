@@ -1,6 +1,6 @@
 import {Schema} from "./schema"
 import {Plot, Node, Leaf} from "./node"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 import {Slice, Token} from "./slice"
 import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule, isElementShape, Reject} from "./shape"
 
@@ -33,22 +33,22 @@ class RuleSet {
         plot: rule.plot || (tag.isLeaf ? undefined : tag)
       })
     }
-    for (let prop of schema.props) {
-      let {shape, parseRules} = prop.spec
+    for (let mark of schema.marks) {
+      let {shape, parseRules} = mark.spec
       if (isElementShape(shape)) {
         rules.push({
           selector: shape.selector || shape.element,
           readElement: shape.readElement,
-          prop
+          mark
         })
       } else {
         rules.push({
           attribute: shape.attribute,
           readAttribute: shape.readAttribute,
-          prop
+          mark
         })
       }
-      if (parseRules) for (let rule of parseRules) rules.push({...rule, prop: rule.prop || prop})
+      if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
     }
     return new RuleSet(rules)
   }
@@ -128,63 +128,63 @@ class ParseContext {
     this.rules = RuleSet.fromSchema(schema)
   }
 
-  parseChildren(parent: HTMLElement | DocumentFragment, props: readonly Prop[], endOfSlice: boolean) {
+  parseChildren(parent: HTMLElement | DocumentFragment, marks: readonly Mark[], endOfSlice: boolean) {
     for (let ch = parent.firstChild; ch; ch = ch.nextSibling) {
-      if (ch.nodeType == 1) this.parseElement(ch as HTMLElement, props, endOfSlice && !ch.nextSibling)
-      else if (ch.nodeType == 3) this.parseTextNode(ch as Text, props)
+      if (ch.nodeType == 1) this.parseElement(ch as HTMLElement, marks, endOfSlice && !ch.nextSibling)
+      else if (ch.nodeType == 3) this.parseTextNode(ch as Text, marks)
     }
   }
 
-  ignoreElement(elt: HTMLElement, props: readonly Prop[]) {
+  ignoreElement(elt: HTMLElement, marks: readonly Mark[]) {
     if (elt.nodeName == "BR" && !this.top.tag.inlineContent)
-      this.findPlace(Leaf.Text.of("-"), props, false)
+      this.findPlace(Leaf.Text.of("-"), marks, false)
   }
 
-  parseElement(elt: HTMLElement, props: readonly Prop[], endOfSlice: boolean) {
+  parseElement(elt: HTMLElement, marks: readonly Mark[], endOfSlice: boolean) {
     let name = elt.nodeName.toLowerCase()
     if (name in normalizers) normalizers[name](elt)
     let match = this.rules.matchElement(elt)
     if (match ? match.rule.ignore === true : ignoreTags.has(name)) {
-      this.ignoreElement(elt, props)
+      this.ignoreElement(elt, marks)
     } else if (!match || match.rule.ignore === "skip") {
       let sync, top = this.top
       if (blockTags.has(name)) {
         if (top.children.length && top.children[0].isInline) this.close()
         sync = true
       }
-      let innerProps = match && match.rule.ignore ? props : this.parseAttributes(elt, props)
-      if (innerProps) this.parseChildren(elt, innerProps, endOfSlice)
+      let innerMarks = match && match.rule.ignore ? marks : this.parseAttributes(elt, marks)
+      if (innerMarks) this.parseChildren(elt, innerMarks, endOfSlice)
       if (sync) this.sync(top)
     } else {
-      let innerProps = this.parseAttributes(elt, props)
-      if (innerProps)
-        this.parseElementByRule(elt, match, innerProps, endOfSlice)
+      let innerMarks = this.parseAttributes(elt, marks)
+      if (innerMarks)
+        this.parseElementByRule(elt, match, innerMarks, endOfSlice)
     }
   }
 
   parseElementByRule(elt: HTMLElement, match: {rule: ElementParseRule<unknown>, value?: unknown},
-                     props: readonly Prop[], endOfSlice: boolean) {
+                     marks: readonly Mark[], endOfSlice: boolean) {
     let sync, plot, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.plot) {
       plot = rule.plot instanceof Plot.Tag ? rule.plot :
         rule.plot instanceof Plot.Type ? (hasValue ? rule.plot.of(match.value) : rule.plot.default) : null
       if (!plot) throw new Error(`Parse rule for ${rule.selector} is missing a parameter`)
-      let innerProps = this.enter(plot, props, endOfSlice, elt)
-      if (innerProps) {
+      let innerMarks = this.enter(plot, marks, endOfSlice, elt)
+      if (innerMarks) {
         sync = true
-        props = innerProps
+        marks = innerMarks
       }
     } else if (rule.leaf) {
       let leaf = rule.leaf instanceof Leaf ? rule.leaf :
         rule.leaf instanceof Leaf.Type ? (hasValue ? rule.leaf.of(match.value) : rule.leaf.default) : null
       if (!leaf) throw new Error(`Parse rule for ${rule.selector} is missing a parameter`)
-      this.insertNode(leaf, props)
+      this.insertNode(leaf, marks)
       isLeaf = true
     } else {
-      let prop = rule.prop instanceof Prop ? rule.prop :
-        rule.prop instanceof Prop.Type ? (hasValue ? rule.prop.of(match.value) : rule.prop.default) : null
-      if (!prop) throw new Error(`Parse rule for ${rule.selector} does not produce a prop`)
-      props = props.concat(prop)
+      let mark = rule.mark instanceof Mark ? rule.mark :
+        rule.mark instanceof Mark.Type ? (hasValue ? rule.mark.of(match.value) : rule.mark.default) : null
+      if (!mark) throw new Error(`Parse rule for ${rule.selector} does not produce a mark`)
+      marks = marks.concat(mark)
     }
     let startIn = this.top
 
@@ -192,12 +192,12 @@ class ParseContext {
       let content = elt
       if (typeof rule.contentElement == "string") content = elt.querySelector(rule.contentElement) || elt
       else if (typeof rule.contentElement == "function") content = rule.contentElement(elt)
-      this.parseChildren(content, props, endOfSlice)
+      this.parseChildren(content, marks, endOfSlice)
     }
     if (sync && this.sync(startIn)) this.close()
   }
 
-  parseTextNode(dom: Text, props: readonly Prop[]) {
+  parseTextNode(dom: Text, marks: readonly Mark[]) {
     let text = dom.nodeValue!
     if (!this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
       // Ignore entirely blank node
@@ -214,20 +214,20 @@ class ParseContext {
             : !(this.top.flags & CxFlag.OpenStart))
           text = text.slice(1)
       }
-      if (text) this.insertNode(Leaf.text(text), props)
+      if (text) this.insertNode(Leaf.text(text), marks)
     } else if (this.top.tag.type.preserveWhitespace && this.schema.lineBreak) {
       let lines = text.split(/\r?\n|\r/g)
       for (let i = 0; i < lines.length; i++) {
-        if (i) this.insertNode(this.schema.lineBreak, props)
-        if (lines[i]) this.insertNode(Leaf.text(lines[i]), props)
+        if (i) this.insertNode(this.schema.lineBreak, marks)
+        if (lines[i]) this.insertNode(Leaf.text(lines[i]), marks)
       }
     } else {
       text = text.replace(/\r?\n|\r/g, " ")
-      if (text) this.insertNode(Leaf.text(text), props)
+      if (text) this.insertNode(Leaf.text(text), marks)
     }
   }
 
-  parseAttributes(elt: HTMLElement, props: readonly Prop[]) {
+  parseAttributes(elt: HTMLElement, marks: readonly Mark[]) {
     let matched = new Set<string>(), hasStyles = elt.style.length > 0
     for (let rule of this.rules.attributeRules) if (!matched.has(rule.attribute)) {
       let isStyle = /^style\//.test(rule.attribute)
@@ -244,24 +244,24 @@ class ParseContext {
       }
       if (rule.ignore) return null
       if (rule.consuming !== false) matched.add(rule.attribute)
-      if (rule.clearProp) {
-        props = props.filter(p => !rule.clearProp!(p))
+      if (rule.clearMark) {
+        marks = marks.filter(p => !rule.clearMark!(p))
       } else {
-        let prop = rule.prop instanceof Prop ? rule.prop :
-          rule.prop instanceof Prop.Type ? (hasParam ? rule.prop.of(param) : rule.prop.default) : null
-        if (!prop) throw new Error(`Parse rule for ${rule.attribute} does not produce a prop (or have ignore/clearProp properties)`)
-        props = props.concat(prop)
+        let mark = rule.mark instanceof Mark ? rule.mark :
+          rule.mark instanceof Mark.Type ? (hasParam ? rule.mark.of(param) : rule.mark.default) : null
+        if (!mark) throw new Error(`Parse rule for ${rule.attribute} does not produce a mark (or have ignore/clearMark properties)`)
+        marks = marks.concat(mark)
       }
     }
-    return props
+    return marks
   }
 
-  insertNode(node: Node, props: readonly Prop[]) {
-    let innerProps = this.findPlace(node.tag, props, false)
-    if (innerProps) {
+  insertNode(node: Node, marks: readonly Mark[]) {
+    let innerMarks = this.findPlace(node.tag, marks, false)
+    if (innerMarks) {
       let top = this.top
-      for (let p of innerProps) if (p.type.canTarget(node.type)) node = node.withProps(p.addToSet(node.props))
-      for (let p of node.tag.props) node = node.withProps(p.addToSet(node.props))
+      for (let p of innerMarks) if (p.type.canTarget(node.type)) node = node.withMarks(p.addToSet(node.marks))
+      for (let p of node.tag.marks) node = node.withMarks(p.addToSet(node.marks))
       node.pushTo(top.children)
       return true
     }
@@ -271,8 +271,8 @@ class ParseContext {
   // Try to find a way to fit the given node type into the current
   // context. May add intermediate wrappers and/or leave non-solid
   // nodes that we're in. Returns null if no place could be created, a
-  // set of prop values not applied to wrappers otherwise.
-  findPlace(tag: Node.Tag, props: readonly Prop[], endOfSlice: boolean): readonly Prop[] | null {
+  // set of mark values not applied to wrappers otherwise.
+  findPlace(tag: Node.Tag, marks: readonly Mark[], endOfSlice: boolean): readonly Mark[] | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
       let found = this.schema.findWrapping(cx.tag.type, tag.type)
@@ -286,22 +286,22 @@ class ParseContext {
     if (!route) return null
     this.sync(under!)
     for (let i = 0; i < route.length; i++)
-      props = this.enterInner(route[i], props, endOfSlice, null)
-    return props
+      marks = this.enterInner(route[i], marks, endOfSlice, null)
+    return marks
   }
 
-  enter(tag: Plot.Tag.Any, props: readonly Prop[], endOfSlice: boolean, elt: HTMLElement) {
-    let innerProps = this.findPlace(tag, props, endOfSlice)
-    if (innerProps) innerProps = this.enterInner(tag, props, endOfSlice, elt)
-    return innerProps
+  enter(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, elt: HTMLElement) {
+    let innerMarks = this.findPlace(tag, marks, endOfSlice)
+    if (innerMarks) innerMarks = this.enterInner(tag, marks, endOfSlice, elt)
+    return innerMarks
   }
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(tag: Plot.Tag.Any, props: readonly Prop[], endOfSlice: boolean, element: HTMLElement | null) {
-    props = props.filter(p => {
+  enterInner(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, element: HTMLElement | null) {
+    marks = marks.filter(p => {
       if (!p.type.canTarget(tag.type)) return true
-      tag = tag.withProps(p.addToSet(tag.props))
+      tag = tag.withMarks(p.addToSet(tag.marks))
       return false
     })
     let open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
@@ -312,7 +312,7 @@ class ParseContext {
       if (!(test & OpenSide.End)) open &= ~CxFlag.OpenEnd
     }
     this.top = new NodeContext(tag, (element ? CxFlag.Solid : CxFlag.None) | open, this.top)
-    return props
+    return marks
   }
 
   sync(to: NodeContext) {

@@ -1,7 +1,7 @@
-import {EditorView, toggleProp, setTextblockType, wrapBlock, unwrapBlockType,
+import {EditorView, toggleMark, setTextblockType, wrapBlock, unwrapBlockType,
         toggleList, listIsActive, showDialog} from "wordgard/view"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
-import {Prop, Plot, NodePos, canAddPropInRange, ChangeSet,
+import {Mark, Plot, NodePos, canAddMarkInRange, ChangeSet,
         Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/doc"
 import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
@@ -147,22 +147,22 @@ export const Commands = new MenuGroup({parent: Top, rank: 10})
 export const InlineStyles = new MenuGroup({parent: Top, rank: 30, margin: true})
 export const BlockMenu = new MenuGroup({parent: Top, rank: 50, margin: true})
 
-export function toggleInlineProp(config: {
-  prop: Prop<any>,
+export function toggleInlineMark(config: {
+  mark: Mark<any>,
   parent?: MenuGroup | Submenu
   rank?: number
   description?: string
   label: MenuLabel
 }) {
-  let {prop, parent, rank, description, label} = config
+  let {mark, parent, rank, description, label} = config
   return new MenuButton({
-    run: toggleProp(prop),
+    run: toggleMark(mark),
     active(state) {
       let {selection} = state
       if (selection.empty)
-        return !!prop.isInSet(selection.props || state.sel.head.props())
+        return !!mark.isInSet(selection.marks || state.sel.head.marks())
       else
-        return !selection.ranges.some(r => canAddPropInRange(state.doc, r.from, r.to, prop))
+        return !selection.ranges.some(r => canAddMarkInRange(state.doc, r.from, r.to, mark))
     },
     parent,
     rank,
@@ -171,24 +171,24 @@ export function toggleInlineProp(config: {
   })
 }
 
-export const ToggleStrong = toggleInlineProp({
-  prop: Strong,
+export const ToggleStrong = toggleInlineMark({
+  mark: Strong,
   parent: InlineStyles,
   rank: 10,
   description: "Toggle strong emphasis",
   label: iconBold
 })
 
-export const ToggleEmphasis = toggleInlineProp({
-  prop: Emphasis,
+export const ToggleEmphasis = toggleInlineMark({
+  mark: Emphasis,
   parent: InlineStyles,
   rank: 12,
   description: "Toggle emphasis",
   label: iconItalic
 })
 
-export const ToggleCode = toggleInlineProp({
-  prop: Code,
+export const ToggleCode = toggleInlineMark({
+  mark: Code,
   parent: InlineStyles,
   rank: 30,
   description: "Toggle code font",
@@ -201,11 +201,11 @@ export const ToggleLink = new MenuButton({
     if (selection.empty) return false
     let remove: ChangeSet.Spec[] = []
     for (let {from, to} of selection.ranges) doc.iterate(from, to, (node, pos) => {
-      let has = Link.isInSet(node.props)
+      let has = Link.isInSet(node.marks)
       if (has) remove.push({from: pos, to: pos + node.length, remove: has})
     })
     if (remove.length) {
-      view.dispatch({changes: remove, userEvent: "prop.remove"})
+      view.dispatch({changes: remove, userEvent: "mark.remove"})
     } else {
       showDialog(view, {
         label: "Link target",
@@ -217,7 +217,7 @@ export const ToggleLink = new MenuButton({
         let url = form && (form.elements.namedItem("url") as HTMLInputElement)?.value
         if (url) view.dispatch({
           changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: Link.of(url)})),
-          userEvent: "prop.add"
+          userEvent: "mark.add"
         })
       })
     }
@@ -227,7 +227,7 @@ export const ToggleLink = new MenuButton({
     let {selection, doc} = state, found = false
     if (!selection.empty) for (let {from, to} of selection.ranges) doc.iterate(from, to, node => {
       if (found) return false
-      if (Link.isInSet(node.props)) found = true
+      if (Link.isInSet(node.marks)) found = true
     })
     return found
   },

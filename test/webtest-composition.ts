@@ -138,21 +138,21 @@ describe("composition", () => {
     ist(view.state.doc, doc(p("one zero three")), eq)
   })
 
-  it("can compose inside a wrapping prop", () => {
+  it("can compose inside a wrapping mark", () => {
     let view = requireFocus(tempView(doc(p("a", strong("b", 0, "c")))))
     compose(view, [3, 3, "-"], [4, 4, "$"])
     ist(view.contentDOM.innerHTML, "<p>a<strong>b-$c</strong></p>")
     ist(view.state.doc, doc(p("a", strong("b-$c"))), eq)
   })
 
-  it("can compose at the end of a wrapping prop", () => {
+  it("can compose at the end of a wrapping mark", () => {
     let view = requireFocus(tempView(doc(p("a", strong("bc"), 0, "d"))))
     compose(view, () => selEnd(view.domAtPos(3).node), [4, 4, "-"], [5, 5, "$"])
     ist(view.contentDOM.innerHTML, "<p>a<strong>bc-$</strong>d</p>")
     ist(view.state.doc, doc(p("a", strong("bc-$"), "d")), eq)
   })
 
-  it("can compose at the start of a wrapping prop", () => {
+  it("can compose at the start of a wrapping mark", () => {
     let view = requireFocus(tempView(doc(p("a", 0, strong("bc"), "d"))))
     compose(view, () => selEnd(view.domAtPos(3).node), [2, 2, "-"], [3, 3, "$"])
     ist(view.contentDOM.innerHTML, "<p>a-$<strong>bc</strong>d</p>")

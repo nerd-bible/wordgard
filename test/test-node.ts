@@ -125,9 +125,9 @@ describe("Node", () => {
       ist.throws(() => schema.nodeFromJSON(json), /Expected value of type number/)
     })
 
-    it("complains about incorrect prop types", () => {
+    it("complains about incorrect mark types", () => {
       let json = doc(p($a("hi"))).toJSON()
-      json.content![0].content![0].props!.Link = [1, 2, 3]
+      json.content![0].content![0].marks!.Link = [1, 2, 3]
       ist.throws(() => schema.nodeFromJSON(json), /Expected value of type string/)
     })
   })

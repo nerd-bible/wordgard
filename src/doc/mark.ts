@@ -39,10 +39,10 @@ export function subtractSet<T>(a: readonly T[], b: readonly T[], compare: (a: T,
   }
 }
 
-export class Prop<Value = unknown> {
-  constructor(readonly type: Prop.Type<Value>, readonly value: Value) {}
+export class Mark<Value = unknown> {
+  constructor(readonly type: Mark.Type<Value>, readonly value: Value) {}
 
-  eq(other: Prop<any>) {
+  eq(other: Mark<any>) {
     return this.type == other.type && compareDeep(this.value, other.value)
   }
 
@@ -56,12 +56,12 @@ export class Prop<Value = unknown> {
 
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
-  static define(name: string, spec: Prop.Spec<null>): Prop<null> {
-    return new Prop.Type<null>(name, spec, true).default!
+  static define(name: string, spec: Mark.Spec<null>): Mark<null> {
+    return new Mark.Type<null>(name, spec, true).default!
   }
 
-  addToSet(set: readonly Prop<any>[]): readonly Prop[] {
-    let placed: Prop<any> | null = null, copy: Prop<any>[] = []
+  addToSet(set: readonly Mark<any>[]): readonly Mark[] {
+    let placed: Mark<any> | null = null, copy: Mark<any>[] = []
     for (let i = 0; i < set.length; i++) {
       let other = set[i]
       if (this.eq(other)) return set
@@ -69,24 +69,24 @@ export class Prop<Value = unknown> {
         if (!placed && this.type.compareRank(other.type) < 0) copy.push(placed = this)
         copy.push(other)
       } else if (this.type.set) {
-        copy.push(placed = new Prop(this.type, addSet(other.value as any[], this.value as any[], this.type.set) as any))
+        copy.push(placed = new Mark(this.type, addSet(other.value as any[], this.value as any[], this.type.set) as any))
       }
     }
     if (!placed) copy.push(this)
     return copy
   }
 
-  removeFromSet(set: readonly Prop<any>[]): readonly Prop[] {
+  removeFromSet(set: readonly Mark<any>[]): readonly Mark[] {
     let type = this.type
     for (var i = 0; i < set.length; i++) if (set[i].type == type) {
-      let val = set[i], newSet: readonly Prop<any>[]
+      let val = set[i], newSet: readonly Mark<any>[]
       if (type.set) {
         let rest = subtractSet(val.value as any[], this.value as any[], type.set)
         if (!rest.length) {
           newSet = remove(set, i)
         } else {
           newSet = set.slice()
-          ;(newSet as Prop[])[i] = new Prop(type, rest as any)
+          ;(newSet as Mark[])[i] = new Mark(type, rest as any)
         }
       } else if (!val.eq(this as any)) {
         continue
@@ -98,22 +98,22 @@ export class Prop<Value = unknown> {
     return set
   }
 
-  isInSet(set: readonly Prop<any>[]): Prop | null {
+  isInSet(set: readonly Mark<any>[]): Mark | null {
     for (let v of set) if (v.eq(this)) return v
     return null
   }
 
-  static sameSet(a: readonly Prop<any>[], b: readonly Prop<any>[]): boolean {
+  static sameSet(a: readonly Mark<any>[], b: readonly Mark<any>[]): boolean {
     return eqArray(a, b)
   }
 }
 
-export namespace Prop {
+export namespace Mark {
   export class Type<Value> {
     readonly targetGroups: readonly string[]
     readonly rank: number
     readonly set: null | ((a: any, b: any) => number)
-    readonly default: Prop<Value> | null
+    readonly default: Mark<Value> | null
     readonly inclusive: boolean
     readonly element: boolean
     readonly spanning: boolean
@@ -121,20 +121,20 @@ export namespace Prop {
 
     constructor(
       readonly name: string,
-      readonly spec: Prop.Spec<Value>,
+      readonly spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
       this.targetGroups = spec.tags == null ? ["Inline:Leaf"] : splitGroups(spec.tags)
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
-      this.default = isFlag ? new Prop(this, null as any) : null
+      this.default = isFlag ? new Mark(this, null as any) : null
       this.inclusive = spec.inclusive !== false
       this.element = isElementShape(spec.shape)
       this.spanning = spec.spanning ?? this.element
       this.repr = spec.shape
     }
 
-    of(value: Value) { return new Prop(this, value) }
+    of(value: Value) { return new Mark(this, value) }
 
     get schemaElement(): SchemaElement { return this }
 
@@ -142,54 +142,54 @@ export namespace Prop {
       return this.targetGroups.some(g => tag.isInGroup(g))
     }
 
-    compareRank(other: Prop.Type<any>) {
+    compareRank(other: Mark.Type<any>) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
     }
 
-    removeFromSet(set: readonly Prop[]): readonly Prop[] {
+    removeFromSet(set: readonly Mark[]): readonly Mark[] {
       for (var i = 0; i < set.length; i++) if (set[i].type == this) return remove(set, i)
       return set
     }
 
-    isInSet(set: readonly Prop[]): Prop | null {
+    isInSet(set: readonly Mark[]): Mark | null {
       for (let v of set) if (v.type == this) return v
       return null
     }
 
-    static define<Value>(name: string, spec: Prop.Spec<Value>) {
-      return new Prop.Type<Value>(name, spec, false)
+    static define<Value>(name: string, spec: Mark.Spec<Value>) {
+      return new Mark.Type<Value>(name, spec, false)
     }
   }
 
   export type Spec<Value> = {
-    /// Which node tags this prop may apply to, as a space separated
+    /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.
     tags?: string
-    /// Determines the position of this prop relative to other props.
-    /// Props with lower rank appear first in prop set arrays, and are
-    /// rendered around higher rank props in DOM representation. Ties
+    /// Determines the position of this mark relative to other marks.
+    /// Marks with lower rank appear first in mark set arrays, and are
+    /// rendered around higher rank marks in DOM representation. Ties
     /// are broken by name.
     rank?: number
     /// Whether this mark should be active when the cursor is positioned
     /// at its end (or at its start when that is also the start of the
     /// parent node). Defaults to true.
     inclusive?: boolean
-    /// Whether this prop can span across multiple nodes, or refers to
-    /// an individual node. Only spanning props can be added to text.
-    /// Spanning props with an element representation can be drawn as
+    /// Whether this mark can span across multiple nodes, or refers to
+    /// an individual node. Only spanning marks can be added to text.
+    /// Spanning marks with an element representation can be drawn as
     /// elements containing multiple nodes, unless another, lower-ranked
-    /// prop requires the nodes to be wrapped separately. Defaults to
+    /// mark requires the nodes to be wrapped separately. Defaults to
     /// true for specs with an element representation, false
     /// for specs with an attribute representation.
     spanning?: boolean
-    /// Used by `Tag.split` to determine whether to keep this prop in
+    /// Used by `Tag.split` to determine whether to keep this mark in
     /// the split-off tag. `atEnd` will be true if the split happens at
     /// the end of the node's content.
     keepOnSplit?: boolean | ((tag: Plot.Tag.Any, atEnd: boolean) => boolean)
-    /// Used by `Tag.changeType` to decide whether props of this type
+    /// Used by `Tag.changeType` to decide whether marks of this type
     /// are preserved after the type change.
     keepOnTypeChange?: boolean | ((from: Plot.Tag.Any, to: Plot.Tag.Any) => boolean)
-    /// A function or type name used to validate values of this prop.
+    /// A function or type name used to validate values of this mark.
     /// See [`Tag.Spec.validateParam`](#doc.Tag.Spec.validateParam).
     validate?: string | ((value: Value) => void)
     set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never

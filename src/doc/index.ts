@@ -1,5 +1,5 @@
 export * from "./node"
-export * from "./prop"
+export * from "./mark"
 export * from "./schema"
 export * from "./shape"
 export * from "./change"

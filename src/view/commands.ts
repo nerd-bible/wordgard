@@ -1,6 +1,6 @@
-import {Plot, Node, Prop, NodePos, PlotPos, Slice, Leaf, Token, ChangeSet,
+import {Plot, Node, Mark, NodePos, PlotPos, Slice, Leaf, Token, ChangeSet,
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
-        unwrapBlock as doUnwrapBlock, clearNonFitting, canAddPropInRange} from "wordgard/doc"
+        unwrapBlock as doUnwrapBlock, clearNonFitting, canAddMarkInRange} from "wordgard/doc"
 import {EditorSelection, StateCommand, EditorState, Transaction, Direction, autoJoinBlocks} from "wordgard/state"
 import {EditorView} from "./editorview"
 import {findClusterBreak} from "@marijn/find-cluster-break"
@@ -34,10 +34,10 @@ export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
   let {doc, sel} = state
   let block = sel.from.parent
   if (!block.node.isTextblock || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
-  let props = state.selection.props || sel.from.props(sel.to)
+  let marks = state.selection.marks || sel.from.marks(sel.to)
   dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos,
-              insert: [(doc.schema.lineBreak ? doc.schema.lineBreak : Leaf.text("\n")).withProps(props)]},
+              insert: [(doc.schema.lineBreak ? doc.schema.lineBreak : Leaf.text("\n")).withMarks(marks)]},
     selection: EditorSelection.cursor(sel.from.pos + 1, -1),
     scrollIntoView: true,
     userEvent: "input"
@@ -409,25 +409,25 @@ export function unwrapBlockType(type: Plot.Type<any> | Plot.Tag.Any | ((tag: Plo
 
 export const unwrapBlock = unwrapBlockType(() => true)
 
-export function toggleProp(prop: Prop<any>): StateCommand {
+export function toggleMark(mark: Mark<any>): StateCommand {
   return ({state, dispatch}) => {
     let {selection, doc} = state
     if (selection.empty) {
-      let selProps = selection.props || state.sel.head.props(), add = !prop.isInSet(selProps)
-      let newProps = add ? prop.addToSet(selProps) : prop.removeFromSet(selProps)
+      let selMarks = selection.marks || state.sel.head.marks(), add = !mark.isInSet(selMarks)
+      let newMarks = add ? mark.addToSet(selMarks) : mark.removeFromSet(selMarks)
       dispatch(state.update({
-        selection: EditorSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newProps),
-        userEvent: add ? "prop.add" : "prop.remove"
+        selection: EditorSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newMarks),
+        userEvent: add ? "mark.add" : "mark.remove"
       }))
-    } else if (selection.ranges.some(r => canAddPropInRange(doc, r.from, r.to, prop))) {
+    } else if (selection.ranges.some(r => canAddMarkInRange(doc, r.from, r.to, mark))) {
       dispatch(state.update({
-        changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: prop})),
-        userEvent: "prop.add"
+        changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: mark})),
+        userEvent: "mark.add"
       }))
     } else {
       dispatch(state.update({
-        changes: selection.ranges.map(r => ({from: r.from, to: r.to, remove: prop})),
-        userEvent: "prop.remove"
+        changes: selection.ranges.map(r => ({from: r.from, to: r.to, remove: mark})),
+        userEvent: "mark.remove"
       }))
     }
     return true

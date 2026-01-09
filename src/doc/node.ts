@@ -3,7 +3,7 @@ import {TextOutput} from "./text"
 import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos, PlotPos} from "./pos"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
@@ -22,9 +22,9 @@ export namespace Node {
   export interface Shared {
     name: string
     tag: Node.Tag
-    prop<Value>(prop: Prop.Type<Value>): Value | undefined
+    mark<Value>(mark: Mark.Type<Value>): Value | undefined
     eq(other: Node | Node.Tag): boolean
-    withProps(props: readonly Prop<unknown>[]): Node
+    withMarks(marks: readonly Mark<unknown>[]): Node
     pushTo(nodes: Node[]): void
     slice(from: number, to?: number): Slice
     isInline: boolean
@@ -78,11 +78,11 @@ export namespace Node {
 
       constructor(
         readonly param: Param,
-        readonly props: readonly Prop[]
+        readonly marks: readonly Mark[]
       ) {}
 
-      prop<Value>(prop: Prop.Type<Value>): Value | undefined {
-        for (let v of this.props) if (v.type == prop) return v.value as Value
+      mark<Value>(mark: Mark.Type<Value>): Value | undefined {
+        for (let v of this.marks) if (v.type == mark) return v.value as Value
         return undefined
       }
 
@@ -98,9 +98,9 @@ export namespace Node {
       toJSON(): Node.JSON {
         let result: Node.JSON = {type: this.name}
         if (this != this.type.default as any && !(this.type.flags & NodeFlag.Doc)) result.param = this.param
-        if (this.props.length) {
-          result.props = Object.create(null)
-          for (let {name, value} of this.props) result.props![name] = value
+        if (this.marks.length) {
+          result.marks = Object.create(null)
+          for (let {name, value} of this.marks) result.marks![name] = value
         }
         return result
       }
@@ -145,21 +145,21 @@ export namespace Node {
   export interface JSON {
     type: string
     param?: any
-    props?: {[name: string]: any}
+    marks?: {[name: string]: any}
     content?: readonly Node.JSON[]
   }
 }
 
 export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
-  constructor(readonly type: Leaf.Type<Param>, param: Param, props: readonly Prop<unknown>[]) {
-    super(param, props)
+  constructor(readonly type: Leaf.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+    super(param, marks)
   }
 
   get tag() { return this }
 
   eq(other: Node | Node.Tag): boolean {
     return this == other || other.isLeaf && this.type == other.type && compareDeep(this.param, other.param) &&
-      Prop.sameSet(this.props, other.props)
+      Mark.sameSet(this.marks, other.marks)
   }
 
   is<T>(type: Leaf.Type<T>): this is Leaf<T> {
@@ -176,8 +176,8 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
     return new Leaf.Type<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
   }
 
-  withProps(props: readonly Prop<unknown>[]) {
-    return Prop.sameSet(this.props, props) ? this : this.type.of(this.param, props)
+  withMarks(marks: readonly Mark<unknown>[]) {
+    return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
   }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
@@ -186,8 +186,8 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
   get length(): number { return this.is(Leaf.Text) ? this.param.length : 1 }
 
   join(onto: Node): Leaf.Any | null {
-    if (!this.is(Leaf.Text) || !Leaf.Text.chk(onto) || !Prop.sameSet(this.props, onto.props)) return null
-    return Leaf.text(onto.param + this.param, this.props)
+    if (!this.is(Leaf.Text) || !Leaf.Text.chk(onto) || !Mark.sameSet(this.marks, onto.marks)) return null
+    return Leaf.text(onto.param + this.param, this.marks)
   }
 
   pushTo(nodes: Node[]) {
@@ -204,16 +204,16 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
     if (!this.is(Leaf.Text)) throw new Error("Calling sliceText on a non-text node")
     if (to == null) to = this.param.length
     if (!from && to == this.param.length) return this
-    return Leaf.Text.of(this.param.slice(Math.max(from, 0), Math.max(0, to)), this.props)
+    return Leaf.Text.of(this.param.slice(Math.max(from, 0), Math.max(0, to)), this.marks)
   }
 
-  static text(text: string, props: readonly Prop<any>[] = none) {
-    return Leaf.Text.of(text, props)
+  static text(text: string, marks: readonly Mark<any>[] = none) {
+    return Leaf.Text.of(text, marks)
   }
 
   /// @internal
   toString() {
-    return (this.is(Leaf.Text) ? JSON.stringify(this.param) : this.name) + propString(this.props)
+    return (this.is(Leaf.Text) ? JSON.stringify(this.param) : this.name) + markString(this.marks)
   }
 }
 
@@ -238,9 +238,9 @@ export namespace Leaf {
       return new Leaf.Type<T>(name, flagsFor(spec, false), spec)
     }
 
-    of(param: Param, props: readonly Prop<any>[] = none) {
-      if (!props.length && this.default && compareDeep(this.default.param, param)) return this.default
-      return new Leaf(this, param, props)
+    of(param: Param, marks: readonly Mark<any>[] = none) {
+      if (!marks.length && this.default && compareDeep(this.default.param, param)) return this.default
+      return new Leaf(this, param, marks)
     }
 
     get isLeaf(): true { return true }
@@ -262,10 +262,10 @@ export namespace Leaf {
     toText?(node: Leaf.Any): string
   }
 
-  export type Any = Omit<Leaf<unknown>, "type" | "tag" | "withProps"> & {
+  export type Any = Omit<Leaf<unknown>, "type" | "tag" | "withMarks"> & {
     type: Leaf.Type<any>,
     tag: Leaf.Any,
-    withProps(props: readonly Prop[]): Leaf.Any
+    withMarks(marks: readonly Mark[]): Leaf.Any
   }
 
   export const Text = new Leaf.Type<string>("Text", NodeFlag.Inline, {
@@ -287,7 +287,7 @@ export class Plot implements Node.Shared {
 
   get name() { return this.tag.name }
   get type() { return this.tag.type }
-  get props() { return this.tag.props }
+  get marks() { return this.tag.marks }
 
   get length() {
     return 2 + this.contentLength
@@ -371,7 +371,7 @@ export class Plot implements Node.Shared {
 
   /// @internal
   toString() {
-    return this.name + propString(this.tag.props) + "(" + this.content.join() + ")"
+    return this.name + markString(this.tag.marks) + "(" + this.content.join() + ")"
   }
 
   toJSON(): Node.JSON {
@@ -393,14 +393,14 @@ export class Plot implements Node.Shared {
     return out.text
   }
 
-  prop<Value>(prop: Prop.Type<Value>): Value | undefined { return this.tag.prop(prop) }
+  mark<Value>(mark: Mark.Type<Value>): Value | undefined { return this.tag.mark(mark) }
 
   join(other: Node) { return null }
 
   pushTo(nodes: Node[]) { nodes.push(this) }
 
-  withProps(props: readonly Prop[]) {
-    return Prop.sameSet(this.tag.props, props) ? this : this.tag.withProps(props).create(this.content)
+  withMarks(marks: readonly Mark[]) {
+    return Mark.sameSet(this.tag.marks, marks) ? this : this.tag.withMarks(marks).create(this.content)
   }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
@@ -430,17 +430,17 @@ export class Plot implements Node.Shared {
 
 export namespace Plot {
   export class Tag<Param> extends Node.Tag.Base<Param> {
-    constructor(readonly type: Plot.Type<Param>, param: Param, props: readonly Prop<unknown>[]) {
-      super(param, props)
+    constructor(readonly type: Plot.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+      super(param, marks)
     }
 
     eq(other: Node | Node.Tag): boolean {
       return this == other || other instanceof Plot.Tag && !this.isDoc && this.type == other.type &&
-        compareDeep(this.param, other.param) && Prop.sameSet(this.props, other.props)
+        compareDeep(this.param, other.param) && Mark.sameSet(this.marks, other.marks)
     }
 
-    withProps(props: readonly Prop[]) {
-      return Prop.sameSet(this.props, props) ? this : this.type.of(this.param, props)
+    withMarks(marks: readonly Mark[]) {
+      return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
     }
 
     create(children?: readonly Node[]): Plot {
@@ -453,21 +453,21 @@ export namespace Plot {
     }
 
     split(atEnd: boolean) {
-      return this.props.length ? this.withProps(this.props.filter(p => {
+      return this.marks.length ? this.withMarks(this.marks.filter(p => {
         let {keepOnSplit} = p.type.spec
         return keepOnSplit && (keepOnSplit === true || keepOnSplit(this, atEnd))
       })) : this
     }
 
     changeType(to: Plot.Tag.Any) {
-      if (!this.props.length) return to
-      let props = to.props
-      for (let prop of this.props) if (prop.type.canTarget(to.type) && (prop.type.set || !prop.isInSet(props))) {
-        let {keepOnTypeChange} = prop.type.spec
+      if (!this.marks.length) return to
+      let marks = to.marks
+      for (let mark of this.marks) if (mark.type.canTarget(to.type) && (mark.type.set || !mark.isInSet(marks))) {
+        let {keepOnTypeChange} = mark.type.spec
         if (keepOnTypeChange && (keepOnTypeChange === true || keepOnTypeChange(this, to)))
-          props = prop.addToSet(props)
+          marks = mark.addToSet(marks)
       }
-      return to.withProps(props)
+      return to.withMarks(marks)
     }
 
     get tokenType(): TokenType.Open { return TokenType.Open }
@@ -479,15 +479,15 @@ export namespace Plot {
 
     /// @internal
     toString() {
-      return this.type.name + propString(this.props)
+      return this.type.name + markString(this.marks)
     }
   }
 
   export namespace Tag {
-    export type Any = Omit<Plot.Tag<unknown>, "type" | "split" | "withProps"> & {
+    export type Any = Omit<Plot.Tag<unknown>, "type" | "split" | "withMarks"> & {
       type: Plot.Type<any>,
       split(atEnd: boolean): Plot.Tag.Any
-      withProps(props: readonly Prop[]): Plot.Tag.Any
+      withMarks(marks: readonly Mark[]): Plot.Tag.Any
     }
   }
 
@@ -527,9 +527,9 @@ export namespace Plot {
       return new Plot.Type<T>(name, flagsFor(spec, false), spec)
     }
 
-    of(param: Param, props: readonly Prop<any>[] = none) {
-      if (!props.length && this.default && compareDeep(this.default.param, param)) return this.default
-      return new Plot.Tag(this, param, props)
+    of(param: Param, marks: readonly Mark<any>[] = none) {
+      if (!marks.length && this.default && compareDeep(this.default.param, param)) return this.default
+      return new Plot.Tag(this, param, marks)
     }
 
     canContain(child: Node.Type<any>) {
@@ -658,11 +658,11 @@ function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   return flags
 }
 
-function propString(props: readonly Prop[]) {
+function markString(marks: readonly Mark[]) {
   let values: string[] = []
-  for (let prop of props) {
-    if (prop.type.default == prop) values.push(prop.type.name)
-    else values.push(`${prop.type.name}=${prop.value}`)
+  for (let mark of marks) {
+    if (mark.type.default == mark) values.push(mark.type.name)
+    else values.push(`${mark.type.name}=${mark.value}`)
   }
   return values.length ? `[${values.join()}]` : ""
 }

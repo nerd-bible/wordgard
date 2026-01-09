@@ -1,9 +1,9 @@
-import {Plot, Node, Prop, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
+import {Plot, Node, Mark, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
         pushAttribute, noAttributes} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
-        renderWrapper, renderPropWrapper} from "./decoration"
+        renderWrapper, renderMarkWrapper} from "./decoration"
 import {eqArray} from "./util"
 import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
 import {type CompositionInfo} from "./input"
@@ -332,7 +332,7 @@ export function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock?
 export class DocTile extends CompositeTile {
   declare dom: HTMLElement
 
-  constructor(public state: EditorState, dom: HTMLElement, readonly cursorWrapper: readonly Prop<any>[] | null) {
+  constructor(public state: EditorState, dom: HTMLElement, readonly cursorWrapper: readonly Mark<any>[] | null) {
     super(dom, 0)
   }
 
@@ -729,7 +729,7 @@ class ContentUpdate {
   reused = new Map<Tile, Reused>()
   keepWalker: TileWalker
 
-  constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Prop<any>[] | null) {
+  constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Mark<any>[] | null) {
     this.old = new TilePointer(old, 0, null)
     this.new = new DocTile(state, old.dom as HTMLElement, cursorWrapper)
     this.keepWalker = {
@@ -788,8 +788,8 @@ class ContentUpdate {
   composition(composition: CompositionInfo) {
     this.leaveWrappers()
     if (!composition.target) {
-      for (let prop of composition.wrapCursor!) if (prop.type.element) {
-        this.openWrapper(renderPropWrapper(prop), prop.spanning, false)
+      for (let mark of composition.wrapCursor!) if (mark.type.element) {
+        this.openWrapper(renderMarkWrapper(mark), mark.spanning, false)
       }
       this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointBefore))
       return

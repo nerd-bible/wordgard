@@ -1,6 +1,6 @@
 import {Plot, Leaf} from "./node"
 import {Pos, PlotPos} from "./pos"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 import {Schema} from "./schema"
 import {ChangeSet} from "./change"
 import {Token} from "./slice"
@@ -229,10 +229,10 @@ export function joinBlocks(before: PlotPos, after: PlotPos): ChangeSet.Spec[] {
   return changes
 }
 
-export function canAddPropInRange(doc: Plot.Doc, from: number, to: number, prop: Prop<any> | Prop.Type<any>) {
-  let found = false, type = prop instanceof Prop ? prop.type : prop
+export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark: Mark<any> | Mark.Type<any>) {
+  let found = false, type = mark instanceof Mark ? mark.type : mark
   doc.iterate(from, to, node => {
-    if (found || prop.isInSet(node.tag.props)) return false
+    if (found || mark.isInSet(node.tag.marks)) return false
     if (type.canTarget(node.type)) found = true
     return true
   })

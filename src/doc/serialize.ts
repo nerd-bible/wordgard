@@ -1,7 +1,7 @@
 import {Plot, Node, Leaf} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType} from "./slice"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 import {ElementShape, AttributeShape, isElementShape,
         Elt, Attributes, readAttributes, pushAttribute, mergeAttributes} from "./shape"
 
@@ -101,7 +101,7 @@ const genericTag = Plot.defineBlock("generic", {
 function flattenSlice(
   content: readonly Token[],
   context: readonly Plot.Tag.Any[], includeContext: number,
-  openProp?: Prop.Type<string>
+  openMark?: Mark.Type<string>
 ): readonly Node[] {
   let depth = 0, i = 0, scan = (inner: boolean): readonly Node[] => {
     let result: Node[] = []
@@ -110,11 +110,11 @@ function flattenSlice(
       if (tok.tokenType == TokenType.Close) {
         if (inner) break
         let tag = depth < context.length ? context[depth++] : genericTag
-        if (openProp) tag = tag.withProps(openProp.of("start").addToSet(tag.props))
+        if (openMark) tag = tag.withMarks(openMark.of("start").addToSet(tag.marks))
         result = [tag.create(result)]
       } else if (tok.tokenType == TokenType.Open) {
         let content = scan(true), tag = tok
-        if (openProp) tag = tag.withProps(openProp.of("end").addToSet(tag.props))
+        if (openMark) tag = tag.withMarks(openMark.of("end").addToSet(tag.marks))
         result.push(tag.create(content))
       } else {
         result.push(tok)
@@ -125,7 +125,7 @@ function flattenSlice(
   let result = scan(false)
   while (depth < includeContext && depth < context.length) {
     let tag = context[depth++]
-    if (openProp) tag = tag.withProps(openProp.of("start end").addToSet(tag.props))
+    if (openMark) tag = tag.withMarks(openMark.of("start end").addToSet(tag.marks))
     result = [tag.create(result)]
   }
   return result
@@ -133,38 +133,38 @@ function flattenSlice(
 
 export function serializeSlice(slice: Slice, options: SerializeOptions & {
   schema: Schema,
-  openProp?: Prop.Type<string>,
+  openMark?: Mark.Type<string>,
   context?: readonly Plot.Tag.Any[],
   includeContext?: number
 }): DocumentFragment {
   let cx = new DOMContext(options, options.schema)
-  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openProp), cx)
+  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openMark), cx)
   return cx.top as DocumentFragment
 }
 
 export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
   schema: Schema,
-  openProp?: Prop.Type<string>,
+  openMark?: Mark.Type<string>,
   context?: readonly Plot.Tag.Any[],
   includeContext?: number
 }): string {
   let cx = new HTMLContext(options, options.schema)
-  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openProp), cx)
+  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openMark), cx)
   return cx.html
 }
 
 function serializeNodeInner(node: Node, cx: Context) {
-  let propAttrs: string[] = []
-  for (let prop of node.tag.props) if (!prop.type.element) {
-    let repr = prop.type.repr as AttributeShape<any>
+  let markAttrs: string[] = []
+  for (let mark of node.tag.marks) if (!mark.type.element) {
+    let repr = mark.type.repr as AttributeShape<any>
     let name = repr.attribute
-    let value = typeof repr.value == "function" ? repr.value(prop.value) : repr.value ?? prop.value as string
+    let value = typeof repr.value == "function" ? repr.value(mark.value) : repr.value ?? mark.value as string
     if (value != null) {
       if (/^style\//.test(name)) {
         value = name.slice(6) + ": " + value
         name = "style"
       }
-      pushAttribute(propAttrs, name, value)
+      pushAttribute(markAttrs, name, value)
     }
   }
   let renderContent = node.isLeaf ? () => {} : (cx: Context) => {
@@ -175,18 +175,18 @@ function serializeNodeInner(node: Node, cx: Context) {
   }
   let repr = node.type.spec.shape
   if (Leaf.Text.chk(node)) {
-    if (propAttrs.length) cx.openElt("span", propAttrs)
+    if (markAttrs.length) cx.openElt("span", markAttrs)
     cx.emitText(node.param)
-    if (propAttrs.length) cx.closeElt()
+    if (markAttrs.length) cx.closeElt()
   } else if (isElementShape(repr)) {
     let attrs = typeof repr.attributes == "function" ? repr.attributes(node.tag.param) : repr.attributes
-    let allAttrs = !attrs ? propAttrs : mergeAttributes(readAttributes(attrs), propAttrs)
+    let allAttrs = !attrs ? markAttrs : mergeAttributes(readAttributes(attrs), markAttrs)
     cx.openElt(repr.element, allAttrs)
     renderContent(cx)
     cx.closeElt()
   } else {
     let elt = typeof repr.structure == "function" ? repr.structure(node.tag.param) : repr.structure
-    if (propAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, propAttrs), elt.children)
+    if (markAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, markAttrs), elt.children)
     serializeStructure(elt, cx, renderContent)
   }
 }
@@ -208,7 +208,7 @@ function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Leaf.Any) {
   if (!nodes.some(n => lineBreak.type.chk(n))) return nodes
   let result: Node[] = [], lastText = false
   for (let node of nodes) {
-    let next = lineBreak.type.chk(node) ? Leaf.text("\n", node.props) : node
+    let next = lineBreak.type.chk(node) ? Leaf.text("\n", node.marks) : node
     if (lastText && next instanceof Plot) next.pushTo(result as Plot[])
     else result.push(next)
     lastText = next.isText
@@ -217,14 +217,14 @@ function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Leaf.Any) {
 }
 
 function serializeChildren(children: readonly Node[], cx: Context) {
-  let active: Prop[] = []
+  let active: Mark[] = []
   for (let child of children) {
-    if (active.length || child.props.some(p => isElementShape(p.type.repr))) {
-      let keep = 0, rendered = 0, eltProps = []
-      for (let prop of child.props)
-        if (isElementShape(prop.type.repr)) eltProps.push(prop)
-      while (keep < active.length && rendered < eltProps.length) {
-        let next = eltProps[rendered]
+    if (active.length || child.marks.some(p => isElementShape(p.type.repr))) {
+      let keep = 0, rendered = 0, eltMarks = []
+      for (let mark of child.marks)
+        if (isElementShape(mark.type.repr)) eltMarks.push(mark)
+      while (keep < active.length && rendered < eltMarks.length) {
+        let next = eltMarks[rendered]
         if (!next.eq(active[keep]) || !next.type.spanning) break
         keep++; rendered++
       }
@@ -232,8 +232,8 @@ function serializeChildren(children: readonly Node[], cx: Context) {
         cx.closeElt()
         active.pop()
       }
-      while (rendered < eltProps.length) {
-        let add = eltProps[rendered++]
+      while (rendered < eltMarks.length) {
+        let add = eltMarks[rendered++]
         let repr = add.type.repr as ElementShape<any>
         cx.openElt(repr.element, readAttributes(typeof repr.attributes == "function" ? repr.attributes(add.value) : repr.attributes))
         active.push(add)

@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, Leaf, ChangeSet, Prop, Pos, PlotPos} from "wordgard/doc"
+import {Schema, Plot, Node, Leaf, ChangeSet, Mark, Pos, PlotPos} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
@@ -10,7 +10,7 @@ export type SelectionJSON = {
   head?: number
   assoc?: -1 | 0 | 1,
   ranges?: readonly {from: number, to: number}[]
-  props?: Record<string, any>
+  marks?: Record<string, any>
 }
 
 /// A description of an editor selection.
@@ -36,10 +36,10 @@ export type SelectionSpec = {
   /// (`anchor`/`head`) if provided. These must be non-overlapping,
   /// and sorted.
   ranges?: readonly {from: number, to: number}[]
-  /// Props associated with a cursor selection, which will determine
-  /// the props of inline content inserted at that selection. This is
+  /// Marks associated with a cursor selection, which will determine
+  /// the marks of inline content inserted at that selection. This is
   /// used for things like toggling emphasis on a cursor selection.
-  props?: readonly Prop<any>[]
+  marks?: readonly Mark<any>[]
 }
 
 /// A selection object where the selection positions have been
@@ -68,8 +68,8 @@ export class SelectionPos {
   /// If a cursor is explicitly associated with the element before or
   /// after it, this holds a non-zero value.
   get assoc() { return this.selection.assoc }
-  /// [Active props](#state.EditorSelection.props) on this selection.
-  get props() { return this.selection.props }
+  /// [Active marks](#state.EditorSelection.marks) on this selection.
+  get marks() { return this.selection.marks }
 }
 
 // FIXME make this user-visible?
@@ -107,12 +107,12 @@ export class EditorSelection {
     /// The ranges in the selection, for selections that cover more
     /// than one range. Includes the main range.
     private _ranges: readonly {from: number, to: number}[] | undefined,
-    /// A set of active props that should be applied to content
-    /// inserted at this selection (replacing the contextual props).
+    /// A set of active marks that should be applied to content
+    /// inserted at this selection (replacing the contextual marks).
     /// Used mostly for making the effect of toggling inline styles
-    /// stick until something is inserted. Props that aren't valid for
+    /// stick until something is inserted. Marks that aren't valid for
     /// the inserted content will be ignored.
-    readonly props: readonly Prop[] | undefined
+    readonly marks: readonly Mark[] | undefined
   ) {}
 
   /// The lower boundary of the selected range.
@@ -148,13 +148,13 @@ export class EditorSelection {
   }
 
   /// Compare this selection to another selection, comparing all
-  /// ranges, associativity, and props.
+  /// ranges, associativity, and marks.
   eq(other: EditorSelection): boolean {
     return this.eqPos(other) && this.assoc == other.assoc &&
       this.ranges.length == other.ranges.length &&
       this.ranges.every((r, i) => r.from == other.ranges[i].from && r.to == other.ranges[i].to) &&
-      this.props == other.props || !!(this.props && other.props && this.props.length == other.props.length &&
-                                      this.props.every((p, i) => p.eq(other.props![i])))
+      this.marks == other.marks || !!(this.marks && other.marks && this.marks.length == other.marks.length &&
+                                      this.marks.every((p, i) => p.eq(other.marks![i])))
   }
 
   /// Map a selection through a change. Used to adjust the selection
@@ -165,7 +165,7 @@ export class EditorSelection {
     let ranges = this.ranges.map(r => r.from == this.from && r.to == this.to ? main
       : EditorSelection.mapRange(change, r.from, r.to, assoc))
     let [anchor, head] = this.anchor < this.head ? [main.from, main.to] : [main.to, main.from]
-    return EditorSelection.createInner(anchor, head, anchor == head ? this.assoc : 0, this.goalColumn, ranges, this.props)
+    return EditorSelection.createInner(anchor, head, anchor == head ? this.assoc : 0, this.goalColumn, ranges, this.marks)
   }
 
   /// @internal
@@ -189,9 +189,9 @@ export class EditorSelection {
     if (!this.empty) result.head = this.head
     if (this.ranges.length > 1) result.ranges = this.ranges
     if (this.assoc) result.assoc = this.assoc
-    if (this.props) {
-      result.props = {}
-      for (let prop of this.props) result.props[prop.name] = prop.value
+    if (this.marks) {
+      result.marks = {}
+      for (let mark of this.marks) result.marks[mark.name] = mark.value
     }
     return result
   }
@@ -201,33 +201,33 @@ export class EditorSelection {
     if (!json || typeof json.anchor != "number")
       throw new RangeError("Invalid JSON representation for EditorSelection")
     let anchor = json.anchor, head = typeof json.head == "number" ? json.head : anchor
-    let props = json.props ? schema.propsFromJSON(json.props) : undefined
+    let marks = json.marks ? schema.marksFromJSON(json.marks) : undefined
     let ranges = Array.isArray(json.ranges) && json.ranges.every(r => typeof r.from == "number" && typeof r.to == "number")
     return EditorSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, undefined,
-                                       ranges ? json.ranges! : undefined, props)
+                                       ranges ? json.ranges! : undefined, marks)
   }
 
   /// Create a cursor selection range at the given position. You can
   /// safely ignore the optional arguments in most situations.
-  static cursor(pos: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number, props?: readonly Prop<any>[]) {
-    return EditorSelection.createInner(pos, pos, assoc, goalColumn, undefined, props)
+  static cursor(pos: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number, marks?: readonly Mark<any>[]) {
+    return EditorSelection.createInner(pos, pos, assoc, goalColumn, undefined, marks)
   }
 
   /// Create a range selection.
-  static range(anchor: number, head: number, goalColumn?: number, props?: readonly Prop<any>[]) {
-    return EditorSelection.createInner(anchor, head, 0, goalColumn, undefined, props)
+  static range(anchor: number, head: number, goalColumn?: number, marks?: readonly Mark<any>[]) {
+    return EditorSelection.createInner(anchor, head, 0, goalColumn, undefined, marks)
   }
 
   private static createInner(anchor: number, head: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number,
-                             ranges?: readonly {from: number, to: number}[], props?: readonly Prop<any>[]) {
+                             ranges?: readonly {from: number, to: number}[], marks?: readonly Mark<any>[]) {
     if (anchor != head) assoc = head < anchor ? 1 : -1
-    return new EditorSelection(anchor, head, assoc, goalColumn, ranges, props)
+    return new EditorSelection(anchor, head, assoc, goalColumn, ranges, marks)
   }
 
   /// Create a selection.
   static create(spec: SelectionSpec) {
     return EditorSelection.createInner(spec.anchor, spec.head || spec.anchor, spec.assoc, spec.goalColumn,
-                                       spec.ranges, spec.props)
+                                       spec.ranges, spec.marks)
   }
 
   /// Find the next normal cursor position after or before this selection's
@@ -275,7 +275,7 @@ export function normalize(cx: SelectionContext, selection: EditorSelection) {
   if (pos.parent.node.isTextblock) return selection
   let normal = selectionNear(cx, selection.head, selection.assoc || -1)
   if (normal == null || normal.head == selection.head) return selection
-  return EditorSelection.cursor(normal.head, normal.assoc, selection.goalColumn ?? undefined, selection.props)
+  return EditorSelection.cursor(normal.head, normal.assoc, selection.goalColumn ?? undefined, selection.marks)
 }
 
 export function selectionNear(cx: SelectionContext, pos: number, bias: -1 | 1) {

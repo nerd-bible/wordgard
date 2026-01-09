@@ -1,14 +1,14 @@
-import {Prop, Emphasis, Strong, Link, Code} from "wordgard/doc"
+import {Mark, Emphasis, Strong, Link, Code} from "wordgard/doc"
 import ist from "ist"
 
-let Tag = Prop.Type.define<readonly number[]>("Tag", {
+let Tag = Mark.Type.define<readonly number[]>("Tag", {
   rank: 10,
   set: {compare: (a, b) => a - b},
   shape: {attribute: "tag", value: ns => ns.join(" "), readAttribute: val => val.split(" ").map(n => Number(n))}
 })
 const tag1 = Tag.of([1]), tag2 = Tag.of([2]), tag12 = Tag.of([1, 2])
 
-describe("Prop", () => {
+describe("Mark", () => {
   describe("eq", () => {
     it("considers identical links to be the same", () =>
        ist(Link.of("http://foo").eq(Link.of("http://foo"))))
@@ -17,13 +17,13 @@ describe("Prop", () => {
        ist(!Link.of("http://foo").eq(Link.of("http://bar"))))
   })
 
-  function set(props: readonly Prop<any>[]) {
-    let result: readonly Prop<any>[] = []
-    for (let prop of props) result = prop.addToSet(result)
+  function set(marks: readonly Mark<any>[]) {
+    let result: readonly Mark<any>[] = []
+    for (let mark of marks) result = mark.addToSet(result)
     return result
   }
 
-  function eqSet(a: readonly Prop<any>[], b: readonly Prop<any>[]) {
+  function eqSet(a: readonly Mark<any>[], b: readonly Mark<any>[]) {
     if (a.length != b.length) return false
     for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
     return true
@@ -74,10 +74,10 @@ describe("Prop", () => {
     it("puts marks with middle rank in the middle", () =>
        ist(Strong.addToSet(set([Emphasis, Code])), [Emphasis, Strong, Code], eqSet))
 
-    it("combines multi-props", () =>
+    it("combines multi-marks", () =>
        ist(tag2.addToSet(set([tag1])), [tag12], eqSet))
 
-    it("doesn't duplicate identical instances of multi-props", () =>
+    it("doesn't duplicate identical instances of multi-marks", () =>
        ist(tag1.addToSet(set([tag1])), [tag1], eqSet))
   })
 

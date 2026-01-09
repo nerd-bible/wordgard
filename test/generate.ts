@@ -1,10 +1,10 @@
-import {Plot, Node, Prop, Leaf,
+import {Plot, Node, Mark, Leaf,
         Slice, type Token, ChangeSet, basicBuilders,
         Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
         Emphasis, Strong, Code, Link} from "wordgard/doc"
 const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
-export const Comment = Prop.Type.define<readonly number[]>("Comment", {
+export const Comment = Mark.Type.define<readonly number[]>("Comment", {
   tags: "Inline",
   set: {compare: (a, b) => a - b},
   shape: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
@@ -62,25 +62,25 @@ export function rDoc(minLength: number) {
   }
   do {
     open()
-    let props: readonly Prop[] = []
+    let marks: readonly Mark[] = []
     for (let i = 0, elements = r(7); i < elements * 2 - 1; i++) {
       let node: Node
       if (i % 2) {
-        if (props.length && !r(3))
-          props = props[r(props.length)].removeFromSet(props)
-        node = Leaf.text(" ", props)
+        if (marks.length && !r(3))
+          marks = marks[r(marks.length)].removeFromSet(marks)
+        node = Leaf.text(" ", marks)
       } else {
         if (!r(5)) {
-          let prop = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of("/" + rWord()))
-          props = prop.addToSet(props)
+          let mark = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of("/" + rWord()))
+          marks = mark.addToSet(marks)
         }
         node = r(5) ? Leaf.text(rWord()) : r(2) ? br : img(rWord() + ".svg")
-        node = node.withProps(props)
+        node = node.withMarks(marks)
       }
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
-      if (Leaf.Text.chk(node) && last && Leaf.Text.chk(last) && Prop.sameSet(last.props, node.props))
-        children[children.length - 1] = Leaf.text(last.param + node.param, node.tag.props)
+      if (Leaf.Text.chk(node) && last && Leaf.Text.chk(last) && Mark.sameSet(last.marks, node.marks))
+        children[children.length - 1] = Leaf.text(last.param + node.param, node.tag.marks)
       else 
         children.push(node)
     }
@@ -137,16 +137,16 @@ const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
     let len = 2 + r(6), from = r(doc.length - len)
     return {from, to: from + len, add: !r(4) ? Comment.of([r(100)]) : !r(3) ? Emphasis : r(2) ? Strong : Link.of("/" + rWord())}
   },
-  // Remove a prop from some textblock
+  // Remove a mark from some textblock
   doc => scanBlocks(doc, (node, pos) => {
     if (node.isTextblock) for (let i = 0; i < node.content.length; i++) {
-      let props = node.content[i].tag.props
-      if (props.length) {
-        return {from: pos, to: pos + node.length, remove: props[r(props.length)]}
+      let marks = node.content[i].tag.marks
+      if (marks.length) {
+        return {from: pos, to: pos + node.length, remove: marks[r(marks.length)]}
       }
     }
   }),
-  // Change a prop on some list or code block
+  // Change a mark on some list or code block
   doc => scanBlocks(doc, (node, pos) => {
     if (node.tag == CodeBlock)
       return {from: pos, add: CodeBlockLanguage.of(rWord())}

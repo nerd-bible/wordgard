@@ -6,22 +6,22 @@ import {EditorState} from "./state"
 const enum CorrectionEvent {
   ChildList = 0,
   Content = 1,
-  Props = 2,
+  Marks = 2,
 }
 
 type PlanElt<PosType extends NodePos> = {node: PosType, correction: Correction<PosType>}
 
 function scanTransaction(tr: Transaction) {
-  let [childList, content, props] = tr.startState.facet(corrections)
+  let [childList, content, marks] = tr.startState.facet(corrections)
   let plan: PlanElt<any>[] = []
   let queried: Set<number> = new Set, newNode = childList.concat(content)
   let updateWalker: Walker | undefined
-  let checkProps = (node: Node, pos: number, parent: PlotPos, index: number) => {
-    for (let correction of props) if (correction.tag(node.type))
+  let checkMarks = (node: Node, pos: number, parent: PlotPos, index: number) => {
+    for (let correction of marks) if (correction.tag(node.type))
       plan.push({node: new NodePos(parent, node, pos, index), correction})
   }
-  if (props.length) updateWalker = {
-    enterPlot: checkProps,
+  if (marks.length) updateWalker = {
+    enterPlot: checkMarks,
     skip(node: Node, pos: number, parent: PlotPos, index: number) {
       // Back up to the start of the node
       if (node.isText && !parent.node.content.includes(node)) {
@@ -36,7 +36,7 @@ function scanTransaction(tr: Transaction) {
         if (queried.has(pos)) return
         queried.add(pos)
       }
-      checkProps(node, pos, parent, index)
+      checkMarks(node, pos, parent, index)
     },
     leavePlot() {}
   }
@@ -154,7 +154,7 @@ export class Correction<PosType extends NodePos> {
   scan(state: EditorState) {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
-      if (this.tag(node.type) && (this.event == CorrectionEvent.Props || !node.isLeaf)) {
+      if (this.tag(node.type) && (this.event == CorrectionEvent.Marks || !node.isLeaf)) {
         let change = this.correct(state.doc.resolveNode(pos) as PosType, state)
         if (change) changes.push(change)
       }
@@ -177,9 +177,9 @@ export class Correction<PosType extends NodePos> {
     return new Correction<PlotPos>(CorrectionEvent.Content, Node.selector(tag), correct as any)
   }
 
-  /// Define a correction that runs whenever the set of props on a tag
+  /// Define a correction that runs whenever the set of marks on a tag
   /// matching a selector changes.
-  static onProps(tag: Node.Selector, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.Props, Node.selector(tag), correct)
+  static onMarks(tag: Node.Selector, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<PlotPos>(CorrectionEvent.Marks, Node.selector(tag), correct)
   }
 }

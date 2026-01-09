@@ -303,9 +303,9 @@ export class Transaction {
   ///    - `"select.all"` when selecting the entire document
   ///  - `"undo"` and `"redo"` for history actions
   ///  - `"insert"` for actions that insert nodes
-  ///  - `"prop"` for actions that manipulate props
-  ///    - `"prop.add"` when a command adds a prop
-  ///    - `"prop.remove"` when a command removes one
+  ///  - `"mark"` for actions that manipulate marks
+  ///    - `"mark.add"` when a command adds a mark
+  ///    - `"mark.remove"` when a command removes one
   ///  - `"split"`, `"wrap"`, `"settype"`, `"wrap"`, `"unwrap"` for
   ///    block manipulation actions
   ///

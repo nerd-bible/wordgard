@@ -1,5 +1,5 @@
 import {Plot, Node} from "./node"
-import {Prop, subtractSet} from "./prop"
+import { Mark, subtractSet } from "./mark"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType, SliceJSON} from "./slice"
 import {Walker, Pos, PlotPos} from "./pos"
@@ -23,7 +23,7 @@ class Builder implements Walker {
   add(node: Node) {
     if (this.modifications) {
       if (!node.isLeaf) throw new Error("Invalid modification on non-leaf node")
-      node = node.withProps(applyModifications(this.modifications, node.props, node.type))
+      node = node.withMarks(applyModifications(this.modifications, node.marks, node.type))
     }
     node.pushTo(this.stack.children)
   }    
@@ -47,7 +47,7 @@ class Builder implements Walker {
   }
 
   open(tag: Plot.Tag.Any) {
-    if (this.modifications) tag = tag.withProps(applyModifications(this.modifications, tag.props, tag.type))
+    if (this.modifications) tag = tag.withMarks(applyModifications(this.modifications, tag.marks, tag.type))
     this.stack = new BuildContext(tag, this.stack)
   }
 
@@ -64,22 +64,22 @@ class Builder implements Walker {
   }
 }
 
-type Modification = {add: Prop} | {remove: Prop}
+type Modification = {add: Mark} | {remove: Mark}
 
-function isAdd(m: Modification): m is {add: Prop} { return !!(m as any).add }
-function isRemove(m: Modification): m is {remove: Prop} { return !!(m as any).remove }
+function isAdd(m: Modification): m is {add: Mark} { return !!(m as any).add }
+function isRemove(m: Modification): m is {remove: Mark} { return !!(m as any).remove }
 
-function applyModifications(modifications: readonly Modification[], props: readonly Prop[], type: Node.Type<any>) {
+function applyModifications(modifications: readonly Modification[], marks: readonly Mark[], type: Node.Type<any>) {
   for (const m of modifications) {
     if (isAdd(m)) {
       if (!m.add.type.canTarget(type))
-        throw new Error(`Trying to add prop ${m.add.name} to a node of type ${type.name}`)
-      props = m.add.addToSet(props)
+        throw new Error(`Trying to add mark ${m.add.name} to a node of type ${type.name}`)
+      marks = m.add.addToSet(marks)
     } else {
-      props = m.remove.removeFromSet(props)
+      marks = m.remove.removeFromSet(marks)
     }
   }
-  return props
+  return marks
 }
 
 export type ModificationJSON = {add: string, value: any} | {remove: string, value: any}
@@ -91,10 +91,10 @@ function modificationToJSON(m: Modification): ModificationJSON {
 function modificationFromJSON(schema: Schema, json: ModificationJSON): Modification {
   let {add, remove} = json as {add?: string, remove?: string}
   if (typeof add == "string" || typeof remove == "string") {
-    let prop = schema.getProp((add || remove)!)
-    if (!prop) throw new Error(`Unknown prop ${add || remove}`)
-    let value = prop.of(validate(prop.spec.validate, json.value))
-    if (prop) return add ? {add: value} : {remove: value}
+    let mark = schema.getMark((add || remove)!)
+    if (!mark) throw new Error(`Unknown mark ${add || remove}`)
+    let value = mark.of(validate(mark.spec.validate, json.value))
+    if (mark) return add ? {add: value} : {remove: value}
   }
   throw new Error("Invalid modification JSON")
 }
@@ -111,14 +111,14 @@ function compareModification(a: Modification, b: Modification) {
 }
 
 /// Representation of a single document change. Changes can either
-/// affect props (when `add` or `remove` is present), or replace a
+/// affect marks (when `add` or `remove` is present), or replace a
 /// part of the document (otherwise).
 export type Change = {
   /// The start position of the change.
   from: number
   /// The end position. When not given, this defaults to `from` for
   /// replacement changes, and `from + 1` for changes that add or
-  /// remove props.
+  /// remove marks.
   to?: number
   /// Replace the given range with this slice.
   insert?: Slice | readonly Token[]
@@ -130,10 +130,10 @@ export type Change = {
   /// [`DocNode.contextAt`](#doc.DocNode.contextAt)) may be used as
   /// wrappers when fitting the slice.
   fit?: boolean | readonly Plot.Tag.Any[]
-  /// Add the given prop to this change's range.
-  add?: Prop<any>
-  /// Remove the given prop from this range.
-  remove?: Prop<any>
+  /// Add the given mark to this change's range.
+  add?: Mark<any>
+  /// Remove the given mark from this range.
+  remove?: Mark<any>
 }
 
 type SectionData = Slice | readonly Modification[] | null
@@ -326,7 +326,7 @@ export class ChangeSet {
   /// Iterate over the ranges in this changeset, calling `replaced`
   /// for ranges that have been replaced, and `preserved` for ranges
   /// that are either preserved as-is (when `modifications` is null)
-  /// or only have properties modified.
+  /// or only have marks modified.
   iterChanges(replaced: (fromA: number, toA: number, fromB: number, toB: number, inserted: Slice) => void,
               preserved?: (fromA: number, toA: number, fromB: number, toB: number, modifications: readonly Modification[] | null) => void) {
     for (let posA = 0, posB = 0, i = 0, iS = 0; i < this.data.length;) {
@@ -341,7 +341,7 @@ export class ChangeSet {
   }
 
   /// Iterate over the sections of the document this change leaves
-  /// unchanged or which have only prop changes. `posA` provides the
+  /// unchanged or which have only mark changes. `posA` provides the
   /// position of the range in the original document, `posB` the
   /// position in the changed document.
   iterGaps(gap: (fromA: number, toA: number, fromB: number, toB: number) => void,
@@ -391,7 +391,7 @@ export class ChangeSet {
   validate(schema: Schema) {
     for (let val of this.data) {
       if (val instanceof Slice) val.validate(schema)
-      else if (val) val.forEach(mod => schema.validateProp((mod as any).add || (mod as any).remove))
+      else if (val) val.forEach(mod => schema.validateMark((mod as any).add || (mod as any).remove))
     }
   }
 
@@ -481,13 +481,13 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
       let modifies = add || remove
       if (modifies) {
         if (insert)
-          throw new Error(`A Change object cannot both ${add ? "add" : "remove"} a prop and replace a range`)
+          throw new Error(`A Change object cannot both ${add ? "add" : "remove"} a mark and replace a range`)
         if (to == null) to = from + 1
         if (add) {
           let mods: Modification[] = [{add}]
           markableSections(doc, from, to, add.type.spanning, (node, from, to) => {
             if (!add.type.canTarget(node.type)) return false
-            let has = add.type.isInSet(node.tag.props)
+            let has = add.type.isInSet(node.tag.marks)
             if (add.type.set) {
               let modsHere = mods
               if (has) {
@@ -505,7 +505,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
         if (remove) {
           let mods: Modification[] = [{remove}]
           markableSections(doc, from, to, remove.type.spanning, (node, from, to) => {
-            const has = remove.isInSet(node.tag.props)
+            const has = remove.isInSet(node.tag.marks)
             if (!has || !remove.type.canTarget(node.type)) return false
             let modsHere = mods
             if (remove.type.set) {
@@ -667,7 +667,7 @@ function invertMods(mods: readonly Modification[], target: Node.Tag): readonly M
   return mods.map(mod => {
     if (isRemove(mod)) return {add: mod.remove}
     if (!mod.add.type.set) {
-      let existed = mod.add.type.isInSet(target.props)
+      let existed = mod.add.type.isInSet(target.marks)
       if (existed) return {add: existed}
     }
     return {remove: mod.add}
@@ -679,9 +679,9 @@ function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
   let content: Token[] = []
   for (let tok of slice.content) {
     if (tok.tokenType == TokenType.Open) {
-      content.push(tok.withProps(applyModifications(mods, tok.props, tok.type)))
+      content.push(tok.withMarks(applyModifications(mods, tok.marks, tok.type)))
     } else if (tok.tokenType == TokenType.Node) {
-      let node = tok.withProps(applyModifications(mods, tok.props, tok.type))
+      let node = tok.withMarks(applyModifications(mods, tok.marks, tok.type))
       if (content.length && content[content.length - 1].tokenType == TokenType.Node)
         node.pushTo(content as Plot[])
       else

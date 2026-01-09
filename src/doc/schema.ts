@@ -1,16 +1,16 @@
 import {Plot, Node, Leaf} from "./node"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 import {none, validate} from "./helper"
 import {elt, Reject} from "./shape"
 
-export type SchemaElement = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Prop<any> | Prop.Type<any>
+export type SchemaElement = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Mark<any> | Mark.Type<any>
 
 // FIXME maybe don't store these forever
 const schemaCache = new Set<Schema>()
 
 export class Schema {
   private tagsByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
-  private propsByName: {[name: string]: Prop.Type<any>} = Object.create(null)
+  private marksByName: {[name: string]: Mark.Type<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Plot.Tag.Any[] | null} = Object.create(null)
   readonly docTag: Plot.Tag<Schema>
   /// All the schema elements that make up this schema. Useful if you
@@ -19,14 +19,14 @@ export class Schema {
 
   private constructor(
     readonly tags: readonly Node.Type<unknown>[],
-    readonly props: readonly Prop.Type<any>[],
+    readonly marks: readonly Mark.Type<any>[],
     docType: Plot.Type<Schema>,
     readonly lineBreak: Leaf<unknown> | null
   ) {
     this.docTag = docType.of(this)
     for (let tag of tags) this.tagsByName[tag.name] = tag
-    for (let prop of props) this.propsByName[prop.name] = prop
-    this.elements = (tags as SchemaElement[]).concat(props)
+    for (let mark of marks) this.marksByName[mark.name] = mark
+    this.elements = (tags as SchemaElement[]).concat(marks)
   }
 
   doc(children: readonly Node[]) {
@@ -46,13 +46,13 @@ export class Schema {
   validateTag(tag: Node | Plot.Tag.Any) {
     if (this.tagsByName[tag.name] != tag.type)
       throw new Error(`Tag type ${tag.name} not in schema`)
-    for (let prop of tag.props) this.validateProp(prop)
+    for (let mark of tag.marks) this.validateMark(mark)
   }
 
   /// @internal
-  validateProp(prop: Prop<any>) {
-    if (this.propsByName[prop.name] != prop.type)
-      throw new Error(`Prop type ${prop.name} not in schema`)
+  validateMark(mark: Mark<any>) {
+    if (this.marksByName[mark.name] != mark.type)
+      throw new Error(`Mark type ${mark.name} not in schema`)
   }
 
   // FIXME maybe have a different one for plot types
@@ -89,29 +89,29 @@ export class Schema {
     return null
   }
 
-  getProp(name: string): Prop.Type<any> | undefined { return this.propsByName[name] }
+  getMark(name: string): Mark.Type<any> | undefined { return this.marksByName[name] }
 
   static define(spec: readonly SchemaElement[]) {
     for (let cached of schemaCache)
       if (cached.elements.length == spec.length && cached.elements.every((e, i) => e == spec[i]))
         return cached
 
-    let tags: Node.Type<any>[] = [Leaf.Text], props: Prop.Type<unknown>[] = []
+    let tags: Node.Type<any>[] = [Leaf.Text], marks: Mark.Type<unknown>[] = []
     let defaultI = 0
-    let tagNames: Set<string> = new Set, propNames: Set<string> = new Set
+    let tagNames: Set<string> = new Set, markNames: Set<string> = new Set
     for (let elt of spec) {
-      if (elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Prop) elt = elt.type
+      if (elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Mark) elt = elt.type
       if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
         if (!elt.isLeaf && elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
         else tags.push(elt)
-      } else if (elt instanceof Prop.Type) {
-        if (props.includes(elt)) continue
-        if (propNames.has(elt.name)) throw new Error(`Duplicate use of prop name ${elt.name} in schema`)
-        propNames.add(elt.name)
-        props.push(elt as any)
+      } else if (elt instanceof Mark.Type) {
+        if (marks.includes(elt)) continue
+        if (markNames.has(elt.name)) throw new Error(`Duplicate use of mark name ${elt.name} in schema`)
+        markNames.add(elt.name)
+        marks.push(elt as any)
       } else {
         throw new Error("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
@@ -136,11 +136,11 @@ export class Schema {
                               } content, but allows ${child.name} as a child`)
         }
         if (!tag.inlineContent && !sawDefaultable)
-          throw new Error(`Node ${tag.name} has block content, but all possible children require non-default props`)
+          throw new Error(`Node ${tag.name} has block content, but all possible children require non-default marks`)
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
-    let schema = new Schema(tags, props, docTag, lineBreak as Leaf<unknown> | null)
+    let schema = new Schema(tags, marks, docTag, lineBreak as Leaf<unknown> | null)
     schemaCache.add(schema)
     return schema
   }
@@ -148,8 +148,8 @@ export class Schema {
   append(other: Schema | readonly SchemaElement[]) {
     let add: SchemaElement[] = []
     for (let elt of (other instanceof Schema ? other.elements : other)) {
-      if (elt instanceof Leaf || elt instanceof Plot.Tag || elt instanceof Prop) elt = elt.type
-      if ((elt instanceof Prop.Type ? this.propsByName : this.tagsByName)[elt.name] != elt) add.push(elt)
+      if (elt instanceof Leaf || elt instanceof Plot.Tag || elt instanceof Mark) elt = elt.type
+      if ((elt instanceof Mark.Type ? this.marksByName : this.tagsByName)[elt.name] != elt) add.push(elt)
     }
     return add.length ? Schema.define(this.elements.concat(add)) : this
   }
@@ -167,23 +167,23 @@ export class Schema {
     if (!json || typeof json != "object" || !(json.type in this.tagsByName))
       throw new Error("Invalid tag JSON")
     let type = this.tagsByName[json.type]
-    let props = json.props ? this.propsFromJSON(json.props) : none
-    let tag = "param" in json ? type.of(validate(type.spec.validateParam, json.param), props)
+    let marks = json.marks ? this.marksFromJSON(json.marks) : none
+    let tag = "param" in json ? type.of(validate(type.spec.validateParam, json.param), marks)
       : !type.default ? null
-      : props.length ? type.of(type.default.param, props) : type.default
+      : marks.length ? type.of(type.default.param, marks) : type.default
     if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
     return tag
   }
 
-  propsFromJSON(json: Record<string, any>): readonly Prop<undefined>[] {
-    if (!json || typeof json != "object") throw new Error("Invalid prop JSON")
-    let props = none
+  marksFromJSON(json: Record<string, any>): readonly Mark<undefined>[] {
+    if (!json || typeof json != "object") throw new Error("Invalid mark JSON")
+    let marks = none
     for (let name in json) {
-      let prop = this.propsByName[name]
-      if (!prop) throw new Error(`Unrecognized prop ${name} in JSON`)
-      props = prop.of(validate(prop.spec.validate, json[name])).addToSet(props)
+      let mark = this.marksByName[name]
+      if (!mark) throw new Error(`Unrecognized mark ${name} in JSON`)
+      marks = mark.of(validate(mark.spec.validate, json[name])).addToSet(marks)
     }
-    return props
+    return marks
   }
 
   docFromJSON(json: Node.JSON) {
@@ -224,7 +224,7 @@ export const CodeBlock = Plot.defineBlock("CodeBlock", {
   preserveWhitespace: true
 })
 
-export const CodeBlockLanguage = Prop.Type.define("CodeBlockLanguage", {
+export const CodeBlockLanguage = Mark.Type.define("CodeBlockLanguage", {
   tags: "CodeBlock",
   validate: "string",
   shape: {attribute: "data-language", readAttribute: x => x}
@@ -276,7 +276,7 @@ export const Image = Leaf.Type.defineInline<string>("Image", {
   shape: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
 })
 
-export const ImageAlt = Prop.Type.define<string>("ImageAlt", {
+export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
   tags: "Image",
   validate: "string",
   shape: {attribute: "alt", readAttribute: x => x}
@@ -288,16 +288,16 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
   shape: {element: "br"}
 })
 
-export const Emphasis = Prop.define("Emphasis", {
+export const Emphasis = Mark.define("Emphasis", {
   rank: 40,
   shape: {element: "em"},
   parseRules: [
     {attribute: "style/font-style", value: "italic"},
-    {attribute: "style/font-style", value: "normal", clearProp: p => p.name == "Emphasis"}
+    {attribute: "style/font-style", value: "normal", clearMark: p => p.name == "Emphasis"}
   ]
 })
 
-export const Strong = Prop.define("Strong", {
+export const Strong = Mark.define("Strong", {
   rank: 60,
   shape: {element: "strong"},
   parseRules: [
@@ -305,11 +305,11 @@ export const Strong = Prop.define("Strong", {
      readAttribute: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value) ? null : Reject},
     {attribute: "style/font-weight",
      readAttribute: value => /^(normal|lighter|[1-4]\d{2})$/.test(value) ? null : Reject,
-     clearProp: p => p.name == "Strong"},
+     clearMark: p => p.name == "Strong"},
   ]
 })
 
-export const Link = Prop.Type.define<string>("Link", {
+export const Link = Mark.Type.define<string>("Link", {
   rank: 20,
   validate: "string",
   shape: {
@@ -320,7 +320,7 @@ export const Link = Prop.Type.define<string>("Link", {
   },
 })
 
-export const Code = Prop.define("Code", {
+export const Code = Mark.define("Code", {
   rank: 80,
   shape: {element: "code"}
 })

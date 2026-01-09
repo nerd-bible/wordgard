@@ -1,12 +1,12 @@
 import ist from "ist"
-import {Plot, Prop, Leaf,
+import {Plot, Mark, Leaf,
         ChangeSet, type Token,
         Schema, basicSchema, basicBuilders, tag, maybeTag,
         ImageAlt, CodeBlockLanguage, Emphasis, Strong, Link} from "wordgard/doc"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilders
 
-type ChangeData = (Token | string)[] | {add: Prop<any>} | {remove: Prop<any>}
+type ChangeData = (Token | string)[] | {add: Mark<any>} | {remove: Mark<any>}
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.
@@ -16,7 +16,7 @@ function mk(doc: Plot.Doc, changes: readonly ChangeData[]) {
     if (from == null) throw new Error(`No start position defined for change ${i}`)
     let to = maybeTag(doc, i * 2 + 1) ?? from
     if (Array.isArray(ch)) return {from, to, insert: slice(...ch)}
-    let {add, remove} = ch as {add?: Prop, remove?: Prop}
+    let {add, remove} = ch as {add?: Mark, remove?: Mark}
     return add ? {from, to, add: add} : {from, to, remove: remove}
   }))
 }
@@ -65,7 +65,7 @@ describe("ChangeSet", () => {
       testApply(doc(p("a"), 0, blockquote(1, p("b"), 2), 3), [[], []], doc(p("a"), p("b")))
     })
 
-    it("can add props", () => {
+    it("can add marks", () => {
       testApply(doc(p("one ", 0, "two", 1, " three")), [{add: Emphasis}], doc(p("one ", em("two"), " three")))
     })
 
@@ -73,24 +73,24 @@ describe("ChangeSet", () => {
       testApply(doc(p(em("one"), 0, "two", 1)), [{add: Emphasis}], doc(p(em("onetwo"))))
     })
 
-    it("can remove props", () => {
+    it("can remove marks", () => {
       testApply(doc(p(em("one ", 0, "two", 1, " three"))), [{remove: Emphasis}], doc(p(em("one "), "two", em(" three"))))
     })
 
-    it("can add multiple props", () => {
+    it("can add multiple marks", () => {
       testApply(doc(p("one ", 0, 2, "two", 1, " three", 3)), [{add: Emphasis}, {add: Strong}],
                 doc(p("one ", strong(em("two"), " three"))))
     })
 
-    it("can remove multiple props", () => {
+    it("can remove multiple marks", () => {
       testApply(doc(p(0, 2, em(strong("x")), 1, 3)), [{remove: Emphasis}, {remove: Strong}], doc(p("x")))
     })
 
-    it("only adds props where appropriate", () => {
+    it("only adds marks where appropriate", () => {
       testApply(doc(0, p("one"), 1), [{add: Strong}], doc(p(strong("one"))))
     })
 
-    it("can change node props", () => {
+    it("can change node marks", () => {
       testApply(doc(p(0, imgAlt("A", img("a.png")), 1)), [{add: ImageAlt.of("B")}], doc(p(imgAlt("B", img("a.png")))))
     })
 
@@ -386,7 +386,7 @@ describe("ChangeSet", () => {
       }
     })
 
-    it("orders local prop modifications correctly", () => {
+    it("orders local mark modifications correctly", () => {
       let d = doc(0, pre(1, "a"))
       let a = mk(d, [{add: CodeBlockLanguage.of("x")}])
       let b = mk(d, [{add: CodeBlockLanguage.of("y")}])
@@ -395,7 +395,7 @@ describe("ChangeSet", () => {
       ist(docAB, docBA, eq)
     })
 
-    it("orders prop-adding modifications correctly", () => {
+    it("orders mark-adding modifications correctly", () => {
       let d = doc(p(0, "a", 1))
       let a = mk(d, [{add: Link.of("x")}]), b = mk(d, [{add: Link.of("y")}])
       let docAB = b.map(a, d).apply(a.apply(d))
@@ -442,19 +442,19 @@ describe("ChangeSet", () => {
       testInv(doc(p("a", 0), p(1, "b")), [["x"]])
     })
 
-    it("can invert adding a prop", () => {
+    it("can invert adding a mark", () => {
       testInv(doc(p(0, "abc", 1, " ", 2, "def", 3)), [{add: Emphasis}, {add: Link.of("/")}])
     })
 
-    it("can invert removing a prop", () => {
+    it("can invert removing a mark", () => {
       testInv(doc(p(0, em("abc"), 1)), [{remove: Emphasis}])
     })
 
-    it("can invert replacing a prop with another version", () => {
+    it("can invert replacing a mark with another version", () => {
       testInv(doc(p(0, a("1", "abc"), 1)), [{add: Link.of("2")}])
     })
 
-    it("can invert changing a prop", () => {
+    it("can invert changing a mark", () => {
       testInv(doc(0, preLang("js", pre("null"))), [{add: CodeBlockLanguage.of("c++")}])
     })
 

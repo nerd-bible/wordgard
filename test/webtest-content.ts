@@ -37,7 +37,7 @@ describe("DocTile", () => {
         "<blockquote><ul><li><p>a: <img src=\"test.png\"></p></li><li><p>b</p><p>c</p></li></ul></blockquote><hr>")
   })
 
-  it("can draw props on text", () => {
+  it("can draw marks on text", () => {
     ist(render(doc(p(em("ab", strong("cd")), "ef"))).dom.innerHTML,
         "<p><em>ab<strong>cd</strong></em>ef</p>")
   })
@@ -64,7 +64,7 @@ describe("DocTile", () => {
         "<p>(</p><div class=\"c\"><span>before</span><span class=\"content\">?</span><span>after</span></div><p>)</p>")
   })
 
-  it("can draw props on nodes", () => {
+  it("can draw marks on nodes", () => {
     ist(render(doc(p(imgAlt("alt text", $img)))).dom.innerHTML,
         "<p><img alt=\"alt text\" src=\"test.png\"></p>")
   })
@@ -84,31 +84,31 @@ describe("DocTile", () => {
     ist(node.dom.innerHTML, "<p>..ad</p>")
   })
 
-  it("can update text props", () => {
+  it("can update text marks", () => {
     let node = update(render(doc(p("one ", em("two")))), {
       changes: [{from: 1, to: 4, add: Strong}, {from: 5, to: 8, remove: Emphasis}]
     })
     ist(node.dom.innerHTML, "<p><strong>one</strong> two</p>")
   })
 
-  it("can update node props", () => {
+  it("can update node marks", () => {
     let node = update(render(doc(p($img, " ", imgAlt("a2", $img)))), {
       changes: [{from: 1, add: ImageAlt.of("a1")}, {from: 3, remove: ImageAlt.of("a2")}]
     })
     ist(node.dom.innerHTML, "<p><img src=\"test.png\" alt=\"a1\"> <img src=\"test.png\"></p>")
   })
 
-  it("can draw spanning props", () => {
+  it("can draw spanning marks", () => {
     ist(render(doc(p(strong("a", $img, "b"), "c"))).dom.innerHTML,
         "<p><strong>a<img src=\"test.png\">b</strong>c</p>")
   })
 
-  it("can join spanning props in updates", () => {
+  it("can join spanning marks in updates", () => {
     let node = update(render(doc(p(strong("a"), "b", strong("c")))), {changes: {from: 2, to: 3}})
     ist(node.dom.innerHTML, "<p><strong>ac</strong></p>")
   })
 
-  it("preserves DOM nodes with changed wrappers props", () => {
+  it("preserves DOM nodes with changed wrappers marks", () => {
     let node = render(doc(p(strong($img))))
     let img = node.dom.querySelector("img")
     node = update(node, {changes: {from: 1, remove: Strong, add: Emphasis}})
@@ -121,14 +121,14 @@ describe("DocTile", () => {
         "<p><strong>a..bc</strong></p><p>def</p>")
   })
 
-  it("preserves DOM nodes with changed attribute props", () => {
+  it("preserves DOM nodes with changed attribute marks", () => {
     let node = render(doc(p($img)))
     let img = node.dom.querySelector("img")
     node = update(node, {changes: {from: 1, add: ImageAlt.of("text")}})
     ist(node.dom.querySelector("img"), img)
   })
 
-  it("preserves prop wrapper nodes", () => {
+  it("preserves mark wrapper nodes", () => {
     let node = render(doc(p(strong("ab"))))
     let str = node.dom.querySelector("strong")
     node = update(node, {changes: {from: 2, insert: [Leaf.text("!")]}})

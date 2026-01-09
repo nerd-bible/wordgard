@@ -1,4 +1,4 @@
-import {Slice, Leaf, Plot, Prop, Pos, serializeSlice, parseSlice,
+import {Slice, Leaf, Plot, Mark, Pos, serializeSlice, parseSlice,
         OpenSide, Token} from "wordgard/doc"
 import {Facet, EditorState} from "wordgard/state"
 import browser from "./browser"
@@ -13,7 +13,7 @@ export const clipboardInputHTMLFilter = Facet.define<(html: string, state: Edito
 export const clipboardTextParser = Facet.define<(text: string, state: EditorState) => Slice | null>()
 export const clipboardInputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
 
-const openProp = Prop.Type.define<string>("Open", {
+const openMark = Mark.Type.define<string>("Open", {
   shape: {attribute: "wg-open"},
   tags: "*"
 })
@@ -21,11 +21,11 @@ const openProp = Prop.Type.define<string>("Open", {
 export function writeClipboard(state: EditorState, slice: Slice, data: DataTransfer) {
   for (let filter of state.facet(clipboardOutputFilter)) slice = filter(slice, state)
 
-  // FIXME determine defining context nodes and props
+  // FIXME determine defining context nodes and marks
   let doc = detachedDoc(), dom = serializeSlice(slice, {
     document: doc,
     schema: state.doc.schema,
-    openProp
+    openMark
   })
 
   let needsWrap, wrappers = 0
@@ -94,21 +94,21 @@ function readClipboardText(state: EditorState, text: string, context: Pos, plain
     if (slice) return slice
   }
 
-  let props = plain ? [] : context.props()
-  if (context.parent.node.type.preserveWhitespace) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), props)])
+  let marks = plain ? [] : context.marks()
+  if (context.parent.node.type.preserveWhitespace) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), marks)])
   let lines = text.split(/(?:\r\n?|\n)+/)
-  let content: Token[] = lines[0] ? [Leaf.text(lines[0], props)] : []
+  let content: Token[] = lines[0] ? [Leaf.text(lines[0], marks)] : []
   if (lines.length == 1) return new Slice(content)
   let parent = (context.parent.node.inlineContent ? context.parent.parent || context.parent : context.parent).node.tag
   let wrapping = state.doc.schema.findWrapping(parent.type, Leaf.Text)
-  if (!wrapping || !wrapping.length) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, " "), props)])
+  if (!wrapping || !wrapping.length) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, " "), marks)])
   let wrapper = wrapping[wrapping.length - 1]
   content.push(Plot.End)
   for (let i = 1; i < lines.length - 1; i++)
-    content.push(wrapper.create(lines[i] ? [Leaf.text(lines[i], props)] : []))
+    content.push(wrapper.create(lines[i] ? [Leaf.text(lines[i], marks)] : []))
   content.push(wrapper)
   let last = lines[lines.length - 1]
-  if (last) content.push(Leaf.text(last, props))
+  if (last) content.push(Leaf.text(last, marks))
   return new Slice(content)
 }
 

@@ -19,7 +19,7 @@ let InlineB = Plot.defineInline("InlineB", {
   shape: {element: "span"}
 }), b = builder(InlineB)
 
-const schema = Schema.define([...basicSchema.tags, ...basicSchema.props, Iso, InlineA, InlineB])
+const schema = Schema.define([...basicSchema.tags, ...basicSchema.marks, Iso, InlineA, InlineB])
 const doc = builder(schema)
 
 function normalPositions(state: EditorState) {

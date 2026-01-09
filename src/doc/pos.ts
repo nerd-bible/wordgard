@@ -1,5 +1,5 @@
 import type {Node, Plot, Leaf} from "./node"
-import {Prop} from "./prop"
+import { Mark } from "./mark"
 import {none} from "./helper"
 
 export interface Walker {
@@ -62,12 +62,12 @@ export class Pos {
 
   get doc() { return this.parent.doc }
 
-  props(across?: Pos) {
-    if (this.inText && !across) return this.parent.node.content[this.index].tag.props
+  marks(across?: Pos) {
+    if (this.inText && !across) return this.parent.node.content[this.index].tag.marks
     let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
     let before = from.nodeBefore, after = to.nodeAfter
-    let [main, sec]: [readonly Prop[], readonly Prop[]] =
-      before ? [before.tag.props, after ? after.tag.props : none] : [after ? after.tag.props : none, none]
+    let [main, sec]: [readonly Mark[], readonly Mark[]] =
+      before ? [before.tag.marks, after ? after.tag.marks : none] : [after ? after.tag.marks : none, none]
     return main.filter(p => p.type.spanning && (p.type.inclusive || p.isInSet(sec)))
   }
 

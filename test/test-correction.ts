@@ -37,7 +37,7 @@ describe("Correction", () => {
     let notified: number[] = []
     let s = EditorState.create({
       doc: doc(p("abc ", em("def"))),
-      config: Correction.onProps("Text", node => { notified.push(node.pos); return null })
+      config: Correction.onMarks("Text", node => { notified.push(node.pos); return null })
     })
     s = s.update({changes: {from: 5, to: 8, remove: Emphasis}}).state
     ist(notified.join(), "1")

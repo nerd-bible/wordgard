@@ -1,5 +1,5 @@
 import {EditorSelection, EditorState, Annotation} from "wordgard/state"
-import {Slice, Leaf, ChangeSet, Prop} from "wordgard/doc"
+import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
@@ -47,7 +47,7 @@ export class InputState {
   compositionPendingKey = false
   // FIXME add a timeout to guard against this leaking?
   currentComposition: {from: number, to: number, text: string} | null = null
-  wrappingComposition: readonly Prop<any>[] | null = null
+  wrappingComposition: readonly Mark<any>[] | null = null
 
   mouseSelection: MouseSelection | null = null
   // When a drag from the editor is active, this points at the range
@@ -587,12 +587,12 @@ observers.compositionstart = observers.compositionupdate = (view, event: Composi
   if (!view.inputState.composing) {
     view.inputState.composing = {changes: 0, target: null}
 
-    let wrap: readonly Prop<any>[] | null = null
+    let wrap: readonly Mark<any>[] | null = null
     if (!view.inputState.composing.changes && !event.data) {
-      let sel = view.state.sel, props = sel.props || sel.from.props()
-      if (sel.empty && (sel.props || !sel.head.inText && sel.head.index) &&
-          !eqArray(sel.head.nodeBefore?.tag.props, props))
-        wrap = props
+      let sel = view.state.sel, mark = sel.marks || sel.from.marks()
+      if (sel.empty && (sel.marks || !sel.head.inText && sel.head.index) &&
+          !eqArray(sel.head.nodeBefore?.tag.marks, mark))
+        wrap = mark
     }
 
     if (wrap) try {
@@ -628,7 +628,7 @@ export type CompositionInfo = {
   fromA: number, toA: number,
   text: string,
   target: Text | null,
-  wrapCursor?: readonly Prop<any>[] | null
+  wrapCursor?: readonly Mark<any>[] | null
 }
 
 export function getCompositionInfo(view: EditorView): CompositionInfo | null {
@@ -679,7 +679,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
     if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
 
     let slice = event.inputType == "insertText"
-      ? textSlice(event.data!, view.state.selection.props || view.state.sel.from.props())
+      ? textSlice(event.data!, view.state.selection.marks || view.state.sel.from.marks())
       // FIXME why is this in a dataTransfer anyway? Spec says it shouldn't be...
       : readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
     if (slice) {
@@ -716,9 +716,9 @@ handlers.input = (view, event: InputEvent) => {
       from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
       if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
     }
-    let props = view.state.selection.props || view.state.doc.resolve(to).props()
+    let marks = view.state.selection.marks || view.state.doc.resolve(to).marks()
     view.dispatch({
-      changes: {from, to, insert: textSlice(text, props), fit: true},
+      changes: {from, to, insert: textSlice(text, marks), fit: true},
       selection: anchor > -1 ? {anchor, head} : undefined,
       userEvent: "input.type.compose"
     })
@@ -726,8 +726,8 @@ handlers.input = (view, event: InputEvent) => {
   return false
 }
 
-function textSlice(text: string, props: readonly Prop<any>[]) {
-  return new Slice([Leaf.text(text.replace(/\r\n?|\n/g, " "), props)])
+function textSlice(text: string, marks: readonly Mark<any>[]) {
+  return new Slice([Leaf.text(text.replace(/\r\n?|\n/g, " "), marks)])
 }
 
 function inputEventRange(event: InputEvent, view: EditorView) {

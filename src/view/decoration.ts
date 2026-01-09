@@ -1,5 +1,5 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
-import {Prop, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
+import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
         ElementShape, AttributeShape, Elt, pushAttribute,
         mergeAttributes, readAttributes} from "wordgard/doc"
 import {Attrs} from "./attributes"
@@ -69,11 +69,11 @@ export function tagShape(spec: {
   let {tag, shape, atom} = spec, shapeFunc: (tag: Node.Tag) => Shape
   if (typeof shape == "function") {
     if (atom == null) throw new Error("Dynamic tag shapes must provide an 'atom' field")
-    shapeFunc = tag => addPropAttributes(shape(tag), tag)
+    shapeFunc = tag => addMarkAttributes(shape(tag), tag)
   } else {
     if (atom == null) atom = !shape.hasContent
     else if (atom != !shape.hasContent) throw new Error("'atom' and 'shape' field disagree on atomicity")
-    shapeFunc = tag => addPropAttributes(shape, tag)
+    shapeFunc = tag => addMarkAttributes(shape, tag)
   }
   return new TagShape(Node.selector(tag), memo(shapeFunc), atom)
 }
@@ -129,11 +129,11 @@ function memo<T, A extends Object>(f: (arg: A) => T) {
   }
 }
 
-function addPropAttributes(shape: Shape, tag: Node.Tag) {
+function addMarkAttributes(shape: Shape, tag: Node.Tag) {
   let attrs: string[] | undefined
-  for (let prop of tag.props) if (!prop.type.element) {
-    let repr = prop.type.repr as AttributeShape<any>
-    let value = repr.value == null ? String(prop.value) : typeof repr.value == "string" ? repr.value : repr.value(prop.value)
+  for (let mark of tag.marks) if (!mark.type.element) {
+    let repr = mark.type.repr as AttributeShape<any>
+    let value = repr.value == null ? String(mark.value) : typeof repr.value == "string" ? repr.value : repr.value(mark.value)
     if (value != null)
       pushAttribute(attrs || (attrs = []), repr.attribute, value)
   }
@@ -145,7 +145,7 @@ function addPropAttributes(shape: Shape, tag: Node.Tag) {
 }
 
 const baseTagShape = memo((tag: Node.Tag): Shape => {
-  return addPropAttributes(Leaf.Text.chk(tag) ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
+  return addMarkAttributes(Leaf.Text.chk(tag) ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
 })
 
 class TagWidgetSource {
@@ -996,7 +996,7 @@ function cmpPoint(a: PointIterator<any, any>, b: PointIterator<any, any>) {
 
 const none: readonly any[] = []
 
-export type WrapperSource = Prop<any> | TagWrapperSource | RangeIterator<any, RangeDecorationSource<any>>
+export type WrapperSource = Mark<any> | TagWrapperSource | RangeIterator<any, RangeDecorationSource<any>>
 
 // Enumerate all wrapper elements for a given node. Spanning wrappers
 // are always moved to the front of the result. Within the
@@ -1012,7 +1012,7 @@ function nodeWrappers(
 ): readonly WrapperSource[] {
   let wrappers: WrapperSource[] | undefined
 
-  for (let prop of tag.props) if (prop.type.element) (wrappers || (wrappers = [])).push(prop)
+  for (let mark of tag.marks) if (mark.type.element) (wrappers || (wrappers = [])).push(mark)
   for (let src of global) if (src.pred(tag.type)) (wrappers || (wrappers = [])).push(src)
   if (active.length) {
     let scope = tagScope(tag, atom)
@@ -1035,12 +1035,12 @@ function tagScope(tag: Node.Tag, atom: boolean): DecorationScope {
 export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
   if (src instanceof TagWrapperSource) return src.wrapper(tag)
   if (src instanceof RangeIterator) return src.source.wrapper!(src.value)
-  return renderPropWrapper(src)
+  return renderMarkWrapper(src)
 }
 
-export const renderPropWrapper = memo((prop: Prop<any>) => {
-  let repr = prop.type.repr as ElementShape<any>
-  let attrs = readAttributes(typeof repr.attributes == "function" ? repr.attributes(prop.value) : repr.attributes)
+export const renderMarkWrapper = memo((mark: Mark<any>) => {
+  let repr = mark.type.repr as ElementShape<any>
+  let attrs = readAttributes(typeof repr.attributes == "function" ? repr.attributes(mark.value) : repr.attributes)
   return new Elt<never>(repr.element, attrs, null)
 })
 
