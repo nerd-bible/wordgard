@@ -56,7 +56,7 @@ describe("coordsAtPos", () => {
   })
 
   it("works around hard breaks", () => {
-    let view = tempView(doc(p("ab", br(), "cd")))
+    let view = tempView(doc(p("ab", br, "cd")))
     let p3 = view.coordsAtPos(3), p4 = view.coordsAtPos(4)
     ist(p3.bottom, p4.top, "<=")
     ist(P(view, p3.left - 1, p3.top + 1), "3<")
@@ -66,7 +66,7 @@ describe("coordsAtPos", () => {
   })
 
   it("works in block atoms", () => {
-    let view = tempView(doc(hr(), hr(), hr()))
+    let view = tempView(doc(hr, hr, hr))
     let p0 = view.coordsAtPos(0)
     ist(p0.left, p0.right, "<")
     ist(p0.top, p0.bottom)
@@ -135,7 +135,7 @@ describe("moveVertically", () => {
   })
 
   it("can move across atom blocks", () => {
-    let view = tempView(doc(p("one"), hr(), p("two"), hr()))
+    let view = tempView(doc(p("one"), hr, p("two"), hr))
     ist(view.moveVertically(s(2), true)?.head, 8)
     ist(view.moveVertically(s(8), true)?.head, 12)
   })

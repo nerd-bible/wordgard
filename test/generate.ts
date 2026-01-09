@@ -74,7 +74,7 @@ export function rDoc(minLength: number) {
           let prop = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of("/" + rWord()))
           props = prop.addToSet(props)
         }
-        node = r(5) ? Leaf.text(rWord()) : r(2) ? br() : img(rWord() + ".svg")
+        node = r(5) ? Leaf.text(rWord()) : r(2) ? br : img(rWord() + ".svg")
         node = node.withProps(props)
       }
       len += node.length

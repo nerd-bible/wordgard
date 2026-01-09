@@ -10,7 +10,7 @@ describe("Node", () => {
     })
 
     it("shows inline children", () => {
-      ist(doc(p("foo", $img(), "bar")).toString(),
+      ist(doc(p("foo", $img, "bar")).toString(),
           'Doc(Paragraph("foo",Image,"bar"))')
     })
 
@@ -43,13 +43,13 @@ describe("Node", () => {
                "Blockquote", "BulletList", "ListItem", "Paragraph", "foo", "Paragraph", "b"))
 
     it("iterates over inline nodes", () =>
-       iterate(doc(p(em("x"), "f", 1, "oo", em("bar", $img(), strong("baz")), "quux", code("xy", 2, "z"))),
+       iterate(doc(p(em("x"), "f", 1, "oo", em("bar", $img, strong("baz")), "quux", code("xy", 2, "z"))),
                "Paragraph", "foo", "bar", "Image", "baz", "quux", "xyz"))
   })
 
   describe("textContent", () => {
     it("works with leafText", () => {
-      const d = doc(p("foo", $img()))
+      const d = doc(p("foo", $img))
       ist(JSON.stringify(d.textContent({leafText: "[LEAF]"})), JSON.stringify('foo[LEAF]'))
       ist(d.textContent({leafText: (node) => "[LEAF]"}), 'foo[LEAF]')
     })
@@ -59,7 +59,7 @@ describe("Node", () => {
     })
 
     it("adds block separator around leaf nodes", () => {
-      ist(doc(p("one"), hr(), hr(), p("two")).textContent(), "one\n---\n---\ntwo")
+      ist(doc(p("one"), hr, hr, p("two")).textContent(), "one\n---\n---\ntwo")
     })
 
     it("doesn't duplicate separators for multiple opened blocks", () => {
@@ -111,13 +111,13 @@ describe("Node", () => {
        roundTrip(doc(p("foo", em("bar", strong("baz")), " ", $a("x")))))
 
     it("can serialize inline leaf nodes", () =>
-       roundTrip(doc(p("foo", em($img(), "bar")))))
+       roundTrip(doc(p("foo", em($img, "bar")))))
 
     it("can serialize block leaf nodes", () =>
-       roundTrip(doc(p("a"), hr(), p("b"), p())))
+       roundTrip(doc(p("a"), hr, p("b"), p())))
 
     it("can serialize nested nodes", () =>
-       roundTrip(doc(blockquote(ul(li(p("a"), p("b")), li(p($img()))), p("c")), p("d"))))
+       roundTrip(doc(blockquote(ul(li(p("a"), p("b")), li(p($img))), p("c")), p("d"))))
 
     it("complains about incorrect param types", () => {
       let json = doc(h1()).toJSON()

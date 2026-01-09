@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Pos, type Walker, Plot, Leaf, PlotPos, basicBuilders, tag} from "wordgard/doc"
+import {Pos, type Walker, Plot, Leaf, basicBuilders, tag} from "wordgard/doc"
 const {doc, p, br, li, ul, $img} = basicBuilders
 
 function testPos(name: string, doc: Plot.Doc, ...contexts: ([string, number] | [string, number, number])[]) {
@@ -28,7 +28,7 @@ describe("Context", () => {
          ["Paragraph", 0], ["ListItem", 1], ["BulletList", 0], ["Doc", 1])
 
   it("can walk through a document", () => {
-    let d = doc(p("one"), ul(li(p("a", br(), "b"), p())))
+    let d = doc(p("one"), ul(li(p("a", br, "b"), p())))
     let cx = Pos.atStart(d)
     let tokens = "OPEN(Paragraph) o n e CLOSE OPEN(BulletList) OPEN(ListItem) OPEN(Paragraph) a LineBreak" +
       " b CLOSE OPEN(Paragraph) CLOSE CLOSE CLOSE"
@@ -43,7 +43,7 @@ describe("Context", () => {
   })
 
   it("reports proper node positions", () => {
-    let cx = doc(p(), ul(li(p(br())), li(p("ab"), p())), p()).resolve(11).parent
+    let cx = doc(p(), ul(li(p(br)), li(p("ab"), p())), p()).resolve(11).parent
     ist(cx.start, 10)
     ist(cx.end, 12)
     ist(cx.before, 9)
@@ -63,7 +63,7 @@ describe("Context", () => {
   })
 
   it("can represent nodes", () => {
-    let d = doc(p("abc", $img()))
+    let d = doc(p("abc", $img))
     ist(d.resolveNode(1), null)
     ist(d.resolveNode(5), null)
     let pPos = d.resolvePlot(0)!, iPos = d.resolveNode(4)!

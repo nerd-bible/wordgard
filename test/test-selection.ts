@@ -55,25 +55,25 @@ describe("nextNormalCursor", () => {
     testNormal(doc(p(0, "o", 1, "n", 2, "e", 3))))
 
   it("allows positions between block leaves", () =>
-    testNormal(doc(0, hr(), 1, hr(), 2)))
+    testNormal(doc(0, hr, 1, hr, 2)))
 
   it("doesn't include positions next to textblocks", () =>
-    testNormal(doc(0, hr(), p(1, "a", 2), hr(), 3)))
+    testNormal(doc(0, hr, p(1, "a", 2), hr, 3)))
 
   it("returns the bottom-most position between blocks", () =>
-    testNormal(doc(0, blockquote(hr()), 1, blockquote(hr()), 2)))
+    testNormal(doc(0, blockquote(hr), 1, blockquote(hr), 2)))
 
   it("stops at isolating nodes", () =>
-    testNormal(doc(0, iso(1, hr(), 2), 3, iso(p(4)), 5)))
+    testNormal(doc(0, iso(1, hr, 2), 3, iso(p(4)), 5)))
 
   it("allows positions between block atoms", () =>
-    testNormal(doc(p(0, "-", 1), hr(), 2, hr(), 3)))
+    testNormal(doc(p(0, "-", 1), hr, 2, hr, 3)))
 
   it("creates positions around whitespace-preserving nodes", () =>
     testNormal(doc(0, pre(1, "a", 2), p(3), pre(4), 5)))
 
   it("handles inline nodes", () =>
-    testNormal(doc(p(0, "a", 1, $img(), 2, "b", 3), p(4, $img(), 5))))
+    testNormal(doc(p(0, "a", 1, $img, 2, "b", 3), p(4, $img, 5))))
 
   it("skips whole glyphs", () =>
     testNormal(doc(p(0, "ő", 1, "👨‍🎤", 2, "🇪🇸", 3))))
@@ -85,7 +85,7 @@ describe("nextNormalCursor", () => {
     testNormal(doc(p(0, "a", 1, b(2, "b", 3, "c", 4), 5, "d", 6))))
 
   it("exits text nodes", () => {
-    testNormal(doc(p(0, "a", 1, "b", 2, $img(), 3, "c", 4, "d", 5)))
+    testNormal(doc(p(0, "a", 1, "b", 2, $img, 3, "c", 4, "d", 5)))
   })
 
   describe("bidi", () => {

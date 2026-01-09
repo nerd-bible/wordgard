@@ -15,7 +15,7 @@ describe("Correction", () => {
     })
     s = s.update({changes: {from: 1, to: 2}}).state
     ist(notified.join(), "0")
-    s = s.update({changes: {from: 9, insert: [$img()]}}).state
+    s = s.update({changes: {from: 9, insert: [$img]}}).state
     ist(notified.join(), "0,5")
     s = s.update({changes: {from: 0, insert: [p("!")]}}).state
     ist(notified.join(), "0,5,0")

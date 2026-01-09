@@ -5,34 +5,32 @@ import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineB
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"
 
-type ContentSpec = Node | string | number | null | readonly ContentSpec[]
+export type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
-export type NodeBuilder<Source> =
-  Source extends Prop<any> | Plot.Tag.Any ? (...children: ContentSpec[]) => Plot :
-  Source extends Prop.Type<infer Value> ? (value: Value, ...children: ContentSpec[]) => Plot :
-  Source extends Plot.Type<infer Param> ? (param: Param, ...children: ContentSpec[]) => Plot :
-  Source extends Leaf.Any ? () => Leaf.Any : // FIXME make these values, not functions?
-  Source extends Leaf.Type<infer Param> ? (param: Param) => Leaf<Param> :
-  Source extends Schema ? (...children: ContentSpec[]) => Plot.Doc :
-  never
-
-export function builder<Source extends Prop<any> | Prop.Type<any> | Node.Type<any> | Leaf.Any | Plot.Tag.Any | Schema>(
-  source: Source
-): NodeBuilder<Source> {
-  return (source instanceof Plot.Tag
-    ? (...children: ContentSpec[]) => source.create(collectChildren(children))
-    : source instanceof Prop
-    ? (...children: ContentSpec[]) => fragment(children, source)
-    : source instanceof Plot.Type
-    ? (param: any, ...children: ContentSpec[]) => source.of(param).create(collectChildren(children))
-    : source instanceof Leaf.Type
-    ? (param: any) => source.of(param)
-    : source instanceof Leaf
-    ? (param: any) => source
-    : source instanceof Schema
-    ? (...children: ContentSpec[]) => source.doc(collectChildren(children))
-    : (value: any, ...children: ContentSpec[]) => fragment(children, (source as any as Prop.Type<any>).of(value))
-  ) as any
+export function builder<Param>(from: Leaf<Param>): Leaf<Param>
+export function builder<Param>(from: Leaf.Type<Param>): (param: Param) => Leaf.Any
+export function builder(from: Plot.Tag.Any): (...children: ContentSpec[]) => Plot
+export function builder<Param>(from: Plot.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
+export function builder<Param>(from: Prop<Param>): (...children: ContentSpec[]) => Plot
+export function builder<Param>(from: Prop.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
+export function builder(from: Schema): (...children: ContentSpec[]) => Plot.Doc
+export function builder(
+  from: Prop<any> | Prop.Type<any> | Node.Type<any> | Leaf.Any | Plot.Tag.Any | Schema
+): any {
+  return (from instanceof Plot.Tag
+    ? (...children: ContentSpec[]) => from.create(collectChildren(children))
+    : from instanceof Prop
+    ? (...children: ContentSpec[]) => fragment(children, from)
+    : from instanceof Plot.Type
+    ? (param: any, ...children: ContentSpec[]) => from.of(param).create(collectChildren(children))
+    : from instanceof Leaf.Type
+    ? (param: any) => from.of(param)
+    : from instanceof Leaf
+    ? from
+    : from instanceof Schema
+    ? (...children: ContentSpec[]) => from.doc(collectChildren(children))
+    : (value: any, ...children: ContentSpec[]) => fragment(children, (from as any as Prop.Type<any>).of(value))
+  )
 }
 
 const InlineFragment = Plot.defineInline("Fragment", {

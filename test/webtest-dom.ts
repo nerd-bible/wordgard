@@ -35,11 +35,11 @@ describe("serialize", () => {
   })
 
   it("can serialize tag parameters", () => {
-    istHTML(doc(p($img())), "<p><img src=\"test.png\"></p>")
+    istHTML(doc(p($img)), "<p><img src=\"test.png\"></p>")
   })
 
   it("can serialize spanning props", () => {
-    istHTML(doc(p(em("One", strong($img(), "Two")))), "<p><em>One<strong><img src=\"test.png\">Two</strong></em></p>")
+    istHTML(doc(p(em("One", strong($img, "Two")))), "<p><em>One<strong><img src=\"test.png\">Two</strong></em></p>")
   })
 
   it("can serialize attribute props", () => {
@@ -65,7 +65,7 @@ describe("serialize", () => {
   })
 
   it("serializes line breaks in whitespace-preserving nodes", () => {
-    istHTML(doc(p("a", br(), "b"), pre("a", br(), "b")),
+    istHTML(doc(p("a", br, "b"), pre("a", br, "b")),
             "<p>a<br>b</p><pre>a\nb</pre>")
   })
 })
@@ -131,12 +131,12 @@ describe("parseDoc", () => {
   })
 
   it("parses line breaks in code blocks as break nodes", () => {
-    ist(parse("<pre>a\n\nb</pre>"), doc(pre("a", br(), br(), "b")), eq)
+    ist(parse("<pre>a\n\nb</pre>"), doc(pre("a", br, br, "b")), eq)
   })
 
   it("preserves whitespace in code blocks", () => {
     ist(parse("<pre>one  two\n  three</pre>"),
-        doc(pre("one  two", br(), "  three")), eq)
+        doc(pre("one  two", br, "  three")), eq)
   })
 
   it("collapses whitespace", () => {
@@ -203,7 +203,7 @@ describe("parseSlice", () => {
   })
 
   it("doesn't open leaf nodes", () => {
-    ist(parse("<hr><p>A<br></p>").slice, slice([hr(), p().tag, "A", br()]), eq)
+    ist(parse("<hr><p>A<br></p>").slice, slice([hr, p().tag, "A", br]), eq)
   })
 
   function isOpen(elt: HTMLElement) {

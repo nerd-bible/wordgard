@@ -33,7 +33,7 @@ describe("DocTile", () => {
   })
 
   it("can draw basic structure", () => {
-    ist(render(doc(blockquote(ul(li(p("a: ", $img())), li(p("b"), p("c")))), hr())).dom.innerHTML,
+    ist(render(doc(blockquote(ul(li(p("a: ", $img)), li(p("b"), p("c")))), hr)).dom.innerHTML,
         "<blockquote><ul><li><p>a: <img src=\"test.png\"></p></li><li><p>b</p><p>c</p></li></ul></blockquote><hr>")
   })
 
@@ -65,7 +65,7 @@ describe("DocTile", () => {
   })
 
   it("can draw props on nodes", () => {
-    ist(render(doc(p(imgAlt("alt text", $img())))).dom.innerHTML,
+    ist(render(doc(p(imgAlt("alt text", $img)))).dom.innerHTML,
         "<p><img alt=\"alt text\" src=\"test.png\"></p>")
   })
 
@@ -92,14 +92,14 @@ describe("DocTile", () => {
   })
 
   it("can update node props", () => {
-    let node = update(render(doc(p($img(), " ", imgAlt("a2", $img())))), {
+    let node = update(render(doc(p($img, " ", imgAlt("a2", $img)))), {
       changes: [{from: 1, add: ImageAlt.of("a1")}, {from: 3, remove: ImageAlt.of("a2")}]
     })
     ist(node.dom.innerHTML, "<p><img src=\"test.png\" alt=\"a1\"> <img src=\"test.png\"></p>")
   })
 
   it("can draw spanning props", () => {
-    ist(render(doc(p(strong("a", $img(), "b"), "c"))).dom.innerHTML,
+    ist(render(doc(p(strong("a", $img, "b"), "c"))).dom.innerHTML,
         "<p><strong>a<img src=\"test.png\">b</strong>c</p>")
   })
 
@@ -109,7 +109,7 @@ describe("DocTile", () => {
   })
 
   it("preserves DOM nodes with changed wrappers props", () => {
-    let node = render(doc(p(strong($img()))))
+    let node = render(doc(p(strong($img))))
     let img = node.dom.querySelector("img")
     node = update(node, {changes: {from: 1, remove: Strong, add: Emphasis}})
     ist(node.dom.querySelector("img"), img)
@@ -122,7 +122,7 @@ describe("DocTile", () => {
   })
 
   it("preserves DOM nodes with changed attribute props", () => {
-    let node = render(doc(p($img())))
+    let node = render(doc(p($img)))
     let img = node.dom.querySelector("img")
     node = update(node, {changes: {from: 1, add: ImageAlt.of("text")}})
     ist(node.dom.querySelector("img"), img)
@@ -136,7 +136,7 @@ describe("DocTile", () => {
   })
 
   it("adds breaks for empty textblocks and those ending in breaks", () => {
-    let node = render(doc(p(), p("a"), p("b", br())))
+    let node = render(doc(p(), p("a"), p("b", br)))
     ist(node.dom.innerHTML, "<p><br></p><p>a</p><p>b<br><br></p>")
   })
 
@@ -188,7 +188,7 @@ describe("DocTile", () => {
     ist(log.join(), "a")
     tile = update(tile, {changes: {from: tile.length, insert: [p("!", img("c"))]}})
     ist(log.join(), "a")
-    tile = update(tile, {changes: {from: 0, to: tile.length, insert: [hr()]}})
+    tile = update(tile, {changes: {from: 0, to: tile.length, insert: [hr]}})
     ist(log.join(), "a,b,c")
   })
 
@@ -203,7 +203,7 @@ describe("DocTile", () => {
           place: side as any
         }
       })
-      let node = render(doc(p("xyz"), hr()), src("Before"), src("Start"), src("End"), src("After"))
+      let node = render(doc(p("xyz"), hr), src("Before"), src("Start"), src("End"), src("After"))
       ist(node.dom.innerHTML, "<span>Before</span><p><span>Start</span>xyz<span>End</span></p><span>After</span><hr>")
     })
 
@@ -215,7 +215,7 @@ describe("DocTile", () => {
           place: side as any
         }
       })
-      let node = render(doc(p("x", $img(), "y")), src("Before"), src("After"))
+      let node = render(doc(p("x", $img, "y")), src("Before"), src("After"))
       let widgets = node.dom.querySelectorAll("span")
       node = update(node, {changes: {from: 2, to: 3, insert: [img("/x.webp")]}})
       let newWidgets = node.dom.querySelectorAll("span")
@@ -231,7 +231,7 @@ describe("DocTile", () => {
           place: side as any
         }
       })
-      let node = render(doc(p(strong("x", $img(), "y"), em("z", $img()))), src("Before"), src("After"))
+      let node = render(doc(p(strong("x", $img, "y"), em("z", $img))), src("Before"), src("After"))
       let widgets = node.dom.querySelectorAll("span")
       node = update(node, {changes: [
         {from: 1, to: 4, remove: Strong, add: Emphasis},
@@ -250,12 +250,12 @@ describe("DocTile", () => {
           place: side as any
         }
       })
-      let node = render(doc(p(strong("x", $img(), "y"))), src("Before"), src("After"))
+      let node = render(doc(p(strong("x", $img, "y"))), src("Before"), src("After"))
       ist(node.dom.querySelectorAll("strong").length, 1)
     })
 
     it("keeps structure entirely the same on a no-change update", () => {
-      let node = render(doc(p(strong("one", em("two"), $img(), "three")), hr()))
+      let node = render(doc(p(strong("one", em("two"), $img, "three")), hr))
       let elts = node.dom.querySelectorAll("*")
       let tr1 = node.state.update({changes: {from: 1, to: 12, remove: Strong}})
       let tr2 = tr1.state.update({changes: {from: 1, to: 12, add: Strong}})
@@ -317,18 +317,18 @@ describe("DocTile", () => {
     })
 
     it("doesn't duplicate widgets on section boundaries", () => {
-      let node = render(doc(p(strong("a"), $img())),
+      let node = render(doc(p(strong("a"), $img)),
                         tagDecoration({tag: "Image", deco: {widget: inlineWidget.of("!"), place: "Before"}}))
       ist(node.dom.innerHTML, "<p><strong>a</strong><span>!</span><img src=\"test.png\"></p>")
       node = update(node, {changes: [
         {from: 1, to: 2, remove: Strong},
-        {from: 2, to: 3, insert: [$img()]}
+        {from: 2, to: 3, insert: [$img]}
       ]})
       ist(node.dom.innerHTML, "<p>a<span>!</span><img src=\"test.png\"></p>")
     })
 
     it("can decorate tags", () => {
-      ist(render(doc(p("a", $img())), tagDecoration({
+      ist(render(doc(p("a", $img)), tagDecoration({
         tag: Paragraph,
         deco: {element: "div", attributes: {class: "pwrap"}}
       }), tagDecoration({
@@ -338,7 +338,7 @@ describe("DocTile", () => {
     })
 
     it("can make tag decorations spanning", () => {
-      ist(render(doc(p($img(), $img())), tagDecoration({
+      ist(render(doc(p($img, $img)), tagDecoration({
         tag: Image,
         deco: {element: "image", spanning: true}
       })).dom.innerHTML, "<p><image><img src=\"test.png\"><img src=\"test.png\"></image></p>")
@@ -352,14 +352,14 @@ describe("DocTile", () => {
     })
 
     it("can take wrappers from spans", () => {
-      ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
+      ist(render(doc(p("ab", $img, "cd")), new RangeDecorationSource({
         set: () => strRanges.create([[2, 5, "a"]]),
         deco: {element: "span", attributes: val => ({class: val}), spanning: true},
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
 
     it("can take attributes from spans", () => {
-      ist(render(doc(p("ab", $img(), "cd")), new RangeDecorationSource({
+      ist(render(doc(p("ab", $img, "cd")), new RangeDecorationSource({
         tag: Image,
         set: () => strRanges.create([[2, 5, "a"]]),
         deco: {attribute: "alt", value: "a test"},
@@ -367,7 +367,7 @@ describe("DocTile", () => {
     })
 
     it("can override a specific leaf node's shape", () => {
-      ist(render(doc(p("ab", $img(), "cd")), overrideShape({
+      ist(render(doc(p("ab", $img, "cd")), overrideShape({
         set: () => strPoints.create([[3, "x"]]),
         shape: () => elt("span", "!"),
         atom: true
@@ -375,14 +375,14 @@ describe("DocTile", () => {
     })
 
     it("can override a specific non-leaf node's shape", () => {
-      ist(render(doc(p("ab", $img(), "cd")), overrideShape({
+      ist(render(doc(p("ab", $img, "cd")), overrideShape({
         set: () => strPoints.create([[0, "x"]]),
         shape: elt("div", 0)
       })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
     })
 
     it("can replace a non-leaf node with an atom shape", () => {
-      ist(render(doc(p("ab", $img(), "cd")), overrideShape({
+      ist(render(doc(p("ab", $img, "cd")), overrideShape({
         set: () => strPoints.create([[0, "x"]]),
         shape: elt("div", "?"),
       })).dom.innerHTML, "<div>?</div>")

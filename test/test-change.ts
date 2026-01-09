@@ -116,7 +116,7 @@ describe("ChangeSet", () => {
     it("won't add children in invalid positions", () => {
       ist.throws(() => {
         let d = doc(blockquote(0, p("x")))
-        mk(d, [[$img()]]).apply(d)
+        mk(d, [[$img]]).apply(d)
       }, /not a valid child/)
     })
   })
@@ -242,7 +242,7 @@ describe("ChangeSet", () => {
     let d = doc(p("one ", em("two")), p("three"))
     let changes = {
       ins: ChangeSet.create(d, {from: 1, insert: slice("zero ")}),
-      ins2: ChangeSet.create(d, {from: 5, insert: slice($img())}),
+      ins2: ChangeSet.create(d, {from: 5, insert: slice($img)}),
       del: ChangeSet.create(d, {from: 1, to: 4}),
       del2: ChangeSet.create(d, {from: 6, to: 7}),
       delP: ChangeSet.create(d, {from: 0, to: 9}),
@@ -263,7 +263,7 @@ describe("ChangeSet", () => {
       }
     }
 
-    testCompose(["ins", "ins2"], doc(p("zero one ", $img(), em("two")), p("three")))
+    testCompose(["ins", "ins2"], doc(p("zero one ", $img, em("two")), p("three")))
     testCompose(["del", "ins"], doc(p("zero  ", em("two")), p("three")))
     testCompose(["del", "del2"], doc(p(" ", em("to")), p("three")))
     testCompose(["del", "delP"], doc(p("three")))

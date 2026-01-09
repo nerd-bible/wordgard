@@ -33,7 +33,7 @@ describe("DocTile.resolve", () => {
   })
 
   it("resolves simple positions", () => {
-    let node = render(doc(p("one", $img()), hr()))
+    let node = render(doc(p("one", $img), hr))
     isIn(node.resolve(0), "DIV", 0)
     isIn(node.resolve(1, -1), "P", 0)
     isIn(node.resolve(1, 1), "one", 0)
