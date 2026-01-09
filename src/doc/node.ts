@@ -16,16 +16,113 @@ const enum NodeFlag { // FIXME drop some of these?
   List = 64
 }
 
-export class Leaf<Param> implements Node.Shared {
-  constructor(readonly type: Leaf.Type<Param>, readonly param: Param, readonly props: readonly Prop<unknown>[]) {}
+export type Node = Plot | Leaf.Any
 
-  get name() { return this.type.name }
-  get tag() { return this }
+export namespace Node {
+  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
-  prop<Value>(prop: Prop.Type<Value>): Value | undefined {
-    for (let v of this.props) if (v.type == prop) return v.value as Value
-    return undefined
+  export interface Shared {
+    name: string
+    tag: Node.Tag
+    prop<Value>(prop: Prop.Type<Value>): Value | undefined
+    eq(other: Node | Node.Tag): boolean
+    withProps(props: readonly Prop<unknown>[]): Node
+    pushTo(nodes: Node[]): void
+    slice(from: number, to?: number): Slice
+    isInline: boolean
+    isBlock: boolean
+    isLeaf: boolean
+    isText: boolean
+    length: number
+    toJSON(): Node.JSON
   }
+
+  export type Tag = Leaf.Any | Plot.Tag.Any
+
+  export namespace Tag {
+    export abstract class Base<Param> {
+      abstract type: Node.Type<Param>
+
+      constructor(
+        readonly param: Param,
+        readonly props: readonly Prop[]
+      ) {}
+
+      prop<Value>(prop: Prop.Type<Value>): Value | undefined {
+        for (let v of this.props) if (v.type == prop) return v.value as Value
+        return undefined
+      }
+
+      get name() { return this.type.name }
+
+      abstract eq(other: Node | Node.Tag): boolean
+
+      get isInline() { return this.type.isInline }
+      get isBlock() { return this.type.isBlock }
+      abstract isLeaf: boolean
+      get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
+
+      toJSON(): Node.JSON {
+        let result: Node.JSON = {type: this.name}
+        if (this != this.type.default as any && !(this.type.flags & NodeFlag.Doc)) result.param = this.param
+        if (this.props.length) {
+          result.props = Object.create(null)
+          for (let {name, value} of this.props) result.props![name] = value
+        }
+        return result
+      }
+    }
+  }
+
+  export interface Spec<Param> {
+    defaultParam?: Param extends null ? never : Param
+    /// A function or type name used to validate this tag's parameter
+    /// value. This will be used when deserializing the attribute from
+    /// JSON. When a string, it should be a `|`-separated string of
+    /// primitive types (`"number"`, `"string"`, `"boolean"`, `"null"`,
+    /// and `"undefined"`), and the library will raise an error when the
+    /// value is not one of those types. When a function, it should
+    /// raise an error if the value doesn't have the expected type or
+    /// shape.
+    validateParam?: string | ((param: Param) => void)
+    group?: string
+    shape: ElementShape<Param> | StructureShape<Param>
+    parseRules?: readonly ElementParseRule<Param>[]
+  }
+
+  export type Selector = Leaf.Any | Plot.Tag.Any | Node.Type<any> | string | readonly Node.Selector[]
+
+  export function selector(selector?: Node.Selector): (type: Node.Type<any>) => boolean {
+    if (!selector) return () => true
+    if (Array.isArray(selector)) {
+      let inner = selector.map(Node.selector)
+      return type => inner.some(s => s(type))
+    }
+    if (typeof selector == "string") {
+      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
+      let groups = selector.split(/ /)
+      return t => groups.some(g => t.isInGroup(g))
+    }
+    // FIXME have a Node.is predicate?
+    let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
+      : (selector as Leaf<any> | Plot.Tag<any>).type
+    return t => t === type
+  }
+
+  export interface JSON {
+    type: string
+    param?: any
+    props?: {[name: string]: any}
+    content?: readonly Node.JSON[]
+  }
+}
+
+export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
+  constructor(readonly type: Leaf.Type<Param>, param: Param, props: readonly Prop<unknown>[]) {
+    super(param, props)
+  }
+
+  get tag() { return this }
 
   eq(other: Node | Node.Tag): boolean {
     return this == other || other.isLeaf && this.type == other.type && compareDeep(this.param, other.param) &&
@@ -51,23 +148,9 @@ export class Leaf<Param> implements Node.Shared {
   }
 
   get tokenType(): TokenType.Node { return TokenType.Node }
-
-  get isInline() { return this.type.isInline }
-  get isBlock() { return this.type.isBlock }
   get isLeaf(): true { return true }
-  get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
 
   get length(): number { return this.is(Leaf.Text) ? this.param.length : 1 }
-
-  toJSON(): Node.JSON {
-    let result: Node.JSON = {type: this.name}
-    if (this != this.type.default) result.param = this.param
-    if (this.props.length) {
-      result.props = Object.create(null)
-      for (let {name, value} of this.props) result.props![name] = value
-    }
-    return result
-  }
 
   join(onto: Node) {
     if (!this.is(Leaf.Text) || !Leaf.Text.chk(onto) || !Prop.sameSet(this.props, onto.props)) return null
@@ -323,23 +406,15 @@ export class Plot implements Node.Shared {
 }
 
 export namespace Plot {
-  export class Tag<Param> {
-    constructor(readonly type: Plot.Type<Param>, readonly param: Param, readonly props: readonly Prop<unknown>[]) {}
-
-    prop<Value>(prop: Prop.Type<Value>): Value | undefined {
-      for (let v of this.props) if (v.type == prop) return v.value as Value
-      return undefined
+  export class Tag<Param> extends Node.Tag.Base<Param> {
+    constructor(readonly type: Plot.Type<Param>, param: Param, props: readonly Prop<unknown>[]) {
+      super(param, props)
     }
-
-    get name() { return this.type.name }
 
     eq(other: Node | Node.Tag): boolean {
       return this == other || other instanceof Plot.Tag && !this.isDoc && this.type == other.type &&
         compareDeep(this.param, other.param) && Prop.sameSet(this.props, other.props)
     }
-
-    get isInline() { return this.type.isInline }
-    get isBlock() { return this.type.isBlock }
 
     withProps(props: readonly Prop[]) {
       return Prop.sameSet(this.props, props) ? this : this.type.of(this.param, props)
@@ -378,16 +453,6 @@ export namespace Plot {
     get isTextblock() { return this.type.isTextblock }
     get isLeaf(): false { return false }
     get isDoc() { return this.type.isDoc }
-
-    toJSON(): Node.JSON {
-      let result: Node.JSON = {type: this.name}
-      if (this != this.type.default && !this.isDoc) result.param = this.param
-      if (this.props.length) {
-        result.props = Object.create(null)
-        for (let {name, value} of this.props) result.props![name] = value
-      }
-      return result
-    }
 
     /// @internal
     toString() {
@@ -572,73 +637,6 @@ export namespace Plot {
     }
   }
 }
-
-export type Node = Plot | Leaf.Any
-
-export namespace Node {
-  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
-
-  export type Tag = Leaf.Any | Plot.Tag.Any
-
-  export interface Shared {
-    name: string
-    tag: Node.Tag
-    prop<Value>(prop: Prop.Type<Value>): Value | undefined
-    eq(other: Node | Node.Tag): boolean
-    withProps(props: readonly Prop<unknown>[]): Node
-    pushTo(nodes: Node[]): void
-    slice(from: number, to?: number): Slice
-    isInline: boolean
-    isBlock: boolean
-    isLeaf: boolean
-    isText: boolean
-    length: number
-    toJSON(): Node.JSON
-  }
-
-  export interface Spec<Param> {
-    defaultParam?: Param extends null ? never : Param
-    /// A function or type name used to validate this tag's parameter
-    /// value. This will be used when deserializing the attribute from
-    /// JSON. When a string, it should be a `|`-separated string of
-    /// primitive types (`"number"`, `"string"`, `"boolean"`, `"null"`,
-    /// and `"undefined"`), and the library will raise an error when the
-    /// value is not one of those types. When a function, it should
-    /// raise an error if the value doesn't have the expected type or
-    /// shape.
-    validateParam?: string | ((param: Param) => void)
-    group?: string
-    shape: ElementShape<Param> | StructureShape<Param>
-    parseRules?: readonly ElementParseRule<Param>[]
-  }
-
-  export type Selector = Leaf.Any | Plot.Tag.Any | Node.Type<any> | string | readonly Node.Selector[]
-
-  export function selector(selector?: Node.Selector): (type: Node.Type<any>) => boolean {
-    if (!selector) return () => true
-    if (Array.isArray(selector)) {
-      let inner = selector.map(Node.selector)
-      return type => inner.some(s => s(type))
-    }
-    if (typeof selector == "string") {
-      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
-      let groups = selector.split(/ /)
-      return t => groups.some(g => t.isInGroup(g))
-    }
-    // FIXME have a Node.is predicate?
-    let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
-      : (selector as Leaf<any> | Plot.Tag<any>).type
-    return t => t === type
-  }
-
-  export interface JSON {
-    type: string
-    param?: any
-    props?: {[name: string]: any}
-    content?: readonly Node.JSON[]
-  }
-}
-
 function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   let flags = inline ? NodeFlag.Inline : NodeFlag.None
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
