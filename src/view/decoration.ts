@@ -145,7 +145,7 @@ function addMarkAttributes(shape: Shape, tag: Node.Tag) {
 }
 
 const baseTagShape = memo((tag: Node.Tag): Shape => {
-  return addMarkAttributes(Leaf.Text.chk(tag) ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
+  return addMarkAttributes(tag.is(Leaf.Text) ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
 })
 
 class TagWidgetSource {
@@ -1163,7 +1163,7 @@ export class DecoIterator {
 
   tagShape(tag: Node.Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape
-    if (!Leaf.Text.chk(tag)) for (let src of this.tagShapes) if (src.pred(tag.type)) {
+    if (!tag.is(Leaf.Text)) for (let src of this.tagShapes) if (src.pred(tag.type)) {
       shape = src.shape(tag)
       break
     }

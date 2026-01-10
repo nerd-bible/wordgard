@@ -106,7 +106,7 @@ describe("history", () => {
       if (!adj) return false
       let space = false
       if (adj) tr.changes.iterChanges((fA, tA, fB, tB, slice) => {
-        if (slice.content.some(t => t instanceof Leaf && Leaf.Text.chk(t) && t.param.slice(0, 1) == " ")) space = true
+        if (slice.content.some(t => t instanceof Leaf && t.is(Leaf.Text) && t.param.slice(0, 1) == " ")) space = true
       })
       return !space
     }})

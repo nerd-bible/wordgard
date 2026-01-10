@@ -30,6 +30,7 @@ export namespace Node {
     isInline: boolean
     isBlock: boolean
     isLeaf: boolean
+    isPlot: boolean
     isText: boolean
     length: number
     toJSON(): Node.JSON
@@ -67,6 +68,7 @@ export namespace Node {
       get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
       get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
       abstract isLeaf: boolean
+      abstract isPlot: boolean
     }
   }
 
@@ -93,7 +95,12 @@ export namespace Node {
       get isInline() { return this.type.isInline }
       get isBlock() { return this.type.isBlock }
       abstract isLeaf: boolean
+      abstract isPlot: boolean
       get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
+
+      is<T>(type: Leaf.Type<T>): this is Leaf<T>
+      is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+      is(type: any) { return this.type == type }
 
       toJSON(): Node.JSON {
         let result: Node.JSON = {type: this.name}
@@ -136,7 +143,6 @@ export namespace Node {
       let groups = selector.split(/ /)
       return t => groups.some(g => t.isInGroup(g))
     }
-    // FIXME have a Node.is predicate?
     let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
       : (selector as Leaf<any> | Plot.Tag<any>).type
     return t => t === type
@@ -162,10 +168,6 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
       Mark.sameSet(this.marks, other.marks)
   }
 
-  is<T>(type: Leaf.Type<T>): this is Leaf<T> {
-    return this.type == type as Leaf.Type<any>
-  }
-
   static defineInline(name: string, spec: Leaf.Spec<null>): Leaf<null> {
     checkTagName(name)
     return new Leaf.Type<null>(name, flagsFor(spec, true) | NodeFlag.NullParam, spec).default!
@@ -182,11 +184,12 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
 
   get tokenType(): TokenType.Node { return TokenType.Node }
   get isLeaf(): true { return true }
+  get isPlot(): false { return false }
 
   get length(): number { return this.is(Leaf.Text) ? this.param.length : 1 }
 
   join(onto: Node): Leaf.Any | null {
-    if (!this.is(Leaf.Text) || !Leaf.Text.chk(onto) || !Mark.sameSet(this.marks, onto.marks)) return null
+    if (!this.is(Leaf.Text) || !onto.is(Leaf.Text) || !Mark.sameSet(this.marks, onto.marks)) return null
     return Leaf.text(onto.param + this.param, this.marks)
   }
 
@@ -244,11 +247,7 @@ export namespace Leaf {
     }
 
     get isLeaf(): true { return true }
-
-    // FIXME find a better name
-    chk(node: Node): node is Leaf<Param>
-    chk(tag: Node.Tag): tag is Leaf<Param>
-    chk(obj: Node | Node.Tag) { return obj.type == this }
+    get isPlot(): false { return false }
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
@@ -317,12 +316,15 @@ export class Plot implements Node.Shared {
     if (to >= this.length) out.push(Plot.End)
   }
 
+  is<T>(type: Leaf.Type<T>): false { return false }
+
   get isText(): false { return false }
   get isInline() { return this.type.isInline }
   get isBlock() { return this.type.isBlock }
   get inlineContent() { return this.type.inlineContent }
   get isTextblock() { return this.type.isTextblock }
   get isLeaf(): false { return false }
+  get isPlot(): true { return true }
   get isDoc() { return this.type.isDoc }
 
   get firstChild(): Node | null {
@@ -365,7 +367,7 @@ export class Plot implements Node.Shared {
       let node = this.content[i], start = pos
       pos += node.length
       if (pos <= from) continue
-      if (f(node, start, this, i) !== false && !node.isLeaf) node.iterInner(start + 1, from, to, f)
+      if (f(node, start, this, i) !== false && node.isPlot) node.iterInner(start + 1, from, to, f)
     }
   }
 
@@ -388,7 +390,7 @@ export class Plot implements Node.Shared {
     let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
     let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
     this.iterate(from, to, (node, pos) => {
-      return !out.serialize(Leaf.Text.chk(node) ? node.sliceText(Math.max(0, from - pos), Math.min(node.length, to - pos)) : node)
+      return !out.serialize(node.is(Leaf.Text) ? node.sliceText(Math.max(0, from - pos), Math.min(node.length, to - pos)) : node)
     })
     return out.text
   }
@@ -448,10 +450,6 @@ export namespace Plot {
       return new Plot(this, this.type.checkChildren(joinText(children || none)))
     }
 
-    is<T>(type: Plot.Type<T>): this is Plot.Tag<T> {
-      return this.type == type as Plot.Type<any>
-    }
-
     split(atEnd: boolean) {
       return this.marks.length ? this.withMarks(this.marks.filter(p => {
         let {keepOnSplit} = p.type.spec
@@ -475,6 +473,7 @@ export namespace Plot {
     get inlineContent() { return this.type.inlineContent }
     get isTextblock() { return this.type.isTextblock }
     get isLeaf(): false { return false }
+    get isPlot(): true { return true }
     get isDoc() { return this.type.isDoc }
 
     /// @internal
@@ -557,10 +556,7 @@ export namespace Plot {
     get isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
     get isList() { return (this.flags & NodeFlag.List) > 0 }
     get isLeaf(): false { return false }
-
-    chk(node: Node): node is Plot
-    chk(tag: Node.Tag): tag is Plot.Tag<Param>
-    chk(obj: Node | Node.Tag) { return obj.type == this }
+    get isPlot(): true { return true }
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
@@ -674,7 +670,7 @@ function sliceContent(out: Token[], content: readonly Node[], from: number, to: 
     let start = off
     off += child.length
     if (off <= from) continue
-    if (!child.isLeaf) {
+    if (child.isPlot) {
       child.slicePlot(out, from - start, to - start)
     } else if (child.isText) {
       out.push(child.sliceText(from - start, to - start))

@@ -50,7 +50,7 @@ export class TextblockMap {
     }
     let scan = (node: Node, pos: number) => {
       if (!node.isLeaf) for (let ch of node.content) {
-        if (Leaf.Text.chk(ch)) {
+        if (ch.is(Leaf.Text)) {
           text += ch.param
         } else if (ch.type.isLeaf) {
           text += "\ufffc"

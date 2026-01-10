@@ -174,7 +174,7 @@ function serializeNodeInner(node: Node, cx: Context) {
     serializeChildren(content, cx)
   }
   let repr = node.type.spec.shape
-  if (Leaf.Text.chk(node)) {
+  if (node.is(Leaf.Text)) {
     if (markAttrs.length) cx.openElt("span", markAttrs)
     cx.emitText(node.param)
     if (markAttrs.length) cx.closeElt()
@@ -205,10 +205,10 @@ function serializeStructure(elt: Elt<string>, cx: Context, content: (cx: Context
 }
 
 function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Leaf.Any) {
-  if (!nodes.some(n => lineBreak.type.chk(n))) return nodes
+  if (!nodes.some(n => n.is(lineBreak.type))) return nodes
   let result: Node[] = [], lastText = false
   for (let node of nodes) {
-    let next = lineBreak.type.chk(node) ? Leaf.text("\n", node.marks) : node
+    let next = node.is(lineBreak.type) ? Leaf.text("\n", node.marks) : node
     if (lastText && next instanceof Plot) next.pushTo(result as Plot[])
     else result.push(next)
     lastText = next.isText

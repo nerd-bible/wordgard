@@ -46,7 +46,7 @@ function scanTransaction(tr: Transaction) {
       this.skip(node, pos, parent, index)
     },
     skip(node, pos, parent, index) {
-      if (!node.isLeaf) for (let correction of newNode) if (correction.tag(node.type))
+      if (node.isPlot) for (let correction of newNode) if (correction.tag(node.type))
         plan.push({node: new PlotPos(parent, node, pos, index), correction})
     },
     leavePlot() {}
@@ -154,7 +154,7 @@ export class Correction<PosType extends NodePos> {
   scan(state: EditorState) {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
-      if (this.tag(node.type) && (this.event == CorrectionEvent.Marks || !node.isLeaf)) {
+      if (this.tag(node.type) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
         let change = this.correct(state.doc.resolveNode(pos) as PosType, state)
         if (change) changes.push(change)
       }

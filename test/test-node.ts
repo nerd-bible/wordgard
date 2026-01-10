@@ -26,7 +26,7 @@ describe("Node", () => {
       doc.iterate(tag(doc, 1), tag(doc, 2), (node, pos) => {
         if (i == nodes.length)
           throw new Error("More nodes iterated than listed (" + node.name + ")")
-        let compare = Leaf.Text.chk(node) ? node.param : node.name
+        let compare = node.is(Leaf.Text) ? node.param : node.name
         if (compare != nodes[i++])
           throw new Error("Expected " + JSON.stringify(nodes[i - 1]) + ", got " + JSON.stringify(compare))
         if (!node.isText && doc.nodeAt(pos) != node)

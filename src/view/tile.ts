@@ -220,7 +220,7 @@ export class CompositeTile extends Tile {
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
                    orientation: Orientation): PosAssoc {
     let {node} = this, outerOrientation = orientation
-    if (node && !node.isLeaf) {
+    if (node && node.isPlot) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) {
         textblock = TextblockMap.get(start, state.doc.nodeAt(start - 1) as Plot, state.textDirection(node.tag))
@@ -868,7 +868,7 @@ class ContentUpdate {
               this.reused.set(nodeTile, Reused.DOM)
               updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
               tile = copyEltShape(nodeTile, node)
-            } else if (Leaf.Text.chk(node) && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
+            } else if (node.is(Leaf.Text) && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
                        (reuse || this.posB == start)) {
               if (nodeTile.text != node.param) {
                 nodeTile.dom.nodeValue = node.param
@@ -885,7 +885,7 @@ class ContentUpdate {
           }
         }
         if (!tile) {
-          if (Leaf.Text.chk(node)) this.addText(node.param)
+          if (node.is(Leaf.Text)) this.addText(node.param)
           else tile = buildFromShape(shape, node)
         }
         if (tile) this.new.addChild(tile)
@@ -906,7 +906,7 @@ class ContentUpdate {
 
   up() {
     let node = this.new.node
-    if (node && !node.isLeaf && node.isTextblock) {
+    if (node && node.isPlot && node.isTextblock) {
       let i = this.new.children.length - 1
       let last = i < 0 ? null : this.new.children[i]
       if (last instanceof WidgetTile && last.widget.type == brHack.type) {

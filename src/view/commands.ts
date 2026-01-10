@@ -119,7 +119,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
       if (!nextTag || !p.parent!.node.type.canContain(tag.type)) {
         if (!atEnd) return false
         let defaultType = state.doc.schema.defaultContentType(p.parent!.node.type)
-        if (defaultType && !defaultType.isLeaf) tag = tag.changeType(defaultType)
+        if (defaultType && defaultType.isPlot) tag = tag.changeType(defaultType)
         else return false
       }
       tokens.splice(insert, 0, tag)
@@ -132,7 +132,7 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
   }]
   if (sel.from.isAtStart(before)) {
     let deflt = state.doc.schema.defaultContentType(before.parent.node.type)
-    if (deflt && !deflt.isLeaf && !deflt.eq(before.node.tag))
+    if (deflt && deflt.isPlot && !deflt.eq(before.node.tag))
       changes.unshift({
         from: before.before, to: before.start,
         insert: [before.node.tag.changeType(deflt)]
@@ -272,14 +272,14 @@ export const deleteBackward: StateCommand = ({state, dispatch}) => {
   }
   let before = scan.node.content[index - 1]
   for (;;) {
-    if (!before.isLeaf && before.type.isolating) return false
+    if (before.isPlot && before.type.isolating) return false
     if (before.isLeaf || state.isAtom(pos - before.length, before)) break
     let last = before.content.length - 1
     if (last < 0) return false
     before = before.content[last]
     pos--
   }
-  if (Leaf.Text.chk(before)) {
+  if (before.is(Leaf.Text)) {
     let size = before.length - findClusterBreak(before.param, before.length, false)
     dispatch(state.update({
       changes: {from: pos - size, to: pos},
@@ -326,13 +326,13 @@ export const deleteForward: StateCommand = ({state, dispatch}) => {
   }
   let after = scan.node.content[index]
   for (;;) {
-    if (!after.isLeaf && after.type.isolating) return false
+    if (after.isPlot && after.type.isolating) return false
     if (after.isLeaf || state.isAtom(pos, after)) break
     if (!after.content.length) return false
     after = after.content[0]
     pos++
   }
-  if (Leaf.Text.chk(after)) {
+  if (after.is(Leaf.Text)) {
     let size = findClusterBreak(after.param, 0)
     dispatch(state.update({
       changes: {from: pos, to: pos + size},
@@ -438,7 +438,7 @@ function selectedTextblocks(state: EditorState) {
   let textblocks: PlotPos[] = [], lastBlock = -1
   for (let {from, to} of state.selection.ranges) {
     state.doc.iterate(from, to, (node, pos, parent) => {
-      if (!node.isLeaf && node.isTextblock && pos > lastBlock) {
+      if (node.isPlot && node.isTextblock && pos > lastBlock) {
         textblocks.push(state.doc.resolveNode(pos) as PlotPos)
         lastBlock = pos
       }
@@ -516,7 +516,7 @@ function addList(state: EditorState, blocks: PlotPos[], listTag: Plot.Tag.Any) {
       changes.push({from: openFrom, to: openTo, insert: open})
       let closeFrom = item.isTextblock ? wrap.end : wrap.after, closeTo = wrap.after, close: Token[] = [Plot.End]
       if (chAfter.has(wrap.after)) {} // Block below included in change
-      else if ((next = wrap.nextSibling) && listTag.type.chk(next.tag) && autoJoin(next.tag, listTag))
+      else if ((next = wrap.nextSibling) && next.isPlot && next.type == listTag.type && autoJoin(next.tag, listTag))
         closeTo++ // Join
       else close.push(Plot.End) // End list
       changes.push({from: closeFrom, to: closeTo, insert: close})
@@ -535,7 +535,7 @@ function addList(state: EditorState, blocks: PlotPos[], listTag: Plot.Tag.Any) {
       if (item.isLast) {
         if (chAfter.has(item.after + 1)) { // Before item produced by other change, drop close token
           changes.push({from: item.after, to: item.after + 1})
-        } else if ((next = item.parent!.nextSibling) && !next.isLeaf && autoJoin(next.tag, listTag)) { // Join to list below
+        } else if ((next = item.parent!.nextSibling) && next.isPlot && autoJoin(next.tag, listTag)) { // Join to list below
           changes.push({from: item.after, to: item.after + 2})
         }
       }
@@ -551,9 +551,9 @@ function removeList(state: EditorState, blocks: NodePos[], listTag: Plot.Tag.Any
     let item = isListItem(block)
     if (!item) continue
     let list = item.parent!, parent = list.parent, rewrap: Node.Tag | null = null
-    if (parent && listTag.type.chk(list.node) && item.before != lastItem &&
+    if (parent && list.node.isPlot && list.node.type == listTag.type && item.before != lastItem &&
         (item.node.isTextblock
-          ? (rewrap = state.doc.schema.defaultContentType(parent.node.type)) && !rewrap.isLeaf && rewrap.isTextblock
+          ? (rewrap = state.doc.schema.defaultContentType(parent.node.type)) && rewrap.isPlot && rewrap.isTextblock
           : parent.node.type.canContain(block.node.type))) {
       lastItem = item.before
       plan.push({item, rewrap: rewrap as Plot.Tag.Any})

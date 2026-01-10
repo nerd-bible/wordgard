@@ -7,7 +7,7 @@ export class TextOutput {
   constructor(readonly blockSep: string, readonly leafText?: (node: Leaf.Any) => string) {}
 
   serialize(node: Node): boolean {
-    let nodeText = !node.isLeaf ? null
+    let nodeText = node.isPlot ? null
       : node.isText ? node.param as string
       : node.type.spec.toText ? node.type.spec.toText(node)
       : this.leafText ? this.leafText(node)

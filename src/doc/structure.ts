@@ -81,7 +81,7 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Plot.Tag.A
   let outerCandidates: PlotPos[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
-    if (node.isBlock && !node.isLeaf && !node.inlineContent && parent &&
+    if (node.isBlock && node.isPlot && !node.inlineContent && parent &&
         (fromTextblock ? parent.type.canContain(fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!predicate || predicate(node.tag))) {
       let pos = doc.resolveNode(p) as PlotPos, depth = pos.depth
@@ -152,7 +152,7 @@ export function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeS
     } else {
       let next = parent.node.content[index]
       // Can be lifted
-      if (outer.type.canContain(next.type) || wrapText && !next.isLeaf && next.inlineContent) {
+      if (outer.type.canContain(next.type) || wrapText && next.isPlot && next.inlineContent) {
         if (from != null && pos + next.length <= from) { // Before from
           pos += next.length
           gapStart = pos
@@ -211,7 +211,7 @@ export function joinBlocks(before: PlotPos, after: PlotPos): ChangeSet.Spec[] {
     let nodeAfter = after.nextSibling
     for (let i = dBefore - dAfter - 1, joining = true; i >= 0; i--) {
       let context = extraContext[i]
-      if (!joining || !nodeAfter || !context.type.chk(nodeAfter) || !context.type.spec.autoJoin ||
+      if (!joining || !nodeAfter || nodeAfter.isLeaf || nodeAfter.type != context.type || !context.type.spec.autoJoin ||
           (typeof context.type.spec.autoJoin == "function" && !context.type.spec.autoJoin(context, nodeAfter.tag)))
         joining = false
       if (joining) end++

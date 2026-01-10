@@ -79,7 +79,7 @@ export function rDoc(minLength: number) {
       }
       len += node.length
       let {children} = stack[stack.length - 1], last = children.length ? children[children.length - 1] : null
-      if (Leaf.Text.chk(node) && last && Leaf.Text.chk(last) && Mark.sameSet(last.marks, node.marks))
+      if (node.is(Leaf.Text) && last && last.is(Leaf.Text) && Mark.sameSet(last.marks, node.marks))
         children[children.length - 1] = Leaf.text(last.param + node.param, node.tag.marks)
       else 
         children.push(node)
@@ -114,7 +114,7 @@ const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
   // Join two adjacent blocks
   doc => scanBlocks(doc, (node, pos, parent, index) => {
     let prev: Node | undefined
-    if (index && !(prev = parent.content[index - 1]).isLeaf && prev.type.sharesContent(node.tag.type))
+    if (index && (prev = parent.content[index - 1]).isPlot && prev.type.sharesContent(node.tag.type))
       return {from: pos - 1, to: pos + 1}
   }),
   // Lift a block's content out to its parent

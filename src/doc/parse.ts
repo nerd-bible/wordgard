@@ -93,7 +93,7 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
   let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
     for (let i = 0; i < children.length; i++) {
       let child = children[i]
-      if (openStart && i == 0 && !child.isLeaf && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
+      if (openStart && i == 0 && child.isPlot && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
         if (children.length == 1 && openEnd && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
           emitTokens(child.content, true, true)
         } else {
@@ -101,7 +101,7 @@ export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, 
           tokens.push(Plot.End)
         }
         context.push(child.tag)
-      } else if (openEnd && i == children.length - 1 && !child.isLeaf && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
+      } else if (openEnd && i == children.length - 1 && child.isPlot && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
         tokens.push(child.tag)
         emitTokens((child as Plot).content, false, true)
       } else {
@@ -210,7 +210,7 @@ class ParseContext {
       if (/^ /.test(text)) {
         let nodeBefore = this.top.children[this.top.children.length - 1]
         if (nodeBefore
-            ? nodeBefore == this.schema.lineBreak || Leaf.Text.chk(nodeBefore) && / $/.test(nodeBefore.param!)
+            ? nodeBefore == this.schema.lineBreak || nodeBefore.is(Leaf.Text) && / $/.test(nodeBefore.param!)
             : !(this.top.flags & CxFlag.OpenStart))
           text = text.slice(1)
       }
@@ -338,7 +338,7 @@ class ParseContext {
       }
     }
     let open = cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)
-    if (!open && !cx.tag.inlineContent && !cx.tag.isLeaf && !cx.children.length)
+    if (!open && !cx.tag.inlineContent && cx.tag.isPlot && !cx.children.length)
       cx.children.push(this.schema.createDefault(cx.tag.type))
     let node = cx.tag.isDoc ? this.schema.doc(cx.children) : cx.tag.create(cx.children)
     if (open) this.open.set(node, open)
@@ -403,7 +403,7 @@ function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
   }
   explore(content)
   let best: Plot.Tag.Any | undefined, bestCost = 0
-  scan: for (let parent of schema.tags) if (!parent.isLeaf && parent.default) {
+  scan: for (let parent of schema.tags) if (parent.isPlot && parent.default) {
     let cost = parent.isDoc ? -1 : 0
     for (let child of tags) {
       let fit = schema.findWrapping(parent, child)

@@ -22,7 +22,7 @@ class Builder implements Walker {
 
   add(node: Node) {
     if (this.modifications) {
-      if (!node.isLeaf) throw new Error("Invalid modification on non-leaf node")
+      if (node.isPlot) throw new Error("Invalid modification on non-leaf node")
       node = node.withMarks(applyModifications(this.modifications, node.marks, node.type))
     }
     node.pushTo(this.stack.children)
@@ -37,7 +37,7 @@ class Builder implements Walker {
     if (!this.stack.parent) throw new Error("Surplus close token after " + this.stack.children)
     let top = this.stack
     this.stack = this.stack.parent
-    if (!top.children.length && !top.tag.isLeaf && !top.tag.inlineContent)
+    if (!top.children.length && top.tag.isPlot && !top.tag.inlineContent)
       throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.tag.create(top.children))
   }

@@ -24,13 +24,13 @@ export class Pos {
     return distance ? advancePos(distance, this.parent, this.pos, this.index, this.inText, walk, true) : this
   }
 
-  get nodeAfter() {
+  get nodeAfter(): Node | null {
     if (this.index == this.parent.node.content.length) return null
     let node = this.parent.node.content[this.index]
     return this.inText ? (node as Leaf<string>).sliceText(this.inText) : node
   }
 
-  get nodeBefore() {
+  get nodeBefore(): Node | null {
     if (this.inText) return (this.parent.node.content[this.index] as Leaf<string>).sliceText(0, this.inText)
     return this.index ? this.parent.node.content[this.index - 1] : null
   }

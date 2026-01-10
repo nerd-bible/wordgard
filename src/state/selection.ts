@@ -396,7 +396,7 @@ export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
   if (!res.parent.node.inlineContent) return EditorSelection.cursor(pos, bias)
   let start = pos, end = pos, text = ""
   scanBack: for (let i = res.index, cur = res.nodeBefore; cur;) {
-    if (!Leaf.Text.chk(cur)) break
+    if (!cur.is(Leaf.Text)) break
     for (let j = cur.length; j > 0;) {
       let next = findClusterBreak(cur.param, j, false)
       let ch = cur.param.slice(next, j)
@@ -409,7 +409,7 @@ export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
     cur = res.parent.node.content[--i]
   }
   scanForward: for (let i = res.index + 1, cur = res.nodeAfter; cur;) {
-    if (!Leaf.Text.chk(cur)) break
+    if (!cur.is(Leaf.Text)) break
     for (let j = 0; j < cur.length;) {
       let next = findClusterBreak(cur.param, j, true)
       let ch = cur.param.slice(j, next)

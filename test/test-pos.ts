@@ -35,7 +35,7 @@ describe("Context", () => {
     let found: string[] = []
     let walker: Walker = {
       enterPlot: n => { found.push(`OPEN(${n.name})`) },
-      skip: n => { found.push(Leaf.Text.chk(n) ? n.param : n.name) },
+      skip: n => { found.push(n.is(Leaf.Text) ? n.param : n.name) },
       leavePlot: () => { found.push("CLOSE") }
     }
     for (let i = 0; i < d.length; i++) cx = cx.advance(1, walker)

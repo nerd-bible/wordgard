@@ -105,7 +105,7 @@ export class Schema {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
-        if (!elt.isLeaf && elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
+        if (elt.isPlot && elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
         else tags.push(elt)
       } else if (elt instanceof Mark.Type) {
         if (marks.includes(elt)) continue

@@ -14,7 +14,7 @@ export function autoJoinBlocks(state: EditorState, tr: Transaction.Spec): Transa
   let cursor = doc.resolve(0), check = (pos: number) => {
     cursor = cursor.advance(pos - cursor.pos)
     let before = cursor.nodeBefore, after = cursor.nodeAfter
-    if (before && after && !before.isLeaf && before.isBlock && before.type.chk(after)) {
+    if (before && after && before.isPlot && before.isBlock && after.isPlot && after.type == before.type) {
       let {autoJoin} = after.type.spec
       if (autoJoin && (typeof autoJoin != "function" || autoJoin(before.tag, after.tag))) {
         let from = pos - 1, to = pos + 1
