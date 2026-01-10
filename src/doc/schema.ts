@@ -56,13 +56,18 @@ export class Schema {
   }
 
   // FIXME maybe have a different one for plot types
-  defaultContentType(parent: Plot.Type<any>) {
-    for (let tag of this.tags) if (parent.canContain(tag) && tag.default) return tag.default
+  defaultContentTag(parent: Plot.Type<any>): Node.Tag | null {
+    for (let tag of this.tags) if (tag.default && parent.canContain(tag)) return tag.default
+    return null
+  }
+
+  defaultContentPlot(parent: Plot.Type<any>): Plot.Tag.Any | null {
+    for (let tag of this.tags) if (tag.default && tag.isPlot && parent.canContain(tag)) return tag.default
     return null
   }
 
   createDefault(parent: Plot.Type<any>): Node {
-    let child = this.defaultContentType(parent)
+    let child = this.defaultContentTag(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     if (child.isLeaf) return child
     return child.create(child.inlineContent ? [] : [this.createDefault(child.type)])

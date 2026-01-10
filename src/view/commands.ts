@@ -118,8 +118,8 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
       let tag = p.node.tag.split(atEnd), nextTag = atEnd && !p.node.type.spec.preserveOnSplitAtEnd ? null : tag
       if (!nextTag || !p.parent!.node.type.canContain(tag.type)) {
         if (!atEnd) return false
-        let defaultType = state.doc.schema.defaultContentType(p.parent!.node.type)
-        if (defaultType && defaultType.isPlot) tag = tag.changeType(defaultType)
+        let defaultType = state.doc.schema.defaultContentPlot(p.parent!.node.type)
+        if (defaultType) tag = tag.changeType(defaultType)
         else return false
       }
       tokens.splice(insert, 0, tag)
@@ -131,8 +131,8 @@ export const splitTextblock: StateCommand = ({state, dispatch}) => {
     insert: tokens
   }]
   if (sel.from.isAtStart(before)) {
-    let deflt = state.doc.schema.defaultContentType(before.parent.node.type)
-    if (deflt && deflt.isPlot && !deflt.eq(before.node.tag))
+    let deflt = state.doc.schema.defaultContentPlot(before.parent.node.type)
+    if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({
         from: before.before, to: before.start,
         insert: [before.node.tag.changeType(deflt)]
@@ -553,7 +553,7 @@ function removeList(state: EditorState, blocks: NodePos[], listTag: Plot.Tag.Any
     let list = item.parent!, parent = list.parent, rewrap: Node.Tag | null = null
     if (parent && list.node.isPlot && list.node.type == listTag.type && item.before != lastItem &&
         (item.node.isTextblock
-          ? (rewrap = state.doc.schema.defaultContentType(parent.node.type)) && rewrap.isPlot && rewrap.isTextblock
+          ? (rewrap = state.doc.schema.defaultContentPlot(parent.node.type)) && rewrap.isTextblock
           : parent.node.type.canContain(block.node.type))) {
       lastItem = item.before
       plan.push({item, rewrap: rewrap as Plot.Tag.Any})
