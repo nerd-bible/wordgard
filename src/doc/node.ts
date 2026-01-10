@@ -104,7 +104,7 @@ export namespace Node {
 
       toJSON(): Node.JSON {
         let result: Node.JSON = {type: this.name}
-        if (this != this.type.default as any && !(this.type.flags & NodeFlag.Doc)) result.param = this.param
+        if (this != this.type.default as any) result.param = this.param
         if (this.marks.length) {
           result.marks = Object.create(null)
           for (let {name, value} of this.marks) result.marks![name] = value
@@ -419,9 +419,9 @@ export class Plot implements Node.Shared {
 
   static defineDoc(spec: {inlineContent?: string | true, blockContent?: string}) {
     if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
-    let flags = NodeFlag.NullParam | NodeFlag.Doc
+    let flags = NodeFlag.NullParam | NodeFlag.Doc | NodeFlag.NullParam
     if (spec.inlineContent) flags |= NodeFlag.InlineContent
-    return new Plot.Type<Schema>("Doc", flags, {
+    return new Plot.Type<null>("Doc", flags, {
       ...spec,
       shape: {element: ""}
     })
@@ -437,7 +437,7 @@ export namespace Plot {
     }
 
     eq(other: Node | Node.Tag): boolean {
-      return this == other || other instanceof Plot.Tag && !this.isDoc && this.type == other.type &&
+      return this == other || other instanceof Plot.Tag && this.type == other.type &&
         compareDeep(this.param, other.param) && Mark.sameSet(this.marks, other.marks)
     }
 
@@ -609,16 +609,12 @@ export namespace Plot {
     cursorInsideBounds?: boolean
   }
 
-  // FIXME the use of schema objects as param conflicts with the
-  // plain JSON structure that we assume params have
   export class Doc extends Plot {
-    constructor(tag: Plot.Tag<Schema>, children: readonly Node[]) {
-      super(tag, children)
+    constructor(readonly schema: Schema, children: readonly Node[]) {
+      super(schema.docTag, children)
     }
 
     get length() { return this.contentLength }
-
-    get schema() { return this.tag.param as Schema }
 
     slicePlot(content: Token[], from: number, to: number) {
       sliceContent(content, this.content, from, to)

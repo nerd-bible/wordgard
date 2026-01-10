@@ -12,7 +12,7 @@ export class Schema {
   private tagsByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
   private marksByName: {[name: string]: Mark.Type<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Plot.Tag.Any[] | null} = Object.create(null)
-  readonly docTag: Plot.Tag<Schema>
+  readonly docTag: Plot.Tag<null>
   /// All the schema elements that make up this schema. Useful if you
   /// want to include the schema as a whole in an editor configuration.
   elements: readonly SchemaElement[]
@@ -20,17 +20,17 @@ export class Schema {
   private constructor(
     readonly tags: readonly Node.Type<unknown>[],
     readonly marks: readonly Mark.Type<any>[],
-    docType: Plot.Type<Schema>,
+    docType: Plot.Type<null>,
     readonly lineBreak: Leaf<unknown> | null
   ) {
-    this.docTag = docType.of(this)
+    this.docTag = docType.default!
     for (let tag of tags) this.tagsByName[tag.name] = tag
     for (let mark of marks) this.marksByName[mark.name] = mark
     this.elements = (tags as SchemaElement[]).concat(marks)
   }
 
   doc(children: readonly Node[]) {
-    return new Plot.Doc(this.docTag, this.docTag.type.checkChildren(children))
+    return new Plot.Doc(this, this.docTag.type.checkChildren(children))
   }
 
   validate(node: Node) {
@@ -116,7 +116,7 @@ export class Schema {
         throw new Error("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
     }
-    let docTag: Plot.Type<Schema> | null = null
+    let docTag: Plot.Type<null> | null = null
     let lineBreak: Leaf<any> | null = null
     for (let tag of tags) {
       if (tag.isLeaf) {
