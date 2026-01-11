@@ -9,7 +9,8 @@
     "./state": "./dist/state.js",
     "./view": "./dist/view.js",
     "./history": "./dist/history.js",
-    "./menu": "./dist/menu.js"
+    "./menu": "./dist/menu.js",
+    "./collab": "./dist/collab.js"
   },
   "scripts": {
     "test": "mocha test/test-*.ts",
