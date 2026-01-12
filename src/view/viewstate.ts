@@ -39,7 +39,7 @@ export class ViewState {
     for (let e of tr.effects)
       if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)
     if (tr.startState != this.state) throw new Error("Mismatched transaction")
-    this.pending.push(tr)
+    this.pending = this.pending.concat(tr)
     this.state = tr.state
   }
 

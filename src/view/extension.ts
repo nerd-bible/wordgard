@@ -15,7 +15,9 @@ export const mouseSelectionStyle = Facet.define<MakeSelectionStyle>()
 
 export const exceptionSink = Facet.define<(exception: any) => void>()
 
-export const updateListener = Facet.define<(update: ViewUpdate) => void>()
+export const beforeUpdate = Facet.define<(update: ViewUpdate) => void>()
+
+export const afterUpdate = Facet.define<(update: ViewUpdate) => void>()
 
 export const inputHandler = Facet.define<(view: EditorView, from: number, to: number, text: string,
                                           insert: () => Transaction) => boolean>()

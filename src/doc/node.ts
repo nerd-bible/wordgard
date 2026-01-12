@@ -3,7 +3,7 @@ import {TextOutput} from "./text"
 import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos, PlotPos} from "./pos"
-import { Mark } from "./mark"
+import {Mark} from "./mark"
 import {eqArray, none, splitGroups, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 

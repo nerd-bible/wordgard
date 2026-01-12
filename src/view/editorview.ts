@@ -7,7 +7,7 @@ import {DocTile} from "./tile"
 import {coordsAtPos} from "./coords"
 import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
         clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
-        exceptionSink, updateListener, logException,
+        exceptionSink, beforeUpdate, afterUpdate, logException,
         viewPlugin, ViewPlugin, PluginValue, PluginInstance,
         scrollMargins, editable, inputHandler, scrollIntoView,
         ScrollTarget, scrollHandler, getScrollMargins} from "./extension"
@@ -224,14 +224,20 @@ export class EditorView {
   flush() {
     if (!this.connected || this.inputState.currentComposition) return
     this.observer.pollSelection()
+    let {flushedState, state} = this.viewState
+    let mainUpdate = ViewUpdate.create(this, flushedState, state, this.viewState.pending)
+    for (let hook of state.facet(beforeUpdate)) {
+      hook(mainUpdate)
+      if (mainUpdate.transactions.length != this.viewState.pending.length)
+        mainUpdate = ViewUpdate.create(this, flushedState, state = this.viewState.state, this.viewState.pending)
+    }
+
+    // FIXME avoid unnecessary work
     this.willFlush = false
     this.flushing = true
     this.lastFlush = Date.now()
     let domChanges = this.observer.takeDirty()
-    // FIXME avoid unnecessary work
-    let {flushedState, state, pending} = this.viewState
     this.viewState.flush()
-    let mainUpdate = ViewUpdate.create(this, flushedState, state, pending)
     try {
       this.observer.ignore(() => this.runUpdate(mainUpdate, domChanges))
       domChanges = null
@@ -256,7 +262,7 @@ export class EditorView {
       this.scrollTo(this.viewState.scrollTarget)
       this.viewState.scrollTarget = null
     }
-    if (!mainUpdate.empty) for (let listener of this.state.facet(updateListener)) {
+    if (!mainUpdate.empty) for (let listener of this.state.facet(afterUpdate)) {
       try { listener(mainUpdate) }
       catch (e) { logException(this.state, e, "update listener") }
     }
@@ -649,9 +655,19 @@ export class EditorView {
   /// debugging and logging. See [`logException`](#view.logException).
   static exceptionSink = exceptionSink
 
+  // FIXME better names for these (distinguish from .update, use nouns
+  // for facet names)
+
   /// A facet that can be used to register a function to be called
-  /// every time the view updates.
-  static updateListener = updateListener
+  /// right before the view updates. Any transactions dispatched by
+  /// such functions will be included in the update.
+  static beforeUpdate = beforeUpdate
+
+  /// A facet that can be used to register a function to be called
+  /// after the view updates. Dispatching transactions from such a
+  /// function is allowed, but will cause another, separate update to
+  /// happen.
+  static afterUpdate = afterUpdate
 
   /// Facet that controls whether the editor content DOM is editable.
   /// When its highest-precedence value is `false`, the element will
