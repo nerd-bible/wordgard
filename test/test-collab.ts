@@ -11,6 +11,7 @@ function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 class DummyServer {
   states: EditorState[] = []
   updates: Update[] = []
+  version = 0
   delayed: number[] = []
 
   constructor(d: string = "", config: {n?: number, extensions?: Extension[], collabConf?: any} = {}) {
@@ -21,14 +22,21 @@ class DummyServer {
 
   sync(client: number) {
     let state = this.states[client], version = getSyncedVersion(state)
-    if (version != this.updates.length)
-      this.states[client] = receiveUpdates(state, this.updates.slice(version)).state
+    if (version != this.version) {
+      let i = this.updates.length
+      while (i && this.updates[i - 1].versionBefore >= version) i--
+      this.states[client] = receiveUpdates(state, this.updates.slice(i)).state
+    }
   }
 
   send(client: number) {
     let state = this.states[client], sendable = sendableUpdate(state)
-    if (sendable)
+    if (sendable && sendable.versionBefore != this.version) return false
+    if (sendable) {
       this.updates = this.updates.concat(sendable)
+      this.version = sendable.versionAfter
+    }
+    return true
   }
 
   broadcast(client: number) {
@@ -56,7 +64,7 @@ class DummyServer {
   }
 
   conv(expect: string) {
-    this.states.forEach(state => ist(state.doc, doc(p(expect)), eq))
+    this.states.forEach(state => ist(state.doc, doc(expect ? p(expect) : p()), eq))
   }
 
   delay(client: number, f: () => void) {
@@ -265,5 +273,33 @@ describe("collab", () => {
     s.conv("BhellAo")
     ist(s.states[0].field(marks).join(), "3-5=a,5-8=b")
     ist(s.states[1].field(marks).join(), "3-5=a,5-8=b")
+  })
+
+  it("holds up on random input", () => {
+    let r = (n: number) => Math.floor(Math.random() * n)
+    for (let i = 0; i < 100; i++) {
+      let n = 3, s = new DummyServer("abcd", {n})
+      for (let c = 0; c < n; c++) s.delayed.push(c)
+      for (let j = 0; j < 25; j++) {
+        let client = r(n), sel = r(4), len = s.states[client].doc.length
+        if (sel == 0) {
+          s.send(client)
+        } else if (sel == 1) {
+          s.sync(client)
+        } else if (sel == 2) {
+          s.type(client, String.fromCharCode(65 + r(26)), 1 + r(len - 2))
+        } else if (len > 2) {
+          let from = 1 + r(len - 3), to = from + 1 + r(len - 2 - from)
+          s.update(client, s => s.update({changes: {from, to}}))
+        }
+      }
+      for (;;) {
+        let done = true
+        for (let c = 0; c < n; c++) if (!s.send(c)) done = false
+        for (let c = 0; c < n; c++) s.sync(c)
+        if (done) break
+      }
+      for (let c = 1; c < n; c++) s.conv(s.states[0].doc.textContent())
+    }
   })
 })
