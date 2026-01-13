@@ -10,7 +10,8 @@
     "./view": "./dist/view.js",
     "./history": "./dist/history.js",
     "./menu": "./dist/menu.js",
-    "./collab": "./dist/collab.js"
+    "./collab": "./dist/collab.js",
+    "./inputrule": "./dist/inputrule.js"
   },
   "scripts": {
     "test": "mocha test/test-*.ts",

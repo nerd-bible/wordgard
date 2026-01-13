@@ -110,6 +110,8 @@ export const viewPlugin = Facet.define<ViewPlugin<any>>({
 
 let nextPluginID = 0
 
+// FIXME rename EditorView.Plugin.Spec
+
 /// Provides additional information when defining a [view
 /// plugin](#view.ViewPlugin).
 export interface PluginSpec<V extends PluginValue> {
@@ -128,6 +130,8 @@ export interface PluginSpec<V extends PluginValue> {
   /// added to an editor configuration.
   provide?: (plugin: ViewPlugin<V>) => Extension
 }
+
+// FIXME rename EditorView.Plugin
 
 /// View plugins associate stateful values with a view. They can
 /// influence the way the content is drawn, and are notified of things
@@ -276,6 +280,8 @@ export function getScrollMargins(view: EditorView) {
 export const styleModule = Facet.define<StyleModule>()
 
 export const enum UpdateFlag { Focus = 1, Geometry = 2 }
+
+// FIXME rename to EditorView.Update
 
 /// View [plugins](#view.ViewPlugin) are given instances of this
 /// class, which describe what happened, whenever the view is updated.

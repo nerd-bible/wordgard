@@ -13,6 +13,7 @@ const enum Section {
   Shift = 2,
 }
 
+// FIXME export?
 export class TextblockMap {
   private constructor(
     readonly start: number,

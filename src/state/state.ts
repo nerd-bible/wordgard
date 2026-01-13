@@ -1,9 +1,10 @@
-import {Schema, Plot, Node, parseDoc} from "wordgard/doc"
+import {Schema, Plot, Node, parseDoc, PlotPos} from "wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,
         DynamicSlot, ensureAddr, getAddr, transactionFilter,
         transactionExtender, Compartment, schemaElement} from "./facet"
+import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 
 export type StateCommand = (target: {state: EditorState, dispatch: (tr: Transaction) => void}) => boolean
@@ -190,12 +191,17 @@ export class EditorState {
     return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
   }
 
+  /// @internal
   recordAccess<T>(slots: Slot[], f: (state: EditorState) => T): T {
     let prev = this.trackAccess
     this.trackAccess = slots
     let result = f(this)
     this.trackAccess = prev
     return result
+  }
+
+  textblockMap(node: PlotPos) {
+    return TextblockMap.get(node.start, node.node, this.textDirection(node.node.tag))
   }
 
   /// Convert this state to a JSON-serializable object. When custom
