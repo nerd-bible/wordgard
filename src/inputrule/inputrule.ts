@@ -10,11 +10,13 @@ export const beforeUpdate = EditorView.beforeUpdate.of(applyInputRules)
 export class InputRule {
   extension: Extension
   lookahead: RegExp | undefined
+  inCode: boolean
 
   private constructor(readonly expr: RegExp,
                       readonly apply: (view: EditorView, match: DocMatchArray) => boolean,
                       spec: InputRule.Spec) {
     this.lookahead = spec.lookahead
+    this.inCode = !!spec.inCode
     this.extension = [inputRule.of(this), beforeUpdate]
   }
 
@@ -99,8 +101,11 @@ export namespace InputRule {
     /// cursor, and cannot look beyond it. You can provide an
     /// additional expression here (which should start with `^`) to
     /// enforce a lookahead condition.
-    lookahead?: RegExp
-    // FIXME code options
+    lookahead?: RegExp,
+    /// By default, input rules don't apply inside nodes marked as
+    /// [code](#doc.Plot.Spec.isCode). Set this to `true` to allow
+    /// matches in code.
+    inCode?: boolean
   }
 }
 
@@ -148,6 +153,7 @@ function applyInputRules(update: ViewUpdate) {
   let map = state.textblockMap(block)
   let curIndex = map.toIndex(cursor.pos), textBefore = map.text.slice(0, curIndex), textAfter: string | undefined
   rules: for (let rule of state.facet(inputRule)) {
+    if (!rule.inCode && block.node.type.isCode) continue
     let match = rule.expr.exec(textBefore)
     if (!match || rule.lookahead && !rule.lookahead.test(textAfter ?? (textAfter = map.text.slice(curIndex))))
       continue
@@ -164,6 +170,7 @@ function applyInputRules(update: ViewUpdate) {
         // All match boundaries must fall in the same parent node
         if (parent < 0) parent = from.parent.before
         if (parent != from.parent.before || parent != to.parent.before) continue rules
+        if (!rule.inCode && from.parent.node.type.isCode) continue rules
         docMatch.push({from, to, text})
       }
     }
