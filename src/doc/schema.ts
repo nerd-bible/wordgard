@@ -226,7 +226,7 @@ export const CodeBlock = Plot.defineBlock("CodeBlock", {
   inlineContent: true,
   group: "Block",
   shape: {element: "pre"},
-  preserveWhitespace: true
+  isCode: true
 })
 
 export const CodeBlockLanguage = Mark.Type.define("CodeBlockLanguage", {

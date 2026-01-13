@@ -13,7 +13,8 @@ const enum NodeFlag {
   InlineContent = 2,
   Doc = 16,
   NullParam = 32,
-  List = 64
+  List = 64,
+  Code = 128
 }
 
 export type Node = Plot | Leaf.Any
@@ -508,7 +509,7 @@ export namespace Plot {
       this.isolating = !!spec.isolating
       this.defining = !!spec.defining
       this.neutral = spec.neutral ?? !this.defining
-      this.preserveWhitespace = !!spec.preserveWhitespace
+      this.preserveWhitespace = spec.preserveWhitespace ?? !!spec.isCode
       this.orientation = flags & NodeFlag.InlineContent ? "row" : spec.orientation || "column"
       this.default = "defaultParam" in spec ? new Plot.Tag(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Plot.Tag(this, null as any, none) : null
@@ -555,6 +556,7 @@ export namespace Plot {
     get isTextblock() { return this.isBlock && this.inlineContent }
     get isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
     get isList() { return (this.flags & NodeFlag.List) > 0 }
+    get isCode() { return (this.flags & NodeFlag.Code) > 0 }
     get isLeaf(): false { return false }
     get isPlot(): true { return true }
   }
@@ -576,10 +578,20 @@ export namespace Plot {
     /// have a required param. When not specified, the configuration
     /// precedence order determines which child type is the default.
     defaultBlock?: boolean
-    preserveWhitespace?: boolean
-    /// Indicates that this node represents a list, which makes some
+    /// Indicates that this plot represents a list, which makes some
     /// commands behave specially on it.
     isList?: boolean
+    /// Indicates that plots of this type contain code. The only
+    /// direct effect this has is that it makes `preserveWhitespace`
+    /// default to true, but commands and other code (such as
+    /// [`insertNewlineICode`](#view.insertNewlineInCode) or paste
+    /// handling) can query it and change their behavior when in code.
+    isCode?: boolean
+    /// Controls whether whitespace inside this type of node should be
+    /// preserved. Disables whitespace collapsing and the replacement
+    /// of newlines with line break nodes in the parser and
+    /// serializer.
+    preserveWhitespace?: boolean
     isolating?: boolean
     /// Block containers are, by default, assumed to arrange their
     /// children vertically below each other (`"column"`). You can set this
@@ -647,6 +659,7 @@ function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
   if (spec.isList) flags |= NodeFlag.List
+  if (spec.isCode) flags |= NodeFlag.Code
   return flags
 }
 

@@ -33,7 +33,7 @@ export const insertLineBreak: StateCommand = ({state, dispatch}) => {
 export const insertLineBreakInCode: StateCommand = ({state, dispatch}) => {
   let {doc, sel} = state
   let block = sel.from.parent
-  if (!block.node.isTextblock || !block.node.type.preserveWhitespace || block.start != sel.to.parent.start) return false
+  if (!block.node.isTextblock || !block.node.type.isCode || block.start != sel.to.parent.start) return false
   let marks = state.selection.marks || sel.from.marks(sel.to)
   dispatch(state.update({
     changes: {from: sel.from.pos, to: sel.to.pos,

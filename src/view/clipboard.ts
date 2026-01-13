@@ -67,7 +67,7 @@ export function readClipboard(state: EditorState, data: DataTransfer, targetCont
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
   let slice: Slice, context: readonly Plot.Tag.Any[] = []
-  if (text && (targetContext.parent.node.type.preserveWhitespace || !html || plain)) {
+  if (text && (targetContext.parent.node.type.isCode || !html || plain)) {
     for (let filter of state.facet(clipboardInputTextFilter)) text = filter(text, state)
     slice = readClipboardText(state, text, targetContext, plain)
   } else if (!html) {
@@ -95,7 +95,7 @@ function readClipboardText(state: EditorState, text: string, context: Pos, plain
   }
 
   let marks = plain ? [] : context.marks()
-  if (context.parent.node.type.preserveWhitespace) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), marks)])
+  if (context.parent.node.type.isCode) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), marks)])
   let lines = text.split(/(?:\r\n?|\n)+/)
   let content: Token[] = lines[0] ? [Leaf.text(lines[0], marks)] : []
   if (lines.length == 1) return new Slice(content)
