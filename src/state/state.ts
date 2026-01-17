@@ -7,8 +7,6 @@ import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStat
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 
-export type StateCommand = (target: {state: EditorState, dispatch: (tr: Transaction) => void}) => boolean
-
 function readHTML(html: string): HTMLElement {
   let detachedDoc = document.implementation.createHTMLDocument("title")
   let trustedTypes = (window as any).trustedTypes
@@ -175,6 +173,7 @@ export class EditorState {
     let startValues
     if (!conf) {
       conf = Configuration.resolve(base, compartments, this)
+      // FIXME check the doc when the schema changes
       let intermediateState = new EditorState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
                                               (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values

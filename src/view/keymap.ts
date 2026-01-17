@@ -1,6 +1,7 @@
-import {EditorView} from "./editorview"
-import {Command} from "./commands"
+import {enter, backspace, del, insertLineBreak, moveHorizontally, moveToLineSide, moveToDocSide,
+        moveByWord, moveByLine, moveByPage, selectAll, undo, redo} from "wordgard/command"
 import {Facet, Prec} from "wordgard/state"
+import {EditorView} from "./editorview"
 import browser from "./browser"
 
 /// Key bindings associate keys with [command](#view.Command)-style
@@ -53,11 +54,11 @@ export interface KeyBinding {
   /// Key to use specifically on Linux.
   linux?: string,
   /// The command to execute when this binding is triggered.
-  run: Command,
+  run: (view: EditorView) => boolean
   /// When given, this defines a second binding, using the (possibly
   /// platform-specific) key name, prefixed with `Shift-`, to activate
   /// this command.
-  shift?: Command
+  shift?: (view: EditorView) => boolean
   /// When this property is present, the function is called for every
   /// key.
   any?: (view: EditorView, event: KeyboardEvent) => boolean
@@ -129,7 +130,7 @@ class NormalizedBinding {
   constructor(
     readonly flags: BindingFlag,
     readonly name: string,
-    readonly command: Command
+    readonly command: (view: EditorView, event: KeyboardEvent) => boolean
   ) {}
 }
 
@@ -140,6 +141,8 @@ const handleKeyEvents = Prec.default(EditorView.domEventHandlers({
     return runScopeHandlers(view, event, "editor")
   }
 }))
+
+// FIXME use a single extension per binding
 
 /// Facet used for registering key bindings.
 ///
@@ -183,23 +186,16 @@ function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
       if (key && b.shift)
         array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName("Shift-" + key, platform), b.shift))
       if (b.any)
-        array.push(new NormalizedBinding(BindingFlag.Any, "", anyHandler(b.any)))
+        array.push(new NormalizedBinding(BindingFlag.Any, "", b.any))
     }
   }
   return scopes
-}
-
-let currentKeyEvent: KeyboardEvent | null = null
-
-function anyHandler(handler: (view: EditorView, event: KeyboardEvent) => boolean): Command {
-  return view => handler(view, currentKeyEvent!)
 }
 
 function runHandlers(map: Keymap, event: KeyboardEvent, view: EditorView, scope: string): boolean {
   let handlers = map[scope]
   if (!handlers) return false
   
-  currentKeyEvent = event
   let key = event.key, charCode = key.codePointAt(0)!
   let altGr = event.getModifierState("AltGraph"), fromCode = charKeyCodes[event.keyCode]
   let isChar = codePointSize(charCode) == key.length &&
@@ -218,7 +214,7 @@ function runHandlers(map: Keymap, event: KeyboardEvent, view: EditorView, scope:
       ((binding.flags & BindingFlag.Key) && (binding.name == base || binding.name == fallback)) ||
       (binding.flags & BindingFlag.Any)
     if (matched) {
-      if (!handled && binding.command(view)) {
+      if (!handled && binding.command(view, event)) {
         handled = true
       } else {
         if (binding.flags & BindingFlag.StopPropagation) stopPropagation = true
@@ -240,3 +236,35 @@ export const charKeyCodes: Record<number, string> = {
 for (var i = 0; i < 10; i++) charKeyCodes[48 + i] = String(i) // Digits
 for (var i = 1; i <= 24; i++) charKeyCodes[i + 111] = "F" + i // Function keys
 for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // Letters
+
+export const defaultKeymap: readonly KeyBinding[] = [
+  {key: "Enter", run: enter.bind(), preventDefault: true},
+  {key: "Shift-Enter", run: insertLineBreak.bind(), preventDefault: true},
+  {key: "Backspace", run: backspace.bind(), preventDefault: true},
+  {key: "Delete", run: del.bind(), preventDefault: true},
+  // FIXME define delete-by-word commands
+  {key: "ArrowLeft", run: moveHorizontally.bind({dir: "left"}),
+   shift: moveHorizontally.bind({dir: "right", extend: true}), preventDefault: true},
+  {key: "ArrowRight", run: moveHorizontally.bind({dir: "right"}),
+   shift: moveHorizontally.bind({dir: "right", extend: true}), preventDefault: true},
+  {key: "ArrowDown", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true}), preventDefault: true},
+  {key: "ArrowUp", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "down", extend: true}), preventDefault: true},
+  {key: "PageUp", run: moveByPage.bind({dir: "up"}), shift: moveByPage.bind({dir: "up", extend: true}), preventDefault: true},
+  {key: "PageDown", run: moveByPage.bind({dir: "down"}), shift: moveByPage.bind({dir: "down", extend: true}), preventDefault: true},
+  {key: "Home", run: moveToLineSide.bind({side: "start"}),
+   shift: moveToLineSide.bind({side: "start", extend: true}), preventDefault: true},
+  {key: "End", run: moveToLineSide.bind({side: "end"}),
+   shift: moveToLineSide.bind({side: "end", extend: true}), preventDefault: true},
+  {key: "Mod-Home", run: moveToDocSide.bind({side: "start"}),
+   shift: moveToDocSide.bind({side: "start", extend: true}), preventDefault: true},
+  {key: "Mod-End", run: moveToDocSide.bind({side: "end"}),
+   shift: moveToDocSide.bind({side: "end", extend: true}), preventDefault: true},
+  {key: "Mod-ArrowLeft", run: moveByWord.bind({dir: "left"}),
+   shift: moveByWord.bind({dir: "left", extend: true}), preventDefault: true},
+  {key: "Mod-ArrowRight", run: moveByWord.bind({dir: "right"}),
+   shift: moveByWord.bind({dir: "right", extend: true}), preventDefault: true},
+  {key: "Mod-a", run: selectAll.bind()},
+  {key: "Mod-z", run: undo.bind(), preventDefault: true},
+  {key: "Mod-y", mac: "Mod-Shift-z", run: redo.bind(), preventDefault: true},
+  {linux: "Ctrl-Shift-z", run: redo.bind(), preventDefault: true},
+]

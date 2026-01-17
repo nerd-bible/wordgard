@@ -1,11 +1,11 @@
-import {liftEmptyBlock, insertLineBreakInCode, createTextblock,
+import {Command, liftEmptyBlock, insertLineBreak, enter,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
-        wrapBlock, unwrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/view"
+        wrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/command"
 import {Plot, Mark, Leaf, Schema, basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/doc"
-import {EditorState, type StateCommand, EditorSelection} from "wordgard/state"
+import {EditorState, EditorSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 
 const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
@@ -23,14 +23,15 @@ function selectionFrom(doc: Plot.Doc) {
   }
 }
 
-function test(doc: Plot.Doc, command: StateCommand, expect?: Plot.Doc) {
+function test(doc: Plot.Doc, f: (state: EditorState) => Transaction | null, expect?: Plot.Doc) {
   let state = EditorState.create({
     doc,
     selection: selectionFrom(doc)
   })
-  let result = command({state, dispatch: tr => state = tr.state})
+  let result = f(state)
   if (expect) {
     ist(result)
+    state = result!.state
     ist(state.doc, expect, eq)
     if (maybeTag(expect, 0) != null) {
       let expectedSel = selectionFrom(expect)
@@ -41,19 +42,32 @@ function test(doc: Plot.Doc, command: StateCommand, expect?: Plot.Doc) {
   }
 }
 
-function testSelMarks(before: readonly Mark<any>[] | undefined, command: StateCommand, expect: readonly Mark<any>[]) {
+function fromCmd<T>(command: Command<T>, param: T) {
+  return (state: EditorState) => {
+    let tr: Transaction | null = null
+    command.defaultHandler({state, dispatch: (t: Transaction | Transaction.Spec) => {
+      tr = t instanceof Transaction ? t : state.update(t)
+    }} as any, param)
+    return tr
+  }
+}
+
+function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: EditorState) => Transaction | null,
+                      expect: readonly Mark<any>[]) {
   let state = EditorState.create({
     doc: doc(p()),
     selection: EditorSelection.cursor(1, 0, undefined, before)
   })
-  command({state, dispatch: tr => state = tr.state})
+  let tr = f(state)
+  if (tr) state = tr.state
   ist(state.selection.marks!, expect, Mark.sameSet)
 }
 
 let TextOnly = Plot.defineBlock("TextOnly", {
   inlineContent: "Text",
   shape: {element: "div"},
-  group: "Block"
+  group: "Block",
+  preserveWhitespace: true
 }), to = builder(TextOnly)
 
 let BlockMark = Mark.define("BlockMark", {
@@ -131,39 +145,31 @@ describe("liftEmptyBlock", () => {
   })
 })
 
-describe("insertLineBreakInCode", () => {
-  it("does nothing in regular textblocks", () => {
-    test(doc(p("hi", 0)), insertLineBreakInCode)
+describe("insertLineBreak", () => {
+  let insert = fromCmd(insertLineBreak, null)
+
+  it("inserts a line break node in a regular paragraph", () => {
+    test(doc(p("hi", 0)), insert, doc(p("hi", br, 0)))
   })
 
   it("adds a line break when in a code block", () => {
-    test(doc(pre("hi", 0)), insertLineBreakInCode, doc(pre("hi", br, 0)))
+    test(doc(pre("hi", 0)), insert, doc(pre("hi", br, 0)))
   })
 
   it("can overwrite text", () => {
-    test(doc(pre("a", 0, "b", 1, "c")), insertLineBreakInCode, doc(pre("a", br, 0, "c")))
+    test(doc(pre("a", 0, "b", 1, "c")), insert, doc(pre("a", br, 0, "c")))
   })
 
-  it("doesn't apply when the selection crosses out of the block", () => {
-    test(doc(pre(0), p("a"), pre(1)), insertLineBreakInCode)
-  })
-})
-
-describe("createTextblock", () => {
-  it("inserts a paragraph node", () => {
-    test(doc(p("a"), 0, p("b")), createTextblock, doc(p("a"), p(0), p("b")))
+  it("applies marks", () => {
+    test(doc(p(strong("a", 0, "b"))), insert, doc(p(strong("a", br, 0, "b"))))
   })
 
-  it("does nothing in inline context", () => {
-    test(doc(p("a", 0), p("b")), createTextblock)
+  it("uses a newline when no line break characters allowed", () => {
+    test(doc(to("a", 0, "b")), insert, doc(to("a\n", 0, "b")))
   })
 
-  it("can create wrapper nodes", () => {
-    test(doc(ul(li(p("a")), 0, li(p("b")))), createTextblock, doc(ul(li(p("a")), li(p(0)), li(p("b")))))
-  })
-
-  it("can overwrite a selection", () => {
-    test(doc(0, pre("a"), p("b"), 1), createTextblock, doc(p(0)))
+  it("doesn't create a newline when the selection crosses out of the block", () => {
+    test(doc(to(0), p("a"), to(1)), insert)
   })
 })
 
@@ -206,6 +212,22 @@ describe("splitTextblock", () => {
 
   it("can split inline nodes around the cursor", () => {
     test(doc(p("a", sp("b", 0, "c"), "d")), splitTextblock, doc(p("a", sp("b")), p(sp(0, "c"), "d")))
+  })
+})
+
+describe("enter", () => {
+  let runEnter = fromCmd(enter, null)
+
+  it("inserts a paragraph node", () => {
+    test(doc(p("a"), 0, p("b")), runEnter, doc(p("a"), p(0), p("b")))
+  })
+
+  it("can create wrapper nodes", () => {
+    test(doc(ul(li(p("a")), 0, li(p("b")))), runEnter, doc(ul(li(p("a")), li(p(0)), li(p("b")))))
+  })
+
+  it("can overwrite a selection", () => {
+    test(doc(0, pre("a"), p("b"), 1), runEnter, doc(p(0)))
   })
 })
 
@@ -428,126 +450,127 @@ describe("deleteForward", () => {
 
 describe("setTextblockType", () => {
   it("can change the type of a paragraph", () => {
-    test(doc(p("a", 0), p("b")), setTextblockType(Heading.of(1)), doc(h1("a", 0), p("b")))
+    test(doc(p("a", 0), p("b")), s => setTextblockType(s, Heading.of(1)), doc(h1("a", 0), p("b")))
   })
 
   it("can change the type of two paragraphs", () => {
-    test(doc(p(0, "a"), p("b", 1)), setTextblockType(Heading.of(1)), doc(h1(0, "a"), h1("b", 1)))
+    test(doc(p(0, "a"), p("b", 1)), s => setTextblockType(s, Heading.of(1)), doc(h1(0, "a"), h1("b", 1)))
   })
 
   it("can change the type of two paragraphs at different depth", () => {
-    test(doc(p(0, "a"), blockquote(p("b", 1))), setTextblockType(Heading.of(1)), doc(h1(0, "a"), blockquote(h1("b", 1))))
+    test(doc(p(0, "a"), blockquote(p("b", 1))), s => setTextblockType(s, Heading.of(1)), doc(h1(0, "a"), blockquote(h1("b", 1))))
   })
 
   it("returns false at the top level", () => {
     let s = Schema.define([Plot.defineDoc({inlineContent: true}), Paragraph])
-    test(s.doc([]), setTextblockType(Paragraph))
+    test(s.doc([]), s => setTextblockType(s, Paragraph))
   })
 
   it("returns false when the node is already of that type", () => {
-    test(doc(p(0)), setTextblockType(Paragraph))
+    test(doc(p(0)), s => setTextblockType(s, Paragraph))
   })
 
   it("works on multiple selections", () => {
-    test(doc(h1(0, "h"), p("a", 1), blockquote(p("b"), pre("c", 2)), pre("d", 4)), setTextblockType(Paragraph),
+    test(doc(h1(0, "h"), p("a", 1), blockquote(p("b"), pre("c", 2)), pre("d", 4)),
+         s => setTextblockType(s, Paragraph),
          doc(p(0, "h"), p("a", 1), blockquote(p("b"), p("c", 2)), p("d", 4)))
   })
 
   it("clears disallowed content", () => {
-    test(doc(p("a", 0, $img)), setTextblockType(TextOnly), doc(to("a", 0)))
+    test(doc(p("a", 0, $img)), s => setTextblockType(s, TextOnly), doc(to("a", 0)))
   })
 
   it("preserves marks when appropriate", () => {
-    test(doc(pp(p(0, "a")), p("b", 1)), setTextblockType(Heading.of(1)), doc(pp(h1(0, "a")), h1("b", 1)))
+    test(doc(pp(p(0, "a")), p("b", 1)), s => setTextblockType(s, Heading.of(1)), doc(pp(h1(0, "a")), h1("b", 1)))
   })
 
   it("drops marks when appropriate", () => {
-    test(doc(bp(p(0, "a"))), setTextblockType(Heading.of(1)), doc(h1(0, "a")))
+    test(doc(bp(p(0, "a"))), s => setTextblockType(s, Heading.of(1)), doc(h1(0, "a")))
   })
 })
 
 describe("wrapBlock", () => {
   it("can wrap a paragraph in a blockquote", () => {
-    test(doc(p(0)), wrapBlock(Blockquote), doc(blockquote(p(0))))
+    test(doc(p(0)), s => wrapBlock(s, Blockquote), doc(blockquote(p(0))))
   })
 
   it("can wrap two paragraphs in a blockquote", () => {
-    test(doc(p(0), p(1)), wrapBlock(Blockquote), doc(blockquote(p(0), p(1))))
+    test(doc(p(0), p(1)), s => wrapBlock(s, Blockquote), doc(blockquote(p(0), p(1))))
   })
 
   it("can wrap three paragraphs in a blockquote", () => {
-    test(doc(p(0), p("wow"), p(1)), wrapBlock(Blockquote), doc(blockquote(p(0), p("wow"), p(1))))
+    test(doc(p(0), p("wow"), p(1)), s => wrapBlock(s, Blockquote), doc(blockquote(p(0), p("wow"), p(1))))
   })
 
   it("can content inside a blockquote", () => {
-    test(doc(blockquote(p("a"), p(0), p("b"))), wrapBlock(Blockquote), doc(blockquote(p("a"), blockquote(p(0)), p("b"))))
+    test(doc(blockquote(p("a"), p(0), p("b"))), s => wrapBlock(s, Blockquote), doc(blockquote(p("a"), blockquote(p(0)), p("b"))))
   })
 
   it("will expand to cover a partially selected node", () => {
-    test(doc(p(0), blockquote(p(1), p("a"))), wrapBlock(Blockquote), doc(blockquote(p(0), blockquote(p(1), p("a")))))
+    test(doc(p(0), blockquote(p(1), p("a"))), s => wrapBlock(s, Blockquote), doc(blockquote(p(0), blockquote(p(1), p("a")))))
   })
 
   it("will create required wrapper nodes", () => {
-    test(doc(p("a", 0), p("b"), p("c", 1), p("d")), wrapBlock(BulletList),
+    test(doc(p("a", 0), p("b"), p("c", 1), p("d")), s => wrapBlock(s, BulletList),
          doc(ul(li(p("a", 0)), li(p("b")), li(p("c", 1))), p("d")))
   })
 
   it("will pick the innermost valid depth", () => {
-    test(doc(blockquote(p("a", 0))), wrapBlock(BulletList), doc(blockquote(ul(li(p("a", 0))))))
+    test(doc(blockquote(p("a", 0))), s => wrapBlock(s, BulletList), doc(blockquote(ul(li(p("a", 0))))))
   })
 
   it("will join to adjacent auto-join node", () => {
-    test(doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))), wrapBlock(Blockquote),
+    test(doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))), s => wrapBlock(s, Blockquote),
          doc(blockquote(p("a"), p("b"), p("c"))))
   })
 })
 
 describe("unwrapBlock", () => {
   it("can unwrap a quote", () => {
-    test(doc(blockquote(p("a", 0))), unwrapBlock, doc(p("a", 0)))
+    test(doc(blockquote(p("a", 0))), unwrapBlockType, doc(p("a", 0)))
   })
 
   it("can unwrap multiple children from a quote", () => {
-    test(doc(blockquote(p("a", 0), p("b", 1))), unwrapBlock, doc(p("a", 0), p("b", 1)))
+    test(doc(blockquote(p("a", 0), p("b", 1))), unwrapBlockType, doc(p("a", 0), p("b", 1)))
   })
 
   it("can partially unwrap quote with content left at end", () => {
-    test(doc(blockquote(p("a", 0), p("b"))), unwrapBlock, doc(p("a", 0), blockquote(p("b"))))
+    test(doc(blockquote(p("a", 0), p("b"))), unwrapBlockType, doc(p("a", 0), blockquote(p("b"))))
   })
 
   it("can partially unwrap quote with content left at start", () => {
-    test(doc(blockquote(p("a"), p("b", 0))), unwrapBlock, doc(blockquote(p("a")), p("b", 0)))
+    test(doc(blockquote(p("a"), p("b", 0))), unwrapBlockType, doc(blockquote(p("a")), p("b", 0)))
   })
 
   it("can partially unwrap quote with content left at both sides", () => {
-    test(doc(blockquote(p("a"), p("b", 0), p("c"))), unwrapBlock, doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))))
+    test(doc(blockquote(p("a"), p("b", 0), p("c"))), unwrapBlockType, doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))))
   })
 
   it("can unwrap a list", () => {
-    test(doc(ul(li(p("a", 0)), li(p("b", 1)))), unwrapBlock, doc(p("a", 0), p("b", 1)))
+    test(doc(ul(li(p("a", 0)), li(p("b", 1)))), unwrapBlockType, doc(p("a", 0), p("b", 1)))
   })
 
   it("can partially unwrap a list", () => {
-    test(doc(ul(li(p("a")), li(p("b", 0)), li(p("c")))), unwrapBlock, doc(ul(li(p("a"))), p("b", 0), ul(li(p("c")))))
+    test(doc(ul(li(p("a")), li(p("b", 0)), li(p("c")))), unwrapBlockType, doc(ul(li(p("a"))), p("b", 0), ul(li(p("c")))))
   })
 
   it("can partially unwrap nested content at start", () => {
-    test(doc(ul(li(p("a")), li(blockquote(p("b", 0))))), unwrapBlockType(BulletList),
+    test(doc(ul(li(p("a")), li(blockquote(p("b", 0))))), s => unwrapBlockType(s, BulletList),
          doc(ul(li(p("a"))), blockquote(p("b", 0))))
   })
 
   it("can partially unwrap nested content at end", () => {
-    test(doc(ul(li(blockquote(p("a", 0))), li(p("b")))), unwrapBlockType(BulletList),
+    test(doc(ul(li(blockquote(p("a", 0))), li(p("b")))), s => unwrapBlockType(s, BulletList),
          doc(blockquote(p("a", 0)), ul(li((p("b"))))))
   })
 
   it("can unwrap children from multiple parents", () => {
-    test(doc(ul(li(p("a"), p("b", 0))), ul(li(p("c", 1), p("d")))), unwrapBlock,
+    test(doc(ul(li(p("a"), p("b", 0))), ul(li(p("c", 1), p("d")))), unwrapBlockType,
          doc(ul(li(p("a"))), p("b", 0), p("c", 1), ul(li(p("d")))))
   })
 
-  it("returns false at the top level", () => {
-    test(doc(p("a", 0)), unwrapBlock)
+  it("returns null at the top level", () => {
+    test(doc(p("a", 0)), unwrapBlockType)
   })
 
   it("can unwrap textblock list items", () => {
@@ -558,19 +581,19 @@ describe("unwrapBlock", () => {
       doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),
       selection: {anchor: 0, head: 8}
     })
-    unwrapBlockType(list)({state, dispatch: tr => state = tr.state})
-    ist(state.doc, s.doc([p("a"), p("b")]), eq)
+    let tr = unwrapBlockType(state, list)
+    ist(tr!.state.doc, s.doc([p("a"), p("b")]), eq)
   })
 
   it("will auto-join unwrapped nodes", () => {
-    test(doc(ul(li(p("a"))), blockquote(ul(li(p(0, "b"))))), unwrapBlock,
+    test(doc(ul(li(p("a"))), blockquote(ul(li(p(0, "b"))))), unwrapBlockType,
          doc(ul(li(p("a")), li(p(0, "b")))))
     
   })
 })
 
 describe("toggleList", () => {
-  let toggleUL = toggleList(BulletList), toggleOL = toggleList(OrderedList.default!)
+  let toggleUL = fromCmd(toggleList, BulletList), toggleOL = fromCmd(toggleList, OrderedList.default!)
 
   it("can add a list to a single block", () => {
     test(doc(p("a", 0)), toggleUL, doc(ul(li(p("a", 0)))))
@@ -660,7 +683,7 @@ describe("toggleList", () => {
       InlineOrderedList,
       InlineBulletList
     ])
-    let toggleUL = toggleList(InlineBulletList), toggleOL = toggleList(InlineOrderedList)
+    let toggleUL = fromCmd(toggleList, InlineBulletList), toggleOL = fromCmd(toggleList, InlineOrderedList)
     let doc = builder(InlineListSchema)
     let ul = builder(InlineBulletList), ol = builder(InlineOrderedList), li = builder(InlineListItem)
 
@@ -717,55 +740,59 @@ describe("toggleList", () => {
 })
 
 describe("toggleMark", () => {
+  let emp = fromCmd(toggleMark, Emphasis)
+
   it("can add emphasis to a selection", () => {
-    test(doc(p("a", 0, "bc", 1, "d")), toggleMark(Emphasis), doc(p("a", 0, em("bc"), 1, "d")))
+    test(doc(p("a", 0, "bc", 1, "d")), emp, doc(p("a", 0, em("bc"), 1, "d")))
   })
 
   it("can remove emphasis from a selection", () => {
-    test(doc(p("a", 0, em("bc"), 1, "d")), toggleMark(Emphasis), doc(p("a", 0, "bc", 1, "d")))
+    test(doc(p("a", 0, em("bc"), 1, "d")), emp, doc(p("a", 0, "bc", 1, "d")))
   })
 
   it("adds emphasis to a mixed-mark selection", () => {
-    test(doc(p("a", 0, em("bc"), "d", 1)), toggleMark(Emphasis), doc(p("a", 0, em("bcd"), 1)))
+    test(doc(p("a", 0, em("bc"), "d", 1)), emp, doc(p("a", 0, em("bcd"), 1)))
   })
 
   it("stacks added marks with others", () => {
-    test(doc(p("a", 0, strong(em("bc")), "d", 1)), toggleMark(Emphasis), doc(p("a", 0, em(strong("bc"), "d"), 1)))
+    test(doc(p("a", 0, strong(em("bc")), "d", 1)), emp, doc(p("a", 0, em(strong("bc"), "d"), 1)))
   })
 
   it("adds selection marks", () => {
-    testSelMarks(undefined, toggleMark(Emphasis), [Emphasis])
+    testSelMarks(undefined, emp, [Emphasis])
   })
 
   it("adds selection marks to existing set", () => {
-    testSelMarks([Strong], toggleMark(Emphasis), [Emphasis, Strong])
+    testSelMarks([Strong], emp, [Emphasis, Strong])
   })
 
   it("removes selection marks", () => {
-    testSelMarks([Emphasis], toggleMark(Emphasis), [])
+    testSelMarks([Emphasis], emp, [])
   })
 
   it("replaces marks of the same type", () => {
-    testSelMarks([Link.of("/")], toggleMark(Link.of("#")), [Link.of("#")])
+    testSelMarks([Link.of("/")], fromCmd(toggleMark, Link.of("#")), [Link.of("#")])
   })
 
   it("doesn't add the same mark on multiple levels", () => {
-    test(doc(p(0, sp("abc"), "d", 1)), toggleMark(Emphasis), doc(p(0, sp(em("abc")), em("d"), 1)))
+    test(doc(p(0, sp("abc"), "d", 1)), emp, doc(p(0, sp(em("abc")), em("d"), 1)))
   })
 
   it("can add a mark inside an inline node", () => {
-    test(doc(p(sp("a", 0, "b", 1, "c"))), toggleMark(Emphasis), doc(p(sp("a", 0, em("b"), 1, "c"))))
+    test(doc(p(sp("a", 0, "b", 1, "c"))), emp, doc(p(sp("a", 0, em("b"), 1, "c"))))
   })
 
   it("can add a mark to an inline node that partially has it", () => {
-    test(doc(p(0, sp("a", em("b"), "c"), 1)), toggleMark(Emphasis), doc(p(0, sp(em("abc")), 1)))
+    test(doc(p(0, sp("a", em("b"), "c"), 1)), emp, doc(p(0, sp(em("abc")), 1)))
   })
 
+  let atom = fromCmd(toggleMark, AtomMark)
+
   it("will not add to both a parent and a child", () => {
-    test(doc(p(0, "a", at("b"), 1)), toggleMark(AtomMark), doc(p(0, ap("a", at("b")), 1)))
+    test(doc(p(0, "a", at("b"), 1)), atom, doc(p(0, ap("a", at("b")), 1)))
   })
 
   it("will not remove a mark from inside an inline element that supports it", () => {
-    test(doc(p(0, at(ap("b")), 1)), toggleMark(AtomMark), doc(p(0, ap(at(ap("b"))), 1)))
+    test(doc(p(0, at(ap("b")), 1)), atom, doc(p(0, ap(at(ap("b"))), 1)))
   })
 })

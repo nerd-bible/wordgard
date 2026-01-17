@@ -1,6 +1,6 @@
-import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
+import {history, popHistory, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
 import {Plot, Leaf, basicBuilders, maybeTag, ChangeSet, basicSchema} from "wordgard/doc"
-import {EditorState, EditorSelection, Transaction, StateEffect, StateField, type StateCommand} from "wordgard/state"
+import {EditorState, EditorSelection, Transaction, StateEffect, StateField} from "wordgard/state"
 import ist from "ist"
 
 const {doc, p} = basicBuilders
@@ -30,12 +30,15 @@ function receive(state: EditorState, text: string, from: number, to = from) {
   return state.update({changes: {from, to, insert: [Leaf.text(text)]},
                        annotations: Transaction.addToHistory.of(false)}).state
 }
-function command(state: EditorState, cmd: StateCommand, success: boolean | null = true) {
-  let result = cmd({state, dispatch(tr: Transaction) { state = tr.state }})
-  if (success != null) ist(result, success)
-  return state
+function command(state: EditorState, f: (state: EditorState) => Transaction | null, success: boolean | null = true) {
+  let tr = f(state)
+  if (success != null) ist(!!tr, success)
+  return tr ? tr.state : state
 }
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
+
+let undo = (state: EditorState) => popHistory(state)
+let redo = (state: EditorState) => popHistory(state, true)
 
 describe("history", () => {
   it("allows to undo a change", () => {

@@ -1,8 +1,9 @@
 import {EditorSelection, EditorState, Annotation} from "wordgard/state"
 import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
+import {undo, redo} from "wordgard/command" // FIXME wire up more commands
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
-        logException, mouseSelectionStyle, PluginInstance, getScrollMargins, inputEventHandler} from "./extension"
+        logException, mouseSelectionStyle, PluginInstance, getScrollMargins} from "./extension"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -671,14 +672,18 @@ observers.contextmenu = view => {
 }
 
 handlers.beforeinput = (view, event: InputEvent) => {
-  for (let handler of view.state.facet(inputEventHandler)) // FIXME only do this for some types
-    if (handler.event == event.type && handler.run(view)) return true
+  let type = event.inputType
 
-  if (event.inputType == "insertReplacementText" || event.inputType == "insertText") {
+  if (type == "historyUndo" || type == "historyRedo") {
+    ;(type == "historyUndo" ? undo : redo).dispatch(view)
+    return true
+  }
+
+  if (type == "insertReplacementText" || type == "insertText") {
     // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
     if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
 
-    let slice = event.inputType == "insertText"
+    let slice = type == "insertText"
       ? textSlice(event.data!, view.state.selection.marks || view.state.sel.from.marks())
       // FIXME why is this in a dataTransfer anyway? Spec says it shouldn't be...
       : readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
@@ -687,7 +692,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
       applyTextChange(view, from, to, slice)
       return true
     }
-  } else if (event.inputType == "insertCompositionText") {
+  } else if (type == "insertCompositionText") {
     if (!view.inputState.composing)
       view.inputState.composing = {changes: 0, target: null}
     view.inputState.currentComposition = {...inputEventRange(event, view), text: event.data!}

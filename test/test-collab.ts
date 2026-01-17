@@ -1,6 +1,6 @@
 import {EditorState, Transaction, StateField, StateEffect, type Extension} from "wordgard/state"
 import {Leaf, type ChangeSet, basicBuilders} from "wordgard/doc"
-import {history, undo, redo, isolateHistory} from "wordgard/history"
+import {history, isolateHistory, popHistory} from "wordgard/history"
 import ist from "ist"
 import {collab, receiveUpdates, sendableUpdate, type Update, getSyncedVersion, getClientID} from "wordgard/collab"
 
@@ -56,11 +56,13 @@ class DummyServer {
   }
 
   undo(client: number) {
-    undo({state: this.states[client], dispatch: tr => this.update(client, () => tr)})
+    let tr = popHistory(this.states[client])
+    if (tr) this.update(client, () => tr)
   }
 
   redo(client: number) {
-    redo({state: this.states[client], dispatch: tr => this.update(client, () => tr)})
+    let tr = popHistory(this.states[client], true)
+    if (tr) this.update(client, () => tr)
   }
 
   conv(expect: string) {

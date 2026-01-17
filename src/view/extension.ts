@@ -5,7 +5,6 @@ import {EditorView, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
 import {ScrollStrategy} from "./dom"
 import {MakeSelectionStyle} from "./input"
-import {Command} from "./commands"
 
 export const clickAddsSelectionRange = Facet.define<(event: MouseEvent) => boolean>()
 
@@ -21,8 +20,6 @@ export const afterUpdate = Facet.define<(update: ViewUpdate) => void>()
 
 export const inputHandler = Facet.define<(view: EditorView, from: number, to: number, text: string,
                                           insert: () => Transaction) => boolean>()
-
-export const inputEventHandler = Facet.define<{event: string, run: Command}>()
 
 export const scrollHandler = Facet.define<(
   view: EditorView,

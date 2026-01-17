@@ -1,5 +1,5 @@
-import {EditorView, toggleMark, setTextblockType, wrapBlock, unwrapBlockType,
-        toggleList, listIsActive, showDialog} from "wordgard/view"
+import {EditorView, showDialog} from "wordgard/view"
+import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive} from "wordgard/command"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
 import {Mark, Plot, NodePos, canAddMarkInRange, ChangeSet,
         Strong, Emphasis, Code, Link,
@@ -156,7 +156,7 @@ export function toggleInlineMark(config: {
 }) {
   let {mark, parent, rank, description, label} = config
   return new MenuButton({
-    run: toggleMark(mark),
+    run: toggleMark.bind(mark),
     active(state) {
       let {selection} = state
       if (selection.empty)
@@ -273,8 +273,10 @@ function selectionInType(tag: Plot.Tag.Any) {
   }
 }
 
+// FIXME use abstract node type labels
+
 export const ParagraphButton = new MenuButton({
-  run: setTextblockType(Paragraph),
+  run: changeTextblockType.bind(Paragraph),
   active: selectionInType(Paragraph),
   label: "Paragraph",
   parent: TextblockStyle,
@@ -282,7 +284,7 @@ export const ParagraphButton = new MenuButton({
 })
 
 export const CodeBlockButton = new MenuButton({
-  run: setTextblockType(CodeBlock),
+  run: changeTextblockType.bind(CodeBlock),
   active: selectionInType(CodeBlock),
   label: "Code block",
   parent: TextblockStyle,
@@ -290,7 +292,7 @@ export const CodeBlockButton = new MenuButton({
 })
 
 export const Heading1 = new MenuButton({
-  run: setTextblockType(Heading.of(1)),
+  run: changeTextblockType.bind(Heading.of(1)),
   active: selectionInType(Heading.of(1)),
   label: "Heading 1",
   parent: TextblockStyle,
@@ -298,7 +300,7 @@ export const Heading1 = new MenuButton({
 })
 
 export const Heading2 = new MenuButton({
-  run: setTextblockType(Heading.of(2)),
+  run: changeTextblockType.bind(Heading.of(2)),
   active: selectionInType(Heading.of(2)),
   label: "Heading 2",
   parent: TextblockStyle,
@@ -306,7 +308,7 @@ export const Heading2 = new MenuButton({
 })
 
 export const Heading3 = new MenuButton({
-  run: setTextblockType(Heading.of(3)),
+  run: changeTextblockType.bind(Heading.of(3)),
   active: selectionInType(Heading.of(3)),
   label: "Heading 3",
   parent: TextblockStyle,
@@ -314,7 +316,7 @@ export const Heading3 = new MenuButton({
 })
 
 export const BulletListButton = new MenuButton({
-  run: toggleList(BulletList),
+  run: toggleList.bind(BulletList),
   active: listIsActive(BulletList),
   label: iconBulletList,
   description: "Toggle bullet list",
@@ -323,7 +325,7 @@ export const BulletListButton = new MenuButton({
 })
 
 export const OrderedListButton = new MenuButton({
-  run: toggleList(OrderedList.default!),
+  run: toggleList.bind(OrderedList.default!),
   active: listIsActive(OrderedList.default!),
   label: iconOrderedList,
   description: "Toggle ordered list",
@@ -332,7 +334,7 @@ export const OrderedListButton = new MenuButton({
 })
 
 export const BlockquoteButton = new MenuButton({
-  run: view => unwrapBlockType(Blockquote)(view) || wrapBlock(Blockquote)(view),
+  run: view => toggleBlock.bind(Blockquote),
   active: state => {
     for (let cur: NodePos | null = state.sel.head.parent; cur; cur = cur.parent)
       if (cur.node.type == Blockquote.type) return true

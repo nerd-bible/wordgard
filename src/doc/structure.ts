@@ -1,4 +1,4 @@
-import {Plot, Leaf} from "./node"
+import {Plot, Leaf, Node} from "./node"
 import {Pos, PlotPos} from "./pos"
 import { Mark } from "./mark"
 import {Schema} from "./schema"
@@ -72,7 +72,7 @@ function textblockChild(schema: Schema, type: Plot.Type<any>) {
 /// Find the set of block nodes around the given range that match the
 /// predicate (if any) and can be unwrapped, meaning their content
 /// gets moved out to a parent node.
-export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Plot.Tag.Any) => boolean) {
+export function findUnwrappable(from: Pos, to: Pos, predicate?: (type: Node.Type<any>) => boolean) {
   let dFrom = from.depth, dTo = to.depth
   let fromStart = from.parent.node.inlineContent ? from.parent.start : from.pos
   let fromTextblock = from.textblockParent?.node.type
@@ -83,7 +83,7 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (tag: Plot.Tag.A
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
     if (node.isBlock && node.isPlot && !node.inlineContent && parent &&
         (fromTextblock ? parent.type.canContain(fromTextblock) : textblockChild(doc.schema, parent.type)) &&
-        (!predicate || predicate(node.tag))) {
+        (!predicate || predicate(node.type))) {
       let pos = doc.resolveNode(p) as PlotPos, depth = pos.depth
       if (pos.before >= fromStart - (dFrom - depth + 1) && pos.after <= toEnd + (dTo - depth + 1))
         innerCandidates.push(pos)

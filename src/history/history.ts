@@ -1,7 +1,7 @@
-import {EditorState, Transaction, StateField, StateCommand, StateEffect,
+import {EditorState, Transaction, StateField, StateEffect,
         Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "wordgard/state"
 import {Plot, ChangeSet, ChangeSetJSON} from "wordgard/doc"
-import {KeyBinding, EditorView} from "wordgard/view"
+import {undo, redo} from "wordgard/command"
 
 const enum BranchName { Done, Undone }
 
@@ -114,13 +114,13 @@ export function history(config: HistoryConfig = {}): Extension {
   return [
     historyField_,
     historyConfig.of(config),
-    EditorView.domEventHandlers({
-      beforeinput(e, view) {
-        let command = e.inputType == "historyUndo" ? undo : e.inputType == "historyRedo" ? redo : null
-        if (!command) return false
-        e.preventDefault()
-        return command(view)
-      }
+    undo.handler(view => {
+      let tr = popHistory(view.state)
+      return tr ? (view.dispatch(tr), true) : false
+    }),
+    redo.handler(view => {
+      let tr = popHistory(view.state, true)
+      return tr ? (view.dispatch(tr), true) : false
     })
   ]
 }
@@ -132,24 +132,16 @@ export function history(config: HistoryConfig = {}): Extension {
 /// that preserves history.
 export const historyField = historyField_ as StateField<unknown>
 
-function cmd(side: BranchName): StateCommand {
-  return function({state, dispatch}: {state: EditorState, dispatch: (tr: Transaction) => void}) {
-    if (state.readOnly) return false
-    let historyState = state.field(historyField_, false)
-    if (!historyState) return false
-    let tr = historyState.pop(side, state)
-    if (!tr) return false
-    dispatch(tr)
-    return true
-  }
+/// Undo or redo a single group of history events. Return null if no
+/// group is available. Note that transactions produced with this
+/// function should be dispatched as-is, and not combined with further
+/// changes.
+export function popHistory(state: EditorState, redo = false) {
+  if (state.readOnly) return null
+  let historyState = state.field(historyField_, false)
+  if (!historyState) return null
+  return historyState.pop(redo ? BranchName.Undone : BranchName.Done, state)
 }
-
-/// Undo a single group of history events. Returns false if no group
-/// was available.
-export const undo = cmd(BranchName.Done)
-/// Redo a group of history events. Returns false if no group was
-/// available.
-export const redo = cmd(BranchName.Undone)
 
 function depth(branch: Branch | null | undefined) {
   return branch ? branch.depth : 0
@@ -350,13 +342,3 @@ class HistoryState {
     return this
   }
 }
-
-/// Default key bindings for the undo history.
-///
-/// - Mod-z: [`undo`](#history.undo).
-/// - Mod-y (Mod-Shift-z on macOS) + Ctrl-Shift-z on Linux: [`redo`](#history.redo).
-export const historyKeymap: readonly KeyBinding[] = [
-  {key: "Mod-z", run: undo, preventDefault: true},
-  {key: "Mod-y", mac: "Mod-Shift-z", run: redo, preventDefault: true},
-  {linux: "Ctrl-Shift-z", run: redo, preventDefault: true},
-]
