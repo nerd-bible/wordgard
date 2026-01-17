@@ -1,4 +1,4 @@
-import {EditorView, keymap, defaultKeymap} from "wordgard/view"
+import {EditorView, defaultKeymap} from "wordgard/view"
 import {basicSchema} from "wordgard/doc"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
@@ -8,7 +8,7 @@ import {history} from "wordgard/history"
   doc: "<h3>Hello</h3><p>I am Wordgard</p>",
   config: [
     basicSchema.elements,
-    keymap.of(defaultKeymap),
+    defaultKeymap,
     history(),
     staticMenu,
     menuBar()

@@ -1,14 +1,16 @@
 import {enter, backspace, del, insertLineBreak, moveHorizontally, moveToLineSide, moveToDocSide,
         moveByWord, moveByLine, moveByPage, selectAll, undo, redo} from "wordgard/command"
-import {Facet, Prec} from "wordgard/state"
+import {Facet, Prec, Extension} from "wordgard/state"
 import {EditorView} from "./editorview"
 import browser from "./browser"
 
-/// Key bindings associate keys with [command](#view.Command)-style
-/// functions that should be run when a matching keyboard event
-/// happens.
+/// Key bindings associate keys with functions that should be run when
+/// a matching keyboard event happens.
 ///
-/// A key binding can either specify a specific [character](#view.KeyBinding.char) to match on, w
+/// A key binding can either specify a specific
+/// [character](#view.KeyBinding.Spec.char) to match on, which will be
+/// compared against the actual character produced by a key event, or
+/// describe a [key combination](#view.KeyBinding.Spec.key).
 ///
 /// Bindings for a given key event are evaluated in order of
 /// precedence, with each getting a chance to handle the event,
@@ -38,50 +40,66 @@ import browser from "./browser"
 /// but the library tries to 'see through' keyboard mappings that
 /// assign non-Latin characters to keys (so that both the Latin and
 /// the non-Latin name can be used).
-export interface KeyBinding {
-  /// A textual character that this binding should trigger for.
-  char?: string
-  /// A key combination to use for this binding. If the
-  /// platform-specific property (`mac`, `win`, or `linux`) for the
-  /// current platform is used as well in the binding, that one takes
-  /// precedence. If `key` isn't defined and the platform-specific
-  /// binding isn't either, a binding is ignored.
-  key?: string,
-  /// Key to use specifically on macOS.
-  mac?: string,
-  /// Key to use specifically on Windows.
-  win?: string,
-  /// Key to use specifically on Linux.
-  linux?: string,
-  /// The command to execute when this binding is triggered.
-  run: (view: EditorView) => boolean
-  /// When given, this defines a second binding, using the (possibly
-  /// platform-specific) key name, prefixed with `Shift-`, to activate
-  /// this command.
-  shift?: (view: EditorView) => boolean
-  /// When this property is present, the function is called for every
-  /// key.
-  any?: (view: EditorView, event: KeyboardEvent) => boolean
-  /// By default, key bindings apply when focus is on the editor
-  /// content (the `"editor"` scope). Some extensions, mostly those
-  /// that define their own panels, might want to allow registering
-  /// bindings local to that panel. Such bindings should use a custom
-  /// scope name. You may also assign multiple scope names to a
-  /// binding, separating them by spaces.
-  scope?: string
-  /// When set to true (the default is false), this will always
-  /// prevent the further handling for the bound key, even if the
-  /// command(s) return false. This can be useful for cases where the
-  /// native behavior of the key is annoying or irrelevant but the
-  /// command doesn't always apply (such as, Mod-u for undo selection,
-  /// which would cause the browser to view source instead when no
-  /// selection can be undone).
-  preventDefault?: boolean
-  /// When set to true, `stopPropagation` will be called on keyboard
-  /// events that have their `preventDefault` called in response to
-  /// this key binding (see also
-  /// [`preventDefault`](#view.KeyBinding.preventDefault)).
-  stopPropagation?: boolean
+export class KeyBinding {
+  /// Bindings count as extensions and can be included in an editor
+  /// configuration.
+  extension: Extension
+
+  private constructor(readonly spec: KeyBinding.Spec) {
+    this.extension = keyBinding.of(this)
+  }
+
+  /// Define a binding.
+  static define(spec: KeyBinding.Spec) { return new KeyBinding(spec) }
+}
+
+export namespace KeyBinding {
+  /// A description of a key binding.
+  export interface Spec {
+    /// A textual character that this binding should trigger for.
+    char?: string
+    /// A key combination to use for this binding. If the
+    /// platform-specific property (`mac`, `win`, or `linux`) for the
+    /// current platform is used as well in the binding, that one takes
+    /// precedence. If `key` isn't defined and the platform-specific
+    /// binding isn't either, a binding is ignored.
+    key?: string,
+    /// Key to use specifically on macOS.
+    mac?: string,
+    /// Key to use specifically on Windows.
+    win?: string,
+    /// Key to use specifically on Linux.
+    linux?: string,
+    /// The command to execute when this binding is triggered.
+    run: (view: EditorView) => boolean
+    /// When given, this defines a second binding, using the (possibly
+    /// platform-specific) key name, prefixed with `Shift-`, to activate
+    /// this command.
+    shift?: (view: EditorView) => boolean
+    /// When this property is present, the function is called for every
+    /// key.
+    any?: (view: EditorView, event: KeyboardEvent) => boolean
+    /// By default, key bindings apply when focus is on the editor
+    /// content (the `"editor"` scope). Some extensions, mostly those
+    /// that define their own panels, might want to allow registering
+    /// bindings local to that panel. Such bindings should use a custom
+    /// scope name. You may also assign multiple scope names to a
+    /// binding, separating them by spaces.
+    scope?: string
+    /// When set to true (the default is false), this will always
+    /// prevent the further handling for the bound key, even if the
+    /// command(s) return false. This can be useful for cases where the
+    /// native behavior of the key is annoying or irrelevant but the
+    /// command doesn't always apply (such as, Mod-u for undo selection,
+    /// which would cause the browser to view source instead when no
+    /// selection can be undone).
+    preventDefault?: boolean
+    /// When set to true, `stopPropagation` will be called on keyboard
+    /// events that have their `preventDefault` called in response to
+    /// this key binding (see also
+    /// [`preventDefault`](#view.KeyBinding.preventDefault)).
+    stopPropagation?: boolean
+  }
 }
 
 type PlatformName = "mac" | "win" | "linux" | "key"
@@ -142,16 +160,13 @@ const handleKeyEvents = Prec.default(EditorView.domEventHandlers({
   }
 }))
 
-// FIXME use a single extension per binding
-
 /// Facet used for registering key bindings.
 ///
 /// You can add multiple keymaps to an editor. Their priorities
 /// determine their precedence (the ones specified early or with high
 /// priority get checked first). When a handler has returned `true`
 /// for a given key, no further handlers are called.
-export const keymap = Facet.define<readonly KeyBinding[], readonly KeyBinding[]>({
-  combine: maps => maps.length ? maps.reduce((a, b) => a.concat(b)) : [],
+export const keyBinding = Facet.define<KeyBinding, readonly KeyBinding[]>({
   enables: handleKeyEvents
 })
 
@@ -159,7 +174,7 @@ export const keymap = Facet.define<readonly KeyBinding[], readonly KeyBinding[]>
 /// object should be a `"keydown"` event. Returns true if any of the
 /// handlers handled it.
 export function runScopeHandlers(view: EditorView, event: KeyboardEvent, scope: string) {
-  return runHandlers(getKeymap(view.state.facet(keymap)), event, view, scope)
+  return runHandlers(getKeymap(view.state.facet(keyBinding)), event, view, scope)
 }
 
 const keymapCache = new WeakMap<readonly KeyBinding[], Keymap>()
@@ -173,14 +188,17 @@ function getKeymap(bindings: readonly KeyBinding[]) {
 function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
   let scopes: Keymap = Object.create(null)
 
-  for (let b of bindings) {
+  for (let {spec: b} of bindings) {
     let baseFlags = (b.preventDefault ? BindingFlag.PreventDefault : 0) |
       (b.stopPropagation ? BindingFlag.StopPropagation : 0)
     for (let scope of b.scope ? b.scope.split(" ") : ["editor"]) {
       let array = scopes[scope] || (scopes[scope] = [])
-      if (b.char)
-        array.push(new NormalizedBinding(baseFlags | BindingFlag.Char, b.char, b.run))
       let key = b[platform] || b.key
+      if (b.char) {
+        if (key) throw new Error("A key binding may not provide both a char and a key field")
+        if (b.shift) throw new Error("Shift-modified bindings are not supported for char bindings")
+        array.push(new NormalizedBinding(baseFlags | BindingFlag.Char, b.char, b.run))
+      }
       if (key)
         array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName(key, platform), b.run))
       if (key && b.shift)
@@ -237,7 +255,7 @@ for (var i = 0; i < 10; i++) charKeyCodes[48 + i] = String(i) // Digits
 for (var i = 1; i <= 24; i++) charKeyCodes[i + 111] = "F" + i // Function keys
 for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // Letters
 
-export const defaultKeymap: readonly KeyBinding[] = [
+export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Enter", run: enter.bind(), preventDefault: true},
   {key: "Shift-Enter", run: insertLineBreak.bind(), preventDefault: true},
   {key: "Backspace", run: backspace.bind(), preventDefault: true},
@@ -267,4 +285,4 @@ export const defaultKeymap: readonly KeyBinding[] = [
   {key: "Mod-z", run: undo.bind(), preventDefault: true},
   {key: "Mod-y", mac: "Mod-Shift-z", run: redo.bind(), preventDefault: true},
   {linux: "Ctrl-Shift-z", run: redo.bind(), preventDefault: true},
-]
+] as KeyBinding.Spec[]).map(KeyBinding.define)
