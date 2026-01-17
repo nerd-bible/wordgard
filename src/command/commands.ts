@@ -1,10 +1,13 @@
 import {Plot, Node, Mark, NodePos, PlotPos, Leaf, Token, ChangeSet,
+        // FIXME move these into this package?
         joinBlocks, findWrappable, wrapBlockRange, findUnwrappable,
         unwrapBlock as doUnwrapBlock, clearNonFitting, canAddMarkInRange} from "wordgard/doc"
 import {EditorSelection, EditorState, Direction, autoJoinBlocks} from "wordgard/state"
 import {type EditorView} from "wordgard/view"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Command} from "./command"
+
+// FIXME split commands and helper functions into different files
 
 // FIXME check behavior around inline nodes with content for all of these
 
@@ -147,12 +150,18 @@ export function splitTextblock(state: EditorState, splitListItem = true) {
   })
 }
 
-export const backspace = Command.define(view => {
-  let tr = deleteSelection(view.state) || joinListItems(view.state) || joinBackward(view.state) ||
-    deleteBackward(view.state)
-  if (!tr) return false
-  view.dispatch(tr)
-  return true
+export const deleteUnit = Command.define<"forward" | "backward">((view, dir) => {
+  let tr = deleteSelection(view.state) || (dir == "forward"
+    ? joinForward(view.state) || deleteForward(view.state)
+    : joinListItems(view.state) || joinBackward(view.state) || deleteBackward(view.state))
+  return tr ? (view.dispatch(tr), true) : false
+})
+
+export const deleteWord = Command.define<"forward" | "backward">((view, dir) => {
+  let tr = deleteSelection(view.state) || (dir == "forward"
+    ? joinForward(view.state) || deleteForward(view.state, true)
+    : joinListItems(view.state) || joinBackward(view.state) || deleteBackward(view.state, true))
+  return tr ? (view.dispatch(tr), true) : false
 })
 
 /// Returns a transaction that deletes the selection, or null if the
@@ -225,11 +234,6 @@ export function joinListItems(state: EditorState) {
   }
 }
 
-export const del = Command.define(view => {
-  let tr = deleteSelection(view.state) || joinForward(view.state) || deleteForward(view.state)
-  return tr ? (view.dispatch(tr), true) : false
-})
-
 /// If the cursor is at the end of a textblock that can be joined to
 /// the textblock after it, return a transaction that performs this
 /// join.
@@ -269,44 +273,50 @@ export function joinForward(state: EditorState) {
 
 /// Create a transaction that deletes the text cluster or atomic node
 /// in front of the cursor, if possible.
-export function deleteBackward(state: EditorState) {
+export function deleteBackward(state: EditorState, word = false) {
   let sel = state.sel
   if (!sel.empty) return null
-  if (sel.head.inText) {
-    let before = sel.head.nodeBefore! as Leaf<string>
-    let size = before.length - findClusterBreak(before.param, before.length, false)
-    return state.update({
-      changes: {from: sel.head.pos - size, to: sel.head.pos},
-      scrollIntoView: true,
-      userEvent: "delete.backward"
-    })
-  }
 
   let {parent: scan, index, pos} = sel.head
-  while (!index) {
+  if (!sel.head.inText) while (!index) {
     if (scan.node.type.isolating || !scan.parent) return null
     index = scan.index
     scan = scan.parent
     pos--
   }
-  let before = scan.node.content[index - 1]
+  let next = sel.head.inText ? sel.head.nodeBefore! : scan.node.content[--index]
   for (;;) {
-    if (before.isPlot && before.type.isolating) return null
-    if (before.isLeaf || state.isAtom(pos - before.length, before)) break
-    let last = before.content.length - 1
+    if (next.isPlot && next.type.isolating) return null
+    if (next.isLeaf || state.isAtom(pos - next.length, next)) break
+    let last = next.content.length - 1
     if (last < 0) return null
-    before = before.content[last]
+    next = next.content[last]
     pos--
   }
-  if (before.is(Leaf.Text)) {
-    let size = before.length - findClusterBreak(before.param, before.length, false)
+  if (next.is(Leaf.Text)) {
+    let size = 0
+    if (word) { // FIXME refine definition, check agains other tools
+      for (let i = next.param.length, sawNonWS = false;;) {
+        if (!/\s/.test(next.param[i - 1])) sawNonWS = true
+        else if (sawNonWS) break
+        i--; size++
+        if (i == 0) {
+          if (!index) break
+          next = scan.node.content[--index]
+          if (!next.is(Leaf.Text)) break
+          i = next.param.length
+        }
+      }
+    } else {
+      next.length - findClusterBreak(next.param, next.length, false)
+    }
     return state.update({
       changes: {from: pos - size, to: pos},
       scrollIntoView: true,
       userEvent: "delete.backward"
     })
   }
-  let from = pos - before.length, to = pos
+  let from = pos - next.length, to = pos
   let parent: PlotPos | null = state.doc.resolve(pos).parent
   while (parent && parent.node.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return null
@@ -322,43 +332,49 @@ export function deleteBackward(state: EditorState) {
 
 /// Return a transaction that deletes the element (text cluster or
 /// leaf node) after the cursor, if any.
-export function deleteForward(state: EditorState) {
+export function deleteForward(state: EditorState, word = false) {
   let sel = state.sel
   if (!sel.empty) return null
-  if (sel.head.inText) {
-    let after = sel.head.nodeAfter as Leaf<string>
-    let size = findClusterBreak(after.param, 0)
-    return state.update({
-      changes: {from: sel.head.pos, to: sel.head.pos + size},
-      scrollIntoView: true,
-      userEvent: "delete.forward"
-    })
-  }
 
   let {parent: scan, index, pos} = sel.head
-  while (index == scan.node.content.length) {
+  if (!sel.head.inText) while (index == scan.node.content.length) {
     if (scan.node.type.isolating || !scan.parent) return null
     index = scan.index + 1
     scan = scan.parent
     pos++
   }
-  let after = scan.node.content[index]
+  let next = sel.head.inText ? sel.head.nodeAfter! : scan.node.content[index]
   for (;;) {
-    if (after.isPlot && after.type.isolating) return null
-    if (after.isLeaf || state.isAtom(pos, after)) break
-    if (!after.content.length) return null
-    after = after.content[0]
+    if (next.isPlot && next.type.isolating) return null
+    if (next.isLeaf || state.isAtom(pos, next)) break
+    if (!next.content.length) return null
+    next = next.content[0]
     pos++
   }
-  if (after.is(Leaf.Text)) {
-    let size = findClusterBreak(after.param, 0)
+  if (next.is(Leaf.Text)) {
+    let size = 0
+    if (word) {
+      for (let i = 0, sawNonWS = false;;) {
+        if (!/\s/.test(next.param[i])) sawNonWS = true
+        else if (sawNonWS) break
+        i++; size++
+        if (i == next.param.length) {
+          if (index == scan.node.content.length - 1) break
+          next = scan.node.content[++index]
+          if (!next.is(Leaf.Text)) break
+          i = 0
+        }
+      }
+    } else {
+      size = findClusterBreak(next.param, 0)
+    }
     return state.update({
       changes: {from: pos, to: pos + size},
       scrollIntoView: true,
       userEvent: "delete.forward"
     })
   }
-  let from = pos, to = pos + after.length
+  let from = pos, to = pos + next.length
   let parent: PlotPos | null = state.doc.resolve(pos).parent
   while (parent && parent.node.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return null
@@ -621,7 +637,7 @@ function ltrAtCursor(state: EditorState) {
 /// visually through bidirectional text, so when going left, the
 /// motion will go back in left-to-right text, and
 /// forward in right-to-left text.
-export const moveHorizontally = Command.define<{dir: "left" | "right", extend?: boolean}>((view, {dir, extend}) => {
+export const moveByUnit = Command.define<{dir: "left" | "right", extend?: boolean}>((view, {dir, extend}) => {
   let {state} = view, forward = (dir == "right") == ltrAtCursor(state)
   let moved = state.selection.nextNormalCursor(state, forward)
   return moved ? setSelection(view, moved, extend) : false

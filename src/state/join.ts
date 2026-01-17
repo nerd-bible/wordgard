@@ -2,6 +2,8 @@ import {ChangeSet, Node} from "wordgard/doc"
 import {resolveTransactionInner, mergeTransaction, Transaction} from "./transaction"
 import {EditorState} from "./state"
 
+// FIXME move to command package?
+
 /// Post-process the given transaction spec to check for any block
 /// boundaries touched by the changes in it that can be
 /// [auto-joined](#doc.NodeSpec.autoJoin). If any are found, the spec

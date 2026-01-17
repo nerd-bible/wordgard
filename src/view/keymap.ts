@@ -1,4 +1,4 @@
-import {enter, backspace, del, insertLineBreak, moveHorizontally, moveToLineSide, moveToDocSide,
+import {enter, deleteUnit, deleteWord, insertLineBreak, moveByUnit, moveToLineSide, moveToDocSide,
         moveByWord, moveByLine, moveByPage, selectAll, undo, redo} from "wordgard/command"
 import {Facet, Prec, Extension} from "wordgard/state"
 import {EditorView} from "./editorview"
@@ -258,13 +258,15 @@ for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // 
 export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Enter", run: enter.bind(), preventDefault: true},
   {key: "Shift-Enter", run: insertLineBreak.bind(), preventDefault: true},
-  {key: "Backspace", run: backspace.bind(), preventDefault: true},
-  {key: "Delete", run: del.bind(), preventDefault: true},
-  // FIXME define delete-by-word commands
-  {key: "ArrowLeft", run: moveHorizontally.bind({dir: "left"}),
-   shift: moveHorizontally.bind({dir: "right", extend: true}), preventDefault: true},
-  {key: "ArrowRight", run: moveHorizontally.bind({dir: "right"}),
-   shift: moveHorizontally.bind({dir: "right", extend: true}), preventDefault: true},
+  {key: "Backspace", run: deleteUnit.bind("backward"), preventDefault: true},
+  {key: "Delete", run: deleteUnit.bind("forward"), preventDefault: true},
+  {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: deleteWord.bind("backward"), preventDefault: true},
+  {key: "Ctrl-Delete", mac: "Alt-Delete", run: deleteWord.bind("forward"), preventDefault: true},
+  // FIXME all the odd MacOS bindings
+  {key: "ArrowLeft", run: moveByUnit.bind({dir: "left"}),
+   shift: moveByUnit.bind({dir: "right", extend: true}), preventDefault: true},
+  {key: "ArrowRight", run: moveByUnit.bind({dir: "right"}),
+   shift: moveByUnit.bind({dir: "right", extend: true}), preventDefault: true},
   {key: "ArrowDown", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true}), preventDefault: true},
   {key: "ArrowUp", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "down", extend: true}), preventDefault: true},
   {key: "PageUp", run: moveByPage.bind({dir: "up"}), shift: moveByPage.bind({dir: "up", extend: true}), preventDefault: true},
