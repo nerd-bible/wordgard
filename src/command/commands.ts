@@ -308,7 +308,7 @@ export function deleteBackward(state: EditorState, word = false) {
         }
       }
     } else {
-      next.length - findClusterBreak(next.param, next.length, false)
+      size = next.length - findClusterBreak(next.param, next.length, false)
     }
     return state.update({
       changes: {from: pos - size, to: pos},
