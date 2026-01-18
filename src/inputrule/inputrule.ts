@@ -1,7 +1,8 @@
 import {EditorView, ViewUpdate} from "wordgard/view"
 import {Extension, Facet, autoJoinBlocks} from "wordgard/state"
 import {isolateHistory} from "wordgard/history"
-import {Leaf, Plot, Pos, findWrappable, wrapBlockRange, ChangeSet} from "wordgard/doc"
+import {Leaf, Plot, Pos, ChangeSet} from "wordgard/doc"
+import {findWrappable, wrapBlockRange} from "wordgard/command"
 
 export const inputRule = Facet.define<InputRule>()
 

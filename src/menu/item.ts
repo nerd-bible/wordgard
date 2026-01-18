@@ -1,7 +1,7 @@
 import {EditorView, showDialog} from "wordgard/view"
-import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive} from "wordgard/command"
+import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive, canAddMarkInRange} from "wordgard/command"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
-import {Mark, Plot, NodePos, canAddMarkInRange, ChangeSet,
+import {Mark, Plot, NodePos, ChangeSet,
         Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/doc"
 import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
