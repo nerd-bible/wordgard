@@ -86,19 +86,10 @@ export namespace KeyBinding {
     /// scope name. You may also assign multiple scope names to a
     /// binding, separating them by spaces.
     scope?: string
-    /// When set to true (the default is false), this will always
-    /// prevent the further handling for the bound key, even if the
-    /// command(s) return false. This can be useful for cases where the
-    /// native behavior of the key is annoying or irrelevant but the
-    /// command doesn't always apply (such as, Mod-u for undo selection,
-    /// which would cause the browser to view source instead when no
-    /// selection can be undone).
-    preventDefault?: boolean
-    /// When set to true, `stopPropagation` will be called on keyboard
-    /// events that have their `preventDefault` called in response to
-    /// this key binding (see also
-    /// [`preventDefault`](#view.KeyBinding.preventDefault)).
-    stopPropagation?: boolean
+    /// By default, all keys events for which a handler exists have
+    /// their `preventDefault` called. You can set this to true to
+    /// disable that behavior.
+    allowDefault?: boolean
   }
 }
 
@@ -140,8 +131,7 @@ const enum BindingFlag {
   Char = 1,
   Key = 2,
   Any = 4,
-  PreventDefault = 8,
-  StopPropagation = 16,
+  AllowDefault = 8,
 }
 
 class NormalizedBinding {
@@ -189,8 +179,7 @@ function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
   let scopes: Keymap = Object.create(null)
 
   for (let {spec: b} of bindings) {
-    let baseFlags = (b.preventDefault ? BindingFlag.PreventDefault : 0) |
-      (b.stopPropagation ? BindingFlag.StopPropagation : 0)
+    let baseFlags = (b.allowDefault ? BindingFlag.AllowDefault : 0)
     for (let scope of b.scope ? b.scope.split(" ") : ["editor"]) {
       let array = scopes[scope] || (scopes[scope] = [])
       let key = b[platform] || b.key
@@ -226,7 +215,7 @@ function runHandlers(map: Keymap, event: KeyboardEvent, view: EditorView, scope:
   // as well.
   let fallback = isChar && !altGr && fromCode && fromCode != base ? modifiers(fromCode, event) : null
 
-  let handled = false, preventDefault = false, stopPropagation = false
+  let handled = false, allowDefault = false
   for (let binding of handlers) {
     let matched = ((binding.flags & BindingFlag.Char) && binding.name == char) ||
       ((binding.flags & BindingFlag.Key) && (binding.name == base || binding.name == fallback)) ||
@@ -235,13 +224,11 @@ function runHandlers(map: Keymap, event: KeyboardEvent, view: EditorView, scope:
       if (!handled && binding.command(view, event)) {
         handled = true
       } else {
-        if (binding.flags & BindingFlag.StopPropagation) stopPropagation = true
-        if (binding.flags & BindingFlag.PreventDefault) preventDefault = true
+        if (binding.flags & BindingFlag.AllowDefault) allowDefault = true
       }
     }
   }
-  if (stopPropagation) event.stopPropagation()
-  if (preventDefault) event.preventDefault()
+  if (!allowDefault) event.preventDefault()
   return handled
 }
 
@@ -255,36 +242,38 @@ for (var i = 0; i < 10; i++) charKeyCodes[48 + i] = String(i) // Digits
 for (var i = 1; i <= 24; i++) charKeyCodes[i + 111] = "F" + i // Function keys
 for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // Letters
 
+// FIXME test whether beforeinput events make it possible to do without most of these
+
 export const defaultKeymap: readonly KeyBinding[] = ([
-  {key: "Enter", run: enter.bind(), preventDefault: true},
-  {key: "Shift-Enter", run: insertLineBreak.bind(), preventDefault: true},
-  {key: "Backspace", run: deleteUnit.bind("backward"), preventDefault: true},
-  {key: "Delete", run: deleteUnit.bind("forward"), preventDefault: true},
-  {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: deleteWord.bind("backward"), preventDefault: true},
-  {key: "Ctrl-Delete", mac: "Alt-Delete", run: deleteWord.bind("forward"), preventDefault: true},
+  {key: "Enter", run: enter.bind()},
+  {key: "Shift-Enter", run: insertLineBreak.bind()},
+  {key: "Backspace", run: deleteUnit.bind("backward")},
+  {key: "Delete", run: deleteUnit.bind("forward")},
+  {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: deleteWord.bind("backward")},
+  {key: "Ctrl-Delete", mac: "Alt-Delete", run: deleteWord.bind("forward")},
   // FIXME all the odd MacOS bindings
   {key: "ArrowLeft", run: moveByUnit.bind({dir: "left"}),
-   shift: moveByUnit.bind({dir: "right", extend: true}), preventDefault: true},
+   shift: moveByUnit.bind({dir: "right", extend: true})},
   {key: "ArrowRight", run: moveByUnit.bind({dir: "right"}),
-   shift: moveByUnit.bind({dir: "right", extend: true}), preventDefault: true},
-  {key: "ArrowDown", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true}), preventDefault: true},
-  {key: "ArrowUp", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "down", extend: true}), preventDefault: true},
-  {key: "PageUp", run: moveByPage.bind({dir: "up"}), shift: moveByPage.bind({dir: "up", extend: true}), preventDefault: true},
-  {key: "PageDown", run: moveByPage.bind({dir: "down"}), shift: moveByPage.bind({dir: "down", extend: true}), preventDefault: true},
+   shift: moveByUnit.bind({dir: "right", extend: true})},
+  {key: "ArrowDown", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true})},
+  {key: "ArrowUp", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "down", extend: true})},
+  {key: "PageUp", run: moveByPage.bind({dir: "up"}), shift: moveByPage.bind({dir: "up", extend: true})},
+  {key: "PageDown", run: moveByPage.bind({dir: "down"}), shift: moveByPage.bind({dir: "down", extend: true})},
   {key: "Home", run: moveToLineSide.bind({side: "start"}),
-   shift: moveToLineSide.bind({side: "start", extend: true}), preventDefault: true},
+   shift: moveToLineSide.bind({side: "start", extend: true})},
   {key: "End", run: moveToLineSide.bind({side: "end"}),
-   shift: moveToLineSide.bind({side: "end", extend: true}), preventDefault: true},
+   shift: moveToLineSide.bind({side: "end", extend: true})},
   {key: "Mod-Home", run: moveToDocSide.bind({side: "start"}),
-   shift: moveToDocSide.bind({side: "start", extend: true}), preventDefault: true},
+   shift: moveToDocSide.bind({side: "start", extend: true})},
   {key: "Mod-End", run: moveToDocSide.bind({side: "end"}),
-   shift: moveToDocSide.bind({side: "end", extend: true}), preventDefault: true},
+   shift: moveToDocSide.bind({side: "end", extend: true})},
   {key: "Mod-ArrowLeft", run: moveByWord.bind({dir: "left"}),
-   shift: moveByWord.bind({dir: "left", extend: true}), preventDefault: true},
+   shift: moveByWord.bind({dir: "left", extend: true})},
   {key: "Mod-ArrowRight", run: moveByWord.bind({dir: "right"}),
-   shift: moveByWord.bind({dir: "right", extend: true}), preventDefault: true},
+   shift: moveByWord.bind({dir: "right", extend: true})},
   {key: "Mod-a", run: selectAll.bind()},
-  {key: "Mod-z", run: undo.bind(), preventDefault: true},
-  {key: "Mod-y", mac: "Mod-Shift-z", run: redo.bind(), preventDefault: true},
-  {linux: "Ctrl-Shift-z", run: redo.bind(), preventDefault: true},
+  {key: "Mod-z", run: undo.bind()},
+  {key: "Mod-y", mac: "Mod-Shift-z", run: redo.bind()},
+  {linux: "Ctrl-Shift-z", run: redo.bind()},
 ] as KeyBinding.Spec[]).map(KeyBinding.define)
