@@ -4,7 +4,7 @@ import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos, PlotPos} from "./pos"
 import {Mark} from "./mark"
-import {eqArray, none, compareDeep} from "./helper"
+import {eqArray, none, compareDeep, inGroup} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
 const enum NodeFlag {
@@ -66,16 +66,7 @@ export namespace Node {
       /// Test whether this node type is in the given group. When
       /// multiple group names, separated by spaces, are given, this
       /// tests whether the node is in _all_ of those groups.
-      inGroup(group: Node.Group) {
-        let space = group.indexOf(" ")
-        if (space < 0) return this.groups.has(group)
-        for (let pos = 0;;) {
-          if (!this.groups.has(group.slice(pos, space))) return false
-          if (space == group.length) return true
-          space = group.indexOf(" ", pos = space + 1)
-          if (space < 0) space = group.length
-        }
-      }
+      inGroup(group: Node.Group) { return inGroup(group, this.groups) }
 
       get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
       get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
