@@ -1,6 +1,7 @@
 import {EditorSelection, EditorState, Annotation} from "wordgard/state"
 import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
-import {undo, redo, insertLineBreak, enter, deleteWord, deleteUnit, deleteToLineEnd} from "wordgard/command"
+import {undo, redo, insertLineBreak, enter,
+        deleteWord, deleteUnit, deleteToLineEnd, toggleMarkByLabel} from "wordgard/command"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins} from "./extension"
@@ -689,6 +690,9 @@ const inputTypeCommands: {[inputType: string]: (view: EditorView) => boolean} = 
   deleteWordForward: deleteWord.bind("forward"),
   deleteSoftLineBackward: deleteToLineEnd.bind("backward"),
   deleteSoftLineForward: deleteToLineEnd.bind("forward"),
+  formatBold: toggleMarkByLabel.bind("Strong"),
+  formatItalic: toggleMarkByLabel.bind("Emphasis"),
+  formatUnderline: toggleMarkByLabel.bind("Underline"),
 }
 
 handlers.beforeinput = (view, event: InputEvent) => {

@@ -154,6 +154,18 @@ export const toggleMark = Command.define<Mark<any>>((view, mark) => {
   return true
 })
 
+/// Search the schema for a mark with the given label (that has a
+/// default parameter), and run [`toggleMark`](#commands.toggleMark)
+/// with that mark.
+export const toggleMarkByLabel = Command.define<string>((view, label) => {
+  let mark: Mark | null = null
+  for (let type of view.state.doc.schema.marks) {
+    if (type.inGroup(label) && type.default) { mark = type.default; break }
+  }
+  if (!mark) return false
+  return toggleMark.dispatch(view, mark)
+})
+
 export const toggleList = Command.define<Plot.Tag.Any>((view, listTag) => {
   let {state} = view, blocks = selectedTextblocks(state)
   if (!blocks.length) return false

@@ -1,5 +1,5 @@
 import {EditorView, defaultKeymap} from "wordgard/view"
-import {basicSchema} from "wordgard/doc"
+import {basicSchema} from "wordgard/schema"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 

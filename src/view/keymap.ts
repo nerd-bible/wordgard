@@ -254,7 +254,7 @@ export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Ctrl-Delete", mac: "Alt-Delete", run: deleteWord.bind("forward")},
   {mac: "Cmd-Backspace", run: deleteToLineEnd.bind("backward")},
   {mac: "Cmd-Delete", run: deleteToLineEnd.bind("forward")},
-  {key: "ArrowLeft", run: moveByUnit.bind({dir: "left"}), shift: moveByUnit.bind({dir: "right", extend: true})},
+  {key: "ArrowLeft", run: moveByUnit.bind({dir: "left"}), shift: moveByUnit.bind({dir: "left", extend: true})},
   {key: "ArrowRight", run: moveByUnit.bind({dir: "right"}), shift: moveByUnit.bind({dir: "right", extend: true})},
   {key: "ArrowDown", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true})},
   {key: "ArrowUp", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "down", extend: true})},

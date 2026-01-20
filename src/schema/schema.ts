@@ -94,6 +94,7 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
 
 export const Emphasis = Mark.define("Emphasis", {
   rank: 40,
+  group: "Emphasis",
   shape: {element: "em"},
   parseRules: [
     {attribute: "style/font-style", value: "italic"},
@@ -103,6 +104,7 @@ export const Emphasis = Mark.define("Emphasis", {
 
 export const Strong = Mark.define("Strong", {
   rank: 60,
+  group: "Strong",
   shape: {element: "strong"},
   parseRules: [
     {attribute: "style/font-weight",

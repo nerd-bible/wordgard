@@ -175,7 +175,7 @@ export namespace Mark {
     /// string of tag or group names. The default is `"Inline:Leaf"`.
     tags?: string | readonly string[]
     /// Assign this tag to one or more groups.
-    group?: string | readonly string[]
+    group?: Mark.Group | readonly Mark.Group[]
     /// Determines the position of this mark relative to other marks.
     /// Marks with lower rank appear first in mark set arrays, and are
     /// rendered around higher rank marks in DOM representation. Ties
