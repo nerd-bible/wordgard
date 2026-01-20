@@ -1,5 +1,5 @@
 import {isElementShape, AttributeShape, ElementShape, ElementParseRule, AttributeParseRule} from "./shape"
-import {compareDeep, eqArray, none} from "./helper"
+import {compareDeep, eqArray, none, inGroup} from "./helper"
 import {SchemaElement} from "./schema"
 import {Node, Plot} from "./node"
 
@@ -110,6 +110,7 @@ export class Mark<Value = unknown> {
 
 export namespace Mark {
   export class Type<Value> {
+    readonly groups: Set<string> = new Set
     readonly targetGroups: readonly string[]
     readonly rank: number
     readonly set: null | ((a: any, b: any) => number)
@@ -124,7 +125,10 @@ export namespace Mark {
       readonly spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
-      // FIXME allow targeting leaves
+      this.groups.add(name)
+      this.groups.add("_")
+      if (typeof spec.group == "string") this.groups.add(spec.group)
+      else if (spec.group) for (let g of spec.group) this.groups.add(g)
       this.targetGroups = spec.tags == null ? ["Inline Leaf"] : typeof spec.tags == "string" ? [spec.tags] : spec.tags
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
@@ -142,6 +146,8 @@ export namespace Mark {
     canTarget(tag: Node.Type<any>) {
       return this.targetGroups.some(g => tag.inGroup(g))
     }
+
+    inGroup(group: Mark.Group) { return inGroup(group, this.groups) }
 
     compareRank(other: Mark.Type<any>) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
@@ -162,10 +168,14 @@ export namespace Mark {
     }
   }
 
+  export type Group = "Strong" | "Emphasis" | "Underline" | (string & {})
+
   export type Spec<Value> = {
     /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.
     tags?: string | readonly string[]
+    /// Assign this tag to one or more groups.
+    group?: string | readonly string[]
     /// Determines the position of this mark relative to other marks.
     /// Marks with lower rank appear first in mark set arrays, and are
     /// rendered around higher rank marks in DOM representation. Ties
