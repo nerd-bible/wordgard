@@ -1,6 +1,6 @@
 import {EditorSelection, EditorState, Annotation} from "wordgard/state"
 import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
-import {undo, redo} from "wordgard/command" // FIXME wire up more commands
+import {undo, redo, insertLineBreak, enter, deleteWord, deleteUnit} from "wordgard/command"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins} from "./extension"
@@ -671,11 +671,31 @@ observers.contextmenu = view => {
   view.inputState.lastContextMenu = Date.now()
 }
 
+// FIXME deleteSoftLineBackward, deleteSoftLineForward,
+// deleteEntireSoftLine, deleteHardLineBackward,
+// deleteHardLineForward, deleteContent formatBold, formatItalic,
+// formatUnderline, formatSetBlockTextDirection,
+// formatSetInlineTextDirection
+//
+// Maybe: insertFromYank, insertFromDrop, insertFromPaste,
+// insertTranspose, deleteByDrag, deleteByCut
+const inputTypeCommands: {[inputType: string]: (view: EditorView) => boolean} = {
+  historyUndo: undo.bind(),
+  historyRedo: redo.bind(),
+  insertLineBreak: insertLineBreak.bind(),
+  insertParagraph: enter.bind(),
+  deleteContentBackward: deleteUnit.bind("backward"),
+  deleteContentForward: deleteUnit.bind("forward"),
+  deleteWordBackward: deleteWord.bind("backward"),
+  deleteWordForward: deleteWord.bind("forward"),
+}
+
 handlers.beforeinput = (view, event: InputEvent) => {
   let type = event.inputType
 
-  if (type == "historyUndo" || type == "historyRedo") {
-    ;(type == "historyUndo" ? undo : redo).dispatch(view)
+  let command = inputTypeCommands[type]
+  if (command) {
+    command(view)
     return true
   }
 

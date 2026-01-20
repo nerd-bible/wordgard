@@ -18,6 +18,7 @@ export const beforeUpdate = Facet.define<(update: ViewUpdate) => void>()
 
 export const afterUpdate = Facet.define<(update: ViewUpdate) => void>()
 
+// FIXME make this a command?
 export const inputHandler = Facet.define<(view: EditorView, from: number, to: number, text: string,
                                           insert: () => Transaction) => boolean>()
 
