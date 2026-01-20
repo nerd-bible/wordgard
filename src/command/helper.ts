@@ -44,8 +44,8 @@ export function splitTextblock(state: EditorState, splitListItem = true) {
     if (p == before) break
   }
 
-  if (splitListItem && !before.parent.node.type.isList &&
-      before.isFirst && before.parent.parent?.node.type.isList)
+  if (splitListItem && !before.parent.node.type.inGroup("List") &&
+      before.isFirst && before.parent.parent?.node.type.inGroup("List"))
     tokens.push(Plot.End, before.parent.node.tag.split(false))
 
   let after = sel.to.textblockParent
@@ -141,7 +141,7 @@ export function joinListItems(state: EditorState) {
   for (let scan = head.parent;;) {
     let next = scan.parent
     if (!next) return null
-    if (scan.node.isBlock && next.node.type.isList) {
+    if (scan.node.isBlock && next.node.type.inGroup("List")) {
       let prev = scan.previousSibling
       if (!prev || !prev.isLeaf && scan.node.content.some(ch => !prev.type.canContain(ch.type))) return null
       return state.update({

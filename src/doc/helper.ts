@@ -1,16 +1,5 @@
 export const none: readonly any[] = []
 
-export function splitGroups(groups: string) {
-  let result = []
-  for (let pos = 0; pos < groups.length;) {
-    let space = groups.indexOf(" ", pos)
-    if (space < 0) space = groups.length
-    if (space > pos) result.push(groups.slice(pos, space))
-    pos = space + 1
-  }
-  return result
-}
-
 export function compareDeep(a: any, b: any) {
   if (a === b) return true
   if (!a || !b || typeof a != "object" || typeof b != "object") return false

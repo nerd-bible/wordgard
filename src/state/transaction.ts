@@ -145,7 +145,7 @@ export namespace Transaction {
     /// Set [annotations](#state.Annotation) for this transaction.
     annotations?: Annotation<any> | readonly Annotation<any>[],
     /// Shorthand for `annotations:` [`Transaction.userEvent`](#state.Transaction^userEvent)`.of(...)`.
-    userEvent?: string,
+    userEvent?: string, // FIXME define a union with some of the common events?
     /// When set to `true`, the transaction is marked as needing to
     /// scroll the current selection into view.
     scrollIntoView?: boolean,

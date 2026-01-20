@@ -84,7 +84,7 @@ describe("serializeSlice", () => {
                  "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open"}, tags: "*"})
+  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open"}, tags: "_"})
 
   it("can mark open nodes", () => {
     istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),

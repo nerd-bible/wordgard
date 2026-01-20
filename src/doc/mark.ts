@@ -1,5 +1,5 @@
 import {isElementShape, AttributeShape, ElementShape, ElementParseRule, AttributeParseRule} from "./shape"
-import {compareDeep, eqArray, none, splitGroups} from "./helper"
+import {compareDeep, eqArray, none} from "./helper"
 import {SchemaElement} from "./schema"
 import {Node, Plot} from "./node"
 
@@ -124,7 +124,8 @@ export namespace Mark {
       readonly spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
-      this.targetGroups = spec.tags == null ? ["Inline:Leaf"] : splitGroups(spec.tags)
+      // FIXME allow targeting leaves
+      this.targetGroups = spec.tags == null ? ["Inline Leaf"] : typeof spec.tags == "string" ? [spec.tags] : spec.tags
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
       this.default = isFlag ? new Mark(this, null as any) : null
@@ -139,7 +140,7 @@ export namespace Mark {
     get schemaElement(): SchemaElement { return this }
 
     canTarget(tag: Node.Type<any>) {
-      return this.targetGroups.some(g => tag.isInGroup(g))
+      return this.targetGroups.some(g => tag.inGroup(g))
     }
 
     compareRank(other: Mark.Type<any>) {
@@ -164,7 +165,7 @@ export namespace Mark {
   export type Spec<Value> = {
     /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.
-    tags?: string
+    tags?: string | readonly string[]
     /// Determines the position of this mark relative to other marks.
     /// Marks with lower rank appear first in mark set arrays, and are
     /// rendered around higher rank marks in DOM representation. Ties

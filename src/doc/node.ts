@@ -4,7 +4,7 @@ import {NodeShape} from "./shape"
 import {Schema} from "./schema"
 import {Pos, PlotPos} from "./pos"
 import {Mark} from "./mark"
-import {eqArray, none, splitGroups, compareDeep} from "./helper"
+import {eqArray, none, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
 const enum NodeFlag {
@@ -13,8 +13,6 @@ const enum NodeFlag {
   InlineContent = 2,
   Doc = 16,
   NullParam = 32,
-  List = 64,
-  Code = 128
 }
 
 export type Node = Plot | Leaf.Any
@@ -41,7 +39,7 @@ export namespace Node {
 
   export namespace Type {
     export abstract class Base<Param> {
-      readonly groups: readonly string[]
+      readonly groups: Set<string> = new Set
       readonly shape: NodeShape<Param>
       abstract default: Node.Tag | null
 
@@ -50,20 +48,33 @@ export namespace Node {
         readonly flags: NodeFlag,
         readonly spec: Node.Spec<Param>
       ) {
-        let groups = this.groups = [name, "*"]
-        if (flags & NodeFlag.Inline) groups.push("Inline")
-        if (spec.group) for (let g of splitGroups(spec.group)) groups.push(g)
+        this.groups.add(name)
+        this.groups.add("_")
+        if (flags & NodeFlag.Inline) this.groups.add("Inline")
+        if (spec.group) for (let g of typeof spec.group == "string" ? [spec.group] : spec.group) {
+          this.groups.add(g)
+          for (let pos = 0;;) {
+            let nextDot = g.indexOf(".", pos)
+            if (nextDot < 0) break
+            this.groups.add(g.slice(0, nextDot))
+            pos = nextDot + 1
+          }
+        }
         this.shape = NodeShape.from(this, spec.shape)
       }
 
-      isInGroup(group: string) {
-        let mod = group.indexOf(":")
-        if (mod > -1) {
-          let modName = group.slice(mod + 1)
-          if (modName == "Leaf" && !this.isLeaf) return false
-          group = group.slice(0, mod)
+      /// Test whether this node type is in the given group. When
+      /// multiple group names, separated by spaces, are given, this
+      /// tests whether the node is in _all_ of those groups.
+      inGroup(group: Node.Group) {
+        let space = group.indexOf(" ")
+        if (space < 0) return this.groups.has(group)
+        for (let pos = 0;;) {
+          if (!this.groups.has(group.slice(pos, space))) return false
+          if (space == group.length) return true
+          space = group.indexOf(" ", pos = space + 1)
+          if (space < 0) space = group.length
         }
-        return group == "_" || this.groups.includes(group)
       }
 
       get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
@@ -79,10 +90,10 @@ export namespace Node {
     export abstract class Base<Param> {
       abstract type: Node.Type<Param>
 
-      constructor(
-        readonly param: Param,
-        readonly marks: readonly Mark[]
-      ) {}
+        constructor(
+          readonly param: Param,
+          readonly marks: readonly Mark[]
+        ) {}
 
       mark<Value>(mark: Mark.Type<Value>): Value | undefined {
         for (let v of this.marks) if (v.type == mark) return v.value as Value
@@ -100,8 +111,8 @@ export namespace Node {
       get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
 
       is<T>(type: Leaf.Type<T>): this is Leaf<T>
-      is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
-      is(type: any) { return this.type == type }
+        is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+        is(type: any) { return this.type == type }
 
       toJSON(): Node.JSON {
         let result: Node.JSON = {type: this.name}
@@ -115,6 +126,31 @@ export namespace Node {
     }
   }
 
+  /// Groups are used to specify parent-child relationships between
+  /// nodes, and to indicate a semantic meaning for some types of
+  /// nodes. Any string can be used as a group name. Dot-separated
+  /// names indicate sub-groups of the group before the dot.
+  ///
+  /// The `"List"` group identifies a plot as a list container. This
+  /// makes some commands treat the plot specially. `"List.Ordered"`
+  /// and `"List.Bullet"` are subgroups of that, used by things like
+  /// list menu items to find the schema's list node type.
+  ///
+  /// `"Code"` indicates that a plot contains code, and makes some
+  /// commands behave differently inside such a plot.
+  ///
+  /// A single leaf type in a schema may belong to the `"LineBreak"`
+  /// group, which identifies it as the node canonical that represents
+  /// a line break. Nodes marked as line breaks will be parsed from
+  /// and serialized to newline characters inside
+  /// [whitespace-preserving](#state.Tag.Spec.preserveWhitespace)
+  /// nodes.
+  ///
+  /// Each node is part of the `"_"` group, inline nodes automatically
+  /// get assigned to `"Inline"`, plots to `"Plot"`, and leaves to
+  /// `"Leaf"`.
+  export type Group = "List" | "List.Bullet" | "List.Ordered" | "Code" | "LineBreak" | "Inline" | "Plot" | "Leaf" | "_" | (string & {})
+
   export interface Spec<Param> {
     defaultParam?: Param extends null ? never : Param
     /// A function or type name used to validate this tag's parameter
@@ -126,7 +162,11 @@ export namespace Node {
     /// raise an error if the value doesn't have the expected type or
     /// shape.
     validateParam?: string | ((param: Param) => void)
-    group?: string
+    /// Assign one or more groups to this node type. Groups are used
+    /// when specifying allowed content for a plot. Some pre-defined
+    /// group names (see [`Node.Group`](#doc.Node.Group)) are used to
+    /// identify the semantic role of nodes.
+    group?: Group | readonly Group[]
     shape: ElementShape<Param> | StructureShape<Param>
     parseRules?: readonly ElementParseRule<Param>[]
   }
@@ -140,9 +180,9 @@ export namespace Node {
       return type => inner.some(s => s(type))
     }
     if (typeof selector == "string") {
-      if (!/ /.test(selector)) return t => t.isInGroup(selector as string)
+      if (!/ /.test(selector)) return t => t.inGroup(selector as string)
       let groups = selector.split(/ /)
-      return t => groups.some(g => t.isInGroup(g))
+      return t => groups.some(g => t.inGroup(g))
     }
     let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
       : (selector as Leaf<any> | Plot.Tag<any>).type
@@ -228,6 +268,7 @@ export namespace Leaf {
 
     constructor(name: string, flags: NodeFlag, spec: Leaf.Spec<Param>) {
       super(name, flags, spec)
+      this.groups.add("Leaf")
       this.default = "defaultParam" in spec ? new Leaf(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Leaf(this, null as any, none) : null
     }
@@ -252,13 +293,6 @@ export namespace Leaf {
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
-    /// Makes this tag the canonical line break for the schema. The node
-    /// must be inline and a leaf, and have no required parameter. Nodes
-    /// marked as line breaks will be parsed from and serialized to
-    /// newline characters inside
-    /// [whitespace-preserving](#state.Tag.Spec.preserveWhitespace)
-    /// nodes.
-    isLineBreak?: boolean
     toText?(node: Leaf.Any): string
   }
 
@@ -418,7 +452,7 @@ export class Plot implements Node.Shared {
     return new Plot.Type<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
   }
 
-  static defineDoc(spec: {inlineContent?: string | true, blockContent?: string}) {
+  static defineDoc(spec: {inlineContent?: string | true, blockContent?: string | readonly string[]}) {
     if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
     let flags = NodeFlag.NullParam | NodeFlag.Doc | NodeFlag.NullParam
     if (spec.inlineContent) flags |= NodeFlag.InlineContent
@@ -504,12 +538,13 @@ export namespace Plot {
 
     constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
       super(name, flags, spec)
+      this.groups.add("Plot")
       let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
-      this.contentGroups = content ? splitGroups(content) : none
+      this.contentGroups = typeof content == "string" ? [content] : content!
       this.isolating = !!spec.isolating
       this.defining = !!spec.defining
       this.neutral = spec.neutral ?? !this.defining
-      this.preserveWhitespace = spec.preserveWhitespace ?? !!spec.isCode
+      this.preserveWhitespace = spec.preserveWhitespace ?? !!this.inGroup("Code")
       this.orientation = flags & NodeFlag.InlineContent ? "row" : spec.orientation || "column"
       this.default = "defaultParam" in spec ? new Plot.Tag(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Plot.Tag(this, null as any, none) : null
@@ -535,7 +570,7 @@ export namespace Plot {
     canContain(child: Node.Type<any>) {
       let result = this.childCache.get(child)
       if (result == null) {
-        result = (child.flags & NodeFlag.Doc) ? false : this.contentGroups.some(g => child.isInGroup(g))
+        result = (child.flags & NodeFlag.Doc) ? false : this.contentGroups.some(g => child.inGroup(g))
         this.childCache.set(child, result)
       }
       return result
@@ -555,15 +590,13 @@ export namespace Plot {
     get inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }
     get isTextblock() { return this.isBlock && this.inlineContent }
     get isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
-    get isList() { return (this.flags & NodeFlag.List) > 0 }
-    get isCode() { return (this.flags & NodeFlag.Code) > 0 }
     get isLeaf(): false { return false }
     get isPlot(): true { return true }
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
-    blockContent?: string
-    inlineContent?: string | true
+    blockContent?: string | readonly string[]
+    inlineContent?: string | readonly string[] | true
 
     /// Whether the sides of this node act as a 'barrier' when
     /// [normalizing](#state.EditorSelection.normalize) a cursor
@@ -578,19 +611,11 @@ export namespace Plot {
     /// have a required param. When not specified, the configuration
     /// precedence order determines which child type is the default.
     defaultBlock?: boolean
-    /// Indicates that this plot represents a list, which makes some
-    /// commands behave specially on it.
-    isList?: boolean
-    /// Indicates that plots of this type contain code. The only
-    /// direct effect this has is that it makes `preserveWhitespace`
-    /// default to true, but commands and other code (such as
-    /// [`insertNewlineICode`](#view.insertNewlineInCode) or paste
-    /// handling) can query it and change their behavior when in code.
-    isCode?: boolean
     /// Controls whether whitespace inside this type of node should be
     /// preserved. Disables whitespace collapsing and the replacement
     /// of newlines with line break nodes in the parser and
-    /// serializer.
+    /// serializer. Defaults to false, unless the node is in group
+    /// `"Code"`.
     preserveWhitespace?: boolean
     isolating?: boolean
     /// Block containers are, by default, assumed to arrange their
@@ -654,12 +679,11 @@ export namespace Plot {
     }
   }
 }
+
 function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   let flags = inline ? NodeFlag.Inline : NodeFlag.None
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
-  if (spec.isList) flags |= NodeFlag.List
-  if (spec.isCode) flags |= NodeFlag.Code
   return flags
 }
 

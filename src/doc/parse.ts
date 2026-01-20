@@ -403,7 +403,7 @@ function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
   }
   explore(content)
   let best: Plot.Tag.Any | undefined, bestCost = 0
-  scan: for (let parent of schema.tags) if (parent.isPlot && parent.default) {
+  for (let parent of schema.tags) if (parent.isPlot && parent.default) {
     let cost = parent.isDoc ? -1 : 0
     for (let child of tags) {
       let fit = schema.findWrapping(parent, child)

@@ -35,10 +35,13 @@ export function testServer(port: number, open = false) {
 
   let server = createServer((req, resp) => {
     let m, url = req.url || "/"
-    if (/^\/test\/?($|\?)/.test(url)) {
+    if (/^\/test\/($|\?)/.test(url)) {
       resp.writeHead(200, {"content-type": "text/html"})
       let testFiles = fs.readdirSync(join(base, "test")).filter(f => /^(web)?test-/.test(f)).map(f => join("..", "test", f))
       resp.end(testHTML(testFiles))
+    } else if (/^\/test$/.test(url)) {
+      resp.writeHead(301, {"location": "/test/"})
+      resp.end()
     } else if (m = /^\/test\/mocha\.(css|js)($|\?)/.exec(url)) {
       send(req, join(base, "node_modules", "mocha", "mocha." + m[1])).pipe(resp)
     } else if (m = /^\/test\/run-tests.js($|\?)/.exec(url)) {

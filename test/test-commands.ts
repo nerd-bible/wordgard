@@ -95,7 +95,7 @@ let InlineAtom = Plot.defineInline("InlineAtom", {
 }), at = builder(InlineAtom)
 
 let AtomMark = Mark.define("AtomMark", {
-  tags: "Inline:Leaf InlineAtom",
+  tags: ["Inline Leaf", "InlineAtom"],
   shape: {element: "atom-mark"}
 }), ap = builder(AtomMark)
 
@@ -669,15 +669,15 @@ describe("toggleList", () => {
     let InlineOrderedList = Plot.defineBlock("OrderedList", {
       blockContent: "ListItem",
       shape: {element: "ol"},
-      isList: true
+      group: ["List"]
     })
     let InlineBulletList = Plot.defineBlock("BulletList", {
       blockContent: "ListItem",
       shape: {element: "ul"},
-      isList: true
+      group: ["List"]
     })
     let InlineListSchema = Schema.define([
-      Plot.defineDoc({blockContent: "Paragraph OrderedList BulletList"}),
+      Plot.defineDoc({blockContent: ["Paragraph", "OrderedList", "BulletList"]}),
       Paragraph,
       InlineListItem,
       InlineOrderedList,

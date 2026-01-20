@@ -145,7 +145,7 @@ describe("ChangeSet", () => {
     })
 
     it("exits wrapper nodes when possible", () => {
-      let Wrapper = Plot.defineBlock("Wrapper", {blockContent: "Inner Block", group: "Block", shape: {element: "wrapper"}})
+      let Wrapper = Plot.defineBlock("Wrapper", {blockContent: ["Inner", "Block"], group: "Block", shape: {element: "wrapper"}})
       let Inner = Leaf.defineBlock("Inner", {shape: {element: "inner"}})
       let schema = Schema.define([...basicSchema.tags, Wrapper, Inner])
       let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, insert: slice(Inner), fit: true})

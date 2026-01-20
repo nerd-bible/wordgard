@@ -125,14 +125,17 @@ export class Schema {
     let lineBreak: Leaf<any> | null = null
     for (let tag of tags) {
       if (tag.isLeaf) {
-        if (tag.spec.isLineBreak) {
+        if (tag.inGroup("LineBreak")) {
           if (tag.isBlock || !tag.default)
             throw new Error("Line break tags must be inline leaves with a default param")
           if (lineBreak) throw new Error("Multiple line break tags provided")
           lineBreak = tag.default
         }
       } else {
-        if (tag.isDoc) docTag = tag
+        if (tag.isDoc) {
+          if (docTag) throw new Error("Multiple document tags specified")
+          docTag = tag
+        }
         let sawDefaultable = false
         for (let child of tags) if (tag.canContain(child)) {
           if (child.default) sawDefaultable = true
@@ -141,7 +144,7 @@ export class Schema {
                               } content, but allows ${child.name} as a child`)
         }
         if (!tag.inlineContent && !sawDefaultable)
-          throw new Error(`Node ${tag.name} has block content, but all possible children require non-default marks`)
+          throw new Error(`Node ${tag.name} has block content, but all possible children require non-default parameters`)
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
@@ -224,9 +227,8 @@ export const Heading = Plot.Type.defineBlock("Heading", {
 
 export const CodeBlock = Plot.defineBlock("CodeBlock", {
   inlineContent: true,
-  group: "Block",
+  group: ["Block", "Code"],
   shape: {element: "pre"},
-  isCode: true
 })
 
 export const CodeBlockLanguage = Mark.Type.define("CodeBlockLanguage", {
@@ -246,20 +248,18 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
   blockContent: "ListItem",
-  group: "Block",
-  isList: true,
+  group: ["Block", "List.Ordered"],
   shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
     readElement: elt => Number(elt.getAttribute("order") || "1")
   },
-  autoJoin: (a, b) => b.param == 1
+  autoJoin: (_a, b) => b.param == 1
 })
 
 export const BulletList = Plot.defineBlock("BulletList", {
   blockContent: "ListItem",
-  group: "Block",
-  isList: true,
+  group: ["Block", "List.Bullet"],
   shape: {element: "ul"},
   autoJoin: true
 })
@@ -288,7 +288,7 @@ export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
 })
 
 export const LineBreak = Leaf.defineInline("LineBreak", {
-  isLineBreak: true,
+  group: "LineBreak",
   toText: () => "\n",
   shape: {element: "br"}
 })
