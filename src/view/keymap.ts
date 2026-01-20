@@ -216,20 +216,21 @@ function runHandlers(map: Keymap, event: KeyboardEvent, view: EditorView, scope:
   // as well.
   let fallback = isChar && !altGr && fromCode && fromCode != base ? modifiers(fromCode, event) : null
 
-  let handled = false, allowDefault = false
+  let handled = false, didMatch = false, allowDefault = false
   for (let binding of handlers) {
     let matched = ((binding.flags & BindingFlag.Char) && binding.name == char) ||
       ((binding.flags & BindingFlag.Key) && (binding.name == base || binding.name == fallback)) ||
       (binding.flags & BindingFlag.Any)
     if (matched) {
+      didMatch = true
       if (!handled && binding.command(view, event)) {
         handled = true
-      } else {
-        if (binding.flags & BindingFlag.AllowDefault) allowDefault = true
+      } else if (binding.flags & BindingFlag.AllowDefault) {
+        allowDefault = true
       }
     }
   }
-  if (!allowDefault) event.preventDefault()
+  if (didMatch && !allowDefault) event.preventDefault()
   return handled
 }
 
