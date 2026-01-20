@@ -1,6 +1,6 @@
 import {EditorSelection, EditorState, Annotation} from "wordgard/state"
 import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
-import {undo, redo, insertLineBreak, enter, deleteWord, deleteUnit} from "wordgard/command"
+import {undo, redo, insertLineBreak, enter, deleteWord, deleteUnit, deleteToLineEnd} from "wordgard/command"
 import {EditorView} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins} from "./extension"
@@ -671,8 +671,7 @@ observers.contextmenu = view => {
   view.inputState.lastContextMenu = Date.now()
 }
 
-// FIXME deleteSoftLineBackward, deleteSoftLineForward,
-// deleteEntireSoftLine, deleteHardLineBackward,
+// FIXME deleteEntireSoftLine, deleteHardLineBackward,
 // deleteHardLineForward, deleteContent formatBold, formatItalic,
 // formatUnderline, formatSetBlockTextDirection,
 // formatSetInlineTextDirection
@@ -688,6 +687,8 @@ const inputTypeCommands: {[inputType: string]: (view: EditorView) => boolean} = 
   deleteContentForward: deleteUnit.bind("forward"),
   deleteWordBackward: deleteWord.bind("backward"),
   deleteWordForward: deleteWord.bind("forward"),
+  deleteSoftLineBackward: deleteToLineEnd.bind("backward"),
+  deleteSoftLineForward: deleteToLineEnd.bind("forward"),
 }
 
 handlers.beforeinput = (view, event: InputEvent) => {

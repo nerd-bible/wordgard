@@ -1,5 +1,6 @@
-import {enter, deleteUnit, deleteWord, insertLineBreak, moveByUnit, moveToLineSide, moveToDocSide,
-        moveByWord, moveByLine, moveByPage, selectAll, undo, redo} from "wordgard/command"
+import {enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transposeChars,
+        moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
+        selectAll, undo, redo} from "wordgard/command"
 import {Facet, Prec, Extension} from "wordgard/state"
 import {EditorView} from "./editorview"
 import browser from "./browser"
@@ -251,6 +252,8 @@ export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Delete", run: deleteUnit.bind("forward")},
   {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: deleteWord.bind("backward")},
   {key: "Ctrl-Delete", mac: "Alt-Delete", run: deleteWord.bind("forward")},
+  {mac: "Cmd-Backspace", run: deleteToLineEnd.bind("backward")},
+  {mac: "Cmd-Delete", run: deleteToLineEnd.bind("forward")},
   // FIXME all the odd MacOS bindings
   {key: "ArrowLeft", run: moveByUnit.bind({dir: "left"}),
    shift: moveByUnit.bind({dir: "right", extend: true})},
@@ -276,4 +279,18 @@ export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Mod-z", run: undo.bind()},
   {key: "Mod-y", mac: "Mod-Shift-z", run: redo.bind()},
   {linux: "Ctrl-Shift-z", run: redo.bind()},
+  // MacOS Emacs-ish bindings
+  {mac: "Ctrl-b", run: moveByUnit.bind({dir: "backward"}), shift: moveByUnit.bind({dir: "backward", extend: true})},
+  {mac: "Ctrl-f", run: moveByUnit.bind({dir: "forward"}), shift: moveByUnit.bind({dir: "forward", extend: true})},
+  {mac: "Ctrl-p", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "up", extend: true})},
+  {mac: "Ctrl-n", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true})},
+  {mac: "Ctrl-a", run: moveToLineSide.bind({side: "start"}), shift: moveToLineSide.bind({side: "start", extend: true})},
+  {mac: "Ctrl-e", run: moveToLineSide.bind({side: "end"}), shift: moveToLineSide.bind({side: "end", extend: true})},
+  {mac: "Ctrl-d", run: deleteUnit.bind("forward")},
+  {mac: "Ctrl-h", run: deleteUnit.bind("backward")},
+  {mac: "Ctrl-k", run: deleteToLineEnd.bind("forward")},
+  {mac: "Ctrl-Alt-h", run: deleteWord.bind("backward")},
+  {mac: "Ctrl-o", run: insertLineBreak.bind()},
+  {mac: "Ctrl-t", run: transposeChars.bind()},
+  {mac: "Ctrl-v", run: moveByPage.bind({dir: "down"})},
 ] as KeyBinding.Spec[]).map(KeyBinding.define)

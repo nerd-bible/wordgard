@@ -6,6 +6,7 @@ import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
         splitTextblock, joinListItems, unwrapBlockType, wrapBlock,
         canAddMarkInRange, selectedTextblocks} from "./helper"
 import {Command} from "./command"
+import { findClusterBreak } from "@marijn/find-cluster-break"
 
 // FIXME check behavior around inline nodes with content for all of these
 
@@ -79,6 +80,36 @@ export const deleteWord = Command.define<"forward" | "backward">((view, dir) => 
     ? joinForward(view.state) || deleteForward(view.state, true)
     : joinListItems(view.state) || joinBackward(view.state) || deleteBackward(view.state, true))
   return tr ? (view.dispatch(tr), true) : false
+})
+
+export const deleteToLineEnd = Command.define<"forward" | "backward">((view, dir) => {
+  let tr = deleteSelection(view.state), {selection} = view.state
+  if (tr) return (view.dispatch(tr), true)
+  let end = view.moveToLineBoundary(selection, dir == "forward")
+  if (!end || end.head == selection.head) return false
+  view.dispatch({
+    changes: {correct: dir == "forward" ? {from: selection.head, to: end.head} : {from: end.head, to: selection.head}},
+    scrollIntoView: true,
+    userEvent: "delete." + dir
+  })
+  return true
+})
+
+export const transposeChars = Command.define(view => {
+  let {state} = view, {sel} = state, head = state.selection.head
+  if (!sel.empty) return false
+  let before = sel.head.nodeBefore, after = sel.head.nodeAfter
+  if (!before || !before.is(Leaf.Text) || !after || !after.is(Leaf.Text)) return false
+  let lenBefore = before.param.length - findClusterBreak(before.param, before.param.length, false)
+  let lenAfter = findClusterBreak(after.param, 0)
+  view.dispatch({
+    changes: [{from: head - lenBefore, to: head},
+              {from: head + lenAfter, insert: [Leaf.text(before.param.slice(before.param.length - lenBefore))]}],
+    selection: EditorSelection.cursor(head + lenAfter, -1),
+    scrollIntoView: true,
+    userEvent: "transpose"
+  })
+  return true
 })
 
 export const changeTextblockType = Command.define<Plot.Tag.Any>((view, tag) => {
@@ -270,8 +301,8 @@ function ltrAtCursor(state: EditorState) {
 /// visually through bidirectional text, so when going left, the
 /// motion will go back in left-to-right text, and
 /// forward in right-to-left text.
-export const moveByUnit = Command.define<{dir: "left" | "right", extend?: boolean}>((view, {dir, extend}) => {
-  let {state} = view, forward = (dir == "right") == ltrAtCursor(state)
+export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}>((view, {dir, extend}) => {
+  let {state} = view, forward = dir == "forward" ? true : dir == "backward" ? false : (dir == "right") == ltrAtCursor(state)
   let moved = state.selection.nextNormalCursor(state, forward)
   return moved ? setSelection(view, moved, extend) : false
 })
