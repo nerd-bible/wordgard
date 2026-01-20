@@ -1,4 +1,5 @@
-import {Mark, Emphasis, Strong, Link, Code} from "wordgard/doc"
+import {Mark} from "wordgard/doc"
+import {Emphasis, Strong, Link, Code} from "wordgard/schema"
 import ist from "ist"
 
 let Tag = Mark.Type.define<readonly number[]>("Tag", {

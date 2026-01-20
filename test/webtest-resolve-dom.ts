@@ -1,6 +1,7 @@
 import {EditorView, ContentPos, Widget, PointSet, WidgetSource} from "wordgard/view"
 import {EditorState, type Extension} from "wordgard/state"
-import {Plot, basicBuilders} from "wordgard/doc"
+import {Plot} from "wordgard/doc"
+import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
 
 const {DocTile} = EditorView as any

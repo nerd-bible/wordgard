@@ -345,5 +345,5 @@ export const selectAll = Command.define(view => {
 /// added by the history extension.
 export const undo = Command.define()
 
-/// Redo an editor. Does not have a default handler.
+/// Redo an edit. Does not have a default handler.
 export const redo = Command.define()

@@ -2,9 +2,10 @@ import {Command, liftEmptyBlock, insertLineBreak, enter,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/command"
-import {Plot, Mark, Leaf, Schema, basicSchema, basicBuilders, maybeTag, builder,
+import {Plot, Mark, Leaf, Schema} from "wordgard/doc"
+import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
-        Emphasis, Strong, Link} from "wordgard/doc"
+        Emphasis, Strong, Link} from "wordgard/schema"
 import {EditorState, EditorSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 

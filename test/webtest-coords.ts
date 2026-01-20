@@ -1,6 +1,6 @@
 import {EditorView} from "wordgard/view"
 import {EditorSelection} from "wordgard/state"
-import {basicBuilders} from "wordgard/doc"
+import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
 import {tempView} from "./tempview.ts"
 

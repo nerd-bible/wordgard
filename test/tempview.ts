@@ -2,7 +2,8 @@
 
 import {EditorView} from "wordgard/view"
 import {type Extension} from "wordgard/state"
-import {Plot, maybeTag} from "wordgard/doc"
+import {Plot} from "wordgard/doc"
+import {maybeTag} from "wordgard/schema"
 
 const workspace: HTMLElement = document.querySelector("#workspace")! as HTMLElement
 

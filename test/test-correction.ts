@@ -1,6 +1,7 @@
 import ist from "ist"
 import {EditorState, Correction} from "wordgard/state"
-import {Leaf, Blockquote, Strong, Emphasis, basicBuilders} from "wordgard/doc"
+import {Leaf} from "wordgard/doc"
+import {Blockquote, Strong, Emphasis, basicBuilders} from "wordgard/schema"
 
 const {doc, p, blockquote, h1, $img, em} = basicBuilders
 

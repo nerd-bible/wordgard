@@ -1,9 +1,9 @@
 import {EditorView, showDialog} from "wordgard/view"
 import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive, canAddMarkInRange} from "wordgard/command"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
-import {Mark, Plot, NodePos, ChangeSet,
-        Strong, Emphasis, Code, Link,
-        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/doc"
+import {Mark, Plot, NodePos, ChangeSet} from "wordgard/doc"
+import {Strong, Emphasis, Code, Link,
+        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/schema"
 import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
 
 export type MenuLabelWidget = {

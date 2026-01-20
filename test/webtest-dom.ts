@@ -1,7 +1,8 @@
 import ist from "ist"
-import {Plot, Leaf, basicBuilders, builder, Mark, Slice, type Token,
-        serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice, OpenSide, type ParseOptions,
-        Schema, basicSchema, tag} from "wordgard/doc"
+import {Plot, Leaf, Mark, Slice, type Token, Schema,
+        serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice,
+        OpenSide, type ParseOptions} from "wordgard/doc"
+import {basicBuilders, builder, basicSchema, tag} from "wordgard/schema"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }

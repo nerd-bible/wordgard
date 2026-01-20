@@ -1,6 +1,7 @@
 import ist from "ist"
 import {EditorState, Facet, type Extension, Prec, StateField, StateEffect} from "wordgard/state"
-import {Leaf, basicBuilders} from "wordgard/doc"
+import {Leaf} from "wordgard/doc"
+import {basicBuilders} from "wordgard/schema"
 
 const {doc, p} = basicBuilders
 

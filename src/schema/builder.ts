@@ -1,6 +1,5 @@
-import {Plot, Leaf, Node} from "./node"
-import { Mark } from "./mark"
-import {Schema, basicSchema} from "./schema"
+import {Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
+import {basicSchema} from "./schema"
 import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"

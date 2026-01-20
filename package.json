@@ -6,6 +6,7 @@
   "main": "dist/view.js",
   "exports": {
     "./doc": "./dist/doc.js",
+    "./schema": "./dist/schema.js",
     "./state": "./dist/state.js",
     "./view": "./dist/view.js",
     "./command": "./dist/command.js",

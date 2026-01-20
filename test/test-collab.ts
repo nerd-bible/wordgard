@@ -1,5 +1,6 @@
 import {EditorState, Transaction, StateField, StateEffect, type Extension} from "wordgard/state"
-import {Leaf, type ChangeSet, basicBuilders} from "wordgard/doc"
+import {Leaf, type ChangeSet} from "wordgard/doc"
+import {basicBuilders} from "wordgard/schema"
 import {history, isolateHistory, popHistory} from "wordgard/history"
 import ist from "ist"
 import {collab, receiveUpdates, sendableUpdate, type Update, getSyncedVersion, getClientID} from "wordgard/collab"

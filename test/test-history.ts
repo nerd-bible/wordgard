@@ -1,5 +1,6 @@
 import {history, popHistory, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
-import {Plot, Leaf, basicBuilders, maybeTag, ChangeSet, basicSchema} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet} from "wordgard/doc"
+import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema"
 import {EditorState, EditorSelection, Transaction, StateEffect, StateField} from "wordgard/state"
 import ist from "ist"
 

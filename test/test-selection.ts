@@ -1,5 +1,6 @@
 import ist from "ist"
-import {Schema, basicSchema, Plot, basicBuilders, builder, maybeTag} from "wordgard/doc"
+import {Schema, Plot} from "wordgard/doc"
+import {basicSchema, basicBuilders, builder, maybeTag} from "wordgard/schema"
 import {EditorSelection, EditorState, Direction} from "wordgard/state"
 const {p, hr, blockquote, pre, $img} = basicBuilders
 

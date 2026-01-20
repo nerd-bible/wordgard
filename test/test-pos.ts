@@ -1,5 +1,6 @@
 import ist from "ist"
-import {Pos, type Walker, Plot, Leaf, basicBuilders, tag} from "wordgard/doc"
+import {Pos, type Walker, Plot, Leaf} from "wordgard/doc"
+import {basicBuilders, tag} from "wordgard/schema"
 const {doc, p, br, li, ul, $img} = basicBuilders
 
 function testPos(name: string, doc: Plot.Doc, ...contexts: ([string, number] | [string, number, number])[]) {
