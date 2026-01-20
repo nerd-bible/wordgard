@@ -295,6 +295,10 @@ function ltrAtCursor(state: EditorState) {
   return state.textDirection(block ? block.node.tag : undefined) == Direction.LTR
 }
 
+function isForward(dir: "left" | "right" | "forward" | "backward", state: EditorState) {
+  return dir == "forward" ? true : dir == "backward" ? false : (dir == "right") == ltrAtCursor(state)
+}
+
 /// Move the selection head one unit (text cluster, atomic node, or
 /// node boundary) in the indicated direction. When `extend` is true,
 /// keep the selection anchor in place. The default handler moves
@@ -302,7 +306,7 @@ function ltrAtCursor(state: EditorState) {
 /// motion will go back in left-to-right text, and
 /// forward in right-to-left text.
 export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}>((view, {dir, extend}) => {
-  let {state} = view, forward = dir == "forward" ? true : dir == "backward" ? false : (dir == "right") == ltrAtCursor(state)
+  let {state} = view, forward = isForward(dir, state)
   let moved = state.selection.nextNormalCursor(state, forward)
   return moved ? setSelection(view, moved, extend) : false
 })
@@ -352,8 +356,11 @@ export const moveByPage = Command.define<{dir: "up" | "down", extend?: boolean}>
   return moved ? setSelection(view, moved, extend) : false
 })
 
-export const moveToLineSide = Command.define<{side: "start" | "end", extend?: boolean}>((view, {side, extend}) => {
-  let pos = view.moveToLineBoundary(view.state.selection, side == "end")
+// FIXME do we need a motion to texblock start/end variant?
+export const moveToLineSide = Command.define<{
+  dir: "left" | "right" | "forward" | "backward", extend?: boolean
+}>((view, {dir, extend}) => {
+  let pos = view.moveToLineBoundary(view.state.selection, isForward(dir, view.state))
   return pos ? setSelection(view, pos, extend) : false
 })
 
