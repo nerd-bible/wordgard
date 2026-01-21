@@ -93,7 +93,7 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
 })
 
 export const Emphasis = Mark.define("Emphasis", {
-  rank: 40,
+  rank: 50,
   group: "Emphasis",
   shape: {element: "em"},
   parseRules: [
@@ -113,6 +113,25 @@ export const Strong = Mark.define("Strong", {
      readAttribute: value => /^(normal|lighter|[1-4]\d{2})$/.test(value) ? null : Reject,
      clearMark: p => p.name == "Strong"},
   ]
+})
+
+export const Underline = Mark.define("Underline", {
+  rank: 40,
+  group: "Underline",
+  shape: {element: "u"},
+  parseRules: [
+    {attribute: "style/text-decoration", value: "underline"}
+  ]
+})
+
+export const Superscript = Mark.define("Superscript", {
+  rank: 45,
+  shape: {element: "sup"}
+})
+
+export const Subscript = Mark.define("Subscript", {
+  rank: 47,
+  shape: {element: "sub"}
 })
 
 export const Link = Mark.Type.define<string>("Link", {
@@ -152,5 +171,8 @@ export const basicSchema = Schema.define([
   Emphasis,
   Strong,
   Link,
-  Code
+  Code,
+  Underline,
+  Superscript,
+  Subscript
 ])

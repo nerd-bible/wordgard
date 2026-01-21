@@ -3,8 +3,10 @@ import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive, 
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
 import {Mark, Plot, NodePos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
-        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote} from "wordgard/schema"
-import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList, iconOrderedList, iconQuote} from "./icon"
+        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
+        Underline, Superscript, Subscript} from "wordgard/schema"
+import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList,
+        iconOrderedList, iconQuote, iconUnderline, iconSuperscript, iconSubscript} from "./icon"
 
 export type MenuLabelWidget = {
   render: (view: EditorView) => HTMLElement
@@ -193,6 +195,30 @@ export const ToggleCode = toggleInlineMark({
   rank: 30,
   description: "Toggle code font",
   label: iconCode
+})
+
+export const ToggleUnderline = toggleInlineMark({
+  mark: Underline,
+  parent: InlineStyles,
+  rank: 14,
+  description: "Toggle underline",
+  label: iconUnderline
+})
+
+export const ToggleSuperscript = toggleInlineMark({
+  mark: Superscript,
+  parent: InlineStyles,
+  rank: 16,
+  description: "Toggle superscript",
+  label: iconSuperscript
+})
+
+export const ToggleSubscript = toggleInlineMark({
+  mark: Subscript,
+  parent: InlineStyles,
+  rank: 18,
+  description: "Toggle subscript",
+  label: iconSubscript
 })
 
 export const ToggleLink = new MenuButton({
