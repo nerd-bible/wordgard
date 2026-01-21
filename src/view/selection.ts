@@ -79,7 +79,7 @@ function findTextblockVertically(view: EditorView, from: number, forward: boolea
       parent = parent.parent
     } else {
       let next = parent.node.content[index - (forward ? 0 : 1)]
-      if (next.isLeaf || view.state.isAtom(pos - (forward ? 0 : next.length), next)) {
+      if (next.isLeaf || next.type.isAtom) {
         index += forward ? 1 : -1
         pos += (forward ? 1 : -1) * next.length
         continue

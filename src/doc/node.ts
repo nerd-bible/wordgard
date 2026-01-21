@@ -11,8 +11,9 @@ const enum NodeFlag {
   None = 0,
   Inline = 1,
   InlineContent = 2,
-  Doc = 16,
-  NullParam = 32,
+  Atom = 4,
+  Doc = 8,
+  NullParam = 16,
 }
 
 export type Node = Plot | Leaf.Any
@@ -61,6 +62,7 @@ export namespace Node {
           }
         }
         this.shape = NodeShape.from(this, spec.shape)
+        if (this.shape.atom) this.flags |= NodeFlag.Atom
       }
 
       /// Test whether this node type is in the given group. When
@@ -70,6 +72,7 @@ export namespace Node {
 
       get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
       get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
+      get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
       abstract isLeaf: boolean
       abstract isPlot: boolean
     }

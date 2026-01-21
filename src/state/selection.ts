@@ -77,11 +77,6 @@ export interface SelectionContext {
   doc: Plot.Doc
   textDirection?: (tag?: Plot.Tag.Any) => Direction
   visualCursorMotion?: boolean
-  isAtom?: (pos: number, node?: Node) => boolean
-}
-
-function isAtom(cx: SelectionContext, pos: number, node: Node) {
-  return cx.isAtom ? cx.isAtom(pos, node) : node.type.shape.atom
 }
 
 function alwaysLTR() { return Direction.LTR }
@@ -292,12 +287,12 @@ export function selectionAtStart(cx: SelectionContext) {
   return EditorSelection.cursor(found.pos, found.assoc)
 }
 
-function isBarrier(cx: SelectionContext, pos: number, node: Node) {
+function isBarrier(node: Node) {
   if (node.isLeaf) return node.isBlock
   let override = node.type.spec.cursorBarrier
   if (override != null) return override
   return node.type.isolating || node.type.preserveWhitespace || // FIXME why query preserveWhitespace here?
-    node.isBlock && isAtom(cx, pos, node)
+    node.isBlock && node.type.isAtom
 }
 
 // Find the next 'normal' cursor position from the given position. Any
@@ -318,13 +313,12 @@ function scanNormalFrom(
     if (next != null) return next
     if (!block.parent) return null
     pos = new Pos(block.parent, forward ? block.after : block.before, block.index + (forward ? 1 : 0), 0)
-    pastBarrier = isBarrier(cx, block.before, block.node)
+    pastBarrier = isBarrier(block.node)
   } else {
     pastBarrier = !pos.parent.parent && pos.index == (forward ? 0 : pos.parent.node.content.length)
-    for (let {parent: {node}, index, pos: p} = pos; !pastBarrier && (forward ? index : index < node.content.length);) {
+    for (let {parent: {node}, index} = pos; !pastBarrier && (forward ? index : index < node.content.length);) {
       let next = node.content[forward ? index - 1 : index]
-      if (!forward) p -= next.length
-      if (isBarrier(cx, p, next)) pastBarrier = true
+      if (isBarrier(next)) pastBarrier = true
       if (next.isLeaf) {
         index += forward ? 1 : -1
       } else {
@@ -332,8 +326,6 @@ function scanNormalFrom(
         node = next
         index = forward ? next.content.length : 0
       }
-      // FIXME this looks really dodgy
-      if (forward) p += next.length
     }
   }
 
@@ -345,7 +337,7 @@ function scanNormalFrom(
       return {pos: p, assoc: forward ? 1 : -1}
     }
     if (index == (forward ? node.content.length : 0)) {
-      let barrier = !next || isBarrier(cx, parent.before, node)
+      let barrier = !next || isBarrier(node)
       if ((bottom != from || !mustMove) && pastBarrier && barrier) return {pos: bottom, assoc: forward ? -1 : 1}
       if (!next) return null
       index = parent.index + (forward ? 1 : 0)
@@ -354,10 +346,10 @@ function scanNormalFrom(
       bottom = p
       if (barrier) pastBarrier = true
     } else {
-      let nextNode = node.content[index - (forward ? 0 : 1)], nextPos = p - (forward ? 0 : nextNode.length)
-      let barrier = isBarrier(cx, nextPos, nextNode)
+      let nextNode = node.content[index - (forward ? 0 : 1)]
+      let barrier = isBarrier(nextNode)
       if (pastBarrier && (bottom != from || !mustMove) && barrier) return {pos: bottom, assoc: forward ? -1 : 1}
-      if (nextNode.isLeaf || isAtom(cx, nextPos, nextNode)) {
+      if (nextNode.isLeaf || nextNode.type.isAtom) {
         index += step
         p += nextNode.length * step
       } else {

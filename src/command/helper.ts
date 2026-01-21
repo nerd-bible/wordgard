@@ -110,7 +110,7 @@ export function joinBackward(state: EditorState) {
   }
   let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
   while (before.isLeaf || !before.isTextblock) {
-    if (before.isLeaf || before.type.isolating || state.isAtom(pos - before.length, before) || !before.isBlock) return null
+    if (before.isLeaf || before.type.isAtom || before.type.isolating || !before.isBlock) return null
     let last = before.content.length - 1
     if (last < 0) return null
     parent = before
@@ -170,8 +170,7 @@ export function joinForward(state: EditorState) {
   }
   let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
   while (after.isLeaf || !after.isTextblock) {
-    if (after.isLeaf || after.type.isolating || state.isAtom(pos, after) ||
-        !after.isBlock || !after.content.length)
+    if (after.isLeaf || after.type.isolating || after.type.isAtom || !after.isBlock || !after.content.length)
       return null
     parent = after
     after = after.content[0]
@@ -208,7 +207,7 @@ export function deleteBackward(state: EditorState, word = false) {
   let next = sel.head.inText ? sel.head.nodeBefore! : scan.node.content[--index]
   for (;;) {
     if (next.isPlot && next.type.isolating) return null
-    if (next.isLeaf || state.isAtom(pos - next.length, next)) break
+    if (next.isLeaf || next.type.isAtom) break
     let last = next.content.length - 1
     if (last < 0) return null
     next = next.content[last]
@@ -267,7 +266,7 @@ export function deleteForward(state: EditorState, word = false) {
   let next = sel.head.inText ? sel.head.nodeAfter! : scan.node.content[index]
   for (;;) {
     if (next.isPlot && next.type.isolating) return null
-    if (next.isLeaf || state.isAtom(pos, next)) break
+    if (next.isLeaf || next.type.isAtom) break
     if (!next.content.length) return null
     next = next.content[0]
     pos++

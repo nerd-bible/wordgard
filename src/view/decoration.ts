@@ -62,11 +62,12 @@ export type Shape = Widget<any> | DecoElt
 enum WidgetPlace { Before, After, Start, End }
 
 export function tagShape(spec: {
-  tag: Node.Selector,
+  tag: Node.Type<any> | Node.Tag,
   shape: Shape | ((tag: Node.Tag) => Shape),
   atom?: boolean
 }): Extension {
   let {tag, shape, atom} = spec, shapeFunc: (tag: Node.Tag) => Shape
+  let type = tag instanceof Node.Type.Base ? tag : tag.type
   if (typeof shape == "function") {
     if (atom == null) throw new Error("Dynamic tag shapes must provide an 'atom' field")
     shapeFunc = tag => addMarkAttributes(shape(tag), tag)
@@ -75,16 +76,16 @@ export function tagShape(spec: {
     else if (atom != !shape.hasContent) throw new Error("'atom' and 'shape' field disagree on atomicity")
     shapeFunc = tag => addMarkAttributes(shape, tag)
   }
-  return new TagShape(Node.selector(tag), memo(shapeFunc), atom)
+  if (atom != type.isAtom) throw new Error("Tag shape atomiticy must match the tag type")
+  return new TagShape(type, memo(shapeFunc))
 }
 
 class TagShape {
   extension: Extension
 
-  constructor(readonly pred: (tag: Node.Type<any>) => boolean,
-              readonly shape: (tag: Node.Tag) => Shape,
-              readonly atom: boolean) {
-    this.extension = [tagShapes.of(this), atomicDecorations]
+  constructor(readonly type: Node.Type<any>,
+              readonly shape: (tag: Node.Tag) => Shape) {
+    this.extension = tagShapes.of(this)
   }
 }
 
@@ -296,22 +297,11 @@ class ShapeOverride<T> {
     readonly check: (node: Node) => boolean,
     readonly atom: boolean
   ) {
-    this.extension = [shapeSources.of(this), atomicDecorations]
+    this.extension = shapeSources.of(this)
   }
 }
 
 export const shapeSources = Facet.define<ShapeOverride<any>>()
-
-const atomicDecorations = EditorState.isAtom.of((state, node, pos) => {
-  for (let src of state.facet(shapeSources)) {
-    let found = src.set(state).at(pos)
-    if (found !== undefined && src.check(node)) return src.atom
-  }
-  for (let src of state.facet(tagShapes)) {
-    if (src.pred(node.type)) return src.atom
-  }
-  return null
-})
 
 function findAbove(array: readonly number[], start: number, n: number) {
   let from = start, to = array.length
@@ -466,8 +456,6 @@ export namespace PointSet {
       this.positions.push(pos)
       this.values.push(value)
     }
-
-    finish(side = 0) { return new PointSet(this.positions, this.values, this.type) }
   }
 }
 
@@ -802,13 +790,13 @@ export function findChangedRanges(prev: EditorState, state: EditorState, section
       addSection(result, len, ins)
     }
   }
-  if (shapeChanges) return addAtomicityChanges(result, prev, state, shapeChanges)
+  if (shapeChanges) return addAtomicityChanges(result, prev, shapeChanges)
   return result
 }
 
 function addAtomicityChanges(
   sections: number[],
-  prev: EditorState, state: EditorState,
+  prev: EditorState,
   changes: boolean | number[]
 ): ChangeSet.Sections {
   let added: number[] = []
@@ -830,15 +818,10 @@ function addAtomicityChanges(
       if (scan.pos < posA) scan = scan.advance(posA - scan.pos)
       let node = scan.nodeAfter
       if (!node) continue
-      if (prev.isAtom(posA, node) != state.isAtom(posB, node))
-        addRange(added, posA, posA + node.length)
+      added.push(posA, posA + node.length)
     }
   } else if (changes) {
     let changedTags = new Set<Node.Type<any>>()
-    let a = prev.facet(tagShapes), b = state.facet(tagShapes)
-    for (let tag of state.doc.schema.tags) {
-      if (atomicShape(tag, a) != atomicShape(tag, b)) changedTags.add(tag)
-    }
     if (changedTags.size) prev.doc.iterate((node, pos) => {
       if (changedTags.has(node.tag.type)) {
         added.push(pos, pos + node.length)
@@ -857,11 +840,6 @@ function addAtomicityChanges(
   }
   if (pos < prev.doc.length) changedSections.push(prev.doc.length - pos, -1)
   return ChangeSet.composeSections(changedSections, sections)
-}
-
-function atomicShape(tag: Node.Type<any>, shapes: readonly TagShape[]) {
-  for (let s of shapes) if (s.pred(tag)) return s.atom
-  return tag.shape.atom
 }
 
 function addSection(sections: number[], len: number, ins: number) {
@@ -1163,7 +1141,7 @@ export class DecoIterator {
 
   tagShape(tag: Node.Tag, active: RangeIterator<any, RangeDecorationSource<any>>[]) {
     let shape
-    if (!tag.is(Leaf.Text)) for (let src of this.tagShapes) if (src.pred(tag.type)) {
+    if (!tag.is(Leaf.Text)) for (let src of this.tagShapes) if (src.type == tag.type) {
       shape = src.shape(tag)
       break
     }

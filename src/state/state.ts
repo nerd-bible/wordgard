@@ -359,19 +359,6 @@ export class EditorState {
     return wordAt(this, pos, bias)
   }
 
-  /// @hidden
-  static isAtom = Facet.define<(state: EditorState, node: Plot, pos: number) => boolean | null>()
-
-  isAtom(pos: number, node: Node = this.doc.nodeAt(pos)!) {
-    if (!node) throw new Error("No node at position " + pos)
-    if (node.isLeaf) return true
-    for (let src of this.facet(EditorState.isAtom)) {
-      let result = src(this, node, pos)
-      if (result != null) return result
-    }
-    return node.tag.type.shape.atom
-  }
-
   /// Facet used to register a hook that gets a chance to update or
   /// replace transaction specs before they are applied. This will
   /// only be applied for transactions that don't have

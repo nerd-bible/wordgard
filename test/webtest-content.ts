@@ -177,7 +177,7 @@ describe("DocTile", () => {
       destroy(v) { log.push(v) }
     })
     const imgWidget = tagShape({
-      tag: "Image",
+      tag: Image,
       shape: t => trackedWidget.of(t.param as string),
       atom: true
     })
@@ -388,22 +388,14 @@ describe("DocTile", () => {
       })).dom.innerHTML, "<div>?</div>")
     })
 
-    it("properly recognizes atomicity of overridden shapes", () => {
-      ist(EditorState.create({doc: doc(p("ab"))}).isAtom(0), false)
-      let byPoint = overrideShape({set: () => strPoints.create([[0, "x"]]), shape: elt("div", "?")})
-      ist(EditorState.create({doc: doc(p("ab")), config: byPoint}).isAtom(0), true)
-      let byTag = tagShape({tag: "Paragraph", shape: elt("hr")})
-      ist(EditorState.create({doc: doc(p("a")), config: byTag}).isAtom(0), true)
-    })
-
     it("can override shapes by tag", () => {
-      ist(render(doc(p("a")), tagShape({tag: "Paragraph", shape: elt({_: "div", class: "para"}, 0)})).dom.innerHTML,
+      ist(render(doc(p("a")), tagShape({tag: Paragraph, shape: elt({_: "div", class: "para"}, 0)})).dom.innerHTML,
           "<div class=\"para\">a</div>")
     })
 
     it("makes by-point shapes override by-tag ones", () => {
       ist(render(doc(p("a")), [
-        tagShape({tag: "Paragraph", shape: elt({_: "div", class: "b"}, 0)}),
+        tagShape({tag: Paragraph, shape: elt({_: "div", class: "b"}, 0)}),
         overrideShape({set: () => strPoints.create([[0, "x"]]), shape: elt({_: "div", class: "a"}, 0)})
       ]).dom.innerHTML, "<div class=\"a\">a</div>")
     })
@@ -411,9 +403,9 @@ describe("DocTile", () => {
     it("properly updates when tag shapes change", () => {
       let tile = render(doc(p("a")))
       tile = update(tile, {
-        effects: StateEffect.appendConfig.of(tagShape({tag: "Paragraph", shape: elt("para")}))
+        effects: StateEffect.appendConfig.of(tagShape({tag: Paragraph, shape: elt("para", 0)}))
       })
-      ist(tile.dom.innerHTML, "<para></para>")
+      ist(tile.dom.innerHTML, "<para>a</para>")
     })
 
     it("properly updates when positional shapes change", () => {
