@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
-        pushAttribute, noAttributes} from "wordgard/doc"
+        pushAttribute, noAttributes, sameAttributes} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
@@ -835,7 +835,7 @@ class ContentUpdate {
         if (reuse) {
           let nodeTile = this.old.tileAfter()
           if (nodeTile instanceof EltTile && !this.reused.has(nodeTile) &&
-              nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
+              nodeTile.elt.tagName == elt.tagName && sameAttributes(nodeTile.elt.attrs, elt.attrs) && nodeTile.elt.eqChildren(elt)) {
             this.reused.set(nodeTile, Reused.DOM)
             updateAttributes(nodeTile.dom, nodeTile.elt.attrs, elt.attrs)
             tile = copyEltShape(nodeTile, node)

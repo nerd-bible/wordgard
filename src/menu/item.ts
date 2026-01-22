@@ -1,12 +1,17 @@
 import {EditorView, showDialog} from "wordgard/view"
-import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive, canAddMarkInRange} from "wordgard/command"
+import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
+        canAddMarkInRange, setAlignment} from "wordgard/command"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
 import {Mark, Plot, NodePos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
-        Underline, Superscript, Subscript} from "wordgard/schema"
+        Underline, Superscript, Subscript,
+        Alignment} from "wordgard/schema"
 import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList,
-        iconOrderedList, iconQuote, iconUnderline, iconSuperscript, iconSubscript} from "./icon"
+        iconOrderedList, iconQuote, iconUnderline, iconSuperscript, iconSubscript,
+        iconAlignLeft,
+        iconAlignRight,
+        iconAlignCenter} from "./icon"
 
 export type MenuLabelWidget = {
   render: (view: EditorView) => HTMLElement
@@ -299,8 +304,6 @@ function selectionInType(tag: Plot.Tag.Any) {
   }
 }
 
-// FIXME use abstract node type labels
-
 export const ParagraphButton = new MenuButton({
   run: changeTextblockType.bind(Paragraph),
   active: selectionInType(Paragraph),
@@ -372,11 +375,51 @@ export const BlockquoteButton = new MenuButton({
   rank: 40
 })
 
+export const AlignmentMenu = new Submenu({
+  description: "Alignment",
+  parent: BlockMenu,
+  arrow: false,
+  rank: 10
+})
+
+function alignmentAtCursor(state: EditorState): null | "end" | "center" {
+  let block = state.sel.head.textblockParent
+  return (block && block.node.tag.mark(Alignment)) || null
+}
+
+export const AlignStart = new MenuButton({
+  run: setAlignment.bind(null),
+  active: state => alignmentAtCursor(state) == null,
+  label: iconAlignLeft,
+  description: "Align text to block start",
+  parent: AlignmentMenu,
+  rank: 10
+})
+
+export const AlignEnd = new MenuButton({
+  run: setAlignment.bind("end"),
+  active: state => alignmentAtCursor(state) == "end",
+  label: iconAlignRight,
+  description: "Align text to block end",
+  parent: AlignmentMenu,
+  rank: 20
+})
+
+export const AlignCenter = new MenuButton({
+  run: setAlignment.bind("center"),
+  active: state => alignmentAtCursor(state) == "center",
+  label: iconAlignCenter,
+  description: "Center text",
+  parent: AlignmentMenu,
+  rank: 30
+})
+
 // FIXME drop
 export const staticMenu: Extension[] = [
   Undo, Redo, Strong,
   Commands, InlineStyles, BlockMenu, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
+  AlignmentMenu, AlignStart, AlignEnd, AlignCenter,
   BulletListButton, OrderedListButton, BlockquoteButton
 ]
 

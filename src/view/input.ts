@@ -673,8 +673,7 @@ observers.contextmenu = view => {
 }
 
 // FIXME deleteEntireSoftLine, deleteHardLineBackward,
-// deleteHardLineForward, deleteContent formatBold, formatItalic,
-// formatUnderline, formatSetBlockTextDirection,
+// deleteHardLineForward, deleteContent, formatSetBlockTextDirection,
 // formatSetInlineTextDirection
 //
 // Maybe: insertFromYank, insertFromDrop, insertFromPaste,

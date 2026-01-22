@@ -30,6 +30,17 @@ export const CodeBlock = Plot.defineBlock("CodeBlock", {
   shape: {element: "pre"},
 })
 
+export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
+  group: "Alignment",
+  tags: "Textblock",
+  keepOnSplit: true,
+  keepOnTypeChange: true,
+  shape: {attribute: "style", value: align => `text-align: ${align}`},
+  parseRules: [
+    {attribute: "style/text-align", readAttribute: value => /^(end|center)$/.test(value) ? value as any : Reject}
+  ]
+})
+
 export const CodeBlockLanguage = Mark.Type.define("CodeBlockLanguage", {
   tags: "CodeBlock",
   validate: "string",
@@ -47,7 +58,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
   blockContent: "ListItem",
-  group: ["Block", "List.Ordered"],
+  group: ["Block", "List"],
   shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
@@ -58,7 +69,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
 
 export const BulletList = Plot.defineBlock("BulletList", {
   blockContent: "ListItem",
-  group: ["Block", "List.Bullet"],
+  group: ["Block", "List"],
   shape: {element: "ul"},
   autoJoin: true
 })
@@ -174,5 +185,6 @@ export const basicSchema = Schema.define([
   Code,
   Underline,
   Superscript,
-  Subscript
+  Subscript,
+  Alignment
 ])

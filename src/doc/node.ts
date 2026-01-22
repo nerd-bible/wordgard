@@ -126,9 +126,7 @@ export namespace Node {
   /// names indicate sub-groups of the group before the dot.
   ///
   /// The `"List"` group identifies a plot as a list container. This
-  /// makes some commands treat the plot specially. `"List.Ordered"`
-  /// and `"List.Bullet"` are subgroups of that, used by things like
-  /// list menu items to find the schema's list node type.
+  /// makes some commands treat the plot specially.
   ///
   /// `"Code"` indicates that a plot contains code, and makes some
   /// commands behave differently inside such a plot.
@@ -143,7 +141,7 @@ export namespace Node {
   /// Each node is part of the `"_"` group, inline nodes automatically
   /// get assigned to `"Inline"`, plots to `"Plot"`, and leaves to
   /// `"Leaf"`.
-  export type Group = "List" | "List.Bullet" | "List.Ordered" | "Code" | "LineBreak" | "Inline" | "Plot" | "Leaf" | "_" | (string & {})
+  export type Group = "List" | "Code" | "LineBreak" | "Inline" | "Plot" | "Leaf" | "_" | (string & {})
 
   export interface Spec<Param> {
     defaultParam?: Param extends null ? never : Param
@@ -533,6 +531,7 @@ export namespace Plot {
     constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
       super(name, flags, spec)
       this.groups.add("Plot")
+      if (this.inlineContent) this.groups.add("Textblock")
       let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
       this.contentGroups = typeof content == "string" ? [content] : content!
       this.isolating = !!spec.isolating

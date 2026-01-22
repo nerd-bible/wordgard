@@ -1,5 +1,5 @@
 import {Plot, Leaf, Node} from "./node"
-import { Mark } from "./mark"
+import {Mark} from "./mark"
 
 export class Elt<T> {
   constructor(

@@ -6,7 +6,7 @@ import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
         splitTextblock, joinListItems, unwrapBlockType, wrapBlock,
         canAddMarkInRange, selectedTextblocks} from "./helper"
 import {Command} from "./command"
-import { findClusterBreak } from "@marijn/find-cluster-break"
+import {findClusterBreak} from "@marijn/find-cluster-break"
 
 // FIXME check behavior around inline nodes with content for all of these
 
@@ -164,6 +164,24 @@ export const toggleMarkByLabel = Command.define<string>((view, label) => {
   }
   if (!mark) return false
   return toggleMark.dispatch(view, mark)
+})
+
+export const setAlignment = Command.define<null | "end" | "center">((view, align) => {
+  let {state} = view
+  let mark = state.doc.schema.marks.find(m => m.inGroup("Alignment"))
+  if (!mark) return false
+  let changes: ChangeSet.Spec[] = []
+  for (let block of selectedTextblocks(state)) {
+    let cur = block.node.tag.mark(mark)
+    if (cur != align && mark.canTarget(block.node.type))
+      changes.push(align ? {from: block.before, add: mark.of(align)} : {from: block.before, remove: mark.of(cur)})
+  }
+  if (!changes.length) return false
+  view.dispatch({
+    changes,
+    userEvent: "mark.set.alignment",
+  })
+  return true
 })
 
 export const toggleList = Command.define<Plot.Tag.Any>((view, listTag) => {
