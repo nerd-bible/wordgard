@@ -10,7 +10,7 @@ if (!pattern) {
 
 let re = new RegExp(pattern, "g")
 let root = resolve(import.meta.dirname, "..")
-for (let dir of packages.map(p => join(root, "src", p)).concat(join(root, "test"))) {
+for (let dir of packages.map(p => p.dir).concat(join(root, "test"))) {
   for (let file of fs.readdirSync(dir)) if (/\.ts$/.test(file)) {
     let path = join(dir, file)
     let content = fs.readFileSync(path, "utf8"), changed = content.replace(re, replacement)

@@ -1,14 +1,11 @@
-import * as ts from "typescript"
-import {join, dirname, basename, resolve} from "node:path"
+import ts from "typescript"
+import {join, dirname, resolve} from "node:path"
 import * as fs from "fs"
 import {rollup, type RollupBuild, type Plugin, type SourceMap} from "rollup"
 import dts from "rollup-plugin-dts"
 import {parse, Node} from "acorn"
 import {recursive} from "acorn-walk"
-
-function tsFiles(dir: string) {
-  return fs.readdirSync(dir).filter(f => /(?<!\.d)\.ts$/.test(f)).map(f => join(dir, f))
-}
+import {Package, packages} from "./packages.ts"
 
 /// Options passed to `build` or `watch`.
 export interface BuildOptions {
@@ -31,19 +28,6 @@ export interface BuildOptions {
   /// Note that this can break your code if it makes top-level
   /// function calls that have side effects.
   pureTopCalls?: boolean
-}
-
-class Package {
-  // FIXME dynamically update somehow
-  readonly sources: readonly string[]
-  readonly name: string
-  readonly dir: string
-  constructor(dir: string) {
-    this.dir = dir
-    this.sources = tsFiles(dir)
-    this.name = basename(dir)
-  }
-  static get(dir: string): Package { return new Package(dir) }
 }
 
 const tsDefaultOptions = {
@@ -109,7 +93,7 @@ function readAndMangleComments(dirs: readonly string[], options: BuildOptions) {
             return result ? `](${result})` : m
           })
         if (options.expandRootLink)
-          comment = comment.replace(/\]\(\/((?:[^()]|\([^()]*\))+)\)/g, (m, link) => {
+          comment = comment.replace(/\]\(\/((?:[^()]|\([^()]*\))+)\)/g, (_m, link) => {
             return `](${options.expandRootLink}${link})`
           })
         return `${space}/**\n${space}${comment.slice(space.length).replace(/\/\/\/ ?/g, "")}${space}*/\n`
@@ -244,6 +228,8 @@ function external(id: string) {
   return id != "tslib" && !/^(\.?\/|\w:)/.test(id)
 }
 
+const dist = join(import.meta.dirname, "..", "dist")
+
 async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
   let base = await Promise.resolve(options.outputPlugin && options.outputPlugin(pkg.dir) || {name: "dummy"})
   let input = pkg.sources.find(s => /\bindex\.ts$/.test(s))
@@ -253,7 +239,6 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
     external,
     plugins: [outputPlugin(compiled, ".js", base)]
   })
-  let dist = join(pkg.dir, "..", "..", "dist")
   // makePure set to false when generating source map since this manipulates output after source map is generated
   await emit(bundle, {
     format: "esm",
@@ -281,10 +266,8 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
 /// written to the `dist` directory one level up from the entry file.
 /// Any TypeScript files in a `test` directory one level up from main
 /// files will be built in-place.
-export async function build(dirs: string | readonly string[], options: BuildOptions = {}): Promise<boolean> {
-  if (typeof dirs == "string") dirs = [dirs]
-  let pkgs = dirs.map(Package.get)
-  let compiled = runTS(dirs, configFor(pkgs, options), options)
+export async function build(pkgs: readonly Package[], options: BuildOptions = {}): Promise<boolean> {
+  let compiled = runTS(pkgs.map(p => p.dir), configFor(pkgs, options), options)
   if (!compiled) return false
   for (let pkg of pkgs) await bundle(pkg, compiled, options)
   return true
@@ -292,9 +275,8 @@ export async function build(dirs: string | readonly string[], options: BuildOpti
 
 /// Build the given packages and keep rebuilding them every time an
 /// input file changes.
-export function watch(dirs: readonly string[], options: BuildOptions = {}): void {
-  let pkgs = dirs.map(Package.get)
-  let out = watchTS(dirs, configFor(pkgs, options), options)
+export function watch(pkgs: readonly Package[], options: BuildOptions = {}): void {
+  let out = watchTS(pkgs.map(p => p.dir), configFor(pkgs, options), options)
   out.watchers.push(writeFor)
   writeFor(new Set(Object.keys(out.files)))
 
@@ -314,11 +296,7 @@ export function watch(dirs: readonly string[], options: BuildOptions = {}): void
   }
 }
 
-import {packages} from "./packages.ts"
-
-let root = resolve(import.meta.dirname, "..")
 let options = {pureTopCalls: true}
-let mains = packages.map(n => join(root, "src", n))
 
-if (process.argv.includes("--watch")) watch(mains, options)
-else build(mains, options)
+if (process.argv.includes("--watch")) watch(packages, options)
+else build(packages, options)
