@@ -1,4 +1,5 @@
 import {elt, Reject, Plot, Leaf, Mark, Schema} from "wordgard/doc"
+import {Image, ImageAlt} from "wordgard/schema/image"
 
 export const Paragraph = Plot.defineBlock("Paragraph", {
   inlineContent: true,
@@ -84,17 +85,6 @@ export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
   group: "Block",
   shape: {element: "hr"},
   toText: () => "---"
-})
-
-export const Image = Leaf.Type.defineInline<string>("Image", {
-  validateParam: "string",
-  shape: {element: "img", attributes: src => ({src}), readElement: elt => (elt as HTMLImageElement).src || Reject}
-})
-
-export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
-  tags: "Image",
-  validate: "string",
-  shape: {attribute: "alt", readAttribute: x => x}
 })
 
 export const LineBreak = Leaf.defineInline("LineBreak", {

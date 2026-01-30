@@ -126,7 +126,7 @@ export interface PluginSpec<V extends PluginValue> {
 
   /// Specify that the plugin provides additional extensions when
   /// added to an editor configuration.
-  provide?: (plugin: ViewPlugin<V>) => Extension
+  provide?: (plugin: ViewPlugin<V>) => Extension // FIXME is this useful?
 }
 
 // FIXME rename EditorView.Plugin

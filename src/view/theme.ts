@@ -104,6 +104,10 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     display: "block"
   },
 
+  ".wg-selected-node": {
+    outline: "1px solid #68f"
+  },
+
   ".wg-announced": {
     position: "fixed",
     top: "-10000px"

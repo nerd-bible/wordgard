@@ -395,6 +395,8 @@ type StateFieldSpec<Value> = {
 
 const initField = Facet.define<{field: StateField<unknown>, create: (state: EditorState) => unknown}>({static: true})
 
+// FIXME rename to EditorState.Field?
+
 /// Fields can store additional information in an editor state, and
 /// keep it in sync with the rest of the state.
 export class StateField<Value> {

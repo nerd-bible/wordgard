@@ -70,6 +70,14 @@ export class SelectionPos {
   get assoc() { return this.selection.assoc }
   /// [Active marks](#state.EditorSelection.marks) on this selection.
   get marks() { return this.selection.marks }
+
+  /// If the selection's main range covers precisely one node, you can
+  /// find that node here.
+  get node(): Node | null {
+    let {from, to} = this
+    if (from.inText || to.inText || from.parent.start != to.parent.start || from.index != to.index - 1) return null
+    return this.from.nodeAfter
+  }
 }
 
 // FIXME make this user-visible?

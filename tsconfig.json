@@ -10,7 +10,6 @@
     "module": "es2020",
     "newLine": "lf",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "paths": {
       "wordgard/*": ["./src/*"],
     }

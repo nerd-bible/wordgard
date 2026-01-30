@@ -1,8 +1,9 @@
 import {Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
 import {basicSchema} from "./schema"
-import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, Image, ImageAlt, LineBreak,
+import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Emphasis, Strong, Code, Link} from "./schema"
+import {Image, ImageAlt} from "wordgard/schema/image"
 
 export type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 

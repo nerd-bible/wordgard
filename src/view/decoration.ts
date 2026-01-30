@@ -333,7 +333,7 @@ export class PointSet<Value> {
         else i = nextI
         pos = end
       }
-    }, (fromA, toA) => {
+    }, (_fromA, toA) => {
       let nextI = findAbove(positions, i, toA + 1)
       for (; i < nextI; i++) {
         let mapped = (side || this.type.side)(this.values[i]) < 0 ? changes.mapPos(positions[i], -1, MapMode.TrackBefore)
@@ -535,7 +535,7 @@ export class RangeSet<Value> {
         else i = nextI
         pos = end
       }
-    }, (fromA, toA) => {
+    }, (_fromA, toA) => {
       let nextI = findAbove(to, i, toA + 1)
       for (; i < nextI; i++) {
         let value = this.values[i]
