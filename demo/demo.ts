@@ -1,8 +1,7 @@
-import {EditorView, defaultKeymap} from "wordgard/view"
+import {EditorView, defaultKeymap, NodeSelection} from "wordgard/view"
 import {basicSchema} from "wordgard/schema"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
-import {ImageSelection} from "wordgard/schema/image"
 
 ;(window as any).view = new EditorView({
   parent: document.body,
@@ -13,6 +12,6 @@ import {ImageSelection} from "wordgard/schema/image"
     history(),
     staticMenu,
     menuBar(),
-    ImageSelection
+    NodeSelection
   ]
 })

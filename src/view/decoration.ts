@@ -492,7 +492,7 @@ export class PointIterator<Value, Source> {
   goto(pos: number) {
     this.done = false
     this.fill(findAbove(this.set.positions, 0, pos - 1))
-  }    
+  }
 }
 
 function addDel(deleted: number[], i: number) {
@@ -642,7 +642,7 @@ export namespace RangeSet {
     }
   }
 }
- 
+
 export class RangeIterator<Value, Source> {
   declare value: Value | null
   declare from: number
@@ -716,7 +716,7 @@ function compareFacet<
   }, U extends {set: (state: EditorState) => T}
 >(
   stateA: EditorState, stateB: EditorState,
-  facet: Facet<U>, 
+  facet: Facet<U>,
   fromA: number, fromB: number, len: number,
   add: (from: number, to: number) => void
 ) {
@@ -1030,7 +1030,7 @@ export class DecoIterator {
   pos: Pos
   rangeIter: RangeIterator<any, RangeDecorationSource<any>>[] = []
   pointIter: PointIterator<any, WidgetSource<any> | ShapeOverride<any>>[] = []
-  
+
   constructor(readonly state: EditorState) {
     this.globalWidgets = state.facet(tagWidgets)
     this.globalWrappers = state.facet(tagWrappers)

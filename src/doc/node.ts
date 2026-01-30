@@ -14,6 +14,7 @@ const enum NodeFlag {
   Atom = 4,
   Doc = 8,
   NullParam = 16,
+  Selectable = 32,
 }
 
 export type Node = Plot | Leaf.Any
@@ -282,10 +283,12 @@ export namespace Leaf {
 
     get isLeaf(): true { return true }
     get isPlot(): false { return false }
+    get isSelectable() { return (this.flags & NodeFlag.Selectable) > 0 }
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
     toText?(node: Leaf.Any): string
+    selectable?: boolean
   }
 
   export type Any = Omit<Leaf<unknown>, "type" | "tag" | "withMarks"> & {
@@ -677,6 +680,7 @@ function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   let flags = inline ? NodeFlag.Inline : NodeFlag.None
   if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
+  if ((spec as Leaf.Spec<any>).selectable) flags |= NodeFlag.Selectable
   return flags
 }
 

@@ -84,7 +84,8 @@ export const ListItem = Plot.defineBlock("ListItem", {
 export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
   group: "Block",
   shape: {element: "hr"},
-  toText: () => "---"
+  toText: () => "---",
+  selectable: true
 })
 
 export const LineBreak = Leaf.defineInline("LineBreak", {

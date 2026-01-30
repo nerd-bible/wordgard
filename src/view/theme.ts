@@ -47,7 +47,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   "&dark": {
     "--wg-panel-color": "#030303",
     "--wg-border-color": "#444"
-  },    
+  },
 
   ".wg-scroller": {
     height: "100%",
@@ -105,7 +105,10 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   },
 
   ".wg-selected-node": {
-    outline: "1px solid #68f"
+    outline: "2px solid #68f",
+    "&::selection": {
+      backgroundColor: "transparent"
+    }
   },
 
   ".wg-announced": {
