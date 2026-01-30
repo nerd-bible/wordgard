@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
-        pushAttribute, noAttributes, sameAttributes} from "wordgard/doc"
+        pushAttribute, noAttributes} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
@@ -595,9 +595,10 @@ function buildFromShape(shape: Shape, node: Node | null, nodeInner = false) {
   }
 }
 
-function copyEltShape(tile: EltTile, node: Node | null): EltTile {
-  let outer = EltTile.of(tile.elt, node, tile.flags, tile.length, tile.dom)
-  if (!tile.elt.hasContent) {
+function copyEltShape(tile: EltTile, node: Node | null, elt = tile.elt): EltTile {
+  // FIXME is blindly copying length and tags safe here?
+  let outer = EltTile.of(elt, node, tile.flags, node ? node.length : tile.length, tile.dom)
+  if (!elt.hasContent) {
     for (let ch of tile.children) outer.addChild(copyShape(ch as EltTile | WidgetTile))
   }
   return outer
@@ -835,10 +836,10 @@ class ContentUpdate {
         if (reuse) {
           let nodeTile = this.old.tileAfter()
           if (nodeTile instanceof EltTile && !this.reused.has(nodeTile) &&
-              nodeTile.elt.tagName == elt.tagName && sameAttributes(nodeTile.elt.attrs, elt.attrs) && nodeTile.elt.eqChildren(elt)) {
+              nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
             this.reused.set(nodeTile, Reused.DOM)
             updateAttributes(nodeTile.dom, nodeTile.elt.attrs, elt.attrs)
-            tile = copyEltShape(nodeTile, node)
+            tile = copyEltShape(nodeTile, node, elt)
           }
         }
         if (!tile) {
@@ -867,7 +868,7 @@ class ContentUpdate {
                 nodeTile.elt.tagName == shape.tagName && nodeTile.elt.eqChildren(shape)) {
               this.reused.set(nodeTile, Reused.DOM)
               updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
-              tile = copyEltShape(nodeTile, node)
+              tile = copyEltShape(nodeTile, node, shape)
             } else if (node.is(Leaf.Text) && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
                        (reuse || this.posB == start)) {
               if (nodeTile.text != node.param) {
