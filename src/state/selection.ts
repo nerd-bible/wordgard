@@ -235,8 +235,8 @@ export class EditorSelection {
 
   /// Find the next normal cursor position after or before this selection's
   /// head.
-  nextNormalCursor(state: EditorState, forward = true): EditorSelection | null {
-    let found = scanNormalFrom(state, this.head, this.assoc || -1, forward, true)
+  nextNormalCursor(state: EditorState, forward = true, mustMove = true): EditorSelection | null {
+    let found = scanNormalFrom(state, this.head, this.assoc || (forward ? 1 : -1), forward, mustMove)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 

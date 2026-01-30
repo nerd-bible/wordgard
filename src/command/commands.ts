@@ -336,9 +336,20 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: Editor
 /// motion will go back in left-to-right text, and
 /// forward in right-to-left text.
 export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}>((view, {dir, extend}) => {
-  let {state} = view, forward = isForward(dir, state)
-  let moved = state.selection.nextNormalCursor(state, forward)
-  return moved ? setSelection(view, moved, extend) : false
+  let {state} = view, {selection} = state, forward = isForward(dir, state)
+  if (selection.empty) {
+    let next = selection.nextNormalCursor(state, forward)
+    if (!next) return false
+    if (!extend) state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
+      if (node.isPlot) return !node.type.isolating
+      if (node.type.isSelectable) next = EditorSelection.range(pos, pos + node.length)
+    })
+    return setSelection(view, next, extend)
+  } else {
+    let next = (forward ? EditorSelection.cursor(selection.to, -1) : EditorSelection.cursor(selection.from, 1))
+      .nextNormalCursor(state, forward, !!extend)
+    return next ? setSelection(view, next, extend) : false
+  }
 })
 
 /// Move the selection head one word in the indicated direction. Keep
