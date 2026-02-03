@@ -16,7 +16,6 @@ export class InputState {
   lastKeyCode: number = 0
   lastKeyTime: number = 0
   lastTouchTime = 0
-  lastFocusTime = 0
   lastScrollTop = 0
   lastScrollLeft = 0
 
@@ -571,7 +570,6 @@ function updateForFocusChange(view: EditorView) {
 }
 
 observers.focus = view => {
-  view.inputState.lastFocusTime = Date.now()
   // When focusing reset the scroll position, move it back to where it was
   if (!view.scrollDOM.scrollTop && (view.inputState.lastScrollTop || view.inputState.lastScrollLeft)) {
     view.scrollDOM.scrollTop = view.inputState.lastScrollTop

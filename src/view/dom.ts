@@ -276,26 +276,6 @@ export function getRoot(node: Node | null | undefined): DocumentOrShadowRoot | n
   return null
 }
 
-export function atElementStart(doc: HTMLElement, selection: SelectionRange) {
-  let node = selection.focusNode, offset = selection.focusOffset
-  if (!node || selection.anchorNode != node || selection.anchorOffset != offset) return false
-  // Safari can report bogus offsets (#1152)
-  offset = Math.min(offset, maxOffset(node))
-  for (;;) {
-    if (offset) {
-      if (node.nodeType != 1) return false
-      let prev: Node = node.childNodes[offset - 1]
-      if ((prev as HTMLElement).contentEditable == "false") offset--
-      else { node = prev; offset = maxOffset(node) }
-    } else if (node == doc) {
-      return true
-    } else {
-      offset = domIndex(node)
-      node = node.parentNode!
-    }
-  }
-}
-
 export function textNodeBefore(startNode: Node, startOffset: number): Text | null {
   for (let node = startNode, offset = startOffset;;) {
     if (node.nodeType == 3 && offset > 0) {

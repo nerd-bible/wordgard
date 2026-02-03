@@ -1,10 +1,9 @@
 import {ChangeSet} from "wordgard/doc"
 import browser from "./browser"
 import {EditorView} from "./editorview"
-import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange,
-        isEquivalentPosition, atElementStart} from "./dom"
+import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
 import {Tile} from "./tile"
-import {setDOMSelection, readDOMSelection} from "./selection"
+import {readDOMSelection} from "./selection"
 
 const observeOptions = {
   childList: true,
@@ -116,7 +115,7 @@ export class DOMObserver {
 
   onThemeChange() {
     this.view.configureDarkTheme(this.darkThemeQuery!.matches)
-  }        
+  }
 
   pollSelection() {
     if (!this.view.inputState.currentComposition && this.readSelectionRange() &&
@@ -140,18 +139,6 @@ export class DOMObserver {
       if (selRange) range = buildSelectionRangeFromRange(view, selRange)
     }
     if (!range || this.selectionRange.eq(range)) return false
-    let local = hasSelection(this.dom, range)
-    // Detect the situation where the browser has, on focus, moved the
-    // selection to the start of the content element. Reset it to the
-    // position from the editor state.
-    if (local &&
-        view.inputState.lastFocusTime > Date.now() - 200 &&
-        view.inputState.lastTouchTime < Date.now() - 300 &&
-        atElementStart(this.dom, range)) {
-      this.view.inputState.lastFocusTime = 0
-      setDOMSelection(view)
-      return false
-    }
     this.selectionRange.setRange(range)
     return true
   }
