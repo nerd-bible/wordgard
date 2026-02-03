@@ -337,17 +337,16 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: Editor
 /// forward in right-to-left text.
 export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}>((view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = isForward(dir, state)
-  if (selection.empty) {
+  if (selection.empty && !extend) {
     let next = selection.nextNormalCursor(state, forward)
     if (!next) return false
-    if (!extend) state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
+    state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
       if (node.isPlot) return !node.type.isolating
       if (node.type.isSelectable) next = EditorSelection.range(pos, pos + node.length)
     })
-    return setSelection(view, next, extend)
+    return setSelection(view, next, false)
   } else {
-    let next = (forward ? EditorSelection.cursor(selection.to, -1) : EditorSelection.cursor(selection.from, 1))
-      .nextNormalCursor(state, forward, !!extend)
+    let next = selection.normalCursorAtBound(state, forward, !!extend)
     return next ? setSelection(view, next, extend) : false
   }
 })
@@ -361,8 +360,9 @@ export const moveByWord = Command.define<{dir: "left" | "right", extend?: boolea
   return moved ? setSelection(view, moved, extend) : false
 })
 
-function nextVertical(view: EditorView, sel: EditorSelection, forward: boolean, distance?: number) {
-  let next = view.moveVertically(sel, forward, distance)
+function nextVertical(view: EditorView, sel: EditorSelection, forward: boolean,
+                      distance?: number, allowNode?: boolean) {
+  let next = view.moveVertically(sel, forward, distance, allowNode)
   if (next) return next
   let end = (forward ? EditorSelection.atEnd : EditorSelection.atStart)(view.state)
   return end.head == view.state.selection.head ? null : end
@@ -372,8 +372,8 @@ function nextVertical(view: EditorView, sel: EditorSelection, forward: boolean, 
 /// true, keep the anchor in place.
 export const moveByLine = Command.define<{dir: "up" | "down", extend?: boolean}>((view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = dir == "down"
-  let moved = selection.empty || extend ? nextVertical(view, selection, forward)
-    : forward ? EditorSelection.cursor(selection.to, -1) : EditorSelection.cursor(selection.from, 1)
+  let base = !state.sel.node ? selection : EditorSelection.cursor(forward ? selection.to : selection.from, 0, selection.goalColumn)
+  let moved = nextVertical(view, base, forward, undefined, !extend)
   return moved ? setSelection(view, moved, extend) : false
 })
 

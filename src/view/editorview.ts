@@ -68,7 +68,7 @@ export class EditorView {
   /// lot, since just putting the cursor on a word starts a
   /// composition there.
   get compositionStarted() { return this.inputState.composing && this.inputState.composing.changes > 0 }
-  
+
   /// The document or shadow root that the view lives in.
   root: DocumentOrShadowRoot = document
 
@@ -298,7 +298,7 @@ export class EditorView {
     let changes = domChanges ? ChangeSet.composeSections(domChanges, update.changes.sections) : update.changes.sections
     let prevDocTile = this.docTile
     this.docTile = prevDocTile.update(update.state, changes, composition)
-    
+
     if ((composition?.wrapCursor || !composition &&
         (changes.length && !(changes.length == 2 && changes[1] == -1) || update.selectionSet)) && this.hasFocus)
       setDOMSelection(this)
@@ -442,10 +442,11 @@ export class EditorView {
   /// motion will use that as a target horizontal position. Otherwise,
   /// the cursor's own horizontal position is used. The returned
   /// cursor will have its goal column set to whichever column was
-  /// used.
-  moveVertically(start: EditorSelection, forward: boolean, distance?: number) {
+  /// used. If `allowNode` is true, this may return a node selection
+  /// on a block node.
+  moveVertically(start: EditorSelection, forward: boolean, distance?: number, allowNode?: boolean) {
     this.checkFlushed()
-    return moveVertically(this, start, forward, distance)
+    return moveVertically(this, start, forward, distance, allowNode)
   }
 
   /// Find the DOM parent node and offset (child offset if `node` is

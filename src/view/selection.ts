@@ -1,5 +1,5 @@
 import {EditorSelection, Direction} from "wordgard/state"
-import {PlotPos} from "wordgard/doc"
+import {PlotPos, NodePos} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
@@ -36,7 +36,8 @@ export function readDOMSelection(view: EditorView, range: SelectionRange) {
 
 const Y_STEP = 5
 
-export function moveVertically(view: EditorView, start: EditorSelection, forward: boolean, distance: number = 0) {
+export function moveVertically(view: EditorView, start: EditorSelection, forward: boolean,
+                               distance: number = 0, selectNode = false) {
   let editorRect = view.contentDOM.getBoundingClientRect()
   let coords = view.coordsAtPos(start.head, start.assoc || -1)
   let goalColumn = start.goalColumn ?? coords.left - editorRect.left // FIXME does this need to be flipped if RTL?
@@ -55,36 +56,45 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
       if (!block.parent) return null
       scan = forward ? block.after : block.before
     }
-    
+
     let nextCursor = EditorSelection.cursor(scan, 0).nextNormalCursor(view.state, forward)
     if (!nextCursor) return null
-    let nextBlock = findTextblockVertically(view, scan, forward, x)
-    if (!nextBlock || (forward ? nextCursor.head < nextBlock.start : nextCursor.head > nextBlock.end)) {
+    let nextNode = findTargetVertically(view, scan, forward, x, selectNode)
+    if (nextNode && nextNode.node.isLeaf) {
+      let coords = view.coordsForElement(nextNode.before)!
+      if (forward ? coords.bottom > y : coords.top < y)
+        return EditorSelection.range(nextNode.before, nextNode.after, goalColumn)
+    }
+    if (!nextNode || (forward ? nextCursor.head <= nextNode.before : nextCursor.head >= nextNode.after)) {
       let coords = view.coordsAtPos(nextCursor.head, nextCursor.assoc || -1)
       if (forward ? coords.bottom > y : coords.top < y)
         return EditorSelection.cursor(nextCursor.head, nextCursor.assoc, goalColumn)
-      if (!nextBlock) return null
+      if (!nextNode) return null
     }
-    scan = forward ? nextBlock.start : nextBlock.end
+    scan = forward ? (nextNode as PlotPos).start : (nextNode as PlotPos).end
   }
 }
 
-function findTextblockVertically(view: EditorView, from: number, forward: boolean, x: number) {
-  let {parent, index, pos} = view.state.doc.resolve(from)
+function findTargetVertically(view: EditorView, from: number, forward: boolean, x: number, allowNode: boolean) {
+  let {parent, index, pos} = view.state.doc.resolve(from), entering = false
   for (;;) {
-    if (parent.node.type.orientation == "row" || forward ? index == parent.node.content.length : !index) {
+    if ((forward ? index == parent.node.content.length : !index) ||
+        parent.node.type.orientation == "row" && !entering) {
       if (!parent.parent) return null
       index = parent.index + (forward ? 1 : 0)
       pos += (forward ? 1 : -1)
       parent = parent.parent
+      entering = false
     } else {
       let next = parent.node.content[index - (forward ? 0 : 1)]
+      let nextPos = pos - (forward ? 0 : next.length)
       if (next.isLeaf || next.type.isAtom) {
+        if (allowNode && next.isLeaf && next.type.isSelectable)
+          return new NodePos(parent, next, nextPos, index - (forward ? 0 : 1))
         index += forward ? 1 : -1
         pos += (forward ? 1 : -1) * next.length
         continue
       }
-      let nextPos = pos - (forward ? 0 : next.length)
       let node = new PlotPos(parent, next, nextPos, index - (forward ? 0 : 1))
       if (!next.inlineContent && next.type.orientation == "row") {
         // Find the child closest to the given x

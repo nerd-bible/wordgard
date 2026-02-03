@@ -235,8 +235,14 @@ export class EditorSelection {
 
   /// Find the next normal cursor position after or before this selection's
   /// head.
-  nextNormalCursor(state: EditorState, forward = true, mustMove = true): EditorSelection | null {
-    let found = scanNormalFrom(state, this.head, this.assoc || (forward ? 1 : -1), forward, mustMove)
+  nextNormalCursor(state: EditorState, forward = true): EditorSelection | null {
+    let found = scanNormalFrom(state, this.head, this.assoc || (forward ? 1 : -1), forward, true)
+    return found && EditorSelection.cursor(found.pos, found.assoc)
+  }
+
+  // FIXME rename? Frame differently?
+  normalCursorAtBound(state: EditorState, forward = true, mustMove = false): EditorSelection | null {
+    let found = scanNormalFrom(state, forward ? this.to : this.from, forward ? -1 : 1, forward, false)
     return found && EditorSelection.cursor(found.pos, found.assoc)
   }
 
