@@ -337,17 +337,17 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: Editor
 /// forward in right-to-left text.
 export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}>((view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = isForward(dir, state)
-  if (selection.empty && !extend) {
+  if (!selection.empty && !extend) {
+    let next = selection.normalCursorAtBound(state, forward)
+    return next ? setSelection(view, next) : false
+  } else {
     let next = selection.nextNormalCursor(state, forward)
     if (!next) return false
-    state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
+    if (!extend) state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
       if (node.isPlot) return !node.type.isolating
       if (node.type.isSelectable) next = EditorSelection.range(pos, pos + node.length)
     })
-    return setSelection(view, next, false)
-  } else {
-    let next = selection.normalCursorAtBound(state, forward, !!extend)
-    return next ? setSelection(view, next, extend) : false
+    return setSelection(view, next, !!extend)
   }
 })
 
