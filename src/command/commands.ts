@@ -372,8 +372,13 @@ function nextVertical(view: EditorView, sel: EditorSelection, forward: boolean,
 /// true, keep the anchor in place.
 export const moveByLine = Command.define<{dir: "up" | "down", extend?: boolean}>((view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = dir == "down"
-  let base = !state.sel.node ? selection : EditorSelection.cursor(forward ? selection.to : selection.from, 0, selection.goalColumn)
-  let moved = nextVertical(view, base, forward, undefined, !extend)
+  if (state.sel.node) {
+    let next = !extend && state.selection.normalCursorAtBound(state, forward)
+    if (next && !state.doc.resolve(next.head).parent.node.inlineContent)
+      return setSelection(view, EditorSelection.cursor(next.head, next.assoc, selection.goalColumn))
+    selection = EditorSelection.cursor(forward ? selection.to : selection.from, 0, selection.goalColumn)
+  }
+  let moved = nextVertical(view, selection, forward, undefined, !extend)
   return moved ? setSelection(view, moved, extend) : false
 })
 

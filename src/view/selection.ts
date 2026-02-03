@@ -60,18 +60,20 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
     let nextCursor = EditorSelection.cursor(scan, 0).nextNormalCursor(view.state, forward)
     if (!nextCursor) return null
     let nextNode = findTargetVertically(view, scan, forward, x, selectNode)
-    if (nextNode && nextNode.node.isLeaf) {
-      let coords = view.coordsForElement(nextNode.before)!
-      if (forward ? coords.bottom > y : coords.top < y)
-        return EditorSelection.range(nextNode.before, nextNode.after, goalColumn)
-    }
     if (!nextNode || (forward ? nextCursor.head <= nextNode.before : nextCursor.head >= nextNode.after)) {
       let coords = view.coordsAtPos(nextCursor.head, nextCursor.assoc || -1)
       if (forward ? coords.bottom > y : coords.top < y)
         return EditorSelection.cursor(nextCursor.head, nextCursor.assoc, goalColumn)
       if (!nextNode) return null
     }
-    scan = forward ? (nextNode as PlotPos).start : (nextNode as PlotPos).end
+    if (nextNode instanceof PlotPos) {
+      scan = forward ? nextNode.start : nextNode.end
+    } else {
+      let coords = view.coordsForElement(nextNode.before)!
+      if (forward ? coords.bottom > y : coords.top < y)
+        return EditorSelection.range(nextNode.before, nextNode.after, goalColumn)
+      scan = forward ? nextNode.after : nextNode.before
+    }
   }
 }
 
