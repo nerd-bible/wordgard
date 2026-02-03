@@ -1019,7 +1019,7 @@ function updateAttributes(dom: HTMLElement, a: Attributes, b: Attributes) {
     } else if (iA < a.length && (iB == b.length || a[iA] < b[iB])) {
       dom.removeAttribute(a[iA])
       iA += 2
-    } else if (iB < b.length && iA < a.length) {
+    } else if (iB < b.length) {
       dom.setAttribute(b[iB], b[iB + 1])
       iB += 2
     } else {

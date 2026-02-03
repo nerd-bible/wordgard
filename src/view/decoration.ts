@@ -230,7 +230,7 @@ export class RangeDecorationSource<T> {
     rank?: number
   }) {
     this.pred = Node.selector(config.tag)
-    this.scope = config.scope ?? DecorationScope.InlineAtom
+    this.scope = config.scope ?? DecorationScope.Atom
     this.set = config.set
     if ((config.deco as WrapperDeco<T>).element) {
       const {element, attributes, spanning, rank} = config.deco as WrapperDeco<T>
