@@ -9,7 +9,7 @@ import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 import {eqArray} from "./util"
-import {Tile} from "./tile"
+import {Tile, PosAssoc} from "./tile"
 
 export class InputState {
   shiftKey = false
@@ -435,10 +435,14 @@ handlers.mousedown = (view, event: MouseEvent) => {
 }
 
 function queryPos(view: EditorView, event: MouseEvent) {
-  return view.posAtCoords({x: event.clientX, y: event.clientY})
+  return view.posAtCoords({x: event.clientX, y: event.clientY}) as PosAssoc
 }
 
-function rangeForClick(view: EditorView, pos: {pos: number, assoc: -1 | 0 | 1}, type: number): EditorSelection {
+function rangeForClick(view: EditorView, pos: PosAssoc, type: number): EditorSelection {
+  if (type < 3 && pos.target != null) {
+    let target = view.state.doc.nodeAt(pos.target)
+    if (target && target.isLeaf && target.type.isSelectable) return EditorSelection.range(pos.target, pos.target + target.length)
+  }
   if (type == 1) { // Single click
     return EditorSelection.near(view.state, pos.pos, pos.assoc || -1)
   } else if (type == 2) { // Double click
@@ -456,7 +460,7 @@ function basicMouseSelection(view: EditorView, event: MouseEvent) {
   return {
     update(update) {
       if (update.docChanged) {
-        start.pos = update.changes.mapPos(start.pos)
+        start = start.map(update.changes)
         startSel = startSel.map(update.changes)
       }
     },

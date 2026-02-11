@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
-        pushAttribute, noAttributes} from "wordgard/doc"
+        pushAttribute, noAttributes, MapMode} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
@@ -30,13 +30,18 @@ const enum PosAssocFlag {
   VertOutside = 4
 }
 
-class PosAssoc {
-  readonly flags: PosAssocFlag
-  constructor(readonly pos: number, assoc: -1 | 0 | 1, vertOutside?: boolean) {
-    this.flags = (assoc + 1) | (vertOutside ? PosAssocFlag.VertOutside : 0)
-  }
+// FIXME rename
+export class PosAssoc {
+  constructor(readonly pos: number, readonly target: number | null, readonly flags: PosAssocFlag) {}
   get assoc(): -1 | 0 | 1 { return ((this.flags & PosAssocFlag.AssocMask) - 1) as -1 | 0 | 1 }
   get vertOutside() { return (this.flags & PosAssocFlag.VertOutside) > 0 }
+  map(mapping: ChangeSet) {
+    let target = this.target == null ? null : mapping.mapPos(this.target, MapMode.TrackAfter)
+    return new PosAssoc(mapping.mapPos(this.pos), target, this.flags)
+  }
+  static create(pos: number, assoc: -1 | 0 | 1, target: number | null = null, vertOutside?: boolean) {
+    return new PosAssoc(pos, target, (assoc + 1) | (vertOutside ? PosAssocFlag.VertOutside : 0))
+  }
 }
 
 export class ContentPos {
@@ -234,7 +239,8 @@ export class CompositeTile extends Tile {
     if (result) return result
     let rect = this.dom.getBoundingClientRect()
     let after = outerOrientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
-    return new PosAssoc(start + (after ? this.length : 0), after ? -1 : 1)
+    return PosAssoc.create(start + (after ? this.length - 2 * this.boundary: 0), after ? -1 : 1,
+                           this.node && this.node.isLeaf ? start : null)
   }
 
   // FIXME adopt the binary search trick from CodeMirror
@@ -253,8 +259,8 @@ export class CompositeTile extends Tile {
     let closest = scan.closest, rect = scan.closestRect!
     let pos = this.posBeforeChild(closest, start)
     if (scan.dyClosest) { // Coords are vertically outside of the child
-      if (y > rect.bottom) return new PosAssoc(pos + closest.length, -1, true)
-      else return new PosAssoc(pos, 1, true)
+      if (y > rect.bottom) return PosAssoc.create(pos + closest.length, -1, null, true)
+      else return PosAssoc.create(pos, 1, null, true)
     }
     return closest.posAtCoordsInner(pos + closest.boundary, state,
                                     x, Math.max(rect!.top, Math.min(rect!.bottom, y)),
@@ -268,11 +274,11 @@ export class CompositeTile extends Tile {
     for (let child of this.children) {
       if (child.isPoint || child.dom.nodeType != 1) continue
       let rect = (child.dom as HTMLElement).getBoundingClientRect()
-      if (rect.top > y) return new PosAssoc(this.posBeforeChild(child, start), y > (lastBot + rect.top) / 2 ? 1 : -1)
+      if (rect.top > y) return PosAssoc.create(this.posBeforeChild(child, start), y > (lastBot + rect.top) / 2 ? 1 : -1)
       if (rect.bottom >= y) return child.posAtCoordsInner(this.posBeforeChild(child, start) + child.boundary, state,
                                                           x, y, textblock, Orientation.Col)
     }
-    return new PosAssoc(start + this.length - 2 * this.boundary, -1)
+    return PosAssoc.create(start + this.length - 2 * this.boundary, -1)
   }
 }
 
@@ -523,12 +529,12 @@ export class WidgetTile extends Tile {
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
-    if (!this.node) return new PosAssoc(start, 0)
+    if (!this.node) return PosAssoc.create(start, 0)
     let rect = this.dom.nodeType == 1 ? (this.dom as HTMLElement).getBoundingClientRect()
       : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
     let after = orientation == Orientation.Col ? y > (rect.top + rect.bottom) / 2
       : (x < (rect.left + rect.right) / 2) == (dirAt(state, start, 1, textblock) == Direction.LTR)
-    return after ? new PosAssoc(start + this.length - 2 * this.boundary, -1) : new PosAssoc(start, 1)
+    return after ? PosAssoc.create(start + this.length - 2 * this.boundary, -1, start) : PosAssoc.create(start, 1, start)
   }
 }
 
@@ -573,8 +579,8 @@ export class TextTile extends Tile {
     let pos = start + closest, dir = dirAt(state, pos, 1, textblock)
     let after = scan.dyClosest ? y > rect.bottom
       : (x > (rect.left + rect.right) / 2) == (dir == Direction.LTR)
-    if (after) return new PosAssoc(start + findClusterBreak(this.text, closest), -1)
-    else return new PosAssoc(pos, 1)
+    if (after) return PosAssoc.create(start + findClusterBreak(this.text, closest), -1)
+    else return PosAssoc.create(pos, 1)
   }
 
   static of(text: string) {
