@@ -41,7 +41,7 @@ class RuleSet {
           readElement: shape.readElement,
           mark
         })
-      } else {
+      } else if (shape.readAttribute) {
         rules.push({
           attribute: shape.attribute,
           readAttribute: shape.readAttribute,

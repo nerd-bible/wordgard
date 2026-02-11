@@ -2,7 +2,8 @@ import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
         RangeSet, RangeDecorationSource, overrideShape} from "wordgard/view"
 import {EditorState, type Extension, StateField, Transaction, StateEffect} from "wordgard/state"
 import {Plot, Leaf, elt} from "wordgard/doc"
-import {basicBuilders, CodeBlock, Emphasis, Strong, ImageAlt, Paragraph, Image} from "wordgard/schema"
+import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph} from "wordgard/schema"
+import {Image, ImageAlt} from "wordgard/schema/image"
 import ist from "ist"
 
 const {DocTile} = EditorView as any

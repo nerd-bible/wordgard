@@ -237,6 +237,7 @@ export class CompositeTile extends Tile {
     return new PosAssoc(start + (after ? this.length : 0), after ? -1 : 1)
   }
 
+  // FIXME adopt the binary search trick from CodeMirror
   posAtCoordsRow(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null): PosAssoc | null {
     let scan = new RowScan<Tile>(x, y)
     for (let child of this.children) {
