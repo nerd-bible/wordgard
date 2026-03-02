@@ -458,6 +458,14 @@ export class EditorView {
     return {node: viewPos.tile.dom, offset: viewPos.offset}
   }
 
+  nodeDOM(pos: number): HTMLElement | null {
+    this.checkFlushed()
+    let viewPos = this.docTile.resolve(pos, 1)
+    if (viewPos.dom.nodeType != 1) return null
+    let after = viewPos.dom.childNodes[viewPos.offset]
+    return after && after.nodeType == 1 ? after as HTMLElement : null
+  }
+
   /// Find the document position at the given DOM node. Can be useful
   /// for associating positions with DOM events. Will raise an error
   /// when `node` isn't part of the editor content.
@@ -467,7 +475,7 @@ export class EditorView {
   }
 
   /// Get the document position at the given screen coordinates.
-  posAtCoords(coords: {x: number, y: number}): {pos: number, assoc: -1 | 0 | 1, target: number} {
+  posAtCoords(coords: {x: number, y: number}): {pos: number, assoc: -1 | 0 | 1, target: number | null} {
     this.checkFlushed()
     let elt = ((this.root as any).elementFromPoint ? this.root : this.dom.ownerDocument)
                 .elementFromPoint(coords.x, coords.y) as HTMLElement

@@ -106,7 +106,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
 
   ".wg-selected-node": {
     outline: "2px solid #68f",
-    "&::selection": {
+    "&::selection, & *::selection": {
       backgroundColor: "transparent"
     }
   },

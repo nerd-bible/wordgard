@@ -94,7 +94,7 @@ export function mergeAttributes(a: Attributes, b: Attributes) {
       if (kA == "class") value = a[iA + 1] + " " + value
       else if (kA == "style") value = a[iA + 1] + ";" + value
       result.push(kA, value)
-      iA += 2; iB + 2
+      iA += 2; iB += 2
     } else if (kA != null && (kB == null || kA < kB)) {
       result.push(kA, a[iA + 1])
       iA += 2
@@ -183,8 +183,8 @@ export class NodeShape<Param> {
 
   static from<Param>(type: Node.Type.Base<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
+    if (atom == null) atom = type.isLeaf
     if (isElementShape(spec)) {
-      if (atom == null) atom = type.isLeaf
       let {element, attributes} = spec
       if (typeof attributes == "function") {
         create = (param: Param) => new Elt(element, readAttributes(attributes(param)), atom ? noChildren : null)
