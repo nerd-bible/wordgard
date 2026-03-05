@@ -313,6 +313,7 @@ function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
+// FIXME make it possible add wrapper/attr decorations by point
 export class PointSet<Value> {
   constructor(readonly positions: readonly number[],
               readonly values: readonly Value[],
@@ -1064,7 +1065,7 @@ export class DecoIterator {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
     let iter = new HeapIterator<any, RangeDecorationSource<any>, any, WidgetSource<any> | ShapeOverride<any>>(
-      this.rangeIter, this.pointIter, from, to)
+      this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
     let pendingShape: ShapeOverride<any> | undefined, pendingShapePos = -1, pendingShapeValue: any
