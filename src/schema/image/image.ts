@@ -1,5 +1,5 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
-import {EditorView, tagDecoration, RangeSet, RangeDecorationSource} from "wordgard/view"
+import {EditorView, tagDecoration, RangeSet, Decoration, rangeDecorations} from "wordgard/view"
 import {EditorState, StateField, StateEffect, Prec} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
@@ -51,8 +51,6 @@ export const imageTheme = EditorView.theme({
   }
 })
 
-const resizeDecoSet = RangeSet.for<number>()
-
 const setResizing = StateEffect.define<{pos: number, width: number} | null>({
   map: (value, mapping) => {
     if (!value) return null
@@ -61,21 +59,27 @@ const setResizing = StateEffect.define<{pos: number, width: number} | null>({
   }
 })
 
-const dragState = StateField.define<RangeSet<number>>({
-  create: () => resizeDecoSet.empty,
+const dragState = StateField.define<{width: number, deco: RangeSet<Decoration>}>({
+  create: () => ({width: -1, deco: RangeSet.empty}),
   update: (value, tr) => {
     for (let e of tr.effects) {
-      if (e.is(setResizing))
-        return e.value ? resizeDecoSet.create([[e.value.pos, e.value.pos + 1, e.value.width]]) : resizeDecoSet.empty
+      if (e.is(setResizing)) {
+        if (!e.value) return {width: -1, deco: RangeSet.empty}
+        let deco = Decoration.attribute({
+          attr: "style",
+          value: `width: ${e.value.width}px`
+        })
+        return {width: e.value.width, deco: RangeSet.create([[e.value.pos, e.value.pos + 1, deco]])}
+      }
     }
-    return value.map(tr.changes)
+    return value.width < 0 || !tr.docChanged ? value : {width: value.width, deco: value.deco.map(tr.changes)}
   }
 })
 
 function getDragState(state: EditorState) {
   let f = state.field(dragState)
-  if (!f || !f.length) return null
-  return {pos: f.from[0], width: f.values[0]} // FIXME
+  if (!f || f.width < 0) return null
+  return {pos: f.deco.from[0], width: f.width} // FIXME
 }
 
 export const dragHandle = [
@@ -117,11 +121,5 @@ export const dragHandle = [
     }
   })),
   dragState,
-  new RangeDecorationSource<number>({
-    set: s => s.field(dragState),
-    deco: {
-      attribute: "style",
-      value: width => `width: ${width}px`
-    }
-  })
+  rangeDecorations.of(s => s.field(dragState).deco)
 ]
