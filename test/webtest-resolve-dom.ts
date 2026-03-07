@@ -1,4 +1,4 @@
-import {EditorView, ContentPos, Widget, PointSet, WidgetSource} from "wordgard/view"
+import {EditorView, ContentPos, Widget, PointSet, widgets} from "wordgard/view"
 import {EditorState, type Extension} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
@@ -15,14 +15,6 @@ function isIn(pos: ContentPos, parent: string, offset: number) {
   ist(pos.dom.nodeValue || pos.dom.nodeName, parent)
   ist(pos.offset, offset)
 }
-
-const testWidget = Widget.define<{name: string, side: number}>({
-  render(value) {
-    let span = document.createElement("span")
-    span.setAttribute("data-name", value.name)
-    return span
-  },
-})
 
 describe("DocTile.resolve", () => {
   it("resolves into text nodes when biased", () => {
@@ -48,16 +40,19 @@ describe("DocTile.resolve", () => {
   })
 
   it("resolves properly between widgets", () => {
-    let set = PointSet.for<{name: string, side: number}>({side: v => v.side}).create([
-      [3, {name: "A", side: -1}],
-      [3, {name: "B", side: 0}],
-      [3, {name: "C", side: 0}],
-      [3, {name: "D", side: 1}]
+    function span(name: string) {
+      let span = document.createElement("span")
+      span.setAttribute("data-name", name)
+      return span
+    }
+
+    let set = PointSet.create([
+      [3, Widget.create({render: () => span("A"), side: -1})],
+      [3, Widget.create({render: () => span("B"), side: 0})],
+      [3, Widget.create({render: () => span("C"), side: 0})],
+      [3, Widget.create({render: () => span("D"), side: 1})]
     ])
-    let node = render(doc(p("abcd")), new WidgetSource({
-      set: () => set,
-      widget: v => testWidget.of(v)
-    }))
+    let node = render(doc(p("abcd")), widgets.of(() => set))
     isIn(node.resolve(3, -1), "P", 2)
     isIn(node.resolve(3, 0), "P", 2)
     isIn(node.resolve(3, 1), "P", 4)

@@ -1,5 +1,5 @@
-import {EditorView, tagShape, tagDecoration, Widget, PointSet, WidgetSource,
-        RangeSet, RangeDecorationSource, overrideShape} from "wordgard/view"
+import {EditorView, tagShape, tagDecoration, Widget, PointSet,
+        RangeSet, rangeDecorations, Decoration, ShapeOverride, shapeSources, widgets} from "wordgard/view"
 import {EditorState, type Extension, StateField, Transaction, StateEffect} from "wordgard/state"
 import {Plot, Leaf, elt} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph} from "wordgard/schema"
@@ -24,9 +24,7 @@ function span(text: string) {
   return s
 }
 
-const inlineWidget = Widget.define<string>({render: span})
-
-const strPoints = PointSet.for<string>(), strRanges = RangeSet.for<string>()
+const inlineWidget = Widget.define<string>({render: span, side: 1})
 
 describe("DocTile", () => {
   it("can draw a simple document", () => {
@@ -267,52 +265,38 @@ describe("DocTile", () => {
     })
 
     it("can draw widgets from a point set", () => {
-      let node = render(doc(p("abc")), new WidgetSource<string>({
-        set: _ => PointSet.for<string>({side: 1}).create([[1, "x"], [3, "y"]]),
-        widget: n => inlineWidget.of(n)
+      let node = render(doc(p("abc")), widgets.of(state => {
+        return PointSet.create([[1, inlineWidget.of("x")], [3, inlineWidget.of("y")]])
       }))
       ist(node.dom.innerHTML, "<p><span>x</span>ab<span>y</span>c</p>")
     })
 
     it("can update widgets from a point set", () => {
-      let strSet = PointSet.for<string>({side: 1})
       let f = StateField.define({
-        create: () => strSet.create([[1, "x"]]),
-        update: () => strSet.create([[4, "y"]]),
+        create: () => PointSet.create([[1, inlineWidget.of("x")]]),
+        update: () => PointSet.create([[4, inlineWidget.of("y")]]),
+        provide: f => widgets.of(s => s.field(f))
       })
-      let src = new WidgetSource<string>({
-        set: s => s.field(f),
-        widget: inlineWidget
-      })
-      let node = update(render(doc(p("a"), p("b")), f, src), {})
+      let node = update(render(doc(p("a"), p("b")), f), {})
       ist(node.dom.innerHTML, "<p>a</p><p><span>y</span>b</p>")
     })
 
     it("can update widgets in place", () => {
-      let strSet = PointSet.for<string>({side: 0})
       let f = StateField.define({
-        create: () => strSet.create([[1, "x"]]),
-        update: () => strSet.create([[1, "y"]]),
+        create: () => PointSet.create([[1, inlineWidget.of("x")]]),
+        update: () => PointSet.create([[1, inlineWidget.of("y")]]),
+        provide: f => widgets.of(s => s.field(f))
       })
-      let src = new WidgetSource<string>({
-        set: s => s.field(f),
-        widget: inlineWidget
-      })
-      let node = update(render(doc(p("a")), f, src), {})
+      let node = update(render(doc(p("a")), f), {})
       ist(node.dom.innerHTML, "<p><span>y</span>a</p>")
     })
 
     it("orders widgets by side", () => {
       let w = (n: number) => Widget.create({
         render: () => span(n + ""),
+        side: n
       })
-      let src = (s: number) => {
-        let widget = w(s)
-        return new WidgetSource<number>({
-          set: () => PointSet.for<number>({side: s}).create([[2, 0]]),
-          widget: () => widget
-        })
-      }
+      let src = (s: number) => widgets.of(() => PointSet.create([[2, w(s)]]))
       ist(render(doc(p("xy")), src(1), src(-2), src(-1)).dom.innerHTML,
           "<p>x<span>-2</span><span>-1</span><span>1</span>y</p>")
     })
@@ -353,39 +337,32 @@ describe("DocTile", () => {
     })
 
     it("can take wrappers from spans", () => {
-      ist(render(doc(p("ab", $img, "cd")), new RangeDecorationSource({
-        set: () => strRanges.create([[2, 5, "a"]]),
-        deco: {element: "span", attributes: val => ({class: val}), spanning: true},
+      ist(render(doc(p("ab", $img, "cd")), rangeDecorations.of(s => {
+        return RangeSet.create([[2, 5, Decoration.wrapper({element: "span", attributes: {class: "a"}})]])
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
 
     it("can take attributes from spans", () => {
-      ist(render(doc(p("ab", $img, "cd")), new RangeDecorationSource({
-        tag: Image,
-        set: () => strRanges.create([[2, 5, "a"]]),
-        deco: {attribute: "alt", value: "a test"},
+      ist(render(doc(p("ab", $img, "cd")), rangeDecorations.of(s => {
+        return RangeSet.create([[2, 5, Decoration.attribute({attr: "alt", value: "a test", tag: Image})]])
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
 
     it("can override a specific leaf node's shape", () => {
-      ist(render(doc(p("ab", $img, "cd")), overrideShape({
-        set: () => strPoints.create([[3, "x"]]),
-        shape: () => elt("span", "!"),
-        atom: true
+      ist(render(doc(p("ab", $img, "cd")), shapeSources.of(state => {
+        return PointSet.create([[3, new ShapeOverride(elt("span", "!"))]])
       })).dom.innerHTML, "<p>ab<span>!</span>cd</p>")
     })
 
     it("can override a specific non-leaf node's shape", () => {
-      ist(render(doc(p("ab", $img, "cd")), overrideShape({
-        set: () => strPoints.create([[0, "x"]]),
-        shape: elt("div", 0)
+      ist(render(doc(p("ab", $img, "cd")), shapeSources.of(state => {
+        return PointSet.create([[0, new ShapeOverride(elt("div", 0))]])
       })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
     })
 
     it("can replace a non-leaf node with an atom shape", () => {
-      ist(render(doc(p("ab", $img, "cd")), overrideShape({
-        set: () => strPoints.create([[0, "x"]]),
-        shape: elt("div", "?"),
+      ist(render(doc(p("ab", $img, "cd")), shapeSources.of(state => {
+        return PointSet.create([[0, new ShapeOverride(elt("div", "?"))]])
       })).dom.innerHTML, "<div>?</div>")
     })
 
@@ -397,7 +374,9 @@ describe("DocTile", () => {
     it("makes by-point shapes override by-tag ones", () => {
       ist(render(doc(p("a")), [
         tagShape({tag: Paragraph, shape: elt({_: "div", class: "b"}, 0)}),
-        overrideShape({set: () => strPoints.create([[0, "x"]]), shape: elt({_: "div", class: "a"}, 0)})
+        shapeSources.of(state => {
+          return PointSet.create([[0, new ShapeOverride(elt({_: "div", class: "a"}, 0))]])
+        })
       ]).dom.innerHTML, "<div class=\"a\">a</div>")
     })
 
@@ -412,7 +391,9 @@ describe("DocTile", () => {
     it("properly updates when positional shapes change", () => {
       let tile = render(doc(p("a")))
       tile = update(tile, {
-        effects: StateEffect.appendConfig.of(overrideShape({set: () => strPoints.create([[0, "x"]]), shape: elt("para")}))
+        effects: StateEffect.appendConfig.of(shapeSources.of(state => {
+          return PointSet.create([[0, new ShapeOverride(elt("para"))]])
+        }))
       })
       ist(tile.dom.innerHTML, "<para></para>")
     })

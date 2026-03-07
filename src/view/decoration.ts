@@ -5,11 +5,13 @@ import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
 
-export class Widget<T> {
-  constructor(readonly type: Widget.Type<T>, readonly value: T) {}
+export class Widget<T = unknown> {
+  readonly type: Widget.Type<unknown extends T ? any : Widget.Type<T>>
+
+  constructor(type: Widget.Type<T>, readonly value: T) { this.type = type as any }
 
   eq(other: any) {
-    return other instanceof Widget && other.type == this.type && this.type.eq(this.value, other.value)
+    return other instanceof Widget && other.type == this.type && this.type.eq(this.value as any, other.value)
   }
 
   get side() { return this.type.side }
@@ -59,9 +61,9 @@ export const TextWidget = Widget.define<string>({
   render: s => document.createTextNode(s)
 })
 
-export type DecoElt = Elt<Widget<any> | string>
+export type DecoElt = Elt<Widget | string>
 
-export type Shape = Widget<any> | DecoElt
+export type Shape = Widget | DecoElt
 
 // FIXME support some kind of dependency tracking on decoration
 // sources
@@ -113,7 +115,7 @@ export type AttributeDeco<Param> = {
 }
 
 export type WidgetDeco<Param> = {
-  widget: Widget<any> | ((param: Param) => Widget<any>)
+  widget: Widget | ((param: Param) => Widget)
   place: keyof typeof WidgetPlace | WidgetPlace
 }
 
@@ -161,7 +163,7 @@ const baseTagShape = memo((tag: Node.Tag): Shape => {
 class TagWidgetSource {
   place: WidgetPlace
   pred: (tag: Node.Type<any>) => boolean
-  widget: (tag: Node.Tag) => Widget<any>
+  widget: (tag: Node.Tag) => Widget
   extension: Extension
 
   constructor(tag: Node.Selector, deco: WidgetDeco<Node.Tag>) {
@@ -227,6 +229,13 @@ function getInc(value?: boolean | "start" | "end") {
   return value === "start" ? Inc.Start : value === "end" ? Inc.End : value ? Inc.Start | Inc.End : Inc.None
 }
 
+function getSelector(tag?: Node.Selector, scope: DecorationScope = DecorationScope.Atom) {
+  let tagPred = tag == null ? null : Node.selector(tag)
+  return tagPred ? ((tag: Node.Tag, atom: boolean) => tagPred(tag.type) && (scope & tagScope(tag, atom)) > 0)
+    : ((tag: Node.Tag, atom: boolean) => (scope & tagScope(tag, atom)) > 0)
+}
+
+// FIXME this is invariant with parameter unknown, which makes it a giant pain to use
 export abstract class Decoration<Data = unknown> implements RangeSet.Value {
   constructor(readonly data: Data, readonly inc: Inc) {}
 
@@ -235,33 +244,46 @@ export abstract class Decoration<Data = unknown> implements RangeSet.Value {
 
   abstract eq(other: RangeSet.Value): boolean
 
-  // FIXME support predicates on these again?
+  // FIXME support predicates on these again? possibly combined with scope?
 
-  static attribute<Data = undefined>(spec: {
+  static attribute(spec: Decoration.AttributeSpec): Decoration<undefined>
+  static attribute<Data>(spec: Decoration.AttributeSpec & {data: Data}): Decoration<Data>
+  static attribute<Data>(spec: Decoration.AttributeSpec & {data?: Data}): Decoration<Data> {
+    return new AttributeDecoration<Data>(spec.attr, spec.value, getSelector(spec.tag, spec.scope),
+                                         getInc(spec.inclusive), spec.data!)
+  }
+
+  static wrapper(spec: Decoration.WrapperSpec): Decoration<undefined>
+  static wrapper<Data>(spec: Decoration.WrapperSpec & {data: Data}): Decoration<Data>
+  static wrapper<Data>(spec: Decoration.WrapperSpec & {data?: Data}): Decoration<Data> {
+    return new WrapperDecoration<Data>(spec.element, spec.attributes || null, spec.rank ?? 0, spec.spanning !== false,
+                                       getSelector(spec.tag, spec.scope), getInc(spec.inclusive), spec.data!)
+  }
+}
+
+export namespace Decoration {
+  export type AttributeSpec = {
     attr: string
     value: string
     inclusive?: boolean | "start" | "end"
-    scope?: DecorationScope // FIXME use
-  } & (Data extends undefined ? {} : {data: Data})) {
-    return new AttributeDecoration<Data>(spec.attr, spec.value, spec.scope ?? DecorationScope.Atom,
-                                         getInc(spec.inclusive), (spec as any).data)
+    scope?: DecorationScope
+    tag?: Node.Selector
   }
 
-  static wrapper<Data = undefined>(spec: {
+  export type WrapperSpec = {
     element: string
     attributes?: Attrs
     rank?: number
     spanning?: boolean
     inclusive?: boolean | "start" | "end"
     scope?: DecorationScope
-  } & (Data extends undefined ? {} : {data: Data})) {
-    return new WrapperDecoration<Data>(spec.element, spec.attributes || null, spec.rank ?? 0, spec.spanning !== false,
-                                       spec.scope ?? DecorationScope.Atom, getInc(spec.inclusive), (spec as any).data)
+    tag?: Node.Selector
   }
 }
 
 class AttributeDecoration<Data> extends Decoration<Data> {
-  constructor(readonly attr: string, readonly value: string, readonly scope: DecorationScope, inc: Inc, data: Data) {
+  constructor(readonly attr: string, readonly value: string, readonly pred: (tag: Node.Tag, atom: boolean) => boolean,
+              inc: Inc, data: Data) {
     super(data, inc)
   }
 
@@ -276,7 +298,7 @@ class WrapperDecoration<Data> extends Decoration<Data> {
   elt: Elt<never>
 
   constructor(readonly element: string, readonly attrs: Attrs | null, readonly rank: number, readonly spanning: boolean,
-              readonly scope: DecorationScope, inc: Inc, data: Data) {
+              readonly pred: (tag: Node.Tag, atom: boolean) => boolean, inc: Inc, data: Data) {
     super(data, inc)
     this.elt = new Elt(element, readAttributes(attrs), null)
   }
@@ -288,12 +310,14 @@ class WrapperDecoration<Data> extends Decoration<Data> {
   }
 }
 
+// FIXME better name?
 export const rangeDecorations = Facet.define<(state: EditorState) => RangeSet<Decoration>>()
 
 export const widgets = Facet.define<(state: EditorState) => PointSet<Widget<unknown>>>()
 
-class ShapeOverride {
-  constructor(readonly shape: Shape, readonly check: (node: Node) => boolean) {}
+// FIXME think about this interface
+export class ShapeOverride {
+  constructor(readonly shape: Shape) {}
 
   eq(other: PointSet.Value): boolean {
     return this == other || other instanceof ShapeOverride && other.shape.eq(this.shape)
@@ -584,7 +608,7 @@ export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
     return new RangeSet<Value>(from, to, values)
   }
 
-  static empty: RangeSet<any> = new RangeSet<any>(none, none, none)
+  static empty: RangeSet<any> = new RangeSet(none, none, none)
 }
 
 export namespace RangeSet {
@@ -731,9 +755,9 @@ export function findChangedRanges(prev: EditorState, state: EditorState, section
         if (from < curPos) { ranges.push(cur = []); curPos = 0 }
         addRange(cur, from, to)
       }
-      compareFacet<RangeSet<any>>(prev, state, rangeDecorations, RangeSet.empty, posA, posB, len, add)
-      compareFacet<PointSet<any>>(prev, state, widgets, PointSet.empty, posA, posB, len, add)
-      compareFacet<PointSet<any>>(prev, state, shapeSources, PointSet.empty, posA, posB, len, from => {
+      compareFacet(prev, state, rangeDecorations, RangeSet.empty, posA, posB, len, add)
+      compareFacet(prev, state, widgets, PointSet.empty, posA, posB, len, add)
+      compareFacet(prev, state, shapeSources, PointSet.empty, posA, posB, len, from => {
         add(from, from + 1)
         if (shapeChanges === false) shapeChanges = []
         if (typeof shapeChanges != "boolean") shapeChanges.push(from)
@@ -826,11 +850,11 @@ export interface DecoWalker {
   enter(node: Plot, shape: DecoElt, wrappers: readonly WrapperSource[]): void
   leave(): void
   node(node: Node, shape: Shape, wrappers: readonly WrapperSource[]): void
-  widget(widget: Widget<any>, side: number): void
+  widget(widget: Widget, side: number): void
 }
 
 class HeapIterator<R extends RangeSet.Value, P extends PointSet.Value> {
-  active: RangeIterator<R>[] = [] // FIXME can this just hold values now?
+  active: RangeIterator<R>[] = []
   from: number
   to: number
   point: PointIterator<P> | null = null
@@ -923,17 +947,19 @@ function popHeap<T>(heap: T[], cmp: (a: T, b: T) => number) {
   }
 }
 
-// FIXME check or properly type these
-
-function cmpRangeFrom(a: RangeIterator<any>, b: RangeIterator<any>) {
-  return a.from - b.from || b.value!.inclusiveStart - a.value!.inclusiveStart
+function cmpBool(a: boolean, b: boolean) {
+  return a ? (b ? 0 : 1) : (b ? -1 : 0)
 }
 
-function cmpRangeTo(a: RangeIterator<any>, b: RangeIterator<any>) {
-  return a.to - b.to || a.value!.inclusiveEnd - b.value!.inclusiveEnd
+function cmpRangeFrom(a: RangeIterator<RangeSet.Value>, b: RangeIterator<RangeSet.Value>) {
+  return a.from - b.from || cmpBool(b.value!.inclusiveStart, a.value!.inclusiveStart)
 }
 
-function cmpPoint(a: PointIterator<any>, b: PointIterator<any>) {
+function cmpRangeTo(a: RangeIterator<RangeSet.Value>, b: RangeIterator<RangeSet.Value>) {
+  return a.to - b.to || cmpBool(a.value!.inclusiveEnd, b.value!.inclusiveEnd)
+}
+
+function cmpPoint(a: PointIterator<PointSet.Value>, b: PointIterator<PointSet.Value>) {
   return a.pos - b.pos || a.side - b.side
 }
 
@@ -956,10 +982,9 @@ function nodeWrappers(
   for (let mark of tag.marks) if (mark.type.element) (wrappers || (wrappers = [])).push(mark)
   for (let src of global) if (src.pred(tag.type)) (wrappers || (wrappers = [])).push(src)
   if (active.length) {
-    let scope = tagScope(tag, atom)
     for (let cur of active) {
       let val = cur.value!
-      if (val instanceof WrapperDecoration && (val.scope & scope)) (wrappers || (wrappers = [])).push(val)
+      if (val instanceof WrapperDecoration && val.pred(tag, atom)) (wrappers || (wrappers = [])).push(val)
     }
   }
 
@@ -991,8 +1016,8 @@ export class DecoIterator {
   globalAttrs: readonly TagAttributeSource[]
   tagShapes: readonly TagShape[]
   pos: Pos
-  rangeIter: RangeIterator<any>[] = []
-  pointIter: PointIterator<any>[] = []
+  rangeIter: RangeIterator<Decoration>[] = []
+  pointIter: PointIterator<Widget | ShapeOverride>[] = []
 
   constructor(readonly state: EditorState) {
     this.globalWidgets = state.facet(tagWidgets)
@@ -1026,18 +1051,18 @@ export class DecoIterator {
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
-    let iter = new HeapIterator<Decoration<any>, Widget<any> | ShapeOverride>(
+    let iter = new HeapIterator<Decoration, Widget | ShapeOverride>(
       this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
-    let pendingShape: ShapeOverride | undefined, pendingShapePos = -1
+    let pendingShape: ShapeOverride | undefined, pendingShapePos = -1, pendingShapeSet: PointSet | null = null
 
     let wrap: Walker = {
       skip: (node, pos) => { // Only done for leaf nodes.
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
         let shape
-        if (pendingShape && pendingShapePos == pos && pendingShape.check(node)) {
+        if (pendingShape && pendingShapePos == pos) {
           shape = pendingShape.shape
           pendingShape = undefined
         } else {
@@ -1084,9 +1109,10 @@ export class DecoIterator {
         let value = iter.point.value!
         if (value instanceof Widget) {
           walker.widget(value, value.side)
-        } else if (pendingShapePos < pos.pos || !pendingShape/* || FIXME somehow compare facet precedences
-                   comparePrec(pendingShape, value, this.state.facet(shapeSources)) < 0*/) {
+        } else if (pendingShapePos < pos.pos || !pendingShape ||
+                   compareSetPrec(pendingShapeSet!, iter.point.set, this.pointIter)) {
           pendingShape = value
+          pendingShapeSet = iter.point.set
           pendingShapePos = pos.pos
         }
       } else {
@@ -1115,7 +1141,7 @@ export class DecoIterator {
     }
     for (let iter of active) {
       let deco = iter.value!
-      if (deco instanceof AttributeDecoration && (deco.scope & tagScope(tag, !shape.hasContent)))
+      if (deco instanceof AttributeDecoration && deco.pred(tag, !shape.hasContent))
         pushAttribute(add || (add = []), deco.attr, deco.value)
     }
     if (add) {
@@ -1124,4 +1150,12 @@ export class DecoIterator {
     }
     return shape
   }
+}
+
+function compareSetPrec(setA: PointSet, setB: PointSet, array: readonly PointIterator<PointSet.Value>[]) {
+   if (setA != setB) for (let i of array) {
+     if (i.set == setA) return -1
+     if (i.set == setB) return 1
+  }
+  return 0
 }
