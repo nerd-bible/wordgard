@@ -2,7 +2,7 @@ import {Plot, Node, Mark, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
         pushAttribute, noAttributes, MapMode} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
-import {Widget, TextWidget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
+import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderMarkWrapper} from "./decoration"
 import {eqArray} from "./util"
 import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
@@ -525,7 +525,7 @@ export class WidgetTile extends Tile {
 
   destroy() { this.widget.type.destroy(this.widget.value) }
 
-  toString() { return this.widget.type == TextWidget ? JSON.stringify(this.widget.value) : super.toString() }
+  toString() { return this.widget.type == Widget.Text ? JSON.stringify(this.widget.value) : super.toString() }
 
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
@@ -595,7 +595,7 @@ function buildFromShape(shape: Shape, node: Node | null, nodeInner = false) {
                              (node && !shape.hasContent ? TileFlag.Atom : 0),
                            node ? node.length : 0)
     if (shape.children) for (let child of shape.children)
-      outer.addChild(buildFromShape(typeof child == "string" ? TextWidget.of(child) : child, null, nodeInner || !!node))
+      outer.addChild(buildFromShape(typeof child == "string" ? Widget.Text.of(child) : child, null, nodeInner || !!node))
     return outer
   } else {
     return new WidgetTile(shape, node, nodeInner ? TileFlag.Point | TileFlag.NodeInner : 0 as TileFlag, node ? node.length : 0)
@@ -852,7 +852,7 @@ class ContentUpdate {
         if (!tile) {
           tile = EltTile.of(elt, node, 0, 2)
           if (elt.children) for (let ch of elt.children)
-            tile.addChild(buildFromShape(typeof ch == "string" ? TextWidget.of(ch) : ch, null, true))
+            tile.addChild(buildFromShape(typeof ch == "string" ? Widget.Text.of(ch) : ch, null, true))
         }
         this.new.addChild(tile)
         this.new = tile.contentTile!

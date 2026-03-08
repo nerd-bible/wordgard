@@ -1,5 +1,5 @@
 import {StateField, EditorState} from "wordgard/state"
-import {Decoration, rangeDecorations, RangeSet} from "wordgard/view"
+import {Decoration, RangeSet} from "wordgard/view"
 
 const selectionDeco = Decoration.attribute({
   attr: "class",
@@ -14,5 +14,5 @@ function selectionFor(state: EditorState) {
 export const NodeSelection = StateField.define<RangeSet<Decoration>>({
   create: state => selectionFor(state),
   update: (_value, tr) => selectionFor(tr.state),
-  provide: f => rangeDecorations.of(s => s.field(f))
+  provide: f => Decoration.source.of(s => s.field(f))
 })

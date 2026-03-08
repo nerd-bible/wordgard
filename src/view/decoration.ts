@@ -5,7 +5,7 @@ import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
 
-export class Widget<T = unknown> {
+export class Widget<T = unknown> implements PointSet.Value {
   readonly type: Widget.Type<unknown extends T ? any : Widget.Type<T>>
 
   constructor(type: Widget.Type<T>, readonly value: T) { this.type = type as any }
@@ -55,11 +55,13 @@ export namespace Widget {
 
     of(value: T) { return new Widget(this, value) }
   }
-}
 
-export const TextWidget = Widget.define<string>({
-  render: s => document.createTextNode(s)
-})
+  export const source = Facet.define<(state: EditorState) => PointSet<Widget<unknown>>>()
+
+  export const Text = Widget.define<string>({
+    render: s => document.createTextNode(s)
+  })
+}
 
 export type DecoElt = Elt<Widget | string>
 
@@ -157,7 +159,7 @@ function addMarkAttributes(shape: Shape, tag: Node.Tag) {
 }
 
 const baseTagShape = memo((tag: Node.Tag): Shape => {
-  return addMarkAttributes(tag.is(Leaf.Text) ? TextWidget.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
+  return addMarkAttributes(tag.is(Leaf.Text) ? Widget.Text.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
 })
 
 class TagWidgetSource {
@@ -279,6 +281,8 @@ export namespace Decoration {
     scope?: DecorationScope
     tag?: Node.Selector
   }
+
+  export const source = Facet.define<(state: EditorState) => RangeSet<Decoration>>()
 }
 
 class AttributeDecoration<Data> extends Decoration<Data> {
@@ -310,13 +314,8 @@ class WrapperDecoration<Data> extends Decoration<Data> {
   }
 }
 
-// FIXME better name?
-export const rangeDecorations = Facet.define<(state: EditorState) => RangeSet<Decoration>>()
-
-export const widgets = Facet.define<(state: EditorState) => PointSet<Widget<unknown>>>()
-
 // FIXME think about this interface
-export class ShapeOverride {
+export class ShapeOverride implements PointSet.Value {
   constructor(readonly shape: Shape) {}
 
   eq(other: PointSet.Value): boolean {
@@ -325,9 +324,9 @@ export class ShapeOverride {
 
   get mapMode() { return MapMode.TrackAfter }
   get side() { return 0 }
-}
 
-export const shapeSources = Facet.define<(state: EditorState) => PointSet<ShapeOverride>>()
+  static source = Facet.define<(state: EditorState) => PointSet<ShapeOverride>>()
+}
 
 function findAbove(array: readonly number[], start: number, n: number) {
   let from = start, to = array.length
@@ -755,9 +754,9 @@ export function findChangedRanges(prev: EditorState, state: EditorState, section
         if (from < curPos) { ranges.push(cur = []); curPos = 0 }
         addRange(cur, from, to)
       }
-      compareFacet(prev, state, rangeDecorations, RangeSet.empty, posA, posB, len, add)
-      compareFacet(prev, state, widgets, PointSet.empty, posA, posB, len, add)
-      compareFacet(prev, state, shapeSources, PointSet.empty, posA, posB, len, from => {
+      compareFacet(prev, state, Decoration.source, RangeSet.empty, posA, posB, len, add)
+      compareFacet(prev, state, Widget.source, PointSet.empty, posA, posB, len, add)
+      compareFacet(prev, state, ShapeOverride.source, PointSet.empty, posA, posB, len, from => {
         add(from, from + 1)
         if (shapeChanges === false) shapeChanges = []
         if (typeof shapeChanges != "boolean") shapeChanges.push(from)
@@ -1025,15 +1024,15 @@ export class DecoIterator {
     this.globalAttrs = state.facet(tagAttributes)
     this.tagShapes = state.facet(tagShapes)
     this.pos = state.doc.resolve(0)
-    for (let s of state.facet(rangeDecorations)) {
+    for (let s of state.facet(Decoration.source)) {
       let set = s(state)
       if (set.length) this.rangeIter.push(set.iter())
     }
-    for (let s of state.facet(widgets)) {
+    for (let s of state.facet(Widget.source)) {
       let set = s(state)
       if (set.length) this.pointIter.push(set.iter())
     }
-    for (let s of state.facet(shapeSources)) {
+    for (let s of state.facet(ShapeOverride.source)) {
       let set = s(state)
       if (set.length) this.pointIter.push(set.iter())
     }

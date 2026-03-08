@@ -1,5 +1,5 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
-import {EditorView, tagDecoration, RangeSet, Decoration, rangeDecorations} from "wordgard/view"
+import {EditorView, tagDecoration, RangeSet, Decoration} from "wordgard/view"
 import {EditorState, StateField, StateEffect, Prec} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
@@ -121,5 +121,5 @@ export const dragHandle = [
     }
   })),
   dragState,
-  rangeDecorations.of(s => s.field(dragState).deco)
+  Decoration.source.of(s => s.field(dragState).deco)
 ]

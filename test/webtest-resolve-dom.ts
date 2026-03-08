@@ -1,4 +1,4 @@
-import {EditorView, ContentPos, Widget, PointSet, widgets} from "wordgard/view"
+import {EditorView, ContentPos, Widget, PointSet} from "wordgard/view"
 import {EditorState, type Extension} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
@@ -52,7 +52,7 @@ describe("DocTile.resolve", () => {
       [3, Widget.create({render: () => span("C"), side: 0})],
       [3, Widget.create({render: () => span("D"), side: 1})]
     ])
-    let node = render(doc(p("abcd")), widgets.of(() => set))
+    let node = render(doc(p("abcd")), Widget.source.of(() => set))
     isIn(node.resolve(3, -1), "P", 2)
     isIn(node.resolve(3, 0), "P", 2)
     isIn(node.resolve(3, 1), "P", 4)
