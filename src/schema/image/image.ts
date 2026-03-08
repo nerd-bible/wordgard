@@ -95,7 +95,7 @@ export const dragHandle = [
       for (let n = event.target as HTMLElement; n != view.contentDOM; n = n.parentNode as HTMLElement) {
         if (n.classList.contains("wg-resizeable-image")) {
           let rect = n.getBoundingClientRect()
-          if (event.clientX >= rect.right - 10 && event.clientY >= rect.bottom - 10) {
+          if (event.clientX >= rect.right - 18 && event.clientY >= rect.bottom - 18) {
             let pos = view.posAtDOM(n)
             view.dispatch({effects: setResizing.of({pos, width: rect.width})})
             event.preventDefault()
@@ -116,7 +116,7 @@ export const dragHandle = [
       if (!dragging) return
       view.dispatch({
         effects: setResizing.of(null),
-        changes: {from: dragging.pos, add: ImageSize.of(dragging.width)}
+        changes: {from: dragging.pos, add: ImageSize.of(Math.round(dragging.width))}
       })
     }
   })),
