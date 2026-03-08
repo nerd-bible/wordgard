@@ -16,7 +16,7 @@ export class Widget<T = unknown> implements PointSet.Value {
 
   get side() { return this.type.side }
 
-  get mapMode() { return MapMode.Simple } // FIXME make configurable?
+  get mapMode() { return this.type.mapMode }
 
   static define<T>(spec: Widget.Spec<T>) {
     return new Widget.Type(spec)
@@ -36,6 +36,7 @@ export namespace Widget {
     destroy?: (value: T) => void
     handleEvent?: (event: Event, view: EditorView) => boolean
     side?: number
+    mapMode?: MapMode
   }
 
   export class Type<T> {
@@ -44,6 +45,7 @@ export namespace Widget {
     handleEvent: (event: Event, view: EditorView) => boolean
     destroy: (value: T) => void
     side: number
+    mapMode: MapMode
 
     constructor(spec: Widget.Spec<T>) {
       this.render = spec.render
@@ -51,6 +53,7 @@ export namespace Widget {
       this.handleEvent = spec.handleEvent || (() => false)
       this.destroy = spec.destroy || (() => {})
       this.side = spec.side || 0
+      this.mapMode = spec.mapMode || MapMode.Simple
     }
 
     of(value: T) { return new Widget(this, value) }
@@ -102,35 +105,31 @@ class TagShape {
 
 const tagShapes = Facet.define<TagShape>()
 
-// FIXME name too close WrapperDecoration
-
-export type WrapperDeco<Param> = {
+export type WrapperSpec = {
   element: string
-  attributes?: Attrs | ((param: Param) => Attrs)
+  attributes?: Attrs | ((param: Node.Tag) => Attrs)
   rank?: number
   spanning?: boolean
 }
 
-export type AttributeDeco<Param> = {
+export type AttributeSpec = {
   attribute: string
-  value: string | ((param: Param) => string)
+  value: string | ((param: Node.Tag) => string)
 }
 
-export type WidgetDeco<Param> = {
-  widget: Widget | ((param: Param) => Widget)
+export type WidgetSpec = {
+  widget: Widget | ((param: Node.Tag) => Widget)
   place: keyof typeof WidgetPlace | WidgetPlace
 }
 
-export function tagDecoration(spec: {
-  tag: Node.Selector
-  deco: WrapperDeco<Node.Tag> | AttributeDeco<Node.Tag> | WidgetDeco<Node.Tag>
-}): Extension {
-  if ((spec.deco as WrapperDeco<Node.Tag>).element) {
-    return new TagWrapperSource(spec.tag, spec.deco as WrapperDeco<Node.Tag>)
-  } else if ((spec.deco as WidgetDeco<any>).widget) {
-    return new TagWidgetSource(spec.tag, spec.deco as WidgetDeco<Node.Tag>)
+export function tagDecoration(spec: {tag: Node.Selector} &
+  (WrapperSpec | AttributeSpec | WidgetSpec)): Extension {
+  if ("element" in spec) {
+    return new TagWrapperSource(spec.tag, spec)
+  } else if ("widget" in spec) {
+    return new TagWidgetSource(spec.tag, spec)
   } else {
-    return new TagAttributeSource(spec.tag, spec.deco as AttributeDeco<Node.Tag>)
+    return new TagAttributeSource(spec.tag, spec)
   }
 }
 
@@ -168,7 +167,7 @@ class TagWidgetSource {
   widget: (tag: Node.Tag) => Widget
   extension: Extension
 
-  constructor(tag: Node.Selector, deco: WidgetDeco<Node.Tag>) {
+  constructor(tag: Node.Selector, deco: WidgetSpec) {
     let {place, widget} = deco
     this.place = typeof place == "string" ? WidgetPlace[place] : place
     this.pred = Node.selector(tag)
@@ -186,7 +185,7 @@ export class TagWrapperSource {
   spanning: boolean
   extension: Extension
 
-  constructor(tag: Node.Selector, deco: WrapperDeco<Node.Tag>) {
+  constructor(tag: Node.Selector, deco: WrapperSpec) {
     this.pred = Node.selector(tag)
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
@@ -209,7 +208,7 @@ export class TagAttributeSource {
   value: string | ((tag: Node.Tag) => string)
   extension: Extension
 
-  constructor(tag: Node.Selector, deco: AttributeDeco<Node.Tag>) {
+  constructor(tag: Node.Selector, deco: AttributeSpec) {
     this.pred = Node.selector(tag)
     this.attribute = deco.attribute
     this.value = deco.value
@@ -227,17 +226,6 @@ export enum DecorationScope {
 
 const enum Inc { None = 0, Start = 1, End = 2 }
 
-function getInc(value?: boolean | "start" | "end") {
-  return value === "start" ? Inc.Start : value === "end" ? Inc.End : value ? Inc.Start | Inc.End : Inc.None
-}
-
-function getSelector(tag?: Node.Selector, scope: DecorationScope = DecorationScope.Atom) {
-  let tagPred = tag == null ? null : Node.selector(tag)
-  return tagPred ? ((tag: Node.Tag, atom: boolean) => tagPred(tag.type) && (scope & tagScope(tag, atom)) > 0)
-    : ((tag: Node.Tag, atom: boolean) => (scope & tagScope(tag, atom)) > 0)
-}
-
-// FIXME this is invariant with parameter unknown, which makes it a giant pain to use
 export abstract class Decoration<Data = unknown> implements RangeSet.Value {
   constructor(readonly data: Data, readonly inc: Inc) {}
 
@@ -246,47 +234,37 @@ export abstract class Decoration<Data = unknown> implements RangeSet.Value {
 
   abstract eq(other: RangeSet.Value): boolean
 
-  // FIXME support predicates on these again? possibly combined with scope?
-
-  static attribute(spec: Decoration.AttributeSpec): Decoration<undefined>
-  static attribute<Data>(spec: Decoration.AttributeSpec & {data: Data}): Decoration<Data>
-  static attribute<Data>(spec: Decoration.AttributeSpec & {data?: Data}): Decoration<Data> {
-    return new AttributeDecoration<Data>(spec.attr, spec.value, getSelector(spec.tag, spec.scope),
-                                         getInc(spec.inclusive), spec.data!)
-  }
-
-  static wrapper(spec: Decoration.WrapperSpec): Decoration<undefined>
-  static wrapper<Data>(spec: Decoration.WrapperSpec & {data: Data}): Decoration<Data>
-  static wrapper<Data>(spec: Decoration.WrapperSpec & {data?: Data}): Decoration<Data> {
-    return new WrapperDecoration<Data>(spec.element, spec.attributes || null, spec.rank ?? 0, spec.spanning !== false,
-                                       getSelector(spec.tag, spec.scope), getInc(spec.inclusive), spec.data!)
+  static create(spec: Decoration.Spec): Decoration<undefined>
+  static create<Data>(spec: Decoration.Spec & {data: Data}): Decoration<Data>
+  static create<Data>(spec: Decoration.Spec & {data?: Data}): Decoration<Data> {
+    let {tag, scope, inclusive} = spec
+    if (scope == null) scope = DecorationScope.Atom
+    let inc = inclusive === "start" ? Inc.Start : inclusive === "end" ? Inc.End : inclusive ? Inc.Start | Inc.End : Inc.None
+    let tagPred = tag == null ? null : Node.selector(tag)
+    let pred = tagPred ? ((tag: Node.Tag, atom: boolean) => tagPred(tag.type) && (scope & tagScope(tag, atom)) > 0)
+      : ((tag: Node.Tag, atom: boolean) => (scope & tagScope(tag, atom)) > 0)
+    if ("element" in spec)
+      return new WrapperDecoration<Data>(spec.element, spec.attributes || null, spec.rank ?? 0, spec.spanning !== false,
+                                         pred, inc, spec.data!)
+    else
+      return new AttributeDecoration<Data>(spec.attribute, spec.value, pred, inc, spec.data!)
   }
 }
 
 export namespace Decoration {
-  export type AttributeSpec = {
-    attr: string
-    value: string
+  export type Spec = {
     inclusive?: boolean | "start" | "end"
     scope?: DecorationScope
     tag?: Node.Selector
-  }
-
-  export type WrapperSpec = {
-    element: string
-    attributes?: Attrs
-    rank?: number
-    spanning?: boolean
-    inclusive?: boolean | "start" | "end"
-    scope?: DecorationScope
-    tag?: Node.Selector
-  }
+  } & (AttributeSpec | WrapperSpec)
 
   export const source = Facet.define<(state: EditorState) => RangeSet<Decoration>>()
 }
 
 class AttributeDecoration<Data> extends Decoration<Data> {
-  constructor(readonly attr: string, readonly value: string, readonly pred: (tag: Node.Tag, atom: boolean) => boolean,
+  constructor(readonly attr: string,
+              readonly value: string | ((tag: Node.Tag) => string),
+              readonly pred: (tag: Node.Tag, atom: boolean) => boolean,
               inc: Inc, data: Data) {
     super(data, inc)
   }
@@ -299,22 +277,30 @@ class AttributeDecoration<Data> extends Decoration<Data> {
 }
 
 class WrapperDecoration<Data> extends Decoration<Data> {
-  elt: Elt<never>
+  elt: (tag: Node.Tag) => Elt<never>
 
-  constructor(readonly element: string, readonly attrs: Attrs | null, readonly rank: number, readonly spanning: boolean,
-              readonly pred: (tag: Node.Tag, atom: boolean) => boolean, inc: Inc, data: Data) {
+  constructor(readonly element: string,
+              readonly attrs: Attrs | ((tag: Node.Tag) => Attrs) | null,
+              readonly rank: number,
+              readonly spanning: boolean,
+              readonly pred: (tag: Node.Tag, atom: boolean) => boolean,
+              inc: Inc, data: Data) {
     super(data, inc)
-    this.elt = new Elt(element, readAttributes(attrs), null)
+    if (typeof attrs == "function")
+      this.elt = tag => new Elt(element, readAttributes(attrs(tag)), null)
+    else
+      this.elt = () => new Elt(element, readAttributes(attrs), null)
   }
 
   eq(other: RangeSet.Value): boolean {
     return this == other ||
-      other instanceof WrapperDecoration && other.element == this.element && attrsEq(other.attrs, this.attrs) &&
+      other instanceof WrapperDecoration && other.element == this.element &&
+      (typeof this.attrs == "function" || typeof other.attrs == "function" ? this.attrs == other.attrs :
+        attrsEq(other.attrs, this.attrs)) &&
       other.rank == this.rank && other.spanning == this.spanning && other.inc == this.inc && other.data == this.data
   }
 }
 
-// FIXME think about this interface
 export class ShapeOverride implements PointSet.Value {
   constructor(readonly shape: Shape) {}
 
@@ -426,7 +412,7 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     return new PointIterator<Value>(this)
   }
 
-  at(pos: number): Value | undefined { // FIXME handle undefined extends Value
+  at(pos: number): Value | undefined {
     let index = findAbove(this.positions, 0, pos - 1)
     return index < this.positions.length && this.positions[index] == pos ? this.values[index] : undefined
   }
@@ -999,7 +985,7 @@ function tagScope(tag: Node.Tag, atom: boolean): DecorationScope {
 
 export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
   if (src instanceof TagWrapperSource) return src.wrapper(tag)
-  if (src instanceof WrapperDecoration) return src.elt
+  if (src instanceof WrapperDecoration) return src.elt(tag)
   return renderMarkWrapper(src)
 }
 
@@ -1141,7 +1127,7 @@ export class DecoIterator {
     for (let iter of active) {
       let deco = iter.value!
       if (deco instanceof AttributeDecoration && deco.pred(tag, !shape.hasContent))
-        pushAttribute(add || (add = []), deco.attr, deco.value)
+        pushAttribute(add || (add = []), deco.attr, typeof deco.value == "function" ? deco.value(tag) : deco.value)
     }
     if (add) {
       if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.children)

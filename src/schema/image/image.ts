@@ -65,8 +65,8 @@ const dragState = StateField.define<{width: number, deco: RangeSet<Decoration>}>
     for (let e of tr.effects) {
       if (e.is(setResizing)) {
         if (!e.value) return {width: -1, deco: RangeSet.empty}
-        let deco = Decoration.attribute({
-          attr: "style",
+        let deco = Decoration.create({
+          attribute: "style",
           value: `width: ${e.value.width}px`
         })
         return {width: e.value.width, deco: RangeSet.create([[e.value.pos, e.value.pos + 1, deco]])}
@@ -85,10 +85,8 @@ function getDragState(state: EditorState) {
 export const dragHandle = [
   tagDecoration({
     tag: Image,
-    deco: {
-      attribute: "class",
-      value: "wg-resizeable-image"
-    }
+    attribute: "class",
+    value: "wg-resizeable-image"
   }),
   Prec.high(EditorView.domEventHandlers({
     mousedown: (event, view) => {

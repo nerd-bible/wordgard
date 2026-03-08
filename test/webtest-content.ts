@@ -199,10 +199,8 @@ describe("DocTile", () => {
     it("can draw widgets around nodes", () => {
       let src = (side: string) => tagDecoration({
         tag: Paragraph,
-        deco: {
-          widget: inlineWidget.of(side),
-          place: side as any
-        }
+        widget: inlineWidget.of(side),
+        place: side as any
       })
       let node = render(doc(p("xyz"), hr), src("Before"), src("Start"), src("End"), src("After"))
       ist(node.dom.innerHTML, "<span>Before</span><p><span>Start</span>xyz<span>End</span></p><span>After</span><hr>")
@@ -211,10 +209,8 @@ describe("DocTile", () => {
     it("can reuse widgets when replacing next to them", () => {
       let src = (side: string) => tagDecoration({
         tag: Image,
-        deco: {
-          widget: inlineWidget.of(side),
-          place: side as any
-        }
+        widget: inlineWidget.of(side),
+        place: side as any
       })
       let node = render(doc(p("x", $img, "y")), src("Before"), src("After"))
       let widgets = node.dom.querySelectorAll("span")
@@ -227,10 +223,8 @@ describe("DocTile", () => {
     it("can reuse widgets when updating across them", () => {
       let src = (side: string) => tagDecoration({
         tag: Image,
-        deco: {
-          widget: inlineWidget.of(side),
-          place: side as any
-        }
+        widget: inlineWidget.of(side),
+        place: side as any
       })
       let node = render(doc(p(strong("x", $img, "y"), em("z", $img))), src("Before"), src("After"))
       let widgets = node.dom.querySelectorAll("span")
@@ -246,10 +240,8 @@ describe("DocTile", () => {
     it("doesn't break spanning wrappers on widgets", () => {
       let src = (side: string) => tagDecoration({
         tag: Image,
-        deco: {
-          widget: inlineWidget.of(side),
-          place: side as any
-        }
+        widget: inlineWidget.of(side),
+        place: side as any
       })
       let node = render(doc(p(strong("x", $img, "y"))), src("Before"), src("After"))
       ist(node.dom.querySelectorAll("strong").length, 1)
@@ -305,7 +297,7 @@ describe("DocTile", () => {
 
     it("doesn't duplicate widgets on section boundaries", () => {
       let node = render(doc(p(strong("a"), $img)),
-                        tagDecoration({tag: "Image", deco: {widget: inlineWidget.of("!"), place: "Before"}}))
+                        tagDecoration({tag: "Image", widget: inlineWidget.of("!"), place: "Before"}))
       ist(node.dom.innerHTML, "<p><strong>a</strong><span>!</span><img src=\"test.png\"></p>")
       node = update(node, {changes: [
         {from: 1, to: 2, remove: Strong},
@@ -317,36 +309,39 @@ describe("DocTile", () => {
     it("can decorate tags", () => {
       ist(render(doc(p("a", $img)), tagDecoration({
         tag: Paragraph,
-        deco: {element: "div", attributes: {class: "pwrap"}}
+        element: "div",
+        attributes: {class: "pwrap"}
       }), tagDecoration({
         tag: Image,
-        deco: {element: "image"}
+        element: "image"
       })).dom.innerHTML, "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
     })
 
     it("can make tag decorations spanning", () => {
       ist(render(doc(p($img, $img)), tagDecoration({
         tag: Image,
-        deco: {element: "image", spanning: true}
+        element: "image",
+        spanning: true
       })).dom.innerHTML, "<p><image><img src=\"test.png\"><img src=\"test.png\"></image></p>")
     })
 
     it("can add attributes to tags", () => {
       ist(render(doc(p("?")), tagDecoration({
         tag: Paragraph,
-        deco: {attribute: "lang", value: "nl"}
+        attribute: "lang",
+        value: "nl"
       })).dom.innerHTML, "<p lang=\"nl\">?</p>")
     })
 
     it("can take wrappers from spans", () => {
       ist(render(doc(p("ab", $img, "cd")), Decoration.source.of(s => {
-        return RangeSet.create([[2, 5, Decoration.wrapper({element: "span", attributes: {class: "a"}})]])
+        return RangeSet.create([[2, 5, Decoration.create({element: "span", attributes: {class: "a"}})]])
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
 
     it("can take attributes from spans", () => {
       ist(render(doc(p("ab", $img, "cd")), Decoration.source.of(s => {
-        return RangeSet.create([[2, 5, Decoration.attribute({attr: "alt", value: "a test", tag: Image})]])
+        return RangeSet.create([[2, 5, Decoration.create({attribute: "alt", value: "a test", tag: Image})]])
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
 
