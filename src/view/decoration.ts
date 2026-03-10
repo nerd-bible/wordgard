@@ -916,7 +916,7 @@ function bubble<T>(heap: T[], index: number, cmp: (a: T, b: T) => number) {
 function sink<T>(heap: T[], index: number, cmp: (a: T, b: T) => number) {
   let elt = heap[index]
   while (index > 0) {
-    let parent = (index + 1) >> 1
+    let parent = (index - 1) >> 1
     if (cmp(heap[parent], elt) < 0) break
     heap[index] = heap[parent]
     heap[parent] = elt
