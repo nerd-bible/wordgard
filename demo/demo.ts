@@ -1,6 +1,6 @@
 import {EditorView, defaultKeymap, NodeSelection} from "wordgard/view"
 import {basicSchema} from "wordgard/schema"
-import {imageTheme, dragHandle, ImageSize} from "wordgard/schema/image"
+import {imageTheme, dragHandle, ImageSize, resizeImageKeymap} from "wordgard/schema/image"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 
@@ -16,6 +16,7 @@ import {history} from "wordgard/history"
     menuBar(),
     dragHandle,
     ImageSize,
+    resizeImageKeymap,
     NodeSelection
   ]
 })

@@ -1,5 +1,5 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
-import {EditorView, tagDecoration, RangeSet, Decoration} from "wordgard/view"
+import {EditorView, tagDecoration, RangeSet, Decoration, KeyBinding} from "wordgard/view"
 import {EditorState, StateField, StateEffect, Prec} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
@@ -120,4 +120,25 @@ export const dragHandle = [
   })),
   dragState,
   Decoration.source.of(s => s.field(dragState).deco)
+]
+
+export const resizeImage = (by: number, relative = false) => (view: EditorView) => {
+  let {node} = view.state.sel
+  if (node && ImageSize.canTarget(node.type)) {
+    let curWidth = node.mark(ImageSize) ?? view.nodeDOM(view.state.selection.from)!.getBoundingClientRect().width
+    let newWidth = Math.max(1, relative ? curWidth * by : curWidth + by)
+    if (newWidth != curWidth) {
+      view.dispatch({
+        changes: {from: view.state.selection.from, add: ImageSize.of(newWidth)},
+        userEvent: "image.resize"
+      })
+      return true
+    }
+  }
+  return false
+}
+
+export const resizeImageKeymap = [
+  KeyBinding.define({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeImage(1.1, true)}),
+  KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeImage(0.9, true)}),
 ]
