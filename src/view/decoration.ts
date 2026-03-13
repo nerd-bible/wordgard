@@ -232,28 +232,34 @@ export enum DecorationScope {
 
 const enum Inc { None = 0, Start = 1, End = 2 }
 
+// FIXME Data parameter worth it?
 export abstract class RangeDecoration<Data = unknown> implements RangeSet.Value {
-  constructor(readonly data: Data, readonly inc: Inc) {}
+  readonly pred: (tag: Node.Tag, atom: boolean) => boolean
+  readonly inc: Inc
+
+  constructor(spec: RangeDecoration.Spec, readonly data: Data) {
+    let {tag, inclusive} = spec, scope = spec.scope ?? DecorationScope.Atom
+    let tagPred = tag == null ? null : Node.selector(tag)
+    this.pred = tagPred ? ((tag: Node.Tag, atom: boolean) => tagPred(tag.type) && (scope & tagScope(tag, atom)) > 0)
+      : ((tag: Node.Tag, atom: boolean) => (scope & tagScope(tag, atom)) > 0)
+    this.inc = inclusive === "start" ? Inc.Start : inclusive === "end" ? Inc.End : inclusive ? Inc.Start | Inc.End : Inc.None
+  }
 
   get inclusiveStart() { return (this.inc & Inc.Start) > 0 }
   get inclusiveEnd() { return (this.inc & Inc.End) > 0 }
 
   abstract eq(other: RangeSet.Value): boolean
 
-  static create(spec: RangeDecoration.Spec): RangeDecoration<undefined>
-  static create<Data>(spec: RangeDecoration.Spec & {data: Data}): RangeDecoration<Data>
-  static create<Data>(spec: RangeDecoration.Spec & {data?: Data}): RangeDecoration<Data> {
-    let {tag, scope, inclusive} = spec
-    if (scope == null) scope = DecorationScope.Atom
-    let inc = inclusive === "start" ? Inc.Start : inclusive === "end" ? Inc.End : inclusive ? Inc.Start | Inc.End : Inc.None
-    let tagPred = tag == null ? null : Node.selector(tag)
-    let pred = tagPred ? ((tag: Node.Tag, atom: boolean) => tagPred(tag.type) && (scope & tagScope(tag, atom)) > 0)
-      : ((tag: Node.Tag, atom: boolean) => (scope & tagScope(tag, atom)) > 0)
-    if ("element" in spec)
-      return new WrapperRangeDecoration<Data>(spec.element, spec.attributes || null, spec.rank ?? 0, spec.spanning !== false,
-                                         pred, inc, spec.data!)
-    else
-      return new AttributeRangeDecoration<Data>(spec.attribute, spec.value, pred, inc, spec.data!)
+  static wrapper(spec: RangeDecoration.Spec & WrapperSpec): RangeDecoration<undefined>
+  static wrapper<Data>(spec: RangeDecoration.Spec & WrapperSpec & {data: Data}): RangeDecoration<Data>
+  static wrapper<Data>(spec: RangeDecoration.Spec & WrapperSpec & {data?: Data}): RangeDecoration<Data> {
+    return new WrapperRangeDecoration<Data>(spec, spec.data!)
+  }
+
+  static attribute(spec: RangeDecoration.Spec & AttributeSpec): RangeDecoration<undefined>
+  static attribute<Data>(spec: RangeDecoration.Spec & AttributeSpec & {data: Data}): RangeDecoration<Data>
+  static attribute<Data>(spec: RangeDecoration.Spec & AttributeSpec & {data?: Data}): RangeDecoration<Data> {
+    return new AttributeRangeDecoration<Data>(spec, spec.data!)
   }
 }
 
@@ -262,40 +268,48 @@ export namespace RangeDecoration {
     inclusive?: boolean | "start" | "end"
     scope?: DecorationScope
     tag?: Node.Selector
-  } & (AttributeSpec | WrapperSpec)
+  }
 
   export const source = Facet.define<(state: EditorState) => RangeSet<RangeDecoration>>()
 }
 
 class AttributeRangeDecoration<Data> extends RangeDecoration<Data> {
-  constructor(readonly attr: string,
-              readonly value: string | ((tag: Node.Tag) => string),
-              readonly pred: (tag: Node.Tag, atom: boolean) => boolean,
-              inc: Inc, data: Data) {
-    super(data, inc)
+  readonly attribute: string
+  readonly value: string | ((tag: Node.Tag) => string)
+
+  constructor(readonly spec: RangeDecoration.Spec & AttributeSpec, data: Data) {
+    super(spec, data)
+    this.attribute = spec.attribute
+    this.value = spec.value
   }
 
   eq(other: RangeSet.Value): boolean {
     return this == other ||
-      other instanceof AttributeRangeDecoration && other.attr == this.attr && other.value == this.value &&
+      other instanceof AttributeRangeDecoration && other.attribute == this.attribute && other.value == this.value &&
       other.inc == this.inc && other.data === this.data
   }
 }
 
 class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
-  elt: (tag: Node.Tag) => Elt<never>
+  readonly elt: (tag: Node.Tag) => Elt<never>
+  readonly element: string
+  readonly attrs: Attrs | ((tag: Node.Tag) => Attrs) | null
+  readonly rank: number
+  readonly spanning: boolean
 
-  constructor(readonly element: string,
-              readonly attrs: Attrs | ((tag: Node.Tag) => Attrs) | null,
-              readonly rank: number,
-              readonly spanning: boolean,
-              readonly pred: (tag: Node.Tag, atom: boolean) => boolean,
-              inc: Inc, data: Data) {
-    super(data, inc)
-    if (typeof attrs == "function")
-      this.elt = tag => new Elt(element, readAttributes(attrs(tag)), null)
-    else
-      this.elt = () => new Elt(element, readAttributes(attrs), null)
+  constructor(spec: RangeDecoration.Spec & WrapperSpec, data: Data) {
+    super(spec, data)
+    let {element, attributes} = spec
+    this.element = element
+    this.attrs = attributes || null
+    this.rank = spec.rank || 0
+    this.spanning = spec.spanning !== false
+    if (typeof attributes == "function") {
+      this.elt = tag => new Elt(element, readAttributes(attributes(tag)), null)
+    } else {
+      let elt = new Elt<never>(element, readAttributes(attributes), null)
+      this.elt = () => elt
+    }
   }
 
   eq(other: RangeSet.Value): boolean {
@@ -387,8 +401,6 @@ function findAbove(array: readonly number[], start: number, n: number) {
     else from = mid + 1
   }
 }
-
-// FIXME make it possible add wrapper/attr decorations by point
 
 const none: readonly any[] = []
 
@@ -1161,7 +1173,7 @@ export class DecoIterator {
     for (let iter of active) {
       let deco = iter.value!
       if (deco instanceof AttributeRangeDecoration && deco.pred(tag, !shape.hasContent))
-        pushAttribute(add || (add = []), deco.attr, typeof deco.value == "function" ? deco.value(tag) : deco.value)
+        pushAttribute(add || (add = []), deco.attribute, typeof deco.value == "function" ? deco.value(tag) : deco.value)
     }
     if (add) {
       if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.children)

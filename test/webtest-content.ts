@@ -334,13 +334,13 @@ describe("DocTile", () => {
 
     it("can take wrappers from spans", () => {
       ist(render(doc(p("ab", $img, "cd")), RangeDecoration.source.of(s => {
-        return RangeSet.create([[2, 5, RangeDecoration.create({element: "span", attributes: {class: "a"}})]])
+        return RangeSet.create([[2, 5, RangeDecoration.wrapper({element: "span", attributes: {class: "a"}})]])
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
 
     it("can take attributes from spans", () => {
       ist(render(doc(p("ab", $img, "cd")), RangeDecoration.source.of(s => {
-        return RangeSet.create([[2, 5, RangeDecoration.create({attribute: "alt", value: "a test", tag: Image})]])
+        return RangeSet.create([[2, 5, RangeDecoration.attribute({attribute: "alt", value: "a test", tag: Image})]])
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
 

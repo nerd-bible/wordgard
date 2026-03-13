@@ -1,7 +1,7 @@
 import {StateField, EditorState} from "wordgard/state"
 import {RangeDecoration, RangeSet} from "wordgard/view"
 
-const selectionDeco = RangeDecoration.create({
+const selectionDeco = RangeDecoration.attribute({
   attribute: "class",
   value: "wg-selected-node"
 })
