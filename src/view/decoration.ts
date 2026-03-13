@@ -439,16 +439,33 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     return index < this.positions.length && this.positions[index] == pos ? this.values[index] : undefined
   }
 
-  static create<Value extends PointSet.Value>(source: Iterable<[number, Value]>): PointSet<Value> {
-    let positions: number[] = [], values: Value[] = [], prev = -1
-    for (let [pos, val] of source) {
-      if (pos < prev || pos == prev && values[values.length - 1].side > val.side)
-        throw new Error("Points provided in the wrong order to PointSet.Type.create")
-      prev = pos
-      positions.push(pos)
-      values.push(val)
+  static create<Value extends PointSet.Value>(
+    source: Iterable<[number, Value]> | ((add: (pos: number, value: Value) => void) => void)
+  ): PointSet<Value> {
+    if (typeof source != "function") source = add => {
+      for (let [pos, value] of source as Iterable<[number, Value]>) add(pos, value)
     }
-    return new PointSet<Value>(positions, values)
+    let positions: number[] = [], values: Value[] = [], curPos = -1, curVal: Value | undefined
+    source((pos: number, value: Value) => {
+      if (curPos > pos || curPos == pos && curVal!.side > value.side) {
+        for (let i = positions.length;;) {
+          positions[i] = positions[i - 1]
+          values[i] = values[i - 1]
+          if (--i < 0) break
+          if (!i-- || (positions[i] - pos || values[i].side - value.side) <= 0) {
+            positions[i] = pos
+            values[i] = value
+            break
+          }
+        }
+      } else {
+        positions.push(pos)
+        values.push(value)
+        curPos = pos
+        curVal = value
+      }
+    })
+    return new PointSet(positions, values)
   }
 
   static empty: PointSet<any> = new PointSet(none, none)
@@ -459,23 +476,6 @@ export namespace PointSet {
     side: number
     mapMode: MapMode
     eq(other: PointSet.Value): boolean
-  }
-
-  export class Builder<Value extends PointSet.Value> {
-    positions: number[] = []
-    values: Value[] = []
-    cur = 0
-
-    constructor() {}
-
-    // FIXME make this capable of sorting at least by side, maybe in general
-    add(pos: number, value: Value) {
-      if ((pos - this.cur || this.values[this.values.length - 1].side - value.side) < 0)
-        throw new RangeError("Point positions must be added in order (of both position and side)")
-      this.cur = pos
-      this.positions.push(pos)
-      this.values.push(value)
-    }
   }
 }
 
@@ -601,15 +601,20 @@ export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
     }
   }
 
-  static create<Value extends RangeSet.Value>(source: Iterable<[number, number, Value]>): RangeSet<Value> {
-    let from: number[] = [], to: number[] = [], values: Value[] = [], prev = -1
-    for (let [f, t, val] of source) {
-      if (f < prev) throw new Error("Ranges provided to RangeSet.Type.create are in the wrong order or overlap")
-      prev = t
+  static create<Value extends RangeSet.Value>(
+    source: Iterable<[number, number, Value]> | ((add: (from: number, to: number, value: Value) => void) => void)
+  ): RangeSet<Value> {
+    if (typeof source != "function") source = (add) => {
+      for (let [from, to, value] of source as Iterable<[number, number, Value]>) add(from, to, value)
+    }
+    let from: number[] = [], to: number[] = [], values: Value[] = [], curPos = -1
+    source((f, t, value) => {
+      if (f >= t) throw new Error("Ranges cannot be empty")
+      if (f < curPos) throw new Error("Ranges must be added in order and cannot overlap")
       from.push(f)
       to.push(t)
-      values.push(val)
-    }
+      values.push(value)
+    })
     return new RangeSet<Value>(from, to, values)
   }
 
@@ -621,26 +626,6 @@ export namespace RangeSet {
     inclusiveStart: boolean
     inclusiveEnd: boolean
     eq(other: Value): boolean
-  }
-
-  export class Builder<Value extends RangeSet.Value> {
-    from: number[] = []
-    to: number[] = []
-    values: Value[] = []
-    cur = 0
-
-    add(from: number, to: number, value: Value) {
-      if (from >= to) throw new Error("Ranges cannot be empty")
-      if (from < this.cur) throw new Error("Ranges must be added in order and cannot overlap")
-      this.cur = to
-      this.from.push(from)
-      this.to.push(to)
-      this.values.push(value)
-    }
-
-    finish() {
-      return new RangeSet<Value>(this.from, this.to, this.values)
-    }
   }
 }
 
