@@ -1,6 +1,6 @@
 import {EditorState, Transaction, Extension, Prec,
         EditorSelection, StateEffect, Facet} from "wordgard/state"
-import {ChangeSet} from "wordgard/doc"
+import {ChangeSet, Node} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocTile} from "./tile"
@@ -472,6 +472,13 @@ export class EditorView {
   posAtDOM(node: DOMNode, offset: number = 0) {
     this.checkFlushed()
     return this.docTile.posFromDOM(node, offset, 1)
+  }
+
+  /// Find the Wordgard node represented by the given DOM node, or one
+  /// of its parent nodes, if any. Will not return the outer document node.
+  nodeFromDOM(node: HTMLElement): {pos: number, node: Node} | null {
+    let tile = this.docTile.nearest(node, true)
+    return tile && tile != this.docTile ? {pos: tile.posBefore, node: tile.node!} : null
   }
 
   /// Get the document position at the given screen coordinates.
