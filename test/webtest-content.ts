@@ -368,6 +368,17 @@ describe("DocTile", () => {
           "<p class=\"u\"><br></p><p><br></p>")
     })
 
+    it("won't try to add attributes to a text node", () => {
+      let deco = PointSet.create([[1, Decoration.create({attribute: "class", value: "u"})]])
+      ist(render(doc(p("a")), Decoration.source.of(() => deco)).dom.innerHTML, "<p>a</p>")
+    })
+
+    it("can add wrapping structure to a specific node", () => {
+      let deco = PointSet.create([[3, Decoration.wrapper(s => elt("div", elt("hr"), s))]])
+      ist(render(doc(p("x"), p("y")), Decoration.source.of(() => deco)).dom.innerHTML,
+          "<p>x</p><div><hr><p>y</p></div>")
+    })
+
     it("can override shapes by tag", () => {
       ist(render(doc(p("a")), tagShape({tag: Paragraph, shape: elt({_: "div", class: "para"}, 0)})).dom.innerHTML,
           "<div class=\"para\">a</div>")
