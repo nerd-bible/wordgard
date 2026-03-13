@@ -766,13 +766,12 @@ function compareGlobal(stateA: EditorState, stateB: EditorState, facet: Facet<an
 // used in change descs.
 export function findChangedRanges(prev: EditorState, state: EditorState, sections: ChangeSet.Sections) {
   let result: number[] = []
-  let globalShapeChange = compareGlobal(prev, state, tagShapes)
-  let globalChange = globalShapeChange || compareGlobal(prev, state, tagWidgets) ||
+  let globalChange = compareGlobal(prev, state, tagShapes) || compareGlobal(prev, state, tagWidgets) ||
     compareGlobal(prev, state, tagWrappers) || compareGlobal(prev, state, tagAttributes)
   // When node shapes change, we need a separate pass to see whether
   // their atomicity changed, and mark a replace for the whole node if
   // it did.
-  let shapeChanges: boolean | number[] = globalShapeChange
+  let shapeChanges: number[] = []
   for (let i = 0, posA = 0, posB = 0; i < sections.length;) {
     let len = sections[i++], ins = sections[i++]
     if (ins == -1 && globalChange) {
@@ -792,8 +791,7 @@ export function findChangedRanges(prev: EditorState, state: EditorState, section
         (a || PointSet.empty).compareRange(posA, b || PointSet.empty, posB, len, (pos, val) => {
           add(pos, pos + 1)
           if (val instanceof ShapeDecoration) {
-            if (shapeChanges === false) shapeChanges = []
-            if (typeof shapeChanges != "boolean") shapeChanges.push(pos)
+            if (!globalChange) shapeChanges.push(pos)
           }
         })
       })
@@ -812,44 +810,34 @@ export function findChangedRanges(prev: EditorState, state: EditorState, section
       addSection(result, len, ins)
     }
   }
-  if (shapeChanges) return addAtomicityChanges(result, prev, shapeChanges)
+  if (shapeChanges.length) return addAtomicityChanges(result, prev, shapeChanges)
   return result
 }
 
 function addAtomicityChanges(
   sections: number[],
   prev: EditorState,
-  changes: boolean | number[]
+  changes: number[]
 ): ChangeSet.Sections {
   let added: number[] = []
-  if (Array.isArray(changes)) {
-    let scan = prev.doc.resolve(0), last = -1, sectionPos = 0, sectionI = 0, off = 0
-    for (let posB of changes.sort()) {
-      if (posB == last) continue
-      last = posB
-      while (posB >= sectionPos) {
-        let len = sections[sectionI++], ins = sections[sectionI++]
-        if (ins < 0) {
-          sectionPos += len
-        } else {
-          sectionPos += ins
-          off += len - ins
-        }
+  let scan = prev.doc.resolve(0), last = -1, sectionPos = 0, sectionI = 0, off = 0
+  for (let posB of changes.sort()) {
+    if (posB == last) continue
+    last = posB
+    while (posB >= sectionPos) {
+      let len = sections[sectionI++], ins = sections[sectionI++]
+      if (ins < 0) {
+        sectionPos += len
+      } else {
+        sectionPos += ins
+        off += len - ins
       }
-      let posA = posB - off
-      if (scan.pos < posA) scan = scan.advance(posA - scan.pos)
-      let node = scan.nodeAfter
-      if (!node) continue
-      added.push(posA, posA + node.length)
     }
-  } else if (changes) {
-    let changedTags = new Set<Node.Type<any>>() // FIXME this isn't being filled in?
-    if (changedTags.size) prev.doc.iterate((node, pos) => {
-      if (changedTags.has(node.tag.type)) {
-        added.push(pos, pos + node.length)
-        return false
-      }
-    })
+    let posA = posB - off
+    if (scan.pos < posA) scan = scan.advance(posA - scan.pos)
+    let node = scan.nodeAfter
+    if (!node) continue
+    added.push(posA, posA + node.length)
   }
   if (!added.length) return sections
 
