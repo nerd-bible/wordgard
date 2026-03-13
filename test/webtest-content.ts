@@ -9,10 +9,11 @@ import ist from "ist"
 const {DocTile} = EditorView as any
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
-const simpleImg = tagShape({tag: Image, shape: tag => elt({_: "img", src: tag.param as string})})
+// FIXME drop again?
+const simpleImg = tagShape({tag: Image, shape: tag => elt({_: "img", src: tag.param as string}), atom: true})
 
 function render(doc: Plot.Doc, ...config: Extension[]) {
-  return DocTile.create(EditorState.create({doc, config: [simpleImg, config]}), document.createElement("div"))
+  return DocTile.create(EditorState.create({doc, config: [config, simpleImg]}), document.createElement("div"))
 }
 
 function update(node: InstanceType<typeof DocTile>, spec: Transaction.Spec) {
@@ -288,7 +289,7 @@ describe("DocTile", () => {
 
     it("orders widgets by side", () => {
       let w = (n: number) => Widget.create({render: () => span(n + "")})
-      let src = (s: number) => Decoration.source.of(() => PointSet.create([[2, Decoration.create({widget: w(s)})]]))
+      let src = (s: number) => Decoration.source.of(() => PointSet.create([[2, Decoration.create({widget: w(s), side: s})]]))
       ist(render(doc(p("xy")), src(1), src(-2), src(-1)).dom.innerHTML,
           "<p>x<span>-2</span><span>-1</span><span>1</span>y</p>")
     })
@@ -359,6 +360,12 @@ describe("DocTile", () => {
       ist(render(doc(p("ab", $img, "cd")), Decoration.source.of(state => {
         return PointSet.create([[0, Decoration.create({shape: elt("div", "?")})]])
       })).dom.innerHTML, "<div>?</div>")
+    })
+
+    it("can add attributes to a specific node", () => {
+      let deco = PointSet.create([[0, Decoration.create({attribute: "class", value: "u"})]])
+      ist(render(doc(p(), p()), Decoration.source.of(() => deco)).dom.innerHTML,
+          "<p class=\"u\"><br></p><p><br></p>")
     })
 
     it("can override shapes by tag", () => {

@@ -1,7 +1,7 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
         ElementShape, AttributeShape, Elt, pushAttribute,
-        mergeAttributes, readAttributes} from "wordgard/doc"
+        mergeAttributes, readAttributes, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
 
@@ -138,11 +138,13 @@ function addMarkAttributes(shape: Shape, tag: Node.Tag) {
     if (value != null)
       pushAttribute(attrs || (attrs = []), repr.attribute, value)
   }
-  if (attrs) {
-    if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
-    else shape = new Elt(tag.isBlock ? "div" : "span", attrs, [shape])
-  }
-  return shape
+  return attrs ? addAttrs(shape, attrs, tag.isInline) : shape
+}
+
+function addAttrs(shape: Shape, attrs: Attributes, inline: boolean) {
+  return shape instanceof Elt
+    ? new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
+    : new Elt(inline ? "span" : "div", attrs, [shape])
 }
 
 const baseTagShape = memo((tag: Node.Tag): Shape => {
@@ -235,7 +237,7 @@ export abstract class RangeDecoration<Data = unknown> implements RangeSet.Value 
       return new WrapperDecoration<Data>(spec.element, spec.attributes || null, spec.rank ?? 0, spec.spanning !== false,
                                          pred, inc, spec.data!)
     else
-      return new AttributeDecoration<Data>(spec.attribute, spec.value, pred, inc, spec.data!)
+      return new AttributeRangeDecoration<Data>(spec.attribute, spec.value, pred, inc, spec.data!)
   }
 }
 
@@ -249,7 +251,7 @@ export namespace RangeDecoration {
   export const source = Facet.define<(state: EditorState) => RangeSet<RangeDecoration>>()
 }
 
-class AttributeDecoration<Data> extends RangeDecoration<Data> {
+class AttributeRangeDecoration<Data> extends RangeDecoration<Data> {
   constructor(readonly attr: string,
               readonly value: string | ((tag: Node.Tag) => string),
               readonly pred: (tag: Node.Tag, atom: boolean) => boolean,
@@ -259,7 +261,7 @@ class AttributeDecoration<Data> extends RangeDecoration<Data> {
 
   eq(other: RangeSet.Value): boolean {
     return this == other ||
-      other instanceof AttributeDecoration && other.attr == this.attr && other.value == this.value &&
+      other instanceof AttributeRangeDecoration && other.attr == this.attr && other.value == this.value &&
       other.inc == this.inc && other.data === this.data
   }
 }
@@ -295,8 +297,10 @@ export abstract class Decoration implements PointSet.Value {
   abstract side: number
   abstract mapMode: MapMode
 
-  static create(spec: Decoration.WidgetSpec | Decoration.ShapeSpec) {
+  // FIXME use separate methods instead
+  static create(spec: Decoration.WidgetSpec | Decoration.ShapeSpec | Decoration.AttributeSpec) {
     if ("widget" in spec) return new WidgetDecoration(spec.widget, spec.side || 0, spec.mapMode ?? MapMode.TrackDel)
+    else if ("attribute" in spec) return new AttributeDecoration(spec.attribute, spec.value)
     else return new ShapeDecoration(spec.shape)
   }
 
@@ -313,9 +317,14 @@ export namespace Decoration {
   export type ShapeSpec = {
     shape: Shape
   }
+
+  export type AttributeSpec = {
+    attribute: string
+    value: string
+  }
 }
 
-export class ShapeDecoration extends Decoration {
+class ShapeDecoration extends Decoration {
   constructor(readonly shape: Shape) { super() }
 
   eq(other: PointSet.Value): boolean {
@@ -326,7 +335,7 @@ export class ShapeDecoration extends Decoration {
   get side() { return 1e9 }
 }
 
-export class WidgetDecoration extends Decoration {
+class WidgetDecoration extends Decoration {
   constructor(readonly widget: Widget, readonly side: number, readonly mapMode: MapMode) {
     super()
     if (side >= 1e9) throw new Error("Invalid widget side")
@@ -336,6 +345,20 @@ export class WidgetDecoration extends Decoration {
     return this == other || other instanceof WidgetDecoration && other.widget.eq(this.widget) &&
       other.side == this.side && other.mapMode == this.mapMode
   }
+}
+
+class AttributeDecoration extends Decoration {
+  constructor(readonly attribute: string, readonly value: string) {
+    super()
+  }
+
+  eq(other: PointSet.Value): boolean {
+    return this == other || other instanceof AttributeDecoration && other.attribute == this.attribute &&
+      other.value == this.value
+  }
+
+  get mapMode() { return MapMode.TrackAfter }
+  get side() { return 1e9 }
 }
 
 function findAbove(array: readonly number[], start: number, n: number) {
@@ -442,8 +465,9 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
   static create<Value extends PointSet.Value>(
     source: Iterable<[number, Value]> | ((add: (pos: number, value: Value) => void) => void)
   ): PointSet<Value> {
-    if (typeof source != "function") source = add => {
-      for (let [pos, value] of source as Iterable<[number, Value]>) add(pos, value)
+    if (typeof source != "function") {
+      let array = source
+      source = add => { for (let [pos, value] of array) add(pos, value) }
     }
     let positions: number[] = [], values: Value[] = [], curPos = -1, curVal: Value | undefined
     source((pos: number, value: Value) => {
@@ -604,8 +628,9 @@ export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
   static create<Value extends RangeSet.Value>(
     source: Iterable<[number, number, Value]> | ((add: (from: number, to: number, value: Value) => void) => void)
   ): RangeSet<Value> {
-    if (typeof source != "function") source = (add) => {
-      for (let [from, to, value] of source as Iterable<[number, number, Value]>) add(from, to, value)
+    if (typeof source != "function") {
+      let array = source
+      source = add => { for (let [from, to, value] of array) add(from, to, value) }
     }
     let from: number[] = [], to: number[] = [], values: Value[] = [], curPos = -1
     source((f, t, value) => {
@@ -1032,20 +1057,19 @@ export class DecoIterator {
       this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
-    let pendingShape: ShapeDecoration | undefined, pendingShapePos = -1, pendingShapeSet: PointSet | null = null
+    // Track points that may apply to the node at the start of the next range
+    let pendingDeco: AttributeDecoration[] = [], pendingPos = -1
+    let pendingShape: ShapeDecoration | null = null, pendingShapeSet: PointSet | null = null
 
     let wrap: Walker = {
       skip: (node, pos) => { // Only done for leaf nodes.
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
-        let shape
-        if (pendingShape && pendingShapePos == pos) {
-          shape = pendingShape.shape
-          pendingShape = undefined
-        } else {
-          shape = this.tagShape(node.tag, iter.active)
+        let hasPending = pendingPos == pos && !node.isText
+        let shape = hasPending && pendingShape ? pendingShape.shape : this.tagShape(node.tag, iter.active)
+        if (hasPending) for (let deco of pendingDeco) {
+          shape = addAttrs(shape, [deco.attribute, deco.value], node.isInline)
         }
-        pendingShape = undefined
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
         walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers, true))
         this.widgets(node.tag, WidgetPlace.After, walker)
@@ -1053,12 +1077,9 @@ export class DecoIterator {
       enterPlot: (node, pos) => {
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
-        let shape
-        if (pendingShape && pendingShapePos == pos) {
-          shape = pendingShape.shape
-          pendingShape = undefined
-        } else {
-          shape = this.tagShape(node.tag, iter.active)
+        let shape = pendingShape && pendingPos == pos ? pendingShape.shape : this.tagShape(node.tag, iter.active)
+        if (pendingPos == pos) for (let deco of pendingDeco) {
+          shape = addAttrs(shape, [deco.attribute, deco.value], node.isInline)
         }
         let wrappers = nodeWrappers(node.tag, iter.active, this.globalWrappers, !shape.hasContent)
         let atom = !shape.hasContent
@@ -1086,11 +1107,18 @@ export class DecoIterator {
         let value = iter.point.value!
         if (value instanceof WidgetDecoration) {
           walker.widget(value.widget, value.side)
-        } else if (value instanceof ShapeDecoration) {
-          if (pendingShapePos < pos.pos || !pendingShape || compareSetPrec(pendingShapeSet!, iter.point.set, this.pointIter)) {
+        } else {
+          if (pendingPos < pos.pos) {
+            pendingDeco.length = 0
+            pendingShape = null
+            pendingPos = pos.pos
+          }
+          if (value instanceof ShapeDecoration &&
+              (!pendingShape || compareSetPrec(pendingShapeSet!, iter.point.set, this.pointIter))) {
             pendingShape = value
             pendingShapeSet = iter.point.set
-            pendingShapePos = pos.pos
+          } else if (value instanceof AttributeDecoration) {
+            pendingDeco.push(value)
           }
         }
       } else {
@@ -1119,7 +1147,7 @@ export class DecoIterator {
     }
     for (let iter of active) {
       let deco = iter.value!
-      if (deco instanceof AttributeDecoration && deco.pred(tag, !shape.hasContent))
+      if (deco instanceof AttributeRangeDecoration && deco.pred(tag, !shape.hasContent))
         pushAttribute(add || (add = []), deco.attr, typeof deco.value == "function" ? deco.value(tag) : deco.value)
     }
     if (add) {
