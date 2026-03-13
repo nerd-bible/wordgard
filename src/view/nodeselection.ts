@@ -1,7 +1,7 @@
 import {StateField, EditorState} from "wordgard/state"
-import {Decoration, RangeSet} from "wordgard/view"
+import {RangeDecoration, RangeSet} from "wordgard/view"
 
-const selectionDeco = Decoration.create({
+const selectionDeco = RangeDecoration.create({
   attribute: "class",
   value: "wg-selected-node"
 })
@@ -11,8 +11,8 @@ function selectionFor(state: EditorState) {
   return node && node.isLeaf && node.type.isSelectable ? RangeSet.create([[from.pos, to.pos, selectionDeco]]) : RangeSet.empty
 }
 
-export const NodeSelection = StateField.define<RangeSet<Decoration>>({
+export const NodeSelection = StateField.define<RangeSet<RangeDecoration>>({
   create: state => selectionFor(state),
   update: (_value, tr) => selectionFor(tr.state),
-  provide: f => Decoration.source.of(s => s.field(f))
+  provide: f => RangeDecoration.source.of(s => s.field(f))
 })

@@ -394,10 +394,10 @@ export class DocTile extends CompositeTile {
     return result
   }
 
-  nearest(dom: DOMNode, requireTag = false) {
+  nearest(dom: DOMNode, requireNode = false) {
     for (let cur: DOMNode | null = dom; cur; cur = cur.parentNode) {
       let elt = cur.wgTile
-      if (elt && (!requireTag || elt.node) && this.owns(elt)) return elt
+      if (elt && (!requireNode || elt.node) && this.owns(elt)) return elt
     }
     return null
   }

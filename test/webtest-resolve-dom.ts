@@ -1,4 +1,4 @@
-import {EditorView, ContentPos, Widget, PointSet} from "wordgard/view"
+import {EditorView, ContentPos, Widget, Decoration, PointSet} from "wordgard/view"
 import {EditorState, type Extension} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
@@ -47,12 +47,12 @@ describe("DocTile.resolve", () => {
     }
 
     let set = PointSet.create([
-      [3, Widget.create({render: () => span("A"), side: -1})],
-      [3, Widget.create({render: () => span("B"), side: 0})],
-      [3, Widget.create({render: () => span("C"), side: 0})],
-      [3, Widget.create({render: () => span("D"), side: 1})]
+      [3, Decoration.create({widget: Widget.create({render: () => span("A")}), side: -1})],
+      [3, Decoration.create({widget: Widget.create({render: () => span("B")}), side: 0})],
+      [3, Decoration.create({widget: Widget.create({render: () => span("C")}), side: 0})],
+      [3, Decoration.create({widget: Widget.create({render: () => span("D")}), side: 1})]
     ])
-    let node = render(doc(p("abcd")), Widget.source.of(() => set))
+    let node = render(doc(p("abcd")), Decoration.source.of(() => set))
     isIn(node.resolve(3, -1), "P", 2)
     isIn(node.resolve(3, 0), "P", 2)
     isIn(node.resolve(3, 1), "P", 4)
