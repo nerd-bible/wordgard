@@ -313,11 +313,16 @@ export abstract class Decoration implements PointSet.Value {
   abstract side: number
   abstract mapMode: MapMode
 
-  // FIXME use separate methods instead
-  static create(spec: Decoration.WidgetSpec | Decoration.ShapeSpec | Decoration.AttributeSpec) {
-    if ("widget" in spec) return new WidgetDecoration(spec.widget, spec.side || 0, spec.mapMode ?? MapMode.TrackDel)
-    else if ("attribute" in spec) return new AttributeDecoration(spec.attribute, spec.value)
-    else return new ShapeDecoration(spec.shape)
+  static widget(widget: Widget, spec?: {side?: number, mapMode?: MapMode}) {
+    return new WidgetDecoration(widget, spec?.side || 0, spec?.mapMode ?? MapMode.TrackDel)
+  }
+
+  static attribute(attribute: string, value: string) {
+    return new AttributeDecoration(attribute, value)
+  }
+
+  static shape(shape: Shape) {
+    return new ShapeDecoration(shape)
   }
 
   static wrapper(wrapper: (shape: Shape) => Shape) {
@@ -325,23 +330,6 @@ export abstract class Decoration implements PointSet.Value {
   }
 
   static source = Facet.define<(state: EditorState) => PointSet<Decoration>>()
-}
-
-export namespace Decoration {
-  export type WidgetSpec = {
-    widget: Widget
-    side?: number
-    mapMode?: MapMode
-  }
-
-  export type ShapeSpec = {
-    shape: Shape
-  }
-
-  export type AttributeSpec = {
-    attribute: string
-    value: string
-  }
 }
 
 class ShapeDecoration extends Decoration {
