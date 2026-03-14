@@ -23,7 +23,7 @@ abstract class Context {
 }
 
 class DOMContext extends Context {
-  top: DocumentFragment | HTMLElement
+  top: DocumentFragment | Element
   document: Document
 
   constructor(options: SerializeOptions, schema: Schema) {
@@ -37,7 +37,10 @@ class DOMContext extends Context {
   }
 
   openElt(name: string, attrs: Attributes) {
-    let elt = this.top.appendChild(this.document.createElement(name))
+    let elt = /^svg:/.test(name) ? this.document.createElementNS("http://www.w3.org/2000/svg", name.slice(4))
+      : /^math:/.test(name) ? this.document.createElementNS("http://www.w3.org/1998/Math/MathML", name.slice(5))
+      : this.document.createElement(name)
+    this.top.appendChild(elt)
     for (let i = 0; i < attrs.length;) elt.setAttribute(attrs[i++], attrs[i++])
     this.top = elt
   }

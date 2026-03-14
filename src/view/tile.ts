@@ -64,7 +64,7 @@ export abstract class Tile {
   length = 0
   flags: TileFlag
 
-  constructor(public dom: HTMLElement | Text, flags: number) {
+  constructor(public dom: Element | Text, flags: number) {
     this.flags = flags & ~TileFlag.Synced
     dom.wgTile = this
   }
@@ -188,7 +188,7 @@ export abstract class Tile {
 
 export class CompositeTile extends Tile {
   children: Tile[] = []
-  declare dom: HTMLElement
+  declare dom: Element
 
   addChild(child: Tile) {
     if (this.flags & TileFlag.Synced) throw new Error("Cannot add to a synced tile")
@@ -249,7 +249,7 @@ export class CompositeTile extends Tile {
     for (let child of this.children) {
       if (child.isPoint) continue
       let rects, {dom} = child
-      if (dom.nodeType == 1) rects = (dom as HTMLElement).getClientRects()
+      if (dom.nodeType == 1) rects = (dom as Element).getClientRects()
       else if (dom.nodeType == 3) rects = textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
       else continue
       for (let i = 0; i < rects.length; i++) scan.rect(rects[i], child)
@@ -273,7 +273,7 @@ export class CompositeTile extends Tile {
     let lastBot = -1
     for (let child of this.children) {
       if (child.isPoint || child.dom.nodeType != 1) continue
-      let rect = (child.dom as HTMLElement).getBoundingClientRect()
+      let rect = (child.dom as Element).getBoundingClientRect()
       if (rect.top > y) return PosAssoc.create(this.posBeforeChild(child, start), y > (lastBot + rect.top) / 2 ? 1 : -1)
       if (rect.bottom >= y) return child.posAtCoordsInner(this.posBeforeChild(child, start) + child.boundary, state,
                                                           x, y, textblock, Orientation.Col)
@@ -337,13 +337,13 @@ export function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock?
 }
 
 export class DocTile extends CompositeTile {
-  declare dom: HTMLElement
+  declare dom: Element
 
-  constructor(public state: EditorState, dom: HTMLElement, readonly cursorWrapper: readonly Mark<any>[] | null) {
+  constructor(public state: EditorState, dom: Element, readonly cursorWrapper: readonly Mark<any>[] | null) {
     super(dom, 0)
   }
 
-  static create(state: EditorState, dom: HTMLElement) {
+  static create(state: EditorState, dom: Element) {
     return new DocTile(state, dom, null).updateRanges(state, [0, state.doc.length])
   }
 
@@ -464,7 +464,7 @@ export class DocTile extends CompositeTile {
     let after = r.tile.children[r.offset]
     if (after instanceof TextTile) return textTileRect(after, 0)
     if (after.dom.nodeType != 1) return null
-    return (after.dom as HTMLElement).getBoundingClientRect()
+    return (after.dom as Element).getBoundingClientRect()
   }
 }
 
@@ -473,10 +473,10 @@ function textTileRect(tile: TextTile, offset: number) {
 }
 
 export class EltTile extends CompositeTile {
-  declare dom: HTMLElement
+  declare dom: Element
   declare parent: CompositeTile
 
-  constructor(readonly elt: DecoElt, readonly _node: Node | null, flags: number, length: number, dom: HTMLElement) {
+  constructor(readonly elt: DecoElt, readonly _node: Node | null, flags: number, length: number, dom: Element) {
     super(dom, flags)
     this.length = length
   }
@@ -492,13 +492,15 @@ export class EltTile extends CompositeTile {
     return this.elt.hasContent ? this : null
   }
 
-  static of(elt: DecoElt, node: Node | null, flags: number, length: number, dom?: HTMLElement | null) {
+  static of(elt: DecoElt, node: Node | null, flags: number, length: number, dom?: Element | null) {
     return new EltTile(elt, node, flags, length, dom || eltDOM(elt))
   }
 }
 
 function eltDOM(elt: DecoElt) {
-  let dom = document.createElement(elt.tagName)
+  let dom = /^svg:/.test(elt.tagName) ? document.createElementNS("http://www.w3.org/2000/svg", elt.tagName.slice(4))
+    : /^math:/.test(elt.tagName) ? document.createElementNS("http://www.w3.org/1998/Math/MathML", elt.tagName.slice(5))
+    : document.createElement(elt.tagName)
   for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
   return dom
 }
@@ -509,7 +511,7 @@ export class WidgetTile extends Tile {
     readonly _node: Node | null,
     flags: TileFlag,
     length: number = 0,
-    dom?: HTMLElement | Text
+    dom?: Element | Text
   ) {
     super(dom || widget.type.render(widget.value), flags)
     this.length = length
@@ -530,7 +532,7 @@ export class WidgetTile extends Tile {
   posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
     if (!this.node) return PosAssoc.create(start, 0)
-    let rect = this.dom.nodeType == 1 ? (this.dom as HTMLElement).getBoundingClientRect()
+    let rect = this.dom.nodeType == 1 ? (this.dom as Element).getBoundingClientRect()
       : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
     let after = orientation == Orientation.Col ? y > (rect.top + rect.bottom) / 2
       : (x < (rect.left + rect.right) / 2) == (dirAt(state, start, 1, textblock) == Direction.LTR)
@@ -739,7 +741,7 @@ class ContentUpdate {
 
   constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Mark<any>[] | null) {
     this.old = new TilePointer(old, 0, null)
-    this.new = new DocTile(state, old.dom as HTMLElement, cursorWrapper)
+    this.new = new DocTile(state, old.dom as Element, cursorWrapper)
     this.keepWalker = {
       enter: tile => {
         let span = tile.isSpanning && this.enterSpanning(tile.elt)
@@ -806,8 +808,8 @@ class ContentUpdate {
     for (let parent = composition.target.parentNode; parent; parent = parent.parentNode) {
       let tile = parent.wgTile
       if (!tile) {
-        let elt = new Elt<never>(parent.nodeName.toLowerCase(), takeAttributes(parent as HTMLElement), null)
-        tile = new EltTile(elt, null, 0, 0, parent as HTMLElement)
+        let elt = new Elt(parent.nodeName.toLowerCase(), takeAttributes(parent as Element), null)
+        tile = new EltTile(elt, null, 0, 0, parent as Element)
       } else if (tile.isNode || tile.isDoc) {
         break
       }
@@ -1009,7 +1011,7 @@ class ContentUpdate {
   }
 }
 
-function takeAttributes(elt: HTMLElement): Attributes {
+function takeAttributes(elt: Element): Attributes {
   let attrs: string[] = []
   for (let i = 0; i < elt.attributes.length; i++) {
     let {name, value} = elt.attributes[i]
@@ -1018,7 +1020,7 @@ function takeAttributes(elt: HTMLElement): Attributes {
   return attrs.length ? attrs : noAttributes
 }
 
-function updateAttributes(dom: HTMLElement, a: Attributes, b: Attributes) {
+function updateAttributes(dom: Element, a: Attributes, b: Attributes) {
   for (let iA = 0, iB = 0;;) {
     if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
       if (a[iA + 1] != b[iB + 1]) dom.setAttribute(b[iB], b[iB + 1])

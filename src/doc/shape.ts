@@ -1,7 +1,7 @@
 import {Plot, Leaf, Node} from "./node"
 import {Mark} from "./mark"
 
-export class Elt<T> {
+export class Elt<T = string> {
   constructor(
     readonly tagName: string,
     readonly attrs: Attributes,
@@ -33,7 +33,7 @@ export class Elt<T> {
 
 export const noChildren: readonly any[] = []
 
-export function elt<T>(
+export function elt<T = string>(
   tag: string | {_: string, [attr: string]: string | null},
   ...children: (Elt<T> | 0 | T)[]
 ): Elt<Exclude<T, Elt<any> | 0>> {

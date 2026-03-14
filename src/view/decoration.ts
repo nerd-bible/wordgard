@@ -27,14 +27,14 @@ export class Widget<T = unknown> {
 
 export namespace Widget {
   export type Spec<T> = {
-    render: (value: T) => HTMLElement | Text
+    render: (value: T) => Element | Text
     eq?: (a: T, b: T) => boolean
     destroy?: (value: T) => void
     handleEvent?: (event: Event, view: EditorView) => boolean
   }
 
   export class Type<T> {
-    render: (value: T) => HTMLElement | Text
+    render: (value: T) => Element | Text
     eq: (a: T, b: T) => boolean
     handleEvent: (event: Event, view: EditorView) => boolean
     destroy: (value: T) => void
@@ -195,7 +195,7 @@ export class TagWrapperSource {
     this.pred = Node.selector(tag)
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
-      let elt = new Elt<never>(element, readAttributes(attributes), null)
+      let elt = new Elt(element, readAttributes(attributes), null)
       this.wrapper = () => elt
     } else {
       this.wrapper = memo(tag => new Elt(deco.element, readAttributes(attributes(tag)), null))
@@ -291,7 +291,7 @@ class AttributeRangeDecoration<Data> extends RangeDecoration<Data> {
 }
 
 class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
-  readonly elt: (tag: Node.Tag) => Elt<never>
+  readonly elt: (tag: Node.Tag) => Elt
   readonly element: string
   readonly attrs: Attrs | ((tag: Node.Tag) => Attrs) | null
   readonly rank: number
