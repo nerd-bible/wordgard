@@ -1,9 +1,10 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
         ElementShape, AttributeShape, Elt, pushAttribute,
-        mergeAttributes, readAttributes, Attributes} from "wordgard/doc"
+        mergeAttributes, readAttributes, getAttribute, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
+import {cmpArray} from "./util"
 
 export class Widget<T = unknown> {
   readonly type: Widget.Type<unknown extends T ? any : Widget.Type<T>>
@@ -147,8 +148,26 @@ function addAttrs(shape: Shape, attrs: Attributes, inline: boolean) {
     : new Elt(inline ? "span" : "div", attrs, [shape])
 }
 
+function addAttrsBySelector(shape: Shape, attrs: Attributes, selector: Selector) {
+  if (!(shape instanceof Elt)) return null
+  if (selector.match(shape)) return new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
+  if (shape.children) for (let i = 0; i < shape.children.length; i++) {
+    let ch = shape.children[i], matched
+    if (typeof ch == "string") continue
+    if (matched = addAttrsBySelector(ch, attrs, selector)) {
+      let copy = shape.children.slice()
+      copy[i] = matched
+      return new Elt(shape.tagName, shape.attrs, copy)
+    }
+  }
+  return null
+}
+
 function applyDeco(shape: Shape, deco: Decoration, tag: Node.Tag) {
-  if (deco instanceof AttributeDecoration) return addAttrs(shape, [deco.attribute, deco.value], tag.isInline)
+  if (deco instanceof AttributeDecoration) {
+    let attrs: Attributes = [deco.attribute, deco.value]
+    return (deco.selector && addAttrsBySelector(shape, attrs, deco.selector)) || addAttrs(shape, attrs, tag.isInline)
+  }
   if (deco instanceof WrapperDecoration) return checkWrap(shape, deco.wrap(shape))
   return shape
 }
@@ -331,8 +350,8 @@ export abstract class Decoration implements PointSet.Value {
     return new WidgetDecoration(widget, spec?.side || 0, spec?.mapMode ?? MapMode.TrackDel)
   }
 
-  static attribute(attribute: string, value: string) {
-    return new AttributeDecoration(attribute, value)
+  static attribute(attribute: string, value: string, spec?: {selector?: string}) {
+    return new AttributeDecoration(attribute, value, spec?.selector ? Selector.parse(spec.selector) : null)
   }
 
   static shape(shape: Shape) {
@@ -369,12 +388,43 @@ class WidgetDecoration extends Decoration {
   }
 }
 
+class Selector {
+  constructor(readonly tag: string | null, readonly classes: readonly string[]) {}
+
+  eq(other: Selector) { return other.tag == this.tag && cmpArray(this.classes, other.classes) }
+
+  match(elt: Elt<any>) {
+    if (this.tag && elt.tagName != this.tag) return false
+    if (this.classes.length) {
+      let tagCls = getAttribute(elt.attrs, "class")
+      if (!tagCls) return false
+      let pieces = tagCls.split(/ +/)
+      for (let cls of this.classes) if (!pieces.includes(cls)) return false
+    }
+    return true
+  }
+
+  static parse(selector: string) {
+    let m, tag = null, classes: string[] = [], txt = selector
+    if (m = /^[\w\d\-_\u0c00-\uffff]+/.exec(txt)) {
+      tag = m[0]
+      txt = txt.slice(m[0].length)
+    }
+    while (m = /^\.[\w\d\-_\u0c00-\uffff]+/.exec(txt)) {
+      classes.push(m[0].slice(1))
+      txt = txt.slice(m[0].length)
+    }
+    if (txt) throw new Error("Invalid element selector " + selector)
+    return new Selector(tag, classes)
+  }
+}
+
 class AttributeDecoration extends Decoration {
-  constructor(readonly attribute: string, readonly value: string) { super() }
+  constructor(readonly attribute: string, readonly value: string, readonly selector: Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
     return this == other || other instanceof AttributeDecoration && other.attribute == this.attribute &&
-      other.value == this.value
+      other.value == this.value && other.selector == this.selector
   }
 
   get mapMode() { return MapMode.TrackAfter }

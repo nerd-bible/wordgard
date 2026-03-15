@@ -49,6 +49,8 @@ export function elt<T = string>(
   return new Elt(name, attrs, children.length ? children : noChildren)
 }
 
+// FIXME move some of these helpers under the Attributes namespace
+
 // Sets of attributes are stored in arrays of strings, with the even
 // indices holding attribute names, the odd ones attribute values. The
 // attributes are sorted by name.
@@ -131,6 +133,11 @@ export function readAttributes(obj: Record<string, string | null> | null | undef
     }
   }
   return result.length ? result : noAttributes
+}
+
+export function getAttribute(attrs: Attributes, name: string) {
+  for (let i = 0; i < attrs.length; i += 2) if (attrs[i] == name) return attrs[i + 1]
+  return null
 }
 
 export const Reject: unique symbol = Symbol("reject")
