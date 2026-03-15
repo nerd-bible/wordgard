@@ -1,10 +1,10 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
-import {EditorView, tagDecoration, RangeSet, Decoration, KeyBinding} from "wordgard/view"
-import {EditorState, StateField, StateEffect, Prec} from "wordgard/state"
+import {EditorView, PointSet, Decoration, KeyBinding} from "wordgard/view"
+import {StateField, StateEffect, Prec} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
   validateParam: "string",
-  shape: {structure: src => elt({_: "span", class: "wg-image"}, elt({_: "img", src}))},
+  shape: {structure: src => elt({_: "img", src})},
   selectable: true,
   parseRules: [{
     selector: "img[src]",
@@ -26,107 +26,107 @@ export const ImageSize = Mark.Type.define<number>("ImageSize", {
 
 // FIXME make it possible to attach extensions to schema elements
 export const imageTheme = EditorView.theme({
-  ".wg-image": {
+  ".wg-resize-hover": {
     display: "inline-block",
     lineHeight: "0.1",
-    position: "relative",
-    "& img": {
-      width: "100%"
-    }
+    position: "relative"
   },
-
-  ".wg-resizeable-image": {
-  },
-  ".wg-resizeable-image:hover:after": {
-    content: "''",
+  ".wg-resize-handle": {
     position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: 0,
-    height: 0,
-    border: "10px solid #00000055",
-    borderLeft: "10px solid transparent",
-    borderTop: "10px solid transparent",
+    right: "1px", bottom: "1px",
+    width: "min(60%, 20px)",
+    height: "min(60%, 20px)",
+  },
+  ".wg-resize-handle-active": {
     cursor: "nwse-resize"
   }
 })
 
-const setResizing = StateEffect.define<{pos: number, width: number} | null>({
+const setResizing = StateEffect.define<{target: number, resizing: number}>({
   map: (value, mapping) => {
-    if (!value) return null
-    let newPos = mapping.mapPos(value.pos, MapMode.TrackAfter)
-    return value == null ? undefined : {pos: newPos, width: value.width}
+    let newPos = mapping.mapPos(value.target, MapMode.TrackAfter)
+    return value == null ? undefined : {target: newPos, resizing: value.resizing}
   }
 })
 
-const dragState = StateField.define<{width: number, deco: RangeSet<Decoration>}>({
-  create: () => ({width: -1, deco: RangeSet.empty}),
+const handleElt = elt({_: "svg:svg", class: "wg-resize-handle", viewBox: "0 0 20 20"},
+                      elt({_: "svg:path", d: "M20 0L0 20M20 5L5 20M20 10L10 20", stroke: "#000000aa", "stroke-width": "1.5"}),
+                      elt({_: "svg:polygon", points: "0,20 20,20 20,0", fill: "transparent", class: "wg-resize-handle-active"}))
+
+const resizeWrapper = Decoration.wrapper(
+  shape => elt({_: "span", class: "wg-resize-hover"}, handleElt, shape))
+
+const resizeState = StateField.define<{target: number, resizing: number, deco: PointSet<Decoration>}>({
+  create: () => ({target: -1, resizing: -1, deco: PointSet.empty}),
   update: (value, tr) => {
     for (let e of tr.effects) {
       if (e.is(setResizing)) {
-        if (!e.value) return {width: -1, deco: RangeSet.empty}
-        let deco = Decoration.create({
-          attribute: "style",
-          value: `width: ${e.value.width}px`
-        })
-        return {width: e.value.width, deco: RangeSet.create([[e.value.pos, e.value.pos + 1, deco]])}
+        let {target, resizing} = e.value
+        if (target < 0)
+          return {target: -1, resizing: -1, deco: PointSet.empty}
+        let deco: [number, Decoration][] = [[target, resizeWrapper]]
+        if (resizing > -1)
+          deco.push([target, Decoration.attribute("style", `width: ${resizing}px`, {selector: "img"})])
+        return {target, resizing, deco: PointSet.create(deco)}
       }
     }
-    return value.width < 0 || !tr.docChanged ? value : {width: value.width, deco: value.deco.map(tr.changes)}
+    return value.target < 0 || !tr.docChanged ? value
+      : {target: value.target, resizing: value.resizing, deco: value.deco.map(tr.changes)}
   }
 })
 
-function getDragState(state: EditorState) {
-  let f = state.field(dragState)
-  if (!f || f.width < 0) return null
-  return {pos: f.deco.from[0], width: f.width} // FIXME
-}
+const MIN_SIZE = 10
+
+const resizeHandlers = EditorView.domEventHandlers({
+  mousedown: (event, view) => {
+    let resizing = view.state.field(resizeState)
+    if (resizing.target < 0) return
+    for (let dom = event.target as Element;;) {
+      if (dom.classList.contains("wg-resize-handle-active")) break
+      let next = dom.parentNode as Element | null
+      if (!next || next == view.contentDOM) return
+      dom = next
+    }
+    let node = view.state.doc.nodeAt(resizing.target)!
+    let width = node.tag.mark(ImageSize) ?? view.nodeDOM(resizing.target)!.getBoundingClientRect().width
+    view.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
+    event.preventDefault()
+  },
+  mousemove: (event, view) => {
+    let resizing = view.state.field(resizeState)
+    if (resizing.resizing > -1) {
+      let dom = view.nodeDOM(resizing.target)!
+      let width = event.clientX - dom.getBoundingClientRect().left
+      if (width >= MIN_SIZE && Math.abs(width - resizing.resizing) >= 1)
+        view.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
+    } else {
+      let node = view.nodeFromDOM(event.target as HTMLElement)
+      let target = node && ImageSize.canTarget(node.node.type) ? node.pos : -1
+      if (target != resizing.target)
+        view.dispatch({effects: setResizing.of({target, resizing: -1})})
+    }
+  },
+  mouseup: (event, view) => {
+    let resizing = view.state.field(resizeState)
+    if (resizing.resizing < 0) return
+    view.dispatch({
+      effects: setResizing.of({target: resizing.target, resizing: -1}),
+      changes: {from: resizing.target, add: ImageSize.of(Math.round(resizing.resizing))}
+    })
+  }
+})
 
 export const dragHandle = [
-  tagDecoration({
-    tag: Image,
-    attribute: "class",
-    value: "wg-resizeable-image"
-  }),
-  Prec.high(EditorView.domEventHandlers({
-    mousedown: (event, view) => {
-      for (let n = event.target as HTMLElement; n != view.contentDOM; n = n.parentNode as HTMLElement) {
-        if (n.classList.contains("wg-resizeable-image")) {
-          let rect = n.getBoundingClientRect()
-          if (event.clientX >= rect.right - 18 && event.clientY >= rect.bottom - 18) {
-            let pos = view.posAtDOM(n)
-            view.dispatch({effects: setResizing.of({pos, width: rect.width})})
-            event.preventDefault()
-            return
-          }
-        }
-      }
-    },
-    mousemove: (event, view) => {
-      let dragging = getDragState(view.state)
-      if (!dragging) return
-      let dom = view.nodeDOM(dragging.pos)!
-      let width = event.clientX - dom.getBoundingClientRect().left
-      if (width > 0) view.dispatch({effects: setResizing.of({pos: dragging.pos, width})})
-    },
-    mouseup: (event, view) => {
-      let dragging = getDragState(view.state)
-      if (!dragging) return
-      view.dispatch({
-        effects: setResizing.of(null),
-        changes: {from: dragging.pos, add: ImageSize.of(Math.round(dragging.width))}
-      })
-    }
-  })),
-  dragState,
-  Decoration.source.of(s => s.field(dragState).deco)
+  Prec.high(resizeHandlers),
+  resizeState,
+  Decoration.source.of(s => s.field(resizeState).deco),
 ]
 
 export const resizeImage = (by: number, relative = false) => (view: EditorView) => {
   let {node} = view.state.sel
   if (node && ImageSize.canTarget(node.type)) {
     let curWidth = node.mark(ImageSize) ?? view.nodeDOM(view.state.selection.from)!.getBoundingClientRect().width
-    let newWidth = Math.max(1, relative ? curWidth * by : curWidth + by)
+    let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
     if (newWidth != curWidth) {
       view.dispatch({
         changes: {from: view.state.selection.from, add: ImageSize.of(newWidth)},
