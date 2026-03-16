@@ -36,7 +36,7 @@ describe("serialize", () => {
   })
 
   it("can serialize tag parameters", () => {
-    istHTML(doc(p($img)), "<p><span class=\"wg-image\"><img src=\"test.png\"></span></p>")
+    istHTML(doc(p($img)), "<p><img src=\"test.png\"></p>")
   })
 
   it("can serialize spanning marks", () => {

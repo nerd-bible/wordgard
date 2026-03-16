@@ -9,11 +9,8 @@ import ist from "ist"
 const {DocTile} = EditorView as any
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
-// FIXME drop again?
-const simpleImg = tagShape({tag: Image, shape: tag => elt({_: "img", src: tag.param as string}), atom: true})
-
 function render(doc: Plot.Doc, ...config: Extension[]) {
-  return DocTile.create(EditorState.create({doc, config: [config, simpleImg]}), document.createElement("div"))
+  return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 
 function update(node: InstanceType<typeof DocTile>, spec: Transaction.Spec) {
