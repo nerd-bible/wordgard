@@ -1,15 +1,15 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
-import {EditorState, type Extension, StateField, Transaction, StateEffect} from "wordgard/state"
+import {EditorState, type Extension, StateField, Transaction, StateEffect, Compartment} from "wordgard/state"
 import {Plot, Leaf, elt} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph} from "wordgard/schema"
 import {Image, ImageAlt} from "wordgard/schema/image"
 import ist from "ist"
 
-const {DocTile} = EditorView as any
+const {DocTile} = EditorView
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
-function render(doc: Plot.Doc, ...config: Extension[]) {
+function render(doc: Plot.Doc, ...config: Extension[]): InstanceType<typeof DocTile> {
   return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 
@@ -143,6 +143,13 @@ describe("DocTile", () => {
     let node = render(doc(p(), p("a")))
     ist(update(node, {changes: [{from: 1, insert: [Leaf.text("x")]}, {from: 3, to: 4}]}).dom.innerHTML,
         "<p>x</p><p><br></p>")
+  })
+
+  it("keeps parent nodes when updating their content", () => {
+    let node = render(doc(p("a")))
+    let para = node.dom.firstChild
+    node = update(node, {changes: [{from: 2, insert: [Leaf.text("b")]}]})
+    ist(node.dom.firstChild, para)
   })
 
   it("reuses text nodes when changing their start", () => {
@@ -329,6 +336,28 @@ describe("DocTile", () => {
       })).dom.innerHTML, "<p lang=\"nl\">?</p>")
     })
 
+    it("can remove attributes from tags", () => {
+      let comp = new Compartment()
+      let node = render(doc(p("?")), comp.of(tagDecoration({
+        tag: Paragraph,
+        attribute: "lang",
+        value: "nl"
+      })))
+      node = update(node, {effects: comp.reconfigure([])})
+      ist(node.dom.innerHTML, "<p>?</p>")
+    })
+
+    it("preserves DOM nodes when adding attributes", () => {
+      let node = render(doc(p("a"))), para = node.dom.firstChild
+      node = update(node, {effects: StateEffect.reconfigure.of(tagDecoration({
+        tag: Paragraph,
+        attribute: "lang",
+        value: "nl"
+      }))})
+      ist(node.dom.innerHTML, "<p lang=\"nl\">a</p>")
+      ist(node.dom.firstChild, para)
+    })
+
     it("can take wrappers from spans", () => {
       ist(render(doc(p("ab", $img, "cd")), RangeDecoration.source.of(s => {
         return RangeSet.create([[2, 5, RangeDecoration.wrapper({element: "span", attributes: {class: "a"}})]])
@@ -374,6 +403,15 @@ describe("DocTile", () => {
       let deco = PointSet.create([[3, Decoration.wrapper(s => elt("div", elt("hr"), s))]])
       ist(render(doc(p("x"), p("y")), Decoration.source.of(() => deco)).dom.innerHTML,
           "<p>x</p><div><hr><p>y</p></div>")
+    })
+
+    it("can reuse DOM structure when adding a shape wrapper", () => {
+      let node = render(doc(p($img)))
+      let img = node.dom.querySelector("img")
+      node = update(node, {effects: StateEffect.appendConfig.of(Decoration.source.of(state => {
+        return PointSet.create([[1, Decoration.wrapper(shape => elt({_: "span", class: "u"}, shape))]])
+      }))})
+      ist(node.dom.querySelector("img"), img)
     })
 
     it("can override shapes by tag", () => {
