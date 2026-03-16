@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
-        pushAttribute, noAttributes, MapMode} from "wordgard/doc"
+        pushAttribute, noAttributes, MapMode, sameAttributes} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
@@ -12,6 +12,7 @@ import {type EditorView} from "./editorview"
 const LOG_update = false
 
 export const enum TileFlag {
+  None = 0,
   NodeInner = 1,
   Spanning = 2,
   Point = 4,
@@ -543,7 +544,7 @@ export class WidgetTile extends Tile {
 export class TextTile extends Tile {
   declare dom: Text
 
-  constructor(public text: string, dom: Text, flags: TileFlag = 0 as TileFlag) {
+  constructor(public text: string, dom: Text, flags: TileFlag = TileFlag.None) {
     super(dom, flags)
     this.length = text.length
   }
@@ -588,37 +589,6 @@ export class TextTile extends Tile {
   static of(text: string) {
     return new TextTile(text, document.createTextNode(text))
   }
-}
-
-function buildFromShape(shape: Shape, node: Node | null, nodeInner = false) {
-  if (shape instanceof Elt) {
-    let outer = EltTile.of(shape, node,
-                           (nodeInner ? TileFlag.NodeInner : 0) | (nodeInner && !shape.hasContent ? TileFlag.Point : 0) |
-                             (node && !shape.hasContent ? TileFlag.Atom : 0),
-                           node ? node.length : 0)
-    if (shape.children) for (let child of shape.children)
-      outer.addChild(buildFromShape(typeof child == "string" ? Widget.Text.of(child) : child, null, nodeInner || !!node))
-    return outer
-  } else {
-    return new WidgetTile(shape, node, nodeInner ? TileFlag.Point | TileFlag.NodeInner : 0 as TileFlag, node ? node.length : 0)
-  }
-}
-
-function copyEltShape(tile: EltTile, node: Node | null, elt = tile.elt): EltTile {
-  // FIXME is blindly copying length and tags safe here?
-  let outer = EltTile.of(elt, node, tile.flags, node ? node.length : tile.length, tile.dom)
-  if (!elt.hasContent) {
-    for (let ch of tile.children) outer.addChild(copyShape(ch as EltTile | WidgetTile))
-  }
-  return outer
-}
-
-function copyWidgetShape(tile: WidgetTile, node: Node | null): WidgetTile {
-  return new WidgetTile(tile.widget, node, tile.flags, tile.length, tile.dom)
-}
-
-function copyShape(tile: EltTile | WidgetTile): EltTile | WidgetTile {
-  return tile instanceof EltTile ? copyEltShape(tile, tile.node) : copyWidgetShape(tile, tile.node)
 }
 
 const noChildren: Tile[] = []
@@ -841,21 +811,7 @@ class ContentUpdate {
     this.deco.walk(start, includeStart, end, {
       enter: (node, elt, wrappers) => {
         this.openWrappers(wrappers, node.tag, reuse)
-        let tile: EltTile | undefined
-        if (reuse) {
-          let nodeTile = this.old.tileAfter()
-          if (nodeTile instanceof EltTile && !this.reused.has(nodeTile) &&
-              nodeTile.elt.tagName == elt.tagName && nodeTile.elt.eqChildren(elt)) {
-            this.reused.set(nodeTile, Reused.DOM)
-            updateAttributes(nodeTile.dom, nodeTile.elt.attrs, elt.attrs)
-            tile = copyEltShape(nodeTile, node, elt)
-          }
-        }
-        if (!tile) {
-          tile = EltTile.of(elt, node, 0, 2)
-          if (elt.children) for (let ch of elt.children)
-            tile.addChild(buildFromShape(typeof ch == "string" ? Widget.Text.of(ch) : ch, null, true))
-        }
+        let tile = this.buildNodeShape(node, elt, reuse ? this.old.tileAfter() : null) as EltTile
         this.new.addChild(tile)
         this.new = tile.contentTile!
         if (!this.new) throw new Error("Non-atom node rendered without hole")
@@ -869,36 +825,20 @@ class ContentUpdate {
       },
       node: (node, shape, wrappers) => {
         this.openWrappers(wrappers, node.tag, reuse)
-        let tile: Tile | undefined
-        if (reuse || node.isText && this.posB == start) {
-          let nodeTile = this.old.tileAfter()
-          if (nodeTile && !this.reused.has(nodeTile)) {
-            if (shape instanceof Elt && nodeTile instanceof EltTile &&
-                nodeTile.elt.tagName == shape.tagName && nodeTile.elt.eqChildren(shape)) {
-              this.reused.set(nodeTile, Reused.DOM)
-              updateAttributes(nodeTile.dom, nodeTile.elt.attrs, shape.attrs)
-              tile = copyEltShape(nodeTile, node, shape)
-            } else if (node.is(Leaf.Text) && nodeTile instanceof TextTile && !(this.new.lastChild instanceof TextTile) &&
-                       (reuse || this.posB == start)) {
-              if (nodeTile.text != node.param) {
-                nodeTile.dom.nodeValue = node.param
-                tile = new TextTile(node.param, nodeTile.dom)
-                this.reused.set(nodeTile, Reused.DOM)
-              } else {
-                tile = nodeTile
-                this.reused.set(nodeTile, Reused.Full)
-              }
-            } else if (shape instanceof Widget && nodeTile instanceof WidgetTile &&
-                       nodeTile.widget.eq(shape)) {
-              tile = copyWidgetShape(nodeTile, node)
-            }
+        if (node.is(Leaf.Text)) {
+          let next = (reuse || this.posB == start) && !(this.new.lastChild instanceof TextTile) && this.old.tileAfter()
+          if (!(next instanceof TextTile)) {
+            this.addText(node.param)
+          } else if (next.text == node.param) {
+            this.reused.set(next, Reused.Full)
+            this.new.addChild(next)
+          } else {
+            this.reused.set(next, Reused.DOM)
+            this.new.addChild(new TextTile(node.param, next.dom))
           }
+        } else {
+          this.new.addChild(this.buildNodeShape(node, shape, reuse ? this.old.tileAfter() : null))
         }
-        if (!tile) {
-          if (node.is(Leaf.Text)) this.addText(node.param)
-          else tile = buildFromShape(shape, node)
-        }
-        if (tile) this.new.addChild(tile)
         for (let _ of wrappers) this.up()
         if (reuse) this.old = this.old.walk(node.length, 1)
         this.posB += node.length
@@ -912,6 +852,56 @@ class ContentUpdate {
         this.new.addChild(found || new WidgetTile(widget, null, TileFlag.Point | sideFlag, 0))
       }
     })
+  }
+
+  findReusableTile(shape: Shape, reuse: Tile | readonly Tile[] | null, strict: boolean): Tile | null {
+    if (reuse instanceof EltTile) {
+      if (shape instanceof Elt && reuse.elt.tagName == shape.tagName && !this.reused.has(reuse) &&
+          (!strict || sameAttributes(reuse.elt.attrs, shape.attrs)))
+        return reuse
+      for (let ch of reuse.children) if (ch instanceof EltTile && ch.isNodeInner) {
+        let found = this.findReusableTile(shape, ch, strict)
+        if (found) return found
+      }
+      return this.findReusableTile(shape, reuse.children, strict)
+    } else if (reuse instanceof WidgetTile && shape instanceof Widget &&
+               !this.reused.has(reuse) && shape.eq(reuse.widget)) {
+      return reuse
+    } else if (Array.isArray(reuse)) {
+      for (let tile of reuse) if (tile.isNodeInner) {
+        let found = this.findReusableTile(shape, tile, strict)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  // node will be null when building inner structure
+  buildNodeShape(node: Node | null, shape: Shape, reuse: Tile | readonly Tile[] | null) {
+    if (shape instanceof Elt) {
+      let reusable, dom: Element | undefined, strict = true
+      if (reusable = this.findReusableTile(shape, reuse, strict) || this.findReusableTile(shape, reuse, strict = false)) {
+        this.reused.set(reusable, Reused.DOM)
+        dom = reusable.dom as Element
+        if (!strict) updateAttributes(dom, (reusable as EltTile).elt.attrs, shape.attrs)
+      }
+      let flags = node ? (shape.hasContent ? TileFlag.None : TileFlag.Atom)
+        : TileFlag.NodeInner | (shape.hasContent ? TileFlag.None : TileFlag.Point)
+      let tile = EltTile.of(shape, node, flags, node ? node.length : 0, dom)
+      if (shape.children) for (let ch of shape.children) {
+        tile.addChild(this.buildNodeShape(null, typeof ch == "string" ? Widget.Text.of(ch) : ch,
+                                          reusable ? reusable.children : reuse))
+      }
+      return tile
+    } else {
+      let reusable, dom: Element | Text | undefined
+      if (reusable = this.findReusableTile(shape, reuse, false)) {
+        this.reused.set(reusable, Reused.DOM)
+        dom = reusable.dom
+      }
+      let flags = node ? TileFlag.Atom : TileFlag.Point | TileFlag.NodeInner
+      return new WidgetTile(shape, node, flags, node ? node.length : 0, dom)
+    }
   }
 
   up() {
