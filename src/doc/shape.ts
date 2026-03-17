@@ -6,7 +6,7 @@ export class Elt<T = string> {
     readonly tagName: string,
     readonly attrs: Attributes,
     // Null means a content hole
-    readonly children: readonly (Elt<T> | T)[] | null
+    readonly children: Elt.Fragment<T> | null
   ) {}
 
   get hasContent(): boolean { return this.children == null || this.children.some(ch => ch instanceof Elt && ch.hasContent) }
@@ -29,6 +29,10 @@ export class Elt<T = string> {
   eq(other: any) {
     return other instanceof Elt && this.eqTag(other) && this.eqChildren(other)
   }
+}
+
+export namespace Elt {
+  export type Fragment<T = string> = readonly (string | Elt<T>)[]
 }
 
 export const noChildren: readonly any[] = []

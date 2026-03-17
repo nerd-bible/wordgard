@@ -1,100 +1,70 @@
 import {Plot, Node, Leaf} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType} from "./slice"
-import { Mark } from "./mark"
+import {Mark} from "./mark"
 import {ElementShape, AttributeShape, isElementShape,
-        Elt, Attributes, readAttributes, pushAttribute, mergeAttributes} from "./shape"
+        Elt, Attributes, readAttributes, pushAttribute, mergeAttributes, noAttributes} from "./shape"
 
 export type SerializeOptions = {
-  document?: Document
   emitNewlines?: boolean
 }
 
-abstract class Context {
-  readonly emitNewlines: boolean
-
-  constructor(options: SerializeOptions, readonly schema: Schema) {
-    this.emitNewlines = options.emitNewlines !== false
-  }
-
-  abstract emitText(text: string): void
-  abstract openElt(name: string, attrs: Attributes): void
-  abstract closeElt(): void
-}
-
-class DOMContext extends Context {
-  top: DocumentFragment | Element
-  document: Document
-
-  constructor(options: SerializeOptions, schema: Schema) {
-    super(options, schema)
-    this.document = options.document || document
-    this.top = document.createDocumentFragment()
-  }
-
-  emitText(text: string) {
-    this.top.appendChild(this.document.createTextNode(text))
-  }
-
-  openElt(name: string, attrs: Attributes) {
-    let elt = /^svg:/.test(name) ? this.document.createElementNS("http://www.w3.org/2000/svg", name.slice(4))
-      : /^math:/.test(name) ? this.document.createElementNS("http://www.w3.org/1998/Math/MathML", name.slice(5))
-      : this.document.createElement(name)
-    this.top.appendChild(elt)
-    for (let i = 0; i < attrs.length;) elt.setAttribute(attrs[i++], attrs[i++])
-    this.top = elt
-  }
-
-  closeElt() {
-    this.top = this.top.parentNode as (DocumentFragment | HTMLElement)
-  }
+// FIXME generalize to use same logic in view, somehow?
+export function eltToDOM(elt: Elt<string>, doc: Document = document) {
+  let {tagName: name, attrs} = elt
+  let dom = /^svg:/.test(name) ? doc.createElementNS("http://www.w3.org/2000/svg", name.slice(4))
+    : /^math:/.test(name) ? doc.createElementNS("http://www.w3.org/1998/Math/MathML", name.slice(5))
+    : doc.createElement(name)
+  for (let i = 0; i < attrs.length;) dom.setAttribute(attrs[i++], attrs[i++])
+  if (elt.children) for (let ch of elt.children)
+    dom.appendChild(typeof ch == "string" ? doc.createTextNode(ch) : eltToDOM(ch, doc))
+  return dom
 }
 
 const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
                              "hr", "img", "input", "keygen", "link", "meta", "param",
                              "source", "track", "wbr", "menuitem"])
 
-class HTMLContext extends Context {
-  html = ""
-  stack: string[] = []
-
-  emitText(text: string) {
-    this.html += text.replace(/[<&]/g, ch => ch == "<" ? "&lt;" : "&amp;")
-  }
-
-  openElt(name: string, attrs: Attributes) {
-    this.html += "<" + name
+export function eltToHTML(elt: Elt<string>) {
+  let html = ""
+  function scan(elt: Elt<string>) {
+    let {tagName: name, attrs} = elt, svg, math
+    if (svg = /^svg:/.test(name)) name = name.slice(4)
+    if (math = /^math:/.test(name)) name = name.slice(5)
+    if (svg && name == "svg") html += `<svg xmlns="http://www.w3.org/2000/svg"`
+    if (math && name == "math") html += `<math xmlns="http://www.w3.org/1998/Math/MathML"`
+    else html += `<${name}`
     for (let i = 0; i < attrs.length;) {
       let name = attrs[i++], val = attrs[i++]
-      this.html += " " + name
-      if (val) this.html += '="' + val.replace(/["&]/g, ch => ch == '"' ? "&quot;" : "&amp;") + '"'
+      html += ` ${name}="${val.replace(/["&]/g, ch => ch == '"' ? "&quot;" : "&amp;")}"`
     }
-    this.html += ">"
-    this.stack.push(name)
+    if ((math || svg) && (!elt.children || !elt.children.length)) {
+      html += "/>"
+    } else if (!math && !svg && selfClosing.has(name)) {
+      html += ">"
+    } else {
+      html += ">"
+      if (elt.children) for (let ch of elt.children) {
+        if (typeof ch == "string") html += ch.replace(/[<&]/g, ch => ch == "<" ? "&lt;" : "&amp;")
+        else scan(ch)
+      }
+      html += `</${name}>`
+    }
   }
-
-  closeElt() {
-    let name = this.stack.pop()!
-    if (!selfClosing.has(name)) this.html += "</" + name + ">"
-  }
+  scan(elt)
+  return html
 }
 
-export function serialize(doc: Plot.Doc, options: SerializeOptions = {}) {
-  let cx = new DOMContext(options, doc.schema)
-  serializeChildren(doc.content, cx)
-  return cx.top as DocumentFragment
+class SerializeContext {
+  constructor(readonly emitNewlines: boolean, readonly schema: Schema) {}
 }
 
-export function serializeHTML(doc: Plot.Doc, options: SerializeOptions = {}) {
-  let cx = new HTMLContext(options, doc.schema)
-  serializeChildren(doc.content, cx)
-  return cx.html
+export function serialize(doc: Plot.Doc, options: SerializeOptions = {}): Elt.Fragment {
+  return serializeChildren(doc.content, new SerializeContext(options.emitNewlines !== false, doc.schema))
 }
 
-export function serializeNode(node: Plot, options: SerializeOptions & {schema: Schema}): HTMLElement | Text {
-  let cx = new DOMContext(options, options.schema)
-  serializeChildren([node], cx)
-  return cx.top.firstChild as (HTMLElement | Text)
+export function serializeNode(node: Node, options: SerializeOptions & {schema: Schema}): Elt | string {
+  return serializeChildren([node], new SerializeContext(options.emitNewlines !== false, options.schema))[0]
 }
 
 const genericTag = Plot.defineBlock("generic", {
@@ -139,24 +109,12 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
   openMark?: Mark.Type<string>,
   context?: readonly Plot.Tag.Any[],
   includeContext?: number
-}): DocumentFragment {
-  let cx = new DOMContext(options, options.schema)
-  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openMark), cx)
-  return cx.top as DocumentFragment
+}): Elt.Fragment {
+  return serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openMark),
+                           new SerializeContext(options.emitNewlines !== false, options.schema))
 }
 
-export function serializeSliceHTML(slice: Slice, options: SerializeOptions & {
-  schema: Schema,
-  openMark?: Mark.Type<string>,
-  context?: readonly Plot.Tag.Any[],
-  includeContext?: number
-}): string {
-  let cx = new HTMLContext(options, options.schema)
-  serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, options.openMark), cx)
-  return cx.html
-}
-
-function serializeNodeInner(node: Node, cx: Context) {
+function serializeNodeInner(node: Node, cx: SerializeContext) {
   let markAttrs: string[] = []
   for (let mark of node.tag.marks) if (!mark.type.element) {
     let repr = mark.type.repr as AttributeShape<any>
@@ -170,41 +128,34 @@ function serializeNodeInner(node: Node, cx: Context) {
       pushAttribute(markAttrs, name, value)
     }
   }
-  let renderContent = node.isLeaf ? () => {} : (cx: Context) => {
+  let repr = node.type.spec.shape
+  if (node.is(Leaf.Text))
+    return markAttrs.length ? new Elt("span", markAttrs, [node.param]) : node.param
+  let children: Elt.Fragment
+  if (node.isLeaf) {
+    children = []
+  } else {
     let {content} = node
     if (cx.emitNewlines && node.type.preserveWhitespace && cx.schema.lineBreak)
       content = lineBreaksToNewlines(content, cx.schema.lineBreak)
-    serializeChildren(content, cx)
+    children = serializeChildren(content, cx)
   }
-  let repr = node.type.spec.shape
-  if (node.is(Leaf.Text)) {
-    if (markAttrs.length) cx.openElt("span", markAttrs)
-    cx.emitText(node.param)
-    if (markAttrs.length) cx.closeElt()
-  } else if (isElementShape(repr)) {
+  if (isElementShape(repr)) {
     let attrs = typeof repr.attributes == "function" ? repr.attributes(node.tag.param) : repr.attributes
     let allAttrs = !attrs ? markAttrs : mergeAttributes(readAttributes(attrs), markAttrs)
-    cx.openElt(repr.element, allAttrs)
-    renderContent(cx)
-    cx.closeElt()
+    return new Elt(repr.element, allAttrs, children)
   } else {
     let elt = typeof repr.structure == "function" ? repr.structure(node.tag.param) : repr.structure
     if (markAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, markAttrs), elt.children)
-    serializeStructure(elt, cx, renderContent)
+    return serializeStructure(elt, cx, children)
   }
 }
 
-function serializeStructure(elt: Elt<string>, cx: Context, content: (cx: Context) => void) {
-  cx.openElt(elt.tagName, elt.attrs)
-  if (elt.children == null) {
-    content(cx)
-  } else {
-    for (let ch of elt.children) {
-      if (typeof ch == "string") cx.emitText(ch)
-      else serializeStructure(ch, cx, content)
-    }
-  }
-  cx.closeElt()
+function serializeStructure(elt: Elt<string>, cx: SerializeContext, content: Elt.Fragment): Elt {
+  return new Elt(elt.tagName, elt.attrs, elt.children == null ? content : elt.children.map(ch => {
+    if (typeof ch == "string") return ch
+    else return serializeStructure(ch, cx, content)
+  }))
 }
 
 function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Leaf.Any) {
@@ -219,8 +170,19 @@ function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Leaf.Any) {
   return result
 }
 
-function serializeChildren(children: readonly Node[], cx: Context) {
-  let active: Mark[] = []
+class EltCx {
+  children: (Elt | string)[] = []
+  constructor(readonly tagName: string, readonly attrs: Attributes, readonly parent: EltCx | null) {}
+  pop() {
+    let repr = new Elt(this.tagName, this.attrs, this.children)
+    let parent = this.parent!
+    parent.children.push(repr)
+    return parent
+  }
+}
+
+function serializeChildren(children: readonly Node[], cx: SerializeContext): Elt.Fragment {
+  let active: Mark[] = [], top = new EltCx("", noAttributes, null)
   for (let child of children) {
     if (active.length || child.marks.some(p => isElementShape(p.type.repr))) {
       let keep = 0, rendered = 0, eltMarks = []
@@ -232,17 +194,19 @@ function serializeChildren(children: readonly Node[], cx: Context) {
         keep++; rendered++
       }
       while (keep < active.length) {
-        cx.closeElt()
+        top = top.pop()
         active.pop()
       }
       while (rendered < eltMarks.length) {
         let add = eltMarks[rendered++]
         let repr = add.type.repr as ElementShape<any>
-        cx.openElt(repr.element, readAttributes(typeof repr.attributes == "function" ? repr.attributes(add.value) : repr.attributes))
+        let attrs = readAttributes(typeof repr.attributes == "function" ? repr.attributes(add.value) : repr.attributes)
+        top = new EltCx(repr.element, attrs, top)
         active.push(add)
       }
     }
-    serializeNodeInner(child, cx)
+    top.children.push(serializeNodeInner(child, cx))
   }
-  for (let i = 0; i < active.length; i++) cx.closeElt()
+  for (let i = 0; i < active.length; i++) top = top.pop()
+  return top.children
 }
