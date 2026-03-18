@@ -9,52 +9,6 @@ export type SerializeOptions = {
   emitNewlines?: boolean
 }
 
-// FIXME generalize to use same logic in view, somehow?
-export function eltToDOM(elt: Elt<string>, doc: Document = document) {
-  let {tagName: name, attrs} = elt
-  let dom = /^svg:/.test(name) ? doc.createElementNS("http://www.w3.org/2000/svg", name.slice(4))
-    : /^math:/.test(name) ? doc.createElementNS("http://www.w3.org/1998/Math/MathML", name.slice(5))
-    : doc.createElement(name)
-  for (let i = 0; i < attrs.length;) dom.setAttribute(attrs[i++], attrs[i++])
-  if (elt.children) for (let ch of elt.children)
-    dom.appendChild(typeof ch == "string" ? doc.createTextNode(ch) : eltToDOM(ch, doc))
-  return dom
-}
-
-const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
-                             "hr", "img", "input", "keygen", "link", "meta", "param",
-                             "source", "track", "wbr", "menuitem"])
-
-export function eltToHTML(elt: Elt<string>) {
-  let html = ""
-  function scan(elt: Elt<string>) {
-    let {tagName: name, attrs} = elt, svg, math
-    if (svg = /^svg:/.test(name)) name = name.slice(4)
-    if (math = /^math:/.test(name)) name = name.slice(5)
-    if (svg && name == "svg") html += `<svg xmlns="http://www.w3.org/2000/svg"`
-    if (math && name == "math") html += `<math xmlns="http://www.w3.org/1998/Math/MathML"`
-    else html += `<${name}`
-    for (let i = 0; i < attrs.length;) {
-      let name = attrs[i++], val = attrs[i++]
-      html += ` ${name}="${val.replace(/["&]/g, ch => ch == '"' ? "&quot;" : "&amp;")}"`
-    }
-    if ((math || svg) && (!elt.children || !elt.children.length)) {
-      html += "/>"
-    } else if (!math && !svg && selfClosing.has(name)) {
-      html += ">"
-    } else {
-      html += ">"
-      if (elt.children) for (let ch of elt.children) {
-        if (typeof ch == "string") html += ch.replace(/[<&]/g, ch => ch == "<" ? "&lt;" : "&amp;")
-        else scan(ch)
-      }
-      html += `</${name}>`
-    }
-  }
-  scan(elt)
-  return html
-}
-
 class SerializeContext {
   constructor(readonly emitNewlines: boolean, readonly schema: Schema) {}
 }

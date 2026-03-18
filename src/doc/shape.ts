@@ -29,10 +29,73 @@ export class Elt<T = string> {
   eq(other: any) {
     return other instanceof Elt && this.eqTag(other) && this.eqChildren(other)
   }
+
+  outerDOM(doc = document) {
+    let {tagName: name, attrs} = this
+    let dom = /^svg:/.test(name) ? doc.createElementNS("http://www.w3.org/2000/svg", name.slice(4))
+      : /^math:/.test(name) ? doc.createElementNS("http://www.w3.org/1998/Math/MathML", name.slice(5))
+      : doc.createElement(name)
+    for (let i = 0; i < attrs.length;) dom.setAttribute(attrs[i++], attrs[i++])
+    return dom
+  }
+
+  static html(content: Elt | string | Elt.Fragment): string {
+    let html = ""
+    function scan(elt: Elt<string> | string) {
+      if (typeof elt == "string") {
+        html += elt.replace(/[<&]/g, ch => ch == "<" ? "&lt;" : "&amp;")
+        return
+      }
+      let {tagName: name, attrs} = elt, svg, math
+      if (svg = /^svg:/.test(name)) name = name.slice(4)
+      if (math = /^math:/.test(name)) name = name.slice(5)
+      if (svg && name == "svg") html += `<svg xmlns="http://www.w3.org/2000/svg"`
+      if (math && name == "math") html += `<math xmlns="http://www.w3.org/1998/Math/MathML"`
+      else html += `<${name}`
+      for (let i = 0; i < attrs.length;) {
+        let name = attrs[i++], val = attrs[i++]
+        html += ` ${name}="${val.replace(/["&]/g, ch => ch == '"' ? "&quot;" : "&amp;")}"`
+      }
+      if ((math || svg) && (!elt.children || !elt.children.length)) {
+        html += "/>"
+      } else if (!math && !svg && selfClosing.has(name)) {
+        html += ">"
+      } else {
+        html += ">"
+        if (elt.children) for (let ch of elt.children) scan(ch)
+        html += `</${name}>`
+      }
+    }
+    if (Array.isArray(content)) for (let elt of content) scan(elt)
+    else scan(content as Elt<string> | string)
+    return html
+  }
+
+  static dom(elt: Elt, doc?: Document): Element
+  static dom(elt: string, doc?: Document): Text
+  static dom(elt: Elt.Fragment, doc?: Document): DocumentFragment
+  static dom(elt: Elt | string | Elt.Fragment, doc?: Document): Element | Text | DocumentFragment
+  static dom(elt: Elt | string | Elt.Fragment, doc: Document = document): Element | Text | DocumentFragment {
+    if (typeof elt == "string") {
+      return doc.createTextNode(elt)
+    } else if (elt instanceof Elt) {
+      let dom = elt.outerDOM(doc)
+      if (elt.children) for (let ch of elt.children) dom.appendChild(Elt.dom(ch, doc))
+      return dom
+    } else {
+      let frag = doc.createDocumentFragment()
+      for (let ch of elt) frag.appendChild(Elt.dom(ch))
+      return frag
+    }
+  }
 }
 
+const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
+                             "hr", "img", "input", "keygen", "link", "meta", "param",
+                             "source", "track", "wbr", "menuitem"])
+
 export namespace Elt {
-  export type Fragment<T = string> = readonly (string | Elt<T>)[]
+  export type Fragment<T = string> = readonly (string | T | Elt<T>)[]
 }
 
 export const noChildren: readonly any[] = []

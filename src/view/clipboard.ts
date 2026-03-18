@@ -1,5 +1,4 @@
-import {Slice, Leaf, Plot, Mark, Pos, serializeSlice, parseSlice,
-        OpenSide, Token} from "wordgard/doc"
+import {Slice, Leaf, Plot, Mark, Pos, serializeSlice, parseSlice, OpenSide, Token, Elt} from "wordgard/doc"
 import {Facet, EditorState} from "wordgard/state"
 import browser from "./browser"
 
@@ -22,11 +21,10 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   for (let filter of state.facet(clipboardOutputFilter)) slice = filter(slice, state)
 
   // FIXME determine defining context nodes and marks
-  let doc = detachedDoc(), dom = serializeSlice(slice, {
-    document: doc,
+  let doc = detachedDoc(), dom = Elt.dom(serializeSlice(slice, {
     schema: state.doc.schema,
     openMark
-  })
+  }))
 
   let needsWrap, wrappers = 0
   while (dom.firstChild && dom.firstChild.nodeType == 1 && (needsWrap = wrapMap[dom.firstChild.nodeName.toLowerCase()])) {

@@ -494,16 +494,8 @@ export class EltTile extends CompositeTile {
   }
 
   static of(elt: DecoElt, node: Node | null, flags: number, length: number, dom?: Element | null) {
-    return new EltTile(elt, node, flags, length, dom || eltDOM(elt))
+    return new EltTile(elt, node, flags, length, dom || elt.outerDOM())
   }
-}
-
-function eltDOM(elt: DecoElt) {
-  let dom = /^svg:/.test(elt.tagName) ? document.createElementNS("http://www.w3.org/2000/svg", elt.tagName.slice(4))
-    : /^math:/.test(elt.tagName) ? document.createElementNS("http://www.w3.org/1998/Math/MathML", elt.tagName.slice(5))
-    : document.createElement(elt.tagName)
-  for (let i = 0; i < elt.attrs.length;) dom.setAttribute(elt.attrs[i++], elt.attrs[i++])
-  return dom
 }
 
 export class WidgetTile extends Tile {
@@ -791,7 +783,7 @@ class ContentUpdate {
       } else {
         if (tile.isSpanning && this.reused.has(tile)) {
           let owner = tile.dom.wgTile
-          if (owner && owner != tile) owner.dom = eltDOM((owner as EltTile).elt)
+          if (owner && owner != tile) owner.dom = (owner as EltTile).elt.outerDOM()
         } else {
           this.reused.set(tile, Reused.DOM)
         }

@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Plot, Leaf, Mark, Slice, type Token, Schema,
-        serialize, serializeHTML, serializeSlice, serializeSliceHTML, parseDoc, parseSlice,
+import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt,
+        serialize, serializeSlice, parseDoc, parseSlice,
         OpenSide, type ParseOptions} from "wordgard/doc"
 import {basicBuilders, builder, basicSchema, tag} from "wordgard/schema"
 const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -9,13 +9,13 @@ function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) 
 
 function html(doc: Plot.Doc) {
   let wrap = document.createElement("div")
-  wrap.appendChild(serialize(doc))
+  wrap.appendChild(Elt.dom(serialize(doc)))
   return wrap.innerHTML
 }
 
 function istHTML(doc: Plot.Doc, expected: string) {
   ist(html(doc), expected)
-  ist(serializeHTML(doc), expected)
+  ist(Elt.html(serialize(doc)), expected)
 }
 
 function istSliceHTML(doc: Plot.Doc, expected: string, options?: any) {
@@ -25,9 +25,10 @@ function istSliceHTML(doc: Plot.Doc, expected: string, options?: any) {
     schema: doc.schema,
     context: doc.contextAt(tag(doc, 0), options?.maxDepth)
   }
-  wrap.appendChild(serializeSlice(slice, opts))
+  let frag = serializeSlice(slice, opts)
+  wrap.appendChild(Elt.dom(frag))
   ist(wrap.innerHTML, expected)
-  ist(serializeSliceHTML(slice, opts), expected)
+  ist(Elt.html(frag), expected)
 }
 
 describe("serialize", () => {
