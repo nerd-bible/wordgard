@@ -1,10 +1,8 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
-        ElementShape, AttributeShape, Elt, pushAttribute,
-        mergeAttributes, readAttributes, getAttribute, Attributes} from "wordgard/doc"
+        Elt, pushAttribute, mergeAttributes, readAttributes, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
-import {cmpArray} from "./util"
 
 export class Widget<T = unknown> {
   readonly type: Widget.Type<unknown extends T ? any : Widget.Type<T>>
@@ -133,11 +131,10 @@ function memo<T, A extends Object>(f: (arg: A) => T) {
 
 function addMarkAttributes(shape: Shape, tag: Node.Tag) {
   let attrs: string[] | undefined
-  for (let mark of tag.marks) if (!mark.type.element) {
-    let repr = mark.type.repr as AttributeShape<any>
-    let value = repr.value == null ? String(mark.value) : typeof repr.value == "string" ? repr.value : repr.value(mark.value)
-    if (value != null)
-      pushAttribute(attrs || (attrs = []), repr.attribute, value)
+  for (let mark of tag.marks) if (mark.type.attribute) {
+    let {name, value} = mark.type.attribute
+    let val = value(mark.value)
+    if (val != null) pushAttribute(attrs || (attrs = []), name, val)
   }
   return attrs ? addAttrs(shape, attrs, tag.isInline) : shape
 }
@@ -148,7 +145,7 @@ function addAttrs(shape: Shape, attrs: Attributes, inline: boolean) {
     : new Elt(inline ? "span" : "div", attrs, [shape])
 }
 
-function addAttrsBySelector(shape: Shape, attrs: Attributes, selector: Selector) {
+function addAttrsBySelector(shape: Shape, attrs: Attributes, selector: Elt.Selector) {
   if (!(shape instanceof Elt)) return null
   if (selector.match(shape)) return new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
   if (shape.children) for (let i = 0; i < shape.children.length; i++) {
@@ -351,7 +348,7 @@ export abstract class Decoration implements PointSet.Value {
   }
 
   static attribute(attribute: string, value: string, spec?: {selector?: string}) {
-    return new AttributeDecoration(attribute, value, spec?.selector ? Selector.parse(spec.selector) : null)
+    return new AttributeDecoration(attribute, value, spec?.selector ? Elt.Selector.parse(spec.selector) : null)
   }
 
   static shape(shape: Shape) {
@@ -388,39 +385,8 @@ class WidgetDecoration extends Decoration {
   }
 }
 
-class Selector {
-  constructor(readonly tag: string | null, readonly classes: readonly string[]) {}
-
-  eq(other: Selector) { return other.tag == this.tag && cmpArray(this.classes, other.classes) }
-
-  match(elt: Elt<any>) {
-    if (this.tag && elt.tagName != this.tag) return false
-    if (this.classes.length) {
-      let tagCls = getAttribute(elt.attrs, "class")
-      if (!tagCls) return false
-      let pieces = tagCls.split(/ +/)
-      for (let cls of this.classes) if (!pieces.includes(cls)) return false
-    }
-    return true
-  }
-
-  static parse(selector: string) {
-    let m, tag = null, classes: string[] = [], txt = selector
-    if (m = /^[\w\d\-_\u0c00-\uffff]+/.exec(txt)) {
-      tag = m[0]
-      txt = txt.slice(m[0].length)
-    }
-    while (m = /^\.[\w\d\-_\u0c00-\uffff]+/.exec(txt)) {
-      classes.push(m[0].slice(1))
-      txt = txt.slice(m[0].length)
-    }
-    if (txt) throw new Error("Invalid element selector " + selector)
-    return new Selector(tag, classes)
-  }
-}
-
 class AttributeDecoration extends Decoration {
-  constructor(readonly attribute: string, readonly value: string, readonly selector: Selector | null) { super() }
+  constructor(readonly attribute: string, readonly value: string, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
     return this == other || other instanceof AttributeDecoration && other.attribute == this.attribute &&
@@ -1078,9 +1044,8 @@ export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
 }
 
 export const renderMarkWrapper = memo((mark: Mark<any>) => {
-  let repr = mark.type.repr as ElementShape<any>
-  let attrs = readAttributes(typeof repr.attributes == "function" ? repr.attributes(mark.value) : repr.attributes)
-  return new Elt<never>(repr.element, attrs, null)
+  let shape = mark.type.element!
+  return new Elt<never>(shape.name, shape.attrs(mark.value), null)
 })
 
 export class DecoIterator {

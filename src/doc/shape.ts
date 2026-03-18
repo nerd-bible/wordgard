@@ -96,6 +96,40 @@ const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "f
 
 export namespace Elt {
   export type Fragment<T = string> = readonly (string | T | Elt<T>)[]
+
+  export class Selector {
+    constructor(readonly tag: string | null, readonly classes: readonly string[]) {}
+
+    eq(other: Elt.Selector) {
+      return other.tag == this.tag && this.classes.length == other.classes.length &&
+        this.classes.every((c, i) => c == other.classes[i])
+    }
+
+    match(elt: Elt<any>) {
+      if (this.tag && elt.tagName != this.tag) return false
+      if (this.classes.length) {
+        let tagCls = getAttribute(elt.attrs, "class")
+        if (!tagCls) return false
+        let pieces = tagCls.split(/ +/)
+        for (let cls of this.classes) if (!pieces.includes(cls)) return false
+      }
+      return true
+    }
+
+    static parse(selector: string) {
+      let m, tag = null, classes: string[] = [], txt = selector
+      if (m = /^[\w\d\-_\u0c00-\uffff]+/.exec(txt)) {
+        tag = m[0]
+        txt = txt.slice(m[0].length)
+      }
+      while (m = /^\.[\w\d\-_\u0c00-\uffff]+/.exec(txt)) {
+        classes.push(m[0].slice(1))
+        txt = txt.slice(m[0].length)
+      }
+      if (txt) throw new Error("Invalid element selector " + selector)
+      return new Selector(tag, classes)
+    }
+  }
 }
 
 export const noChildren: readonly any[] = []
@@ -228,6 +262,7 @@ export type AttributeShape<Param> = {
   attribute: string
   value?: string | ((param: Param) => string | null)
   readAttribute?: (value: string) => Param | Reject
+  selector?: string
 }
 
 export function isElementShape<T>(

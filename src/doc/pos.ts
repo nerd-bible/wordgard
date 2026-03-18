@@ -68,7 +68,7 @@ export class Pos {
     let before = from.nodeBefore, after = to.nodeAfter
     let [main, sec]: [readonly Mark[], readonly Mark[]] =
       before ? [before.tag.marks, after ? after.tag.marks : none] : [after ? after.tag.marks : none, none]
-    return main.filter(p => p.type.spanning && (p.type.inclusive || p.isInSet(sec)))
+    return main.filter(p => p.type.inclusive || p.isInSet(sec))
   }
 
   static atStart(doc: Plot.Doc) {

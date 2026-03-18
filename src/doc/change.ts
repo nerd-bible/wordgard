@@ -957,6 +957,7 @@ function localSyncPosAfter(pos: Pos) {
   return found
 }
 
+// FIXME is this interpretation of spanning reasonable?
 function markableSections(doc: Plot.Doc, from: number, to: number, spanning: boolean,
                           f: (n: Node, from: number, to: number) => boolean) {
   doc.iterate(from, to, (node, pos) => {

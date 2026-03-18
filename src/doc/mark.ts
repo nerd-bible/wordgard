@@ -1,4 +1,5 @@
-import {isElementShape, AttributeShape, ElementShape, ElementParseRule, AttributeParseRule} from "./shape"
+import {isElementShape, isAttributeShape, AttributeShape, ElementShape, ElementParseRule,
+        AttributeParseRule, Elt, readAttributes, Attributes} from "./shape"
 import {compareDeep, eqArray, none, inGroup} from "./helper"
 import {SchemaElement} from "./schema"
 import {Node, Plot} from "./node"
@@ -116,9 +117,9 @@ export namespace Mark {
     readonly set: null | ((a: any, b: any) => number)
     readonly default: Mark<Value> | null
     readonly inclusive: boolean
-    readonly element: boolean
+    readonly element: Mark.Element<Value> | null
+    readonly attribute: Mark.Attribute<Value> | null
     readonly spanning: boolean
-    readonly repr: ElementShape<Value> | AttributeShape<Value>
 
     constructor(
       readonly name: string,
@@ -134,9 +135,9 @@ export namespace Mark {
       this.set = spec.set ? spec.set.compare : null
       this.default = isFlag ? new Mark(this, null as any) : null
       this.inclusive = spec.inclusive !== false
-      this.element = isElementShape(spec.shape)
-      this.spanning = spec.spanning ?? this.element
-      this.repr = spec.shape
+      this.element = isElementShape(spec.shape) ? new Mark.Element(spec.shape) : null
+      this.attribute = isAttributeShape(spec.shape) ? new Mark.Attribute(spec.shape) : null
+      this.spanning = !!this.element && spec.spanning !== false
     }
 
     of(value: Value) { return new Mark(this, value) }
@@ -206,5 +207,34 @@ export namespace Mark {
     set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
     shape: ElementShape<Value> | AttributeShape<Value>
     parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
+  }
+
+  export class Element<Value> {
+    readonly name: string
+    readonly attrs: (value: Value) => Attributes
+
+    constructor(readonly spec: ElementShape<Value>) {
+      this.name = spec.element
+      let {attributes} = spec
+      if (typeof attributes == "function") {
+        this.attrs = (value: Value) => readAttributes(attributes(value))
+      } else {
+        let attrs = readAttributes(attributes)
+        this.attrs = () => attrs
+      }
+    }
+  }
+
+  export class Attribute<Value> {
+    readonly name: string
+    readonly selector: Elt.Selector | null
+    readonly value: (param: Value) => string | null
+
+    constructor(readonly spec: AttributeShape<Value>) {
+      this.name = spec.attribute
+      let {value} = spec
+      this.value = typeof value == "function" ? value : value != null ? () => value : val => String(val)
+      this.selector = spec.selector ? Elt.Selector.parse(spec.selector) : null
+    }
   }
 }
