@@ -1,6 +1,6 @@
 import {AttributeShape, ElementShape, AttributesShape, ElementParseRule,
         AttributeParseRule, Elt, readAttributes, Attributes, noAttributes} from "./shape"
-import {compareDeep, eqArray, none, inGroup} from "./helper"
+import {compareDeep, eqArray, none} from "./helper"
 import {SchemaElement} from "./schema"
 import {Node, Plot} from "./node"
 
@@ -111,7 +111,7 @@ export class Mark<Value = unknown> {
 
 export namespace Mark {
   export class Type<Value> {
-    readonly groups: Set<string> = new Set
+    readonly labels: Set<Mark.Label> = new Set
     readonly targetGroups: readonly string[]
     readonly rank: number
     readonly set: null | ((a: any, b: any) => number)
@@ -126,10 +126,8 @@ export namespace Mark {
       readonly spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
-      this.groups.add(name)
-      this.groups.add("_")
-      if (typeof spec.group == "string") this.groups.add(spec.group)
-      else if (spec.group) for (let g of spec.group) this.groups.add(g)
+      if (spec.label instanceof Mark.Label) this.labels.add(spec.label)
+      else if (spec.label) for (let g of spec.label) this.labels.add(g)
       this.targetGroups = spec.tags == null ? ["Inline Leaf"] : typeof spec.tags == "string" ? [spec.tags] : spec.tags
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
@@ -148,7 +146,7 @@ export namespace Mark {
       return this.targetGroups.some(g => tag.inGroup(g))
     }
 
-    inGroup(group: Mark.Group) { return inGroup(group, this.groups) }
+    hasLabel(label: Mark.Label) { return this.labels.has(label) }
 
     compareRank(other: Mark.Type<any>) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
@@ -169,14 +167,12 @@ export namespace Mark {
     }
   }
 
-  export type Group = "Strong" | "Emphasis" | "Underline" | (string & {})
-
   export type Spec<Value> = {
     /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.
     tags?: string | readonly string[]
     /// Assign this tag to one or more groups.
-    group?: Mark.Group | readonly Mark.Group[]
+    label?: Mark.Label | readonly Mark.Label[]
     /// Determines the position of this mark relative to other marks.
     /// Marks with lower rank appear first in mark set arrays, and are
     /// rendered around higher rank marks in DOM representation. Ties
@@ -264,5 +260,14 @@ export namespace Mark {
       }
       this.target = spec.preferTarget ? Elt.Selector.parse(spec.preferTarget) : null
     }
+  }
+
+  export class Label {
+    declare private tag: "Mark.Label"
+
+    static Strong = new Label
+    static Emphasis = new Label
+    static Underline = new Label
+    static Alignment = new Label
   }
 }

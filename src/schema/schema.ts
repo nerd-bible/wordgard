@@ -32,7 +32,7 @@ export const CodeBlock = Plot.defineBlock("CodeBlock", {
 })
 
 export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
-  group: "Alignment",
+  label: Mark.Label.Alignment,
   tags: "Textblock",
   keepOnSplit: true,
   keepOnTypeChange: true,
@@ -96,7 +96,7 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
 
 export const Emphasis = Mark.define("Emphasis", {
   rank: 50,
-  group: "Emphasis",
+  label: Mark.Label.Emphasis,
   shape: {element: "em"},
   parseRules: [
     {attribute: "style/font-style", value: "italic"},
@@ -106,7 +106,7 @@ export const Emphasis = Mark.define("Emphasis", {
 
 export const Strong = Mark.define("Strong", {
   rank: 60,
-  group: "Strong",
+  label: Mark.Label.Strong,
   shape: {element: "strong"},
   parseRules: [
     {attribute: "style/font-weight",
@@ -119,7 +119,7 @@ export const Strong = Mark.define("Strong", {
 
 export const Underline = Mark.define("Underline", {
   rank: 40,
-  group: "Underline",
+  label: Mark.Label.Underline,
   shape: {element: "u"},
   parseRules: [
     {attribute: "style/text-decoration", value: "underline"}
