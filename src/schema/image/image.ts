@@ -15,7 +15,7 @@ export const Image = Leaf.Type.defineInline<string>("Image", {
 export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
   tags: "Image",
   validate: "string",
-  shape: {attribute: "alt", readAttribute: x => x}
+  shape: {attribute: "alt", value: 0}
 })
 
 export const ImageSize = Mark.Type.define<number>("ImageSize", {

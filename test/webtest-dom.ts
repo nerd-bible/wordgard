@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt,
+import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt, elt,
         serialize, serializeSlice, parseDoc, parseSlice,
         OpenSide, type ParseOptions} from "wordgard/doc"
 import {basicBuilders, builder, basicSchema, tag} from "wordgard/schema"
@@ -47,7 +47,7 @@ describe("serialize", () => {
   it("can serialize attribute marks", () => {
     let Pr = Mark.Type.define<string>("Pr", {
       tags: "Paragraph",
-      shape: {attribute: "data-p", readAttribute: x => x}
+      shape: {attribute: "data-p", value: 0}
     })
     let pr = builder(Pr)
     istHTML(doc(pr("one", p("x"))), "<p data-p=\"one\">x</p>")
@@ -62,6 +62,19 @@ describe("serialize", () => {
     let ul = builder(Ul)
     istHTML(doc(p(ul("one"))), "<p><span style=\"text-decoration: underline\">one</span></p>")
   })
+
+  it("can serialize targeted marks", () => {
+    let Img = Leaf.defineInline("Img", {
+      shape: {structure: () => elt({_: "span", class: "my-img"}, elt({_: "img", src: "/x.webp"}))}
+    })
+    let Alt = Mark.Type.define<string>("Alt", {
+      tags: "Img",
+      shape: {attribute: "alt", value: 0, preferTarget: "img"}
+    })
+    let alt = builder(Alt), img = builder(Img)
+    istHTML(doc(p(alt("x", img))), '<p><span class="my-img"><img alt="x" src="/x.webp"></span></p>')
+  })
+
 
   it("serializes heading levels", () => {
     istHTML(doc(h1("One"), h2("Two")), "<h1>One</h1><h2>Two</h2>")
@@ -87,7 +100,7 @@ describe("serializeSlice", () => {
                  "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open"}, tags: "_"})
+  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open", value: 0}, tags: "_"})
 
   it("can mark open nodes", () => {
     istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),

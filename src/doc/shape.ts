@@ -287,9 +287,9 @@ export type StructureShape<Param> = {
 export type AttributeShape<Param> = {
   /// The name of the attribute.
   attribute: string
-  /// Its value. When not given, the value of the mark's parameter is
-  /// used.
-  value?: string | ((param: Param) => string | null)
+  /// Its value. When given as 0, which is ony valid when the `Param`
+  /// type is `string`, the value of the mark's parameter is used.
+  value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
   /// An optional function that converts the value of the attribute
   /// back into a parameter value. Used in the parse rule.
   readAttribute?: (value: string) => Param | Reject

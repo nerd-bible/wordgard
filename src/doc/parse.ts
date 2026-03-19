@@ -55,8 +55,12 @@ class RuleSet {
             value: shape.value,
             mark
           })
-        } else if (mark.default && !shape.value) {
-          rules.push({attribute: shape.attribute, mark})
+        } else if (shape.value === 0) {
+          rules.push({
+            attribute: shape.attribute,
+            readAttribute: param => param,
+            mark
+          })
         }
       }
     }

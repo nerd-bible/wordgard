@@ -13,7 +13,7 @@ export const clipboardTextParser = Facet.define<(text: string, state: EditorStat
 export const clipboardInputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
 
 const openMark = Mark.Type.define<string>("Open", {
-  shape: {attribute: "wg-open"},
+  shape: {attribute: "wg-open", value: 0},
   tags: "*"
 })
 

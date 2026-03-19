@@ -236,7 +236,7 @@ export namespace Mark {
     constructor(readonly spec: AttributeShape<Value> | AttributesShape<Value>, type: Mark.Type<Value>) {
       if ("attribute" in spec) {
         let {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
-        if (value == null) {
+        if (value === 0) {
           if (style) {
             if (type.default) throw new Error("Attribute specs for styles must provide a value")
             this.get = param => ["style", style + param]

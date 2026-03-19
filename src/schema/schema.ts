@@ -42,10 +42,10 @@ export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
   ]
 })
 
-export const CodeBlockLanguage = Mark.Type.define("CodeBlockLanguage", {
+export const CodeBlockLanguage = Mark.Type.define<string>("CodeBlockLanguage", {
   tags: "CodeBlock",
   validate: "string",
-  shape: {attribute: "data-language", readAttribute: x => x}
+  shape: {attribute: "data-language", value: 0}
 })
 
 export const Blockquote = Plot.defineBlock("Blockquote", {

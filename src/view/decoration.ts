@@ -131,10 +131,15 @@ function memo<T, A extends Object>(f: (arg: A) => T) {
 
 function addMarkAttributes(shape: Shape, tag: Node.Tag) {
   let attrs: readonly string[] | undefined
-  for (let mark of tag.marks) if (mark.type.attribute) {
-    let {get, target} = mark.type.attribute // FIXME allow targeting
-    let markAttrs = get(mark.value)
-    if (markAttrs.length) attrs = attrs ? mergeAttributes(attrs, markAttrs) : markAttrs
+  for (let mark of tag.marks) {
+    if (mark.type.attribute && (mark.spanning || !(shape instanceof Widget && shape.type == Widget.Text))) {
+      let {get, target} = mark.type.attribute
+      let markAttrs = get(mark.value)
+      if (markAttrs.length) {
+        if (target && shape instanceof Elt) shape = shape.addAttrs(markAttrs, target)
+        else attrs = attrs ? mergeAttributes(attrs, markAttrs) : markAttrs
+      }
+    }
   }
   return attrs ? addAttrs(shape, attrs, tag.isInline) : shape
 }
