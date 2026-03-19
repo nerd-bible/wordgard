@@ -1,8 +1,8 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
 import {EditorState, type Extension, StateField, Transaction, StateEffect, Compartment} from "wordgard/state"
-import {Plot, Leaf, elt} from "wordgard/doc"
-import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph} from "wordgard/schema"
+import {Plot, Leaf, elt, Mark} from "wordgard/doc"
+import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wordgard/schema"
 import {Image, ImageAlt} from "wordgard/schema/image"
 import ist from "ist"
 
@@ -39,6 +39,19 @@ describe("DocTile", () => {
   it("can draw marks on text", () => {
     ist(render(doc(p(em("ab", strong("cd")), "ef"))).dom.innerHTML,
         "<p><em>ab<strong>cd</strong></em>ef</p>")
+  })
+
+  it("can draw marks with a preferred target", () => {
+    let Img = Leaf.defineInline("Img", {
+      shape: {structure: () => elt({_: "span", class: "my-img"}, elt({_: "img", src: "/x.webp"}))}
+    })
+    let Alt = Mark.Type.define<string>("Alt", {
+      tags: "Img",
+      shape: {attribute: "alt", value: 0, preferTarget: "img"}
+    })
+    let alt = builder(Alt), img = builder(Img)
+    ist(render(doc(p(alt("x", img))), EditorState.validateDoc.of(false)).dom.innerHTML,
+        '<p><span class="my-img"><img alt="x" src="/x.webp"></span></p>')
   })
 
   it("can draw nodes with structure representation", () => {

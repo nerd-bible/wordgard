@@ -3,7 +3,7 @@ import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt, elt,
         serialize, serializeSlice, parseDoc, parseSlice,
         OpenSide, type ParseOptions} from "wordgard/doc"
 import {basicBuilders, builder, basicSchema, tag} from "wordgard/schema"
-const {doc, blockquote, p, em, strong, code, img, $img, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
+const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -75,6 +75,13 @@ describe("serialize", () => {
     istHTML(doc(p(alt("x", img))), '<p><span class="my-img"><img alt="x" src="/x.webp"></span></p>')
   })
 
+  it("can serialize marks that add multiple attributes", () => {
+    let M = Mark.Type.define<string>("M", {
+      spanning: true,
+      shape: {attributes: p => ({"data-value": p, "class": "m"})}
+    }), m = builder(M)
+    istHTML(doc(p(m("??", "hello"))), '<p><span class="m" data-value="??">hello</span></p>')
+  })
 
   it("serializes heading levels", () => {
     istHTML(doc(h1("One"), h2("Two")), "<h1>One</h1><h2>Two</h2>")
@@ -184,6 +191,11 @@ describe("parseDoc", () => {
   it("clears marks via style properties", () => {
     ist(parse("<p><strong>a<span style='font-weight: normal'>b</span>c</strong></p>"),
         doc(p(strong("a"), "b", strong("c"))), eq)
+  })
+
+  it("can parse marks with pass-through attributes", () => {
+    ist(parse("<p><img alt=x src='test.png'></p>"),
+        doc(p(imgAlt("x", img("test.png")))), eq)
   })
 
   it("joins text nodes", () => {
