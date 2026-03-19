@@ -313,26 +313,6 @@ export type AttributesShape<Param> = {
   preferTarget?: string
 }
 
-// FIXME get rid of these
-
-export function isElementShape<T>(
-  repr: AttributeShape<T> | ElementShape<T> | StructureShape<T>
-): repr is ElementShape<T> {
-  return (repr as ElementShape<any>).element != null
-}
-
-export function isAttributeShape<T>(
-  repr: AttributeShape<T> | ElementShape<T> | StructureShape<T>
-): repr is AttributeShape<T> {
-  return (repr as AttributeShape<any>).attribute != null
-}
-
-export function isStructureShape<T>(
-  repr: AttributeShape<T> | ElementShape<T> | StructureShape<T>
-): repr is StructureShape<T> {
-  return (repr as StructureShape<any>).structure != null
-}
-
 export class NodeShape<Param> {
   constructor(
     readonly atom: boolean,
@@ -343,7 +323,7 @@ export class NodeShape<Param> {
   static from<Param>(type: Node.Type.Base<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
     if (atom == null) atom = type.isLeaf
-    if (isElementShape(spec)) {
+    if ("element" in spec) {
       let {element, attributes} = spec
       if (typeof attributes == "function") {
         create = (param: Param) => new Elt(element, readAttributes(attributes(param)), atom ? noChildren : null)
@@ -380,10 +360,6 @@ export interface ElementParseRule<Param> {
   contentElement?: string | ((elt: HTMLElement) => HTMLElement)
 }
 
-export function isElementParseRule(rule: ParseRule): rule is ElementParseRule<unknown> {
-  return (rule as any).selector != null
-}
-
 export interface AttributeParseRule<Param> {
   attribute: string
   mark?: Mark.Type<Param> | Mark<Param>
@@ -393,10 +369,6 @@ export interface AttributeParseRule<Param> {
   value?: string
   readAttribute?: (value: string) => Param | Reject
   consuming?: boolean
-}
-
-export function isAttributeParseRule(rule: ParseRule): rule is AttributeParseRule<unknown> {
-  return (rule as any).attribute != null
 }
 
 export type ParseRule<Param = any> = ElementParseRule<Param> | AttributeParseRule<Param>

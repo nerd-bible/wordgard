@@ -2,7 +2,7 @@ import {Schema} from "./schema"
 import {Plot, Node, Leaf} from "./node"
 import { Mark } from "./mark"
 import {Slice, Token} from "./slice"
-import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule, Reject} from "./shape"
+import {ParseRule, ElementParseRule, AttributeParseRule, Reject} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 
@@ -12,7 +12,7 @@ class RuleSet {
 
   constructor(rules: readonly ParseRule[]) {
     for (let rule of rules) {
-      if (isElementParseRule(rule)) this.elementRules.push(rule)
+      if ("selector" in rule) this.elementRules.push(rule)
       else this.attributeRules.push(rule)
     }
   }
