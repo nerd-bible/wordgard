@@ -202,7 +202,7 @@ function isListItem(node: NodePos): PlotPos | null {
   for (let first = true;;) {
     let {parent} = node
     if (!parent) return null
-    if (parent.node.tag.type.inGroup("List")) return first ? node as PlotPos : null
+    if (parent.node.tag.type.hasLabel(Node.Label.List)) return first ? node as PlotPos : null
     first = node.isFirst
     node = parent
   }

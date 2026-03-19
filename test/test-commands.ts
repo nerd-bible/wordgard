@@ -2,7 +2,7 @@ import {Command, liftEmptyBlock, insertLineBreak, enter,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/command"
-import {Plot, Mark, Leaf, Schema} from "wordgard/doc"
+import {Plot, Mark, Leaf, Node, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/schema"
@@ -670,12 +670,12 @@ describe("toggleList", () => {
     let InlineOrderedList = Plot.defineBlock("OrderedList", {
       blockContent: "ListItem",
       shape: {element: "ol"},
-      group: ["List"]
+      label: Node.Label.List
     })
     let InlineBulletList = Plot.defineBlock("BulletList", {
       blockContent: "ListItem",
       shape: {element: "ul"},
-      group: ["List"]
+      label: Node.Label.List
     })
     let InlineListSchema = Schema.define([
       Plot.defineDoc({blockContent: ["Paragraph", "OrderedList", "BulletList"]}),

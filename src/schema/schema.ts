@@ -1,4 +1,4 @@
-import {elt, Reject, Plot, Leaf, Mark, Schema} from "wordgard/doc"
+import {elt, Reject, Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
 import {Image, ImageAlt} from "wordgard/schema/image"
 
 export const Paragraph = Plot.defineBlock("Paragraph", {
@@ -27,7 +27,8 @@ export const Heading = Plot.Type.defineBlock("Heading", {
 
 export const CodeBlock = Plot.defineBlock("CodeBlock", {
   inlineContent: true,
-  group: ["Block", "Code"],
+  group: "Block",
+  label: Node.Label.Code,
   shape: {element: "pre"},
 })
 
@@ -59,7 +60,8 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
   blockContent: "ListItem",
-  group: ["Block", "List"],
+  group: "Block",
+  label: Node.Label.List,
   shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
@@ -70,7 +72,8 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
 
 export const BulletList = Plot.defineBlock("BulletList", {
   blockContent: "ListItem",
-  group: ["Block", "List"],
+  group: "Block",
+  label: Node.Label.List,
   shape: {element: "ul"},
   autoJoin: true
 })
@@ -89,7 +92,7 @@ export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
 })
 
 export const LineBreak = Leaf.defineInline("LineBreak", {
-  group: "LineBreak",
+  label: Node.Label.LineBreak,
   toText: () => "\n",
   shape: {element: "br"}
 })

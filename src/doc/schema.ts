@@ -124,7 +124,7 @@ export class Schema {
     let lineBreak: Leaf<any> | null = null
     for (let tag of tags) {
       if (tag.isLeaf) {
-        if (tag.inGroup("LineBreak")) {
+        if (tag.hasLabel(Node.Label.LineBreak)) {
           if (tag.isBlock || !tag.default)
             throw new Error("Line break tags must be inline leaves with a default param")
           if (lineBreak) throw new Error("Multiple line break tags provided")
