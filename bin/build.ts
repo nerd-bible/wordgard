@@ -181,13 +181,16 @@ function addPureComments(code: string) {
     CallExpression(node: any, _s, c) {
       walkCall(node, c)
       let m
-      addPure(node.start)
+      let iife = node.callee.type == "FunctionExpression"
+      let tsVarKludge = iife && node.callee.params.length == 1 &&
+        (m = /\bvar (\w+);\s*$/.exec(code.slice(node.start - 100, node.start))) &&
+        m[1] == node.callee.params[0].name && node.arguments.length == 1 &&
+        node.arguments[0].type == "LogicalExpression" && node.arguments[0].operator == "||"
+      if (!iife || tsVarKludge) addPure(node.start)
       // TS-style enum
-      if (node.callee.type == "FunctionExpression" && node.callee.params.length == 1 &&
-          (m = /\bvar (\w+);\s*$/.exec(code.slice(node.start - 100, node.start))) &&
-          m[1] == node.callee.params[0].name) {
-        patches.push({from: m.index + 4 + m[1].length + (node.start - 100), to: node.start, insert: " = "})
-        patches.push({from: node.callee.body.end - 1, insert: "return " + m[1]})
+      if (tsVarKludge) {
+        patches.push({from: m!.index + 4 + m![1].length + (node.start - 100), to: node.start, insert: " = "})
+        patches.push({from: node.callee.body.end - 1, insert: "return " + m![1]})
       }
     },
     NewExpression(node, _s, c) {
