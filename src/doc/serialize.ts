@@ -2,7 +2,7 @@ import {Plot, Node, Leaf} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType} from "./slice"
 import {Mark} from "./mark"
-import {Elt, Attributes, pushAttribute, noAttributes, mergeAttributes} from "./shape"
+import {Elt, Attributes, noAttributes, mergeAttributes} from "./shape"
 
 export type SerializeOptions = {
   emitNewlines?: boolean
@@ -68,16 +68,13 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
 }
 
 function serializeNodeInner(node: Node, cx: SerializeContext) {
-  let markAttrs: string[] = []
+  let markAttrs: Attributes = noAttributes, targeted: {attrs: Attributes, target: Elt.Selector}[] | undefined
   for (let mark of node.tag.marks) if (mark.type.attribute) {
-    let {name, value} = mark.type.attribute
-    let val = value(mark.value)
-    if (val != null) {
-      if (/^style\//.test(name)) {
-        val = name.slice(6) + ": " + val
-        name = "style"
-      }
-      pushAttribute(markAttrs, name, val)
+    let {target, get} = mark.type.attribute, attrs = get(mark.value)
+    if (target && !node.isText) {
+      ;(targeted || (targeted = [])).push({attrs, target})
+    } else if (!node.isText || mark.spanning) {
+      markAttrs = mergeAttributes(markAttrs, attrs)
     }
   }
   let shape = node.type.shape
@@ -93,7 +90,8 @@ function serializeNodeInner(node: Node, cx: SerializeContext) {
     children = serializeChildren(content, cx)
   }
   let elt = shape.create(node.tag.param)
-  if (markAttrs.length) elt = new Elt(elt.tagName, mergeAttributes(elt.attrs, markAttrs), elt.children)
+  if (markAttrs.length) elt = elt.addAttrs(markAttrs)
+  if (targeted) for (let {attrs, target} of targeted) elt = elt.addAttrs(attrs, target)
   return shape.atom ? elt : withContent(elt, children)
 }
 

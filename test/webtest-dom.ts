@@ -56,6 +56,7 @@ describe("serialize", () => {
   it("can serialize style marks", () => {
     let Ul = Mark.define("Ul", {
       tags: "Text",
+      spanning: true,
       shape: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
     let ul = builder(Ul)

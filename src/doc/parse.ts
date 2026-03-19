@@ -2,7 +2,7 @@ import {Schema} from "./schema"
 import {Plot, Node, Leaf} from "./node"
 import { Mark } from "./mark"
 import {Slice, Token} from "./slice"
-import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule, isElementShape, Reject} from "./shape"
+import {ParseRule, ElementParseRule, isElementParseRule, AttributeParseRule, Reject} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 
@@ -21,9 +21,9 @@ class RuleSet {
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
       let {spec: {shape, parseRules}} = tag
-      if (isElementShape(shape) && shape.element) rules.push({
+      if ("element" in shape && shape.element) rules.push({
         selector: shape.selector || shape.element,
-        readElement: shape.readElement,
+        readElement: shape.read,
         leaf: tag.isLeaf ? tag : undefined,
         plot: tag.isLeaf ? undefined : tag
       })
@@ -35,20 +35,30 @@ class RuleSet {
     }
     for (let mark of schema.marks) {
       let {shape, parseRules} = mark.spec
-      if (isElementShape(shape)) {
+      if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
+      if ("element" in shape) {
         rules.push({
           selector: shape.selector || shape.element,
-          readElement: shape.readElement,
+          readElement: shape.read,
           mark
         })
-      } else if (shape.readAttribute) {
-        rules.push({
-          attribute: shape.attribute,
-          readAttribute: shape.readAttribute,
-          mark
-        })
+      } else if ("attribute" in shape) {
+        if (shape.readAttribute) {
+          rules.push({
+            attribute: shape.attribute,
+            readAttribute: shape.readAttribute,
+            mark
+          })
+        } else if (typeof shape.value == "string") {
+          rules.push({
+            attribute: shape.attribute,
+            value: shape.value,
+            mark
+          })
+        } else if (mark.default && !shape.value) {
+          rules.push({attribute: shape.attribute, mark})
+        }
       }
-      if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
     }
     return new RuleSet(rules)
   }

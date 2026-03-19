@@ -130,40 +130,23 @@ function memo<T, A extends Object>(f: (arg: A) => T) {
 }
 
 function addMarkAttributes(shape: Shape, tag: Node.Tag) {
-  let attrs: string[] | undefined
+  let attrs: readonly string[] | undefined
   for (let mark of tag.marks) if (mark.type.attribute) {
-    let {name, value} = mark.type.attribute
-    let val = value(mark.value)
-    if (val != null) pushAttribute(attrs || (attrs = []), name, val)
+    let {get, target} = mark.type.attribute // FIXME allow targeting
+    let markAttrs = get(mark.value)
+    if (markAttrs.length) attrs = attrs ? mergeAttributes(attrs, markAttrs) : markAttrs
   }
   return attrs ? addAttrs(shape, attrs, tag.isInline) : shape
 }
 
 function addAttrs(shape: Shape, attrs: Attributes, inline: boolean) {
-  return shape instanceof Elt
-    ? new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
-    : new Elt(inline ? "span" : "div", attrs, [shape])
-}
-
-function addAttrsBySelector(shape: Shape, attrs: Attributes, selector: Elt.Selector) {
-  if (!(shape instanceof Elt)) return null
-  if (selector.match(shape)) return new Elt(shape.tagName, mergeAttributes(shape.attrs, attrs), shape.children)
-  if (shape.children) for (let i = 0; i < shape.children.length; i++) {
-    let ch = shape.children[i], matched
-    if (typeof ch == "string") continue
-    if (matched = addAttrsBySelector(ch, attrs, selector)) {
-      let copy = shape.children.slice()
-      copy[i] = matched
-      return new Elt(shape.tagName, shape.attrs, copy)
-    }
-  }
-  return null
+  return shape instanceof Elt ? shape.addAttrs(attrs) : new Elt(inline ? "span" : "div", attrs, [shape])
 }
 
 function applyDeco(shape: Shape, deco: Decoration, tag: Node.Tag) {
   if (deco instanceof AttributeDecoration) {
     let attrs: Attributes = [deco.attribute, deco.value]
-    return (deco.selector && addAttrsBySelector(shape, attrs, deco.selector)) || addAttrs(shape, attrs, tag.isInline)
+    return deco.selector && shape instanceof Elt ? shape.addAttrs(attrs, deco.selector) : addAttrs(shape, attrs, tag.isInline)
   }
   if (deco instanceof WrapperDecoration) return checkWrap(shape, deco.wrap(shape))
   return shape

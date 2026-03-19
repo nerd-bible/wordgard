@@ -1,6 +1,8 @@
 import {Plot, Leaf, Node} from "./node"
 import {Mark} from "./mark"
 
+// FIXME revisit requirement for content to always fill entire parent
+
 export class Elt<T = string> {
   constructor(
     readonly tagName: string,
@@ -37,6 +39,27 @@ export class Elt<T = string> {
       : doc.createElement(name)
     for (let i = 0; i < attrs.length;) dom.setAttribute(attrs[i++], attrs[i++])
     return dom
+  }
+
+  addAttrs(attrs: Attributes, target?: Elt.Selector) {
+    if (target) {
+      let added = this.addAttrsBySelector(attrs, target)
+      if (added) return added
+    }
+    return new Elt(this.tagName, mergeAttributes(this.attrs, attrs), this.children)
+  }
+
+  private addAttrsBySelector(attrs: Attributes, target: Elt.Selector): Elt<T> | null {
+    if (target.match(this)) return this.addAttrs(attrs)
+    if (this.children) for (let i = 0; i < this.children.length; i++) {
+      let ch = this.children[i], matched
+      if (ch instanceof Elt && (matched = ch.addAttrsBySelector(attrs, target))) {
+        let copy = this.children.slice()
+        copy[i] = matched
+        return new Elt(this.tagName, this.attrs, copy)
+      }
+    }
+    return null
   }
 
   static html(content: Elt | string | Elt.Fragment): string {
@@ -248,7 +271,7 @@ export type ElementShape<Param> = {
   element: string
   selector?: string
   attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
-  readElement?: (element: HTMLElement) => Param | Reject
+  read?: (element: HTMLElement) => Param | Reject
   atom?: boolean
 }
 
@@ -258,12 +281,39 @@ export type StructureShape<Param> = {
   atom?: boolean
 }
 
+/// Declares that a mark is represented with a specific DOM attribute.
+/// This allows a matching parse rule to be derived automatically in
+/// most situations.
 export type AttributeShape<Param> = {
+  /// The name of the attribute.
   attribute: string
+  /// Its value. When not given, the value of the mark's parameter is
+  /// used.
   value?: string | ((param: Param) => string | null)
+  /// An optional function that converts the value of the attribute
+  /// back into a parameter value. Used in the parse rule.
   readAttribute?: (value: string) => Param | Reject
-  selector?: string
+  /// If the target node may be a composite shape (rather than a
+  /// single DOM element), you can provide a limited form of selector
+  /// here to target a specific element in that shape. Node names and
+  /// class names are selected, as in `"img"`, `"img.my-class"`, or
+  /// `".class1.class2"`. If no matching element is found, the
+  /// attributes will be added to the node's outer element, as normal.
+  preferTarget?: string
 }
+
+/// Declares that a dynamic attribute or set of attributes should be
+/// added to nodes with this mark. 
+export type AttributesShape<Param> = {
+  /// The attributes to add, either directly or as a function of the
+  /// mark's parameter.
+  attributes: Record<string, string> | ((param: Param) => Record<string, string>)
+  /// A selector for the [preferred
+  /// target](#doc.AttributeShape.preferTarget) element.
+  preferTarget?: string
+}
+
+// FIXME get rid of these
 
 export function isElementShape<T>(
   repr: AttributeShape<T> | ElementShape<T> | StructureShape<T>

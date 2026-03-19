@@ -63,7 +63,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
-    readElement: elt => Number(elt.getAttribute("order") || "1")
+    read: elt => Number(elt.getAttribute("order") || "1")
   },
   autoJoin: (_a, b) => b.param == 1
 })
@@ -141,9 +141,9 @@ export const Link = Mark.Type.define<string>("Link", {
   validate: "string",
   shape: {
     element: "a",
-    selector: "a[href]",
+    preferTarget: "a[href]",
     attributes: href => ({href}),
-    readElement: dom => (dom as HTMLLinkElement).href
+    read: dom => (dom as HTMLLinkElement).href
   },
 })
 

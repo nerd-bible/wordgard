@@ -1,5 +1,5 @@
-import {isElementShape, isAttributeShape, AttributeShape, ElementShape, ElementParseRule,
-        AttributeParseRule, Elt, readAttributes, Attributes} from "./shape"
+import {AttributeShape, ElementShape, AttributesShape, ElementParseRule,
+        AttributeParseRule, Elt, readAttributes, Attributes, noAttributes} from "./shape"
 import {compareDeep, eqArray, none, inGroup} from "./helper"
 import {SchemaElement} from "./schema"
 import {Node, Plot} from "./node"
@@ -117,8 +117,8 @@ export namespace Mark {
     readonly set: null | ((a: any, b: any) => number)
     readonly default: Mark<Value> | null
     readonly inclusive: boolean
-    readonly element: Mark.Element<Value> | null
-    readonly attribute: Mark.Attribute<Value> | null
+    readonly element: Mark.Element<Value> | null = null
+    readonly attribute: Mark.Attribute<Value> | null = null
     readonly spanning: boolean
 
     constructor(
@@ -135,9 +135,9 @@ export namespace Mark {
       this.set = spec.set ? spec.set.compare : null
       this.default = isFlag ? new Mark(this, null as any) : null
       this.inclusive = spec.inclusive !== false
-      this.element = isElementShape(spec.shape) ? new Mark.Element(spec.shape) : null
-      this.attribute = isAttributeShape(spec.shape) ? new Mark.Attribute(spec.shape) : null
-      this.spanning = !!this.element && spec.spanning !== false
+      if ("element" in spec.shape) this.element = new Mark.Element(spec.shape)
+      else this.attribute = new Mark.Attribute(spec.shape, this)
+      this.spanning = this.element ? spec.spanning !== false : !!spec.spanning
     }
 
     of(value: Value) { return new Mark(this, value) }
@@ -205,7 +205,11 @@ export namespace Mark {
     /// See [`Tag.Spec.validateParam`](#doc.Tag.Spec.validateParam).
     validate?: string | ((value: Value) => void)
     set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
-    shape: ElementShape<Value> | AttributeShape<Value>
+    /// A mark can be either represented with a wrapping element, or
+    /// with one or more attributes added to the affected nodes.
+    shape: ElementShape<Value> | AttributeShape<Value> | AttributesShape<Value>
+    /// A set of parse rules for this mark. The `mark` field for these
+    /// will automatically be defaulted to the mark type itself.
     parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
   }
 
@@ -226,15 +230,39 @@ export namespace Mark {
   }
 
   export class Attribute<Value> {
-    readonly name: string
-    readonly selector: Elt.Selector | null
-    readonly value: (param: Value) => string | null
+    readonly get: (param: Value) => Attributes
+    readonly target: Elt.Selector | null
 
-    constructor(readonly spec: AttributeShape<Value>) {
-      this.name = spec.attribute
-      let {value} = spec
-      this.value = typeof value == "function" ? value : value != null ? () => value : val => String(val)
-      this.selector = spec.selector ? Elt.Selector.parse(spec.selector) : null
+    constructor(readonly spec: AttributeShape<Value> | AttributesShape<Value>, type: Mark.Type<Value>) {
+      if ("attribute" in spec) {
+        let {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
+        if (value == null) {
+          if (style) {
+            if (type.default) throw new Error("Attribute specs for styles must provide a value")
+            this.get = param => ["style", style + param]
+          } else {
+            if (type.default) this.get = () => [attribute, attribute]
+            else this.get = param => [attribute, String(param)]
+          }
+        } else if (typeof value == "function") {
+          if (style)
+            this.get = param => { let val = value(param); return val == null ? noAttributes : ["style", style + val] }
+          else
+            this.get = param => { let val = value(param); return val == null ? noAttributes : [attribute, val] }
+        } else {
+          let attrs = style ? ["style", style + value] : [attribute, value]
+          this.get = () => attrs
+        }
+      } else {
+        let {attributes} = spec
+        if (typeof attributes == "function") {
+          this.get = param => readAttributes(attributes(param))
+        } else {
+          let attrs = readAttributes(attributes)
+          this.get = () => attrs
+        }
+      }
+      this.target = spec.preferTarget ? Elt.Selector.parse(spec.preferTarget) : null
     }
   }
 }
