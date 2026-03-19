@@ -536,8 +536,6 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
   return !accum ? ChangeSet.empty(doc.length) : doCorrect && mayCorrect ? (accum as any).correct(doc) : accum
 }
 
-// FIXME should this have an option to produce a document along with a
-// mapping? It's doing most of the work for that already.
 function map(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, fit: boolean) {
   if (setA.length != doc.length || setB.length != doc.length)
     throw new Error("Mapping a change that doesn't match the start document")
@@ -957,7 +955,6 @@ function localSyncPosAfter(pos: Pos) {
   return found
 }
 
-// FIXME is this interpretation of spanning reasonable?
 function markableSections(doc: Plot.Doc, from: number, to: number, spanning: boolean,
                           f: (n: Node, from: number, to: number) => boolean) {
   doc.iterate(from, to, (node, pos) => {

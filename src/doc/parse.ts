@@ -6,18 +6,30 @@ import {ParseRule, ElementParseRule, AttributeParseRule, Reject} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 
-class RuleSet {
+const SchemaCache = new WeakMap<Schema, RuleSet>()
+
+/// A collection of parse rules. Usually derived from a schema.
+export class RuleSet {
+  /// @internal
   elementRules: ElementParseRule<unknown>[] = []
+  /// @internal
   attributeRules: AttributeParseRule<unknown>[] = []
 
-  constructor(rules: readonly ParseRule[]) {
+  /// Create a rule set with the given parse rules.
+  constructor(readonly rules: readonly ParseRule[]) {
     for (let rule of rules) {
       if ("selector" in rule) this.elementRules.push(rule)
       else this.attributeRules.push(rule)
     }
   }
 
+  /// Create a rule set containing all the parse rules attached to
+  /// nodes and marks in the given schema, as well as the rules that
+  /// can be derived from the node and mark shape declarations.
   static fromSchema(schema: Schema) {
+    let cached = SchemaCache.get(schema)
+    if (cached) return cached
+
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
       let {spec: {shape, parseRules}} = tag
@@ -64,9 +76,12 @@ class RuleSet {
         }
       }
     }
-    return new RuleSet(rules)
+    let result = new RuleSet(rules)
+    SchemaCache.set(schema, result)
+    return result
   }
 
+  /// @internal
   matchElement(elt: HTMLElement): {rule: ElementParseRule<unknown>, value?: unknown} | null {
     for (let rule of this.elementRules) {
       if (elt.matches(rule.selector)) {
@@ -86,6 +101,9 @@ export type ParseOptions = {
   /// to true.
   collapseWhiteSpace?: boolean
   isOpen?: (elt: HTMLElement) => OpenSide
+  /// The rule set to use. Defaults to the rule set derived from the
+  /// schema.
+  ruleSet?: RuleSet
 }
 
 export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
@@ -139,7 +157,7 @@ class ParseContext {
   open: Map<Plot, CxFlag> = new Map
 
   constructor(readonly schema: Schema, readonly options: ParseOptions, public top: NodeContext) {
-    this.rules = RuleSet.fromSchema(schema)
+    this.rules = options.ruleSet || RuleSet.fromSchema(schema)
   }
 
   parseChildren(parent: HTMLElement | DocumentFragment, marks: readonly Mark[], endOfSlice: boolean) {
@@ -399,7 +417,7 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
                            "section", "table", "tfoot", "ul"])
 
 function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
-  let rules = RuleSet.fromSchema(schema) // FIXME avoid recomputing these
+  let rules = RuleSet.fromSchema(schema)
   let tags: Node.Type<any>[] = []
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {

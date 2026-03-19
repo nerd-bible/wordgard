@@ -205,7 +205,7 @@ class Branch {
     // (referring to the state before this event's changes) over the
     // updated mapping.
     return new Branch(mappedChanges, StateEffect.mapEffects(this.effects, change), null,
-                         this.startSelection.map(mappedMapping), next)
+                      this.startSelection.map(mappedMapping), next)
   }
 
   // When serializing to JSON, we first fully resolve the whole history.
