@@ -42,7 +42,7 @@ export namespace Node {
   export namespace Type {
     export abstract class Base<Param> {
       readonly groups: Set<string> = new Set
-      readonly labels: Set<Node.Label> = new Set
+      readonly roles: Set<Node.Role> = new Set
       readonly shape: NodeShape<Param>
       abstract default: Node.Tag | null
 
@@ -63,8 +63,8 @@ export namespace Node {
             pos = nextDot + 1
           }
         }
-        if (spec.label instanceof Node.Label) this.labels.add(spec.label)
-        else if (spec.label) for (let label of spec.label) this.labels.add(label)
+        if (spec.role instanceof Node.Role) this.roles.add(spec.role)
+        else if (spec.role) for (let role of spec.role) this.roles.add(role)
         this.shape = NodeShape.from(this, spec.shape)
         if (this.shape.atom) this.flags |= NodeFlag.Atom
       }
@@ -74,8 +74,8 @@ export namespace Node {
       /// tests whether the node is in _all_ of those groups.
       inGroup(group: Node.Group) { return inGroup(group, this.groups) }
 
-      /// Test whether this node has the given label.
-      hasLabel(label: Node.Label) { return this.labels.has(label) }
+      /// Test whether this node has the given role.
+      hasRole(role: Node.Role) { return this.roles.has(role) }
 
       get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
       get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
@@ -152,9 +152,9 @@ export namespace Node {
     /// group names (see [`Node.Group`](#doc.Node.Group)) are used to
     /// identify the semantic role of nodes.
     group?: Group | readonly Group[]
-    /// Labels to add to this node type, which mark it as having a
+    /// Roles to add to this node type, which mark it as having a
     /// certain semantic role, such as being a list.
-    label?: Node.Label | readonly Node.Label[]
+    role?: Node.Role | readonly Node.Role[]
     shape: ElementShape<Param> | StructureShape<Param>
     parseRules?: readonly ElementParseRule<Param>[]
   }
@@ -185,27 +185,27 @@ export namespace Node {
     content?: readonly Node.JSON[]
   }
 
-  /// Labels are used to add some semantic information to node types.
-  /// You can define your own, and use the `hasLabel` method to check
-  /// whether a given node has the label attached.
-  export class Label {
-    declare private tag: "Node.Label"
+  /// Roles are used to add some semantic information to node types.
+  /// You can define your own, and use the `hasRole` method to check
+  /// whether a given node has the role attached.
+  export class Role {
+    declare private tag: "Node.Role"
 
-    /// This label indicates that a plot contains code, and makes some
+    /// This role indicates that a plot contains code, and makes some
     /// commands behave differently inside such a plot.
-    static Code = new Label
+    static Code = new Role
 
     /// Identifies a plot as a list container. This makes some
     /// commands treat the plot specially.
-    static List = new Label
+    static List = new Role
 
-    /// A single leaf type in a schema may have the `LineBreak` label,
+    /// A single leaf type in a schema may have the `LineBreak` role,
     /// which identifies it as the node canonical that represents a
     /// line break. Nodes marked as line breaks will be parsed from
     /// and serialized to newline characters inside
     /// [whitespace-preserving](#state.Tag.Spec.preserveWhitespace)
     /// nodes.
-    static LineBreak = new Label
+    static LineBreak = new Role
   }
 }
 
@@ -559,7 +559,7 @@ export namespace Plot {
       this.isolating = !!spec.isolating
       this.defining = !!spec.defining
       this.neutral = spec.neutral ?? !this.defining
-      this.preserveWhitespace = spec.preserveWhitespace ?? !!this.hasLabel(Node.Label.Code)
+      this.preserveWhitespace = spec.preserveWhitespace ?? !!this.hasRole(Node.Role.Code)
       this.orientation = flags & NodeFlag.InlineContent ? "row" : spec.orientation || "column"
       this.default = "defaultParam" in spec ? new Plot.Tag(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Plot.Tag(this, null as any, none) : null
@@ -630,7 +630,7 @@ export namespace Plot {
     /// preserved. Disables whitespace collapsing and the replacement
     /// of newlines with line break nodes in the parser and
     /// serializer. Defaults to false, unless the node has the [`Code`
-    /// label](#doc.Node.Label^Code).
+    /// role](#doc.Node.Role^Code).
     preserveWhitespace?: boolean
     isolating?: boolean
     /// Block containers are, by default, assumed to arrange their

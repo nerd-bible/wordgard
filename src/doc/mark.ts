@@ -111,7 +111,7 @@ export class Mark<Value = unknown> {
 
 export namespace Mark {
   export class Type<Value> {
-    readonly labels: Set<Mark.Label> = new Set
+    readonly roles: Set<Mark.Role> = new Set
     readonly targetGroups: readonly string[]
     readonly rank: number
     readonly set: null | ((a: any, b: any) => number)
@@ -126,8 +126,8 @@ export namespace Mark {
       readonly spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
-      if (spec.label instanceof Mark.Label) this.labels.add(spec.label)
-      else if (spec.label) for (let g of spec.label) this.labels.add(g)
+      if (spec.role instanceof Mark.Role) this.roles.add(spec.role)
+      else if (spec.role) for (let r of spec.role) this.roles.add(r)
       this.targetGroups = spec.tags == null ? ["Inline Leaf"] : typeof spec.tags == "string" ? [spec.tags] : spec.tags
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
@@ -146,7 +146,7 @@ export namespace Mark {
       return this.targetGroups.some(g => tag.inGroup(g))
     }
 
-    hasLabel(label: Mark.Label) { return this.labels.has(label) }
+    hasRole(role: Mark.Role) { return this.roles.has(role) }
 
     compareRank(other: Mark.Type<any>) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
@@ -172,7 +172,7 @@ export namespace Mark {
     /// string of tag or group names. The default is `"Inline:Leaf"`.
     tags?: string | readonly string[]
     /// Assign this tag to one or more groups.
-    label?: Mark.Label | readonly Mark.Label[]
+    role?: Mark.Role | readonly Mark.Role[]
     /// Determines the position of this mark relative to other marks.
     /// Marks with lower rank appear first in mark set arrays, and are
     /// rendered around higher rank marks in DOM representation. Ties
@@ -262,12 +262,12 @@ export namespace Mark {
     }
   }
 
-  export class Label {
-    declare private tag: "Mark.Label"
+  export class Role {
+    declare private tag: "Mark.Role"
 
-    static Strong = new Label
-    static Emphasis = new Label
-    static Underline = new Label
-    static Alignment = new Label
+    static Strong = new Role
+    static Emphasis = new Role
+    static Underline = new Role
+    static Alignment = new Role
   }
 }

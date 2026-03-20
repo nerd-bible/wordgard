@@ -157,10 +157,10 @@ export const toggleMark = Command.define<Mark<any>>((view, mark) => {
 /// Search the schema for a mark with the given label (that has a
 /// default parameter), and run [`toggleMark`](#commands.toggleMark)
 /// with that mark.
-export const toggleMarkByLabel = Command.define<Mark.Label>((view, label) => {
+export const toggleMarkByLabel = Command.define<Mark.Role>((view, label) => {
   let mark: Mark | null = null
   for (let type of view.state.doc.schema.marks) {
-    if (type.hasLabel(label) && type.default) { mark = type.default; break }
+    if (type.hasRole(label) && type.default) { mark = type.default; break }
   }
   if (!mark) return false
   return toggleMark.dispatch(view, mark)
@@ -168,7 +168,7 @@ export const toggleMarkByLabel = Command.define<Mark.Label>((view, label) => {
 
 export const setAlignment = Command.define<null | "end" | "center">((view, align) => {
   let {state} = view
-  let mark = state.doc.schema.marks.find(m => m.hasLabel(Mark.Label.Alignment))
+  let mark = state.doc.schema.marks.find(m => m.hasRole(Mark.Role.Alignment))
   if (!mark) return false
   let changes: ChangeSet.Spec[] = []
   for (let block of selectedTextblocks(state)) {
@@ -202,7 +202,7 @@ function isListItem(node: NodePos): PlotPos | null {
   for (let first = true;;) {
     let {parent} = node
     if (!parent) return null
-    if (parent.node.tag.type.hasLabel(Node.Label.List)) return first ? node as PlotPos : null
+    if (parent.node.tag.type.hasRole(Node.Role.List)) return first ? node as PlotPos : null
     first = node.isFirst
     node = parent
   }

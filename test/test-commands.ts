@@ -670,12 +670,12 @@ describe("toggleList", () => {
     let InlineOrderedList = Plot.defineBlock("OrderedList", {
       blockContent: "ListItem",
       shape: {element: "ol"},
-      label: Node.Label.List
+      role: Node.Role.List
     })
     let InlineBulletList = Plot.defineBlock("BulletList", {
       blockContent: "ListItem",
       shape: {element: "ul"},
-      label: Node.Label.List
+      role: Node.Role.List
     })
     let InlineListSchema = Schema.define([
       Plot.defineDoc({blockContent: ["Paragraph", "OrderedList", "BulletList"]}),

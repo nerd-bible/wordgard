@@ -28,12 +28,12 @@ export const Heading = Plot.Type.defineBlock("Heading", {
 export const CodeBlock = Plot.defineBlock("CodeBlock", {
   inlineContent: true,
   group: "Block",
-  label: Node.Label.Code,
+  role: Node.Role.Code,
   shape: {element: "pre"},
 })
 
 export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
-  label: Mark.Label.Alignment,
+  role: Mark.Role.Alignment,
   tags: "Textblock",
   keepOnSplit: true,
   keepOnTypeChange: true,
@@ -61,7 +61,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   validateParam: "number",
   blockContent: "ListItem",
   group: "Block",
-  label: Node.Label.List,
+  role: Node.Role.List,
   shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
@@ -73,7 +73,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
 export const BulletList = Plot.defineBlock("BulletList", {
   blockContent: "ListItem",
   group: "Block",
-  label: Node.Label.List,
+  role: Node.Role.List,
   shape: {element: "ul"},
   autoJoin: true
 })
@@ -92,14 +92,14 @@ export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
 })
 
 export const LineBreak = Leaf.defineInline("LineBreak", {
-  label: Node.Label.LineBreak,
+  role: Node.Role.LineBreak,
   toText: () => "\n",
   shape: {element: "br"}
 })
 
 export const Emphasis = Mark.define("Emphasis", {
   rank: 50,
-  label: Mark.Label.Emphasis,
+  role: Mark.Role.Emphasis,
   shape: {element: "em"},
   parseRules: [
     {attribute: "style/font-style", value: "italic"},
@@ -109,7 +109,7 @@ export const Emphasis = Mark.define("Emphasis", {
 
 export const Strong = Mark.define("Strong", {
   rank: 60,
-  label: Mark.Label.Strong,
+  role: Mark.Role.Strong,
   shape: {element: "strong"},
   parseRules: [
     {attribute: "style/font-weight",
@@ -122,7 +122,7 @@ export const Strong = Mark.define("Strong", {
 
 export const Underline = Mark.define("Underline", {
   rank: 40,
-  label: Mark.Label.Underline,
+  role: Mark.Role.Underline,
   shape: {element: "u"},
   parseRules: [
     {attribute: "style/text-decoration", value: "underline"}

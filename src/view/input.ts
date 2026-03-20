@@ -691,9 +691,9 @@ const inputTypeCommands: {[inputType: string]: (view: EditorView) => boolean} = 
   deleteWordForward: deleteWord.bind("forward"),
   deleteSoftLineBackward: deleteToLineEnd.bind("backward"),
   deleteSoftLineForward: deleteToLineEnd.bind("forward"),
-  formatBold: toggleMarkByLabel.bind(Mark.Label.Strong),
-  formatItalic: toggleMarkByLabel.bind(Mark.Label.Emphasis),
-  formatUnderline: toggleMarkByLabel.bind(Mark.Label.Underline),
+  formatBold: toggleMarkByLabel.bind(Mark.Role.Strong),
+  formatItalic: toggleMarkByLabel.bind(Mark.Role.Emphasis),
+  formatUnderline: toggleMarkByLabel.bind(Mark.Role.Underline),
 }
 
 handlers.beforeinput = (view, event: InputEvent) => {
