@@ -112,7 +112,6 @@ export class Mark<Value = unknown> {
 export namespace Mark {
   export class Type<Value> {
     readonly roles: Set<Mark.Role> = new Set
-    readonly target: Node.Query // FIXME store in schema
     readonly rank: number
     readonly set: null | ((a: any, b: any) => number)
     readonly default: Mark<Value> | null
@@ -128,7 +127,6 @@ export namespace Mark {
     ) {
       if (spec.role instanceof Mark.Role) this.roles.add(spec.role)
       else if (spec.role) for (let r of spec.role) this.roles.add(r)
-      this.target = spec.target ?? {and: [Node.Group.Inline, Node.Group.Leaf]}
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
       this.default = isFlag ? new Mark(this, null as any) : null

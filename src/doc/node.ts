@@ -510,8 +510,6 @@ export namespace Plot {
   export class Type<Param> extends Node.Type.Base<Param> {
     readonly default: Plot.Tag<Param> | null
     declare spec: Plot.Spec<Param>
-    readonly content: Node.Query // FIXME move to schema
-    readonly childCache: Map<Node.Type<any>, boolean> = new Map // FIXME move to schema
     readonly isolating: boolean
     readonly defining: boolean
     readonly neutral: boolean
@@ -521,8 +519,8 @@ export namespace Plot {
     constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
       super(name, flags, spec)
       if (this.inlineContent) this.groups.add(Node.Group.Textblock)
-      this.content = spec.inlineContent === true ? Node.Group.Inline : spec.inlineContent || spec.blockContent!
-      if (!this.content) throw new Error("Plot definitions must specify either inlineContent or blockContent")
+      if (!spec.inlineContent && !spec.blockContent)
+        throw new Error("Plot definitions must specify either inlineContent or blockContent")
       this.isolating = !!spec.isolating
       this.defining = !!spec.defining
       this.neutral = spec.neutral ?? !this.defining

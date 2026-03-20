@@ -20,6 +20,8 @@ export class Schema {
   private constructor(
     readonly tags: readonly Node.Type<unknown>[],
     readonly marks: readonly Mark.Type<any>[],
+    readonly plotContent: Map<Plot.Type<any>, Node.Query>,
+    readonly markTarget: Map<Mark.Type<any>, Node.Query>,
     docType: Plot.Type<null>,
     readonly lineBreak: Leaf<unknown> | null
   ) {
@@ -75,12 +77,12 @@ export class Schema {
   }
 
   markAllowed(mark: Mark.Type<any>, node: Node.Type<any>) {
-    return this.matchNode(node, mark.target)
+    let target = this.markTarget.get(mark)
+    return target ? this.matchNode(node, target) : false
   }
 
   sharesContent(a: Plot.Type<any>, b: Plot.Type<any>) { // FIXME cache?
-    for (let tp of this.tags)
-      if (this.matchNode(tp, a.content) && this.matchNode(tp, b.content)) return true
+    for (let tp of this.tags) if (this.canContain(a, tp) && this.canContain(b, tp)) return true
     return false
   }
 
@@ -95,13 +97,10 @@ export class Schema {
     return to.withMarks(marks) as T
   }
 
-  canContain(parent: Plot.Type<any>, child: Node.Type<any>) {
-    let result = parent.childCache.get(child)
-    if (result == null) {
-      result = child.isPlot && child.isDoc ? false : this.matchNode(child, parent.content)
-      parent.childCache.set(child, result)
-    }
-    return result
+  canContain(parent: Plot.Type<any>, child: Node.Type<any>) { // FIXME cache?
+    if (child.isPlot && child.isDoc) return false
+    let content = this.plotContent.get(parent)
+    return content ? this.matchNode(child, content) : false
   }
 
   // FIXME maybe have a different one for plot types
@@ -153,17 +152,23 @@ export class Schema {
     let tags: Node.Type<any>[] = [Leaf.Text], marks: Mark.Type<unknown>[] = []
     let defaultI = 0
     let tagNames: Set<string> = new Set, markNames: Set<string> = new Set
+    let plotContent = new Map<Plot.Type<any>, Node.Query>()
+    let markTarget = new Map<Mark.Type<any>, Node.Query>()
     for (let elt of spec) {
       if (elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Mark) elt = elt.type
       if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
+        if (elt.isPlot)
+          plotContent.set(elt, elt.spec.inlineContent === true ? Node.Group.Inline
+            : elt.spec.inlineContent || elt.spec.blockContent!)
         if (elt.isPlot && elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
         else tags.push(elt)
       } else if (elt instanceof Mark.Type) {
         if (marks.includes(elt)) continue
         if (markNames.has(elt.name)) throw new Error(`Duplicate use of mark name ${elt.name} in schema`)
+        markTarget.set(elt, elt.spec.target || {and: [Node.Group.Inline, Node.Group.Leaf]})
         markNames.add(elt.name)
         marks.push(elt as any)
       } else {
@@ -188,7 +193,7 @@ export class Schema {
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
-    let schema = new Schema(tags, marks, docTag, lineBreak as Leaf<unknown> | null)
+    let schema = new Schema(tags, marks, plotContent, markTarget, docTag, lineBreak as Leaf<unknown> | null)
     for (let tag of tags) if (tag.isPlot) {
       let sawDefaultable = false
       for (let child of tags) if (schema.canContain(tag, child)) {
