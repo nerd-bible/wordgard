@@ -44,16 +44,16 @@ describe("serialize", () => {
     istHTML(doc(p(em("One", strong(br, "Two")))), "<p><em>One<strong><br>Two</strong></em></p>")
   })
 
-  it("can serialize attribute marks", () => {
+  it("can serialize attribute marks", () => Plot.Doc.noValidate(() => {
     let Pr = Mark.Type.define<string>("Pr", {
       tags: "Paragraph",
       shape: {attribute: "data-p", value: 0}
     })
     let pr = builder(Pr)
     istHTML(doc(pr("one", p("x"))), "<p data-p=\"one\">x</p>")
-  })
+  }))
 
-  it("can serialize style marks", () => {
+  it("can serialize style marks", () => Plot.Doc.noValidate(() => {
     let Ul = Mark.define("Ul", {
       tags: "Text",
       spanning: true,
@@ -61,9 +61,9 @@ describe("serialize", () => {
     })
     let ul = builder(Ul)
     istHTML(doc(p(ul("one"))), "<p><span style=\"text-decoration: underline\">one</span></p>")
-  })
+  }))
 
-  it("can serialize targeted marks", () => {
+  it("can serialize targeted marks", () => Plot.Doc.noValidate(() => {
     let Img = Leaf.defineInline("Img", {
       shape: {structure: () => elt({_: "span", class: "my-img"}, elt({_: "img", src: "/x.webp"}))}
     })
@@ -73,15 +73,15 @@ describe("serialize", () => {
     })
     let alt = builder(Alt), img = builder(Img)
     istHTML(doc(p(alt("x", img))), '<p><span class="my-img"><img alt="x" src="/x.webp"></span></p>')
-  })
+  }))
 
-  it("can serialize marks that add multiple attributes", () => {
+  it("can serialize marks that add multiple attributes", () => Plot.Doc.noValidate(() => {
     let M = Mark.Type.define<string>("M", {
       spanning: true,
       shape: {attributes: p => ({"data-value": p, "class": "m"})}
     }), m = builder(M)
     istHTML(doc(p(m("??", "hello"))), '<p><span class="m" data-value="??">hello</span></p>')
-  })
+  }))
 
   it("serializes heading levels", () => {
     istHTML(doc(h1("One"), h2("Two")), "<h1>One</h1><h2>Two</h2>")

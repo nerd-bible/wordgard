@@ -5,6 +5,9 @@ import {Slice, Token, TokenType, SliceJSON} from "./slice"
 import {Walker, Pos, PlotPos} from "./pos"
 import {validate} from "./helper"
 
+// FIXME make changes that violate content constraints throw earlier
+// and with a more well-defined error
+
 class BuildContext {
   children: Plot[] = []
   constructor(readonly tag: Plot.Tag.Any, readonly parent: BuildContext | null) {}
@@ -385,13 +388,6 @@ export class ChangeSet {
         posB += ins
       }
       posA += len
-    }
-  }
-
-  validate(schema: Schema) {
-    for (let val of this.data) {
-      if (val instanceof Slice) val.validate(schema)
-      else if (val) val.forEach(mod => schema.validateMark((mod as any).add || (mod as any).remove))
     }
   }
 

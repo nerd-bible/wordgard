@@ -50,8 +50,10 @@ describe("DocTile", () => {
       shape: {attribute: "alt", value: 0, preferTarget: "img"}
     })
     let alt = builder(Alt), img = builder(Img)
-    ist(render(doc(p(alt("x", img))), EditorState.validateDoc.of(false)).dom.innerHTML,
-        '<p><span class="my-img"><img alt="x" src="/x.webp"></span></p>')
+    Plot.Doc.noValidate(() => {
+      ist(render(doc(p(alt("x", img)))).dom.innerHTML,
+          '<p><span class="my-img"><img alt="x" src="/x.webp"></span></p>')
+    })
   })
 
   it("can draw nodes with structure representation", () => {
@@ -66,14 +68,16 @@ describe("DocTile", () => {
         structure: elt({_: "div", class: "c"}, elt("span", "before"), elt({_: "span", class: "content"}, 0), elt("span", "after"))
       }
     })
-    let tile = render(doc(FancyBlock.create([Leaf.text("!")])), EditorState.validateDoc.of(false))
-    ist(tile.dom.innerHTML,
-        "<div class=\"c\"><span>before</span><span class=\"content\">!</span><span>after</span></div>")
-    tile = update(tile, {changes: [{from: 0, insert: [p("(")]},
-                                   {from: 1, to: 2, insert: [Leaf.text("?")]},
-                                   {from: 3, insert: [p(")")]}]})
-    ist(tile.dom.innerHTML,
-        "<p>(</p><div class=\"c\"><span>before</span><span class=\"content\">?</span><span>after</span></div><p>)</p>")
+    Plot.Doc.noValidate(() => {
+      let tile = render(doc(FancyBlock.create([Leaf.text("!")])))
+      ist(tile.dom.innerHTML,
+          "<div class=\"c\"><span>before</span><span class=\"content\">!</span><span>after</span></div>")
+      tile = update(tile, {changes: [{from: 0, insert: [p("(")]},
+                                     {from: 1, to: 2, insert: [Leaf.text("?")]},
+                                     {from: 3, insert: [p(")")]}]})
+      ist(tile.dom.innerHTML,
+          "<p>(</p><div class=\"c\"><span>before</span><span class=\"content\">?</span><span>after</span></div><p>)</p>")
+    })
   })
 
   it("can draw marks on nodes", () => {

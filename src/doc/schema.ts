@@ -11,6 +11,7 @@ export class Schema {
   private tagsByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
   private marksByName: {[name: string]: Mark.Type<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Plot.Tag.Any[] | null} = Object.create(null)
+  private validated: WeakSet<Node> = new WeakSet
   readonly docTag: Plot.Tag<null>
   /// All the schema elements that make up this schema. Useful if you
   /// want to include the schema as a whole in an editor configuration.
@@ -29,29 +30,45 @@ export class Schema {
   }
 
   doc(children: readonly Node[]) {
-    return new Plot.Doc(this, this.docTag.type.checkChildren(children))
+    return new Plot.Doc(this, children)
   }
 
   validate(node: Node) {
+    if (this.validated.has(node)) return
     if (node.isLeaf) {
       this.validateTag(node)
     } else {
       this.validateTag(node.tag)
-      for (let ch of node.content) this.validate(ch)
+      for (let ch of node.content) {
+        if (!this.canContain(node.type, ch.type))
+          throw new Error(`Node type ${node.name} cannot contain child ${ch.name}`)
+        this.validate(ch)
+      }
     }
+    this.validated.add(node)
   }
 
   /// @internal
   validateTag(tag: Node | Plot.Tag.Any) {
     if (this.tagsByName[tag.name] != tag.type)
       throw new Error(`Tag type ${tag.name} not in schema`)
-    for (let mark of tag.marks) this.validateMark(mark)
+    for (let mark of tag.marks) this.validateMark(mark, tag.type)
   }
 
   /// @internal
-  validateMark(mark: Mark<any>) {
+  validateMark(mark: Mark<any>, node: Node.Type<any>) {
     if (this.marksByName[mark.name] != mark.type)
       throw new Error(`Mark type ${mark.name} not in schema`)
+    if (!this.markCanTarget(mark.type, node))
+      throw new Error(`Mark type ${mark.name} cannot target node ${node.name}`)
+  }
+
+  markCanTarget(mark: Mark.Type<any>, node: Node.Type<any>) {
+    return mark.canTarget(node) // FIXME
+  }
+
+  canContain(parent: Plot.Type<any>, child: Node.Type<any>) {
+    return parent.canContain(child) // FIXME
   }
 
   // FIXME maybe have a different one for plot types

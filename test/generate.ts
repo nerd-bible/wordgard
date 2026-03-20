@@ -1,13 +1,17 @@
-import {Plot, Node, Mark, Leaf, Slice, type Token, ChangeSet} from "wordgard/doc"
+import {Plot, Node, Mark, Leaf, Slice, type Token, ChangeSet, Schema} from "wordgard/doc"
 import {basicBuilders, Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
-        Emphasis, Strong, Code, Link} from "wordgard/schema"
-const {doc, p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
+        Emphasis, Strong, Code, Link, basicSchema, builder} from "wordgard/schema"
+const {p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
 export const Comment = Mark.Type.define<readonly number[]>("Comment", {
   tags: "Inline",
   set: {compare: (a, b) => a - b},
   shape: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
+
+export const schema = Schema.define(basicSchema.elements.concat(Comment))
+
+const doc = builder(schema)
 
 export function open(node: Plot) { return node.tag }
 export const close = Plot.End

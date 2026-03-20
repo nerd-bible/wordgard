@@ -661,9 +661,12 @@ export namespace Plot {
     cursorInsideBounds?: boolean
   }
 
+  let validate = true
+
   export class Doc extends Plot {
     constructor(readonly schema: Schema, children: readonly Node[]) {
       super(schema.docTag, children)
+      if (validate) schema.validate(this)
     }
 
     get length() { return this.contentLength }
@@ -691,6 +694,13 @@ export namespace Plot {
         context.push(parent.node.tag)
         parent = parent.parent
       }
+    }
+
+    static noValidate<T>(f: () => T): T {
+      let prev = validate
+      validate = false
+      try { return f() }
+      finally { validate = prev }
     }
   }
 }
