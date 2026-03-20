@@ -101,7 +101,7 @@ const resizeHandlers = EditorView.domEventHandlers({
         view.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
     } else {
       let node = view.nodeFromDOM(event.target as HTMLElement)
-      let target = node && ImageSize.canTarget(node.node.type) ? node.pos : -1
+      let target = node && view.state.doc.schema.markAllowed(ImageSize, node.node.type) ? node.pos : -1
       if (target != resizing.target)
         view.dispatch({effects: setResizing.of({target, resizing: -1})})
     }
@@ -124,7 +124,7 @@ export const dragHandle = [
 
 export const resizeImage = (by: number, relative = false) => (view: EditorView) => {
   let {node} = view.state.sel
-  if (node && ImageSize.canTarget(node.type)) {
+  if (node && view.state.doc.schema.markAllowed(ImageSize, node.type)) {
     let curWidth = node.mark(ImageSize) ?? view.nodeDOM(view.state.selection.from)!.getBoundingClientRect().width
     let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
     if (newWidth != curWidth) {

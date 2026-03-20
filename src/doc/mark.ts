@@ -196,7 +196,7 @@ export namespace Mark {
     keepOnSplit?: boolean | ((tag: Plot.Tag.Any, atEnd: boolean) => boolean)
     /// Used by `Tag.changeType` to decide whether marks of this type
     /// are preserved after the type change.
-    keepOnTypeChange?: boolean | ((from: Plot.Tag.Any, to: Plot.Tag.Any) => boolean)
+    keepOnTypeChange?: boolean | ((from: Node.Tag, to: Node.Tag) => boolean)
     /// A function or type name used to validate values of this mark.
     /// See [`Tag.Spec.validateParam`](#doc.Tag.Spec.validateParam).
     validate?: string | ((value: Value) => void)

@@ -117,7 +117,7 @@ describe("ChangeSet", () => {
       ist.throws(() => {
         let d = doc(blockquote(0, p("x")))
         mk(d, [[$img]]).apply(d)
-      }, /not a valid child/)
+      }, /cannot contain child/)
     })
   })
 

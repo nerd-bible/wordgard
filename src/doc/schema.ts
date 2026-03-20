@@ -59,12 +59,23 @@ export class Schema {
   validateMark(mark: Mark<any>, node: Node.Type<any>) {
     if (this.marksByName[mark.name] != mark.type)
       throw new Error(`Mark type ${mark.name} not in schema`)
-    if (!this.markCanTarget(mark.type, node))
+    if (!this.markAllowed(mark.type, node))
       throw new Error(`Mark type ${mark.name} cannot target node ${node.name}`)
   }
 
-  markCanTarget(mark: Mark.Type<any>, node: Node.Type<any>) {
+  markAllowed(mark: Mark.Type<any>, node: Node.Type<any>) {
     return mark.canTarget(node) // FIXME
+  }
+
+  addMarksFrom<T extends Node.Tag>(from: Node.Tag, to: T): T {
+    if (!from.marks.length) return to
+    let marks = to.marks
+    for (let mark of from.marks) if (this.markAllowed(mark.type, to.type) && (mark.type.set || !mark.isInSet(marks))) {
+      let {keepOnTypeChange} = mark.type.spec
+      if (keepOnTypeChange && (keepOnTypeChange === true || keepOnTypeChange(from, to)))
+        marks = mark.addToSet(marks)
+    }
+    return to.withMarks(marks) as T
   }
 
   canContain(parent: Plot.Type<any>, child: Node.Type<any>) {
@@ -73,12 +84,12 @@ export class Schema {
 
   // FIXME maybe have a different one for plot types
   defaultContentTag(parent: Plot.Type<any>): Node.Tag | null {
-    for (let tag of this.tags) if (tag.default && parent.canContain(tag)) return tag.default
+    for (let tag of this.tags) if (tag.default && this.canContain(parent, tag)) return tag.default
     return null
   }
 
   defaultContentPlot(parent: Plot.Type<any>): Plot.Tag.Any | null {
-    for (let tag of this.tags) if (tag.default && tag.isPlot && parent.canContain(tag)) return tag.default
+    for (let tag of this.tags) if (tag.default && tag.isPlot && this.canContain(parent, tag)) return tag.default
     return null
   }
 
@@ -99,7 +110,7 @@ export class Schema {
     let seen: Set<Node.Type<unknown>> = new Set, work: Plot.Tag.Any[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
-      for (let tag of this.tags) if (at.canContain(tag)) {
+      for (let tag of this.tags) if (this.canContain(at, tag)) {
         if (tag == child) return path
         if (!seen.has(tag) && !tag.isLeaf && tag.default) {
           seen.add(tag)
@@ -152,19 +163,21 @@ export class Schema {
           if (docTag) throw new Error("Multiple document tags specified")
           docTag = tag
         }
-        let sawDefaultable = false
-        for (let child of tags) if (tag.canContain(child)) {
-          if (child.default) sawDefaultable = true
-          if (child.isInline != tag.inlineContent)
-            throw new Error(`Node type ${tag.name} has ${tag.inlineContent ? "block" : "inline"
-                              } content, but allows ${child.name} as a child`)
-        }
-        if (!tag.inlineContent && !sawDefaultable)
-          throw new Error(`Node ${tag.name} has block content, but all possible children require non-default parameters`)
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
     let schema = new Schema(tags, marks, docTag, lineBreak as Leaf<unknown> | null)
+    for (let tag of tags) if (tag.isPlot) {
+      let sawDefaultable = false
+      for (let child of tags) if (schema.canContain(tag, child)) {
+        if (child.default) sawDefaultable = true
+        if (child.isInline != tag.inlineContent)
+          throw new Error(`Node type ${tag.name} has ${tag.inlineContent ? "block" : "inline"
+                            } content, but allows ${child.name} as a child`)
+      }
+      if (!tag.inlineContent && !sawDefaultable)
+        throw new Error(`Node ${tag.name} has block content, but all possible children require non-default parameters`)
+    }
     schemaCache.add(schema)
     return schema
   }

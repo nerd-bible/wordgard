@@ -70,7 +70,7 @@ export class InputRule {
         let {from, to} = match[0]
         let block = typeof tag == "function" ? tag(match) : tag
         let outer = from.parent.parent
-        if (!outer || !outer.node.type.canContain(block.type)) return false
+        if (!outer || !view.state.doc.schema.canContain(outer.node.type, block.type)) return false
         view.dispatch({
           changes: [{from: from.pos - 1, to: to.pos, insert: [block]}],
           annotations: isolateHistory.of("full")

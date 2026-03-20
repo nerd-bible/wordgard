@@ -12,7 +12,7 @@ export function liftEmptyBlock(state: EditorState) {
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
   for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
        level; first = false, index = level.index, level = level.parent) {
-    if (!first && level.node.type.canContain(block.node.type)) return state.update({
+    if (!first && state.doc.schema.canContain(level.node.type, block.node.type)) return state.update({
       changes: [
         {from: start, to: block.before, insert: before},
         {from: block.after, to: end, insert: after}
@@ -35,7 +35,7 @@ export function liftEmptyBlock(state: EditorState) {
 /// textblock is the first child of a list item, also split that item,
 /// unless `splitListItem` is false.
 export function splitTextblock(state: EditorState, splitListItem = true) {
-  let sel = state.sel
+  let sel = state.sel, {schema} = state.doc
   let before = sel.from.textblockParent
   if (!before || !before.parent) return null
   let tokens: Token[] = []
@@ -54,10 +54,10 @@ export function splitTextblock(state: EditorState, splitListItem = true) {
     for (let p = sel.to.parent, index = sel.to.index;; index = p.index + 1, p = p.parent!) {
       if (index < p.node.content.length) atEnd = false
       let tag = p.node.tag.split(atEnd), nextTag = atEnd && !p.node.type.spec.preserveOnSplitAtEnd ? null : tag
-      if (!nextTag || !p.parent!.node.type.canContain(tag.type)) {
+      if (!nextTag || !schema.canContain(p.parent!.node.type, tag.type)) {
         if (!atEnd) return null
-        let defaultType = state.doc.schema.defaultContentPlot(p.parent!.node.type)
-        if (defaultType) tag = tag.changeType(defaultType)
+        let defaultType = schema.defaultContentPlot(p.parent!.node.type)
+        if (defaultType) tag = schema.addMarksFrom(tag, defaultType)
         else return null
       }
       tokens.splice(insert, 0, tag)
@@ -69,11 +69,11 @@ export function splitTextblock(state: EditorState, splitListItem = true) {
     insert: tokens
   }]
   if (sel.from.isAtStart(before)) {
-    let deflt = state.doc.schema.defaultContentPlot(before.parent.node.type)
+    let deflt = schema.defaultContentPlot(before.parent.node.type)
     if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({
         from: before.before, to: before.start,
-        insert: [before.node.tag.changeType(deflt)]
+        insert: [schema.addMarksFrom(before.node.tag, deflt)]
       })
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
@@ -117,12 +117,13 @@ export function joinBackward(state: EditorState) {
     before = before.content[last]
     pos--
   }
+  let {schema} = state.doc
   let changes = joinBlocks(state.doc.resolve(pos - 1).parent, block)
-    .concat(clearNonFitting(block, before.type))
-  if (!before.content.length && !before.tag.eq(target.tag) && parent.type.canContain(target.type))
+    .concat(clearNonFitting(schema, block, before.type))
+  if (!before.content.length && !before.tag.eq(target.tag) && schema.canContain(parent.type, target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
-      insert: [before.tag.changeType(target.tag)]
+      insert: [schema.addMarksFrom(before.tag, target.tag)]
     })
   let changeSet = ChangeSet.create(state.doc, changes)
   return state.update({
@@ -143,7 +144,7 @@ export function joinListItems(state: EditorState) {
     if (!next) return null
     if (scan.node.isBlock && next.node.type.hasRole(Node.Role.List)) {
       let prev = scan.previousSibling
-      if (!prev || !prev.isLeaf && scan.node.content.some(ch => !prev.type.canContain(ch.type))) return null
+      if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.doc.schema.canContain(prev.type, ch.type))) return null
       return state.update({
         changes: {from: scan.before - 1, to: scan.before + 1},
         userEvent: "join.backward.list",
@@ -177,12 +178,13 @@ export function joinForward(state: EditorState) {
     pos++
   }
   let blockAfter = state.doc.resolveNode(pos) as PlotPos
+  let {schema} = state.doc
   let changes = joinBlocks(block, blockAfter)
-    .concat(clearNonFitting(blockAfter, target.type))
-  if (!target.content.length && !target.tag.eq(after.tag) && parent.type.canContain(after.type))
+    .concat(clearNonFitting(schema, blockAfter, target.type))
+  if (!target.content.length && !target.tag.eq(after.tag) && schema.canContain(parent.type, after.type))
     changes.push({
       from: block.before, to: block.start,
-      insert: [target.tag.changeType(after.tag)]
+      insert: [schema.addMarksFrom(target.tag, after.tag)]
     })
   return state.update({
     changes,
@@ -311,11 +313,11 @@ export function deleteForward(state: EditorState, word = false) {
 /// Try to change the type of selected textblocks to the given tag.
 /// Will return null if no such changes are possible.
 export function setTextblockType(state: EditorState, tag: Plot.Tag.Any) {
-  let changes: ChangeSet.Spec[] = []
+  let changes: ChangeSet.Spec[] = [], {schema} = state.doc
   for (let block of selectedTextblocks(state)) {
-    if (!block.node.tag.eq(tag) && block.parent && block.parent.node.type.canContain(tag.type)) {
-      changes.push({from: block.before, to: block.before + 1, insert: [block.node.tag.changeType(tag)]})
-      for (let ch of clearNonFitting(block, tag.type)) changes.push(ch)
+    if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
+      changes.push({from: block.before, to: block.before + 1, insert: [schema.addMarksFrom(block.node.tag, tag)]})
+      for (let ch of clearNonFitting(schema, block, tag.type)) changes.push(ch)
     }
   }
   if (!changes.length) return null
@@ -368,11 +370,11 @@ export function selectedTextblocks(state: EditorState) {
   return textblocks
 }
 
-export function clearNonFitting(node: PlotPos, type: Plot.Type<any>) {
+export function clearNonFitting(schema: Schema, node: PlotPos, type: Plot.Type<any>) {
   let changes: ChangeSet.Spec[] = []
   for (let i = 0, pos = node.start; i < node.node.content.length; i++) {
     let child = node.node.content[i], end = pos + child.length
-    if (!type.canContain(child.type)) changes.push({from: pos, to: end})
+    if (!schema.canContain(type, child.type)) changes.push({from: pos, to: end})
     pos = end
   }
   return changes
@@ -386,12 +388,12 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag.Any) {
   let pFrom = from.parent, pTo = to.parent
   while (dFrom > dTo) { pFrom = pFrom.parent!; dFrom-- }
   while (dTo > dFrom) { pTo = pTo.parent!; dTo-- }
+  let {schema} = from.doc
   for (;;) {
     if (!pFrom.parent || pFrom.node.type.isolating) return null
-    if (pFrom.parent.start == pTo.parent!.start && pFrom.parent.node.type.canContain(wrapper.type)) break
+    if (pFrom.parent.start == pTo.parent!.start && schema.canContain(pFrom.parent.node.type, wrapper.type)) break
     pFrom = pFrom.parent; pTo = pTo.parent!
   }
-  let {schema} = from.doc
   for (let i = pFrom.index; i < pTo.index + 1; i++) {
     let ch = pFrom.parent.node.content[i]
     if (!schema.findWrapping(wrapper.type, ch.type)) return null
@@ -445,7 +447,7 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (type: Node.Type
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
     if (node.isBlock && node.isPlot && !node.inlineContent && parent &&
-        (fromTextblock ? parent.type.canContain(fromTextblock) : textblockChild(doc.schema, parent.type)) &&
+        (fromTextblock ? doc.schema.canContain(parent.type, fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!predicate || predicate(node.type))) {
       let pos = doc.resolveNode(p) as PlotPos, depth = pos.depth
       if (pos.before >= fromStart - (dFrom - depth + 1) && pos.after <= toEnd + (dTo - depth + 1))
@@ -499,7 +501,7 @@ function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec
         let tokens: Token[] = []
         // If parent becomes empty, put in a default replacement block
         if (gapStart == block.before && outer.content.length == 1) {
-          let deflt = block.doc.schema.createDefault(outer.type)
+          let deflt = schema.createDefault(outer.type)
           if (deflt) tokens.push(deflt)
         }
         replaceGap(block.after, tokens)
@@ -516,7 +518,7 @@ function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec
     } else {
       let next = parent.node.content[index]
       // Can be lifted
-      if (outer.type.canContain(next.type) || wrapText && next.isPlot && next.inlineContent) {
+      if (schema.canContain(outer.type, next.type) || wrapText && next.isPlot && next.inlineContent) {
         if (from != null && pos + next.length <= from) { // Before from
           pos += next.length
           gapStart = pos
@@ -537,13 +539,13 @@ function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec
           break
         } else {
           // Make sure this element is removed from the unwrapped parent
-          if (outer.type.canContain(next.type)) {
+          if (schema.canContain(outer.type, next.type)) {
             replaceGap(pos, [])
           } else {
             // If it doesn't fit directly but can be moved into a
             // different text block, do that
             replaceGap(pos + 1, [wrapText!])
-            changes.push(clearNonFitting(new PlotPos(parent, next as Plot, pos, index), wrapText!.type))
+            changes.push(clearNonFitting(schema, new PlotPos(parent, next as Plot, pos, index), wrapText!.type))
           }
           pos += next.length
           index++
@@ -597,7 +599,7 @@ export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark:
   let found = false, type = mark instanceof Mark ? mark.type : mark
   doc.iterate(from, to, node => {
     if (found || mark.isInSet(node.tag.marks)) return false
-    if (type.canTarget(node.type)) found = true
+    if (doc.schema.markAllowed(type, node.type)) found = true
     return true
   })
   return found

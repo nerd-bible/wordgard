@@ -75,8 +75,6 @@ function isRemove(m: Modification): m is {remove: Mark} { return !!(m as any).re
 function applyModifications(modifications: readonly Modification[], marks: readonly Mark[], type: Node.Type<any>) {
   for (const m of modifications) {
     if (isAdd(m)) {
-      if (!m.add.type.canTarget(type))
-        throw new Error(`Trying to add mark ${m.add.name} to a node of type ${type.name}`)
       marks = m.add.addToSet(marks)
     } else {
       marks = m.remove.removeFromSet(marks)
@@ -482,7 +480,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
         if (add) {
           let mods: Modification[] = [{add}]
           markableSections(doc, from, to, add.type.spanning, (node, from, to) => {
-            if (!add.type.canTarget(node.type)) return false
+            if (!doc.schema.markAllowed(add.type, node.type)) return false
             let has = add.type.isInSet(node.tag.marks)
             if (add.type.set) {
               let modsHere = mods
@@ -502,7 +500,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
           let mods: Modification[] = [{remove}]
           markableSections(doc, from, to, remove.type.spanning, (node, from, to) => {
             const has = remove.isInSet(node.tag.marks)
-            if (!has || !remove.type.canTarget(node.type)) return false
+            if (!has || !doc.schema.markAllowed(remove.type, node.type)) return false
             let modsHere = mods
             if (remove.type.set) {
               let left = subtractSet(remove.value as any[], has.value as any[], remove.type.set!)
@@ -729,8 +727,10 @@ class ChangeFitter implements Walker {
   activeContext: Pos | null = null
   activeContextPos = -1
   nextSync = -1
+  schema: Schema
 
-  constructor(readonly doc: Plot.Doc, readonly local: boolean) {
+  constructor(doc: Plot.Doc, readonly local: boolean) {
+    this.schema = doc.schema
     this.stack = new FitLevel(doc.tag, null)
     this.inputPos = this.delInputPos = Pos.atStart(doc)
   }
@@ -793,12 +793,12 @@ class ChangeFitter implements Walker {
   }
 
   fit(tag: Node.Tag) {
-    if (this.stack.tag.type.canContain(tag.type)) return true
+    if (this.schema.canContain(this.stack.tag.type, tag.type)) return true
     let fix: {leave: number, enter: readonly Plot.Tag.Any[], cost: number, context: boolean} | null = null
     let dDelta = this.stackDelta - this.inputDelta
     for (let level: FitLevel | null = this.stack, leave = 0, leaveCost = 0; level; level = level.next, leave++) {
       if (fix && leaveCost > fix.cost) break
-      let enter = this.doc.schema.findWrapping(level.tag.type, tag.type)
+      let enter = this.schema.findWrapping(level.tag.type, tag.type)
       if (enter) {
         let cost = leaveCost + enter.length * 2 - Math.max(0, Math.min(-dDelta, enter.length))
         if (!fix || fix.cost > cost && !fix.context)
@@ -807,7 +807,7 @@ class ChangeFitter implements Walker {
       if (this.activeContextPos == this.pos) {
         let top = this.activeContext?.parent || null
         for (let cx = top, i = 1; cx; cx = cx.parent, i++) {
-          if (level.tag.type.canContain(cx.node.type)) {
+          if (this.schema.canContain(level.tag.type, cx.node.type)) {
             let cost = leaveCost + i * 2 - Math.max(0, Math.min(-dDelta, i))
             if (!fix || fix.cost > cost || !fix.context) {
               let enter: Plot.Tag.Any[] = []
@@ -860,7 +860,7 @@ class ChangeFitter implements Walker {
   }
 
   insertClose() {
-    if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.tag.type), Plot.End)
+    if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.schema.createDefault(this.stack.tag.type), Plot.End)
     else this.patch(0, Plot.End)
     this.stack = this.stack.next!
   }
@@ -910,7 +910,7 @@ class ChangeFitter implements Walker {
       this.doubleDeleteDelta++
       this.patch(1)
     } else if (this.stack.next) {
-      if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.doc.schema.createDefault(this.stack.tag.type))
+      if (this.stack.flags & FitFlag.NeedsChild) this.patch(0, this.schema.createDefault(this.stack.tag.type))
       this.stack = this.stack.next
       if (this.inserting) this.stackDelta++
     } else {
@@ -922,7 +922,7 @@ class ChangeFitter implements Walker {
   finish(): ChangeSet | null {
     while (this.stack.next || (this.stack.flags && FitFlag.NeedsChild)) {
       if (this.stack.flags & FitFlag.NeedsChild) {
-        this.patch(0, this.doc.schema.createDefault(this.stack.tag.type))
+        this.patch(0, this.schema.createDefault(this.stack.tag.type))
         this.stack.flags &= ~FitFlag.NeedsChild
       } else {
         this.patch(0, Plot.End)
@@ -1057,9 +1057,9 @@ function addSection(sections: number[], data: SectionData[] | null,
   }
 }
 
-function fitsTrivially(from: Pos, to: Pos, slice: Slice) {
+function fitsTrivially(schema: Schema, from: Pos, to: Pos, slice: Slice) {
   return from.parent.start == to.parent.start &&
-    slice.content.every(tok => tok.tokenType == TokenType.Node && from.parent.node.type.canContain(tok.type))
+    slice.content.every(tok => tok.tokenType == TokenType.Node && schema.canContain(from.parent.node.type, tok.type))
 }
 
 function finishCx(cx: BuildContext, schema: Schema) {
@@ -1102,7 +1102,7 @@ function splatContext(top: Token[], cx: BuildContext) {
 
 function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context: readonly Plot.Tag.Any[]) {
   if (!slice.length) return fitDeletion(doc, from, to)
-  if (fitsTrivially(from, to, slice)) return {from: from.pos, to: to.pos, slice}
+  if (fitsTrivially(doc.schema, from, to, slice)) return {from: from.pos, to: to.pos, slice}
 
   let preferredContext = -1
   for (let i = 0; i < context.length; i++) {
@@ -1128,7 +1128,7 @@ function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context
       if (i >= 0) tag = context[i]
       else if (slice.content[0].tokenType == TokenType.Node) tag = slice.content[0].tag
       else continue
-      if (cxFrom.parent.node.type.canContain(tag.type)) {
+      if (doc.schema.canContain(cxFrom.parent.node.type, tag.type)) {
         if (!toEnded && fromDepth == toDepth) {
           let cost = (neutral ? 0 : 2) + (i < preferredContext ? context.length - i : i - preferredContext)
           if (foundCost > cost) {
@@ -1147,7 +1147,7 @@ function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context
   if (found) return found
 
   for (let i = 0; i < context.length; i++) {
-    if (from.parent.node.type.canContain(context[i].type)) {
+    if (doc.schema.canContain(from.parent.node.type, context[i].type)) {
       slice = closeSlice(doc.schema, slice, context, i + 1, true)
       break
     }

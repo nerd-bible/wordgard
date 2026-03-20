@@ -20,7 +20,7 @@ export const insertLineBreak = Command.define(({state, dispatch}) => {
   let {doc, sel} = state
   let brk = doc.schema.lineBreak, parent = sel.from.parent.node.type
   let marks = state.selection.marks || sel.from.marks(sel.to)
-  if (brk && parent.canContain(brk.type)) {
+  if (brk && doc.schema.canContain(parent, brk.type)) {
     dispatch(state.update({
       changes: {from: sel.from.pos, to: sel.to.pos, insert: [brk.withMarks(marks)], fit: true},
       selection: {anchor: sel.from.pos + 1},
@@ -167,13 +167,13 @@ export const toggleMarkByLabel = Command.define<Mark.Role>((view, label) => {
 })
 
 export const setAlignment = Command.define<null | "end" | "center">((view, align) => {
-  let {state} = view
-  let mark = state.doc.schema.marks.find(m => m.hasRole(Mark.Role.Alignment))
+  let {state} = view, {schema} = state.doc
+  let mark = schema.marks.find(m => m.hasRole(Mark.Role.Alignment))
   if (!mark) return false
   let changes: ChangeSet.Spec[] = []
   for (let block of selectedTextblocks(state)) {
     let cur = block.node.tag.mark(mark)
-    if (cur != align && mark.canTarget(block.node.type))
+    if (cur != align && schema.markAllowed(mark, block.node.type))
       changes.push(align ? {from: block.before, add: mark.of(align)} : {from: block.before, remove: mark.of(cur)})
   }
   if (!changes.length) return false
@@ -216,19 +216,19 @@ function autoJoin(a: Plot.Tag.Any, b: Plot.Tag.Any) {
 function addList(state: EditorState, blocks: PlotPos[], listTag: Plot.Tag.Any) {
   let plan: ({wrap: PlotPos, item: Plot.Tag.Any} | {change: NodePos, item: NodePos})[] = []
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
-  let lastItem = -1
+  let lastItem = -1, {schema} = state.doc
   for (let block of blocks) {
     let item = isListItem(block), wrap
-    if (!item && block.parent && block.parent.node.type.canContain(listTag.type) &&
-        ((wrap = state.doc.schema.findWrapping(listTag.type, block.node.type)) && wrap.length == 1 ||
-          (wrap = state.doc.schema.findWrapping(listTag.type, Leaf.Text)) && wrap.length == 1)) {
+    if (!item && block.parent && schema.canContain(block.parent.node.type, listTag.type) &&
+        ((wrap = schema.findWrapping(listTag.type, block.node.type)) && wrap.length == 1 ||
+          (wrap = schema.findWrapping(listTag.type, Leaf.Text)) && wrap.length == 1)) {
       chAfter.add(block.before)
       chBefore.add(block.after)
       plan.push({wrap: block, item: wrap[0]})
       lastItem = block.before
     } else if (item?.parent && item.parent.node.tag.type != listTag.type &&
-               listTag.type.canContain(item.node.type) &&
-               item.parent.parent && item.parent.parent.node.type.canContain(listTag.type) &&
+               schema.canContain(listTag.type, item.node.type) &&
+               item.parent.parent && schema.canContain(item.parent.parent.node.type, listTag.type) &&
                item.before != lastItem) {
       chAfter.add(item.before)
       chBefore.add(item.after)
@@ -281,14 +281,15 @@ function addList(state: EditorState, blocks: PlotPos[], listTag: Plot.Tag.Any) {
 function removeList(state: EditorState, blocks: NodePos[], listTag: Plot.Tag.Any) {
   let plan: {item: PlotPos, rewrap: Plot.Tag.Any | null}[] = [], lastItem = -1
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
+  let {schema} = state.doc
   for (let block of blocks) {
     let item = isListItem(block)
     if (!item) continue
     let list = item.parent!, parent = list.parent, rewrap: Node.Tag | null = null
     if (parent && list.node.isPlot && list.node.type == listTag.type && item.before != lastItem &&
         (item.node.isTextblock
-          ? (rewrap = state.doc.schema.defaultContentPlot(parent.node.type)) && rewrap.isTextblock
-          : parent.node.type.canContain(block.node.type))) {
+          ? (rewrap = schema.defaultContentPlot(parent.node.type)) && rewrap.isTextblock
+          : schema.canContain(parent.node.type, block.node.type))) {
       lastItem = item.before
       plan.push({item, rewrap: rewrap as Plot.Tag.Any})
       chAfter.add(item.before)

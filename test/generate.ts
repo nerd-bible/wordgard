@@ -61,7 +61,7 @@ export function rDoc(minLength: number) {
   }
   function close() {
     closeOne()
-    while (stack.length > 1 && (!stack[stack.length - 1].tag.type.canContain(Paragraph.type) || r(3))) closeOne()
+    while (stack.length > 1 && (!schema.canContain(stack[stack.length - 1].tag.type, Paragraph.type) || r(3))) closeOne()
   }
   do {
     open()
@@ -127,7 +127,7 @@ const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
   }),
   // Wrap a block in a blockquote
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.canContain(Blockquote.type) && Blockquote.type.canContain(node.tag.type))
+    if (schema.canContain(parent.type, Blockquote.type) && schema.canContain(Blockquote.type, node.tag.type))
       return [{from: pos, insert: slice(open(blockquote()))},
               {from: pos + node.length, insert: slice(close)}]
   }),

@@ -496,7 +496,7 @@ export namespace Plot {
 
     create(children?: readonly Node[]): Plot {
       if (this.isDoc) throw new Error("Document nodes must be created with schema.doc()")
-      return new Plot(this, this.type.checkChildren(joinText(children || none)))
+      return new Plot(this, children ? joinText(children) : none)
     }
 
     split(atEnd: boolean) {
@@ -504,17 +504,6 @@ export namespace Plot {
         let {keepOnSplit} = p.type.spec
         return keepOnSplit && (keepOnSplit === true || keepOnSplit(this, atEnd))
       })) : this
-    }
-
-    changeType(to: Plot.Tag.Any) {
-      if (!this.marks.length) return to
-      let marks = to.marks
-      for (let mark of this.marks) if (mark.type.canTarget(to.type) && (mark.type.set || !mark.isInSet(marks))) {
-        let {keepOnTypeChange} = mark.type.spec
-        if (keepOnTypeChange && (keepOnTypeChange === true || keepOnTypeChange(this, to)))
-          marks = mark.addToSet(marks)
-      }
-      return to.withMarks(marks)
     }
 
     get tokenType(): TokenType.Open { return TokenType.Open }
@@ -593,13 +582,6 @@ export namespace Plot {
 
     sharesContent(other: Plot.Type<any>) {
       return other.contentGroups.some(g => this.contentGroups.includes(g))
-    }
-
-    checkChildren(children: readonly Node[]) {
-      for (let child of children)
-        if (!this.canContain(child.type))
-          throw new Error(`${child.name} is not a valid child of ${this.name}`)
-      return children
     }
 
     get inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }

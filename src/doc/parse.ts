@@ -292,7 +292,7 @@ class ParseContext {
     let innerMarks = this.findPlace(node.tag, marks, false)
     if (innerMarks) {
       let top = this.top
-      for (let p of innerMarks) if (p.type.canTarget(node.type)) node = node.withMarks(p.addToSet(node.marks))
+      for (let p of innerMarks) if (this.schema.markAllowed(p.type, node.type)) node = node.withMarks(p.addToSet(node.marks))
       for (let p of node.tag.marks) node = node.withMarks(p.addToSet(node.marks))
       node.pushTo(top.children)
       return true
@@ -332,7 +332,7 @@ class ParseContext {
   // assigned to that node.
   enterInner(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, element: HTMLElement | null) {
     marks = marks.filter(p => {
-      if (!p.type.canTarget(tag.type)) return true
+      if (!this.schema.markAllowed(p.type, tag.type)) return true
       tag = tag.withMarks(p.addToSet(tag.marks))
       return false
     })

@@ -94,11 +94,11 @@ describe("Node", () => {
     })
 
     it("allows child nodes", () => {
-      ist(Paragraph.create([Leaf.text("a")]), p("a"), eq)
+      ist(schema.doc([Paragraph.create([Leaf.text("a")])]), doc(p("a")), eq)
     })
 
     it("disallows incorrect child nodes", () => {
-      ist.throws(() => Paragraph.create([Paragraph.create()]), /not a valid child/)
+      ist.throws(() => schema.doc([Paragraph.create([Paragraph.create()])]), /cannot contain child/)
     })
   })
 
