@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Plot, Mark, Leaf, ChangeSet, type Token, Schema} from "wordgard/doc"
+import {Plot, Mark, Leaf, Node, ChangeSet, type Token, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, tag, maybeTag,
         CodeBlockLanguage, Emphasis, Strong, Link} from "wordgard/schema"
 import {ImageAlt} from "wordgard/schema/image"
@@ -145,8 +145,12 @@ describe("ChangeSet", () => {
     })
 
     it("exits wrapper nodes when possible", () => {
-      let Wrapper = Plot.defineBlock("Wrapper", {blockContent: ["Inner", "Block"], group: "Block", shape: {element: "wrapper"}})
       let Inner = Leaf.defineBlock("Inner", {shape: {element: "inner"}})
+      let Wrapper = Plot.defineBlock("Wrapper", {
+        blockContent: [Inner, Node.Group.GenericBlock],
+        group: Node.Group.GenericBlock,
+        shape: {element: "wrapper"}
+      })
       let schema = Schema.define([...basicSchema.tags, Wrapper, Inner])
       let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, insert: slice(Inner), fit: true})
       ist(ch.apply(doc), schema.doc([Wrapper.create([Inner]), p()]), eq)

@@ -1,5 +1,5 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
-import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode,
+import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode, Schema,
         Elt, pushAttribute, mergeAttributes, readAttributes, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
@@ -109,14 +109,14 @@ export type WidgetSpec = {
   place: keyof typeof WidgetPlace | WidgetPlace
 }
 
-export function tagDecoration(spec: {tag: Node.Selector} &
+export function tagDecoration(spec: {query: Node.Query} &
   (WrapperSpec | AttributeSpec | WidgetSpec)): Extension {
   if ("element" in spec) {
-    return new TagWrapperSource(spec.tag, spec)
+    return new TagWrapperSource(spec.query, spec)
   } else if ("widget" in spec) {
-    return new TagWidgetSource(spec.tag, spec)
+    return new TagWidgetSource(spec.query, spec)
   } else {
-    return new TagAttributeSource(spec.tag, spec)
+    return new TagAttributeSource(spec.query, spec)
   }
 }
 
@@ -173,14 +173,12 @@ const baseTagShape = memo((tag: Node.Tag): Shape => {
 
 class TagWidgetSource {
   place: WidgetPlace
-  pred: (tag: Node.Type<any>) => boolean
   widget: (tag: Node.Tag) => Widget
   extension: Extension
 
-  constructor(tag: Node.Selector, deco: WidgetSpec) {
+  constructor(readonly query: Node.Query, deco: WidgetSpec) {
     let {place, widget} = deco
     this.place = typeof place == "string" ? WidgetPlace[place] : place
-    this.pred = Node.selector(tag)
     this.widget = typeof widget == "function" ? memo(widget) : () => widget
     this.extension = tagWidgets.of(this)
   }
@@ -189,14 +187,12 @@ class TagWidgetSource {
 export const tagWidgets = Facet.define<TagWidgetSource>()
 
 export class TagWrapperSource {
-  pred: (tag: Node.Type<any>) => boolean
   wrapper: (tag: Node.Tag) => DecoElt
   rank: number
   spanning: boolean
   extension: Extension
 
-  constructor(tag: Node.Selector, deco: WrapperSpec) {
-    this.pred = Node.selector(tag)
+  constructor(readonly query: Node.Query, deco: WrapperSpec) {
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
       let elt = new Elt(element, readAttributes(attributes), null)
@@ -213,13 +209,11 @@ export class TagWrapperSource {
 export const tagWrappers = Facet.define<TagWrapperSource>()
 
 export class TagAttributeSource {
-  pred: (tag: Node.Type<any>) => boolean
   attribute: string
   value: string | ((tag: Node.Tag) => string)
   extension: Extension
 
-  constructor(tag: Node.Selector, deco: AttributeSpec) {
-    this.pred = Node.selector(tag)
+  constructor(readonly query: Node.Query, deco: AttributeSpec) {
     this.attribute = deco.attribute
     this.value = deco.value
     this.extension = tagAttributes.of(this)
@@ -238,14 +232,14 @@ const enum Inc { None = 0, Start = 1, End = 2 }
 
 // FIXME Data parameter worth it?
 export abstract class RangeDecoration<Data = unknown> implements RangeSet.Value {
-  readonly pred: (tag: Node.Tag, atom: boolean) => boolean
+  readonly query: Node.Query | null
+  readonly scope: DecorationScope
   readonly inc: Inc
 
   constructor(spec: RangeDecoration.Spec, readonly data: Data) {
-    let {tag, inclusive} = spec, scope = spec.scope ?? DecorationScope.Atom
-    let tagPred = tag == null ? null : Node.selector(tag)
-    this.pred = tagPred ? ((tag: Node.Tag, atom: boolean) => tagPred(tag.type) && (scope & tagScope(tag, atom)) > 0)
-      : ((tag: Node.Tag, atom: boolean) => (scope & tagScope(tag, atom)) > 0)
+    let {query, inclusive} = spec
+    this.query = query || null
+    this.scope = spec.scope ?? DecorationScope.Atom
     this.inc = inclusive === "start" ? Inc.Start : inclusive === "end" ? Inc.End : inclusive ? Inc.Start | Inc.End : Inc.None
   }
 
@@ -271,7 +265,7 @@ export namespace RangeDecoration {
   export type Spec = {
     inclusive?: boolean | "start" | "end"
     scope?: DecorationScope
-    tag?: Node.Selector
+    query?: Node.Query
   }
 
   export const source = Facet.define<(state: EditorState) => RangeSet<RangeDecoration>>()
@@ -999,6 +993,7 @@ export type WrapperSource = Mark<any> | TagWrapperSource | WrapperRangeDecoratio
 // Note that the return value contains range iterators, and those will
 // become invalid as soon as they are advanced further.
 function nodeWrappers(
+  schema: Schema,
   tag: Node.Tag,
   active: readonly RangeIterator<RangeDecoration<any>>[],
   global: readonly TagWrapperSource[],
@@ -1007,11 +1002,13 @@ function nodeWrappers(
   let wrappers: WrapperSource[] | undefined
 
   for (let mark of tag.marks) if (mark.type.element) (wrappers || (wrappers = [])).push(mark)
-  for (let src of global) if (src.pred(tag.type)) (wrappers || (wrappers = [])).push(src)
+  for (let src of global) if (schema.matchNode(tag.type, src.query)) (wrappers || (wrappers = [])).push(src)
   if (active.length) {
     for (let cur of active) {
       let val = cur.value!
-      if (val instanceof WrapperRangeDecoration && val.pred(tag, atom)) (wrappers || (wrappers = [])).push(val)
+      if (val instanceof WrapperRangeDecoration && (tagScope(tag, atom) & val.scope) &&
+          (!val.query || schema.matchNode(tag.type, val.query)))
+        (wrappers || (wrappers = [])).push(val)
     }
   }
 
@@ -1040,6 +1037,7 @@ export class DecoIterator {
   globalWidgets: readonly TagWidgetSource[]
   globalWrappers: readonly TagWrapperSource[]
   globalAttrs: readonly TagAttributeSource[]
+  schema: Schema
   tagShapes: readonly TagShape[]
   pos: Pos
   rangeIter: RangeIterator<RangeDecoration>[] = []
@@ -1051,6 +1049,7 @@ export class DecoIterator {
     this.globalAttrs = state.facet(tagAttributes)
     this.tagShapes = state.facet(tagShapes)
     this.pos = state.doc.resolve(0)
+    this.schema = state.doc.schema
     for (let s of state.facet(RangeDecoration.source)) {
       let set = s(state)
       if (set.length) this.rangeIter.push(set.iter())
@@ -1063,7 +1062,7 @@ export class DecoIterator {
 
   widgets(tag: Node.Tag, place: WidgetPlace, walker: DecoWalker) {
     for (let src of this.globalWidgets) {
-      if (src.place == place && src.pred(tag.type)) {
+      if (src.place == place && this.schema.matchNode(tag.type, src.query)) {
         let widget = src.widget(tag)
         if (widget) walker.widget(widget, place == WidgetPlace.Before || place == WidgetPlace.End ? 1 : -1)
       }
@@ -1089,7 +1088,7 @@ export class DecoIterator {
         let shape = hasPending && pendingShape ? pendingShape.shape : this.tagShape(node.tag, iter.active)
         if (hasPending) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
-        walker.node(node, shape, nodeWrappers(node.tag, iter.active, this.globalWrappers, true))
+        walker.node(node, shape, nodeWrappers(this.schema, node.tag, iter.active, this.globalWrappers, true))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enterPlot: (node, pos) => {
@@ -1097,7 +1096,7 @@ export class DecoIterator {
         else started = true
         let shape = pendingShape && pendingPos == pos ? pendingShape.shape : this.tagShape(node.tag, iter.active)
         if (pendingPos == pos) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
-        let wrappers = nodeWrappers(node.tag, iter.active, this.globalWrappers, !shape.hasContent)
+        let wrappers = nodeWrappers(this.schema, node.tag, iter.active, this.globalWrappers, !shape.hasContent)
         let atom = !shape.hasContent
         if (atom) walker.node(node!, shape, wrappers)
         else walker.enter(node!, shape as DecoElt, wrappers)
@@ -1158,12 +1157,14 @@ export class DecoIterator {
     if (!shape) shape = baseTagShape(tag)
     let add: string[] | undefined
     for (let src of this.globalAttrs) {
-      if (src.pred(tag.type))
+      if (this.schema.matchNode(tag.type, src.query))
         pushAttribute(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
     }
+    let scope = tagScope(tag, !shape.hasContent)
     for (let iter of active) {
       let deco = iter.value!
-      if (deco instanceof AttributeRangeDecoration && deco.pred(tag, !shape.hasContent))
+      if (deco instanceof AttributeRangeDecoration && (scope & deco.scope) &&
+          (!deco.query || this.schema.matchNode(tag.type, deco.query)))
         pushAttribute(add || (add = []), deco.attribute, typeof deco.value == "function" ? deco.value(tag) : deco.value)
     }
     if (add) {

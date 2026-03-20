@@ -112,7 +112,7 @@ export class Mark<Value = unknown> {
 export namespace Mark {
   export class Type<Value> {
     readonly roles: Set<Mark.Role> = new Set
-    readonly targetGroups: readonly string[]
+    readonly target: Node.Query // FIXME store in schema
     readonly rank: number
     readonly set: null | ((a: any, b: any) => number)
     readonly default: Mark<Value> | null
@@ -128,7 +128,7 @@ export namespace Mark {
     ) {
       if (spec.role instanceof Mark.Role) this.roles.add(spec.role)
       else if (spec.role) for (let r of spec.role) this.roles.add(r)
-      this.targetGroups = spec.tags == null ? ["Inline Leaf"] : typeof spec.tags == "string" ? [spec.tags] : spec.tags
+      this.target = spec.target ?? {and: [Node.Group.Inline, Node.Group.Leaf]}
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
       this.default = isFlag ? new Mark(this, null as any) : null
@@ -141,10 +141,6 @@ export namespace Mark {
     of(value: Value) { return new Mark(this, value) }
 
     get schemaElement(): SchemaElement { return this }
-
-    canTarget(tag: Node.Type<any>) {
-      return this.targetGroups.some(g => tag.inGroup(g))
-    }
 
     hasRole(role: Mark.Role) { return this.roles.has(role) }
 
@@ -170,7 +166,7 @@ export namespace Mark {
   export type Spec<Value> = {
     /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.
-    tags?: string | readonly string[]
+    target?: Node.Query
     /// Assign this tag to one or more groups.
     role?: Mark.Role | readonly Mark.Role[]
     /// Determines the position of this mark relative to other marks.

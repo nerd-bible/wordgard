@@ -341,12 +341,11 @@ export function wrapBlock(state: EditorState, wrapper: Plot.Tag.Any) {
 /// Try to unwrap blocks around the selection. The second argument, if
 /// given, indicates what kind of wrapping plots may be removed.
 /// Returns null when no unwrapping is possible.
-export function unwrapBlockType(state: EditorState, type?: Node.Selector) {
-  let pred = Node.selector(type)
+export function unwrapBlockType(state: EditorState, query?: Node.Query) {
   let targets: NodePos[] = [], changes: ChangeSet.Spec[] = []
   for (let {from, to} of state.selection.ranges) {
     if (!targets.some(t => t.after > from && t.before < to)) {
-      let result = findUnwrappable(state.doc.resolve(from), state.doc.resolve(to), pred)
+      let result = findUnwrappable(state.doc.schema, state.doc.resolve(from), state.doc.resolve(to), query)
       if (result) for (let node of result) {
         targets.push(node)
         changes.push(unwrapBlock(node, from, to))
@@ -437,7 +436,7 @@ function textblockChild(schema: Schema, type: Plot.Type<any>) {
 /// Find the set of block nodes around the given range that match the
 /// predicate (if any) and can be unwrapped, meaning their content
 /// gets moved out to a parent node.
-export function findUnwrappable(from: Pos, to: Pos, predicate?: (type: Node.Type<any>) => boolean) {
+export function findUnwrappable(schema: Schema, from: Pos, to: Pos, query?: Node.Query) {
   let dFrom = from.depth, dTo = to.depth
   let fromStart = from.parent.node.inlineContent ? from.parent.start : from.pos
   let fromTextblock = from.textblockParent?.node.type
@@ -448,7 +447,7 @@ export function findUnwrappable(from: Pos, to: Pos, predicate?: (type: Node.Type
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
     if (node.isBlock && node.isPlot && !node.inlineContent && parent &&
         (fromTextblock ? doc.schema.canContain(parent.type, fromTextblock) : textblockChild(doc.schema, parent.type)) &&
-        (!predicate || predicate(node.type))) {
+        (!query || schema.matchNode(node.type, query))) {
       let pos = doc.resolveNode(p) as PlotPos, depth = pos.depth
       if (pos.before >= fromStart - (dFrom - depth + 1) && pos.after <= toEnd + (dTo - depth + 1))
         innerCandidates.push(pos)

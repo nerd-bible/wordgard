@@ -39,7 +39,7 @@ const InlineFragment = Plot.defineInline("Fragment", {
 })
 const BlockFragment = Plot.defineBlock("Fragment", {
   shape: {element: "div"},
-  blockContent: "_"
+  blockContent: Node.Group.All
 })
 
 function fragment(children: ContentSpec[], mark: Mark) {

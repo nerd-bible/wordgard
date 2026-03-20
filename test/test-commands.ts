@@ -5,7 +5,7 @@ import {Command, liftEmptyBlock, insertLineBreak, enter,
 import {Plot, Mark, Leaf, Node, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
-        Emphasis, Strong, Link} from "wordgard/schema"
+        Emphasis, Strong, Link, ListItem} from "wordgard/schema"
 import {EditorState, EditorSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 
@@ -65,23 +65,23 @@ function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: Edito
 }
 
 let TextOnly = Plot.defineBlock("TextOnly", {
-  inlineContent: "Text",
+  inlineContent: Leaf.Text,
   shape: {element: "div"},
-  group: "Block",
+  group: Node.Group.GenericBlock,
   preserveWhitespace: true
 }), to = builder(TextOnly)
 
 let BlockMark = Mark.define("BlockMark", {
   keepOnSplit: false,
   keepOnTypeChange: false,
-  tags: "Block",
+  target: Node.Group.GenericBlock,
   shape: {element: "mark1"}
 }), bp = builder(BlockMark)
 
 let PreservedMark = Mark.define("PreservedMark", {
   keepOnSplit: true,
   keepOnTypeChange: true,
-  tags: "Block",
+  target: Node.Group.GenericBlock,
   shape: {element: "mark2"}
 }), pp = builder(PreservedMark)
 
@@ -96,7 +96,7 @@ let InlineAtom = Plot.defineInline("InlineAtom", {
 }), at = builder(InlineAtom)
 
 let AtomMark = Mark.define("AtomMark", {
-  tags: ["Inline Leaf", "InlineAtom"],
+  target: [{and: [Node.Group.Inline, Node.Group.Leaf]}, InlineAtom],
   shape: {element: "atom-mark"}
 }), ap = builder(AtomMark)
 
@@ -575,8 +575,8 @@ describe("unwrapBlock", () => {
   })
 
   it("can unwrap textblock list items", () => {
-    let list = Plot.defineBlock("List", {shape: {element: "ul"}, group: "Block", blockContent: "Item"})
     let item = Plot.defineBlock("Item", {shape: {element: "li"}, inlineContent: true})
+    let list = Plot.defineBlock("List", {shape: {element: "ul"}, group: Node.Group.GenericBlock, blockContent: item})
     let s = Schema.define([...basicSchema.tags, list, item])
     let state = EditorState.create({
       doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),
@@ -668,17 +668,17 @@ describe("toggleList", () => {
       shape: {element: "li"}
     })
     let InlineOrderedList = Plot.defineBlock("OrderedList", {
-      blockContent: "ListItem",
+      blockContent: InlineListItem,
       shape: {element: "ol"},
       role: Node.Role.List
     })
     let InlineBulletList = Plot.defineBlock("BulletList", {
-      blockContent: "ListItem",
+      blockContent: InlineListItem,
       shape: {element: "ul"},
       role: Node.Role.List
     })
     let InlineListSchema = Schema.define([
-      Plot.defineDoc({blockContent: ["Paragraph", "OrderedList", "BulletList"]}),
+      Plot.defineDoc({blockContent: [Paragraph, InlineOrderedList, InlineBulletList]}),
       Paragraph,
       InlineListItem,
       InlineOrderedList,

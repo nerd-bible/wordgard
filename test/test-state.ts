@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Plot, Leaf, Mark} from "wordgard/doc"
-import {builder, basicBuilders} from "wordgard/schema"
+import {Leaf} from "wordgard/doc"
+import {basicBuilders} from "wordgard/schema"
 import {EditorState} from "wordgard/state"
 const {doc, p} = basicBuilders
 

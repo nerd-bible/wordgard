@@ -1,9 +1,11 @@
 import {elt, Reject, Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
 import {Image, ImageAlt} from "wordgard/schema/image"
 
+const G = Node.Group
+
 export const Paragraph = Plot.defineBlock("Paragraph", {
   inlineContent: true,
-  group: "Block",
+  group: G.GenericBlock,
   defaultBlock: true,
   shape: {element: "p"}
 })
@@ -12,7 +14,7 @@ export const Heading = Plot.Type.defineBlock("Heading", {
   defaultParam: 1,
   validateParam: "number",
   inlineContent: true,
-  group: "Block",
+  group: G.GenericBlock,
   shape: {structure: level => elt("h" + level, 0), atom: false},
   defining: true,
   parseRules: [
@@ -27,14 +29,14 @@ export const Heading = Plot.Type.defineBlock("Heading", {
 
 export const CodeBlock = Plot.defineBlock("CodeBlock", {
   inlineContent: true,
-  group: "Block",
+  group: G.GenericBlock,
   role: Node.Role.Code,
   shape: {element: "pre"},
 })
 
 export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
   role: Mark.Role.Alignment,
-  tags: "Textblock",
+  target: G.Textblock,
   keepOnSplit: true,
   keepOnTypeChange: true,
   shape: {attribute: "style", value: align => `text-align: ${align}`},
@@ -44,23 +46,29 @@ export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
 })
 
 export const CodeBlockLanguage = Mark.Type.define<string>("CodeBlockLanguage", {
-  tags: "CodeBlock",
+  target: CodeBlock,
   validate: "string",
   shape: {attribute: "data-language", value: 0}
 })
 
 export const Blockquote = Plot.defineBlock("Blockquote", {
-  blockContent: "Block",
-  group: "Block",
+  blockContent: G.GenericBlock,
+  group: G.GenericBlock,
   shape: {element: "blockquote"},
   autoJoin: true
+})
+
+export const ListItem = Plot.defineBlock("ListItem", {
+  blockContent: G.GenericBlock,
+  shape: {element: "li"},
+  defining: true,
 })
 
 export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
-  blockContent: "ListItem",
-  group: "Block",
+  blockContent: ListItem,
+  group: G.GenericBlock,
   role: Node.Role.List,
   shape: {
     element: "ol",
@@ -71,21 +79,15 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
 })
 
 export const BulletList = Plot.defineBlock("BulletList", {
-  blockContent: "ListItem",
-  group: "Block",
+  blockContent: ListItem,
+  group: G.GenericBlock,
   role: Node.Role.List,
   shape: {element: "ul"},
   autoJoin: true
 })
 
-export const ListItem = Plot.defineBlock("ListItem", {
-  blockContent: "Block",
-  shape: {element: "li"},
-  defining: true,
-})
-
 export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
-  group: "Block",
+  group: G.GenericBlock,
   shape: {element: "hr"},
   toText: () => "---",
   selectable: true
@@ -156,7 +158,7 @@ export const Code = Mark.define("Code", {
 })
 
 export const Doc = Plot.defineDoc({
-  blockContent: "Block"
+  blockContent: G.GenericBlock
 })
 
 export const basicSchema = Schema.define([

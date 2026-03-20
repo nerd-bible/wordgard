@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Plot, Leaf, Mark} from "wordgard/doc"
+import {Plot, Leaf, Mark, Node} from "wordgard/doc"
 import {basicBuilders, tag, Paragraph, basicSchema as schema, builder} from "wordgard/schema"
 import {Image} from "wordgard/schema/image"
 const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilders
@@ -68,11 +68,11 @@ describe("Node", () => {
       ist(doc(p("a"), blockquote(blockquote(p("b")))).textContent(), "a\nb")
     })
 
-    let BlockLeaf = Plot.defineBlock("BlockLeaf", {group: "Block", shape: {element: "div"}})
+    let BlockLeaf = Leaf.defineBlock("BlockLeaf", {group: Node.Group.GenericBlock, shape: {element: "div"}})
 
-    it("doesn't add block separator around non-rendered leaf nodes", () => {
-      ist(blockquote(p("one"), BlockLeaf.create(), BlockLeaf.create(), p("two")).textContent(), "one\ntwo")
-    })
+    it("doesn't add block separator around non-rendered leaf nodes", () => Plot.Doc.noValidate(() => {
+      ist(blockquote(p("one"), BlockLeaf, BlockLeaf, p("two")).textContent(), "one\ntwo")
+    }))
 
     it("can take partial content", () => {
       ist(doc(p("one"), p("two")).textContent({from: 2, to: 8}), "ne\ntw")
@@ -137,7 +137,7 @@ describe("Node", () => {
   describe("validate", () => {
     it("checks for tags not in the schema", () => {
       let Stranger = Plot.defineBlock("Stranger", {
-        group: "Block",
+        group: Node.Group.GenericBlock,
         inlineContent: true,
         shape: {element: "div"}
       })
@@ -145,7 +145,7 @@ describe("Node", () => {
     })
 
     it("checks for marks not in the schema", () => {
-      let Odd = Mark.define("Odd", {tags: "Block", shape: {attribute: "odd", value: "yes"}})
+      let Odd = Mark.define("Odd", {target: Node.Group.GenericBlock, shape: {attribute: "odd", value: "yes"}})
       let odd = builder(Odd)
       ist.throws(() => doc(odd(p())), /not in schema/)
     })

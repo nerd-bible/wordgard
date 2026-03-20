@@ -4,7 +4,7 @@ import {basicBuilders, Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
 const {p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
 export const Comment = Mark.Type.define<readonly number[]>("Comment", {
-  tags: "Inline",
+  target: Node.Group.Inline,
   set: {compare: (a, b) => a - b},
   shape: {attribute: "data-comment", value: ids => ids.join(" "), readAttribute: value => value.split(" ").map(v => Number(v))}
 })
@@ -117,12 +117,12 @@ const generators: ((doc: Plot.Doc) => ChangeSet.Spec | null)[] = [
   // Join two adjacent blocks
   doc => scanBlocks(doc, (node, pos, parent, index) => {
     let prev: Node | undefined
-    if (index && (prev = parent.content[index - 1]).isPlot && prev.type.sharesContent(node.tag.type))
+    if (index && (prev = parent.content[index - 1]).isPlot && doc.schema.sharesContent(prev.type, node.tag.type))
       return {from: pos - 1, to: pos + 1}
   }),
   // Lift a block's content out to its parent
   doc => scanBlocks(doc, (node, pos, parent) => {
-    if (parent.type.sharesContent(node.tag.type))
+    if (doc.schema.sharesContent(parent.type, node.tag.type))
       return [{from: pos, to: pos + 1}, {from: pos + node.length - 1, to: pos + node.length}]
   }),
   // Wrap a block in a blockquote

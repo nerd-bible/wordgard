@@ -1,7 +1,7 @@
 import ist from "ist"
 import {EditorState, Correction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
-import {Blockquote, Strong, Emphasis, basicBuilders} from "wordgard/schema"
+import {Strong, Emphasis, Doc, Paragraph, Blockquote, basicBuilders} from "wordgard/schema"
 
 const {doc, p, blockquote, h1, $img, em} = basicBuilders
 
@@ -12,7 +12,7 @@ describe("Correction", () => {
     let notified: number[] = []
     let s = EditorState.create({
       doc: doc(p("abc"), blockquote(p("def"))),
-      config: Correction.onChildList("Paragraph", node => { notified.push(node.pos); return null })
+      config: Correction.onChildList(Paragraph, node => { notified.push(node.pos); return null })
     })
     s = s.update({changes: {from: 1, to: 2}}).state
     ist(notified.join(), "0")
@@ -38,7 +38,7 @@ describe("Correction", () => {
     let notified: number[] = []
     let s = EditorState.create({
       doc: doc(p("abc ", em("def"))),
-      config: Correction.onMarks("Text", node => { notified.push(node.pos); return null })
+      config: Correction.onMarks(Leaf.Text, node => { notified.push(node.pos); return null })
     })
     s = s.update({changes: {from: 5, to: 8, remove: Emphasis}}).state
     ist(notified.join(), "1")
@@ -49,7 +49,7 @@ describe("Correction", () => {
   it("can apply corrections", () => {
     let s = EditorState.create({
       doc: doc(h1("h"), p("abc")),
-      config: Correction.onChildList("Doc", node => {
+      config: Correction.onChildList(Doc, node => {
         if (node.node.firstChild!.name == "Heading") return null
         return {from: node.start, insert: [h1()]}
       })
@@ -65,7 +65,7 @@ describe("Correction", () => {
   it("can apply multiple corrections from a single source", () => {
     let s = EditorState.create({
       doc: doc(blockquote(h1("h"), p("abc")), blockquote(h1("h"), p("abc"))),
-      config: Correction.onChildList("Blockquote", node => {
+      config: Correction.onChildList(Blockquote, node => {
         if (node.node.firstChild!.name == "Heading") return null
         return {from: node.start, insert: [h1()]}
       })
@@ -75,7 +75,7 @@ describe("Correction", () => {
   })
 
   it("can apply a correction to a start doc", () => {
-    let c = Correction.onContent("Paragraph", node => {
+    let c = Correction.onContent(Paragraph, node => {
       if (node.node.contentLength) return null
       return {from: node.start, insert: [Leaf.text(".")]}
     })

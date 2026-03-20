@@ -40,7 +40,7 @@ export class Schema {
     } else {
       this.validateTag(node.tag)
       for (let ch of node.content) {
-        if (!this.canContain(node.type, ch.type))
+        if (!this.canContain(node.type, ch.type) || node.inlineContent != ch.isInline)
           throw new Error(`Node type ${node.name} cannot contain child ${ch.name}`)
         this.validate(ch)
       }
@@ -63,8 +63,25 @@ export class Schema {
       throw new Error(`Mark type ${mark.name} cannot target node ${node.name}`)
   }
 
+  /// Test whether a node type matches the given group query. When
+  /// multiple group names, separated by spaces, are given, this
+  /// tests whether the node is in _all_ of those groups.
+  matchNode(node: Node.Type<any>, q: Node.Query): boolean {
+    if (q instanceof Node.Group) return node.groups.has(q)
+    if (q instanceof Node.Type.Base) return q == node
+    if (q instanceof Node.Tag.Base) return q.type == node
+    if ("and" in q) return q.and.every(q => this.matchNode(node, q))
+    return (q as readonly Node.Query[]).some(q => this.matchNode(node, q))
+  }
+
   markAllowed(mark: Mark.Type<any>, node: Node.Type<any>) {
-    return mark.canTarget(node) // FIXME
+    return this.matchNode(node, mark.target)
+  }
+
+  sharesContent(a: Plot.Type<any>, b: Plot.Type<any>) { // FIXME cache?
+    for (let tp of this.tags)
+      if (this.matchNode(tp, a.content) && this.matchNode(tp, b.content)) return true
+    return false
   }
 
   addMarksFrom<T extends Node.Tag>(from: Node.Tag, to: T): T {
@@ -79,7 +96,12 @@ export class Schema {
   }
 
   canContain(parent: Plot.Type<any>, child: Node.Type<any>) {
-    return parent.canContain(child) // FIXME
+    let result = parent.childCache.get(child)
+    if (result == null) {
+      result = child.isPlot && child.isDoc ? false : this.matchNode(child, parent.content)
+      parent.childCache.set(child, result)
+    }
+    return result
   }
 
   // FIXME maybe have a different one for plot types

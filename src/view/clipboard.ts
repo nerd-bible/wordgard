@@ -14,7 +14,7 @@ export const clipboardInputTextFilter = Facet.define<(html: string, state: Edito
 
 const openMark = Mark.Type.define<string>("Open", {
   shape: {attribute: "wg-open", value: 0},
-  tags: "*"
+  target: Node.Group.All
 })
 
 export function writeClipboard(state: EditorState, slice: Slice, data: DataTransfer) {

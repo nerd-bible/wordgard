@@ -1,8 +1,8 @@
 import ist from "ist"
-import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt, elt,
+import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
         serialize, serializeSlice, parseDoc, parseSlice,
         OpenSide, type ParseOptions} from "wordgard/doc"
-import {basicBuilders, builder, basicSchema, tag} from "wordgard/schema"
+import {basicBuilders, builder, basicSchema, tag, Paragraph} from "wordgard/schema"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
@@ -46,7 +46,7 @@ describe("serialize", () => {
 
   it("can serialize attribute marks", () => Plot.Doc.noValidate(() => {
     let Pr = Mark.Type.define<string>("Pr", {
-      tags: "Paragraph",
+      target: Paragraph,
       shape: {attribute: "data-p", value: 0}
     })
     let pr = builder(Pr)
@@ -55,7 +55,7 @@ describe("serialize", () => {
 
   it("can serialize style marks", () => Plot.Doc.noValidate(() => {
     let Ul = Mark.define("Ul", {
-      tags: "Text",
+      target: Leaf.Text,
       spanning: true,
       shape: {attribute: "style/text-decoration", value: () => "underline", readAttribute: () => null}
     })
@@ -68,7 +68,7 @@ describe("serialize", () => {
       shape: {structure: () => elt({_: "span", class: "my-img"}, elt({_: "img", src: "/x.webp"}))}
     })
     let Alt = Mark.Type.define<string>("Alt", {
-      tags: "Img",
+      target: Img,
       shape: {attribute: "alt", value: 0, preferTarget: "img"}
     })
     let alt = builder(Alt), img = builder(Img)
@@ -107,7 +107,7 @@ describe("serializeSlice", () => {
                  "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open", value: 0}, tags: "_"})
+  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open", value: 0}, target: Node.Group.All})
 
   it("can mark open nodes", () => {
     istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),

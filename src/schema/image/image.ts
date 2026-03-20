@@ -13,13 +13,13 @@ export const Image = Leaf.Type.defineInline<string>("Image", {
 })
 
 export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
-  tags: "Image",
+  target: Image,
   validate: "string",
   shape: {attribute: "alt", value: 0}
 })
 
 export const ImageSize = Mark.Type.define<number>("ImageSize", {
-  tags: "Image",
+  target: Image,
   validate: "number",
   shape: {attribute: "style", value: size => `width: ${size}px`}
 })

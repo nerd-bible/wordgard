@@ -847,7 +847,7 @@ class ChangeFitter implements Walker {
     sync.reverse()
     while (cur.length > sync.length) { this.insertClose(); cur.pop() }
     for (let d = 1; d < Math.min(sync.length, cur.length); d++) {
-      if (!sync[d].type.sharesContent(cur[d].tag.type)) {
+      if (!this.schema.sharesContent(sync[d].type, cur[d].tag.type)) {
         while (cur.length > d) { this.insertClose(); cur.pop() }
         break
       }

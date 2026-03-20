@@ -1,12 +1,12 @@
 import ist from "ist"
-import {Schema, Plot} from "wordgard/doc"
+import {Schema, Plot, Node} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, maybeTag} from "wordgard/schema"
 import {EditorSelection, EditorState, Direction} from "wordgard/state"
 const {p, hr, blockquote, pre, $img} = basicBuilders
 
 let Iso = Plot.defineBlock("Iso", {
-  blockContent: "Block",
-  group: "Block",
+  blockContent: Node.Group.GenericBlock,
+  group: Node.Group.GenericBlock,
   isolating: true,
   shape: {element: "div"}
 }), iso = builder(Iso)

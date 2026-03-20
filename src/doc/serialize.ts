@@ -21,6 +21,7 @@ export function serializeNode(node: Node, options: SerializeOptions & {schema: S
 }
 
 const genericTag = Plot.defineBlock("generic", {
+  blockContent: Node.Group.All,
   shape: {element: "div"}
 })
 

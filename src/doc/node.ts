@@ -1,10 +1,10 @@
 import {Slice, Token, TokenType, End} from "./slice"
 import {TextOutput} from "./text"
 import {NodeShape} from "./shape"
-import {Schema} from "./schema"
+import type {Schema} from "./schema"
 import {Pos, PlotPos} from "./pos"
 import {Mark} from "./mark"
-import {eqArray, none, compareDeep, inGroup} from "./helper"
+import {eqArray, none, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
 
 const enum NodeFlag {
@@ -41,7 +41,7 @@ export namespace Node {
 
   export namespace Type {
     export abstract class Base<Param> {
-      readonly groups: Set<string> = new Set
+      readonly groups: Set<Node.Group> = new Set
       readonly roles: Set<Node.Role> = new Set
       readonly shape: NodeShape<Param>
       abstract default: Node.Tag | null
@@ -51,28 +51,17 @@ export namespace Node {
         readonly flags: NodeFlag,
         readonly spec: Node.Spec<Param>
       ) {
-        this.groups.add(name)
-        this.groups.add("_")
-        if (flags & NodeFlag.Inline) this.groups.add("Inline")
-        if (spec.group) for (let g of typeof spec.group == "string" ? [spec.group] : spec.group) {
+        this.groups.add(Node.Group.All)
+        if (flags & NodeFlag.Inline) this.groups.add(Node.Group.Inline)
+        if (spec.group) for (let g of spec.group instanceof Node.Group ? [spec.group] : spec.group) {
           this.groups.add(g)
-          for (let pos = 0;;) {
-            let nextDot = g.indexOf(".", pos)
-            if (nextDot < 0) break
-            this.groups.add(g.slice(0, nextDot))
-            pos = nextDot + 1
-          }
+          // FIXME add supergroups
         }
         if (spec.role instanceof Node.Role) this.roles.add(spec.role)
         else if (spec.role) for (let role of spec.role) this.roles.add(role)
         this.shape = NodeShape.from(this, spec.shape)
         if (this.shape.atom) this.flags |= NodeFlag.Atom
       }
-
-      /// Test whether this node type is in the given group. When
-      /// multiple group names, separated by spaces, are given, this
-      /// tests whether the node is in _all_ of those groups.
-      inGroup(group: Node.Group) { return inGroup(group, this.groups) }
 
       /// Test whether this node has the given role.
       hasRole(role: Node.Role) { return this.roles.has(role) }
@@ -127,15 +116,6 @@ export namespace Node {
     }
   }
 
-  /// Groups are used to specify parent-child relationships between
-  /// nodes. Any string can be used as a group name. Dot-separated
-  /// names indicate sub-groups of the group before the dot.
-  ///
-  /// Each node is part of the `"_"` group, inline nodes automatically
-  /// get assigned to `"Inline"`, plots to `"Plot"`, and leaves to
-  /// `"Leaf"`.
-  export type Group = "Inline" | "Plot" | "Leaf" | "_" | (string & {})
-
   export interface Spec<Param> {
     defaultParam?: Param extends null ? never : Param
     /// A function or type name used to validate this tag's parameter
@@ -151,30 +131,12 @@ export namespace Node {
     /// when specifying allowed content for a plot. Some pre-defined
     /// group names (see [`Node.Group`](#doc.Node.Group)) are used to
     /// identify the semantic role of nodes.
-    group?: Group | readonly Group[]
+    group?: Group | readonly Group[] // FIXME default to GenericBlock for block nodes?
     /// Roles to add to this node type, which mark it as having a
     /// certain semantic role, such as being a list.
     role?: Node.Role | readonly Node.Role[]
     shape: ElementShape<Param> | StructureShape<Param>
     parseRules?: readonly ElementParseRule<Param>[]
-  }
-
-  export type Selector = Leaf.Any | Plot.Tag.Any | Node.Type<any> | string | readonly Node.Selector[]
-
-  export function selector(selector?: Node.Selector): (type: Node.Type<any>) => boolean {
-    if (!selector) return () => true
-    if (Array.isArray(selector)) {
-      let inner = selector.map(Node.selector)
-      return type => inner.some(s => s(type))
-    }
-    if (typeof selector == "string") {
-      if (!/ /.test(selector)) return t => t.inGroup(selector as string)
-      let groups = selector.split(/ /)
-      return t => groups.some(g => t.inGroup(g))
-    }
-    let type = selector instanceof Leaf.Type || selector instanceof Plot.Type ? selector
-      : (selector as Leaf<any> | Plot.Tag<any>).type
-    return t => t === type
   }
 
   /// The JSON representation for a node.
@@ -184,6 +146,23 @@ export namespace Node {
     marks?: {[name: string]: any}
     content?: readonly Node.JSON[]
   }
+
+  /// Groups are used to specify parent-child relationships between
+  /// nodes, and valid targets for marks. You can use predefined
+  /// groups provided as static properties on the class, or define
+  /// your own for custom categories.
+  export class Group {
+    // FIXME supergroups, tag Inline/Leaf/Textblock/All as intrinsic
+    declare private tag: Node.Group
+
+    static Inline = new Group
+    static GenericBlock = new Group
+    static Leaf = new Group
+    static All = new Group
+    static Textblock = new Group
+  }
+
+  export type Query = Node.Tag | Node.Type<any> | Group | readonly Node.Query[] | {and: readonly Node.Query[]}
 
   /// Roles are used to add some semantic information to node types.
   /// You can define your own, and use the `hasRole` method to check
@@ -280,7 +259,7 @@ export namespace Leaf {
 
     constructor(name: string, flags: NodeFlag, spec: Leaf.Spec<Param>) {
       super(name, flags, spec)
-      this.groups.add("Leaf")
+      this.groups.add(Node.Group.Leaf)
       this.default = "defaultParam" in spec ? new Leaf(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Leaf(this, null as any, none) : null
     }
@@ -466,7 +445,7 @@ export class Plot implements Node.Shared {
     return new Plot.Type<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
   }
 
-  static defineDoc(spec: {inlineContent?: string | true, blockContent?: string | readonly string[]}) {
+  static defineDoc(spec: {inlineContent?: Node.Query | true, blockContent?: Node.Query}) {
     if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
     let flags = NodeFlag.NullParam | NodeFlag.Doc | NodeFlag.NullParam
     if (spec.inlineContent) flags |= NodeFlag.InlineContent
@@ -531,8 +510,8 @@ export namespace Plot {
   export class Type<Param> extends Node.Type.Base<Param> {
     readonly default: Plot.Tag<Param> | null
     declare spec: Plot.Spec<Param>
-    readonly contentGroups: readonly string[]
-    readonly childCache: Map<Node.Type<any>, boolean> = new Map
+    readonly content: Node.Query // FIXME move to schema
+    readonly childCache: Map<Node.Type<any>, boolean> = new Map // FIXME move to schema
     readonly isolating: boolean
     readonly defining: boolean
     readonly neutral: boolean
@@ -541,10 +520,9 @@ export namespace Plot {
 
     constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
       super(name, flags, spec)
-      this.groups.add("Plot")
-      if (this.inlineContent) this.groups.add("Textblock")
-      let content = spec.inlineContent === true ? "Inline" : spec.inlineContent || spec.blockContent
-      this.contentGroups = typeof content == "string" ? [content] : content!
+      if (this.inlineContent) this.groups.add(Node.Group.Textblock)
+      this.content = spec.inlineContent === true ? Node.Group.Inline : spec.inlineContent || spec.blockContent!
+      if (!this.content) throw new Error("Plot definitions must specify either inlineContent or blockContent")
       this.isolating = !!spec.isolating
       this.defining = !!spec.defining
       this.neutral = spec.neutral ?? !this.defining
@@ -571,19 +549,6 @@ export namespace Plot {
       return new Plot.Tag(this, param, marks)
     }
 
-    canContain(child: Node.Type<any>) {
-      let result = this.childCache.get(child)
-      if (result == null) {
-        result = (child.flags & NodeFlag.Doc) ? false : this.contentGroups.some(g => child.inGroup(g))
-        this.childCache.set(child, result)
-      }
-      return result
-    }
-
-    sharesContent(other: Plot.Type<any>) {
-      return other.contentGroups.some(g => this.contentGroups.includes(g))
-    }
-
     get inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }
     get isTextblock() { return this.isBlock && this.inlineContent }
     get isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
@@ -592,8 +557,8 @@ export namespace Plot {
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
-    blockContent?: string | readonly string[]
-    inlineContent?: string | readonly string[] | true
+    blockContent?: Node.Query
+    inlineContent?: Node.Query | true
 
     /// Whether the sides of this node act as a 'barrier' when
     /// [normalizing](#state.EditorSelection.normalize) a cursor

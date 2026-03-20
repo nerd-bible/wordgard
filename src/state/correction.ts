@@ -15,9 +15,9 @@ function scanTransaction(tr: Transaction) {
   let [childList, content, marks] = tr.startState.facet(corrections)
   let plan: PlanElt<any>[] = []
   let queried: Set<number> = new Set, newNode = childList.concat(content)
-  let updateWalker: Walker | undefined
+  let updateWalker: Walker | undefined, {schema} = tr.startState.doc
   let checkMarks = (node: Node, pos: number, parent: PlotPos, index: number) => {
-    for (let correction of marks) if (correction.tag(node.type))
+    for (let correction of marks) if (schema.matchNode(node.type, correction.query))
       plan.push({node: new NodePos(parent, node, pos, index), correction})
   }
   if (marks.length) updateWalker = {
@@ -46,7 +46,7 @@ function scanTransaction(tr: Transaction) {
       this.skip(node, pos, parent, index)
     },
     skip(node, pos, parent, index) {
-      if (node.isPlot) for (let correction of newNode) if (correction.tag(node.type))
+      if (node.isPlot) for (let correction of newNode) if (schema.matchNode(node.type, correction.query))
         plan.push({node: new PlotPos(parent, node, pos, index), correction})
     },
     leavePlot() {}
@@ -68,13 +68,15 @@ function scanTransaction(tr: Transaction) {
       for (let pA = posA.parent, pB = posB.parent;;) {
         if (queried.has(pB.start - 1)) break
         queried.add(pB.start - 1)
-        if (childList.some(c => c.tag(pA.node.type))) {
+        if (childList.some(c => schema.matchNode(pA.node.type, c.query))) {
           let chA = pA.node.content, chB = pB.node.content
           if (chA.length != chB.length || chA.some((ch, i) => !ch.tag.eq(chB[i].tag))) {
-            for (let correction of childList) if (correction.tag(pA.node.type)) plan.push({node: pB, correction})
+            for (let correction of childList)
+              if (schema.matchNode(pA.node.type, correction.query)) plan.push({node: pB, correction})
           }
         }
-        for (let correction of content) if (correction.tag(pB.node.type)) plan.push({node: pB, correction})
+        for (let correction of content)
+          if (schema.matchNode(pB.node.type, correction.query)) plan.push({node: pB, correction})
         if (!pB.parent) break
         pA = pA.parent!; pB = pB.parent
       }
@@ -124,7 +126,7 @@ export class Correction<PosType extends NodePos> {
     /// @internal
     readonly event: CorrectionEvent,
     /// @internal
-    readonly tag: (t: Node.Type<any>) => boolean,
+    readonly query: Node.Query,
     /// @internal
     readonly correct: (node: PosType, state: EditorState) => ChangeSet.Spec | null
   ) {
@@ -154,7 +156,7 @@ export class Correction<PosType extends NodePos> {
   scan(state: EditorState) {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
-      if (this.tag(node.type) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
+      if (state.doc.schema.matchNode(node.type, this.query) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
         let change = this.correct(state.doc.resolveNode(pos) as PosType, state)
         if (change) changes.push(change)
       }
@@ -166,20 +168,20 @@ export class Correction<PosType extends NodePos> {
   /// Create a correction that runs whenever the child list of a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onChildList(tag: Node.Selector, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.ChildList, Node.selector(tag), correct as any)
+  static onChildList(query: Node.Query, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<PlotPos>(CorrectionEvent.ChildList, query, correct as any)
   }
 
   /// Create a correction that runs whenever any content inside a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onContent(tag: Node.Selector, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.Content, Node.selector(tag), correct as any)
+  static onContent(query: Node.Query, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<PlotPos>(CorrectionEvent.Content, query, correct as any)
   }
 
   /// Define a correction that runs whenever the set of marks on a tag
   /// matching a selector changes.
-  static onMarks(tag: Node.Selector, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.Marks, Node.selector(tag), correct)
+  static onMarks(query: Node.Query, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<PlotPos>(CorrectionEvent.Marks, query, correct)
   }
 }

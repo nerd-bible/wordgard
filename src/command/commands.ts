@@ -117,8 +117,8 @@ export const changeTextblockType = Command.define<Plot.Tag.Any>((view, tag) => {
   return tr ? (view.dispatch(tr), true) : false
 })
 
-export const unwrapBlock = Command.define<Node.Selector | null>((view, selector) => {
-  let tr = unwrapBlockType(view.state, selector ?? undefined)
+export const unwrapBlock = Command.define<Node.Query | null>((view, query) => {
+  let tr = unwrapBlockType(view.state, query ?? undefined)
   return tr ? (view.dispatch(tr), true) : false
 })
 

@@ -1,7 +1,7 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
 import {EditorState, type Extension, StateField, Transaction, StateEffect, Compartment} from "wordgard/state"
-import {Plot, Leaf, elt, Mark} from "wordgard/doc"
+import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wordgard/schema"
 import {Image, ImageAlt} from "wordgard/schema/image"
 import ist from "ist"
@@ -46,7 +46,7 @@ describe("DocTile", () => {
       shape: {structure: () => elt({_: "span", class: "my-img"}, elt({_: "img", src: "/x.webp"}))}
     })
     let Alt = Mark.Type.define<string>("Alt", {
-      tags: "Img",
+      target: Img,
       shape: {attribute: "alt", value: 0, preferTarget: "img"}
     })
     let alt = builder(Alt), img = builder(Img)
@@ -62,8 +62,8 @@ describe("DocTile", () => {
 
   it("can draw nodes with complicated structure", () => {
     let FancyBlock = Plot.defineBlock("FancyBlock", {
-      group: "Block",
-      inlineContent: "Inline",
+      group: Node.Group.GenericBlock,
+      inlineContent: Node.Group.Inline,
       shape: {
         structure: elt({_: "div", class: "c"}, elt("span", "before"), elt({_: "span", class: "content"}, 0), elt("span", "after"))
       }
@@ -220,7 +220,7 @@ describe("DocTile", () => {
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {
       let src = (side: string) => tagDecoration({
-        tag: Paragraph,
+        query: Paragraph,
         widget: inlineWidget.of(side),
         place: side as any
       })
@@ -230,7 +230,7 @@ describe("DocTile", () => {
 
     it("can reuse widgets when replacing next to them", () => {
       let src = (side: string) => tagDecoration({
-        tag: Image,
+        query: Image,
         widget: inlineWidget.of(side),
         place: side as any
       })
@@ -244,7 +244,7 @@ describe("DocTile", () => {
 
     it("can reuse widgets when updating across them", () => {
       let src = (side: string) => tagDecoration({
-        tag: Image,
+        query: Image,
         widget: inlineWidget.of(side),
         place: side as any
       })
@@ -261,7 +261,7 @@ describe("DocTile", () => {
 
     it("doesn't break spanning wrappers on widgets", () => {
       let src = (side: string) => tagDecoration({
-        tag: Image,
+        query: Image,
         widget: inlineWidget.of(side),
         place: side as any
       })
@@ -317,7 +317,7 @@ describe("DocTile", () => {
 
     it("doesn't duplicate widgets on section boundaries", () => {
       let node = render(doc(p(strong("a"), $img)),
-                        tagDecoration({tag: "Image", widget: inlineWidget.of("!"), place: "Before"}))
+                        tagDecoration({query: Image, widget: inlineWidget.of("!"), place: "Before"}))
       ist(node.dom.innerHTML, "<p><strong>a</strong><span>!</span><img src=\"test.png\"></p>")
       node = update(node, {changes: [
         {from: 1, to: 2, remove: Strong},
@@ -328,18 +328,18 @@ describe("DocTile", () => {
 
     it("can decorate tags", () => {
       ist(render(doc(p("a", $img)), tagDecoration({
-        tag: Paragraph,
+        query: Paragraph,
         element: "div",
         attributes: {class: "pwrap"}
       }), tagDecoration({
-        tag: Image,
+        query: Image,
         element: "image"
       })).dom.innerHTML, "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
     })
 
     it("can make tag decorations spanning", () => {
       ist(render(doc(p($img, $img)), tagDecoration({
-        tag: Image,
+        query: Image,
         element: "image",
         spanning: true
       })).dom.innerHTML, "<p><image><img src=\"test.png\"><img src=\"test.png\"></image></p>")
@@ -347,7 +347,7 @@ describe("DocTile", () => {
 
     it("can add attributes to tags", () => {
       ist(render(doc(p("?")), tagDecoration({
-        tag: Paragraph,
+        query: Paragraph,
         attribute: "lang",
         value: "nl"
       })).dom.innerHTML, "<p lang=\"nl\">?</p>")
@@ -356,7 +356,7 @@ describe("DocTile", () => {
     it("can remove attributes from tags", () => {
       let comp = new Compartment()
       let node = render(doc(p("?")), comp.of(tagDecoration({
-        tag: Paragraph,
+        query: Paragraph,
         attribute: "lang",
         value: "nl"
       })))
@@ -367,7 +367,7 @@ describe("DocTile", () => {
     it("preserves DOM nodes when adding attributes", () => {
       let node = render(doc(p("a"))), para = node.dom.firstChild
       node = update(node, {effects: StateEffect.reconfigure.of(tagDecoration({
-        tag: Paragraph,
+        query: Paragraph,
         attribute: "lang",
         value: "nl"
       }))})
@@ -383,7 +383,7 @@ describe("DocTile", () => {
 
     it("can take attributes from spans", () => {
       ist(render(doc(p("ab", $img, "cd")), RangeDecoration.source.of(s => {
-        return RangeSet.create([[2, 5, RangeDecoration.attribute({attribute: "alt", value: "a test", tag: Image})]])
+        return RangeSet.create([[2, 5, RangeDecoration.attribute({attribute: "alt", value: "a test", query: Image})]])
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
 
