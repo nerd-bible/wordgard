@@ -141,7 +141,7 @@ describe("Node", () => {
         inlineContent: true,
         shape: {element: "div"}
       })
-      ist.throws(() => doc(Stranger.create()), /not in schema/)
+      ist.throws(() => doc(Stranger.create()), /cannot contain/)
     })
 
     it("checks for marks not in the schema", () => {

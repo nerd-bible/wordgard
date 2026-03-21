@@ -2,8 +2,6 @@ import {Plot, Node, Leaf} from "./node"
 import {Mark} from "./mark"
 import {none, validate} from "./helper"
 
-export type SchemaElement = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Mark<any> | Mark.Type<any>
-
 // FIXME maybe don't store these forever
 const schemaCache = new Set<Schema>()
 
@@ -15,20 +13,21 @@ export class Schema {
   readonly docTag: Plot.Tag<null>
   /// All the schema elements that make up this schema. Useful if you
   /// want to include the schema as a whole in an editor configuration.
-  elements: readonly SchemaElement[]
+  elements: readonly Schema.Element[]
 
   private constructor(
     readonly tags: readonly Node.Type<unknown>[],
     readonly marks: readonly Mark.Type<any>[],
     readonly plotContent: Map<Plot.Type<any>, Node.Query>,
     readonly markTarget: Map<Mark.Type<any>, Node.Query>,
+    readonly nodeGroup: Map<Node.Type<any>, Set<Node.Group>>,
     docType: Plot.Type<null>,
     readonly lineBreak: Leaf<unknown> | null
   ) {
     this.docTag = docType.default!
     for (let tag of tags) this.tagsByName[tag.name] = tag
     for (let mark of marks) this.marksByName[mark.name] = mark
-    this.elements = (tags as SchemaElement[]).concat(marks)
+    this.elements = (tags as Schema.Element[]).concat(marks)
   }
 
   doc(children: readonly Node[]) {
@@ -69,7 +68,10 @@ export class Schema {
   /// multiple group names, separated by spaces, are given, this
   /// tests whether the node is in _all_ of those groups.
   matchNode(node: Node.Type<any>, q: Node.Query): boolean {
-    if (q instanceof Node.Group) return node.groups.has(q)
+    if (q instanceof Node.Group) {
+      let groups = this.nodeGroup.get(node)
+      return groups ? groups.has(q) : false
+    }
     if (q instanceof Node.Type.Base) return q == node
     if (q instanceof Node.Tag.Base) return q.type == node
     if ("and" in q) return q.and.every(q => this.matchNode(node, q))
@@ -144,7 +146,7 @@ export class Schema {
 
   getMark(name: string): Mark.Type<any> | undefined { return this.marksByName[name] }
 
-  static define(spec: readonly SchemaElement[]) {
+  static define(spec: readonly Schema.Element[]) {
     for (let cached of schemaCache)
       if (cached.elements.length == spec.length && cached.elements.every((e, i) => e == spec[i]))
         return cached
@@ -154,24 +156,43 @@ export class Schema {
     let tagNames: Set<string> = new Set, markNames: Set<string> = new Set
     let plotContent = new Map<Plot.Type<any>, Node.Query>()
     let markTarget = new Map<Mark.Type<any>, Node.Query>()
+    let nodeGroup = new Map<Node.Type<any>, Set<Node.Group>>()
+    nodeGroup.set(Leaf.Text, new Set([Node.Group.Inline, Node.Group.Leaf, Node.Group.All]))
+    let overrides: Schema.Override[] = spec.filter(e => e instanceof Schema.Override).reverse()
+
     for (let elt of spec) {
       if (elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Mark) elt = elt.type
       if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
-        if (elt.isPlot)
-          plotContent.set(elt, elt.spec.inlineContent === true ? Node.Group.Inline
-            : elt.spec.inlineContent || elt.spec.blockContent!)
+        if (elt.isPlot) {
+          let content = elt.spec.inlineContent === true ? Node.Group.Inline
+            : elt.spec.inlineContent || elt.spec.blockContent!
+          for (let o of overrides) if (o.type == elt && o.content) content = o.content(content)
+          plotContent.set(elt, content)
+        }
         if (elt.isPlot && elt.spec.defaultBlock) tags.splice(defaultI++, 0, elt)
         else tags.push(elt)
+
+        let groups = new Set<Node.Group>()
+        groups.add(Node.Group.All)
+        if (elt.isInline) groups.add(Node.Group.Inline)
+        if (elt.isLeaf) groups.add(Node.Group.Leaf)
+        else if (elt.inlineContent) groups.add(Node.Group.Textblock)
+        let given = elt.spec.group instanceof Node.Group ? [elt.spec.group] : elt.spec.group
+        for (let o of overrides) if (o.type == elt && o.group) given = o.group
+        if (given) for (let g of given) groups.add(g)
+        nodeGroup.set(elt, groups)
       } else if (elt instanceof Mark.Type) {
         if (marks.includes(elt)) continue
         if (markNames.has(elt.name)) throw new Error(`Duplicate use of mark name ${elt.name} in schema`)
-        markTarget.set(elt, elt.spec.target || {and: [Node.Group.Inline, Node.Group.Leaf]})
+        let target = elt.spec.target || {and: [Node.Group.Inline, Node.Group.Leaf]}
+        for (let o of overrides) if (o.type == elt && o.target) target = o.target(target)
+        markTarget.set(elt, target)
         markNames.add(elt.name)
         marks.push(elt as any)
-      } else {
+      } else if (!(elt instanceof Schema.Override)) {
         throw new Error("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
     }
@@ -193,7 +214,7 @@ export class Schema {
       }
     }
     if (!docTag) throw new Error("A schema must define a document tag")
-    let schema = new Schema(tags, marks, plotContent, markTarget, docTag, lineBreak as Leaf<unknown> | null)
+    let schema = new Schema(tags, marks, plotContent, markTarget, nodeGroup, docTag, lineBreak as Leaf<unknown> | null)
     for (let tag of tags) if (tag.isPlot) {
       let sawDefaultable = false
       for (let child of tags) if (schema.canContain(tag, child)) {
@@ -209,11 +230,24 @@ export class Schema {
     return schema
   }
 
-  append(other: Schema | readonly SchemaElement[]) {
-    let add: SchemaElement[] = []
+  setMarkTarget(mark: Mark.Type<any>, target: Node.Query | ((target: Node.Query) => Node.Query)) {
+    return new Schema.Override(mark, typeof target == "function" ? target : () => target)
+  }
+
+  setPlotContent(plot: Plot.Type<any>, content: Node.Query | ((content: Node.Query) => Node.Query)) {
+    return new Schema.Override(plot, undefined, typeof content == "function" ? content : () => content)
+  }
+
+  setNodeGroup(node: Node.Type<any>, group: Node.Group | readonly Node.Group[]) {
+    return new Schema.Override(node, undefined, undefined, group instanceof Node.Group ? [group] : group)
+  }
+
+  append(other: Schema | readonly Schema.Element[]) {
+    let add: Schema.Element[] = []
     for (let elt of (other instanceof Schema ? other.elements : other)) {
       if (elt instanceof Leaf || elt instanceof Plot.Tag || elt instanceof Mark) elt = elt.type
-      if ((elt instanceof Mark.Type ? this.marksByName : this.tagsByName)[elt.name] != elt) add.push(elt)
+      if (elt instanceof Schema.Override ? !this.elements.includes(elt) :
+          (elt instanceof Mark.Type ? this.marksByName : this.tagsByName)[elt.name] != elt) add.push(elt)
     }
     return add.length ? Schema.define(this.elements.concat(add)) : this
   }
@@ -254,5 +288,18 @@ export class Schema {
     if (!json || json.type != this.docTag.name)
       throw new Error("Invalid document JSON")
     return this.nodeFromJSON(json) as Plot.Doc
+  }
+}
+
+export namespace Schema {
+  export type Element = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Mark<any> | Mark.Type<any> | Schema.Override
+
+  export class Override {
+    constructor(
+      readonly type: Mark.Type<any> | Node.Type<any>,
+      readonly target?: (query: Node.Query) => Node.Query,
+      readonly content?: (query: Node.Query) => Node.Query,
+      readonly group?: readonly Node.Group[]
+    ) {}
   }
 }

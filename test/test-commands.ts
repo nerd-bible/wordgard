@@ -5,7 +5,7 @@ import {Command, liftEmptyBlock, insertLineBreak, enter,
 import {Plot, Mark, Leaf, Node, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
-        Emphasis, Strong, Link, ListItem} from "wordgard/schema"
+        Emphasis, Strong, Link} from "wordgard/schema"
 import {EditorState, EditorSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 

@@ -1,7 +1,6 @@
 import {AttributeShape, ElementShape, AttributesShape, ElementParseRule,
         AttributeParseRule, Elt, readAttributes, Attributes, noAttributes} from "./shape"
 import {compareDeep, eqArray, none} from "./helper"
-import {SchemaElement} from "./schema"
 import {Node, Plot} from "./node"
 
 function remove<T>(arr: readonly T[], index: number) {
@@ -52,8 +51,6 @@ export class Mark<Value = unknown> {
   get rank() { return this.type.rank }
 
   get spanning() { return this.type.spanning }
-
-  get schemaElement() { return this.type }
 
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
@@ -137,8 +134,6 @@ export namespace Mark {
     }
 
     of(value: Value) { return new Mark(this, value) }
-
-    get schemaElement(): SchemaElement { return this }
 
     hasRole(role: Mark.Role) { return this.roles.has(role) }
 

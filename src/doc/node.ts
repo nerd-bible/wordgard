@@ -41,7 +41,6 @@ export namespace Node {
 
   export namespace Type {
     export abstract class Base<Param> {
-      readonly groups: Set<Node.Group> = new Set
       readonly roles: Set<Node.Role> = new Set
       readonly shape: NodeShape<Param>
       abstract default: Node.Tag | null
@@ -51,12 +50,6 @@ export namespace Node {
         readonly flags: NodeFlag,
         readonly spec: Node.Spec<Param>
       ) {
-        this.groups.add(Node.Group.All)
-        if (flags & NodeFlag.Inline) this.groups.add(Node.Group.Inline)
-        if (spec.group) for (let g of spec.group instanceof Node.Group ? [spec.group] : spec.group) {
-          this.groups.add(g)
-          // FIXME add supergroups
-        }
         if (spec.role instanceof Node.Role) this.roles.add(spec.role)
         else if (spec.role) for (let role of spec.role) this.roles.add(role)
         this.shape = NodeShape.from(this, spec.shape)
@@ -259,7 +252,6 @@ export namespace Leaf {
 
     constructor(name: string, flags: NodeFlag, spec: Leaf.Spec<Param>) {
       super(name, flags, spec)
-      this.groups.add(Node.Group.Leaf)
       this.default = "defaultParam" in spec ? new Leaf(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Leaf(this, null as any, none) : null
     }
@@ -518,7 +510,6 @@ export namespace Plot {
 
     constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
       super(name, flags, spec)
-      if (this.inlineContent) this.groups.add(Node.Group.Textblock)
       if (!spec.inlineContent && !spec.blockContent)
         throw new Error("Plot definitions must specify either inlineContent or blockContent")
       this.isolating = !!spec.isolating

@@ -1,4 +1,4 @@
-import {SchemaElement, Plot, Leaf, Mark} from "wordgard/doc"
+import {Schema, Plot, Leaf, Mark} from "wordgard/doc"
 import {Transaction, StateEffect} from "./transaction"
 import {EditorState} from "./state"
 
@@ -10,7 +10,7 @@ import {EditorState} from "./state"
 /// providers](#state.Facet.of), or objects with an extension in its
 /// `extension` property. Extensions can be nested in arrays
 /// arbitrarily deep—they will be flattened when processed.
-export type Extension = SchemaElement | {extension: Extension} | readonly Extension[]
+export type Extension = Schema.Element | {extension: Extension} | readonly Extension[]
 
 const Prec_ = {lowest: 4, low: 3, default: 2, high: 1, highest: 0}
 
@@ -479,8 +479,8 @@ export function getAddr(state: EditorState, addr: number) {
   return addr & 1 ? state.config.staticValues[addr >> 1] : state.values[addr >> 1]
 }
 
-export const schemaElement = Facet.define<SchemaElement | readonly SchemaElement[], readonly SchemaElement[]>({
-  combine: values => values.reduce((set: readonly SchemaElement[], elt) => set.concat(elt), none)
+export const schemaElement = Facet.define<Schema.Element | readonly Schema.Element[], readonly Schema.Element[]>({
+  combine: values => values.reduce((set: readonly Schema.Element[], elt) => set.concat(elt), none)
 })
 
 export const transactionFilter = Facet.define<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>()
