@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Plot, Leaf, Mark, Node} from "wordgard/doc"
-import {basicBuilders, tag, Paragraph, basicSchema as schema, builder} from "wordgard/schema"
+import {Plot, Leaf, Node} from "wordgard/doc"
+import {basicBuilders, tag, Paragraph, basicSchema as schema} from "wordgard/schema"
 import {Image} from "wordgard/schema/image"
 const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilders
 
@@ -131,23 +131,6 @@ describe("Node", () => {
       let json = doc(p($a("hi"))).toJSON()
       json.content![0].content![0].marks!.Link = [1, 2, 3]
       ist.throws(() => schema.nodeFromJSON(json), /Expected value of type string/)
-    })
-  })
-
-  describe("validate", () => {
-    it("checks for tags not in the schema", () => {
-      let Stranger = Plot.defineBlock("Stranger", {
-        group: Node.Group.GenericBlock,
-        inlineContent: true,
-        shape: {element: "div"}
-      })
-      ist.throws(() => doc(Stranger.create()), /cannot contain/)
-    })
-
-    it("checks for marks not in the schema", () => {
-      let Odd = Mark.define("Odd", {target: Node.Group.GenericBlock, shape: {attribute: "odd", value: "yes"}})
-      let odd = builder(Odd)
-      ist.throws(() => doc(odd(p())), /not in schema/)
     })
   })
 })

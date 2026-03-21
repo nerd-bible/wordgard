@@ -178,6 +178,7 @@ export class Schema {
         let groups = new Set<Node.Group>()
         groups.add(Node.Group.All)
         if (elt.isInline) groups.add(Node.Group.Inline)
+        else groups.add(Node.Group.Plot)
         if (elt.isLeaf) groups.add(Node.Group.Leaf)
         else if (elt.inlineContent) groups.add(Node.Group.Textblock)
         let given = elt.spec.group instanceof Node.Group ? [elt.spec.group] : elt.spec.group
@@ -230,16 +231,18 @@ export class Schema {
     return schema
   }
 
-  setMarkTarget(mark: Mark.Type<any>, target: Node.Query | ((target: Node.Query) => Node.Query)) {
-    return new Schema.Override(mark, typeof target == "function" ? target : () => target)
+  static setMarkTarget(mark: Mark.Type<any> | Mark<any>, target: Node.Query | ((target: Node.Query) => Node.Query)) {
+    return new Schema.Override(mark instanceof Mark ? mark.type : mark, typeof target == "function" ? target : () => target)
   }
 
-  setPlotContent(plot: Plot.Type<any>, content: Node.Query | ((content: Node.Query) => Node.Query)) {
-    return new Schema.Override(plot, undefined, typeof content == "function" ? content : () => content)
+  static setPlotContent(plot: Plot.Type<any> | Plot.Tag<any>, content: Node.Query | ((content: Node.Query) => Node.Query)) {
+    return new Schema.Override(plot instanceof Plot.Tag ? plot.type : plot,
+                               undefined, typeof content == "function" ? content : () => content)
   }
 
-  setNodeGroup(node: Node.Type<any>, group: Node.Group | readonly Node.Group[]) {
-    return new Schema.Override(node, undefined, undefined, group instanceof Node.Group ? [group] : group)
+  static setNodeGroup(node: Node.Type<any> | Node.Tag, group: Node.Group | readonly Node.Group[]) {
+    return new Schema.Override(node instanceof Node.Tag.Base ? node.type : node as Node.Type<any>,
+                               undefined, undefined, group instanceof Node.Group ? [group] : group)
   }
 
   append(other: Schema | readonly Schema.Element[]) {

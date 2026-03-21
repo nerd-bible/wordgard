@@ -149,8 +149,10 @@ export namespace Node {
     declare private tag: Node.Group
 
     static Inline = new Group
+    // FIXME name
     static GenericBlock = new Group
     static Leaf = new Group
+    static Plot = new Group
     static All = new Group
     static Textblock = new Group
   }
