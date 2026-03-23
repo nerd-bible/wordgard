@@ -5,7 +5,7 @@ const G = Node.Group
 
 export const Paragraph = Plot.defineBlock("Paragraph", {
   inlineContent: true,
-  group: G.GenericBlock,
+  group: G.Content,
   defaultBlock: true,
   shape: {element: "p"}
 })
@@ -14,7 +14,7 @@ export const Heading = Plot.Type.defineBlock("Heading", {
   defaultParam: 1,
   validateParam: "number",
   inlineContent: true,
-  group: G.GenericBlock,
+  group: G.Content,
   shape: {structure: level => elt("h" + level, 0), atom: false},
   defining: true,
   parseRules: [
@@ -29,7 +29,7 @@ export const Heading = Plot.Type.defineBlock("Heading", {
 
 export const CodeBlock = Plot.defineBlock("CodeBlock", {
   inlineContent: true,
-  group: G.GenericBlock,
+  group: G.Content,
   role: Node.Role.Code,
   shape: {element: "pre"},
 })
@@ -52,14 +52,14 @@ export const CodeBlockLanguage = Mark.Type.define<string>("CodeBlockLanguage", {
 })
 
 export const Blockquote = Plot.defineBlock("Blockquote", {
-  blockContent: G.GenericBlock,
-  group: G.GenericBlock,
+  blockContent: G.Content,
+  group: G.Content,
   shape: {element: "blockquote"},
   autoJoin: true
 })
 
 export const ListItem = Plot.defineBlock("ListItem", {
-  blockContent: G.GenericBlock,
+  blockContent: G.Content,
   shape: {element: "li"},
   defining: true,
 })
@@ -68,7 +68,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
   blockContent: ListItem,
-  group: G.GenericBlock,
+  group: G.Content,
   role: Node.Role.List,
   shape: {
     element: "ol",
@@ -80,14 +80,14 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
 
 export const BulletList = Plot.defineBlock("BulletList", {
   blockContent: ListItem,
-  group: G.GenericBlock,
+  group: G.Content,
   role: Node.Role.List,
   shape: {element: "ul"},
   autoJoin: true
 })
 
 export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
-  group: G.GenericBlock,
+  group: G.Content,
   shape: {element: "hr"},
   toText: () => "---",
   selectable: true
@@ -158,7 +158,7 @@ export const Code = Mark.define("Code", {
 })
 
 export const Doc = Plot.defineDoc({
-  blockContent: G.GenericBlock
+  blockContent: G.Content
 })
 
 export const basicSchema = Schema.define([

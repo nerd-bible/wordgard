@@ -153,8 +153,8 @@ describe("ChangeSet", () => {
     it("exits wrapper nodes when possible", () => {
       let Inner = Leaf.defineBlock("Inner", {shape: {element: "inner"}})
       let Wrapper = Plot.defineBlock("Wrapper", {
-        blockContent: [Inner, Node.Group.GenericBlock],
-        group: Node.Group.GenericBlock,
+        blockContent: [Inner, Node.Group.Content],
+        group: Node.Group.Content,
         shape: {element: "wrapper"}
       })
       let schema = Schema.define([...basicSchema.tags, Wrapper, Inner])

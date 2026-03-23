@@ -62,7 +62,7 @@ describe("DocTile", () => {
 
   it("can draw nodes with complicated structure", () => {
     let FancyBlock = Plot.defineBlock("FancyBlock", {
-      group: Node.Group.GenericBlock,
+      group: Node.Group.Content,
       inlineContent: Node.Group.Inline,
       shape: {
         structure: elt({_: "div", class: "c"}, elt("span", "before"), elt({_: "span", class: "content"}, 0), elt("span", "after"))

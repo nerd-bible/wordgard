@@ -5,8 +5,8 @@ import {EditorSelection, EditorState, Direction} from "wordgard/state"
 const {p, hr, blockquote, pre, $img} = basicBuilders
 
 let Iso = Plot.defineBlock("Iso", {
-  blockContent: Node.Group.GenericBlock,
-  group: Node.Group.GenericBlock,
+  blockContent: Node.Group.Content,
+  group: Node.Group.Content,
   isolating: true,
   shape: {element: "div"}
 }), iso = builder(Iso)

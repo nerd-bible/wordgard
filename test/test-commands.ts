@@ -67,21 +67,21 @@ function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: Edito
 let TextOnly = Plot.defineBlock("TextOnly", {
   inlineContent: Leaf.Text,
   shape: {element: "div"},
-  group: Node.Group.GenericBlock,
+  group: Node.Group.Content,
   preserveWhitespace: true
 }), to = builder(TextOnly)
 
 let BlockMark = Mark.define("BlockMark", {
   keepOnSplit: false,
   keepOnTypeChange: false,
-  target: Node.Group.GenericBlock,
+  target: Node.Group.Content,
   shape: {element: "mark1"}
 }), bp = builder(BlockMark)
 
 let PreservedMark = Mark.define("PreservedMark", {
   keepOnSplit: true,
   keepOnTypeChange: true,
-  target: Node.Group.GenericBlock,
+  target: Node.Group.Content,
   shape: {element: "mark2"}
 }), pp = builder(PreservedMark)
 
@@ -576,7 +576,7 @@ describe("unwrapBlock", () => {
 
   it("can unwrap textblock list items", () => {
     let item = Plot.defineBlock("Item", {shape: {element: "li"}, inlineContent: true})
-    let list = Plot.defineBlock("List", {shape: {element: "ul"}, group: Node.Group.GenericBlock, blockContent: item})
+    let list = Plot.defineBlock("List", {shape: {element: "ul"}, group: Node.Group.Content, blockContent: item})
     let s = Schema.define([...basicSchema.tags, list, item])
     let state = EditorState.create({
       doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),

@@ -180,13 +180,14 @@ export class Schema {
 
         let groups = new Set<Node.Group>()
         groups.add(Node.Group.All)
-        if (elt.isInline) groups.add(Node.Group.Inline)
-        else groups.add(Node.Group.Plot)
-        if (elt.isLeaf) groups.add(Node.Group.Leaf)
-        else if (elt.inlineContent) groups.add(Node.Group.Textblock)
+        groups.add(elt.isInline ? Node.Group.Inline : Node.Group.Block)
+        groups.add(elt.isLeaf ? Node.Group.Leaf : Node.Group.Plot)
+        if (elt.isPlot && elt.isBlock && elt.inlineContent) groups.add(Node.Group.Textblock)
         let given = elt.spec.group instanceof Node.Group ? [elt.spec.group] : elt.spec.group
         for (let o of overrides) if (o.type == elt && o.group) given = o.group
-        if (given) for (let g of given) groups.add(g)
+        if (given) for (let g of given) for (let cur: Node.Group | undefined = g; cur; cur = cur.parent) {
+          if (!Node.Group.builtin.includes(cur)) groups.add(cur)
+        }
         nodeGroup.set(elt, groups)
       } else if (elt instanceof Mark.Type) {
         if (marks.includes(elt)) continue

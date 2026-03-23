@@ -27,7 +27,7 @@ describe("Schema", () => {
 
   it("can match node types to group queries", () => {
     ist(basicSchema.matchNode(Paragraph.type, Node.Group.Textblock))
-    ist(basicSchema.matchNode(Paragraph.type, Node.Group.GenericBlock))
+    ist(basicSchema.matchNode(Paragraph.type, Node.Group.Content))
     ist(!basicSchema.matchNode(Paragraph.type, Node.Group.Inline))
     ist(basicSchema.matchNode(Paragraph.type, [Node.Group.Inline, Node.Group.Textblock]))
     ist(!basicSchema.matchNode(Paragraph.type, {and: [Node.Group.Inline, Node.Group.Textblock]}))
@@ -58,7 +58,7 @@ describe("Schema", () => {
   })
 
   it("can append elements", () => {
-    let Thing = Leaf.defineBlock("Thing", {group: Node.Group.GenericBlock, shape: {element: "thing"}})
+    let Thing = Leaf.defineBlock("Thing", {group: Node.Group.Content, shape: {element: "thing"}})
     let schema = basicSchema.append([Thing])
     ist(builder(schema)(p("one"), builder(Thing)).toString(), 'Doc(Paragraph("one"),Thing)')
   })
@@ -66,7 +66,7 @@ describe("Schema", () => {
   describe("validate", () => {
     it("checks for tags not in the schema", () => {
       let Stranger = Plot.defineBlock("Stranger", {
-        group: Node.Group.GenericBlock,
+        group: Node.Group.Content,
         inlineContent: true,
         shape: {element: "div"}
       })
@@ -74,7 +74,7 @@ describe("Schema", () => {
     })
 
     it("checks for marks not in the schema", () => {
-      let Odd = Mark.define("Odd", {target: Node.Group.GenericBlock, shape: {attribute: "odd", value: "yes"}})
+      let Odd = Mark.define("Odd", {target: Node.Group.Content, shape: {attribute: "odd", value: "yes"}})
       let odd = builder(Odd)
       ist.throws(() => doc(odd(p())), /not in schema/)
     })

@@ -146,16 +146,36 @@ export namespace Node {
   /// groups provided as static properties on the class, or define
   /// your own for custom categories.
   export class Group {
-    // FIXME supergroups, tag Inline/Leaf/Textblock/All as intrinsic
     declare private tag: Node.Group
 
-    static Inline = new Group
-    // FIXME name
-    static GenericBlock = new Group
-    static Leaf = new Group
-    static Plot = new Group
-    static All = new Group
-    static Textblock = new Group
+    private constructor(
+      /// Groups may have a parent group. Membership of a group
+      /// implies membership of its parent groups.
+      readonly parent: Group | undefined
+    ) {}
+
+    /// Define a custom node group.
+    static define(parent?: Group) { return new Group(parent) }
+
+    /// A group that contains every node type.
+    static All = Group.define()
+    /// All inline nodes are automatically assigned to this group.
+    static Inline = Group.define()
+    /// Block elements automatically get assigned to this group.
+    static Block = Group.define()
+    /// The group of all leaf nodes.
+    static Leaf = Group.define()
+    /// The group of all non-leaf nodes.
+    static Plot = Group.define()
+    /// Block plots with inline content are tagged as textblocks.
+    static Textblock = Group.define()
+    /// A group used for generic block content, such as paragraphs and
+    /// lists. The basic schema uses this as the content type for the
+    /// top level document, blockquotes, and list items.
+    static Content = Group.define()
+
+    /// @internal
+    static builtin = [Group.All, Group.Inline, Group.Block, Group.Leaf, Group.Plot, Group.Textblock]
   }
 
   export type Query = Node.Tag | Node.Type<any> | Group | readonly Node.Query[] | {and: readonly Node.Query[]}
