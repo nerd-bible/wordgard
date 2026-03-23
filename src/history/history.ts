@@ -1,6 +1,6 @@
 import {EditorState, Transaction, StateField, StateEffect,
         Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "wordgard/state"
-import {Plot, ChangeSet, ChangeSetJSON} from "wordgard/doc"
+import {Plot, ChangeSet} from "wordgard/doc"
 import {undo, redo} from "wordgard/command"
 
 const enum BranchName { Done, Undone }
@@ -84,7 +84,7 @@ const historyField_ = StateField.define({
 
   toJSON(value) {
     let mkJSON = (value: Branch | null) => {
-      let events: {changes: ChangeSetJSON, selection: SelectionJSON}[] = []
+      let events: {changes: ChangeSet.JSON, selection: SelectionJSON}[] = []
       for (let cur = value; cur; cur = cur.next)
         events.push({changes: cur.changes.toJSON(), selection: cur.startSelection.toJSON()})
       return events
@@ -97,7 +97,7 @@ const historyField_ = StateField.define({
 
   fromJSON(json: any, state: EditorState) {
     if (!json || !Array.isArray(json.done) || !Array.isArray(json.undone)) throw new RangeError("Invalid history JSON")
-    let buildBranch = (json: {changes: ChangeSetJSON, selection: SelectionJSON}[]) => {
+    let buildBranch = (json: {changes: ChangeSet.JSON, selection: SelectionJSON}[]) => {
       let result: Branch | null = null
       for (let i = json.length - 1; i >= 0; i--)
         result = new Branch(ChangeSet.fromJSON(state.doc.schema, json[i].changes),
@@ -154,8 +154,8 @@ export const undoDepth = (state: EditorState) => depth(state.field(historyField_
 export const redoDepth = (state: EditorState) => depth(state.field(historyField_, false)?.undone)
 
 export type HistEventJSON = {
-  changes: ChangeSetJSON,
-  mapped?: ChangeSetJSON,
+  changes: ChangeSet.JSON,
+  mapped?: ChangeSet.JSON,
   startSelection: SelectionJSON
 }
 

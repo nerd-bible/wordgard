@@ -1,6 +1,7 @@
 import type {Plot, Node, Leaf} from "./node"
 import {TextOutput} from "./text"
 import {Schema} from "./schema"
+import {ValidationError} from "./error"
 
 export const enum TokenType { Open, Close, Node }
 
@@ -31,12 +32,12 @@ export class Slice {
   }
 
   static fromJSON(schema: Schema, json: SliceJSON) {
-    if (!Array.isArray(json)) throw new Error("Invalid slice JSON")
+    if (!Array.isArray(json)) throw new ValidationError("Invalid slice JSON")
     return new Slice(json.map(value => {
       if (value.open) return schema.tagFromJSON(value.open)
       if (value.close) return End
       if (value.node) return schema.nodeFromJSON(value.node)
-      throw new Error("Invalid slice JSON")
+      throw new ValidationError("Invalid slice JSON")
     }))
   }
 

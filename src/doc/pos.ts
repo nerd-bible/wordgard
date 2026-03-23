@@ -123,12 +123,12 @@ export class NodePos {
   ) {}
 
   get before() {
-    if (this.pos < 0) throw new Error("Accessing `before` on the top level node")
+    if (this.pos < 0) throw new RangeError("Accessing `before` on the top level node")
     return this.pos
   }
 
   get after() {
-    if (this.pos < 0) throw new Error("Accessing `after` on the top level node")
+    if (this.pos < 0) throw new RangeError("Accessing `after` on the top level node")
     return this.pos + this.node.length
   }
 

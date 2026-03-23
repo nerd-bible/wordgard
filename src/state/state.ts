@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, parseDoc, PlotPos} from "wordgard/doc"
+import {Schema, Plot, Node, parseDoc, PlotPos, SchemaError, ValidationError} from "wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,
@@ -25,7 +25,7 @@ function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
   if (doc instanceof Plot.Doc) {
     if (doc.schema != schema) {
       if (doc.schema.elements.some(e => !schema.elements.includes(e)))
-        throw new Error("Schema mismatch between document and editor configuration")
+        throw new SchemaError("Schema mismatch between document and editor configuration")
       return schema.doc(doc.content)
     }
     return doc
@@ -226,7 +226,7 @@ export class EditorState {
   /// third argument.
   static fromJSON(json: any, extensions: Extension, fields?: {[prop: string]: StateField<any>}): EditorState {
     if (!json)
-      throw new RangeError("Invalid JSON representation for EditorState")
+      throw new ValidationError("Invalid JSON representation for EditorState")
     let fieldInit = []
     if (fields) for (let prop in fields) {
       if (Object.prototype.hasOwnProperty.call(json, prop)) {

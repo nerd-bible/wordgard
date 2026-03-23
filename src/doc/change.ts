@@ -1,19 +1,17 @@
 import {Plot, Node} from "./node"
 import { Mark, subtractSet } from "./mark"
 import {Schema} from "./schema"
-import {Slice, Token, TokenType, SliceJSON} from "./slice"
+import {Slice, SliceWalker, Token, TokenType, SliceJSON} from "./slice"
 import {Walker, Pos, PlotPos} from "./pos"
 import {validate} from "./helper"
-
-// FIXME make changes that violate content constraints throw earlier
-// and with a more well-defined error
+import {ValidationError} from "./error"
 
 class BuildContext {
   children: Plot[] = []
   constructor(readonly tag: Plot.Tag.Any, readonly parent: BuildContext | null) {}
 }
 
-class Builder implements Walker {
+class Builder implements Walker, SliceWalker {
   stack: BuildContext
   modifications: readonly Modification[] | null = null
   schema: Schema
@@ -25,7 +23,7 @@ class Builder implements Walker {
 
   add(node: Node) {
     if (this.modifications) {
-      if (node.isPlot) throw new Error("Invalid modification on non-leaf node")
+      if (node.isPlot) throw new ValidationError("Invalid modification on non-leaf node")
       node = node.withMarks(applyModifications(this.modifications, node.marks, node.type))
     }
     node.pushTo(this.stack.children)
@@ -36,12 +34,10 @@ class Builder implements Walker {
   }
 
   leavePlot() {
-    if (this.modifications) throw new Error("Invalid modification on close token")
-    if (!this.stack.parent) throw new Error("Surplus close token after " + this.stack.children)
+    if (this.modifications) throw new ValidationError("Invalid modification on close token")
+    if (!this.stack.parent) throw new ValidationError("Surplus close token after " + this.stack.children)
     let top = this.stack
     this.stack = this.stack.parent
-    if (!top.children.length && top.tag.isPlot && !top.tag.inlineContent)
-      throw new Error(`Invalid change creating an empty block-child node`)
     this.add(top.tag.create(top.children))
   }
 
@@ -59,11 +55,8 @@ class Builder implements Walker {
   node(node: Node) { this.skip(node) }
 
   finish() {
-    let {tag, children, parent} = this.stack
-    if (parent) throw new Error("Invalid change")
-    if (!children.length && !tag.inlineContent)
-      throw new Error(`Invalid change creating an empty block-child node`)
-    return this.schema.doc(children)
+    if (this.stack.parent) throw new ValidationError("Invalid change")
+    return this.schema.doc(this.stack.children)
   }
 }
 
@@ -93,11 +86,11 @@ function modificationFromJSON(schema: Schema, json: ModificationJSON): Modificat
   let {add, remove} = json as {add?: string, remove?: string}
   if (typeof add == "string" || typeof remove == "string") {
     let mark = schema.getMark((add || remove)!)
-    if (!mark) throw new Error(`Unknown mark ${add || remove}`)
+    if (!mark) throw new ValidationError(`Unknown mark ${add || remove}`)
     let value = mark.of(validate(mark.spec.validate, json.value))
     if (mark) return add ? {add: value} : {remove: value}
   }
-  throw new Error("Invalid modification JSON")
+  throw new ValidationError("Invalid modification JSON")
 }
 
 function compareModifications(a: readonly Modification[], b: readonly Modification[]) {
@@ -141,6 +134,7 @@ type SectionData = Slice | readonly Modification[] | null
 
 const applyCache = new WeakMap<ChangeSet, {a: Plot.Doc, b: Plot.Doc}>()
 
+// FIXME is Change.Set a good idea?
 export class ChangeSet {
   private _length = -1
   private _newLength = -1
@@ -188,7 +182,7 @@ export class ChangeSet {
 
   apply(doc: Plot.Doc) {
     if (this.length != doc.length)
-      throw new RangeError(`Trying to apply change of length ${this.length} to doc of length ${doc.length}`)
+      throw new ValidationError(`Trying to apply change of length ${this.length} to doc of length ${doc.length}`)
     if (this.empty) return doc
     let cached = applyCache.get(this)
     if (cached && doc.eq(cached.a)) return cached.b
@@ -207,14 +201,14 @@ export class ChangeSet {
       }
     }
     if (cursor.pos != doc.length)
-      throw new Error("Change doesn't cover the entire document")
+      throw new ValidationError("Change doesn't cover the entire document")
 
     let newDoc = builder.finish()
     applyCache.set(this, {a: doc, b: newDoc})
     return newDoc
   }
 
-  toJSON(): ChangeSetJSON {
+  toJSON(): ChangeSet.JSON {
     return this.data.map((data, i) => {
       let length = this.sections[i << 1], type = this.sections[(i << 1) + 1]
       return type >= 0 ? {length, replacement: (data as Slice).toJSON()}
@@ -223,12 +217,12 @@ export class ChangeSet {
     })
   }
 
-  static fromJSON(schema: Schema, json: ChangeSetJSON) {
-    if (!Array.isArray(json)) throw new Error("Invalid ChangeSet JSON")
+  static fromJSON(schema: Schema, json: ChangeSet.JSON) {
+    if (!Array.isArray(json)) throw new ValidationError("Invalid ChangeSet JSON")
     let sections: number[] = [], data: SectionData[] = []
     for (let elt of json) {
       let {length} = elt
-      if (typeof length != "number") throw new Error("Invalid ChangeSet JSON")
+      if (typeof length != "number") throw new ValidationError("Invalid ChangeSet JSON")
       if (elt.replacement) {
         let slice = Slice.fromJSON(schema, elt.replacement)
         sections.push(length, slice.length)
@@ -329,7 +323,8 @@ export class ChangeSet {
   /// that are either preserved as-is (when `modifications` is null)
   /// or only have marks modified.
   iterChanges(replaced: (fromA: number, toA: number, fromB: number, toB: number, inserted: Slice) => void,
-              preserved?: (fromA: number, toA: number, fromB: number, toB: number, modifications: readonly Modification[] | null) => void) {
+              preserved?: (fromA: number, toA: number, fromB: number, toB: number,
+                           modifications: readonly Modification[] | null) => void) {
     for (let posA = 0, posB = 0, i = 0, iS = 0; i < this.data.length;) {
       let len = this.sections[iS++], ins = this.sections[iS++], data = this.data[i++]
       if (ins < 0) {
@@ -425,6 +420,12 @@ export namespace ChangeSet {
   export type Sections = readonly number[]
 
   export type Spec = Change | {correct: ChangeSet.Spec, local?: boolean} | ChangeSet | readonly ChangeSet.Spec[]
+
+  export type JSON = readonly {
+    length: number
+    modifications?: readonly ModificationJSON[]
+    replacement?: SliceJSON
+  }[]
 }
 
 class ChangeSetBuilder {
@@ -438,7 +439,7 @@ class ChangeSetBuilder {
 function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true): ChangeSet {
   let cur: ChangeSetBuilder | null = null
   let accum: ChangeSet | null = null
-  let doCorrect: boolean = false
+  let doCorrect = false
 
   let flush = () => {
     if (cur) {
@@ -467,6 +468,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
       flush()
       push(spec)
     } else if ((spec as any).correct) {
+      flush()
       let {correct, local} = spec as any
       let inner = createChangeSet(doc, correct, false)
       push(mayCorrect || local ? inner.correct(doc, local) : inner)
@@ -475,7 +477,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
       let modifies = add || remove
       if (modifies) {
         if (insert)
-          throw new Error(`A Change object cannot both ${add ? "add" : "remove"} a mark and replace a range`)
+          throw new ValidationError(`A Change object cannot both ${add ? "add" : "remove"} a mark and replace a range`)
         if (to == null) to = from + 1
         if (add) {
           let mods: Modification[] = [{add}]
@@ -532,7 +534,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
 
 function map(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, fit: boolean) {
   if (setA.length != doc.length || setB.length != doc.length)
-    throw new Error("Mapping a change that doesn't match the start document")
+    throw new ValidationError("Mapping a change that doesn't match the start document")
   // Produce a copy of setA that applies to the document after setB
   // has been applied. Assumes both start at the same document (`doc`).
   let sections: number[] = [], data: SectionData[] = []
@@ -560,7 +562,7 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, f
       addSection(sections, data, b.ins, -1, null)
       if (fitter) fitter.replaced(b.slice, pos, end, true)
       while (pos < end) {
-        if (a.done) throw new Error("Mismatched change sets")
+        if (a.done) throw new ValidationError("Mismatched change sets")
         let piece = Math.min(a.len, end - pos)
         if (a.ins >= 0 && inserted < a.i && a.len <= piece) {
           addSection(sections, data, 0, a.ins, a.slice)
@@ -620,7 +622,7 @@ function compose(
       addSection(sections, data, 0, b.ins, b.slice, open)
       b.next()
     } else if (a.done || b.done) {
-      throw new Error("Mismatched change set lengths")
+      throw new ValidationError("Mismatched change set lengths")
     } else {
       let len = Math.min(a.len2, b.len), sectionLen = sections.length
       if (a.keep && b.keep) {
@@ -960,12 +962,6 @@ function markableSections(doc: Plot.Doc, from: number, to: number, spanning: boo
     }
   })
 }
-
-export type ChangeSetJSON = readonly {
-  length: number
-  modifications?: readonly ModificationJSON[]
-  replacement?: SliceJSON
-}[]
 
 export enum MapMode {
   /// Map a position to a valid new position, even when its context

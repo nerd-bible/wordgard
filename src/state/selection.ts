@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, Leaf, ChangeSet, Mark, Pos, PlotPos} from "wordgard/doc"
+import {Schema, Plot, Node, Leaf, ChangeSet, Mark, Pos, PlotPos, ValidationError} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
@@ -175,7 +175,7 @@ export class EditorSelection {
   check(doc: Plot.Doc) {
     for (let {from, to} of this.ranges)
       if (from < 0 || to > doc.length)
-        throw new Error(`Selection out of document range`)
+        throw new RangeError(`Selection out of document range`)
   }
 
   /// Make sure, if this is a cursor selection, that it sits at a
@@ -202,7 +202,7 @@ export class EditorSelection {
   /// Create a selection from a JSON representation.
   static fromJSON(schema: Schema, json: SelectionJSON): EditorSelection {
     if (!json || typeof json.anchor != "number")
-      throw new RangeError("Invalid JSON representation for EditorSelection")
+      throw new ValidationError("Invalid JSON representation for EditorSelection")
     let anchor = json.anchor, head = typeof json.head == "number" ? json.head : anchor
     let marks = json.marks ? schema.marksFromJSON(json.marks) : undefined
     let ranges = Array.isArray(json.ranges) && json.ranges.every(r => typeof r.from == "number" && typeof r.to == "number")

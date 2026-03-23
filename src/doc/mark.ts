@@ -2,6 +2,7 @@ import {AttributeShape, ElementShape, AttributesShape, ElementParseRule,
         AttributeParseRule, Elt, readAttributes, Attributes, noAttributes} from "./shape"
 import {compareDeep, eqArray, none} from "./helper"
 import {Node, Plot} from "./node"
+import {SchemaError} from "./error"
 
 function remove<T>(arr: readonly T[], index: number) {
   return arr.length == 1 ? none : arr.filter((_, i) => i != index)
@@ -222,13 +223,9 @@ export namespace Mark {
       if ("attribute" in spec) {
         let {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
         if (value === 0) {
-          if (style) {
-            if (type.default) throw new Error("Attribute specs for styles must provide a value")
-            this.get = param => ["style", style + param]
-          } else {
-            if (type.default) this.get = () => [attribute, attribute]
-            else this.get = param => [attribute, String(param)]
-          }
+          if (type.default) throw new SchemaError("Attribute shapes for parameter-less marks cannot use 0 as value")
+          if (style) this.get = param => ["style", style + param]
+          else this.get = param => [attribute, String(param)]
         } else if (typeof value == "function") {
           if (style)
             this.get = param => { let val = value(param); return val == null ? noAttributes : ["style", style + val] }

@@ -6,6 +6,7 @@ import {Pos, PlotPos} from "./pos"
 import {Mark} from "./mark"
 import {eqArray, none, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
+import {SchemaError} from "./error"
 
 const enum NodeFlag {
   None = 0,
@@ -440,7 +441,7 @@ export class Plot implements Node.Shared {
   }
 
   static defineDoc(spec: {inlineContent?: Node.Query | true, blockContent?: Node.Query}) {
-    if (!spec.inlineContent && !spec.blockContent) throw new Error("Doc nodes must allow content")
+    if (!spec.inlineContent && !spec.blockContent) throw new SchemaError("Doc nodes must allow content")
     let flags = NodeFlag.NullParam | NodeFlag.Doc | NodeFlag.NullParam
     if (spec.inlineContent) flags |= NodeFlag.InlineContent
     return new Plot.Type<null>("Doc", flags, {
@@ -513,7 +514,7 @@ export namespace Plot {
     constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
       super(name, flags, spec)
       if (!spec.inlineContent && !spec.blockContent)
-        throw new Error("Plot definitions must specify either inlineContent or blockContent")
+        throw new SchemaError("Plot definitions must specify either inlineContent or blockContent")
       this.isolating = !!spec.isolating
       this.defining = !!spec.defining
       this.neutral = spec.neutral ?? !this.defining
@@ -522,7 +523,7 @@ export namespace Plot {
       this.default = "defaultParam" in spec ? new Plot.Tag(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Plot.Tag(this, null as any, none) : null
       if (!this.shape.atom && this.isInline && !this.inlineContent)
-        throw new Error("Inline tags with block content must be marked as atoms")
+        throw new SchemaError("Inline tags with block content must be marked as atoms")
     }
 
     static defineInline<T>(name: string, spec: Plot.Spec<T>) {
@@ -645,7 +646,7 @@ export namespace Plot {
 
 function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   let flags = inline ? NodeFlag.Inline : NodeFlag.None
-  if (spec.inlineContent && spec.blockContent) throw new Error("A tag cannot have both block and inline content")
+  if (spec.inlineContent && spec.blockContent) throw new SchemaError("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
   if ((spec as Leaf.Spec<any>).selectable) flags |= NodeFlag.Selectable
   return flags

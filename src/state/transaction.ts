@@ -85,8 +85,8 @@ export class StateEffect<Value> {
   /// compartments.
   declare static reconfigure: StateEffect.Type<Extension>
 
-  /// Append extensions to the top-level configuration of the editor.
-  declare static appendConfig: StateEffect.Type<Extension>
+    /// Append extensions to the top-level configuration of the editor.
+    declare static appendConfig: StateEffect.Type<Extension>
 }
 
 export namespace StateEffect {
@@ -174,8 +174,6 @@ export namespace Transaction {
 /// [`EditorView.dispatch`](#view.EditorView.dispatch).
 export class Transaction {
   /// @internal
-  _doc: Plot.Doc | null = null
-  /// @internal
   _selection: EditorSelection | null = null
   /// @internal
   _state: EditorState | null = null
@@ -202,7 +200,16 @@ export class Transaction {
   ) {
     if (!annotations.some((a: Annotation<any>) => a.type == Transaction.time))
       this.annotations = annotations.concat(Transaction.time.of(Date.now()))
+    this.newDoc = this.changes.apply(this.startState.doc)
   }
+
+  /// The new document produced by the transaction. Contrary to
+  /// [`.state`](#state.Transaction.state)`.doc`, accessing this won't
+  /// force the entire new state to be computed right away, so it is
+  /// recommended that [transaction
+  /// filters](#state.EditorState^transactionFilter) use this property
+  /// when they need to look at the new document.
+  newDoc: Plot.Doc
 
   /// @internal
   static create(startState: EditorState, changes: ChangeSet,
@@ -210,20 +217,6 @@ export class Transaction {
                 effects: readonly StateEffect<any>[], annotations: readonly Annotation<any>[],
                 scrollIntoView: boolean) {
     return new Transaction(startState, changes, selection, normalizeSelection, effects, annotations, scrollIntoView)
-  }
-
-  /// The new document produced by the transaction. Contrary to
-  /// [`.state`](#state.Transaction.state)`.doc`, accessing this won't
-  /// force the entire new state to be computed right away, so it is
-  /// recommended that [transaction
-  /// filters](#state.EditorState^transactionFilter) use this getter
-  /// when they need to look at the new document.
-  get newDoc() {
-    if (!this._doc) {
-      this._doc = this.changes.apply(this.startState.doc)
-      if (this.selection) this.selection.check(this._doc)
-    }
-    return this._doc
   }
 
   /// The new selection produced by the transaction. If

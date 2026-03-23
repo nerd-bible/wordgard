@@ -1,6 +1,7 @@
 import {Plot, Node, Leaf} from "./node"
 import {Mark} from "./mark"
 import {none, validate} from "./helper"
+import {SchemaError, ValidationError} from "./error"
 
 // FIXME maybe don't store these forever
 const schemaCache = new Set<Schema>()
@@ -40,9 +41,11 @@ export class Schema {
       this.validateTag(node)
     } else {
       this.validateTag(node.tag)
+      if (!node.tag.inlineContent && node.content.length == 0)
+        throw new ValidationError(`Node ${node.name} with block content may not be empty`)
       for (let ch of node.content) {
         if (!this.canContain(node.type, ch.type) || node.inlineContent != ch.isInline)
-          throw new Error(`Node type ${node.name} cannot contain child ${ch.name}`)
+          throw new ValidationError(`Node type ${node.name} cannot contain child ${ch.name}`)
         this.validate(ch)
       }
     }
@@ -52,16 +55,16 @@ export class Schema {
   /// @internal
   validateTag(tag: Node | Plot.Tag.Any) {
     if (this.tagsByName[tag.name] != tag.type)
-      throw new Error(`Tag type ${tag.name} not in schema`)
+      throw new ValidationError(`Tag type ${tag.name} not in schema`)
     for (let mark of tag.marks) this.validateMark(mark, tag.type)
   }
 
   /// @internal
   validateMark(mark: Mark<any>, node: Node.Type<any>) {
     if (this.marksByName[mark.name] != mark.type)
-      throw new Error(`Mark type ${mark.name} not in schema`)
+      throw new ValidationError(`Mark type ${mark.name} not in schema`)
     if (!this.markAllowed(mark.type, node))
-      throw new Error(`Mark type ${mark.name} cannot target node ${node.name}`)
+      throw new ValidationError(`Mark type ${mark.name} cannot target node ${node.name}`)
   }
 
   /// Test whether a node type matches the given group query. When
@@ -164,7 +167,7 @@ export class Schema {
       if (elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Mark) elt = elt.type
       if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
-        if (tagNames.has(elt.name)) throw new Error(`Duplicate use of tag name ${elt.name} in schema`)
+        if (tagNames.has(elt.name)) throw new SchemaError(`Duplicate use of tag name ${elt.name} in schema`)
         tagNames.add(elt.name)
         if (elt.isPlot) {
           let content = elt.spec.inlineContent === true ? Node.Group.Inline
@@ -187,14 +190,14 @@ export class Schema {
         nodeGroup.set(elt, groups)
       } else if (elt instanceof Mark.Type) {
         if (marks.includes(elt)) continue
-        if (markNames.has(elt.name)) throw new Error(`Duplicate use of mark name ${elt.name} in schema`)
+        if (markNames.has(elt.name)) throw new SchemaError(`Duplicate use of mark name ${elt.name} in schema`)
         let target = elt.spec.target || {and: [Node.Group.Inline, Node.Group.Leaf]}
         for (let o of overrides) if (o.type == elt && o.target) target = o.target(target)
         markTarget.set(elt, target)
         markNames.add(elt.name)
         marks.push(elt as any)
       } else if (!(elt instanceof Schema.Override)) {
-        throw new Error("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
+        throw new SchemaError("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
     }
     let docTag: Plot.Type<null> | null = null
@@ -203,29 +206,29 @@ export class Schema {
       if (tag.isLeaf) {
         if (tag.hasRole(Node.Role.LineBreak)) {
           if (tag.isBlock || !tag.default)
-            throw new Error("Line break tags must be inline leaves with a default param")
-          if (lineBreak) throw new Error("Multiple line break tags provided")
+            throw new SchemaError("Line break tags must be inline leaves with a default param")
+          if (lineBreak) throw new SchemaError("Multiple line break tags provided")
           lineBreak = tag.default
         }
       } else {
         if (tag.isDoc) {
-          if (docTag) throw new Error("Multiple document tags specified")
+          if (docTag) throw new SchemaError("Multiple document tags specified")
           docTag = tag
         }
       }
     }
-    if (!docTag) throw new Error("A schema must define a document tag")
+    if (!docTag) throw new SchemaError("A schema must define a document tag")
     let schema = new Schema(tags, marks, plotContent, markTarget, nodeGroup, docTag, lineBreak as Leaf<unknown> | null)
     for (let tag of tags) if (tag.isPlot) {
       let sawDefaultable = false
       for (let child of tags) if (schema.canContain(tag, child)) {
         if (child.default) sawDefaultable = true
         if (child.isInline != tag.inlineContent)
-          throw new Error(`Node type ${tag.name} has ${tag.inlineContent ? "block" : "inline"
-                            } content, but allows ${child.name} as a child`)
+          throw new SchemaError(`Node type ${tag.name} has ${tag.inlineContent ? "block" : "inline"
+                                  } content, but allows ${child.name} as a child`)
       }
       if (!tag.inlineContent && !sawDefaultable)
-        throw new Error(`Node ${tag.name} has block content, but all possible children require non-default parameters`)
+        throw new SchemaError(`Node ${tag.name} has block content, but all possible children require non-default parameters`)
     }
     schemaCache.add(schema)
     return schema
@@ -266,22 +269,22 @@ export class Schema {
 
   tagFromJSON(json: Node.JSON) {
     if (!json || typeof json != "object" || !(json.type in this.tagsByName))
-      throw new Error("Invalid tag JSON")
+      throw new ValidationError("Invalid tag JSON")
     let type = this.tagsByName[json.type]
     let marks = json.marks ? this.marksFromJSON(json.marks) : none
     let tag = "param" in json ? type.of(validate(type.spec.validateParam, json.param), marks)
       : !type.default ? null
       : marks.length ? type.of(type.default.param, marks) : type.default
-    if (!tag) throw new Error(`Missing param for tag type ${type.name}`)
+    if (!tag) throw new ValidationError(`Missing param for tag type ${type.name}`)
     return tag
   }
 
   marksFromJSON(json: Record<string, any>): readonly Mark<undefined>[] {
-    if (!json || typeof json != "object") throw new Error("Invalid mark JSON")
+    if (!json || typeof json != "object") throw new ValidationError("Invalid mark JSON")
     let marks = none
     for (let name in json) {
       let mark = this.marksByName[name]
-      if (!mark) throw new Error(`Unrecognized mark ${name} in JSON`)
+      if (!mark) throw new ValidationError(`Unrecognized mark ${name} in JSON`)
       marks = mark.of(validate(mark.spec.validate, json[name])).addToSet(marks)
     }
     return marks
@@ -289,7 +292,7 @@ export class Schema {
 
   docFromJSON(json: Node.JSON) {
     if (!json || json.type != this.docTag.name)
-      throw new Error("Invalid document JSON")
+      throw new ValidationError("Invalid document JSON")
     return this.nodeFromJSON(json) as Plot.Doc
   }
 }

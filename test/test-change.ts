@@ -107,10 +107,10 @@ describe("ChangeSet", () => {
       ist.throws(() => {
         let d = doc(blockquote(0, p("a"), 1))
         mk(d, [[]]).apply(d)
-      }, /Invalid change/)
+      }, /may not be empty/)
       ist.throws(() => {
         mk(doc(0, p("a"), 1), [[]]).apply(doc(p("a")))
-      }, /Invalid change/)
+      }, /may not be empty/)
     })
 
     it("won't add children in invalid positions", () => {
@@ -118,6 +118,12 @@ describe("ChangeSet", () => {
         let d = doc(blockquote(0, p("x")))
         mk(d, [[$img]]).apply(d)
       }, /cannot contain child/)
+    })
+
+    it("ignores marks on nodes that don't support them", () => {
+      let d = doc(p("a"))
+      let ch = ChangeSet.create(d, {add: Strong, from: 0, to: 1})
+      ist(ch.apply(d), doc(p("a")), eq)
     })
   })
 
@@ -347,6 +353,7 @@ describe("ChangeSet", () => {
         try {
           let docAB = b.map(a, doc).apply(a.apply(doc))
           let docBA = a.map(b, doc, true).apply(b.apply(doc))
+          if (window.bad) { console.log("!! " + docAB + "\n" + docBA); return }
           ist(docAB, docBA, eq)
         } catch(e) {
           console.log(`Failed random convergence test:\n  start doc: ${doc}\n  change a: ${a}\n  change b: ${b}`)
