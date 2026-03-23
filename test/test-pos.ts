@@ -1,5 +1,5 @@
 import ist from "ist"
-import {Pos, type Walker, Plot, Leaf} from "wordgard/doc"
+import {Pos, Plot, Leaf} from "wordgard/doc"
 import {basicBuilders, tag} from "wordgard/schema"
 const {doc, p, br, li, ul, $img} = basicBuilders
 
@@ -34,7 +34,7 @@ describe("Context", () => {
     let tokens = "OPEN(Paragraph) o n e CLOSE OPEN(BulletList) OPEN(ListItem) OPEN(Paragraph) a LineBreak" +
       " b CLOSE OPEN(Paragraph) CLOSE CLOSE CLOSE"
     let found: string[] = []
-    let walker: Walker = {
+    let walker: Pos.Walker = {
       enterPlot: n => { found.push(`OPEN(${n.name})`) },
       skip: n => { found.push(n.is(Leaf.Text) ? n.param : n.name) },
       leavePlot: () => { found.push("CLOSE") }

@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, Leaf, ChangeSet, Mark, Pos, PlotPos, ValidationError} from "wordgard/doc"
+import {Schema, Plot, Node, Leaf, ChangeSet, Mark, Pos, ValidationError} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
@@ -368,7 +368,7 @@ function scanNormalFrom(
         p += nextNode.length * step
       } else {
         if (!forward) index--
-        parent = new PlotPos(parent, nextNode, forward ? p : p - nextNode.length, index)
+        parent = new Pos.Plot(parent, nextNode, forward ? p : p - nextNode.length, index)
         p += step
         index = forward ? 0 : nextNode.content.length
       }

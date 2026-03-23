@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, parseDoc, PlotPos, SchemaError, ValidationError} from "wordgard/doc"
+import {Schema, Plot, Node, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,
@@ -199,7 +199,7 @@ export class EditorState {
     return result
   }
 
-  textblockMap(node: PlotPos) {
+  textblockMap(node: Pos.Plot) {
     return TextblockMap.get(node.start, node.node, this.textDirection(node.node.tag))
   }
 

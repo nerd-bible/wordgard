@@ -1,5 +1,5 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
-import {Mark, Pos, Plot, Leaf, Node, Walker, ChangeSet, MapMode, Schema,
+import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema,
         Elt, pushAttribute, mergeAttributes, readAttributes, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
@@ -1080,7 +1080,7 @@ export class DecoIterator {
     let pendingDeco: Decoration[] = [], pendingPos = -1
     let pendingShape: ShapeDecoration | null = null, pendingShapeSet: PointSet | null = null
 
-    let wrap: Walker = {
+    let wrap: Pos.Walker = {
       skip: (node, pos) => { // Only done for leaf nodes.
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true

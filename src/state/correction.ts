@@ -1,4 +1,4 @@
-import {Node, PlotPos, NodePos, Walker, ChangeSet} from "wordgard/doc"
+import {Node, Pos, ChangeSet} from "wordgard/doc"
 import {Facet, Extension, transactionFilter} from "./facet"
 import {Transaction} from "./transaction"
 import {EditorState} from "./state"
@@ -9,20 +9,20 @@ const enum CorrectionEvent {
   Marks = 2,
 }
 
-type PlanElt<PosType extends NodePos> = {node: PosType, correction: Correction<PosType>}
+type PlanElt<PosType extends Pos.Node> = {node: PosType, correction: Correction<PosType>}
 
 function scanTransaction(tr: Transaction) {
   let [childList, content, marks] = tr.startState.facet(corrections)
   let plan: PlanElt<any>[] = []
   let queried: Set<number> = new Set, newNode = childList.concat(content)
-  let updateWalker: Walker | undefined, {schema} = tr.startState.doc
-  let checkMarks = (node: Node, pos: number, parent: PlotPos, index: number) => {
+  let updateWalker: Pos.Walker | undefined, {schema} = tr.startState.doc
+  let checkMarks = (node: Node, pos: number, parent: Pos.Plot, index: number) => {
     for (let correction of marks) if (schema.matchNode(node.type, correction.query))
-      plan.push({node: new NodePos(parent, node, pos, index), correction})
+      plan.push({node: new Pos.Node(parent, node, pos, index), correction})
   }
   if (marks.length) updateWalker = {
     enterPlot: checkMarks,
-    skip(node: Node, pos: number, parent: PlotPos, index: number) {
+    skip(node: Node, pos: number, parent: Pos.Plot, index: number) {
       // Back up to the start of the node
       if (node.isText && !parent.node.content.includes(node)) {
         for (let off = parent.start, i = 0;; i++) {
@@ -40,14 +40,14 @@ function scanTransaction(tr: Transaction) {
     },
     leavePlot() {}
   }
-  let changeWalker: Walker = {
+  let changeWalker: Pos.Walker = {
     enterPlot(node, pos, parent, index) {
       queried.add(pos)
       this.skip(node, pos, parent, index)
     },
     skip(node, pos, parent, index) {
       if (node.isPlot) for (let correction of newNode) if (schema.matchNode(node.type, correction.query))
-        plan.push({node: new PlotPos(parent, node, pos, index), correction})
+        plan.push({node: new Pos.Plot(parent, node, pos, index), correction})
     },
     leavePlot() {}
   }
@@ -87,9 +87,9 @@ function scanTransaction(tr: Transaction) {
   return plan
 }
 
-const corrections = Facet.define<Correction<NodePos>, readonly (readonly Correction<NodePos>[])[]>({
+const corrections = Facet.define<Correction<Pos.Node>, readonly (readonly Correction<Pos.Node>[])[]>({
   combine(corrections) {
-    let buckets: Correction<NodePos>[][] = [[], [], []]
+    let buckets: Correction<Pos.Node>[][] = [[], [], []]
     for (let c of corrections) buckets[c.event].push(c)
     return buckets
   }
@@ -117,7 +117,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 /// and not be checked. Such a transaction may for example be created
 /// by concurrent collaborative changes or undone changes that
 /// interact with non-undoable changes.
-export class Correction<PosType extends NodePos> {
+export class Correction<PosType extends Pos.Node> {
   /// To take effect, corrections must be included in an editor
   /// configuration as extensions.
   extension: Extension
@@ -168,20 +168,20 @@ export class Correction<PosType extends NodePos> {
   /// Create a correction that runs whenever the child list of a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onChildList(query: Node.Query, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.ChildList, query, correct as any)
+  static onChildList(query: Node.Query, correct: (node: Pos.Plot, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<Pos.Plot>(CorrectionEvent.ChildList, query, correct as any)
   }
 
   /// Create a correction that runs whenever any content inside a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onContent(query: Node.Query, correct: (node: PlotPos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.Content, query, correct as any)
+  static onContent(query: Node.Query, correct: (node: Pos.Plot, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<Pos.Plot>(CorrectionEvent.Content, query, correct as any)
   }
 
   /// Define a correction that runs whenever the set of marks on a tag
   /// matching a selector changes.
-  static onMarks(query: Node.Query, correct: (node: NodePos, state: EditorState) => ChangeSet.Spec | null) {
-    return new Correction<PlotPos>(CorrectionEvent.Marks, query, correct)
+  static onMarks(query: Node.Query, correct: (node: Pos.Node, state: EditorState) => ChangeSet.Spec | null) {
+    return new Correction<Pos.Plot>(CorrectionEvent.Marks, query, correct)
   }
 }

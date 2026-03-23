@@ -2,7 +2,7 @@ import {Plot, Node} from "./node"
 import { Mark, subtractSet } from "./mark"
 import {Schema} from "./schema"
 import {Slice, SliceWalker, Token, TokenType, SliceJSON} from "./slice"
-import {Walker, Pos, PlotPos} from "./pos"
+import {Pos} from "./pos"
 import {validate} from "./helper"
 import {ValidationError} from "./error"
 
@@ -11,7 +11,7 @@ class BuildContext {
   constructor(readonly tag: Plot.Tag.Any, readonly parent: BuildContext | null) {}
 }
 
-class Builder implements Walker, SliceWalker {
+class Builder implements Pos.Walker, SliceWalker {
   stack: BuildContext
   modifications: readonly Modification[] | null = null
   schema: Schema
@@ -76,8 +76,6 @@ function applyModifications(modifications: readonly Modification[], marks: reado
   return marks
 }
 
-export type ModificationJSON = {add: string, value: any} | {remove: string, value: any}
-
 function modificationToJSON(m: Modification): ModificationJSON {
   return isAdd(m) ? {add: m.add.name, value: m.add.value} : {remove: m.remove.name, value: m.remove.value}
 }
@@ -134,7 +132,6 @@ type SectionData = Slice | readonly Modification[] | null
 
 const applyCache = new WeakMap<ChangeSet, {a: Plot.Doc, b: Plot.Doc}>()
 
-// FIXME is Change.Set a good idea?
 export class ChangeSet {
   private _length = -1
   private _newLength = -1
@@ -428,6 +425,8 @@ export namespace ChangeSet {
   }[]
 }
 
+type ModificationJSON = {add: string, value: any} | {remove: string, value: any}
+
 class ChangeSetBuilder {
   constructor(readonly docLen: number) {}
 
@@ -717,7 +716,7 @@ const counter = {
   }
 }
 
-class ChangeFitter implements Walker {
+class ChangeFitter implements Pos.Walker {
   stack: FitLevel
   inputPos: Pos
   delInputPos: Pos
@@ -845,7 +844,7 @@ class ChangeFitter implements Walker {
     let cur = [], sync = []
     for (let l = this.stack as FitLevel | null; l; l = l.next) cur.push(l)
     cur.reverse()
-    for (let level: PlotPos | null = context.parent; level; level = level.parent) sync.push(level.node.tag)
+    for (let level: Pos.Plot | null = context.parent; level; level = level.parent) sync.push(level.node.tag)
     sync.reverse()
     while (cur.length > sync.length) { this.insertClose(); cur.pop() }
     for (let d = 1; d < Math.min(sync.length, cur.length); d++) {

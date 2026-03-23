@@ -2,7 +2,7 @@ import {EditorView, showDialog} from "wordgard/view"
 import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
 import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
-import {Mark, Plot, NodePos, ChangeSet} from "wordgard/doc"
+import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
         Underline, Superscript, Subscript,
@@ -365,7 +365,7 @@ export const OrderedListButton = new MenuButton({
 export const BlockquoteButton = new MenuButton({
   run: view => toggleBlock.bind(Blockquote),
   active: state => {
-    for (let cur: NodePos | null = state.sel.head.parent; cur; cur = cur.parent)
+    for (let cur: Pos.Node | null = state.sel.head.parent; cur; cur = cur.parent)
       if (cur.node.type == Blockquote.type) return true
     return false
   },

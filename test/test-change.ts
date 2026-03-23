@@ -353,7 +353,6 @@ describe("ChangeSet", () => {
         try {
           let docAB = b.map(a, doc).apply(a.apply(doc))
           let docBA = a.map(b, doc, true).apply(b.apply(doc))
-          if (window.bad) { console.log("!! " + docAB + "\n" + docBA); return }
           ist(docAB, docBA, eq)
         } catch(e) {
           console.log(`Failed random convergence test:\n  start doc: ${doc}\n  change a: ${a}\n  change b: ${b}`)

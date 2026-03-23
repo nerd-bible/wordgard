@@ -1,4 +1,4 @@
-import {Plot, Node, Mark, NodePos, PlotPos, Leaf, Token, ChangeSet, Pos, Schema} from "wordgard/doc"
+import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet, Schema} from "wordgard/doc"
 import {EditorSelection, EditorState, autoJoinBlocks} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
@@ -177,7 +177,7 @@ export function joinForward(state: EditorState) {
     after = after.content[0]
     pos++
   }
-  let blockAfter = state.doc.resolveNode(pos) as PlotPos
+  let blockAfter = state.doc.resolveNode(pos) as Pos.Plot
   let {schema} = state.doc
   let changes = joinBlocks(block, blockAfter)
     .concat(clearNonFitting(schema, blockAfter, target.type))
@@ -239,7 +239,7 @@ export function deleteBackward(state: EditorState, word = false) {
     })
   }
   let from = pos - next.length, to = pos
-  let parent: PlotPos | null = state.doc.resolve(pos).parent
+  let parent: Pos.Plot | null = state.doc.resolve(pos).parent
   while (parent && parent.node.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return null
     parent = parent.parent
@@ -297,7 +297,7 @@ export function deleteForward(state: EditorState, word = false) {
     })
   }
   let from = pos, to = pos + next.length
-  let parent: PlotPos | null = state.doc.resolve(pos).parent
+  let parent: Pos.Plot | null = state.doc.resolve(pos).parent
   while (parent && parent.node.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return null
     parent = parent.parent
@@ -342,7 +342,7 @@ export function wrapBlock(state: EditorState, wrapper: Plot.Tag.Any) {
 /// given, indicates what kind of wrapping plots may be removed.
 /// Returns null when no unwrapping is possible.
 export function unwrapBlockType(state: EditorState, query?: Node.Query) {
-  let targets: NodePos[] = [], changes: ChangeSet.Spec[] = []
+  let targets: Pos.Node[] = [], changes: ChangeSet.Spec[] = []
   for (let {from, to} of state.selection.ranges) {
     if (!targets.some(t => t.after > from && t.before < to)) {
       let result = findUnwrappable(state.doc.schema, state.doc.resolve(from), state.doc.resolve(to), query)
@@ -357,11 +357,11 @@ export function unwrapBlockType(state: EditorState, query?: Node.Query) {
 }
 
 export function selectedTextblocks(state: EditorState) {
-  let textblocks: PlotPos[] = [], lastBlock = -1
+  let textblocks: Pos.Plot[] = [], lastBlock = -1
   for (let {from, to} of state.selection.ranges) {
     state.doc.iterate(from, to, (node, pos, parent) => {
       if (node.isPlot && node.isTextblock && pos > lastBlock) {
-        textblocks.push(state.doc.resolveNode(pos) as PlotPos)
+        textblocks.push(state.doc.resolveNode(pos) as Pos.Plot)
         lastBlock = pos
       }
     })
@@ -369,7 +369,7 @@ export function selectedTextblocks(state: EditorState) {
   return textblocks
 }
 
-export function clearNonFitting(schema: Schema, node: PlotPos, type: Plot.Type<any>) {
+export function clearNonFitting(schema: Schema, node: Pos.Plot, type: Plot.Type<any>) {
   let changes: ChangeSet.Spec[] = []
   for (let i = 0, pos = node.start; i < node.node.content.length; i++) {
     let child = node.node.content[i], end = pos + child.length
@@ -441,14 +441,14 @@ export function findUnwrappable(schema: Schema, from: Pos, to: Pos, query?: Node
   let fromStart = from.parent.node.inlineContent ? from.parent.start : from.pos
   let fromTextblock = from.textblockParent?.node.type
   let toEnd = to.parent.node.inlineContent ? to.parent.end : to.pos
-  let innerCandidates: PlotPos[] = []
-  let outerCandidates: PlotPos[] = []
+  let innerCandidates: Pos.Plot[] = []
+  let outerCandidates: Pos.Plot[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
     if (node.isBlock && node.isPlot && !node.inlineContent && parent &&
         (fromTextblock ? doc.schema.canContain(parent.type, fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!query || schema.matchNode(node.type, query))) {
-      let pos = doc.resolveNode(p) as PlotPos, depth = pos.depth
+      let pos = doc.resolveNode(p) as Pos.Plot, depth = pos.depth
       if (pos.before >= fromStart - (dFrom - depth + 1) && pos.after <= toEnd + (dTo - depth + 1))
         innerCandidates.push(pos)
       else
@@ -476,7 +476,7 @@ export function findUnwrappable(schema: Schema, from: Pos, to: Pos, query?: Node
 // FIXME find export name that doesn't collide with command
 /// Unwrap the given block node, or the node's children between `from`
 /// and `to`.
-function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec {
+function unwrapBlock(block: Pos.Plot, from?: number, to?: number): ChangeSet.Spec {
   let changes: ChangeSet.Spec[] = [], {schema} = block.doc
   let outer = block.parent!.node, wrapText = textblockChild(schema, outer.type)
 
@@ -544,7 +544,7 @@ function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec
             // If it doesn't fit directly but can be moved into a
             // different text block, do that
             replaceGap(pos + 1, [wrapText!])
-            changes.push(clearNonFitting(schema, new PlotPos(parent, next as Plot, pos, index), wrapText!.type))
+            changes.push(clearNonFitting(schema, new Pos.Plot(parent, next as Plot, pos, index), wrapText!.type))
           }
           pos += next.length
           index++
@@ -556,7 +556,7 @@ function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec
         index++
       } else {
         // Enter anything else
-        parent = new PlotPos(parent, next, pos, index)
+        parent = new Pos.Plot(parent, next, pos, index)
         index = 0
         pos++
       }
@@ -565,7 +565,7 @@ function unwrapBlock(block: PlotPos, from?: number, to?: number): ChangeSet.Spec
   return changes
 }
 
-export function joinBlocks(before: PlotPos, after: PlotPos): ChangeSet.Spec[] {
+export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec[] {
   let changes: ChangeSet.Spec[] = [{from: before.end, to: after.start}]
   let dBefore = before.depth, dAfter = after.depth
   let tokensAfter: Token[] = [], posAfter = after.after, end = posAfter

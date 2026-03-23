@@ -2,7 +2,7 @@ import {Slice, Token, TokenType, End} from "./slice"
 import {TextOutput} from "./text"
 import {NodeShape} from "./shape"
 import type {Schema} from "./schema"
-import {Pos, PlotPos} from "./pos"
+import {Pos} from "./pos"
 import {Mark} from "./mark"
 import {eqArray, none, compareDeep} from "./helper"
 import {ElementShape, StructureShape, ElementParseRule} from "./shape"
@@ -624,7 +624,7 @@ export namespace Plot {
 
     resolvePlot(pos: number) {
       let r = this.resolveNode(pos)
-      return r instanceof PlotPos ? r : null
+      return r instanceof Pos.Plot ? r : null
     }
 
     contextAt(pos: number, maxDepth?: number): readonly Plot.Tag.Any[] {

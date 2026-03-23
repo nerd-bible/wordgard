@@ -1,4 +1,4 @@
-import {Plot, Node, Mark, NodePos, PlotPos, Leaf, Token, ChangeSet} from "wordgard/doc"
+import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
 import {EditorSelection, EditorState, Direction} from "wordgard/state"
 import {type EditorView} from "wordgard/view"
 import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
@@ -198,11 +198,11 @@ export const listIsActive = (listTag: Plot.Tag.Any): (state: EditorState) => boo
   })
 }
 
-function isListItem(node: NodePos): PlotPos | null {
+function isListItem(node: Pos.Node): Pos.Plot | null {
   for (let first = true;;) {
     let {parent} = node
     if (!parent) return null
-    if (parent.node.tag.type.hasRole(Node.Role.List)) return first ? node as PlotPos : null
+    if (parent.node.tag.type.hasRole(Node.Role.List)) return first ? node as Pos.Plot : null
     first = node.isFirst
     node = parent
   }
@@ -213,8 +213,8 @@ function autoJoin(a: Plot.Tag.Any, b: Plot.Tag.Any) {
   return typeof autoJoin == "function" ? autoJoin(a, b) : typeof autoJoin == "boolean" ? autoJoin : a.eq(b)
 }
 
-function addList(state: EditorState, blocks: PlotPos[], listTag: Plot.Tag.Any) {
-  let plan: ({wrap: PlotPos, item: Plot.Tag.Any} | {change: NodePos, item: NodePos})[] = []
+function addList(state: EditorState, blocks: Pos.Plot[], listTag: Plot.Tag.Any) {
+  let plan: ({wrap: Pos.Plot, item: Plot.Tag.Any} | {change: Pos.Node, item: Pos.Node})[] = []
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let lastItem = -1, {schema} = state.doc
   for (let block of blocks) {
@@ -278,8 +278,8 @@ function addList(state: EditorState, blocks: PlotPos[], listTag: Plot.Tag.Any) {
   return state.update({changes, userEvent: "wrap.list"})
 }
 
-function removeList(state: EditorState, blocks: NodePos[], listTag: Plot.Tag.Any) {
-  let plan: {item: PlotPos, rewrap: Plot.Tag.Any | null}[] = [], lastItem = -1
+function removeList(state: EditorState, blocks: Pos.Node[], listTag: Plot.Tag.Any) {
+  let plan: {item: Pos.Plot, rewrap: Plot.Tag.Any | null}[] = [], lastItem = -1
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let {schema} = state.doc
   for (let block of blocks) {

@@ -1,5 +1,5 @@
 import {EditorSelection, Direction} from "wordgard/state"
-import {PlotPos, NodePos} from "wordgard/doc"
+import {Pos} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
@@ -66,7 +66,7 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
         return EditorSelection.cursor(nextCursor.head, nextCursor.assoc, goalColumn)
       if (!nextNode) return null
     }
-    if (nextNode instanceof PlotPos) {
+    if (nextNode instanceof Pos.Plot) {
       scan = forward ? nextNode.start : nextNode.end
     } else {
       let coords = view.coordsForElement(nextNode.before)!
@@ -92,12 +92,12 @@ function findTargetVertically(view: EditorView, from: number, forward: boolean, 
       let nextPos = pos - (forward ? 0 : next.length)
       if (next.isLeaf || next.type.isAtom) {
         if (allowNode && next.isLeaf && next.type.isSelectable)
-          return new NodePos(parent, next, nextPos, index - (forward ? 0 : 1))
+          return new Pos.Node(parent, next, nextPos, index - (forward ? 0 : 1))
         index += forward ? 1 : -1
         pos += (forward ? 1 : -1) * next.length
         continue
       }
-      let node = new PlotPos(parent, next, nextPos, index - (forward ? 0 : 1))
+      let node = new Pos.Plot(parent, next, nextPos, index - (forward ? 0 : 1))
       if (!next.inlineContent && next.type.orientation == "row") {
         // Find the child closest to the given x
         let closest = -1, closestPos = -1, closestDist = -1
