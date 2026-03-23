@@ -31,12 +31,12 @@ export interface BuildOptions {
 }
 
 const tsDefaultOptions = {
-  lib: ["es2020", "dom"],
+  lib: ["es2021", "dom"],
   types: [],
   stripInternal: true,
   noUnusedLocals: true,
   strict: true,
-  target: "es2020",
+  target: "es2021",
   module: "es2020",
   newLine: "lf",
   declaration: true,
@@ -177,7 +177,7 @@ function addPureComments(code: string) {
       patches.push({from: pos, insert: pure})
   }
 
-  recursive(parse(code, {ecmaVersion: 2020, sourceType: "module"}), null, {
+  recursive(parse(code, {ecmaVersion: 2021, sourceType: "module"}), null, {
     CallExpression(node: any, _s, c) {
       walkCall(node, c)
       let m

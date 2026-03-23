@@ -3,9 +3,6 @@ import {Mark} from "./mark"
 import {none, validate} from "./helper"
 import {SchemaError, ValidationError} from "./error"
 
-// FIXME maybe don't store these forever
-const schemaCache = new Set<Schema>()
-
 export class Schema {
   private tagsByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
   private marksByName: {[name: string]: Mark.Type<any>} = Object.create(null)
@@ -86,7 +83,7 @@ export class Schema {
     return target ? this.matchNode(node, target) : false
   }
 
-  sharesContent(a: Plot.Type<any>, b: Plot.Type<any>) { // FIXME cache?
+  sharesContent(a: Plot.Type<any>, b: Plot.Type<any>) {
     for (let tp of this.tags) if (this.canContain(a, tp) && this.canContain(b, tp)) return true
     return false
   }
@@ -102,13 +99,12 @@ export class Schema {
     return to.withMarks(marks) as T
   }
 
-  canContain(parent: Plot.Type<any>, child: Node.Type<any>) { // FIXME cache?
+  canContain(parent: Plot.Type<any>, child: Node.Type<any>) {
     if (child.isPlot && child.isDoc) return false
     let content = this.plotContent.get(parent)
     return content ? this.matchNode(child, content) : false
   }
 
-  // FIXME maybe have a different one for plot types
   defaultContentTag(parent: Plot.Type<any>): Node.Tag | null {
     for (let tag of this.tags) if (tag.default && this.canContain(parent, tag)) return tag.default
     return null
@@ -150,9 +146,8 @@ export class Schema {
   getMark(name: string): Mark.Type<any> | undefined { return this.marksByName[name] }
 
   static define(spec: readonly Schema.Element[]) {
-    for (let cached of schemaCache)
-      if (cached.elements.length == spec.length && cached.elements.every((e, i) => e == spec[i]))
-        return cached
+    let cached = findCachedSchema(spec)
+    if (cached) return cached
 
     let tags: Node.Type<any>[] = [Leaf.Text], marks: Mark.Type<unknown>[] = []
     let defaultI = 0
@@ -163,8 +158,8 @@ export class Schema {
     nodeGroup.set(Leaf.Text, new Set([Node.Group.Inline, Node.Group.Leaf, Node.Group.All]))
     let overrides: Schema.Override[] = spec.filter(e => e instanceof Schema.Override).reverse()
 
-    for (let elt of spec) {
-      if (elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Mark) elt = elt.type
+    for (let e of spec) {
+      let elt = normalizeElt(e)
       if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new SchemaError(`Duplicate use of tag name ${elt.name} in schema`)
@@ -231,7 +226,7 @@ export class Schema {
       if (!tag.inlineContent && !sawDefaultable)
         throw new SchemaError(`Node ${tag.name} has block content, but all possible children require non-default parameters`)
     }
-    schemaCache.add(schema)
+    schemaCache.set(spec, new WeakRef(schema))
     return schema
   }
 
@@ -298,6 +293,27 @@ export class Schema {
   }
 }
 
+const schemaCache = new Map<readonly Schema.Element[], WeakRef<Schema>>()
+
+function findCachedSchema(spec: readonly Schema.Element[]) {
+  search: for (let [elts, ref] of schemaCache) {
+    let active = ref.deref()
+    if (!active) {
+      schemaCache.delete(elts)
+    } else if (elts.length == spec.length) {
+      for (let i = 0; i < spec.length; i++) {
+        let a = normalizeElt(spec[i]), b = normalizeElt(elts[i])
+        if (a != b && !(a instanceof Schema.Override && b instanceof Schema.Override && a.eq(b))) continue search
+      }
+      return active
+    }
+  }
+}
+
+function normalizeElt(elt: Schema.Element): Node.Type<any> | Mark.Type<any> | Schema.Override {
+  return elt instanceof Plot.Tag || elt instanceof Leaf || elt instanceof Mark ? elt.type : elt as any
+}
+
 export namespace Schema {
   export type Element = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Mark<any> | Mark.Type<any> | Schema.Override
 
@@ -308,5 +324,10 @@ export namespace Schema {
       readonly content?: (query: Node.Query) => Node.Query,
       readonly group?: readonly Node.Group[]
     ) {}
+
+    eq(other: Schema.Override) {
+      return this == other || this.type == other.type && this.target == other.target && this.content == other.content &&
+        this.group == other.group
+    }
   }
 }
