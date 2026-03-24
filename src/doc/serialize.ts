@@ -2,7 +2,7 @@ import {Plot, Node, Leaf} from "./node"
 import {Schema} from "./schema"
 import {Slice, Token, TokenType} from "./slice"
 import {Mark} from "./mark"
-import {Elt, Attributes, noAttributes, mergeAttributes} from "./shape"
+import {Elt, Attributes} from "./shape"
 
 export type SerializeOptions = {
   emitNewlines?: boolean
@@ -69,13 +69,13 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
 }
 
 function serializeNodeInner(node: Node, cx: SerializeContext) {
-  let markAttrs: Attributes = noAttributes, targeted: {attrs: Attributes, target: Elt.Selector}[] | undefined
+  let markAttrs: Attributes = Attributes.none, targeted: {attrs: Attributes, target: Elt.Selector}[] | undefined
   for (let mark of node.tag.marks) if (mark.type.attribute) {
     let {target, get} = mark.type.attribute, attrs = get(mark.value)
     if (target && !node.isText) {
       ;(targeted || (targeted = [])).push({attrs, target})
     } else if (!node.isText || mark.spanning) {
-      markAttrs = mergeAttributes(markAttrs, attrs)
+      markAttrs = Attributes.merge(markAttrs, attrs)
     }
   }
   let shape = node.type.shape
@@ -127,7 +127,7 @@ class EltCx {
 }
 
 function serializeChildren(children: readonly Node[], cx: SerializeContext): Elt.Fragment {
-  let active: Mark[] = [], top = new EltCx("", noAttributes, null)
+  let active: Mark[] = [], top = new EltCx("", Attributes.none, null)
   for (let child of children) {
     if (active.length || child.marks.some(p => p.type.element)) {
       let keep = 0, rendered = 0, eltMarks = []

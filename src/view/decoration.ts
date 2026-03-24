@@ -1,6 +1,5 @@
 import {EditorState, Facet, Extension} from "wordgard/state"
-import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema,
-        Elt, pushAttribute, mergeAttributes, readAttributes, Attributes} from "wordgard/doc"
+import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema, Elt, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
 
@@ -137,7 +136,7 @@ function addMarkAttributes(shape: Shape, tag: Node.Tag) {
       let markAttrs = get(mark.value)
       if (markAttrs.length) {
         if (target && shape instanceof Elt) shape = shape.addAttrs(markAttrs, target)
-        else attrs = attrs ? mergeAttributes(attrs, markAttrs) : markAttrs
+        else attrs = attrs ? Attributes.merge(attrs, markAttrs) : markAttrs
       }
     }
   }
@@ -195,10 +194,10 @@ export class TagWrapperSource {
   constructor(readonly query: Node.Query, deco: WrapperSpec) {
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
-      let elt = new Elt(element, readAttributes(attributes), null)
+      let elt = new Elt(element, Attributes.read(attributes), null)
       this.wrapper = () => elt
     } else {
-      this.wrapper = memo(tag => new Elt(deco.element, readAttributes(attributes(tag)), null))
+      this.wrapper = memo(tag => new Elt(deco.element, Attributes.read(attributes(tag)), null))
     }
     this.rank = rank ?? 50
     this.spanning = !!spanning
@@ -303,9 +302,9 @@ class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
     this.rank = spec.rank || 0
     this.spanning = spec.spanning !== false
     if (typeof attributes == "function") {
-      this.elt = tag => new Elt(element, readAttributes(attributes(tag)), null)
+      this.elt = tag => new Elt(element, Attributes.read(attributes(tag)), null)
     } else {
-      let elt = new Elt<never>(element, readAttributes(attributes), null)
+      let elt = new Elt<never>(element, Attributes.read(attributes), null)
       this.elt = () => elt
     }
   }
@@ -1158,17 +1157,17 @@ export class DecoIterator {
     let add: string[] | undefined
     for (let src of this.globalAttrs) {
       if (this.schema.matchNode(tag.type, src.query))
-        pushAttribute(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
+        Attributes.push(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
     }
     let scope = tagScope(tag, !shape.hasContent)
     for (let iter of active) {
       let deco = iter.value!
       if (deco instanceof AttributeRangeDecoration && (scope & deco.scope) &&
           (!deco.query || this.schema.matchNode(tag.type, deco.query)))
-        pushAttribute(add || (add = []), deco.attribute, typeof deco.value == "function" ? deco.value(tag) : deco.value)
+        Attributes.push(add || (add = []), deco.attribute, typeof deco.value == "function" ? deco.value(tag) : deco.value)
     }
     if (add) {
-      if (shape instanceof Elt) shape = new Elt(shape.tagName, mergeAttributes(shape.attrs, add), shape.children)
+      if (shape instanceof Elt) shape = new Elt(shape.tagName, Attributes.merge(shape.attrs, add), shape.children)
       else shape = new Elt(tag.isBlock ? "div" : "span", add, [shape])
     }
     return shape

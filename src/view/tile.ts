@@ -1,5 +1,4 @@
-import {Plot, Node, Mark, Leaf, compareAttributes, Elt, ChangeSet, Attributes,
-        pushAttribute, noAttributes, MapMode, sameAttributes} from "wordgard/doc"
+import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes, MapMode} from "wordgard/doc"
 import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
@@ -658,7 +657,7 @@ class TilePointer {
     for (let {tile, parent} = start; !(tile.isNode || tile.isDoc); {tile, parent} = parent!) {
       let wrap = tile as EltTile
       if (reused.has(wrap) || wrap.elt.tagName != elt.tagName || wrap.isSpanning != spanning) continue
-      let score = compareAttributes(wrap.elt.attrs, elt.attrs)
+      let score = Attributes.compare(wrap.elt.attrs, elt.attrs)
       if (!best || bestScore < score) {
         best = wrap
         bestScore = score
@@ -849,7 +848,7 @@ class ContentUpdate {
   findReusableTile(shape: Shape, reuse: Tile | readonly Tile[] | null, strict: boolean): Tile | null {
     if (reuse instanceof EltTile) {
       if (shape instanceof Elt && reuse.elt.tagName == shape.tagName && !this.reused.has(reuse) &&
-          (!strict || sameAttributes(reuse.elt.attrs, shape.attrs)))
+          (!strict || Attributes.eq(reuse.elt.attrs, shape.attrs)))
         return reuse
       for (let ch of reuse.children) if (ch instanceof EltTile && ch.isNodeInner) {
         let found = this.findReusableTile(shape, ch, strict)
@@ -997,9 +996,9 @@ function takeAttributes(elt: Element): Attributes {
   let attrs: string[] = []
   for (let i = 0; i < elt.attributes.length; i++) {
     let {name, value} = elt.attributes[i]
-    pushAttribute(attrs, name, value)
+    Attributes.push(attrs, name, value)
   }
-  return attrs.length ? attrs : noAttributes
+  return attrs.length ? attrs : Attributes.none
 }
 
 function updateAttributes(dom: Element, a: Attributes, b: Attributes) {

@@ -1,5 +1,4 @@
-import {AttributeShape, ElementShape, AttributesShape, ElementParseRule,
-        AttributeParseRule, Elt, readAttributes, Attributes, noAttributes} from "./shape"
+import {AttributeShape, ElementShape, AttributesShape, ParseRule, Elt, Attributes} from "./shape"
 import {compareDeep, eqArray, none} from "./helper"
 import {Node, Plot} from "./node"
 import {SchemaError} from "./error"
@@ -196,7 +195,7 @@ export namespace Mark {
     shape: ElementShape<Value> | AttributeShape<Value> | AttributesShape<Value>
     /// A set of parse rules for this mark. The `mark` field for these
     /// will automatically be defaulted to the mark type itself.
-    parseRules?: readonly (ElementParseRule<Value> | AttributeParseRule<Value>)[]
+    parseRules?: readonly (ParseRule.Element<Value> | ParseRule.Attribute<Value>)[]
   }
 
   export class Element<Value> {
@@ -207,9 +206,9 @@ export namespace Mark {
       this.name = spec.element
       let {attributes} = spec
       if (typeof attributes == "function") {
-        this.attrs = (value: Value) => readAttributes(attributes(value))
+        this.attrs = (value: Value) => Attributes.read(attributes(value))
       } else {
-        let attrs = readAttributes(attributes)
+        let attrs = Attributes.read(attributes)
         this.attrs = () => attrs
       }
     }
@@ -228,9 +227,9 @@ export namespace Mark {
           else this.get = param => [attribute, String(param)]
         } else if (typeof value == "function") {
           if (style)
-            this.get = param => { let val = value(param); return val == null ? noAttributes : ["style", style + val] }
+            this.get = param => { let val = value(param); return val == null ? Attributes.none : ["style", style + val] }
           else
-            this.get = param => { let val = value(param); return val == null ? noAttributes : [attribute, val] }
+            this.get = param => { let val = value(param); return val == null ? Attributes.none : [attribute, val] }
         } else {
           let attrs = style ? ["style", style + value] : [attribute, value]
           this.get = () => attrs
@@ -238,9 +237,9 @@ export namespace Mark {
       } else {
         let {attributes} = spec
         if (typeof attributes == "function") {
-          this.get = param => readAttributes(attributes(param))
+          this.get = param => Attributes.read(attributes(param))
         } else {
-          let attrs = readAttributes(attributes)
+          let attrs = Attributes.read(attributes)
           this.get = () => attrs
         }
       }

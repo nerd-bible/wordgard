@@ -2,7 +2,7 @@ import {Schema} from "./schema"
 import {Plot, Node, Leaf} from "./node"
 import { Mark } from "./mark"
 import {Slice, Token} from "./slice"
-import {ParseRule, ElementParseRule, AttributeParseRule, Reject} from "./shape"
+import {ParseRule} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 
@@ -11,9 +11,9 @@ const SchemaCache = new WeakMap<Schema, RuleSet>()
 /// A collection of parse rules. Usually derived from a schema.
 export class RuleSet {
   /// @internal
-  elementRules: ElementParseRule<unknown>[] = []
+  elementRules: ParseRule.Element<unknown>[] = []
   /// @internal
-  attributeRules: AttributeParseRule<unknown>[] = []
+  attributeRules: ParseRule.Attribute<unknown>[] = []
 
   /// Create a rule set with the given parse rules.
   constructor(readonly rules: readonly ParseRule[]) {
@@ -82,12 +82,12 @@ export class RuleSet {
   }
 
   /// @internal
-  matchElement(elt: HTMLElement): {rule: ElementParseRule<unknown>, value?: unknown} | null {
+  matchElement(elt: HTMLElement): {rule: ParseRule.Element<unknown>, value?: unknown} | null {
     for (let rule of this.elementRules) {
       if (elt.matches(rule.selector)) {
         if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
         let result = rule.readElement(elt)
-        if (result === Reject) continue
+        if (result === ParseRule.Reject) continue
         return {rule, value: result}
       }
     }
@@ -194,7 +194,7 @@ class ParseContext {
     }
   }
 
-  parseElementByRule(elt: HTMLElement, match: {rule: ElementParseRule<unknown>, value?: unknown},
+  parseElementByRule(elt: HTMLElement, match: {rule: ParseRule.Element<unknown>, value?: unknown},
                      marks: readonly Mark[], endOfSlice: boolean) {
     let sync, plot, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.plot) {
@@ -270,7 +270,7 @@ class ParseContext {
       if (rule.readAttribute) {
         param = rule.readAttribute(value)
         hasParam = true
-        if (param == Reject) continue
+        if (param == ParseRule.Reject) continue
       } else if (rule.value != null && rule.value != value) {
         continue
       }

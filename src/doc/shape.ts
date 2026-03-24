@@ -14,7 +14,7 @@ export class Elt<T = string> {
   get hasContent(): boolean { return this.children == null || this.children.some(ch => ch instanceof Elt && ch.hasContent) }
 
   eqTag(elt: Elt<any>) {
-    return elt.tagName == this.tagName && sameAttributes(this.attrs, elt.attrs)
+    return elt.tagName == this.tagName && Attributes.eq(this.attrs, elt.attrs)
   }
 
   eqChildren(elt: Elt<T>) {
@@ -46,7 +46,7 @@ export class Elt<T = string> {
       let added = this.addAttrsBySelector(attrs, target)
       if (added) return added
     }
-    return new Elt(this.tagName, mergeAttributes(this.attrs, attrs), this.children)
+    return new Elt(this.tagName, Attributes.merge(this.attrs, attrs), this.children)
   }
 
   private addAttrsBySelector(attrs: Attributes, target: Elt.Selector): Elt<T> | null {
@@ -131,7 +131,7 @@ export namespace Elt {
     match(elt: Elt<any>) {
       if (this.tag && elt.tagName != this.tag) return false
       if (this.classes.length) {
-        let tagCls = getAttribute(elt.attrs, "class")
+        let tagCls = Attributes.get(elt.attrs, "class")
         if (!tagCls) return false
         let pieces = tagCls.split(/ +/)
         for (let cls of this.classes) if (!pieces.includes(cls)) return false
@@ -161,7 +161,7 @@ export function elt<T = string>(
   tag: string | {_: string, [attr: string]: string | null},
   ...children: (Elt<T> | 0 | T)[]
 ): Elt<Exclude<T, Elt<any> | 0>> {
-  let [name, attrs] = typeof tag == "string" ? [tag, noAttributes] : [tag._, readAttributes(tag)]
+  let [name, attrs] = typeof tag == "string" ? [tag, Attributes.none] : [tag._, Attributes.read(tag)]
   if (children.length == 1 && children[0] === 0)
     return new Elt(name, attrs, null)
   let contentChildren = 0
@@ -180,98 +180,97 @@ export function elt<T = string>(
 // attributes are sorted by name.
 export type Attributes = readonly string[]
 
-export const noAttributes: Attributes = []
+export namespace Attributes {
+  export const none: Attributes = []
 
-export function sameAttributes(a: Attributes, b: Attributes) {
-  if (a == b) return true
-  if (a.length != b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] != b[i]) return false
-  return true
-}
-
-export function compareAttributes(a: Attributes, b: Attributes) {
-  for (let iA = 0, iB = 0, score = 0;;) {
-    if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
-      if (a[iA + 1] != b[iB + 1]) score--
-      iA += 2; iB += 2
-    } else if (iA < a.length && (iB == b.length || a[iA] < b[iB])) {
-      score--
-      iA += 2
-    } else if (iB < b.length && iA < a.length) {
-      score--
-      iB += 2
-    } else {
-      return score
-    }
+  export function eq(a: Attributes, b: Attributes) {
+    if (a == b) return true
+    if (a.length != b.length) return false
+    for (let i = 0; i < a.length; i++) if (a[i] != b[i]) return false
+    return true
   }
-}
 
-// Combine two attribute sets, with b having higher precedence when
-// they set the same attribute.
-export function mergeAttributes(a: Attributes, b: Attributes) {
-  if (!a.length) return b
-  if (!b.length) return a
-  let result: string[] = []
-  for (let iA = 0, iB = 0;;) {
-    let kA = iA < a.length ? a[iA] : null, kB = iB < b.length ? b[iB] : null
-    if (kA == kB) {
-      if (kA == null) return result
-      let value = b[iB + 1]
-      if (kA == "class") value = a[iA + 1] + " " + value
-      else if (kA == "style") value = a[iA + 1] + ";" + value
-      result.push(kA, value)
-      iA += 2; iB += 2
-    } else if (kA != null && (kB == null || kA < kB)) {
-      result.push(kA, a[iA + 1])
-      iA += 2
-    } else {
-      result.push(kB!, b[iB + 1])
-      iB += 2
-    }
-  }
-}
-
-export function pushAttribute(a: string[], name: string, value: string) {
-  let i = 0
-  while (i < a.length && a[i] < name) i += 2
-  if (i < a.length && a[i] == name) {
-    if (name == "class") a[i + 1] += " " + value
-    else if (name == "style") a[i + 1] += ";" + value
-    else a[i + 1] = value
-  } else {
-    a.splice(i, 0, name, value)
-  }
-}
-
-export function readAttributes(obj: Record<string, string | null> | null | undefined) {
-  if (!obj) return noAttributes
-  let result: string[] = []
-  for (let prop in obj) if (prop != "_") {
-    let value = obj[prop]
-    if (value != null) {
-      if (/^style\//.test(prop)) {
-        value = prop.slice(6) + ": " + value
-        prop = "style"
+  export function compare(a: Attributes, b: Attributes) {
+    for (let iA = 0, iB = 0, score = 0;;) {
+      if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
+        if (a[iA + 1] != b[iB + 1]) score--
+        iA += 2; iB += 2
+      } else if (iA < a.length && (iB == b.length || a[iA] < b[iB])) {
+        score--
+        iA += 2
+      } else if (iB < b.length && iA < a.length) {
+        score--
+        iB += 2
+      } else {
+        return score
       }
-      pushAttribute(result, prop, value)
     }
   }
-  return result.length ? result : noAttributes
-}
 
-export function getAttribute(attrs: Attributes, name: string) {
-  for (let i = 0; i < attrs.length; i += 2) if (attrs[i] == name) return attrs[i + 1]
-  return null
-}
+  // Combine two attribute sets, with b having higher precedence when
+  // they set the same attribute.
+  export function merge(a: Attributes, b: Attributes) {
+    if (!a.length) return b
+    if (!b.length) return a
+    let result: string[] = []
+    for (let iA = 0, iB = 0;;) {
+      let kA = iA < a.length ? a[iA] : null, kB = iB < b.length ? b[iB] : null
+      if (kA == kB) {
+        if (kA == null) return result
+        let value = b[iB + 1]
+        if (kA == "class") value = a[iA + 1] + " " + value
+        else if (kA == "style") value = a[iA + 1] + ";" + value
+        result.push(kA, value)
+        iA += 2; iB += 2
+      } else if (kA != null && (kB == null || kA < kB)) {
+        result.push(kA, a[iA + 1])
+        iA += 2
+      } else {
+        result.push(kB!, b[iB + 1])
+        iB += 2
+      }
+    }
+  }
 
-export const Reject: unique symbol = Symbol("reject")
-export type Reject = typeof Reject
+  export function push(a: string[], name: string, value: string) {
+    let i = 0
+    while (i < a.length && a[i] < name) i += 2
+    if (i < a.length && a[i] == name) {
+      if (name == "class") a[i + 1] += " " + value
+      else if (name == "style") a[i + 1] += ";" + value
+      else a[i + 1] = value
+    } else {
+      a.splice(i, 0, name, value)
+    }
+  }
+  
+  export function read(obj: Record<string, string | null> | null | undefined) {
+    if (!obj) return Attributes.none
+    let result: string[] = []
+    for (let prop in obj) if (prop != "_") {
+      let value = obj[prop]
+      if (value != null) {
+        if (/^style\//.test(prop)) {
+          value = prop.slice(6) + ": " + value
+          prop = "style"
+        }
+        Attributes.push(result, prop, value)
+      }
+    }
+    return result.length ? result : Attributes.none
+  }
+
+  export function get(attrs: Attributes, name: string) {
+    for (let i = 0; i < attrs.length; i += 2) if (attrs[i] == name) return attrs[i + 1]
+    return null
+  }
+}
 
 export type ElementShape<Param> = {
   element: string
   selector?: string
   attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
-  read?: (element: HTMLElement) => Param | Reject
+  read?: (element: HTMLElement) => Param | ParseRule.Reject
   atom?: boolean
 }
 
@@ -292,7 +291,7 @@ export type AttributeShape<Param> = {
   value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
   /// An optional function that converts the value of the attribute
   /// back into a parameter value. Used in the parse rule.
-  readAttribute?: (value: string) => Param | Reject
+  readAttribute?: (value: string) => Param | ParseRule.Reject
   /// If the target node may be a composite shape (rather than a
   /// single DOM element), you can provide a limited form of selector
   /// here to target a specific element in that shape. Node names and
@@ -326,9 +325,9 @@ export class NodeShape<Param> {
     if ("element" in spec) {
       let {element, attributes} = spec
       if (typeof attributes == "function") {
-        create = (param: Param) => new Elt(element, readAttributes(attributes(param)), atom ? noChildren : null)
+        create = (param: Param) => new Elt(element, Attributes.read(attributes(param)), atom ? noChildren : null)
       } else {
-        let elt = new Elt(element, readAttributes(attributes), atom ? noChildren : null)
+        let elt = new Elt(element, Attributes.read(attributes), atom ? noChildren : null)
         create = () => elt
       }
     } else {
@@ -349,26 +348,32 @@ export class NodeShape<Param> {
   }
 }
 
-export interface ElementParseRule<Param> {
-  selector: string
-  plot?: Plot.Tag<Param> | Plot.Type<Param>
-  leaf?: Leaf<Param> | Leaf.Type<Param>
-  mark?: Mark.Type<Param> | Mark<Param>
-  ignore?: boolean | "skip"
-  param?: Param
-  readElement?: (element: HTMLElement) => Param | Reject
-  contentElement?: string | ((elt: HTMLElement) => HTMLElement)
+export namespace ParseRule {
+  export interface Element<Param> {
+    selector: string
+    plot?: Plot.Tag<Param> | Plot.Type<Param>
+      leaf?: Leaf<Param> | Leaf.Type<Param>
+      mark?: Mark.Type<Param> | Mark<Param>
+      ignore?: boolean | "skip"
+    param?: Param
+    readElement?: (element: HTMLElement) => Param | ParseRule.Reject
+    contentElement?: string | ((elt: HTMLElement) => HTMLElement)
+  }
+
+  export interface Attribute<Param> {
+    attribute: string
+    mark?: Mark.Type<Param> | Mark<Param>
+      ignore?: boolean
+    clearMark?: (mark: Mark<unknown>) => boolean
+    param?: Param
+    value?: string
+    readAttribute?: (value: string) => Param | ParseRule.Reject
+    consuming?: boolean
+  }
+
+  export const Reject: unique symbol = Symbol("reject")
+  export type Reject = typeof ParseRule.Reject
 }
 
-export interface AttributeParseRule<Param> {
-  attribute: string
-  mark?: Mark.Type<Param> | Mark<Param>
-  ignore?: boolean
-  clearMark?: (mark: Mark<unknown>) => boolean
-  param?: Param
-  value?: string
-  readAttribute?: (value: string) => Param | Reject
-  consuming?: boolean
-}
 
-export type ParseRule<Param = any> = ElementParseRule<Param> | AttributeParseRule<Param>
+export type ParseRule<Param = any> = ParseRule.Element<Param> | ParseRule.Attribute<Param>
