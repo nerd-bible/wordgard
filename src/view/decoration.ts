@@ -144,7 +144,7 @@ function addMarkAttributes(shape: Shape, tag: Node.Tag) {
 }
 
 function addAttrs(shape: Shape, attrs: Attributes, inline: boolean) {
-  return shape instanceof Elt ? shape.addAttrs(attrs) : new Elt(inline ? "span" : "div", attrs, [shape])
+  return shape instanceof Elt ? shape.addAttrs(attrs) : Elt.new(inline ? "span" : "div", attrs, [shape])
 }
 
 function applyDeco(shape: Shape, deco: Decoration, tag: Node.Tag) {
@@ -157,9 +157,9 @@ function applyDeco(shape: Shape, deco: Decoration, tag: Node.Tag) {
 }
 
 function checkWrap(inner: Shape, outer: Shape): Shape {
-  let scan = (shape: Shape | string): boolean => {
+  let scan = (shape: Shape | string | 0): boolean => {
     if (shape == inner) return true
-    if (shape instanceof Elt && shape.children) return shape.children.some(scan)
+    if (shape instanceof Elt) return shape.children.some(scan)
     return false
   }
   if (!scan(outer)) throw new Error("Wrapping decorations must include the original shape in their output")
@@ -194,10 +194,10 @@ export class TagWrapperSource {
   constructor(readonly query: Node.Query, deco: WrapperSpec) {
     const {element, attributes, rank, spanning} = deco
     if (typeof attributes != "function") {
-      let elt = new Elt(element, Attributes.read(attributes), null)
+      let elt = Elt.new(element, Attributes.read(attributes), Elt.hole)
       this.wrapper = () => elt
     } else {
-      this.wrapper = memo(tag => new Elt(deco.element, Attributes.read(attributes(tag)), null))
+      this.wrapper = memo(tag => Elt.new(deco.element, Attributes.read(attributes(tag)), Elt.hole))
     }
     this.rank = rank ?? 50
     this.spanning = !!spanning
@@ -302,9 +302,9 @@ class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
     this.rank = spec.rank || 0
     this.spanning = spec.spanning !== false
     if (typeof attributes == "function") {
-      this.elt = tag => new Elt(element, Attributes.read(attributes(tag)), null)
+      this.elt = tag => Elt.new(element, Attributes.read(attributes(tag)), Elt.hole)
     } else {
-      let elt = new Elt<never>(element, Attributes.read(attributes), null)
+      let elt = Elt.new(element, Attributes.read(attributes), Elt.hole)
       this.elt = () => elt
     }
   }
@@ -1029,7 +1029,7 @@ export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
 
 export const renderMarkWrapper = memo((mark: Mark<any>) => {
   let shape = mark.type.element!
-  return new Elt<never>(shape.name, shape.attrs(mark.value), null)
+  return Elt.new<never>(shape.name, shape.attrs(mark.value), Elt.hole)
 })
 
 export class DecoIterator {
@@ -1167,8 +1167,8 @@ export class DecoIterator {
         Attributes.push(add || (add = []), deco.attribute, typeof deco.value == "function" ? deco.value(tag) : deco.value)
     }
     if (add) {
-      if (shape instanceof Elt) shape = new Elt(shape.tagName, Attributes.merge(shape.attrs, add), shape.children)
-      else shape = new Elt(tag.isBlock ? "div" : "span", add, [shape])
+      if (shape instanceof Elt) shape = Elt.new(shape.tagName, Attributes.merge(shape.attrs, add), shape.children)
+      else shape = Elt.new(tag.isBlock ? "div" : "span", add, [shape])
     }
     return shape
   }

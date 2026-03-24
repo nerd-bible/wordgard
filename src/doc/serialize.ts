@@ -68,7 +68,7 @@ export function serializeSlice(slice: Slice, options: SerializeOptions & {
                            new SerializeContext(options.emitNewlines !== false, options.schema))
 }
 
-function serializeNodeInner(node: Node, cx: SerializeContext) {
+function serializeNodeInner(node: Node, cx: SerializeContext): Elt | string {
   let markAttrs: Attributes = Attributes.none, targeted: {attrs: Attributes, target: Elt.Selector}[] | undefined
   for (let mark of node.tag.marks) if (mark.type.attribute) {
     let {target, get} = mark.type.attribute, attrs = get(mark.value)
@@ -80,8 +80,8 @@ function serializeNodeInner(node: Node, cx: SerializeContext) {
   }
   let shape = node.type.shape
   if (node.is(Leaf.Text))
-    return markAttrs.length ? new Elt("span", markAttrs, [node.param]) : node.param
-  let children: Elt.Fragment
+    return markAttrs.length ? Elt.new("span", markAttrs, [node.param]) : node.param
+  let children: readonly (string | Elt)[]
   if (node.isLeaf) {
     children = []
   } else {
@@ -96,11 +96,14 @@ function serializeNodeInner(node: Node, cx: SerializeContext) {
   return shape.atom ? elt : withContent(elt, children)
 }
 
-function withContent(elt: Elt<string>, content: Elt.Fragment): Elt<string> {
-  return new Elt(elt.tagName, elt.attrs, elt.children == null ? content : elt.children.map(ch => {
-    if (typeof ch == "string" || !ch.hasContent) return ch
-    else return withContent(ch, content)
-  }))
+function withContent(elt: Elt, content: readonly (string | Elt)[]): Elt<string> {
+  let children: (string | Elt)[] = []
+  for (let ch of elt.children) {
+    if (ch === 0) for (let inner of content) children.push(inner)
+    else if (typeof ch == "string") children.push(ch)
+    else children.push(withContent(ch, content))
+  }
+  return Elt.new(elt.tagName, elt.attrs, children)
 }
 
 function lineBreaksToNewlines(nodes: readonly Node[], lineBreak: Leaf.Any) {
@@ -119,14 +122,14 @@ class EltCx {
   children: (Elt | string)[] = []
   constructor(readonly tagName: string, readonly attrs: Attributes, readonly parent: EltCx | null) {}
   pop() {
-    let repr = new Elt(this.tagName, this.attrs, this.children)
+    let repr = Elt.new(this.tagName, this.attrs, this.children)
     let parent = this.parent!
     parent.children.push(repr)
     return parent
   }
 }
 
-function serializeChildren(children: readonly Node[], cx: SerializeContext): Elt.Fragment {
+function serializeChildren(children: readonly Node[], cx: SerializeContext): readonly (string | Elt)[] {
   let active: Mark[] = [], top = new EltCx("", Attributes.none, null)
   for (let child of children) {
     if (active.length || child.marks.some(p => p.type.element)) {

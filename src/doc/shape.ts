@@ -1,17 +1,23 @@
 import {Plot, Leaf, Node} from "./node"
 import {Mark} from "./mark"
 
-// FIXME revisit requirement for content to always fill entire parent
-
 export class Elt<T = string> {
-  constructor(
+  private constructor(
     readonly tagName: string,
     readonly attrs: Attributes,
-    // Null means a content hole
-    readonly children: Elt.Fragment<T> | null
+    readonly children: Elt.Fragment<T>
   ) {}
 
-  get hasContent(): boolean { return this.children == null || this.children.some(ch => ch instanceof Elt && ch.hasContent) }
+  static new<T = string>(
+    tagName: string,
+    attrs: Attributes,
+    children: readonly (T | 0 | Elt<T>)[]
+  ): Elt<Exclude<T, Elt<any> | 0>> {
+    return new Elt(tagName, attrs, children as any)
+  }
+
+  get hasContent(): boolean {
+    return this.children.some(ch => ch === 0 || ch instanceof Elt && ch.hasContent) }
 
   eqTag(elt: Elt<any>) {
     return elt.tagName == this.tagName && Attributes.eq(this.attrs, elt.attrs)
@@ -19,11 +25,10 @@ export class Elt<T = string> {
 
   eqChildren(elt: Elt<T>) {
     if (elt.children == this.children) return true
-    if (!elt.children || !this.children) return false
     if (this.children.length != elt.children.length) return false
     for (let i = 0; i < this.children.length; i++) {
       let a = this.children[i], b = elt.children[i]
-      if ((a as any).eq && (b as any).eq ? (a as any).eq(b) : a === b) return false
+      if (typeof a == "object" && (a as any).eq && (b as any).eq ? (a as any).eq(b) : a === b) return false
     }
     return true
   }
@@ -46,17 +51,17 @@ export class Elt<T = string> {
       let added = this.addAttrsBySelector(attrs, target)
       if (added) return added
     }
-    return new Elt(this.tagName, Attributes.merge(this.attrs, attrs), this.children)
+    return Elt.new(this.tagName, Attributes.merge(this.attrs, attrs), this.children)
   }
 
   private addAttrsBySelector(attrs: Attributes, target: Elt.Selector): Elt<T> | null {
     if (target.match(this)) return this.addAttrs(attrs)
-    if (this.children) for (let i = 0; i < this.children.length; i++) {
+    for (let i = 0; i < this.children.length; i++) {
       let ch = this.children[i], matched
       if (ch instanceof Elt && (matched = ch.addAttrsBySelector(attrs, target))) {
         let copy = this.children.slice()
         copy[i] = matched
-        return new Elt(this.tagName, this.attrs, copy)
+        return Elt.new(this.tagName, this.attrs, copy)
       }
     }
     return null
@@ -64,9 +69,11 @@ export class Elt<T = string> {
 
   static html(content: Elt | string | Elt.Fragment): string {
     let html = ""
-    function scan(elt: Elt<string> | string) {
+    function scan(elt: Elt<string> | string | 0) {
       if (typeof elt == "string") {
         html += elt.replace(/[<&]/g, ch => ch == "<" ? "&lt;" : "&amp;")
+        return
+      } else if (elt === 0) {
         return
       }
       let {tagName: name, attrs} = elt, svg, math
@@ -79,13 +86,13 @@ export class Elt<T = string> {
         let name = attrs[i++], val = attrs[i++]
         html += ` ${name}="${val.replace(/["&]/g, ch => ch == '"' ? "&quot;" : "&amp;")}"`
       }
-      if ((math || svg) && (!elt.children || !elt.children.length)) {
+      if ((math || svg) && !elt.children.length) {
         html += "/>"
       } else if (!math && !svg && selfClosing.has(name)) {
         html += ">"
       } else {
         html += ">"
-        if (elt.children) for (let ch of elt.children) scan(ch)
+        for (let ch of elt.children) scan(ch)
         html += `</${name}>`
       }
     }
@@ -103,14 +110,17 @@ export class Elt<T = string> {
       return doc.createTextNode(elt)
     } else if (elt instanceof Elt) {
       let dom = elt.outerDOM(doc)
-      if (elt.children) for (let ch of elt.children) dom.appendChild(Elt.dom(ch, doc))
+      for (let ch of elt.children) if (ch !== 0) dom.appendChild(Elt.dom(ch, doc))
       return dom
     } else {
       let frag = doc.createDocumentFragment()
-      for (let ch of elt) frag.appendChild(Elt.dom(ch))
+      for (let ch of elt) if (ch !== 0) frag.appendChild(Elt.dom(ch))
       return frag
     }
   }
+
+  static empty: readonly any[] = []
+  static hole: [0] = [0]
 }
 
 const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
@@ -118,7 +128,7 @@ const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "f
                              "source", "track", "wbr", "menuitem"])
 
 export namespace Elt {
-  export type Fragment<T = string> = readonly (string | T | Elt<T>)[]
+  export type Fragment<T = string> = readonly (0 | T | Elt<T>)[]
 
   export class Selector {
     constructor(readonly tag: string | null, readonly classes: readonly string[]) {}
@@ -155,25 +165,18 @@ export namespace Elt {
   }
 }
 
-export const noChildren: readonly any[] = []
-
 export function elt<T = string>(
   tag: string | {_: string, [attr: string]: string | null},
-  ...children: (Elt<T> | 0 | T)[]
+  ...children: (T | 0 | Elt<T>)[]
 ): Elt<Exclude<T, Elt<any> | 0>> {
   let [name, attrs] = typeof tag == "string" ? [tag, Attributes.none] : [tag._, Attributes.read(tag)]
-  if (children.length == 1 && children[0] === 0)
-    return new Elt(name, attrs, null)
-  let contentChildren = 0
+  let contentChildren = 0n
   for (let ch of children) {
-    if (ch === 0) throw new Error("Elts with a hole cannot have direct children")
-    if (ch instanceof Elt && ch.hasContent) contentChildren++
+    if (ch === 0 || ch instanceof Elt && ch.hasContent) contentChildren++
   }
-  if (contentChildren > 1) throw new Error("Multiple holes in elt children")
-  return new Elt(name, attrs, children.length ? children : noChildren)
+  if (contentChildren > 1) throw new Error("Multiple holes in elt")
+  return Elt.new(name, attrs, children.length ? children : Elt.empty as any)
 }
-
-// FIXME move some of these helpers under the Attributes namespace
 
 // Sets of attributes are stored in arrays of strings, with the even
 // indices holding attribute names, the odd ones attribute values. The
@@ -325,9 +328,9 @@ export class NodeShape<Param> {
     if ("element" in spec) {
       let {element, attributes} = spec
       if (typeof attributes == "function") {
-        create = (param: Param) => new Elt(element, Attributes.read(attributes(param)), atom ? noChildren : null)
+        create = (param: Param) => Elt.new(element, Attributes.read(attributes(param)), atom ? Elt.empty : Elt.hole)
       } else {
-        let elt = new Elt(element, Attributes.read(attributes), atom ? noChildren : null)
+        let elt = Elt.new(element, Attributes.read(attributes), atom ? Elt.empty : Elt.hole)
         create = () => elt
       }
     } else {
@@ -352,9 +355,9 @@ export namespace ParseRule {
   export interface Element<Param> {
     selector: string
     plot?: Plot.Tag<Param> | Plot.Type<Param>
-      leaf?: Leaf<Param> | Leaf.Type<Param>
-      mark?: Mark.Type<Param> | Mark<Param>
-      ignore?: boolean | "skip"
+    leaf?: Leaf<Param> | Leaf.Type<Param>
+    mark?: Mark.Type<Param> | Mark<Param>
+    ignore?: boolean | "skip"
     param?: Param
     readElement?: (element: HTMLElement) => Param | ParseRule.Reject
     contentElement?: string | ((elt: HTMLElement) => HTMLElement)

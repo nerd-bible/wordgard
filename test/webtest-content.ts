@@ -65,18 +65,18 @@ describe("DocTile", () => {
       group: Node.Group.Content,
       inlineContent: Node.Group.Inline,
       shape: {
-        structure: elt({_: "div", class: "c"}, elt("span", "before"), elt({_: "span", class: "content"}, 0), elt("span", "after"))
+        structure: elt({_: "div", class: "c"}, elt("span", "before"), 0, elt("span", "after"))
       }
     })
     Plot.Doc.noValidate(() => {
       let tile = render(doc(FancyBlock.create([Leaf.text("!")])))
       ist(tile.dom.innerHTML,
-          "<div class=\"c\"><span>before</span><span class=\"content\">!</span><span>after</span></div>")
+          "<div class=\"c\"><span>before</span>!<span>after</span></div>")
       tile = update(tile, {changes: [{from: 0, insert: [p("(")]},
                                      {from: 1, to: 2, insert: [Leaf.text("?")]},
                                      {from: 3, insert: [p(")")]}]})
       ist(tile.dom.innerHTML,
-          "<p>(</p><div class=\"c\"><span>before</span><span class=\"content\">?</span><span>after</span></div><p>)</p>")
+          "<p>(</p><div class=\"c\"><span>before</span>?<span>after</span></div><p>)</p>")
     })
   })
 

@@ -19,8 +19,11 @@ export const enum TileFlag {
   PointAfter = 16,
   PointSide = PointBefore | PointAfter,
   Composition = 32,
-  Synced = 64,
+  Synced = 64, // Node has been synced. DOM content matches child list / text content, child array becomes read-only
   Atom = 128, // Composite tile whose length isn't determined by child length
+  HasContent = 256, // EltTile whose elt has a content hole
+  AfterContent = 512, // Tiles that sit after their parent's content position
+  ContentNotLast = 1024, // EltTile that has children with AfterContent flag
 }
 
 const enum Orientation { Row, Col }
@@ -192,7 +195,13 @@ export class CompositeTile extends Tile {
 
   addChild(child: Tile) {
     if (this.flags & TileFlag.Synced) throw new Error("Cannot add to a synced tile")
-    this.children.push(child)
+    if ((this.flags & TileFlag.ContentNotLast) && !(child.flags & TileFlag.AfterContent)) {
+      let i = this.children.length
+      while (i > 0 && (this.children[i - 1].flags & TileFlag.AfterContent)) i--
+      this.children.splice(i, 0, child)
+    } else {
+      this.children.push(child)
+    }
     child.parent = this
   }
 
@@ -359,7 +368,7 @@ export class DocTile extends CompositeTile {
     let wrapper = composition?.wrapCursor || null
     if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
       return this
-    LOG_update && console.log(`updateRanges(${state.doc},`, sections, composition, ")")
+    LOG_update && console.log(`updateRanges(${state.doc},`, sections, ",", composition, ")")
     if (composition) {
       let separated = separateComposition(sections, composition)
       LOG_update && !separated && console.log("separateComposition failed")
@@ -487,12 +496,21 @@ export class EltTile extends CompositeTile {
   get boundary() { return this._node && !(this.flags & TileFlag.Atom) ? 1 : 0 }
   get node() { return this._node }
 
+  // FIXME this no longer works if there may be non-content siblings
   get contentTile(): EltTile | null {
-    for (let ch of this.children) if (ch.isNodeInner && (ch as EltTile).elt.hasContent) return (ch as EltTile).contentTile
-    return this.elt.hasContent ? this : null
+    if (!(this.flags & TileFlag.HasContent)) return null
+    for (let ch of this.children) if (ch.isNodeInner && (ch.flags & TileFlag.HasContent)) return (ch as EltTile).contentTile
+    return this
   }
 
   static of(elt: DecoElt, node: Node | null, flags: number, length: number, dom?: Element | null) {
+    if (elt.hasContent) {
+      flags |= TileFlag.HasContent
+      if (elt.children.length > 1) {
+        let zero = elt.children.indexOf(0)
+        if (zero > -1 && zero < elt.children.length - 1) flags |= TileFlag.ContentNotLast
+      }
+    }
     return new EltTile(elt, node, flags, length, dom || elt.outerDOM())
   }
 }
@@ -769,7 +787,7 @@ class ContentUpdate {
     for (let parent = composition.target.parentNode; parent; parent = parent.parentNode) {
       let tile = parent.wgTile
       if (!tile) {
-        let elt = new Elt(parent.nodeName.toLowerCase(), takeAttributes(parent as Element), null)
+        let elt = Elt.new(parent.nodeName.toLowerCase(), takeAttributes(parent as Element), Elt.hole)
         tile = new EltTile(elt, null, 0, 0, parent as Element)
       } else if (tile.isNode || tile.isDoc) {
         break
@@ -868,7 +886,7 @@ class ContentUpdate {
   }
 
   // node will be null when building inner structure
-  buildNodeShape(node: Node | null, shape: Shape, reuse: Tile | readonly Tile[] | null) {
+  buildNodeShape(node: Node | null, shape: Shape, reuse: Tile | readonly Tile[] | null, afterContent = TileFlag.None) {
     if (shape instanceof Elt) {
       let reusable, dom: Element | undefined, strict = true
       if (reusable = this.findReusableTile(shape, reuse, strict) || this.findReusableTile(shape, reuse, strict = false)) {
@@ -876,12 +894,14 @@ class ContentUpdate {
         dom = reusable.dom as Element
         if (!strict) updateAttributes(dom, (reusable as EltTile).elt.attrs, shape.attrs)
       }
-      let flags = node ? (shape.hasContent ? TileFlag.None : TileFlag.Atom)
-        : TileFlag.NodeInner | (shape.hasContent ? TileFlag.None : TileFlag.Point)
+      let flags = (node ? (shape.hasContent ? TileFlag.None : TileFlag.Atom)
+        : TileFlag.NodeInner | (shape.hasContent ? TileFlag.None : TileFlag.Point)) | afterContent
       let tile = EltTile.of(shape, node, flags, node ? node.length : 0, dom)
-      if (shape.children) for (let ch of shape.children) {
-        tile.addChild(this.buildNodeShape(null, typeof ch == "string" ? Widget.Text.of(ch) : ch,
-                                          reusable ? reusable.children : reuse))
+      let afterContentInner = TileFlag.None
+      for (let ch of shape.children) {
+        if (ch === 0) afterContentInner = TileFlag.AfterContent
+        else tile.addChild(this.buildNodeShape(null, typeof ch == "string" ? Widget.Text.of(ch) : ch,
+                                               reusable ? reusable.children : reuse, afterContentInner))
       }
       return tile
     } else {
@@ -890,7 +910,7 @@ class ContentUpdate {
         this.reused.set(reusable, Reused.DOM)
         dom = reusable.dom
       }
-      let flags = node ? TileFlag.Atom : TileFlag.Point | TileFlag.NodeInner
+      let flags = (node ? TileFlag.Atom : TileFlag.Point | TileFlag.NodeInner) | afterContent
       return new WidgetTile(shape, node, flags, node ? node.length : 0, dom)
     }
   }
