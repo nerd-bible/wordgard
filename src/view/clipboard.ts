@@ -38,7 +38,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   }
 
   if (dom.firstChild && dom.firstChild.nodeType == 1)
-    (dom.firstChild as HTMLElement).setAttribute("wg-content", "true")
+    (dom.firstChild as Element).setAttribute("wg-content", "true")
 
   let wrap = doc.createElement("div")
   wrap.appendChild(dom)
@@ -56,7 +56,7 @@ export function writeClipboard(state: EditorState, slice: Slice, data: DataTrans
   data.setData("text/plain", text)
 }
 
-function isOpen(elt: HTMLElement) {
+function isOpen(elt: Element) {
   let value = elt.getAttribute("wg-open")
   return value == "start" ? OpenSide.Start : value == "end" ? OpenSide.End : value ? OpenSide.Both : OpenSide.None
 }

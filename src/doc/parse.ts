@@ -82,7 +82,7 @@ export class RuleSet {
   }
 
   /// @internal
-  matchElement(elt: HTMLElement): {rule: ParseRule.Element<unknown>, value?: unknown} | null {
+  matchElement(elt: Element): {rule: ParseRule.Element<unknown>, value?: unknown} | null {
     for (let rule of this.elementRules) {
       if (elt.matches(rule.selector)) {
         if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
@@ -100,13 +100,13 @@ export type ParseOptions = {
   /// (outside nodes that don't enable `preserveWhitespace`). Defaults
   /// to true.
   collapseWhiteSpace?: boolean
-  isOpen?: (elt: HTMLElement) => OpenSide
+  isOpen?: (elt: Element) => OpenSide
   /// The rule set to use. Defaults to the rule set derived from the
   /// schema.
   ruleSet?: RuleSet
 }
 
-export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
+export function parseDoc(schema: Schema, doc: Element | DocumentFragment, options: ParseOptions = {}) {
   let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [], false)
@@ -116,7 +116,7 @@ export function parseDoc(schema: Schema, doc: HTMLElement | DocumentFragment, op
 
 export enum OpenSide { None = 0, Start = 1, End = 2, Both = 3 }
 
-export function parseSlice(schema: Schema, doc: HTMLElement | DocumentFragment, options: ParseOptions = {}) {
+export function parseSlice(schema: Schema, doc: Element | DocumentFragment, options: ParseOptions = {}) {
   let top = new NodeContext(guessParent(doc, schema), CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
   let cx = new ParseContext(schema, options, top)
   cx.parseChildren(doc, [], true)
@@ -160,19 +160,23 @@ class ParseContext {
     this.rules = options.ruleSet || RuleSet.fromSchema(schema)
   }
 
-  parseChildren(parent: HTMLElement | DocumentFragment, marks: readonly Mark[], endOfSlice: boolean) {
+  parseChildren(parent: Element | DocumentFragment, marks: readonly Mark[], endOfSlice: boolean,
+                ignore?: string | ((elt: Element) => boolean)) {
     for (let ch = parent.firstChild; ch; ch = ch.nextSibling) {
-      if (ch.nodeType == 1) this.parseElement(ch as HTMLElement, marks, endOfSlice && !ch.nextSibling)
-      else if (ch.nodeType == 3) this.parseTextNode(ch as Text, marks)
+      if (ch.nodeType == 1)
+        this.parseElement(ch as Element, marks, endOfSlice && !ch.nextSibling)
+      else if (ch.nodeType == 3 &&
+               !(ignore && (typeof ignore == "string" ? (ch as Element).matches(ignore) : ignore(ch as Element))))
+        this.parseTextNode(ch as Text, marks)
     }
   }
 
-  ignoreElement(elt: HTMLElement, marks: readonly Mark[]) {
+  ignoreElement(elt: Element, marks: readonly Mark[]) {
     if (elt.nodeName == "BR" && !this.top.tag.inlineContent)
       this.findPlace(Leaf.Text.of("-"), marks, false)
   }
 
-  parseElement(elt: HTMLElement, marks: readonly Mark[], endOfSlice: boolean) {
+  parseElement(elt: Element, marks: readonly Mark[], endOfSlice: boolean) {
     let name = elt.nodeName.toLowerCase()
     if (name in normalizers) normalizers[name](elt)
     let match = this.rules.matchElement(elt)
@@ -194,7 +198,7 @@ class ParseContext {
     }
   }
 
-  parseElementByRule(elt: HTMLElement, match: {rule: ParseRule.Element<unknown>, value?: unknown},
+  parseElementByRule(elt: Element, match: {rule: ParseRule.Element<unknown>, value?: unknown},
                      marks: readonly Mark[], endOfSlice: boolean) {
     let sync, plot, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.plot) {
@@ -224,7 +228,7 @@ class ParseContext {
       let content = elt
       if (typeof rule.contentElement == "string") content = elt.querySelector(rule.contentElement) || elt
       else if (typeof rule.contentElement == "function") content = rule.contentElement(elt)
-      this.parseChildren(content, marks, endOfSlice)
+      this.parseChildren(content, marks, endOfSlice, rule.ignoreContent)
     }
     if (sync && this.sync(startIn)) this.close()
   }
@@ -259,12 +263,12 @@ class ParseContext {
     }
   }
 
-  parseAttributes(elt: HTMLElement, marks: readonly Mark[]) {
-    let matched = new Set<string>(), hasStyles = elt.style.length > 0
+  parseAttributes(elt: Element, marks: readonly Mark[]) {
+    let matched = new Set<string>(), style = (elt as HTMLElement).style, hasStyles = style && style.length > 0
     for (let rule of this.rules.attributeRules) if (!matched.has(rule.attribute)) {
       let isStyle = /^style\//.test(rule.attribute)
       let value = !isStyle ? elt.getAttribute(rule.attribute) :
-        hasStyles ? elt.style.getPropertyValue(rule.attribute.slice(6)) : ""
+        hasStyles ? style.getPropertyValue(rule.attribute.slice(6)) : ""
       if (!value) continue
       let hasParam = Object.prototype.hasOwnProperty.call(rule, "param"), param = rule.param
       if (rule.readAttribute) {
@@ -322,7 +326,7 @@ class ParseContext {
     return marks
   }
 
-  enter(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, elt: HTMLElement) {
+  enter(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, elt: Element) {
     let innerMarks = this.findPlace(tag, marks, endOfSlice)
     if (innerMarks) innerMarks = this.enterInner(tag, marks, endOfSlice, elt)
     return innerMarks
@@ -330,7 +334,7 @@ class ParseContext {
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, element: HTMLElement | null) {
+  enterInner(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, element: Element | null) {
     marks = marks.filter(p => {
       if (!this.schema.markAllowed(p.type, tag.type)) return true
       tag = tag.withMarks(p.addToSet(tag.marks))
@@ -394,7 +398,7 @@ class NodeContext {
 // Kludge to work around directly nested list nodes produced by some
 // tools and allowed by browsers to mean that the nested list is
 // actually part of the list item above it.
-function normalizeList(dom: HTMLElement) {
+function normalizeList(dom: Element) {
   for (let child = dom.firstChild, prevItem: ChildNode | null = null; child; child = child.nextSibling) {
     if (child.nodeType != 1) continue
     let name = child.nodeName.toLowerCase()
@@ -407,7 +411,7 @@ function normalizeList(dom: HTMLElement) {
   }
 }
 
-const normalizers: Record<string, (dom: HTMLElement) => void> = {ol: normalizeList, ul: normalizeList}
+const normalizers: Record<string, (dom: Element) => void> = {ol: normalizeList, ul: normalizeList}
   
 const ignoreTags = new Set(["head", "noscript", "object", "script", "style", "title"])
 
@@ -416,14 +420,14 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
                            "h6", "header", "hgroup", "hr", "li", "noscript", "ol", "output", "p", "pre",
                            "section", "table", "tfoot", "ul"])
 
-function guessParent(content: DocumentFragment | HTMLElement, schema: Schema) {
+function guessParent(content: DocumentFragment | Element, schema: Schema) {
   let rules = RuleSet.fromSchema(schema)
   let tags: Node.Type<any>[] = []
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {
       tags.push(Leaf.Text)
     } else if (node.nodeType == 1) {
-      let match = rules.matchElement(node as HTMLElement)
+      let match = rules.matchElement(node as Element)
       if (match && match.rule.leaf) {
         tags.push(match.rule.leaf instanceof Leaf ? match.rule.leaf.type : match.rule.leaf)
       } else if (match && match.rule.plot) {

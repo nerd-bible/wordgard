@@ -1,3 +1,5 @@
+export type DOMElement = Element
+
 export const none: readonly any[] = []
 
 export function compareDeep(a: any, b: any) {

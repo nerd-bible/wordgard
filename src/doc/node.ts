@@ -125,7 +125,7 @@ export namespace Node {
     /// when specifying allowed content for a plot. Some pre-defined
     /// group names (see [`Node.Group`](#doc.Node.Group)) are used to
     /// identify the semantic role of nodes.
-    group?: Group | readonly Group[] // FIXME default to GenericBlock for block nodes?
+    group?: Group | readonly Group[]
     /// Roles to add to this node type, which mark it as having a
     /// certain semantic role, such as being a list.
     role?: Node.Role | readonly Node.Role[]

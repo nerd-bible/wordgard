@@ -1,5 +1,6 @@
 import {Plot, Leaf, Node} from "./node"
 import {Mark} from "./mark"
+import {DOMElement} from "./helper"
 
 export class Elt<T = string> {
   private constructor(
@@ -273,7 +274,7 @@ export type ElementShape<Param> = {
   element: string
   selector?: string
   attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
-  read?: (element: HTMLElement) => Param | ParseRule.Reject
+  read?: (element: DOMElement) => Param | ParseRule.Reject
   atom?: boolean
 }
 
@@ -359,8 +360,11 @@ export namespace ParseRule {
     mark?: Mark.Type<Param> | Mark<Param>
     ignore?: boolean | "skip"
     param?: Param
-    readElement?: (element: HTMLElement) => Param | ParseRule.Reject
-    contentElement?: string | ((elt: HTMLElement) => HTMLElement)
+    readElement?: (element: DOMElement) => Param | ParseRule.Reject
+    contentElement?: string | ((elt: DOMElement) => DOMElement)
+    /// Ignore DOM nodes matching this selector or predicate, when
+    /// they appear in this plot's content element.
+    ignoreContent?: string | ((elt: DOMElement) => boolean)
   }
 
   export interface Attribute<Param> {
