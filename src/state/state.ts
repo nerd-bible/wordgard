@@ -1,5 +1,5 @@
 import {Schema, Plot, Node, Leaf, Mark, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
-import {GardSelection, SelectionPos, wordAt, selectionAtStart} from "./selection"
+import {GardSelection, wordAt, selectionAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
@@ -209,7 +209,7 @@ export class GardState { // FIXME rename to something less boring?
   readonly status: SlotStatus[]
   /// @internal
   computeSlot: null | ((state: GardState, slot: DynamicSlot) => SlotStatus)
-  private _resolvedSel: SelectionPos | null = null
+  private _resolvedSel: GardSelection.Resolved | null = null
   private trackAccess: Slot[] | null = null
 
   private constructor(

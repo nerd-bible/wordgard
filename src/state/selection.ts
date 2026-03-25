@@ -4,44 +4,6 @@ import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 import {GardState} from "./state"
 
-/// A selection object where the selection positions have been
-/// [resolved](#doc.DocNode.resolve). This is derived from the
-/// regular, canonical selection, for convenience.
-export class SelectionPos {
-  /// The selection anchor.
-  anchor: Pos
-  /// The head of the selection.
-  head: Pos
-
-  constructor(doc: Plot.Doc,
-              /// The original selection.
-              readonly selection: GardSelection) {
-    this.anchor = doc.resolve(selection.anchor)
-    this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
-  }
-
-  /// The lower bound of the selection.
-  get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
-  /// The upper bound of the selection.
-  get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
-
-  /// True when the selection is empty (a cursor).
-  get empty() { return this.selection.empty }
-  /// If a cursor is explicitly associated with the element before or
-  /// after it, this holds a non-zero value.
-  get assoc() { return this.selection.assoc }
-  /// [Active marks](#state.EditorSelection.marks) on this selection.
-  get marks() { return this.selection.marks }
-
-  /// If the selection's main range covers precisely one node, you can
-  /// find that node here.
-  get node(): Node | null {
-    let {from, to} = this
-    if (from.inText || to.inText || from.parent.start != to.parent.start || from.index != to.index - 1) return null
-    return this.from.nodeAfter
-  }
-}
-
 interface SelectionContext {
   doc: Plot.Doc
   textDirection?: (tag?: Plot.Tag.Any) => Direction
@@ -144,7 +106,7 @@ export class GardSelection {
   normalize(state: GardState) { return normalize(state, this) }
 
   /// @internal
-  resolve(doc: Plot.Doc) { return new SelectionPos(doc, this) }
+  resolve(doc: Plot.Doc) { return new GardSelection.Resolved(doc, this) }
 
   /// Convert this selection to an object that can be serialized to
   /// JSON.
@@ -201,8 +163,8 @@ export class GardSelection {
     return found && GardSelection.cursor(found.pos, found.assoc)
   }
 
-  // FIXME rename? Frame differently?
-  normalCursorAtBound(state: GardState, forward = true, mustMove = false): GardSelection | null {
+  /// Get a normal cursor at the start or end of this selection.
+  normalCursorAtBound(state: GardState, forward = true): GardSelection | null {
     let found = scanNormalFrom(state, forward ? this.to : this.from, forward ? -1 : 1, forward, false)
     return found && GardSelection.cursor(found.pos, found.assoc)
   }
@@ -276,6 +238,44 @@ export namespace GardSelection {
     /// the marks of inline content inserted at that selection. This is
     /// used for things like toggling emphasis on a cursor selection.
     marks?: readonly Mark<any>[]
+  }
+
+  /// A selection object where the selection positions have been
+  /// [resolved](#doc.DocNode.resolve). This is derived from the
+  /// regular, canonical selection, for convenience.
+  export class Resolved {
+    /// The selection anchor.
+    anchor: Pos
+    /// The head of the selection.
+    head: Pos
+
+    constructor(doc: Plot.Doc,
+                /// The original selection.
+                readonly selection: GardSelection) {
+      this.anchor = doc.resolve(selection.anchor)
+      this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
+    }
+
+    /// The lower bound of the selection.
+    get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
+    /// The upper bound of the selection.
+    get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
+
+    /// True when the selection is empty (a cursor).
+    get empty() { return this.selection.empty }
+    /// If a cursor is explicitly associated with the element before or
+    /// after it, this holds a non-zero value.
+    get assoc() { return this.selection.assoc }
+    /// [Active marks](#state.EditorSelection.marks) on this selection.
+    get marks() { return this.selection.marks }
+
+    /// If the selection's main range covers precisely one node, you can
+    /// find that node here.
+    get node(): Node | null {
+      let {from, to} = this
+      if (from.inText || to.inText || from.parent.start != to.parent.start || from.index != to.index - 1) return null
+      return this.from.nodeAfter
+    }
   }
 }
 
