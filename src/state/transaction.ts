@@ -311,6 +311,18 @@ export class Transaction {
   /// is used, for example, to tag other people's changes in
   /// collaborative editing.
   static remote = Annotation.define<boolean>()
+
+  /// Merge two transaction specs into a single one, combining the
+  /// effect of both. Note that the
+  /// [`sequential`](#state.Transaction.Spec.sequential) field will be
+  /// interpreted *within* these transactions, and the resulting spec
+  /// will not have it.
+  static merge(state: GardState, a: Transaction.Spec, b: Transaction.Spec): Transaction.Spec {
+    let seq = !!b.sequential
+    let rA = resolveTransactionInner(state.doc, a)
+    let rB = resolveTransactionInner(!seq || rA.changes.empty ? state.doc : rA.changes.apply(state.doc), b)
+    return mergeTransaction(state.doc, rA, rB, seq)
+  }
 }
 
 type ResolvedSpec = {
@@ -320,6 +332,7 @@ type ResolvedSpec = {
   effects: readonly StateEffect<any>[],
   annotations: readonly Annotation<any>[],
   scrollIntoView: boolean
+  filter?: boolean
 }
 
 export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
@@ -339,7 +352,8 @@ export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec
     normalizeSelection: b.normalizeSelection || a.normalizeSelection,
     effects: StateEffect.mapEffects(a.effects, mapForA).concat(StateEffect.mapEffects(b.effects, mapForB)),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
-    scrollIntoView: a.scrollIntoView || b.scrollIntoView
+    scrollIntoView: a.scrollIntoView || b.scrollIntoView,
+    filter: a.filter || b.filter
   }
 }
 
@@ -352,7 +366,8 @@ export function resolveTransactionInner(doc: Plot.Doc, spec: Transaction.Spec): 
     normalizeSelection: !!spec.normalizeSelection,
     effects: asArray(spec.effects),
     annotations,
-    scrollIntoView: !!spec.scrollIntoView
+    scrollIntoView: !!spec.scrollIntoView,
+    filter: !!spec.filter
   }
 }
 
@@ -364,7 +379,7 @@ export function resolveTransaction(state: GardState, specs: readonly Transaction
     if (spec.filter === false) filter = false
     let seq = !!spec.sequential
     let s2 = resolveTransactionInner(seq && spec.changes ? s.changes.apply(state.doc) : state.doc, spec)
-    s = mergeTransaction(state.doc, s, s2, seq)
+    s = mergeTransaction(state.doc, s, s2, !!spec.sequential)
   }
   let tr = Transaction.create(state, s.changes, s.selection, s.normalizeSelection, s.effects, s.annotations, s.scrollIntoView)
   return extendTransaction(filter ? filterTransaction(tr) : tr)

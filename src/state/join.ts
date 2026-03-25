@@ -1,5 +1,5 @@
 import {ChangeSet, Node} from "wordgard/doc"
-import {resolveTransactionInner, mergeTransaction, Transaction} from "./transaction"
+import {Transaction} from "./transaction"
 import {GardState} from "./state"
 
 // FIXME move to command package?
@@ -38,5 +38,5 @@ export function autoJoinBlocks(state: GardState, tr: Transaction.Spec): Transact
     if (toB > fromB) check(toB)
   })
   if (!append.length) return {...tr, changes}
-  return mergeTransaction(state.doc, resolveTransactionInner(state.doc, tr), resolveTransactionInner(doc, {changes: append}), true)
+  return Transaction.merge(state, tr, {changes: append, sequential: true})
 }
