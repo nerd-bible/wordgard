@@ -204,7 +204,7 @@ type DocSource = Plot.Doc | HTMLElement | DocumentFragment | string | Node.JSON 
 /// instance, without modifying the original object.
 ///
 /// _Do not_ mutate properties of a state directly.
-export class GardState { // FIXME rename to something less boring?
+export class GardState {
   /// @internal
   readonly status: SlotStatus[]
   /// @internal
@@ -320,7 +320,7 @@ export class GardState { // FIXME rename to something less boring?
       conf = GardState.Configuration.resolve(base, compartments, this)
       // FIXME check the doc when the schema changes
       let intermediateState = new GardState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
-                                              (state, slot) => slot.reconfigure(state, this), null)
+                                            (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values
     } else {
       startValues = tr.startState.values.slice()

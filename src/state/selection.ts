@@ -306,7 +306,7 @@ function isBarrier(node: Node) {
   if (node.isLeaf) return node.isBlock
   let override = node.type.spec.cursorBarrier
   if (override != null) return override
-  return node.type.isolating || node.type.preserveWhitespace || // FIXME why query preserveWhitespace here?
+  return node.type.isolating || node.type.preserveWhitespace ||
     node.isBlock && node.type.isAtom
 }
 

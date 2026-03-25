@@ -569,15 +569,24 @@ export namespace Plot {
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
+    /// When this node has block-level content, provide a query
+    /// matching the nodes it may contain here. You generally don't
+    /// want to use `Node.Group.Block` here, since specialized block
+    /// types (like table cells or list items) should probably only be
+    /// allowed in their designated parent plots.
     blockContent?: Node.Query
+    /// When this node has inline content, provide a query specifying
+    /// valid content. If set to `true`, any inline node may appear in
+    /// this node.
     inlineContent?: Node.Query | true
-
-    /// Whether the sides of this node act as a 'barrier' when
+    /// Whether the sides of this plot act as a 'barrier' when
     /// [normalizing](#state.EditorSelection.normalize) a cursor
-    /// position. By default, block nodes that are
-    /// [isolating](#state.Tag.Spec.isolating),
-    /// [atomic](#state.GardState.isAtom), or whitepace-preserving act
-    /// as barriers.
+    /// position, which means that a separate cursor position exists
+    /// at its boundary. By default, nodes that are
+    /// [isolating](#state.Tag.Spec.isolating), whitespace-preserving,
+    /// or both [atomic](#state.GardState.isAtom) and a block, count as
+    /// barriers.
+    // FIXME improve this description, either here or in selection
     cursorBarrier?: boolean
     /// Indicates that this type of block is the default generic block
     /// type in parent nodes where it may occur (which is appropriate

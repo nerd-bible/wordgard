@@ -32,7 +32,6 @@ export class TextblockMap {
   }
 
   // FIXME handle isolates
-  // FIXME invalidate cache when direction facet changes
   static get(start: number, node: Plot, dir: Direction) {
     let cached = cache.get(node)
     if (cached && cached.start == start && cached.dir == dir) return cached

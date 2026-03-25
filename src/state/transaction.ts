@@ -227,7 +227,6 @@ export class Transaction {
         doc: this.newDoc,
         textDirection: this.startState.textDirection,
         visualCursorMotion: this.startState.visualCursorMotion,
-        // FIXME somehow handle isAtom correctly
       }, sel) : sel
     }
     return this._selection
