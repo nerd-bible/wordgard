@@ -1,5 +1,5 @@
 import {showPanel, EditorView, ViewUpdate} from "wordgard/view"
-import {EditorState, Facet, Direction} from "wordgard/state"
+import {GardState, Facet, Direction} from "wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
@@ -492,7 +492,7 @@ const barTemplate = Facet.define<readonly MenuTemplate[], readonly MenuTemplate[
 
 export function menuBar(config: {
   template?: MenuTemplate | readonly MenuTemplate[]
-} = {}): EditorState.Extension {
+} = {}): GardState.Extension {
   let extensions = [menuPlugin, theme]
   if (config.template) extensions.push(barTemplate.of(Array.isArray(config.template) ? config.template : [config.template]))
   return extensions

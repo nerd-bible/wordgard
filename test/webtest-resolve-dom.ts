@@ -1,5 +1,5 @@
 import {EditorView, ContentPos, Widget, Decoration, PointSet} from "wordgard/view"
-import {EditorState} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
@@ -7,8 +7,8 @@ import ist from "ist"
 const {DocTile} = EditorView as any
 const {doc, p, $img, hr} = basicBuilders
 
-function render(doc: Plot.Doc, ...config: EditorState.Extension[]) {
-  return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
+function render(doc: Plot.Doc, ...config: GardState.Extension[]) {
+  return DocTile.create(GardState.create({doc, config}), document.createElement("div"))
 }
 
 function isIn(pos: ContentPos, parent: string, offset: number) {

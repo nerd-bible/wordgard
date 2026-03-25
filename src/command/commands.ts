@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
-import {EditorSelection, EditorState, Direction} from "wordgard/state"
+import {GardSelection, GardState, Direction} from "wordgard/state"
 import {type EditorView} from "wordgard/view"
 import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
         deleteSelection, deleteForward, deleteBackward,
@@ -31,7 +31,7 @@ export const insertLineBreak = Command.define(({state, dispatch}) => {
   } else if (parent.preserveWhitespace && sel.to.parent.start == sel.from.parent.start) {
     dispatch(state.update({
       changes: {from: sel.from.pos, to: sel.to.pos, insert: [Leaf.text("\n", marks)]},
-      selection: EditorSelection.cursor(sel.from.pos + 1, -1),
+      selection: GardSelection.cursor(sel.from.pos + 1, -1),
       scrollIntoView: true,
       userEvent: "input"
     }))
@@ -55,7 +55,7 @@ export const enter = Command.define(view => {
     for (let i = wrap.length - 1; i >= 0; i--) content = [wrap[i].create(content)]
     dispatch(state.update({
       changes: {from: sel.from.pos, to: sel.to.pos, insert: content, fit: true},
-      selection: EditorSelection.cursor(sel.from.pos + content[0].length, -1),
+      selection: GardSelection.cursor(sel.from.pos + content[0].length, -1),
       normalizeSelection: true,
       scrollIntoView: true,
       userEvent: "insert.textblock"
@@ -105,7 +105,7 @@ export const transposeChars = Command.define(view => {
   view.dispatch({
     changes: [{from: head - lenBefore, to: head},
               {from: head + lenAfter, insert: [Leaf.text(before.param.slice(before.param.length - lenBefore))]}],
-    selection: EditorSelection.cursor(head + lenAfter, -1),
+    selection: GardSelection.cursor(head + lenAfter, -1),
     scrollIntoView: true,
     userEvent: "transpose"
   })
@@ -137,7 +137,7 @@ export const toggleMark = Command.define<Mark<any>>((view, mark) => {
     let selMarks = selection.marks || state.sel.head.marks(), add = !mark.isInSet(selMarks)
     let newMarks = add ? mark.addToSet(selMarks) : mark.removeFromSet(selMarks)
     view.dispatch({
-      selection: EditorSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newMarks),
+      selection: GardSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newMarks),
       userEvent: add ? "mark.add" : "mark.remove"
     })
   } else if (selection.ranges.some(r => canAddMarkInRange(doc, r.from, r.to, mark))) {
@@ -191,7 +191,7 @@ export const toggleList = Command.define<Plot.Tag.Any>((view, listTag) => {
   return tr ? (view.dispatch(tr), true) : false
 })
 
-export const listIsActive = (listTag: Plot.Tag.Any): (state: EditorState) => boolean => state => {
+export const listIsActive = (listTag: Plot.Tag.Any): (state: GardState) => boolean => state => {
   return selectedTextblocks(state).every(b => {
     let item = isListItem(b)
     return item && item.parent!.node.type == listTag.type
@@ -213,7 +213,7 @@ function autoJoin(a: Plot.Tag.Any, b: Plot.Tag.Any) {
   return typeof autoJoin == "function" ? autoJoin(a, b) : typeof autoJoin == "boolean" ? autoJoin : a.eq(b)
 }
 
-function addList(state: EditorState, blocks: Pos.Plot[], listTag: Plot.Tag.Any) {
+function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag.Any) {
   let plan: ({wrap: Pos.Plot, item: Plot.Tag.Any} | {change: Pos.Node, item: Pos.Node})[] = []
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let lastItem = -1, {schema} = state.doc
@@ -278,7 +278,7 @@ function addList(state: EditorState, blocks: Pos.Plot[], listTag: Plot.Tag.Any) 
   return state.update({changes, userEvent: "wrap.list"})
 }
 
-function removeList(state: EditorState, blocks: Pos.Node[], listTag: Plot.Tag.Any) {
+function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any) {
   let plan: {item: Pos.Plot, rewrap: Plot.Tag.Any | null}[] = [], lastItem = -1
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let {schema} = state.doc
@@ -311,9 +311,9 @@ function removeList(state: EditorState, blocks: Pos.Node[], listTag: Plot.Tag.An
   return state.update({changes, userEvent: "unwrap.list"})
 }
 
-function setSelection(view: EditorView, selection: EditorSelection, extend?: boolean) {
+function setSelection(view: EditorView, selection: GardSelection, extend?: boolean) {
   view.dispatch(view.state.update({
-    selection: extend ? EditorSelection.range(view.state.selection.anchor, selection.head, selection.goalColumn, selection.marks)
+    selection: extend ? GardSelection.range(view.state.selection.anchor, selection.head, selection.goalColumn, selection.marks)
       : selection,
     scrollIntoView: true,
     userEvent: "select"
@@ -321,12 +321,12 @@ function setSelection(view: EditorView, selection: EditorSelection, extend?: boo
   return true
 }
 
-function ltrAtCursor(state: EditorState) {
+function ltrAtCursor(state: GardState) {
   let block = state.sel.head.textblockParent
   return state.textDirection(block ? block.node.tag : undefined) == Direction.LTR
 }
 
-function isForward(dir: "left" | "right" | "forward" | "backward", state: EditorState) {
+function isForward(dir: "left" | "right" | "forward" | "backward", state: GardState) {
   return dir == "forward" ? true : dir == "backward" ? false : (dir == "right") == ltrAtCursor(state)
 }
 
@@ -346,7 +346,7 @@ export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "b
     if (!next) return false
     if (!extend) state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
       if (node.isPlot) return !node.type.isolating
-      if (node.type.isSelectable) next = EditorSelection.range(pos, pos + node.length)
+      if (node.type.isSelectable) next = GardSelection.range(pos, pos + node.length)
     })
     return setSelection(view, next, !!extend)
   }
@@ -361,11 +361,11 @@ export const moveByWord = Command.define<{dir: "left" | "right", extend?: boolea
   return moved ? setSelection(view, moved, extend) : false
 })
 
-function nextVertical(view: EditorView, sel: EditorSelection, forward: boolean,
+function nextVertical(view: EditorView, sel: GardSelection, forward: boolean,
                       distance?: number, allowNode?: boolean) {
   let next = view.moveVertically(sel, forward, distance, allowNode)
   if (next) return next
-  let end = (forward ? EditorSelection.atEnd : EditorSelection.atStart)(view.state)
+  let end = (forward ? GardSelection.atEnd : GardSelection.atStart)(view.state)
   return end.head == view.state.selection.head ? null : end
 }
 
@@ -376,8 +376,8 @@ export const moveByLine = Command.define<{dir: "up" | "down", extend?: boolean}>
   if (state.sel.node) {
     let next = !extend && state.selection.normalCursorAtBound(state, forward)
     if (next && !state.doc.resolve(next.head).parent.node.inlineContent)
-      return setSelection(view, EditorSelection.cursor(next.head, next.assoc, selection.goalColumn))
-    selection = EditorSelection.cursor(forward ? selection.to : selection.from, 0, selection.goalColumn)
+      return setSelection(view, GardSelection.cursor(next.head, next.assoc, selection.goalColumn))
+    selection = GardSelection.cursor(forward ? selection.to : selection.from, 0, selection.goalColumn)
   }
   let moved = nextVertical(view, selection, forward, undefined, !extend)
   return moved ? setSelection(view, moved, extend) : false
@@ -399,7 +399,7 @@ function pageHeight(view: EditorView) {
 export const moveByPage = Command.define<{dir: "up" | "down", extend?: boolean}>((view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = dir == "down"
   let moved = selection.empty || extend ? nextVertical(view, selection, forward, pageHeight(view))
-    : forward ? EditorSelection.cursor(selection.to, -1) : EditorSelection.cursor(selection.from, 1)
+    : forward ? GardSelection.cursor(selection.to, -1) : GardSelection.cursor(selection.from, 1)
   return moved ? setSelection(view, moved, extend) : false
 })
 
@@ -413,14 +413,14 @@ export const moveToLineSide = Command.define<{
 
 export const moveToDocSide = Command.define<{side: "start" | "end", extend?: boolean}>((view, {side, extend}) => {
   let {state} = view
-  let pos = side == "start" ? EditorSelection.atStart(state) : EditorSelection.atEnd(state)
+  let pos = side == "start" ? GardSelection.atStart(state) : GardSelection.atEnd(state)
   if (state.selection.empty && pos.head == state.selection.head) return false
   return setSelection(view, pos, extend)
 })
 
 export const selectAll = Command.define(view => {
   view.dispatch({
-    selection: EditorSelection.range(0, view.state.doc.length),
+    selection: GardSelection.range(0, view.state.doc.length),
     userEvent: "select.all"
   })
   return true

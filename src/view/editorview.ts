@@ -1,4 +1,4 @@
-import {EditorState, Transaction, EditorSelection, StateEffect, Facet} from "wordgard/state"
+import {GardState, Transaction, GardSelection, StateEffect, Facet} from "wordgard/state"
 import {ChangeSet, Node} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
@@ -27,12 +27,12 @@ import {cursorBlinkRate} from "./drawcursor"
 
 /// The type of object given to the [`EditorView`](#view.EditorView)
 /// constructor.
-export interface EditorViewSpec extends Partial<EditorState.Spec> {
+export interface EditorViewSpec extends Partial<GardState.Spec> {
   /// The view's initial state. If not given, a new state is created
   /// by passing this configuration object to
   /// [`EditorState.create`](#state.EditorState^create), using its
   /// `doc`, `selection`, and `extensions` field (if provided).
-  state?: EditorState,
+  state?: GardState,
   /// When given, the editor is immediately appended to the given
   /// element on creation. (Otherwise, you'll have to place the view
   /// element in the document yourself.)
@@ -148,7 +148,7 @@ export class EditorView {
 
     if (!spec.state && !spec.doc)
       throw new Error("When EditorViewSpec.state isn't given, the doc field must be present")
-    this.viewState = new ViewState(spec.state || EditorState.create(spec as EditorState.Spec))
+    this.viewState = new ViewState(spec.state || GardState.create(spec as GardState.Spec))
     if (spec.scrollTo && spec.scrollTo.is(scrollIntoView))
       this.viewState.scrollTarget = spec.scrollTo.value.clip(this.viewState.state)
     this.plugins = this.state.facet(viewPlugin).map(spec => new PluginInstance(spec))
@@ -426,7 +426,7 @@ export class EditorView {
 
   /// Move to the end or start of the (wrapped) line. If the given
   /// position isn't in a textblock, this will return null.
-  moveToLineBoundary(start: EditorSelection, forward: boolean) {
+  moveToLineBoundary(start: GardSelection, forward: boolean) {
     this.checkFlushed()
     return moveToLineBoundary(this, start, forward)
   }
@@ -443,7 +443,7 @@ export class EditorView {
   /// cursor will have its goal column set to whichever column was
   /// used. If `allowNode` is true, this may return a node selection
   /// on a block node.
-  moveVertically(start: EditorSelection, forward: boolean, distance?: number, allowNode?: boolean) {
+  moveVertically(start: GardSelection, forward: boolean, distance?: number, allowNode?: boolean) {
     this.checkFlushed()
     return moveVertically(this, start, forward, distance, allowNode)
   }
@@ -534,7 +534,7 @@ export class EditorView {
   /// Returns an effect that can be
   /// [added](#state.TransactionSpec.effects) to a transaction to
   /// cause it to scroll the given position or range into view.
-  static scrollIntoView(pos: number | EditorSelection, options: {
+  static scrollIntoView(pos: number | GardSelection, options: {
     /// By default (`"nearest"`) the position will be vertically
     /// scrolled only the minimal amount required to move the given
     /// position into view. You can set this to `"start"` to move it
@@ -554,7 +554,7 @@ export class EditorView {
     /// editor.
     xMargin?: number,
   } = {}): StateEffect<unknown> {
-    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? EditorSelection.cursor(pos) : pos,
+    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? GardSelection.cursor(pos) : pos,
                                               options.y, options.x, options.yMargin, options.xMargin))
   }
 
@@ -632,7 +632,7 @@ export class EditorView {
   /// for `scroll` handlers, which will be called any time the
   /// editor's [scroll element](#view.EditorView.scrollDOM) or one of
   /// its parent nodes is scrolled.
-  static domEventHandlers(handlers: DOMEventHandlers<any>): EditorState.Extension {
+  static domEventHandlers(handlers: DOMEventHandlers<any>): GardState.Extension {
     return ViewPlugin.define(() => ({}), {eventHandlers: handlers})
   }
 
@@ -642,7 +642,7 @@ export class EditorView {
   /// handler returning true. They also don't prevent other handlers
   /// and observers from running when they return true, and should not
   /// call `preventDefault`.
-  static domEventObservers(observers: DOMEventHandlers<any>): EditorState.Extension {
+  static domEventObservers(observers: DOMEventHandlers<any>): GardState.Extension {
     return ViewPlugin.define(() => ({}), {eventObservers: observers})
   }
 
@@ -739,7 +739,7 @@ export class EditorView {
   /// `&light` when a light theme is active).
   // FIXME work out whether we want a theme system at all, and make
   // dark/light integrate properly with client setting
-  static theme(spec: {[selector: string]: StyleSpec}): EditorState.Extension {
+  static theme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
     let prefix = StyleModule.newName()
     return [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))]
   }
@@ -764,8 +764,8 @@ export class EditorView {
   /// place of the editor wrapper element when directly targeting
   /// that. You can also use `&dark` or `&light` instead to only
   /// target editors with a dark or light theme.
-  static baseTheme(spec: {[selector: string]: StyleSpec}): EditorState.Extension {
-    return EditorState.prec.lowest(styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
+  static baseTheme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
+    return GardState.prec.lowest(styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
   }
 
   /// Provides a Content Security Policy nonce to use when creating

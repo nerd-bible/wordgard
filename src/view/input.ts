@@ -1,4 +1,4 @@
-import {EditorSelection, EditorState, Annotation} from "wordgard/state"
+import {GardSelection, GardState, Annotation} from "wordgard/state"
 import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter,
         deleteWord, deleteUnit, deleteToLineEnd, toggleMarkByLabel} from "wordgard/command"
@@ -53,7 +53,7 @@ export class InputState {
   mouseSelection: MouseSelection | null = null
   // When a drag from the editor is active, this points at the range
   // being dragged.
-  draggedContent: EditorSelection | null = null
+  draggedContent: GardSelection | null = null
 
   notifiedFocused: boolean
 
@@ -215,7 +215,7 @@ export interface MouseSelectionStyle {
   /// When `extend` is true, that means the new selection should, if
   /// possible, extend the start selection. If `multiple` is true, the
   /// new selection should be added to the original selection.
-  get: (curEvent: MouseEvent, extend: boolean, multiple: boolean) => EditorSelection
+  get: (curEvent: MouseEvent, extend: boolean, multiple: boolean) => GardSelection
   /// Called when the view is updated while the gesture is in
   /// progress. When the document changes, it may be necessary to map
   /// some data (like the original selection or start position)
@@ -438,19 +438,19 @@ function queryPos(view: EditorView, event: MouseEvent) {
   return view.posAtCoords({x: event.clientX, y: event.clientY}) as PosAssoc
 }
 
-function rangeForClick(view: EditorView, pos: PosAssoc, type: number): EditorSelection {
+function rangeForClick(view: EditorView, pos: PosAssoc, type: number): GardSelection {
   if (type < 3 && pos.target != null) {
     let target = view.state.doc.nodeAt(pos.target)
-    if (target && target.isLeaf && target.type.isSelectable) return EditorSelection.range(pos.target, pos.target + target.length)
+    if (target && target.isLeaf && target.type.isSelectable) return GardSelection.range(pos.target, pos.target + target.length)
   }
   if (type == 1) { // Single click
-    return EditorSelection.near(view.state, pos.pos, pos.assoc || -1)
+    return GardSelection.near(view.state, pos.pos, pos.assoc || -1)
   } else if (type == 2) { // Double click
     return view.state.wordAt(pos.pos, pos.assoc || 1)
   } else { // Triple click
     let cx = view.state.doc.resolve(pos.pos), block = cx.textblockParent
-    if (block) return EditorSelection.range(block.start, block.end)
-    else return EditorSelection.near(view.state, pos.pos, pos.assoc || -1)
+    if (block) return GardSelection.range(block.start, block.end)
+    else return GardSelection.near(view.state, pos.pos, pos.assoc || -1)
   }
 }
 
@@ -474,9 +474,9 @@ function basicMouseSelection(view: EditorView, event: MouseEvent) {
       if (extend)
         return startSel.extend(from, to)
       else if (from == to)
-        return EditorSelection.cursor(from, cur.assoc)
+        return GardSelection.cursor(from, cur.assoc)
       else
-        return EditorSelection.range(from, to)
+        return GardSelection.range(from, to)
     }
   } as MouseSelectionStyle
 }
@@ -513,7 +513,7 @@ handlers.drop = (view, event: DragEvent) => {
     view.focus()
     view.dispatch({
       changes,
-      selection: EditorSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
+      selection: GardSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
       userEvent: del ? "move.drop" : "input.drop"
     })
     view.inputState.draggedContent = null
@@ -534,7 +534,7 @@ handlers.paste = (view: EditorView, event: ClipboardEvent) => {
     })
     view.dispatch({
       changes,
-      selection: EditorSelection.cursor(changes.mapPos(state.selection.from, 1), -1),
+      selection: GardSelection.cursor(changes.mapPos(state.selection.from, 1), -1),
       normalizeSelection: true,
       userEvent: "input.paste",
       scrollIntoView: true
@@ -543,7 +543,7 @@ handlers.paste = (view: EditorView, event: ClipboardEvent) => {
   return true
 }
 
-function selectionSlice(state: EditorState) { // FIXME smarter primitive?
+function selectionSlice(state: GardState) { // FIXME smarter primitive?
   return state.doc.slice(state.selection.from, state.selection.to)
 }
 
@@ -772,7 +772,7 @@ export function applyTextChange(view: EditorView, from: number, to: number, inse
   // FIXME define this more robustly
   view.dispatch({
     changes,
-    selection: EditorSelection.cursor(changes.mapPos(to, 1), -1),
+    selection: GardSelection.cursor(changes.mapPos(to, 1), -1),
     normalizeSelection: true,
     userEvent: "input.type"
   })

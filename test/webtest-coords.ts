@@ -1,5 +1,5 @@
 import {EditorView} from "wordgard/view"
-import {EditorSelection} from "wordgard/state"
+import {GardSelection} from "wordgard/state"
 import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
 import {tempView} from "./tempview.ts"
@@ -97,9 +97,9 @@ describe("coordsAtPos", () => {
 })
 
 function s(pos: number, b?: number) {
-  if (b == null) return EditorSelection.cursor(pos)
-  if (b == 1 || b == -1) return EditorSelection.cursor(pos, b)
-  return EditorSelection.cursor(pos, 0, b)
+  if (b == null) return GardSelection.cursor(pos)
+  if (b == 1 || b == -1) return GardSelection.cursor(pos, b)
+  return GardSelection.cursor(pos, 0, b)
 }
 
 describe("moveVertically", () => {

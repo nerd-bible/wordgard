@@ -1,4 +1,4 @@
-import {EditorState, Transaction, StateEffect, Facet, Direction} from "wordgard/state"
+import {GardState, Transaction, StateEffect, Facet, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewPlugin, ViewUpdate, logException, getScrollMargins} from "./extension"
@@ -107,7 +107,7 @@ export function tooltips(config: {
   /// showing tooltips. You can provide a function here that returns
   /// an alternative rectangle.
   tooltipSpace?: (view: EditorView) => DOMRect
-} = {}): EditorState.Extension {
+} = {}): GardState.Extension {
   return tooltipConfig.of(config)
 }
 
@@ -608,7 +608,7 @@ class HoverPlugin {
 
   constructor(readonly view: EditorView,
               readonly source: HoverTooltipSource,
-              readonly field: EditorState.Field<readonly Tooltip[]>,
+              readonly field: GardState.Field<readonly Tooltip[]>,
               readonly setHover: StateEffect.Type<readonly Tooltip[]>,
               readonly hoverTime: number) {
     this.lastMove = {x: 0, y: 0, target: view.dom, time: 0}
@@ -758,9 +758,9 @@ export function hoverTooltip(
     /// milliseconds. Defaults to 300ms.
     hoverTime?: number
   } = {}
-): EditorState.Extension & {active: EditorState.Field<readonly Tooltip[]>} {
+): GardState.Extension & {active: GardState.Field<readonly Tooltip[]>} {
   let setHover = StateEffect.define<readonly Tooltip[]>()
-  let hoverState = EditorState.Field.define<readonly Tooltip[]>({
+  let hoverState = GardState.Field.define<readonly Tooltip[]>({
     create() { return [] },
 
     update(value, tr) {
@@ -810,7 +810,7 @@ export function getTooltip(view: EditorView, tooltip: Tooltip): TooltipView | nu
 }
 
 /// Returns true if any hover tooltips are currently active.
-export function hasHoverTooltips(state: EditorState) {
+export function hasHoverTooltips(state: GardState) {
   return state.facet(showHoverTooltip).some(x => x)
 }
 

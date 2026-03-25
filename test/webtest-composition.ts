@@ -1,6 +1,6 @@
 import {EditorView} from "wordgard/view"
 import {basicBuilders, Strong} from "wordgard/schema"
-import {EditorSelection} from "wordgard/state"
+import {GardSelection} from "wordgard/state"
 import ist from "ist"
 import {tempView, requireFocus} from "./tempview.ts"
 
@@ -167,7 +167,7 @@ describe("composition", () => {
 
   it("supports composition in a cursor wrapper", () => {
     let view = requireFocus(tempView(doc(p(0))))
-    view.dispatch({selection: EditorSelection.cursor(1, undefined, undefined, [Strong])})
+    view.dispatch({selection: GardSelection.cursor(1, undefined, undefined, [Strong])})
     compose(view, [1, 1, "a", () => {
       ist(view.contentDOM.innerHTML, "<p><strong><img></strong></p>")
       let sel = window.getSelection()!

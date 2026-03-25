@@ -1,45 +1,45 @@
 import {history, popHistory, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
 import {Plot, Leaf, ChangeSet} from "wordgard/doc"
 import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema"
-import {EditorState, EditorSelection, Transaction, StateEffect} from "wordgard/state"
+import {GardState, GardSelection, Transaction, StateEffect} from "wordgard/state"
 import ist from "ist"
 
 const {doc, p} = basicBuilders
 
 function mkState(d: Plot.Doc = doc(p(0)), cfg?: Parameters<typeof history>[0]) {
   let from = maybeTag(d, 0), to = maybeTag(d, 1) ?? from
-  return EditorState.create({
+  return GardState.create({
     config: [history(cfg)],
     doc: d,
     selection: from != null ? {anchor: from!, head: to!} : undefined
   })
 }
 
-function type(state: EditorState, text: string, at = state.selection.head) {
+function type(state: GardState, text: string, at = state.selection.head) {
   return state.update({changes: {from: at, insert: [Leaf.text(text)]},
                        selection: {anchor: at + text.length}}).state
 }
-function timedType(state: EditorState, text: string, atTime: number) {
+function timedType(state: GardState, text: string, atTime: number) {
   return state.update({changes: {from: state.selection.head, insert: [Leaf.text(text)]},
                        selection: {anchor: state.selection.head + text.length},
                        annotations: Transaction.time.of(atTime)}).state
 }
-function isolate(state: EditorState) {
+function isolate(state: GardState) {
   return state.update({annotations: isolateHistory.of("before")}).state
 }
-function receive(state: EditorState, text: string, from: number, to = from) {
+function receive(state: GardState, text: string, from: number, to = from) {
   return state.update({changes: {from, to, insert: [Leaf.text(text)]},
                        annotations: Transaction.addToHistory.of(false)}).state
 }
-function command(state: EditorState, f: (state: EditorState) => Transaction | null, success: boolean | null = true) {
+function command(state: GardState, f: (state: GardState) => Transaction | null, success: boolean | null = true) {
   let tr = f(state)
   if (success != null) ist(!!tr, success)
   return tr ? tr.state : state
 }
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
-let undo = (state: EditorState) => popHistory(state)
-let redo = (state: EditorState) => popHistory(state, true)
+let undo = (state: GardState) => popHistory(state)
+let redo = (state: GardState) => popHistory(state, true)
 
 describe("history", () => {
   it("allows to undo a change", () => {
@@ -340,7 +340,7 @@ describe("history", () => {
   })
 
   it("all functions gracefully handle EditorStates without history", () => {
-    let state = EditorState.create({doc: doc(p())})
+    let state = GardState.create({doc: doc(p())})
     ist(undoDepth(state), 0)
     ist(redoDepth(state), 0)
     command(state, undo, false)
@@ -376,7 +376,7 @@ describe("history", () => {
 
   it("properly maps selections through non-history changes", () => {
     let state = mkState(doc(p("abc")))
-    state = state.update({selection: EditorSelection.create({
+    state = state.update({selection: GardSelection.create({
       anchor: 1,
       ranges: [{from: 1, to: 1}, {from: 2, to: 2}, {from: 3, to: 3}]
     })}).state
@@ -399,7 +399,7 @@ describe("history", () => {
 
   it("restores selection on redo", () => {
     let state = mkState(doc(p("a"), p("b"), p("c")))
-    state = state.update({selection: EditorSelection.create({
+    state = state.update({selection: GardSelection.create({
       anchor: 1,
       ranges: [2, 5, 8].map(n => ({from: n, to: n}))
     })}).state
@@ -413,7 +413,7 @@ describe("history", () => {
   describe("effects", () => {
     it("includes inverted effects in the history", () => {
       let set = StateEffect.define<number>()
-      let field = EditorState.Field.define({
+      let field = GardState.Field.define({
         create: () => 0,
         update(val, tr) {
           for (let effect of tr.effects) if (effect.is(set)) val = effect.value
@@ -424,7 +424,7 @@ describe("history", () => {
         for (let e of tr.effects) if (e.is(set)) return [set.of(tr.startState.field(field))]
         return []
       })
-      let state = EditorState.create({doc: doc(p()), config: [history(), field, invert]})
+      let state = GardState.create({doc: doc(p()), config: [history(), field, invert]})
       state = state.update({effects: set.of(10), annotations: isolateHistory.of("before")}).state
       state = state.update({effects: set.of(20), annotations: isolateHistory.of("before")}).state
       ist(state.field(field), 20)
@@ -460,7 +460,7 @@ describe("history", () => {
     }
     let addComment: StateEffect.Type<Comment> = StateEffect.define<Comment>({map: mapComment})
     let rmComment: StateEffect.Type<Comment> = StateEffect.define<Comment>({map: mapComment})
-    let comments = EditorState.Field.define<Comment[]>({
+    let comments = GardState.Field.define<Comment[]>({
       create: () => [],
       update(value, tr) {
         value = value.map(c => mapComment(c, tr.changes)).filter(x => x) as any
@@ -485,10 +485,10 @@ describe("history", () => {
       return effects
     })
 
-    function commentStr(state: EditorState) { return state.field(comments).map(c => c.text + "@" + c.from).join(",") }
+    function commentStr(state: GardState) { return state.field(comments).map(c => c.text + "@" + c.from).join(",") }
 
     it("can map effects", () => {
-      let state = EditorState.create({config: [history(), comments, invertComments],
+      let state = GardState.create({config: [history(), comments, invertComments],
                                       doc: doc(p("one two foo"))})
       state = state.update({effects: addComment.of(new Comment(1, 4, "c1")),
                             annotations: isolateHistory.of("full")}).state
@@ -523,7 +523,7 @@ describe("history", () => {
     })
 
     it("can restore comments lost through deletion", () => {
-      let state = EditorState.create({config: [history(), comments, invertComments],
+      let state = GardState.create({config: [history(), comments, invertComments],
                                       doc: doc(p("123456"))})
       state = state.update({effects: addComment.of(new Comment(4, 6, "c1")),
                             annotations: isolateHistory.of("full")}).state
@@ -542,7 +542,7 @@ describe("history", () => {
       state = command(state, undo)
       let jsonConf = {history: historyField}
       let json = JSON.stringify(state.toJSON(jsonConf))
-      state = EditorState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
+      state = GardState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
       ist(state.doc, doc(p("abc")), eq)
       state = command(state, redo)
       ist(state.doc, doc(p("dabc")), eq)
@@ -558,7 +558,7 @@ describe("history", () => {
       state = receive(state, "d", 4)
       let jsonConf = {history: historyField}
       let json = JSON.stringify(state.toJSON(jsonConf))
-      state = EditorState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
+      state = GardState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
       ist(state.doc, doc(p("abcd")), eq)
       state = command(command(state, undo), undo)
       ist(state.doc, doc(p("ad")), eq)

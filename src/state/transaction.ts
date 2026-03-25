@@ -1,6 +1,6 @@
 import {Plot, ChangeSet} from "wordgard/doc"
-import type {EditorState} from "./state"
-import {EditorSelection, SelectionSpec, normalize} from "./selection"
+import type {GardState} from "./state"
+import {GardSelection, normalize} from "./selection"
 
 /// Annotations are tagged values that are used to add metadata to
 /// transactions in an extensible way. They should be used to model
@@ -82,10 +82,10 @@ export class StateEffect<Value> {
   /// [appended](#state.StateEffect^appendConfig), but does not reset
   /// the content of [reconfigured](#state.Compartment.reconfigure)
   /// compartments.
-  declare static reconfigure: StateEffect.Type<EditorState.Extension>
+  declare static reconfigure: StateEffect.Type<GardState.Extension>
 
     /// Append extensions to the top-level configuration of the editor.
-    declare static appendConfig: StateEffect.Type<EditorState.Extension>
+    declare static appendConfig: StateEffect.Type<GardState.Extension>
 }
 
 export namespace StateEffect {
@@ -116,9 +116,9 @@ export namespace StateEffect {
   }
 }
 
-StateEffect.reconfigure = StateEffect.define<EditorState.Extension>()
+StateEffect.reconfigure = StateEffect.define<GardState.Extension>()
 
-StateEffect.appendConfig = StateEffect.define<EditorState.Extension>()
+StateEffect.appendConfig = StateEffect.define<GardState.Extension>()
 
 export namespace Transaction {
   /// Describes a [transaction](#state.Transaction) when calling the
@@ -129,7 +129,7 @@ export namespace Transaction {
     /// When set, this transaction explicitly updates the selection.
     /// Offsets in this selection should refer to the document as it is
     /// _after_ the transaction.
-    selection?: EditorSelection | SelectionSpec | undefined,
+    selection?: GardSelection | GardSelection.Spec | undefined,
     /// When true, cursor ranges in the provided selection will be
     /// [normalized](#state.EditorSelection.normalize) in the created
     /// state.
@@ -171,18 +171,18 @@ export namespace Transaction {
 /// [`EditorView.dispatch`](#view.EditorView.dispatch).
 export class Transaction {
   /// @internal
-  _selection: EditorSelection | null = null
+  _selection: GardSelection | null = null
   /// @internal
-  _state: EditorState | null = null
+  _state: GardState | null = null
 
   private constructor(
     /// The state from which the transaction starts.
-    readonly startState: EditorState,
+    readonly startState: GardState,
     /// The document changes made by this transaction.
     readonly changes: ChangeSet,
     /// The selection set by this transaction, or undefined if it
     /// doesn't explicitly set a selection.
-    readonly selection: EditorSelection | undefined,
+    readonly selection: GardSelection | undefined,
     /// Whether [selection
     /// normalization](#state.TransactionSpec.normalizeSelection) is
     /// enabled for this transaction,
@@ -209,8 +209,8 @@ export class Transaction {
   newDoc: Plot.Doc
 
   /// @internal
-  static create(startState: EditorState, changes: ChangeSet,
-                selection: EditorSelection | undefined, normalizeSelection: boolean,
+  static create(startState: GardState, changes: ChangeSet,
+                selection: GardSelection | undefined, normalizeSelection: boolean,
                 effects: readonly StateEffect<any>[], annotations: readonly Annotation<any>[],
                 scrollIntoView: boolean) {
     return new Transaction(startState, changes, selection, normalizeSelection, effects, annotations, scrollIntoView)
@@ -315,7 +315,7 @@ export class Transaction {
 
 type ResolvedSpec = {
   changes: ChangeSet,
-  selection: EditorSelection | undefined,
+  selection: GardSelection | undefined,
   normalizeSelection: boolean,
   effects: readonly StateEffect<any>[],
   annotations: readonly Annotation<any>[],
@@ -348,7 +348,7 @@ export function resolveTransactionInner(doc: Plot.Doc, spec: Transaction.Spec): 
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   return {
     changes: spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || []),
-    selection: sel && (sel instanceof EditorSelection ? sel : EditorSelection.create(sel)),
+    selection: sel && (sel instanceof GardSelection ? sel : GardSelection.create(sel)),
     normalizeSelection: !!spec.normalizeSelection,
     effects: asArray(spec.effects),
     annotations,
@@ -356,7 +356,7 @@ export function resolveTransactionInner(doc: Plot.Doc, spec: Transaction.Spec): 
   }
 }
 
-export function resolveTransaction(state: EditorState, specs: readonly Transaction.Spec[], filter: boolean): Transaction {
+export function resolveTransaction(state: GardState, specs: readonly Transaction.Spec[], filter: boolean): Transaction {
   let s = resolveTransactionInner(state.doc, specs.length ? specs[0] : {})
   if (specs.length && specs[0].filter === false) filter = false
   for (let i = 1; i < specs.length; i++) {
@@ -373,7 +373,7 @@ export function resolveTransaction(state: EditorState, specs: readonly Transacti
 // Finish a transaction by applying filters if necessary.
 function filterTransaction(tr: Transaction) {
   // Transaction filters
-  let filters = tr.startState.facet((tr.startState.constructor as typeof EditorState).transactionFilter)
+  let filters = tr.startState.facet((tr.startState.constructor as typeof GardState).transactionFilter)
   for (let i = filters.length - 1; i >= 0; i--) {
     let filtered = filters[i](tr)
     if (filtered instanceof Transaction) tr = filtered
@@ -385,7 +385,7 @@ function filterTransaction(tr: Transaction) {
 
 function extendTransaction(tr: Transaction) {
   let state = tr.startState, spec: ResolvedSpec = tr
-  let extenders = state.facet((tr.startState.constructor as typeof EditorState).transactionExtender)
+  let extenders = state.facet((tr.startState.constructor as typeof GardState).transactionExtender)
   for (let i = extenders.length - 1; i >= 0; i--) {
     let extension = extenders[i](tr)
     if (extension && Object.keys(extension).length)

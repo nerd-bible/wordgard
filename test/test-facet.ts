@@ -1,12 +1,12 @@
 import ist from "ist"
-import {EditorState, Facet, StateEffect} from "wordgard/state"
+import {GardState, Facet, StateEffect} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 
 const {doc, p} = basicBuilders
 
-function mk(...extensions: EditorState.Extension[]) {
-  return EditorState.create({doc: doc(p()), config: extensions})
+function mk(...extensions: GardState.Extension[]) {
+  return GardState.create({doc: doc(p()), config: extensions})
 }
 
 let num = Facet.define<number>(), str = Facet.define<string>(), bool = Facet.define<boolean>()
@@ -36,16 +36,16 @@ describe("EditorState facets", () => {
   })
 
   it("sorts extensions by priority", () => {
-    let st = mk(str.of("a"), str.of("b"), EditorState.prec.high(str.of("c")),
-                EditorState.prec.highest(str.of("d")),
-                EditorState.prec.low(str.of("e")),
-                EditorState.prec.high(str.of("f")), str.of("g"))
+    let st = mk(str.of("a"), str.of("b"), GardState.prec.high(str.of("c")),
+                GardState.prec.highest(str.of("d")),
+                GardState.prec.low(str.of("e")),
+                GardState.prec.high(str.of("f")), str.of("g"))
     ist(st.facet(str).join(), "d,c,f,a,b,g,e")
   })
 
   it("lets sub-extensions inherit their parent's priority", () => {
     let e = (n: number) => num.of(n)
-    let st = mk(num.of(1), EditorState.prec.highest(e(2)), e(4))
+    let st = mk(num.of(1), GardState.prec.highest(e(2)), e(4))
     ist(st.facet(num).join(), "2,1,4")
   })
 
@@ -148,7 +148,7 @@ describe("EditorState facets", () => {
   it("creates newly added fields when reconfiguring", () => {
     let st = mk(num.of(2))
     let events: string[] = []
-    let field = EditorState.Field.define({
+    let field = GardState.Field.define({
       create() {
         events.push("create")
         return 0
@@ -166,7 +166,7 @@ describe("EditorState facets", () => {
   it("applies effects from reconfiguring transaction to new fields", () => {
     let st = mk()
     let effect = StateEffect.define<number>()
-    let field = EditorState.Field.define<number>({
+    let field = GardState.Field.define<number>({
       create(state) {
         return state.facet(num)[0] ?? 0
       },

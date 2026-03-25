@@ -1,5 +1,5 @@
 import ist from "ist"
-import {EditorState, Correction} from "wordgard/state"
+import {GardState, Correction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
 import {Strong, Emphasis, Doc, Paragraph, Blockquote, basicBuilders} from "wordgard/schema"
 
@@ -10,7 +10,7 @@ function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 describe("Correction", () => {
   it("is notified of child list changes", () => {
     let notified: number[] = []
-    let s = EditorState.create({
+    let s = GardState.create({
       doc: doc(p("abc"), blockquote(p("def"))),
       config: Correction.onChildList(Paragraph, node => { notified.push(node.pos); return null })
     })
@@ -24,7 +24,7 @@ describe("Correction", () => {
 
   it("is notified of content changes", () => {
     let notified: number[] = []
-    let s = EditorState.create({
+    let s = GardState.create({
       doc: doc(blockquote(p("abc"), p("def"))),
       config: Correction.onContent(Blockquote, node => { notified.push(node.pos); return null })
     })
@@ -36,7 +36,7 @@ describe("Correction", () => {
 
   it("is notified of property changes", () => {
     let notified: number[] = []
-    let s = EditorState.create({
+    let s = GardState.create({
       doc: doc(p("abc ", em("def"))),
       config: Correction.onMarks(Leaf.Text, node => { notified.push(node.pos); return null })
     })
@@ -47,7 +47,7 @@ describe("Correction", () => {
   })
 
   it("can apply corrections", () => {
-    let s = EditorState.create({
+    let s = GardState.create({
       doc: doc(h1("h"), p("abc")),
       config: Correction.onChildList(Doc, node => {
         if (node.node.firstChild!.name == "Heading") return null
@@ -63,7 +63,7 @@ describe("Correction", () => {
   })
 
   it("can apply multiple corrections from a single source", () => {
-    let s = EditorState.create({
+    let s = GardState.create({
       doc: doc(blockquote(h1("h"), p("abc")), blockquote(h1("h"), p("abc"))),
       config: Correction.onChildList(Blockquote, node => {
         if (node.node.firstChild!.name == "Heading") return null
@@ -79,7 +79,7 @@ describe("Correction", () => {
       if (node.node.contentLength) return null
       return {from: node.start, insert: [Leaf.text(".")]}
     })
-    let tr = c.scan(EditorState.create({doc: doc(p(), p("a"), p())}))
+    let tr = c.scan(GardState.create({doc: doc(p(), p("a"), p())}))
     ist(tr)
     ist(tr!.newDoc, doc(p("."), p("a"), p(".")), eq)
   })

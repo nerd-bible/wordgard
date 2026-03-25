@@ -1,4 +1,4 @@
-import {EditorState, EditorSelection, Transaction} from "wordgard/state"
+import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {getScale} from "./dom"
 import {UpdateFlag, ScrollTarget, scrollIntoView} from "./extension"
 import {EditorView} from "./editorview"
@@ -22,10 +22,10 @@ export class ViewState {
   // FIXME propagate this to state somehow
   defaultTextDirection: Direction = Direction.LTR
 
-  flushedState: EditorState
+  flushedState: GardState
   pending: Transaction[] = []
 
-  constructor(public state: EditorState) {
+  constructor(public state: GardState) {
     this.flushedState = state
   }
 
@@ -34,7 +34,7 @@ export class ViewState {
     if (tr.scrollIntoView) {
       let {selection} = tr.state
       this.scrollTarget = new ScrollTarget(
-        selection.empty ? selection : EditorSelection.cursor(selection.head, selection.head > selection.anchor ? -1 : 1))
+        selection.empty ? selection : GardSelection.cursor(selection.head, selection.head > selection.anchor ? -1 : 1))
     }
     for (let e of tr.effects)
       if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)

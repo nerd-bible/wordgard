@@ -1,6 +1,6 @@
 import {ChangeSet, Node} from "wordgard/doc"
 import {resolveTransactionInner, mergeTransaction, Transaction} from "./transaction"
-import {EditorState} from "./state"
+import {GardState} from "./state"
 
 // FIXME move to command package?
 
@@ -8,7 +8,7 @@ import {EditorState} from "./state"
 /// boundaries touched by the changes in it that can be
 /// [auto-joined](#doc.NodeSpec.autoJoin). If any are found, the spec
 /// is updated to perform those joins.
-export function autoJoinBlocks(state: EditorState, tr: Transaction.Spec): Transaction.Spec {
+export function autoJoinBlocks(state: GardState, tr: Transaction.Spec): Transaction.Spec {
   if (!tr.changes) return tr
   let changes = ChangeSet.create(state.doc, tr.changes), doc = changes.apply(state.doc)
   if (changes.empty) return tr

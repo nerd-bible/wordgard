@@ -1,4 +1,4 @@
-import {EditorState, Transaction, Facet, StateEffect, EditorSelection} from "wordgard/state"
+import {GardState, Transaction, Facet, StateEffect, GardSelection} from "wordgard/state"
 import {ChangeSet} from "wordgard/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
@@ -30,7 +30,7 @@ export const scrollHandler = Facet.define<(
 
 export class ScrollTarget {
   constructor(
-    readonly range: EditorSelection,
+    readonly range: GardSelection,
     readonly y: ScrollStrategy = "nearest",
     readonly x: ScrollStrategy = "nearest",
     readonly yMargin: number = 5,
@@ -42,9 +42,9 @@ export class ScrollTarget {
       new ScrollTarget(this.range.map(changes), this.y, this.x, this.yMargin, this.xMargin)
   }
 
-  clip(state: EditorState) {
+  clip(state: GardState) {
     return this.range.to <= state.doc.length ? this :
-      new ScrollTarget(EditorSelection.cursor(state.doc.length), this.y, this.x, this.yMargin, this.xMargin)
+      new ScrollTarget(GardSelection.cursor(state.doc.length), this.y, this.x, this.yMargin, this.xMargin)
   }
 }
 
@@ -60,7 +60,7 @@ export const scrollIntoView = StateEffect.define<ScrollTarget>({map: (t, ch) => 
 /// [`EditorView.exceptionSink`](#view.EditorView^exceptionSink),
 /// `window.onerror`, if defined, or `console.error` (in which case
 /// it'll pass `context`, when given, as first argument).
-export function logException(state: EditorState, exception: any, context?: string) {
+export function logException(state: GardState, exception: any, context?: string) {
   let handler = state.facet(exceptionSink)
   if (handler.length) handler[0](exception)
   else if (window.onerror) window.onerror(String(exception), context, undefined, undefined, exception)
@@ -126,7 +126,7 @@ export interface PluginSpec<V extends PluginValue> {
 
   /// Specify that the plugin provides additional extensions when
   /// added to an editor configuration.
-  provide?: (plugin: ViewPlugin<V>) => EditorState.Extension // FIXME is this useful?
+  provide?: (plugin: ViewPlugin<V>) => GardState.Extension // FIXME is this useful?
 }
 
 // FIXME rename EditorView.Plugin
@@ -136,7 +136,7 @@ export interface PluginSpec<V extends PluginValue> {
 /// that happen in the view.
 export class ViewPlugin<V extends PluginValue> {
   /// Instances of this class act as extensions.
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   private constructor(
     /// @internal
@@ -147,7 +147,7 @@ export class ViewPlugin<V extends PluginValue> {
     readonly domEventHandlers: DOMEventHandlers<V> | undefined,
     /// @internal
     readonly domEventObservers: DOMEventHandlers<V> | undefined,
-    buildExtensions: (plugin: ViewPlugin<V>) => EditorState.Extension
+    buildExtensions: (plugin: ViewPlugin<V>) => GardState.Extension
   ) {
     this.extension = buildExtensions(this)
   }
@@ -291,9 +291,9 @@ export class ViewUpdate {
     /// The editor view that the update is associated with.
     readonly view: EditorView,
     /// The previous editor state.
-    readonly startState: EditorState,
+    readonly startState: GardState,
     /// The new editor state.
-    readonly state: EditorState,
+    readonly state: GardState,
     /// The transactions involved in the update. May be empty.
     readonly transactions: readonly Transaction[],
     /// @internal
@@ -308,7 +308,7 @@ export class ViewUpdate {
   }
 
   /// @internal
-  static create(view: EditorView, startState: EditorState, state: EditorState,
+  static create(view: EditorView, startState: GardState, state: GardState,
                 transactions: readonly Transaction[], flags = 0) {
     return new ViewUpdate(view, startState, state, transactions, flags)
   }

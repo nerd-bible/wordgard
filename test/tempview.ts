@@ -1,7 +1,7 @@
 // Helper library for browser test scripts
 
 import {EditorView} from "wordgard/view"
-import {EditorState} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {maybeTag} from "wordgard/schema"
 
@@ -12,7 +12,7 @@ let hide: any = null
 
 /// Create a hidden view with the given document and extensions that
 /// lives until the next call to `tempView`.
-export function tempView(doc: string | Plot.Doc, config: EditorState.Extension = []): EditorView {
+export function tempView(doc: string | Plot.Doc, config: GardState.Extension = []): EditorView {
   if (currentTempView) {
     currentTempView.dom.remove()
     currentTempView = null

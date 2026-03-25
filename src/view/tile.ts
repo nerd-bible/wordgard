@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes, MapMode} from "wordgard/doc"
-import {EditorState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
+import {GardState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderMarkWrapper} from "./decoration"
@@ -178,12 +178,12 @@ export abstract class Tile {
   }
 
   // FIXME needs a lot of tests
-  posAtCoords(state: EditorState, x: number, y: number): PosAssoc {
+  posAtCoords(state: GardState, x: number, y: number): PosAssoc {
     let nodeTile = this.nearestNode()
     return nodeTile.posAtCoordsInner(nodeTile.posAtStart, state, x, y, null, Orientation.Col)
   }
 
-  abstract posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
+  abstract posAtCoordsInner(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null,
                             orientation: Orientation): PosAssoc
 
   static get(node: DOMNode) { return node.wgTile }
@@ -231,7 +231,7 @@ export class CompositeTile extends Tile {
     while (next) next = rmDOM(next)
   }
 
-  posAtCoordsInner(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null,
+  posAtCoordsInner(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null,
                    orientation: Orientation): PosAssoc {
     let {node} = this, outerOrientation = orientation
     if (node && node.isPlot) {
@@ -253,7 +253,7 @@ export class CompositeTile extends Tile {
   }
 
   // FIXME adopt the binary search trick from CodeMirror
-  posAtCoordsRow(start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null): PosAssoc | null {
+  posAtCoordsRow(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null): PosAssoc | null {
     let scan = new RowScan<Tile>(x, y)
     for (let child of this.children) {
       if (child.isPoint) continue
@@ -277,7 +277,7 @@ export class CompositeTile extends Tile {
   }
 
   posAtCoordsCol(
-    start: number, state: EditorState, x: number, y: number, textblock: TextblockMap | null
+    start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null
   ): PosAssoc {
     let lastBot = -1
     for (let child of this.children) {
@@ -335,7 +335,7 @@ class RowScan<T> {
   get done() { return !this.dxClosest && !this.dyClosest }
 }
 
-export function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
+export function dirAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
   if (textblock === undefined) {
     let {textblockParent: block} = state.doc.resolve(pos)
     textblock = block ? TextblockMap.get(block.start, block.node, state.textDirection()) : null
@@ -348,11 +348,11 @@ export function dirAt(state: EditorState, pos: number, assoc: -1 | 1, textblock?
 export class DocTile extends CompositeTile {
   declare dom: Element
 
-  constructor(public state: EditorState, dom: Element, readonly cursorWrapper: readonly Mark<any>[] | null) {
+  constructor(public state: GardState, dom: Element, readonly cursorWrapper: readonly Mark<any>[] | null) {
     super(dom, 0)
   }
 
-  static create(state: EditorState, dom: Element) {
+  static create(state: GardState, dom: Element) {
     return new DocTile(state, dom, null).updateRanges(state, [0, state.doc.length])
   }
 
@@ -360,11 +360,11 @@ export class DocTile extends CompositeTile {
 
   get node() { return this.state.doc }
 
-  update(state: EditorState, changes: ChangeSet.Sections, composition?: CompositionInfo | null) {
+  update(state: GardState, changes: ChangeSet.Sections, composition?: CompositionInfo | null) {
     return this.updateRanges(state, findChangedRanges(this.state, state, changes), composition)
   }
 
-  updateRanges(state: EditorState, sections: ChangeSet.Sections, composition?: CompositionInfo | null) {
+  updateRanges(state: GardState, sections: ChangeSet.Sections, composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
     if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
       return this
@@ -539,7 +539,7 @@ export class WidgetTile extends Tile {
 
   toString() { return this.widget.type == Widget.Text ? JSON.stringify(this.widget.value) : super.toString() }
 
-  posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
+  posAtCoordsInner(start: number, state: GardState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
     if (!this.node) return PosAssoc.create(start, 0)
     let rect = this.dom.nodeType == 1 ? (this.dom as Element).getBoundingClientRect()
@@ -576,7 +576,7 @@ export class TextTile extends Tile {
     return this.posAtStart + Math.min(offset, this.length)
   }
 
-  posAtCoordsInner(start: number, state: EditorState, x: number, y: number,
+  posAtCoordsInner(start: number, state: GardState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
     let scan = new RowScan<number>(x, y)
     for (let i = 0; i < this.length;) {
@@ -718,7 +718,7 @@ class ContentUpdate {
   reused = new Map<Tile, Reused>()
   keepWalker: TileWalker
 
-  constructor(readonly state: EditorState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Mark<any>[] | null) {
+  constructor(readonly state: GardState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Mark<any>[] | null) {
     this.old = new TilePointer(old, 0, null)
     this.new = new DocTile(state, old.dom as Element, cursorWrapper)
     this.keepWalker = {

@@ -1,23 +1,23 @@
 import {Slice, Leaf, Plot, Node, Mark, Pos, serializeSlice, parseSlice, OpenSide, Token, Elt} from "wordgard/doc"
-import {Facet, EditorState} from "wordgard/state"
+import {Facet, GardState} from "wordgard/state"
 import browser from "./browser"
 
-export const clipboardOutputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
-export const clipboardOutputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
-export const clipboardTextSerializer = Facet.define<(slice: Slice, state: EditorState) => string | null>()
-export const clipboardOutputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
+export const clipboardOutputFilter = Facet.define<(content: Slice, state: GardState) => Slice>()
+export const clipboardOutputHTMLFilter = Facet.define<(html: string, state: GardState) => string>()
+export const clipboardTextSerializer = Facet.define<(slice: Slice, state: GardState) => string | null>()
+export const clipboardOutputTextFilter = Facet.define<(html: string, state: GardState) => string>()
 
-export const clipboardInputFilter = Facet.define<(content: Slice, state: EditorState) => Slice>()
-export const clipboardInputHTMLFilter = Facet.define<(html: string, state: EditorState) => string>()
-export const clipboardTextParser = Facet.define<(text: string, state: EditorState) => Slice | null>()
-export const clipboardInputTextFilter = Facet.define<(html: string, state: EditorState) => string>()
+export const clipboardInputFilter = Facet.define<(content: Slice, state: GardState) => Slice>()
+export const clipboardInputHTMLFilter = Facet.define<(html: string, state: GardState) => string>()
+export const clipboardTextParser = Facet.define<(text: string, state: GardState) => Slice | null>()
+export const clipboardInputTextFilter = Facet.define<(html: string, state: GardState) => string>()
 
 const openMark = Mark.Type.define<string>("Open", {
   shape: {attribute: "wg-open", value: 0},
   target: Node.Group.All
 })
 
-export function writeClipboard(state: EditorState, slice: Slice, data: DataTransfer) {
+export function writeClipboard(state: GardState, slice: Slice, data: DataTransfer) {
   for (let filter of state.facet(clipboardOutputFilter)) slice = filter(slice, state)
 
   // FIXME determine defining context nodes and marks
@@ -61,7 +61,7 @@ function isOpen(elt: Element) {
   return value == "start" ? OpenSide.Start : value == "end" ? OpenSide.End : value ? OpenSide.Both : OpenSide.None
 }
 
-export function readClipboard(state: EditorState, data: DataTransfer, targetContext: Pos, plain: boolean) {
+export function readClipboard(state: GardState, data: DataTransfer, targetContext: Pos, plain: boolean) {
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
   let slice: Slice, context: readonly Plot.Tag.Any[] = []
@@ -86,7 +86,7 @@ export function readClipboard(state: EditorState, data: DataTransfer, targetCont
   return {slice, context}
 }
 
-function readClipboardText(state: EditorState, text: string, context: Pos, plain: boolean) {
+function readClipboardText(state: GardState, text: string, context: Pos, plain: boolean) {
   if (!plain) for (let parser of state.facet(clipboardTextParser)) {
     let slice = parser(text, state)
     if (slice) return slice

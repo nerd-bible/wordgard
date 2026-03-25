@@ -1,7 +1,7 @@
 import ist from "ist"
 import {Schema, Plot, Node} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, maybeTag} from "wordgard/schema"
-import {EditorSelection, EditorState, Direction} from "wordgard/state"
+import {GardSelection, GardState, Direction} from "wordgard/state"
 const {p, hr, blockquote, pre, $img} = basicBuilders
 
 let Iso = Plot.defineBlock("Iso", {
@@ -23,9 +23,9 @@ let InlineB = Plot.defineInline("InlineB", {
 const schema = Schema.define([...basicSchema.tags, ...basicSchema.marks, Iso, InlineA, InlineB])
 const doc = builder(schema)
 
-function normalPositions(state: EditorState) {
+function normalPositions(state: GardState) {
   let result: number[] = []
-  for (let cur = EditorSelection.atStart(state);;) {
+  for (let cur = GardSelection.atStart(state);;) {
     result.push(cur.head)
     let next = cur.nextNormalCursor(state)
     if (next == null) return result
@@ -35,14 +35,14 @@ function normalPositions(state: EditorState) {
 
 describe("nextNormalCursor", () => {
   function testNormal(doc: Plot.Doc) {
-    let state = EditorState.create({doc}), forward = normalPositions(state), back = []
+    let state = GardState.create({doc}), forward = normalPositions(state), back = []
     let expect = []
     for (let i = 0;; i++) {
       let next = maybeTag(doc, i)
       if (next == null) break
       expect.push(next)
     }
-    for (let cur = EditorSelection.atEnd(state);;) {
+    for (let cur = GardSelection.atEnd(state);;) {
       back.push(cur.head)
       let next = cur.nextNormalCursor(state, false)
       if (next == null) break
@@ -92,10 +92,10 @@ describe("nextNormalCursor", () => {
   describe("bidi", () => {
     function test(text: string, ltr: number[], rtl: number[]) {
       it("moves LTR through " + JSON.stringify(text), () => {
-        ist(JSON.stringify(normalPositions(EditorState.create({doc: doc(p(text))})).map(n => n - 1)), JSON.stringify(ltr))
+        ist(JSON.stringify(normalPositions(GardState.create({doc: doc(p(text))})).map(n => n - 1)), JSON.stringify(ltr))
       })
       it("moves RTL through " + JSON.stringify(text), () => {
-        let state = EditorState.create({doc: doc(p(text)), config: EditorState.textDirection.of(Direction.RTL)})
+        let state = GardState.create({doc: doc(p(text)), config: GardState.textDirection.of(Direction.RTL)})
         ist(JSON.stringify(normalPositions(state).map(n => n - 1)), JSON.stringify(rtl))
       })
     }
@@ -151,8 +151,8 @@ describe("nextNormalCursor", () => {
 describe("skipWord", () => {
   function test(name: string, lines: string | string[], positions: number[]) {
     it(name, () => {
-      let state = EditorState.create({doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))})
-      let cur = EditorSelection.atStart(state), found = []
+      let state = GardState.create({doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))})
+      let cur = GardSelection.atStart(state), found = []
       for (;;) {
         let next = cur.skipWord(state, true)
         if (!next) break
@@ -181,8 +181,8 @@ describe("skipWord", () => {
 describe("skipWord back", () => {
   function test(name: string, lines: string | string[], positions: number[]) {
     it(name, () => {
-      let state = EditorState.create({doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))})
-      let cur = EditorSelection.atEnd(state), found = []
+      let state = GardState.create({doc: doc((Array.isArray(lines) ? lines : [lines]).map(line => p(line)))})
+      let cur = GardSelection.atEnd(state), found = []
       for (;;) {
         let prev = cur.skipWord(state, false)
         if (!prev) break

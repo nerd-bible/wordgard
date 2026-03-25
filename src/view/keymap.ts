@@ -1,7 +1,7 @@
 import {enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transposeChars,
         moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
-import {Facet, EditorState} from "wordgard/state"
+import {Facet, GardState} from "wordgard/state"
 import {EditorView} from "./editorview"
 import browser from "./browser"
 
@@ -44,7 +44,7 @@ import browser from "./browser"
 export class KeyBinding {
   /// Bindings count as extensions and can be included in an editor
   /// configuration.
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   private constructor(readonly spec: KeyBinding.Spec) {
     this.extension = keyBinding.of(this)
@@ -145,7 +145,7 @@ class NormalizedBinding {
 
 type Keymap = Record<string, NormalizedBinding[]>
 
-const handleKeyEvents = EditorState.prec.default(EditorView.domEventHandlers({
+const handleKeyEvents = GardState.prec.default(EditorView.domEventHandlers({
   keydown(event, view) {
     return runScopeHandlers(view, event, "editor")
   }

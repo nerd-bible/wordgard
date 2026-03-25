@@ -1,11 +1,10 @@
-import {EditorState, Transaction, StateEffect,
-        Facet, Annotation, EditorSelection, SelectionJSON} from "wordgard/state"
+import {GardState, Transaction, StateEffect, Facet, Annotation, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {undo, redo} from "wordgard/command"
 
 const enum BranchName { Done, Undone }
 
-const fromHistory = Annotation.define<{side: BranchName, rest: Branch | null, selection: EditorSelection}>()
+const fromHistory = Annotation.define<{side: BranchName, rest: Branch | null, selection: GardSelection}>()
 
 /// Transaction annotation that will prevent that transaction from
 /// being combined with other transactions in the undo history. Given
@@ -48,7 +47,7 @@ const historyConfig = Facet.define<HistoryConfig, Required<HistoryConfig>>({
   }
 })
 
-const historyField_ = EditorState.Field.define({
+const historyField_ = GardState.Field.define({
   create() {
     return new HistoryState(null, null)
   },
@@ -84,7 +83,7 @@ const historyField_ = EditorState.Field.define({
 
   toJSON(value) {
     let mkJSON = (value: Branch | null) => {
-      let events: {changes: ChangeSet.JSON, selection: SelectionJSON}[] = []
+      let events: {changes: ChangeSet.JSON, selection: GardSelection.JSON}[] = []
       for (let cur = value; cur; cur = cur.next)
         events.push({changes: cur.changes.toJSON(), selection: cur.startSelection.toJSON()})
       return events
@@ -95,13 +94,13 @@ const historyField_ = EditorState.Field.define({
     }
   },
 
-  fromJSON(json: any, state: EditorState) {
+  fromJSON(json: any, state: GardState) {
     if (!json || !Array.isArray(json.done) || !Array.isArray(json.undone)) throw new RangeError("Invalid history JSON")
-    let buildBranch = (json: {changes: ChangeSet.JSON, selection: SelectionJSON}[]) => {
+    let buildBranch = (json: {changes: ChangeSet.JSON, selection: GardSelection.JSON}[]) => {
       let result: Branch | null = null
       for (let i = json.length - 1; i >= 0; i--)
         result = new Branch(ChangeSet.fromJSON(state.doc.schema, json[i].changes),
-                                none, null, EditorSelection.fromJSON(state.doc.schema, json[i].selection), result)
+                                none, null, GardSelection.fromJSON(state.doc.schema, json[i].selection), result)
                                 
       return result
     }
@@ -110,7 +109,7 @@ const historyField_ = EditorState.Field.define({
 })
 
 /// Create a history extension with the given configuration.
-export function history(config: HistoryConfig = {}): EditorState.Extension {
+export function history(config: HistoryConfig = {}): GardState.Extension {
   return [
     historyField_,
     historyConfig.of(config),
@@ -130,13 +129,13 @@ export function history(config: HistoryConfig = {}): EditorState.Extension {
 /// [serialize](#state.EditorState.toJSON) or
 /// [deserialize](#state.EditorState^fromJSON) state objects in a way
 /// that preserves history.
-export const historyField = historyField_ as EditorState.Field<unknown>
+export const historyField = historyField_ as GardState.Field<unknown>
 
 /// Undo or redo a single group of history events. Return null if no
 /// group is available. Note that transactions produced with this
 /// function should be dispatched as-is, and not combined with further
 /// changes.
-export function popHistory(state: EditorState, redo = false) {
+export function popHistory(state: GardState, redo = false) {
   if (state.readOnly) return null
   let historyState = state.field(historyField_, false)
   if (!historyState) return null
@@ -148,15 +147,15 @@ function depth(branch: Branch | null | undefined) {
 }
 
 /// The amount of undoable change events available in a given state.
-export const undoDepth = (state: EditorState) => depth(state.field(historyField_, false)?.done)
+export const undoDepth = (state: GardState) => depth(state.field(historyField_, false)?.done)
   
 /// The amount of redoable change events available in a given state.
-export const redoDepth = (state: EditorState) => depth(state.field(historyField_, false)?.undone)
+export const redoDepth = (state: GardState) => depth(state.field(historyField_, false)?.undone)
 
 export type HistEventJSON = {
   changes: ChangeSet.JSON,
   mapped?: ChangeSet.JSON,
-  startSelection: SelectionJSON
+  startSelection: GardSelection.JSON
 }
 
 // History branch events store groups of changes or effects that need
@@ -177,7 +176,7 @@ class Branch {
     // be able to perform further mapping on these.
     readonly mapped: {change: ChangeSet, doc: Plot.Doc} | null,
     // The selection before this event
-    readonly startSelection: EditorSelection,
+    readonly startSelection: GardSelection,
     readonly next: Branch | null
   ) {
     this.depth = depth(next) + 1
@@ -320,7 +319,7 @@ class HistoryState {
     return new HistoryState(done, null, time, userEvent)
   }
 
-  pop(side: BranchName, state: EditorState): Transaction | null {
+  pop(side: BranchName, state: GardState): Transaction | null {
     let branch = side == BranchName.Done ? this.done : this.undone
     if (!branch || !(branch = branch.resolve())) return null
     return state.update({

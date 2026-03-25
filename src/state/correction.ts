@@ -1,6 +1,6 @@
 import {Node, Pos, ChangeSet} from "wordgard/doc"
 import {Transaction} from "./transaction"
-import {Facet, EditorState} from "./state"
+import {Facet, GardState} from "./state"
 
 const enum CorrectionEvent {
   ChildList = 0,
@@ -119,7 +119,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 export class Correction<PosType extends Pos.Node> {
   /// To take effect, corrections must be included in an editor
   /// configuration as extensions.
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   private constructor(
     /// @internal
@@ -127,11 +127,11 @@ export class Correction<PosType extends Pos.Node> {
     /// @internal
     readonly query: Node.Query,
     /// @internal
-    readonly correct: (node: PosType, state: EditorState) => ChangeSet.Spec | null
+    readonly correct: (node: PosType, state: GardState) => ChangeSet.Spec | null
   ) {
     this.extension = [
       corrections.of(this as any),
-      EditorState.transactionFilter.of(tr => this.filter(tr))
+      GardState.transactionFilter.of(tr => this.filter(tr))
     ]
   }
 
@@ -152,7 +152,7 @@ export class Correction<PosType extends Pos.Node> {
   /// This method can be used to run a correction agains all matching
   /// nodes in an existing document. If the correction makes any
   /// changes, the method returns a transaction with those changes.
-  scan(state: EditorState) {
+  scan(state: GardState) {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
       if (state.doc.schema.matchNode(node.type, this.query) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
@@ -167,20 +167,20 @@ export class Correction<PosType extends Pos.Node> {
   /// Create a correction that runs whenever the child list of a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onChildList(query: Node.Query, correct: (node: Pos.Plot, state: EditorState) => ChangeSet.Spec | null) {
+  static onChildList(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
     return new Correction<Pos.Plot>(CorrectionEvent.ChildList, query, correct as any)
   }
 
   /// Create a correction that runs whenever any content inside a node
   /// that matches the given selector changes, or such a node is
   /// inserted into the document.
-  static onContent(query: Node.Query, correct: (node: Pos.Plot, state: EditorState) => ChangeSet.Spec | null) {
+  static onContent(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
     return new Correction<Pos.Plot>(CorrectionEvent.Content, query, correct as any)
   }
 
   /// Define a correction that runs whenever the set of marks on a tag
   /// matching a selector changes.
-  static onMarks(query: Node.Query, correct: (node: Pos.Node, state: EditorState) => ChangeSet.Spec | null) {
+  static onMarks(query: Node.Query, correct: (node: Pos.Node, state: GardState) => ChangeSet.Spec | null) {
     return new Correction<Pos.Plot>(CorrectionEvent.Marks, query, correct)
   }
 }

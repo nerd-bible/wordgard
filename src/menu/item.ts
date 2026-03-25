@@ -1,7 +1,7 @@
 import {EditorView, showDialog} from "wordgard/view"
 import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
-import {EditorState, Transaction, Facet} from "wordgard/state"
+import {GardState, Transaction, Facet} from "wordgard/state"
 import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
@@ -26,8 +26,8 @@ export function isMenuLabelWidget(label: MenuLabel): label is MenuLabelWidget {
 }
 
 export interface MenuItemSpec {
-  select?: (state: EditorState) => boolean
-  enable?: (state: EditorState) => boolean
+  select?: (state: GardState) => boolean
+  enable?: (state: GardState) => boolean
   /// By default, state predicates (`select`, `enable`, and `active`)
   /// are re-checked whenever the document or selection changes. If an
   /// item is sensitive to other aspects of the state, provide a test
@@ -41,8 +41,8 @@ export interface MenuItemSpec {
 
 // FIXME messy
 function fillItem(spec: MenuItemSpec, obj: {
-  select: ((state: EditorState) => boolean) | undefined
-  enable: ((state: EditorState) => boolean) | undefined
+  select: ((state: GardState) => boolean) | undefined
+  enable: ((state: GardState) => boolean) | undefined
   updateFor: ((tr: Transaction) => boolean) | undefined
   parent: MenuGroup | Submenu | undefined
   rank: number
@@ -57,20 +57,20 @@ function fillItem(spec: MenuItemSpec, obj: {
 }
 
 export class MenuButton implements MenuItemSpec {
-  declare select: ((state: EditorState) => boolean) | undefined
-  declare enable: ((state: EditorState) => boolean) | undefined
+  declare select: ((state: GardState) => boolean) | undefined
+  declare enable: ((state: GardState) => boolean) | undefined
   declare updateFor: ((tr: Transaction) => boolean) | undefined
   declare parent: MenuGroup | Submenu | undefined
   declare rank: number
   declare description: string | undefined
   label: MenuLabel
   run: (view: EditorView) => void
-  active: ((state: EditorState) => boolean) | undefined
-  extension: EditorState.Extension
+  active: ((state: GardState) => boolean) | undefined
+  extension: GardState.Extension
 
   constructor(spec: {
     run: (view: EditorView) => void
-    active?: (state: EditorState) => boolean
+    active?: (state: GardState) => boolean
     label: MenuLabel
   } & MenuItemSpec) {
     fillItem(spec, this)
@@ -82,8 +82,8 @@ export class MenuButton implements MenuItemSpec {
 }
 
 export class Submenu implements MenuItemSpec {
-  declare select: ((state: EditorState) => boolean) | undefined
-  declare enable: ((state: EditorState) => boolean) | undefined
+  declare select: ((state: GardState) => boolean) | undefined
+  declare enable: ((state: GardState) => boolean) | undefined
   declare updateFor: ((tr: Transaction) => boolean) | undefined
   declare parent: MenuGroup | Submenu | undefined
   declare rank: number
@@ -92,7 +92,7 @@ export class Submenu implements MenuItemSpec {
   defaultLabel: MenuLabel | undefined
   arrow: boolean
   width: number | undefined
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   constructor(spec: {
     label?: MenuLabel
@@ -115,7 +115,7 @@ export class Submenu implements MenuItemSpec {
 
 export class MenuGroup {
   margin: boolean
-  extension: EditorState.Extension
+  extension: GardState.Extension
   parent: MenuGroup | Submenu | undefined
   rank: number
 
@@ -298,7 +298,7 @@ export const TextblockStyle = new Submenu({
 })
 
 function selectionInType(tag: Plot.Tag.Any) {
-  return (state: EditorState) => {
+  return (state: GardState) => {
     let {sel} = state, block = sel.head.textblockParent
     return !!block && block.start == sel.anchor.textblockParent?.start && block.node.tag.eq(tag)
   }
@@ -382,7 +382,7 @@ export const AlignmentMenu = new Submenu({
   rank: 10
 })
 
-function alignmentAtCursor(state: EditorState): null | "end" | "center" {
+function alignmentAtCursor(state: GardState): null | "end" | "center" {
   let block = state.sel.head.textblockParent
   return (block && block.node.tag.mark(Alignment)) || null
 }
@@ -415,7 +415,7 @@ export const AlignCenter = new MenuButton({
 })
 
 // FIXME drop
-export const staticMenu: EditorState.Extension[] = [
+export const staticMenu: GardState.Extension[] = [
   Undo, Redo, Strong,
   Commands, InlineStyles, BlockMenu, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,

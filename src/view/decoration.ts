@@ -1,4 +1,4 @@
-import {EditorState, Facet} from "wordgard/state"
+import {GardState, Facet} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema, Elt, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
@@ -65,7 +65,7 @@ export function tagShape(spec: {
   tag: Node.Type<any> | Node.Tag,
   shape: Shape | ((tag: Node.Tag) => Shape),
   atom?: boolean
-}): EditorState.Extension {
+}): GardState.Extension {
   let {tag, shape, atom} = spec, shapeFunc: (tag: Node.Tag) => Shape
   let type = tag instanceof Node.Type.Base ? tag : tag.type
   if (typeof shape == "function") {
@@ -81,7 +81,7 @@ export function tagShape(spec: {
 }
 
 class TagShape {
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   constructor(readonly type: Node.Type<any>,
               readonly shape: (tag: Node.Tag) => Shape) {
@@ -109,7 +109,7 @@ export type WidgetSpec = {
 }
 
 export function tagDecoration(spec: {query: Node.Query} &
-  (WrapperSpec | AttributeSpec | WidgetSpec)): EditorState.Extension {
+  (WrapperSpec | AttributeSpec | WidgetSpec)): GardState.Extension {
   if ("element" in spec) {
     return new TagWrapperSource(spec.query, spec)
   } else if ("widget" in spec) {
@@ -173,7 +173,7 @@ const baseTagShape = memo((tag: Node.Tag): Shape => {
 class TagWidgetSource {
   place: WidgetPlace
   widget: (tag: Node.Tag) => Widget
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   constructor(readonly query: Node.Query, deco: WidgetSpec) {
     let {place, widget} = deco
@@ -189,7 +189,7 @@ export class TagWrapperSource {
   wrapper: (tag: Node.Tag) => DecoElt
   rank: number
   spanning: boolean
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   constructor(readonly query: Node.Query, deco: WrapperSpec) {
     const {element, attributes, rank, spanning} = deco
@@ -210,7 +210,7 @@ export const tagWrappers = Facet.define<TagWrapperSource>()
 export class TagAttributeSource {
   attribute: string
   value: string | ((tag: Node.Tag) => string)
-  extension: EditorState.Extension
+  extension: GardState.Extension
 
   constructor(readonly query: Node.Query, deco: AttributeSpec) {
     this.attribute = deco.attribute
@@ -267,7 +267,7 @@ export namespace RangeDecoration {
     query?: Node.Query
   }
 
-  export const source = Facet.define<(state: EditorState) => RangeSet<RangeDecoration>>()
+  export const source = Facet.define<(state: GardState) => RangeSet<RangeDecoration>>()
 }
 
 class AttributeRangeDecoration<Data> extends RangeDecoration<Data> {
@@ -340,7 +340,7 @@ export abstract class Decoration implements PointSet.Value {
     return new WrapperDecoration(wrapper)
   }
 
-  static source = Facet.define<(state: EditorState) => PointSet<Decoration>>()
+  static source = Facet.define<(state: GardState) => PointSet<Decoration>>()
 }
 
 class ShapeDecoration extends Decoration {
@@ -739,7 +739,7 @@ function joinRanges(ranges: number[][]) {
   }
 }
 
-function compareFacet<T>(stateA: EditorState, stateB: EditorState, facet: Facet<(state: EditorState) => T>,
+function compareFacet<T>(stateA: GardState, stateB: GardState, facet: Facet<(state: GardState) => T>,
                          cmp: (a: T | null, b: T | null) => void) {
   let a = stateA.facet(facet), b = stateB.facet(facet), iB = 0
   for (let eltA of a) {
@@ -754,14 +754,14 @@ function compareFacet<T>(stateA: EditorState, stateB: EditorState, facet: Facet<
   while (iB < b.length) cmp(null, b[iB++](stateB))
 }
 
-function compareGlobal(stateA: EditorState, stateB: EditorState, facet: Facet<any>) {
+function compareGlobal(stateA: GardState, stateB: GardState, facet: Facet<any>) {
   return stateA.facet(facet) != stateB.facet(facet)
 }
 
 // Compare ranges and points in decoration facets for unchanged ranges
 // in the given change desc. Returns an array using the section format
 // used in change descs.
-export function findChangedRanges(prev: EditorState, state: EditorState, sections: ChangeSet.Sections) {
+export function findChangedRanges(prev: GardState, state: GardState, sections: ChangeSet.Sections) {
   let result: number[] = []
   let globalChange = compareGlobal(prev, state, tagShapes) || compareGlobal(prev, state, tagWidgets) ||
     compareGlobal(prev, state, tagWrappers) || compareGlobal(prev, state, tagAttributes)
@@ -813,7 +813,7 @@ export function findChangedRanges(prev: EditorState, state: EditorState, section
 
 function addAtomicityChanges(
   sections: number[],
-  prev: EditorState,
+  prev: GardState,
   changes: number[]
 ): ChangeSet.Sections {
   let added: number[] = []
@@ -1042,7 +1042,7 @@ export class DecoIterator {
   rangeIter: RangeIterator<RangeDecoration>[] = []
   pointIter: PointIterator<Decoration>[] = []
 
-  constructor(readonly state: EditorState) {
+  constructor(readonly state: GardState) {
     this.globalWidgets = state.facet(tagWidgets)
     this.globalWrappers = state.facet(tagWrappers)
     this.globalAttrs = state.facet(tagAttributes)

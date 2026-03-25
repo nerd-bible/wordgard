@@ -1,6 +1,6 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
-import {EditorState, Transaction, StateEffect} from "wordgard/state"
+import {GardState, Transaction, StateEffect} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wordgard/schema"
 import {Image, ImageAlt} from "wordgard/schema/image"
@@ -9,8 +9,8 @@ import ist from "ist"
 const {DocTile} = EditorView
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
-function render(doc: Plot.Doc, ...config: EditorState.Extension[]): InstanceType<typeof DocTile> {
-  return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
+function render(doc: Plot.Doc, ...config: GardState.Extension[]): InstanceType<typeof DocTile> {
+  return DocTile.create(GardState.create({doc, config}), document.createElement("div"))
 }
 
 function update(node: InstanceType<typeof DocTile>, spec: Transaction.Spec) {
@@ -289,7 +289,7 @@ describe("DocTile", () => {
     })
 
     it("can update widgets from a point set", () => {
-      let f = EditorState.Field.define({
+      let f = GardState.Field.define({
         create: () => PointSet.create([[1, Decoration.widget(inlineWidget.of("x"))]]),
         update: () => PointSet.create([[4, Decoration.widget(inlineWidget.of("y"))]]),
         provide: f => Decoration.source.of(s => s.field(f))
@@ -299,7 +299,7 @@ describe("DocTile", () => {
     })
 
     it("can update widgets in place", () => {
-      let f = EditorState.Field.define({
+      let f = GardState.Field.define({
         create: () => PointSet.create([[1, Decoration.widget(inlineWidget.of("x"))]]),
         update: () => PointSet.create([[1, Decoration.widget(inlineWidget.of("y"))]]),
         provide: f => Decoration.source.of(s => s.field(f))
@@ -354,7 +354,7 @@ describe("DocTile", () => {
     })
 
     it("can remove attributes from tags", () => {
-      let comp = new EditorState.Compartment()
+      let comp = new GardState.Compartment()
       let node = render(doc(p("?")), comp.of(tagDecoration({
         query: Paragraph,
         attribute: "lang",

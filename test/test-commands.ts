@@ -6,7 +6,7 @@ import {Plot, Mark, Leaf, Node, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/schema"
-import {EditorState, EditorSelection, Transaction} from "wordgard/state"
+import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 
 const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
@@ -18,14 +18,14 @@ function selectionFrom(doc: Plot.Doc) {
   for (let i = 0;; i += 2) {
     let head = maybeTag(doc, i)
     if (head == null)
-      return ranges.length ? EditorSelection.create({anchor: ranges[0].from, head: ranges[0].to, ranges})
-        : EditorSelection.atStart(EditorState.create({doc}))
+      return ranges.length ? GardSelection.create({anchor: ranges[0].from, head: ranges[0].to, ranges})
+        : GardSelection.atStart(GardState.create({doc}))
     ranges.push({from: head, to: maybeTag(doc, i + 1) ?? head})
   }
 }
 
-function test(doc: Plot.Doc, f: (state: EditorState) => Transaction | null, expect?: Plot.Doc) {
-  let state = EditorState.create({
+function test(doc: Plot.Doc, f: (state: GardState) => Transaction | null, expect?: Plot.Doc) {
+  let state = GardState.create({
     doc,
     selection: selectionFrom(doc)
   })
@@ -44,7 +44,7 @@ function test(doc: Plot.Doc, f: (state: EditorState) => Transaction | null, expe
 }
 
 function fromCmd<T>(command: Command<T>, param: T) {
-  return (state: EditorState) => {
+  return (state: GardState) => {
     let tr: Transaction | null = null
     command.defaultHandler({state, dispatch: (t: Transaction | Transaction.Spec) => {
       tr = t instanceof Transaction ? t : state.update(t)
@@ -53,11 +53,11 @@ function fromCmd<T>(command: Command<T>, param: T) {
   }
 }
 
-function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: EditorState) => Transaction | null,
+function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: GardState) => Transaction | null,
                       expect: readonly Mark<any>[]) {
-  let state = EditorState.create({
+  let state = GardState.create({
     doc: doc(p()),
-    selection: EditorSelection.cursor(1, 0, undefined, before)
+    selection: GardSelection.cursor(1, 0, undefined, before)
   })
   let tr = f(state)
   if (tr) state = tr.state
@@ -578,7 +578,7 @@ describe("unwrapBlock", () => {
     let item = Plot.defineBlock("Item", {shape: {element: "li"}, inlineContent: true})
     let list = Plot.defineBlock("List", {shape: {element: "ul"}, group: Node.Group.Content, blockContent: item})
     let s = Schema.define([...basicSchema.tags, list, item])
-    let state = EditorState.create({
+    let state = GardState.create({
       doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),
       selection: {anchor: 0, head: 8}
     })

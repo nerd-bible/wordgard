@@ -1,5 +1,5 @@
 import {Schema, Plot, Node, Leaf, Mark, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
-import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
+import {GardSelection, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
@@ -25,7 +25,7 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   /// @internal
   readonly default: Output
   /// @internal
-  readonly extensions: EditorState.Extension | undefined
+  readonly extensions: GardState.Extension | undefined
 
   private constructor(
     /// @internal
@@ -35,7 +35,7 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
     /// @internal
     readonly compare: (a: Output, b: Output) => boolean,
     private isStatic: boolean,
-    enables: EditorState.Extension | undefined | ((self: Facet<Input, Output>) => EditorState.Extension)
+    enables: GardState.Extension | undefined | ((self: Facet<Input, Output>) => GardState.Extension)
   ) {
     this.default = combine(none)
     this.extensions = typeof enables == "function" ? enables(this) : enables
@@ -55,7 +55,7 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   }
 
   /// Returns an extension that adds the given value to this facet.
-  of(value: Input): EditorState.Extension {
+  of(value: Input): GardState.Extension {
     return new FacetProvider<Input>(none, this, ProviderFlag.Static, value)
   }
 
@@ -68,14 +68,14 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   ///
   /// In cases where your value depends only on a single field, you
   /// can use the [`from`](#state.Facet.from) method instead.
-  compute(get: (state: EditorState) => Input): EditorState.Extension {
+  compute(get: (state: GardState) => Input): GardState.Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
     return new FacetProvider<Input>([], this, ProviderFlag.Auto, get)
   }
 
   /// Create an extension that computes zero or more values for this
   /// facet from a state.
-  computeN(get: (state: EditorState) => readonly Input[]): EditorState.Extension {
+  computeN(get: (state: GardState) => readonly Input[]): GardState.Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
     return new FacetProvider<Input>([], this, ProviderFlag.Multi | ProviderFlag.Auto, get)
   }
@@ -84,9 +84,9 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   /// field as input. If the field's type corresponds to this facet's
   /// input type, the getter function can be omitted. If given, it
   /// will be used to retrieve the input from the field value.
-  from<T extends Input>(field: EditorState.Field<T>): EditorState.Extension
-  from<T>(field: EditorState.Field<T>, get: (value: T) => Input): EditorState.Extension
-  from<T>(field: EditorState.Field<T>, get?: (value: T) => Input): EditorState.Extension {
+  from<T extends Input>(field: GardState.Field<T>): GardState.Extension
+  from<T>(field: GardState.Field<T>, get: (value: T) => Input): GardState.Extension
+  from<T>(field: GardState.Field<T>, get?: (value: T) => Input): GardState.Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
     if (!get) get = x => x as any
     return new FacetProvider<Input>([field], this, 0 as ProviderFlag, state => get!(state.field(field)))
@@ -143,7 +143,7 @@ export namespace Facet {
     /// be read from a state even if the facet wasn't present in the
     /// state at all, these extensions won't be added in that
     /// situation.)
-    enables?: EditorState.Extension | ((self: Facet<Input, Output>) => EditorState.Extension)
+    enables?: GardState.Extension | ((self: Facet<Input, Output>) => GardState.Extension)
   }
 
   /// A facet reader can be used to fetch the value of a facet, through
@@ -204,22 +204,22 @@ type DocSource = Plot.Doc | HTMLElement | DocumentFragment | string | Node.JSON 
 /// instance, without modifying the original object.
 ///
 /// _Do not_ mutate properties of a state directly.
-export class EditorState { // FIXME rename to something less boring?
+export class GardState { // FIXME rename to something less boring?
   /// @internal
   readonly status: SlotStatus[]
   /// @internal
-  computeSlot: null | ((state: EditorState, slot: DynamicSlot) => SlotStatus)
+  computeSlot: null | ((state: GardState, slot: DynamicSlot) => SlotStatus)
   private _resolvedSel: SelectionPos | null = null
   private trackAccess: Slot[] | null = null
 
   private constructor(
     /// The configuration 
-    readonly config: EditorState.Configuration,
+    readonly config: GardState.Configuration,
     private _doc: Plot.Doc,
-    private _selection: EditorSelection,
+    private _selection: GardSelection,
     /// @internal
     readonly values: any[],
-    computeSlot: (state: EditorState, slot: DynamicSlot) => SlotStatus,
+    computeSlot: (state: GardState, slot: DynamicSlot) => SlotStatus,
     tr: Transaction | null
   ) {
     this.status = config.statusTemplate.slice()
@@ -255,9 +255,9 @@ export class EditorState { // FIXME rename to something less boring?
   /// Retrieve the value of a [state field](#state.StateField). Throws
   /// an error when the state doesn't have that field, unless you pass
   /// `false` as second parameter.
-  field<T>(field: EditorState.Field<T>): T
-  field<T>(field: EditorState.Field<T>, require: false): T | undefined
-  field<T>(field: EditorState.Field<T>, require: boolean = true): T | undefined {
+  field<T>(field: GardState.Field<T>): T
+  field<T>(field: GardState.Field<T>, require: false): T | undefined
+  field<T>(field: GardState.Field<T>, require: boolean = true): T | undefined {
     let addr = this.config.address[field.id]
     if (addr == null) {
       if (require) throw new RangeError("Field is not present in this state")
@@ -298,9 +298,9 @@ export class EditorState { // FIXME rename to something less boring?
 
   /// @internal
   applyTransaction(tr: Transaction) {
-    let conf: EditorState.Configuration | null = this.config, {base, compartments} = conf
+    let conf: GardState.Configuration | null = this.config, {base, compartments} = conf
     for (let effect of tr.effects) {
-      if (effect.is(EditorState.Compartment.reconfigureCompartment)) {
+      if (effect.is(GardState.Compartment.reconfigureCompartment)) {
         if (conf) {
           compartments = new Map
           conf.compartments.forEach((val, key) => compartments!.set(key, val))
@@ -317,15 +317,15 @@ export class EditorState { // FIXME rename to something less boring?
     }
     let startValues
     if (!conf) {
-      conf = EditorState.Configuration.resolve(base, compartments, this)
+      conf = GardState.Configuration.resolve(base, compartments, this)
       // FIXME check the doc when the schema changes
-      let intermediateState = new EditorState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
+      let intermediateState = new GardState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
                                               (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values
     } else {
       startValues = tr.startState.values.slice()
     }
-    new EditorState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
+    new GardState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
   }
 
   /// A resolved form of the state's selection. Instead of raw
@@ -336,7 +336,7 @@ export class EditorState { // FIXME rename to something less boring?
   }
 
   /// @internal
-  recordAccess<T>(slots: Slot[], f: (state: EditorState) => T): T {
+  recordAccess<T>(slots: Slot[], f: (state: GardState) => T): T {
     let prev = this.trackAccess
     this.trackAccess = slots
     let result = f(this)
@@ -352,14 +352,14 @@ export class EditorState { // FIXME rename to something less boring?
   /// fields should be serialized, you can pass them in as an object
   /// mapping property names (in the resulting object, which should
   /// not use `doc` or `selection`) to fields.
-  toJSON(fields?: {[prop: string]: EditorState.Field<any>}): any {
+  toJSON(fields?: {[prop: string]: GardState.Field<any>}): any {
     let result: any = {
       doc: this.doc.toJSON(),
       selection: this.selection.toJSON()
     }
     if (fields) for (let prop in fields) {
       let value = fields[prop]
-      if (value instanceof EditorState.Field && this.config.address[value.id] != null)
+      if (value instanceof GardState.Field && this.config.address[value.id] != null)
         result[prop] = value.spec.toJSON!(this.field(fields[prop]), this)
     }
     return result
@@ -369,7 +369,7 @@ export class EditorState { // FIXME rename to something less boring?
   /// fields should be deserialized, pass the same object you passed
   /// to [`toJSON`](#state.EditorState.toJSON) when serializing as
   /// third argument.
-  static fromJSON(json: any, extensions: EditorState.Extension, fields?: {[prop: string]: EditorState.Field<any>}): EditorState {
+  static fromJSON(json: any, extensions: GardState.Extension, fields?: {[prop: string]: GardState.Field<any>}): GardState {
     if (!json)
       throw new ValidationError("Invalid JSON representation for EditorState")
     let fieldInit = []
@@ -379,34 +379,34 @@ export class EditorState { // FIXME rename to something less boring?
         fieldInit.push(field.init(state => field.spec.fromJSON!(value, state)))
       }
     }
-    let config = EditorState.Configuration.create([extensions, fieldInit])
+    let config = GardState.Configuration.create([extensions, fieldInit])
     let schema = Schema.define(config.staticFacet(schemaElement))
-    return EditorState.fromConfig(config, schema.docFromJSON(json.doc), EditorSelection.fromJSON(schema, json.selection))
+    return GardState.fromConfig(config, schema.docFromJSON(json.doc), GardSelection.fromJSON(schema, json.selection))
   }
 
   /// Create a new state. You'll usually only need this when
   /// initializing an editor—updated states are created by applying
   /// transactions.
-  static create(spec: EditorState.Spec): EditorState {
-    let config = spec.config instanceof EditorState.Configuration ? spec.config : EditorState.Configuration.resolve(spec.config || [], new Map)
+  static create(spec: GardState.Spec): GardState {
+    let config = spec.config instanceof GardState.Configuration ? spec.config : GardState.Configuration.resolve(spec.config || [], new Map)
     let configSchema = config.staticFacet(schemaElement)
     let schema = spec.doc instanceof Plot.Doc ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? selectionAtStart({
       doc,
-      textDirection: config.staticFacet(EditorState.textDirection),
-      visualCursorMotion: config.staticFacet(EditorState.visualCursorMotion),
+      textDirection: config.staticFacet(GardState.textDirection),
+      visualCursorMotion: config.staticFacet(GardState.visualCursorMotion),
     })
       : typeof spec.selection == "function" ? spec.selection(doc)
-      : spec.selection instanceof EditorSelection ? spec.selection
-      : EditorSelection.create(spec.selection)
-    return EditorState.fromConfig(config, doc, selection)
+      : spec.selection instanceof GardSelection ? spec.selection
+      : GardSelection.create(spec.selection)
+    return GardState.fromConfig(config, doc, selection)
   }
 
   /// @internal
-  static fromConfig(config: EditorState.Configuration, doc: Plot.Doc, selection: EditorSelection) {
+  static fromConfig(config: GardState.Configuration, doc: Plot.Doc, selection: GardSelection) {
     selection.check(doc)
-    return new EditorState(config, doc, selection, config.dynamicSlots.map(() => null),
+    return new GardState(config, doc, selection, config.dynamicSlots.map(() => null),
                            (state, slot) => slot.create(state), null)
   }
 
@@ -427,7 +427,7 @@ export class EditorState { // FIXME rename to something less boring?
 
   /// Returns true when the editor is
   /// [configured](#state.EditorState^readOnly) to be read-only.
-  get readOnly() { return this.facet(EditorState.readOnly) }
+  get readOnly() { return this.facet(GardState.readOnly) }
 
   /// Registers translation phrases. The
   /// [`phrase`](#state.EditorState.phrase) method will look through
@@ -449,7 +449,7 @@ export class EditorState { // FIXME rename to something less boring?
   /// A single `$` is equivalent to `$1`, and `$$` will produce a
   /// literal dollar sign.
   phrase(phrase: string, ...insert: any[]): string {
-    for (let map of this.facet(EditorState.phrases))
+    for (let map of this.facet(GardState.phrases))
       if (Object.prototype.hasOwnProperty.call(map, phrase)) { phrase = map[phrase]; break }
     if (insert.length) phrase = phrase.replace(/\$(\$|\d*)/g, (m, i) => {
       if (i == "$") return "$"
@@ -482,7 +482,7 @@ export class EditorState { // FIXME rename to something less boring?
   /// Return the text direction in a given textblock (by tag) or the
   /// global default direction (when no tag is given).
   get textDirection() {
-    return this.facet(EditorState.textDirection)
+    return this.facet(GardState.textDirection)
   }
 
   static visualCursorMotion = Facet.define<boolean, boolean>({
@@ -491,7 +491,7 @@ export class EditorState { // FIXME rename to something less boring?
   })
 
   get visualCursorMotion() {
-    return this.facet(EditorState.visualCursorMotion)
+    return this.facet(GardState.visualCursorMotion)
   }
 
   wordAt(pos: number, bias: -1 | 1 = 1) {
@@ -531,9 +531,9 @@ export class EditorState { // FIXME rename to something less boring?
   static transactionExtender = Facet.define<(tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null>()
 }
 
-const initField = Facet.define<{field: EditorState.Field<unknown>, create: (state: EditorState) => unknown}>({static: true})
+const initField = Facet.define<{field: GardState.Field<unknown>, create: (state: GardState) => unknown}>({static: true})
 
-export namespace EditorState {
+export namespace GardState {
   /// Options passed when [creating](#state.EditorState^create) an
   /// editor state.
   export interface Spec {
@@ -541,36 +541,36 @@ export namespace EditorState {
     doc: DocSource
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
-    selection?: EditorSelection | SelectionSpec | ((doc: Plot.Doc) => EditorSelection)
+    selection?: GardSelection | GardSelection.Spec | ((doc: Plot.Doc) => GardSelection)
     /// Configuration for this state.
-    config?: EditorState.Extension | EditorState.Configuration
+    config?: GardState.Extension | GardState.Configuration
   }
 
   /// Fields can store additional information in an editor state, and
   /// keep it in sync with the rest of the state.
   export class Field<Value> {
     /// @internal
-    public provides: EditorState.Extension | undefined = undefined
+    public provides: GardState.Extension | undefined = undefined
 
     private constructor(
       /// @internal
       readonly id: number,
-      private createF: (state: EditorState) => Value,
+      private createF: (state: GardState) => Value,
       private updateF: (value: Value, tr: Transaction) => Value,
       private compareF: (a: Value, b: Value) => boolean,
       /// @internal
-      readonly spec: EditorState.Field.Spec<Value>
+      readonly spec: GardState.Field.Spec<Value>
     ) {}
 
     /// Define a state field.
-    static define<Value>(config: EditorState.Field.Spec<Value>): EditorState.Field<Value> {
-      let field = new EditorState.Field<Value>(nextID++, config.create, config.update,
+    static define<Value>(config: GardState.Field.Spec<Value>): GardState.Field<Value> {
+      let field = new GardState.Field<Value>(nextID++, config.create, config.update,
                                                config.compare || ((a, b) => a === b), config)
       if (config.provide) field.provides = config.provide(field)
       return field
     }
 
-    private create(state: EditorState) {
+    private create(state: GardState) {
       let init = state.facet(initField).find(i => i.field == this)
       return (init?.create || this.createF)(state)
     }
@@ -604,20 +604,20 @@ export namespace EditorState {
     /// Returns an extension that enables this field and overrides the
     /// way it is initialized. Can be useful when you need to provide a
     /// non-default starting value for the field.
-    init(create: (state: EditorState) => Value): EditorState.Extension {
+    init(create: (state: GardState) => Value): GardState.Extension {
       return [this, initField.of({field: this as any, create})]
     }
 
     /// State field instances can be used as
     /// [`Extension`](#state.Extension) values to enable the field in a
     /// given state.
-    get extension(): EditorState.Extension { return this }
+    get extension(): GardState.Extension { return this }
   }
 
   export namespace Field {
     export type Spec<Value> = {
       /// Creates the initial value for the field when a state is created.
-      create: (state: EditorState) => Value,
+      create: (state: GardState) => Value,
 
       /// Compute a new value from the field's previous value and a
       /// [transaction](#state.Transaction).
@@ -635,16 +635,16 @@ export namespace EditorState {
       /// create facet inputs from this field, but can also return other
       /// extensions that should be enabled when the field is present in a
       /// configuration.
-      provide?: (field: EditorState.Field<Value>) => EditorState.Extension
+      provide?: (field: GardState.Field<Value>) => GardState.Extension
 
       /// A function used to serialize this field's content to JSON. Only
       /// necessary when this field is included in the argument to
       /// [`EditorState.toJSON`](#state.EditorState.toJSON).
-      toJSON?: (value: Value, state: EditorState) => any
+      toJSON?: (value: Value, state: GardState) => any
 
       /// A function that deserializes the JSON representation of this
       /// field's content.
-      fromJSON?: (json: any, state: EditorState) => Value
+      fromJSON?: (json: any, state: GardState) => Value
     }
   }
 
@@ -652,8 +652,8 @@ export namespace EditorState {
   export class Configuration {
     readonly statusTemplate: SlotStatus[] = []
 
-    constructor(readonly base: EditorState.Extension,
-                readonly compartments: Map<EditorState.Compartment, EditorState.Extension>,
+    constructor(readonly base: GardState.Extension,
+                readonly compartments: Map<GardState.Compartment, GardState.Extension>,
                 readonly dynamicSlots: DynamicSlot[],
                 readonly address: {[id: number]: number},
                 readonly staticValues: readonly any[],
@@ -667,10 +667,10 @@ export namespace EditorState {
       return addr == null ? facet.default : this.staticValues[addr >> 1]
     }
 
-    static resolve(base: EditorState.Extension, compartments: Map<EditorState.Compartment, EditorState.Extension>, oldState?: EditorState) {
-      let fields: EditorState.Field<any>[] = []
+    static resolve(base: GardState.Extension, compartments: Map<GardState.Compartment, GardState.Extension>, oldState?: GardState) {
+      let fields: GardState.Field<any>[] = []
       let facets: {[id: number]: FacetProvider<any>[]} = Object.create(null)
-      let newCompartments = new Map<EditorState.Compartment, EditorState.Extension>()
+      let newCompartments = new Map<GardState.Compartment, GardState.Extension>()
 
       for (let ext of flatten(base, compartments, newCompartments)) {
         if (ext instanceof FacetProvider) (facets[ext.facet.id] || (facets[ext.facet.id] = [])).push(ext)
@@ -714,19 +714,19 @@ export namespace EditorState {
       }
 
       let dynamic = dynamicSlots.map(f => f(address))
-      return new EditorState.Configuration(base, newCompartments, dynamic, address, staticValues, facets)
+      return new GardState.Configuration(base, newCompartments, dynamic, address, staticValues, facets)
     }
 
     /// Create a configuration from the given set of extensions.
-    static create(extensions: EditorState.Extension) {
-      return EditorState.Configuration.resolve(extensions, new Map)
+    static create(extensions: GardState.Extension) {
+      return GardState.Configuration.resolve(extensions, new Map)
     }
   }
 
-  function flatten(extension: EditorState.Extension, compartments: Map<EditorState.Compartment, EditorState.Extension>, newCompartments: Map<EditorState.Compartment, EditorState.Extension>) {
-    let result: (FacetProvider<any> | EditorState.Field<any>)[][] = [[], [], [], [], []]
-    let seen = new Map<EditorState.Extension, number>()
-    function inner(ext: EditorState.Extension, prec: number) {
+  function flatten(extension: GardState.Extension, compartments: Map<GardState.Compartment, GardState.Extension>, newCompartments: Map<GardState.Compartment, GardState.Extension>) {
+    let result: (FacetProvider<any> | GardState.Field<any>)[][] = [[], [], [], [], []]
+    let seen = new Map<GardState.Extension, number>()
+    function inner(ext: GardState.Extension, prec: number) {
       let known = seen.get(ext)
       if (known != null) {
         if (known <= prec) return
@@ -745,7 +745,7 @@ export namespace EditorState {
         inner(content, prec)
       } else if (ext instanceof PrecExtension) {
         inner(ext.inner, ext.prec)
-      } else if (ext instanceof EditorState.Field) {
+      } else if (ext instanceof GardState.Field) {
         result[prec].push(ext)
         if (ext.provides) inner(ext.provides, prec)
       } else if (ext instanceof FacetProvider) {
@@ -773,7 +773,7 @@ export namespace EditorState {
   /// providers](#state.Facet.of), or objects with an extension in its
   /// `extension` property. Extensions can be nested in arrays
   /// arbitrarily deep—they will be flattened when processed.
-  export type Extension = Schema.Element | {extension: EditorState.Extension} | readonly EditorState.Extension[]
+  export type Extension = Schema.Element | {extension: GardState.Extension} | readonly GardState.Extension[]
 
   /// By default extensions are registered in the order they are found
   /// in the flattened form of nested array that was provided.
@@ -808,22 +808,22 @@ export namespace EditorState {
   export class Compartment {
     /// Create an instance of this compartment to add to your [state
     /// configuration](#state.EditorStateConfig.extensions).
-    of(ext: EditorState.Extension): EditorState.Extension { return new CompartmentInstance(this, ext) }
+    of(ext: GardState.Extension): GardState.Extension { return new CompartmentInstance(this, ext) }
 
     /// Create an [effect](#state.TransactionSpec.effects) that
     /// reconfigures this compartment.
-    reconfigure(content: EditorState.Extension): StateEffect<unknown> {
-      return EditorState.Compartment.reconfigureCompartment.of({compartment: this, extension: content})
+    reconfigure(content: GardState.Extension): StateEffect<unknown> {
+      return GardState.Compartment.reconfigureCompartment.of({compartment: this, extension: content})
     }
 
     /// Get the current content of the compartment in the state, or
     /// `undefined` if it isn't present.
-    get(state: EditorState): EditorState.Extension | undefined {
+    get(state: GardState): GardState.Extension | undefined {
       return state.config.compartments.get(this)
     }
 
     /// @internal
-    static reconfigureCompartment = StateEffect.define<{compartment: EditorState.Compartment, extension: EditorState.Extension}>()
+    static reconfigureCompartment = StateEffect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
 }
 
@@ -834,19 +834,19 @@ function addValue<T>(set: T[], value: T) {
 const enum Prec { Lowest = 4, Low = 3, Default = 2, High = 1, Highest = 0}
 
 function mkPrec(value: number) {
-  return (ext: EditorState.Extension) => new PrecExtension(ext, value) as EditorState.Extension
+  return (ext: GardState.Extension) => new PrecExtension(ext, value) as GardState.Extension
 }
 
 class PrecExtension {
-  constructor(readonly inner: EditorState.Extension, readonly prec: number) {}
-  extension!: EditorState.Extension
+  constructor(readonly inner: GardState.Extension, readonly prec: number) {}
+  extension!: GardState.Extension
 }
 
 function sameArray<T>(a: readonly T[], b: readonly T[]) {
   return a == b || a.length == b.length && a.every((e, i) => e === b[i])
 }
 
-type Slot = Facet.Reader<any> | EditorState.Field<any> | "doc" | "selection"
+type Slot = Facet.Reader<any> | GardState.Field<any> | "doc" | "selection"
 
 const enum ProviderFlag {
   Static = 1,
@@ -879,18 +879,18 @@ class DependencySet {
 
 class FacetProvider<Input> {
   readonly id = nextID++
-  extension!: EditorState.Extension // Kludge to convince the type system these count as extensions
+  extension!: GardState.Extension // Kludge to convince the type system these count as extensions
   dependencies: Slot[]
 
   constructor(dependencies: readonly Slot[],
               readonly facet: Facet<Input, any>,
               readonly flags: ProviderFlag,
-              readonly value: ((state: EditorState) => Input) | ((state: EditorState) => readonly Input[]) | Input) {
+              readonly value: ((state: GardState) => Input) | ((state: GardState) => readonly Input[]) | Input) {
     this.dependencies = dependencies as Slot[] // Only mutated for auto providers
   }
 
   dynamicSlot(addresses: {[id: number]: number}): DynamicSlot {
-    let getter: (state: EditorState) => any = this.value as any
+    let getter: (state: GardState) => any = this.value as any
     let compare = this.facet.compareInput
     let id = this.id, idx = addresses[id] >> 1
     let multi = this.flags & ProviderFlag.Multi
@@ -920,7 +920,7 @@ class FacetProvider<Input> {
           let oldVal = getAddr(oldState, oldAddr)
           if (dependencies.every(dep => {
             return dep instanceof Facet ? oldState.facet(dep) === state.facet(dep)
-              : dep instanceof EditorState.Field ? oldState.field(dep, false) == state.field(dep, false)
+              : dep instanceof GardState.Field ? oldState.field(dep, false) == state.field(dep, false)
               : true
           }) || (multi ? compareArray(newVal = getter(state), oldVal, compare) : compare(newVal = getter(state), oldVal))) {
             state.values[idx] = oldVal
@@ -942,7 +942,7 @@ function compareArray<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T)
   return true
 }
 
-function ensureAll(state: EditorState, addrs: readonly number[]) {
+function ensureAll(state: GardState, addrs: readonly number[]) {
   let changed = false
   for (let addr of addrs)
     if (ensureAddr(state, addr) & SlotStatus.Changed) changed = true
@@ -958,7 +958,7 @@ function dynamicFacetSlot<Input, Output>(
   let dynamic = providerAddrs.filter(p => !(p & 1))
   let idx = addresses[facet.id] >> 1
 
-  function get(state: EditorState) {
+  function get(state: GardState) {
     let values: Input[] = []
     for (let i = 0; i < providerAddrs.length; i++) {
       let value = getAddr(state, providerAddrs[i])
@@ -999,7 +999,7 @@ function dynamicFacetSlot<Input, Output>(
   }
 }
 
-function ensureAddr(state: EditorState, addr: number) {
+function ensureAddr(state: GardState, addr: number) {
   if (addr & 1) return SlotStatus.Computed
   let idx = addr >> 1
   let status = state.status[idx]
@@ -1010,17 +1010,17 @@ function ensureAddr(state: EditorState, addr: number) {
   return state.status[idx] = SlotStatus.Computed | changed
 }
 
-function getAddr(state: EditorState, addr: number) {
+function getAddr(state: GardState, addr: number) {
   return addr & 1 ? state.config.staticValues[addr >> 1] : state.values[addr >> 1]
 }
 
 class CompartmentInstance {
-  constructor(readonly compartment: EditorState.Compartment, readonly inner: EditorState.Extension) {}
-  extension!: EditorState.Extension
+  constructor(readonly compartment: GardState.Compartment, readonly inner: GardState.Extension) {}
+  extension!: GardState.Extension
 }
 
 interface DynamicSlot {
-  create(state: EditorState): SlotStatus
-  update(state: EditorState, tr: Transaction): SlotStatus
-  reconfigure(state: EditorState, oldState: EditorState): SlotStatus
+  create(state: GardState): SlotStatus
+  update(state: GardState, tr: Transaction): SlotStatus
+  reconfigure(state: GardState, oldState: GardState): SlotStatus
 }

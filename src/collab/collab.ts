@@ -1,4 +1,4 @@
-import {Facet, Annotation, EditorState, StateEffect, Transaction} from "wordgard/state"
+import {Facet, Annotation, GardState, StateEffect, Transaction} from "wordgard/state"
 import {ChangeSet, Plot} from "wordgard/doc"
 
 /// An update is a set of changes and effects.
@@ -62,7 +62,7 @@ const collabConfig = Facet.define<CollabConfig & {generatedID: string}, Required
 
 const collabReceive = Annotation.define<CollabState>()
 
-const collabField = EditorState.Field.define({
+const collabField = GardState.Field.define({
   create(state) {
     return new CollabState(state.facet(collabConfig).startVersion, state.doc, [])
   },
@@ -79,7 +79,7 @@ const collabField = EditorState.Field.define({
 })
 
 /// Create an instance of the collaborative editing plugin.
-export function collab(config: CollabConfig = {}): EditorState.Extension {
+export function collab(config: CollabConfig = {}): GardState.Extension {
   return [collabField, collabConfig.of({generatedID: Math.floor(Math.random() * 1e9).toString(36), ...config})]
 }
 
@@ -99,7 +99,7 @@ function collapseUpdates(updates: readonly {changes: ChangeSet, effects?: readon
 /// forward to, for remote changes, integrate them into our local
 /// state, and for our own changes, drop them from the set of
 /// unconfirmed local changes.
-export function receiveUpdates(state: EditorState, updates: readonly Update[]) {
+export function receiveUpdates(state: GardState, updates: readonly Update[]) {
   let {version, syncedDoc, unconfirmed} = state.field(collabField)
   let {clientID} = state.facet(collabConfig)
 
@@ -150,7 +150,7 @@ export function receiveUpdates(state: EditorState, updates: readonly Update[]) {
 
 /// If there are unconfirmed local changes that need to be sent to the
 /// server,return them as an `Update` object.
-export function sendableUpdate(state: EditorState): Update | null {
+export function sendableUpdate(state: GardState): Update | null {
   let {unconfirmed, version} = state.field(collabField)
   if (!unconfirmed.length) return null
   let {changes, effects} = collapseUpdates(unconfirmed)
@@ -164,11 +164,11 @@ export function sendableUpdate(state: EditorState): Update | null {
 
 /// Get the version up to which the collab plugin has synced with the
 /// central authority.
-export function getSyncedVersion(state: EditorState) {
+export function getSyncedVersion(state: GardState) {
   return state.field(collabField).version
 }
 
 /// Get this editor's collaborative editing client ID.
-export function getClientID(state: EditorState) {
+export function getClientID(state: GardState) {
   return state.facet(collabConfig).clientID
 }

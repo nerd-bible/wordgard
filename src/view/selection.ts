@@ -1,4 +1,4 @@
-import {EditorSelection, Direction} from "wordgard/state"
+import {GardSelection, Direction} from "wordgard/state"
 import {Pos} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
@@ -31,12 +31,12 @@ export function readDOMSelection(view: EditorView, range: SelectionRange) {
   let anchor = view.docTile.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
     : view.docTile.posFromDOM(range.focusNode!, range.focusOffset, -1)
-  return EditorSelection.range(anchor, head)
+  return GardSelection.range(anchor, head)
 }
 
 const Y_STEP = 5
 
-export function moveVertically(view: EditorView, start: EditorSelection, forward: boolean,
+export function moveVertically(view: EditorView, start: GardSelection, forward: boolean,
                                distance: number = 0, selectNode = false) {
   let editorRect = view.contentDOM.getBoundingClientRect()
   let coords = view.coordsAtPos(start.head, start.assoc || -1)
@@ -50,20 +50,20 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
       if (forward ? y < rect.top : y > rect.bottom) y = forward ? rect.top : rect.bottom
       while (forward ? rect.bottom >= y : rect.top <= y) {
         let found = elt.tile.posAtCoords(view.state, x, y)
-        if (!found.vertOutside && found.pos != start.head) return EditorSelection.cursor(found.pos, found.assoc, goalColumn)
+        if (!found.vertOutside && found.pos != start.head) return GardSelection.cursor(found.pos, found.assoc, goalColumn)
         y += forward ? Y_STEP : -Y_STEP
       }
       if (!block.parent) return null
       scan = forward ? block.after : block.before
     }
 
-    let nextCursor = EditorSelection.cursor(scan, 0).nextNormalCursor(view.state, forward)
+    let nextCursor = GardSelection.cursor(scan, 0).nextNormalCursor(view.state, forward)
     if (!nextCursor) return null
     let nextNode = findTargetVertically(view, scan, forward, x, selectNode)
     if (!nextNode || (forward ? nextCursor.head <= nextNode.before : nextCursor.head >= nextNode.after)) {
       let coords = view.coordsAtPos(nextCursor.head, nextCursor.assoc || -1)
       if (forward ? coords.bottom > y : coords.top < y)
-        return EditorSelection.cursor(nextCursor.head, nextCursor.assoc, goalColumn)
+        return GardSelection.cursor(nextCursor.head, nextCursor.assoc, goalColumn)
       if (!nextNode) return null
     }
     if (nextNode instanceof Pos.Plot) {
@@ -71,7 +71,7 @@ export function moveVertically(view: EditorView, start: EditorSelection, forward
     } else {
       let coords = view.coordsForElement(nextNode.before)!
       if (forward ? coords.bottom > y : coords.top < y)
-        return EditorSelection.range(nextNode.before, nextNode.after, goalColumn)
+        return GardSelection.range(nextNode.before, nextNode.after, goalColumn)
       scan = forward ? nextNode.after : nextNode.before
     }
   }
@@ -127,7 +127,7 @@ function findTargetVertically(view: EditorView, from: number, forward: boolean, 
   }
 }
 
-export function moveToLineBoundary(view: EditorView, start: EditorSelection, forward: boolean) {
+export function moveToLineBoundary(view: EditorView, start: GardSelection, forward: boolean) {
   let block = view.state.doc.resolve(start.head).textblockParent
   if (!block) return null
   let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
@@ -135,5 +135,5 @@ export function moveToLineBoundary(view: EditorView, start: EditorSelection, for
   let blockRect = (view.docTile.resolve(block.start, 0).dom as HTMLElement).getBoundingClientRect()
   let {pos} = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
                                 y: (startCoords.top + startCoords.bottom) / 2})
-  return EditorSelection.cursor(pos, forward ? -1 : 1)
+  return GardSelection.cursor(pos, forward ? -1 : 1)
 }

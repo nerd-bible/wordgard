@@ -1,12 +1,12 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet, Schema} from "wordgard/doc"
-import {EditorSelection, EditorState, autoJoinBlocks} from "wordgard/state"
+import {GardSelection, GardState, autoJoinBlocks} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
 // FIXME should these get their own module?
 
 /// If the cursor is in an empty textblock that can be lifted out of a
 /// parent, return a transaction that does this.
-export function liftEmptyBlock(state: EditorState) {
+export function liftEmptyBlock(state: GardState) {
   let sel = state.sel, block = sel.head.textblockParent
   if (!sel.empty || !block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return null
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
@@ -34,7 +34,7 @@ export function liftEmptyBlock(state: EditorState) {
 /// Split the textblock at the cursor position, if any. If the
 /// textblock is the first child of a list item, also split that item,
 /// unless `splitListItem` is false.
-export function splitTextblock(state: EditorState, splitListItem = true) {
+export function splitTextblock(state: GardState, splitListItem = true) {
   let sel = state.sel, {schema} = state.doc
   let before = sel.from.textblockParent
   if (!before || !before.parent) return null
@@ -79,7 +79,7 @@ export function splitTextblock(state: EditorState, splitListItem = true) {
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
   return state.update({
     changes: changeSet,
-    selection: EditorSelection.cursor(changeSet.mapPos(sel.to.pos, 1)),
+    selection: GardSelection.cursor(changeSet.mapPos(sel.to.pos, 1)),
     scrollIntoView: true,
     userEvent: "split.textblock"
   })
@@ -87,7 +87,7 @@ export function splitTextblock(state: EditorState, splitListItem = true) {
 
 /// Returns a transaction that deletes the selection, or null if the
 /// selection is empty.
-export function deleteSelection(state: EditorState) {
+export function deleteSelection(state: GardState) {
   if (state.selection.ranges.every(r => r.from == r.to)) return null
   return state.update(autoJoinBlocks(state, {
     changes: {correct: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})), local: true},
@@ -99,7 +99,7 @@ export function deleteSelection(state: EditorState) {
 
 /// If the cursor is at the start of a textblock that can be joined to
 /// a textblock before it, return a transaction to performs this join.
-export function joinBackward(state: EditorState) {
+export function joinBackward(state: GardState) {
   let {head, empty} = state.sel, block = head.textblockParent
   if (!empty || !block || !head.isAtStart(block)) return null
   let scan = block, target = scan.node
@@ -128,7 +128,7 @@ export function joinBackward(state: EditorState) {
   let changeSet = ChangeSet.create(state.doc, changes)
   return state.update({
     changes: changeSet,
-    selection: EditorSelection.cursor(changeSet.mapPos(head.pos), -1),
+    selection: GardSelection.cursor(changeSet.mapPos(head.pos), -1),
     scrollIntoView: true,
     userEvent: "join.backward"
   })
@@ -136,7 +136,7 @@ export function joinBackward(state: EditorState) {
 
 /// If the cursor is at the start of a list item that has another item
 /// before it, return a transaction that joins those two items.
-export function joinListItems(state: EditorState) {
+export function joinListItems(state: GardState) {
   let {empty, head} = state.sel
   if (!empty || head.index || head.inText) return null
   for (let scan = head.parent;;) {
@@ -159,7 +159,7 @@ export function joinListItems(state: EditorState) {
 /// If the cursor is at the end of a textblock that can be joined to
 /// the textblock after it, return a transaction that performs this
 /// join.
-export function joinForward(state: EditorState) {
+export function joinForward(state: GardState) {
   let {head, empty} = state.sel, block = head.textblockParent
   if (!empty || !block || !head.isAtEnd(block)) return null
   let scan = block, target = scan.node
@@ -195,7 +195,7 @@ export function joinForward(state: EditorState) {
 
 /// Create a transaction that deletes the text cluster or atomic node
 /// in front of the cursor, if possible.
-export function deleteBackward(state: EditorState, word = false) {
+export function deleteBackward(state: GardState, word = false) {
   let sel = state.sel
   if (!sel.empty) return null
 
@@ -254,7 +254,7 @@ export function deleteBackward(state: EditorState, word = false) {
 
 /// Return a transaction that deletes the element (text cluster or
 /// leaf node) after the cursor, if any.
-export function deleteForward(state: EditorState, word = false) {
+export function deleteForward(state: GardState, word = false) {
   let sel = state.sel
   if (!sel.empty) return null
 
@@ -312,7 +312,7 @@ export function deleteForward(state: EditorState, word = false) {
 
 /// Try to change the type of selected textblocks to the given tag.
 /// Will return null if no such changes are possible.
-export function setTextblockType(state: EditorState, tag: Plot.Tag.Any) {
+export function setTextblockType(state: GardState, tag: Plot.Tag.Any) {
   let changes: ChangeSet.Spec[] = [], {schema} = state.doc
   for (let block of selectedTextblocks(state)) {
     if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
@@ -326,7 +326,7 @@ export function setTextblockType(state: EditorState, tag: Plot.Tag.Any) {
 
 /// Try to wrap selected textblocks in the given wrapper. Will return
 /// null if no wrapping is possible.
-export function wrapBlock(state: EditorState, wrapper: Plot.Tag.Any) {
+export function wrapBlock(state: GardState, wrapper: Plot.Tag.Any) {
   let changes: ChangeSet.Spec[] = [], lastTo = -1
   for (let {from, to} of state.selection.ranges) {
     let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
@@ -341,7 +341,7 @@ export function wrapBlock(state: EditorState, wrapper: Plot.Tag.Any) {
 /// Try to unwrap blocks around the selection. The second argument, if
 /// given, indicates what kind of wrapping plots may be removed.
 /// Returns null when no unwrapping is possible.
-export function unwrapBlockType(state: EditorState, query?: Node.Query) {
+export function unwrapBlockType(state: GardState, query?: Node.Query) {
   let targets: Pos.Node[] = [], changes: ChangeSet.Spec[] = []
   for (let {from, to} of state.selection.ranges) {
     if (!targets.some(t => t.after > from && t.before < to)) {
@@ -356,7 +356,7 @@ export function unwrapBlockType(state: EditorState, query?: Node.Query) {
   return state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, normalizeSelection: true, userEvent: "unwrap"}))
 }
 
-export function selectedTextblocks(state: EditorState) {
+export function selectedTextblocks(state: GardState) {
   let textblocks: Pos.Plot[] = [], lastBlock = -1
   for (let {from, to} of state.selection.ranges) {
     state.doc.iterate(from, to, (node, pos, parent) => {

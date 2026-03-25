@@ -1,4 +1,4 @@
-import {EditorState, Transaction, StateEffect} from "wordgard/state"
+import {GardState, Transaction, StateEffect} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 import {history, isolateHistory, popHistory} from "wordgard/history"
@@ -10,15 +10,15 @@ let {doc, p} = basicBuilders
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 class DummyServer {
-  states: EditorState[] = []
+  states: GardState[] = []
   updates: Update[] = []
   version = 0
   delayed: number[] = []
 
-  constructor(d: string = "", config: {n?: number, extensions?: EditorState.Extension[], collabConf?: any} = {}) {
+  constructor(d: string = "", config: {n?: number, extensions?: GardState.Extension[], collabConf?: any} = {}) {
     let {n = 2, extensions = [], collabConf = {}} = config
     for (let i = 0; i < n; i++)
-      this.states.push(EditorState.create({doc: doc(p(d)), config: [history(), collab(collabConf), ...extensions]}))
+      this.states.push(GardState.create({doc: doc(p(d)), config: [history(), collab(collabConf), ...extensions]}))
   }
 
   sync(client: number) {
@@ -47,7 +47,7 @@ class DummyServer {
     for (let i = 0; i < this.states.length; i++) if (i != client) this.sync(i)
   }
 
-  update(client: number, f: (state: EditorState) => Transaction) {
+  update(client: number, f: (state: GardState) => Transaction) {
     this.states[client] = f(this.states[client]).state
     this.broadcast(client)
   }
@@ -222,12 +222,12 @@ describe("collab", () => {
   })
 
   it("allows you to set the initial version", () => {
-    ist(getSyncedVersion(EditorState.create({doc: doc(p()), config: [collab({startVersion: 20})]})), 20)
+    ist(getSyncedVersion(GardState.create({doc: doc(p()), config: [collab({startVersion: 20})]})), 20)
   })
 
   it("client ids survive reconfiguration", () => {
     let ext = collab()
-    let state = EditorState.create({doc: doc(p()), config: [ext]})
+    let state = GardState.create({doc: doc(p()), config: [ext]})
     let state2 = state.update({effects: StateEffect.reconfigure.of(ext)}).state
     ist(getClientID(state), getClientID(state2))
   })
@@ -250,7 +250,7 @@ describe("collab", () => {
       toString() { return `${this.from}-${this.to}=${this.id}` }
     }
     let addMark = StateEffect.define<Mark>({map: (v, m) => v.map(m)})
-    let marks = EditorState.Field.define<Mark[]>({
+    let marks = GardState.Field.define<Mark[]>({
       create: () => [],
       update(value, tr) {
         value = value.map(m => m.map(tr.changes)).filter(x => x) as any

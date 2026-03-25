@@ -1,4 +1,4 @@
-import {Facet, EditorState, Direction} from "wordgard/state"
+import {Facet, GardState, Direction} from "wordgard/state"
 import {ViewPlugin, ViewUpdate, basePlugins} from "./extension"
 import {type EditorView} from "./editorview"
 
@@ -80,6 +80,6 @@ export function cursorPos(view: EditorView): CursorPos {
   return {left: left - doc.left, top: top - doc.top, size, horiz}
 }
 
-function setBlinkRate(state: EditorState, dom: HTMLElement) {
+function setBlinkRate(state: GardState, dom: HTMLElement) {
   dom.style.animationDuration = state.facet(cursorBlinkRate) + "ms"
 }

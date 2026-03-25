@@ -2,45 +2,7 @@ import {Schema, Plot, Node, Leaf, ChangeSet, Mark, Pos, ValidationError} from "w
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
-import {EditorState} from "./state"
-
-/// The representation of a selection when serialized to JSON.
-export type SelectionJSON = {
-  anchor: number
-  head?: number
-  assoc?: -1 | 0 | 1,
-  ranges?: readonly {from: number, to: number}[]
-  marks?: Record<string, any>
-}
-
-/// A description of an editor selection.
-export type SelectionSpec = {
-  /// The anchor point of the selection. This is the side that doesn't
-  /// move when extending the selection (for example by moving the
-  /// cursor while holding shift).
-  anchor: number
-  /// The moving side of the selection. This will default to `anchor`
-  /// when not given.
-  head?: number
-  /// The side of the head position that the selection is associated
-  /// with, if any. `-1` points at the element before the position,
-  /// `1` at the element after. This is only meaningful for
-  /// empty/cursor selections. It will influence where the cursor is
-  /// drawn.
-  assoc?: -1 | 0 | 1
-  /// Associates a horizontal position with this selection for use
-  /// during vertical cursor motion.
-  goalColumn?: number
-  /// For selections that cover multiple ranges in the document, you
-  /// can specify the ranges. Must include the main range
-  /// (`anchor`/`head`) if provided. These must be non-overlapping,
-  /// and sorted.
-  ranges?: readonly {from: number, to: number}[]
-  /// Marks associated with a cursor selection, which will determine
-  /// the marks of inline content inserted at that selection. This is
-  /// used for things like toggling emphasis on a cursor selection.
-  marks?: readonly Mark<any>[]
-}
+import {GardState} from "./state"
 
 /// A selection object where the selection positions have been
 /// [resolved](#doc.DocNode.resolve). This is derived from the
@@ -53,7 +15,7 @@ export class SelectionPos {
 
   constructor(doc: Plot.Doc,
               /// The original selection.
-              readonly selection: EditorSelection) {
+              readonly selection: GardSelection) {
     this.anchor = doc.resolve(selection.anchor)
     this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
   }
@@ -80,8 +42,7 @@ export class SelectionPos {
   }
 }
 
-// FIXME make this user-visible?
-export interface SelectionContext {
+interface SelectionContext {
   doc: Plot.Doc
   textDirection?: (tag?: Plot.Tag.Any) => Direction
   visualCursorMotion?: boolean
@@ -90,7 +51,7 @@ export interface SelectionContext {
 function alwaysLTR() { return Direction.LTR }
 
 /// An editor selection holds one or more selection ranges.
-export class EditorSelection {
+export class GardSelection {
   private constructor(
     /// The anchor of the range—the side that doesn't move when you
     /// extend it.
@@ -141,18 +102,18 @@ export class EditorSelection {
     } else {
       head = Math.abs(from - this.anchor) > Math.abs(to - this.anchor) ? from : to
     }
-    return EditorSelection.createInner(anchor, head, 0, this.goalColumn)
+    return GardSelection.createInner(anchor, head, 0, this.goalColumn)
   }
 
   /// Returns true if this selection has the same head and anchor as
   /// the given selection.
-  eqPos(other: EditorSelection) {
+  eqPos(other: GardSelection) {
     return this.anchor == other.anchor && this.head == other.head
   }
 
   /// Compare this selection to another selection, comparing all
   /// ranges, associativity, and marks.
-  eq(other: EditorSelection): boolean {
+  eq(other: GardSelection): boolean {
     return this.eqPos(other) && this.assoc == other.assoc &&
       this.ranges.length == other.ranges.length &&
       this.ranges.every((r, i) => r.from == other.ranges[i].from && r.to == other.ranges[i].to) &&
@@ -162,13 +123,13 @@ export class EditorSelection {
 
   /// Map a selection through a change. Used to adjust the selection
   /// position for changes.
-  map(change: ChangeSet, assoc = -1): EditorSelection {
+  map(change: ChangeSet, assoc = -1): GardSelection {
     if (change.empty) return this
-    let main = EditorSelection.mapRange(change, this.from, this.to, assoc)
+    let main = GardSelection.mapRange(change, this.from, this.to, assoc)
     let ranges = this.ranges.map(r => r.from == this.from && r.to == this.to ? main
-      : EditorSelection.mapRange(change, r.from, r.to, assoc))
+      : GardSelection.mapRange(change, r.from, r.to, assoc))
     let [anchor, head] = this.anchor < this.head ? [main.from, main.to] : [main.to, main.from]
-    return EditorSelection.createInner(anchor, head, anchor == head ? this.assoc : 0, this.goalColumn, ranges, this.marks)
+    return GardSelection.createInner(anchor, head, anchor == head ? this.assoc : 0, this.goalColumn, ranges, this.marks)
   }
 
   /// @internal
@@ -180,15 +141,15 @@ export class EditorSelection {
 
   /// Make sure, if this is a cursor selection, that it sits at a
   /// normal cursor position.
-  normalize(state: EditorState) { return normalize(state, this) }
+  normalize(state: GardState) { return normalize(state, this) }
 
   /// @internal
   resolve(doc: Plot.Doc) { return new SelectionPos(doc, this) }
 
   /// Convert this selection to an object that can be serialized to
   /// JSON.
-  toJSON(): SelectionJSON {
-    let result: SelectionJSON = {anchor: this.anchor}
+  toJSON(): GardSelection.JSON {
+    let result: GardSelection.JSON = {anchor: this.anchor}
     if (!this.empty) result.head = this.head
     if (this.ranges.length > 1) result.ranges = this.ranges
     if (this.assoc) result.assoc = this.assoc
@@ -200,70 +161,70 @@ export class EditorSelection {
   }
 
   /// Create a selection from a JSON representation.
-  static fromJSON(schema: Schema, json: SelectionJSON): EditorSelection {
+  static fromJSON(schema: Schema, json: GardSelection.JSON): GardSelection {
     if (!json || typeof json.anchor != "number")
       throw new ValidationError("Invalid JSON representation for EditorSelection")
     let anchor = json.anchor, head = typeof json.head == "number" ? json.head : anchor
     let marks = json.marks ? schema.marksFromJSON(json.marks) : undefined
     let ranges = Array.isArray(json.ranges) && json.ranges.every(r => typeof r.from == "number" && typeof r.to == "number")
-    return EditorSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, undefined,
+    return GardSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, undefined,
                                        ranges ? json.ranges! : undefined, marks)
   }
 
   /// Create a cursor selection range at the given position. You can
   /// safely ignore the optional arguments in most situations.
   static cursor(pos: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number, marks?: readonly Mark<any>[]) {
-    return EditorSelection.createInner(pos, pos, assoc, goalColumn, undefined, marks)
+    return GardSelection.createInner(pos, pos, assoc, goalColumn, undefined, marks)
   }
 
   /// Create a range selection.
   static range(anchor: number, head: number, goalColumn?: number, marks?: readonly Mark<any>[]) {
-    return EditorSelection.createInner(anchor, head, 0, goalColumn, undefined, marks)
+    return GardSelection.createInner(anchor, head, 0, goalColumn, undefined, marks)
   }
 
   private static createInner(anchor: number, head: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number,
                              ranges?: readonly {from: number, to: number}[], marks?: readonly Mark<any>[]) {
     if (anchor != head) assoc = head < anchor ? 1 : -1
-    return new EditorSelection(anchor, head, assoc, goalColumn, ranges, marks)
+    return new GardSelection(anchor, head, assoc, goalColumn, ranges, marks)
   }
 
   /// Create a selection.
-  static create(spec: SelectionSpec) {
-    return EditorSelection.createInner(spec.anchor, spec.head || spec.anchor, spec.assoc, spec.goalColumn,
+  static create(spec: GardSelection.Spec) {
+    return GardSelection.createInner(spec.anchor, spec.head || spec.anchor, spec.assoc, spec.goalColumn,
                                        spec.ranges, spec.marks)
   }
 
   /// Find the next normal cursor position after or before this selection's
   /// head.
-  nextNormalCursor(state: EditorState, forward = true): EditorSelection | null {
+  nextNormalCursor(state: GardState, forward = true): GardSelection | null {
     let found = scanNormalFrom(state, this.head, this.assoc || (forward ? 1 : -1), forward, true)
-    return found && EditorSelection.cursor(found.pos, found.assoc)
+    return found && GardSelection.cursor(found.pos, found.assoc)
   }
 
   // FIXME rename? Frame differently?
-  normalCursorAtBound(state: EditorState, forward = true, mustMove = false): EditorSelection | null {
+  normalCursorAtBound(state: GardState, forward = true, mustMove = false): GardSelection | null {
     let found = scanNormalFrom(state, forward ? this.to : this.from, forward ? -1 : 1, forward, false)
-    return found && EditorSelection.cursor(found.pos, found.assoc)
+    return found && GardSelection.cursor(found.pos, found.assoc)
   }
 
   /// Move across one word starting from this selection's head.
-  skipWord(state: EditorState, forward = true): EditorSelection | null {
+  skipWord(state: GardState, forward = true): GardSelection | null {
     let found = skipWord(state, this.head, this.assoc || -1, forward)
-    return found && EditorSelection.cursor(found.pos, found.assoc)
+    return found && GardSelection.cursor(found.pos, found.assoc)
   }
 
   /// Find a normal selection near the given position.
-  static near(state: EditorState, pos: number, bias: -1 | 1 = 1) { return selectionNear(state, pos, bias) }
+  static near(state: GardState, pos: number, bias: -1 | 1 = 1) { return selectionNear(state, pos, bias) }
 
   /// Find a normal selection at the start of the document.
-  static atStart(state: EditorState) { return selectionAtStart(state) }
+  static atStart(state: GardState) { return selectionAtStart(state) }
 
   /// Find a normal selection at the end of the document.
-  static atEnd(state: EditorState) {
+  static atEnd(state: GardState) {
     let found = state.doc.inlineContent
       ? TextblockMap.get(0, state.doc, state.textDirection()).visualTextblockSide(false)
       : scanNormalFrom(state, state.doc.length, -1, false, false) ?? {pos: state.doc.length, assoc: -1}
-    return EditorSelection.cursor(found.pos, found.assoc)
+    return GardSelection.cursor(found.pos, found.assoc)
   }
 
   /// @internal
@@ -278,27 +239,67 @@ export class EditorSelection {
   }
 }
 
-export function normalize(cx: SelectionContext, selection: EditorSelection) {
+export namespace GardSelection {
+  /// The representation of a selection when serialized to JSON.
+  export type JSON = {
+    anchor: number
+    head?: number
+    assoc?: -1 | 0 | 1,
+    ranges?: readonly {from: number, to: number}[]
+    marks?: Record<string, any>
+  }
+
+  /// A description of an editor selection.
+  export type Spec = {
+    /// The anchor point of the selection. This is the side that doesn't
+    /// move when extending the selection (for example by moving the
+    /// cursor while holding shift).
+    anchor: number
+    /// The moving side of the selection. This will default to `anchor`
+    /// when not given.
+    head?: number
+    /// The side of the head position that the selection is associated
+    /// with, if any. `-1` points at the element before the position,
+    /// `1` at the element after. This is only meaningful for
+    /// empty/cursor selections. It will influence where the cursor is
+    /// drawn.
+    assoc?: -1 | 0 | 1
+    /// Associates a horizontal position with this selection for use
+    /// during vertical cursor motion.
+    goalColumn?: number
+    /// For selections that cover multiple ranges in the document, you
+    /// can specify the ranges. Must include the main range
+    /// (`anchor`/`head`) if provided. These must be non-overlapping,
+    /// and sorted.
+    ranges?: readonly {from: number, to: number}[]
+    /// Marks associated with a cursor selection, which will determine
+    /// the marks of inline content inserted at that selection. This is
+    /// used for things like toggling emphasis on a cursor selection.
+    marks?: readonly Mark<any>[]
+  }
+}
+
+export function normalize(cx: SelectionContext, selection: GardSelection) {
   if (!selection.empty) return selection
   let pos = cx.doc.resolve(selection.head)
   if (pos.parent.node.isTextblock) return selection
   let normal = selectionNear(cx, selection.head, selection.assoc || -1)
   if (normal == null || normal.head == selection.head) return selection
-  return EditorSelection.cursor(normal.head, normal.assoc, selection.goalColumn ?? undefined, selection.marks)
+  return GardSelection.cursor(normal.head, normal.assoc, selection.goalColumn ?? undefined, selection.marks)
 }
 
 export function selectionNear(cx: SelectionContext, pos: number, bias: -1 | 1) {
   let norm = scanNormalFrom(cx, pos, bias, bias > 0, false) ??
     scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false) ??
     {pos: pos, assoc: -1}
-  return EditorSelection.cursor(norm.pos, norm.assoc)
+  return GardSelection.cursor(norm.pos, norm.assoc)
 }
 
 export function selectionAtStart(cx: SelectionContext) {
   let found = cx.doc.inlineContent
     ? TextblockMap.get(0, cx.doc, (cx.textDirection ?? alwaysLTR)(cx.doc.tag)).visualTextblockSide(true)
     : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, assoc: 1}
-  return EditorSelection.cursor(found.pos, found.assoc)
+  return GardSelection.cursor(found.pos, found.assoc)
 }
 
 function isBarrier(node: Node) {
@@ -397,9 +398,9 @@ function skipWord(cx: SelectionContext, start: number, assoc: -1 | 1, forward: b
   }
 }
 
-export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
+export function wordAt(state: GardState, pos: number, bias: -1 | 1) {
   let res = state.doc.resolve(pos)
-  if (!res.parent.node.inlineContent) return EditorSelection.cursor(pos, bias)
+  if (!res.parent.node.inlineContent) return GardSelection.cursor(pos, bias)
   let start = pos, end = pos, text = ""
   scanBack: for (let i = res.index, cur = res.nodeBefore; cur;) {
     if (!cur.is(Leaf.Text)) break
@@ -427,11 +428,11 @@ export function wordAt(state: EditorState, pos: number, bias: -1 | 1) {
     if (i == res.parent.node.content.length) break
     cur = res.parent.node.content[i++]
   }
-  if (!(Intl as any).Segmenter) return EditorSelection.range(start, end)
+  if (!(Intl as any).Segmenter) return GardSelection.range(start, end)
   let best: any = null, local = pos - start
   for (let segment of new (Intl as any).Segmenter(undefined, {granularity: "word"}).segment(text)) {
     if (segment.isWordLike && segment.index <= local && segment.index + segment.segment.length >= local && (!best || bias > 0))
       best = segment
   }
-  return best ? EditorSelection.range(start + best.index, start + best.index + best.segment.length) : EditorSelection.cursor(pos, bias)
+  return best ? GardSelection.range(start + best.index, start + best.index + best.segment.length) : GardSelection.cursor(pos, bias)
 }
