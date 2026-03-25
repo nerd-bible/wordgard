@@ -1,4 +1,4 @@
-import {EditorState, Transaction, StateEffect, type Extension} from "wordgard/state"
+import {EditorState, Transaction, StateEffect} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 import {history, isolateHistory, popHistory} from "wordgard/history"
@@ -15,7 +15,7 @@ class DummyServer {
   version = 0
   delayed: number[] = []
 
-  constructor(d: string = "", config: {n?: number, extensions?: Extension[], collabConf?: any} = {}) {
+  constructor(d: string = "", config: {n?: number, extensions?: EditorState.Extension[], collabConf?: any} = {}) {
     let {n = 2, extensions = [], collabConf = {}} = config
     for (let i = 0; i < n; i++)
       this.states.push(EditorState.create({doc: doc(p(d)), config: [history(), collab(collabConf), ...extensions]}))

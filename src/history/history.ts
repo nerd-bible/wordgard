@@ -1,5 +1,5 @@
 import {EditorState, Transaction, StateEffect,
-        Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "wordgard/state"
+        Facet, Annotation, EditorSelection, SelectionJSON} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {undo, redo} from "wordgard/command"
 
@@ -110,7 +110,7 @@ const historyField_ = EditorState.Field.define({
 })
 
 /// Create a history extension with the given configuration.
-export function history(config: HistoryConfig = {}): Extension {
+export function history(config: HistoryConfig = {}): EditorState.Extension {
   return [
     historyField_,
     historyConfig.of(config),

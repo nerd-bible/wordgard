@@ -1,5 +1,5 @@
 import {Plot, ChangeSet} from "wordgard/doc"
-import type {EditorState, Extension} from "./state"
+import type {EditorState} from "./state"
 import {EditorSelection, SelectionSpec, normalize} from "./selection"
 
 /// Annotations are tagged values that are used to add metadata to
@@ -82,10 +82,10 @@ export class StateEffect<Value> {
   /// [appended](#state.StateEffect^appendConfig), but does not reset
   /// the content of [reconfigured](#state.Compartment.reconfigure)
   /// compartments.
-  declare static reconfigure: StateEffect.Type<Extension>
+  declare static reconfigure: StateEffect.Type<EditorState.Extension>
 
     /// Append extensions to the top-level configuration of the editor.
-    declare static appendConfig: StateEffect.Type<Extension>
+    declare static appendConfig: StateEffect.Type<EditorState.Extension>
 }
 
 export namespace StateEffect {
@@ -116,9 +116,9 @@ export namespace StateEffect {
   }
 }
 
-StateEffect.reconfigure = StateEffect.define<Extension>()
+StateEffect.reconfigure = StateEffect.define<EditorState.Extension>()
 
-StateEffect.appendConfig = StateEffect.define<Extension>()
+StateEffect.appendConfig = StateEffect.define<EditorState.Extension>()
 
 export namespace Transaction {
   /// Describes a [transaction](#state.Transaction) when calling the

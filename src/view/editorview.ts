@@ -1,5 +1,4 @@
-import {EditorState, Transaction, Extension, Prec,
-        EditorSelection, StateEffect, Facet} from "wordgard/state"
+import {EditorState, Transaction, EditorSelection, StateEffect, Facet} from "wordgard/state"
 import {ChangeSet, Node} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
@@ -633,7 +632,7 @@ export class EditorView {
   /// for `scroll` handlers, which will be called any time the
   /// editor's [scroll element](#view.EditorView.scrollDOM) or one of
   /// its parent nodes is scrolled.
-  static domEventHandlers(handlers: DOMEventHandlers<any>): Extension {
+  static domEventHandlers(handlers: DOMEventHandlers<any>): EditorState.Extension {
     return ViewPlugin.define(() => ({}), {eventHandlers: handlers})
   }
 
@@ -643,7 +642,7 @@ export class EditorView {
   /// handler returning true. They also don't prevent other handlers
   /// and observers from running when they return true, and should not
   /// call `preventDefault`.
-  static domEventObservers(observers: DOMEventHandlers<any>): Extension {
+  static domEventObservers(observers: DOMEventHandlers<any>): EditorState.Extension {
     return ViewPlugin.define(() => ({}), {eventObservers: observers})
   }
 
@@ -740,7 +739,7 @@ export class EditorView {
   /// `&light` when a light theme is active).
   // FIXME work out whether we want a theme system at all, and make
   // dark/light integrate properly with client setting
-  static theme(spec: {[selector: string]: StyleSpec}): Extension {
+  static theme(spec: {[selector: string]: StyleSpec}): EditorState.Extension {
     let prefix = StyleModule.newName()
     return [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))]
   }
@@ -765,8 +764,8 @@ export class EditorView {
   /// place of the editor wrapper element when directly targeting
   /// that. You can also use `&dark` or `&light` instead to only
   /// target editors with a dark or light theme.
-  static baseTheme(spec: {[selector: string]: StyleSpec}): Extension {
-    return Prec.lowest(styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
+  static baseTheme(spec: {[selector: string]: StyleSpec}): EditorState.Extension {
+    return EditorState.prec.lowest(styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
   }
 
   /// Provides a Content Security Policy nonce to use when creating

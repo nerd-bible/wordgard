@@ -1,4 +1,4 @@
-import {EditorState, Transaction, StateEffect, Facet, Extension, Direction} from "wordgard/state"
+import {EditorState, Transaction, StateEffect, Facet, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewPlugin, ViewUpdate, logException, getScrollMargins} from "./extension"
@@ -107,7 +107,7 @@ export function tooltips(config: {
   /// showing tooltips. You can provide a function here that returns
   /// an alternative rectangle.
   tooltipSpace?: (view: EditorView) => DOMRect
-} = {}): Extension {
+} = {}): EditorState.Extension {
   return tooltipConfig.of(config)
 }
 
@@ -758,7 +758,7 @@ export function hoverTooltip(
     /// milliseconds. Defaults to 300ms.
     hoverTime?: number
   } = {}
-): Extension & {active: EditorState.Field<readonly Tooltip[]>} {
+): EditorState.Extension & {active: EditorState.Field<readonly Tooltip[]>} {
   let setHover = StateEffect.define<readonly Tooltip[]>()
   let hoverState = EditorState.Field.define<readonly Tooltip[]>({
     create() { return [] },

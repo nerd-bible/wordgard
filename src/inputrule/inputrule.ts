@@ -1,5 +1,5 @@
 import {EditorView, ViewUpdate} from "wordgard/view"
-import {Extension, Facet, autoJoinBlocks} from "wordgard/state"
+import {EditorState, Facet, autoJoinBlocks} from "wordgard/state"
 import {isolateHistory} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"
 import {findWrappable, wrapBlockRange} from "wordgard/command"
@@ -9,7 +9,7 @@ export const inputRule = Facet.define<InputRule>()
 export const beforeUpdate = EditorView.beforeUpdate.of(applyInputRules)
 
 export class InputRule {
-  extension: Extension
+  extension: EditorState.Extension
   lookahead: RegExp | undefined
   inCode: boolean
 

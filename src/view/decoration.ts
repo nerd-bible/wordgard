@@ -1,4 +1,4 @@
-import {EditorState, Facet, Extension} from "wordgard/state"
+import {EditorState, Facet} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema, Elt, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type EditorView} from "./editorview"
@@ -65,7 +65,7 @@ export function tagShape(spec: {
   tag: Node.Type<any> | Node.Tag,
   shape: Shape | ((tag: Node.Tag) => Shape),
   atom?: boolean
-}): Extension {
+}): EditorState.Extension {
   let {tag, shape, atom} = spec, shapeFunc: (tag: Node.Tag) => Shape
   let type = tag instanceof Node.Type.Base ? tag : tag.type
   if (typeof shape == "function") {
@@ -81,7 +81,7 @@ export function tagShape(spec: {
 }
 
 class TagShape {
-  extension: Extension
+  extension: EditorState.Extension
 
   constructor(readonly type: Node.Type<any>,
               readonly shape: (tag: Node.Tag) => Shape) {
@@ -109,7 +109,7 @@ export type WidgetSpec = {
 }
 
 export function tagDecoration(spec: {query: Node.Query} &
-  (WrapperSpec | AttributeSpec | WidgetSpec)): Extension {
+  (WrapperSpec | AttributeSpec | WidgetSpec)): EditorState.Extension {
   if ("element" in spec) {
     return new TagWrapperSource(spec.query, spec)
   } else if ("widget" in spec) {
@@ -173,7 +173,7 @@ const baseTagShape = memo((tag: Node.Tag): Shape => {
 class TagWidgetSource {
   place: WidgetPlace
   widget: (tag: Node.Tag) => Widget
-  extension: Extension
+  extension: EditorState.Extension
 
   constructor(readonly query: Node.Query, deco: WidgetSpec) {
     let {place, widget} = deco
@@ -189,7 +189,7 @@ export class TagWrapperSource {
   wrapper: (tag: Node.Tag) => DecoElt
   rank: number
   spanning: boolean
-  extension: Extension
+  extension: EditorState.Extension
 
   constructor(readonly query: Node.Query, deco: WrapperSpec) {
     const {element, attributes, rank, spanning} = deco
@@ -210,7 +210,7 @@ export const tagWrappers = Facet.define<TagWrapperSource>()
 export class TagAttributeSource {
   attribute: string
   value: string | ((tag: Node.Tag) => string)
-  extension: Extension
+  extension: EditorState.Extension
 
   constructor(readonly query: Node.Query, deco: AttributeSpec) {
     this.attribute = deco.attribute

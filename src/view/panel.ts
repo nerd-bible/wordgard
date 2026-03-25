@@ -1,6 +1,6 @@
 // FIXME figure out how to provide easy-to-use default styling for these
 
-import {Facet, Extension} from "wordgard/state"
+import {Facet, EditorState} from "wordgard/state"
 import {EditorView} from "./editorview"
 import {ViewPlugin, ViewUpdate} from "./extension"
 import {rmDOM} from "./dom"
@@ -26,7 +26,7 @@ const panelConfig = Facet.define<PanelConfig, PanelConfig>({
 })
 
 /// Configures the panel-managing extension.
-export function panels(config?: PanelConfig): Extension {
+export function panels(config?: PanelConfig): EditorState.Extension {
   return config ? [panelConfig.of(config)] : []
 }
 

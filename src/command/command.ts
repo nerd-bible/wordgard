@@ -1,4 +1,4 @@
-import {Facet, Extension} from "wordgard/state"
+import {Facet, EditorState} from "wordgard/state"
 import {type EditorView} from "wordgard/view"
 
 const commandHandler = Facet.define<
@@ -35,7 +35,7 @@ export class Command<Param = null> {
     readonly defaultHandler: (view: EditorView, param: Param) => boolean
   ) {}
 
-  handler(handler: (view: EditorView, param: Param) => boolean): Extension {
+  handler(handler: (view: EditorView, param: Param) => boolean): EditorState.Extension {
     return commandHandler.of([this, handler] as any)
   }
 

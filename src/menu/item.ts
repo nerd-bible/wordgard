@@ -1,7 +1,7 @@
 import {EditorView, showDialog} from "wordgard/view"
 import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
-import {EditorState, Transaction, Facet, Extension} from "wordgard/state"
+import {EditorState, Transaction, Facet} from "wordgard/state"
 import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
@@ -66,7 +66,7 @@ export class MenuButton implements MenuItemSpec {
   label: MenuLabel
   run: (view: EditorView) => void
   active: ((state: EditorState) => boolean) | undefined
-  extension: Extension
+  extension: EditorState.Extension
 
   constructor(spec: {
     run: (view: EditorView) => void
@@ -92,7 +92,7 @@ export class Submenu implements MenuItemSpec {
   defaultLabel: MenuLabel | undefined
   arrow: boolean
   width: number | undefined
-  extension: Extension
+  extension: EditorState.Extension
 
   constructor(spec: {
     label?: MenuLabel
@@ -115,7 +115,7 @@ export class Submenu implements MenuItemSpec {
 
 export class MenuGroup {
   margin: boolean
-  extension: Extension
+  extension: EditorState.Extension
   parent: MenuGroup | Submenu | undefined
   rank: number
 
@@ -415,7 +415,7 @@ export const AlignCenter = new MenuButton({
 })
 
 // FIXME drop
-export const staticMenu: Extension[] = [
+export const staticMenu: EditorState.Extension[] = [
   Undo, Redo, Strong,
   Commands, InlineStyles, BlockMenu, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,

@@ -25,7 +25,7 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   /// @internal
   readonly default: Output
   /// @internal
-  readonly extensions: Extension | undefined
+  readonly extensions: EditorState.Extension | undefined
 
   private constructor(
     /// @internal
@@ -35,7 +35,7 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
     /// @internal
     readonly compare: (a: Output, b: Output) => boolean,
     private isStatic: boolean,
-    enables: Extension | undefined | ((self: Facet<Input, Output>) => Extension)
+    enables: EditorState.Extension | undefined | ((self: Facet<Input, Output>) => EditorState.Extension)
   ) {
     this.default = combine(none)
     this.extensions = typeof enables == "function" ? enables(this) : enables
@@ -55,7 +55,7 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   }
 
   /// Returns an extension that adds the given value to this facet.
-  of(value: Input): Extension {
+  of(value: Input): EditorState.Extension {
     return new FacetProvider<Input>(none, this, ProviderFlag.Static, value)
   }
 
@@ -68,14 +68,14 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   ///
   /// In cases where your value depends only on a single field, you
   /// can use the [`from`](#state.Facet.from) method instead.
-  compute(get: (state: EditorState) => Input): Extension {
+  compute(get: (state: EditorState) => Input): EditorState.Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
     return new FacetProvider<Input>([], this, ProviderFlag.Auto, get)
   }
 
   /// Create an extension that computes zero or more values for this
   /// facet from a state.
-  computeN(get: (state: EditorState) => readonly Input[]): Extension {
+  computeN(get: (state: EditorState) => readonly Input[]): EditorState.Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
     return new FacetProvider<Input>([], this, ProviderFlag.Multi | ProviderFlag.Auto, get)
   }
@@ -84,9 +84,9 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   /// field as input. If the field's type corresponds to this facet's
   /// input type, the getter function can be omitted. If given, it
   /// will be used to retrieve the input from the field value.
-  from<T extends Input>(field: EditorState.Field<T>): Extension
-  from<T>(field: EditorState.Field<T>, get: (value: T) => Input): Extension
-  from<T>(field: EditorState.Field<T>, get?: (value: T) => Input): Extension {
+  from<T extends Input>(field: EditorState.Field<T>): EditorState.Extension
+  from<T>(field: EditorState.Field<T>, get: (value: T) => Input): EditorState.Extension
+  from<T>(field: EditorState.Field<T>, get?: (value: T) => Input): EditorState.Extension {
     if (this.isStatic) throw new Error("Can't compute a static facet")
     if (!get) get = x => x as any
     return new FacetProvider<Input>([field], this, 0 as ProviderFlag, state => get!(state.field(field)))
@@ -143,7 +143,7 @@ export namespace Facet {
     /// be read from a state even if the facet wasn't present in the
     /// state at all, these extensions won't be added in that
     /// situation.)
-    enables?: Extension | ((self: Facet<Input, Output>) => Extension)
+    enables?: EditorState.Extension | ((self: Facet<Input, Output>) => EditorState.Extension)
   }
 
   /// A facet reader can be used to fetch the value of a facet, through
@@ -214,7 +214,7 @@ export class EditorState { // FIXME rename to something less boring?
 
   private constructor(
     /// The configuration 
-    readonly config: Configuration,
+    readonly config: EditorState.Configuration,
     private _doc: Plot.Doc,
     private _selection: EditorSelection,
     /// @internal
@@ -298,9 +298,9 @@ export class EditorState { // FIXME rename to something less boring?
 
   /// @internal
   applyTransaction(tr: Transaction) {
-    let conf: Configuration | null = this.config, {base, compartments} = conf
+    let conf: EditorState.Configuration | null = this.config, {base, compartments} = conf
     for (let effect of tr.effects) {
-      if (effect.is(Compartment.reconfigureCompartment)) {
+      if (effect.is(EditorState.Compartment.reconfigureCompartment)) {
         if (conf) {
           compartments = new Map
           conf.compartments.forEach((val, key) => compartments!.set(key, val))
@@ -317,7 +317,7 @@ export class EditorState { // FIXME rename to something less boring?
     }
     let startValues
     if (!conf) {
-      conf = Configuration.resolve(base, compartments, this)
+      conf = EditorState.Configuration.resolve(base, compartments, this)
       // FIXME check the doc when the schema changes
       let intermediateState = new EditorState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
                                               (state, slot) => slot.reconfigure(state, this), null)
@@ -369,7 +369,7 @@ export class EditorState { // FIXME rename to something less boring?
   /// fields should be deserialized, pass the same object you passed
   /// to [`toJSON`](#state.EditorState.toJSON) when serializing as
   /// third argument.
-  static fromJSON(json: any, extensions: Extension, fields?: {[prop: string]: EditorState.Field<any>}): EditorState {
+  static fromJSON(json: any, extensions: EditorState.Extension, fields?: {[prop: string]: EditorState.Field<any>}): EditorState {
     if (!json)
       throw new ValidationError("Invalid JSON representation for EditorState")
     let fieldInit = []
@@ -379,7 +379,7 @@ export class EditorState { // FIXME rename to something less boring?
         fieldInit.push(field.init(state => field.spec.fromJSON!(value, state)))
       }
     }
-    let config = Configuration.create([extensions, fieldInit])
+    let config = EditorState.Configuration.create([extensions, fieldInit])
     let schema = Schema.define(config.staticFacet(schemaElement))
     return EditorState.fromConfig(config, schema.docFromJSON(json.doc), EditorSelection.fromJSON(schema, json.selection))
   }
@@ -388,7 +388,7 @@ export class EditorState { // FIXME rename to something less boring?
   /// initializing an editor—updated states are created by applying
   /// transactions.
   static create(spec: EditorState.Spec): EditorState {
-    let config = spec.config instanceof Configuration ? spec.config : Configuration.resolve(spec.config || [], new Map)
+    let config = spec.config instanceof EditorState.Configuration ? spec.config : EditorState.Configuration.resolve(spec.config || [], new Map)
     let configSchema = config.staticFacet(schemaElement)
     let schema = spec.doc instanceof Plot.Doc ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
     let doc = readDoc(schema, spec.doc)
@@ -404,7 +404,7 @@ export class EditorState { // FIXME rename to something less boring?
   }
 
   /// @internal
-  static fromConfig(config: Configuration, doc: Plot.Doc, selection: EditorSelection) {
+  static fromConfig(config: EditorState.Configuration, doc: Plot.Doc, selection: EditorSelection) {
     selection.check(doc)
     return new EditorState(config, doc, selection, config.dynamicSlots.map(() => null),
                            (state, slot) => slot.create(state), null)
@@ -543,14 +543,14 @@ export namespace EditorState {
     /// document.
     selection?: EditorSelection | SelectionSpec | ((doc: Plot.Doc) => EditorSelection)
     /// Configuration for this state.
-    config?: Extension | Configuration
+    config?: EditorState.Extension | EditorState.Configuration
   }
 
   /// Fields can store additional information in an editor state, and
   /// keep it in sync with the rest of the state.
   export class Field<Value> {
     /// @internal
-    public provides: Extension | undefined = undefined
+    public provides: EditorState.Extension | undefined = undefined
 
     private constructor(
       /// @internal
@@ -604,14 +604,14 @@ export namespace EditorState {
     /// Returns an extension that enables this field and overrides the
     /// way it is initialized. Can be useful when you need to provide a
     /// non-default starting value for the field.
-    init(create: (state: EditorState) => Value): Extension {
+    init(create: (state: EditorState) => Value): EditorState.Extension {
       return [this, initField.of({field: this as any, create})]
     }
 
     /// State field instances can be used as
     /// [`Extension`](#state.Extension) values to enable the field in a
     /// given state.
-    get extension(): Extension { return this }
+    get extension(): EditorState.Extension { return this }
   }
 
   export namespace Field {
@@ -635,7 +635,7 @@ export namespace EditorState {
       /// create facet inputs from this field, but can also return other
       /// extensions that should be enabled when the field is present in a
       /// configuration.
-      provide?: (field: EditorState.Field<Value>) => Extension
+      provide?: (field: EditorState.Field<Value>) => EditorState.Extension
 
       /// A function used to serialize this field's content to JSON. Only
       /// necessary when this field is included in the argument to
@@ -647,63 +647,206 @@ export namespace EditorState {
       fromJSON?: (json: any, state: EditorState) => Value
     }
   }
+
+
+  export class Configuration {
+    readonly statusTemplate: SlotStatus[] = []
+
+    constructor(readonly base: EditorState.Extension,
+                readonly compartments: Map<EditorState.Compartment, EditorState.Extension>,
+                readonly dynamicSlots: DynamicSlot[],
+                readonly address: {[id: number]: number},
+                readonly staticValues: readonly any[],
+                readonly facets: {[id: number]: readonly FacetProvider<any>[]}) {
+      while (this.statusTemplate.length < dynamicSlots.length)
+        this.statusTemplate.push(SlotStatus.Unresolved)
+    }
+
+    staticFacet<Output>(facet: Facet<any, Output>) {
+      let addr = this.address[facet.id]
+      return addr == null ? facet.default : this.staticValues[addr >> 1]
+    }
+
+    static resolve(base: EditorState.Extension, compartments: Map<EditorState.Compartment, EditorState.Extension>, oldState?: EditorState) {
+      let fields: EditorState.Field<any>[] = []
+      let facets: {[id: number]: FacetProvider<any>[]} = Object.create(null)
+      let newCompartments = new Map<EditorState.Compartment, EditorState.Extension>()
+
+      for (let ext of flatten(base, compartments, newCompartments)) {
+        if (ext instanceof FacetProvider) (facets[ext.facet.id] || (facets[ext.facet.id] = [])).push(ext)
+        else fields.push(ext)
+      }
+
+      let address: {[id: number]: number} = Object.create(null)
+      let staticValues: any[] = []
+      let dynamicSlots: ((address: {[id: number]: number}) => DynamicSlot)[] = []
+
+      for (let field of fields) {
+        address[field.id] = dynamicSlots.length << 1
+        dynamicSlots.push(a => field.slot(a))
+      }
+
+      let oldFacets = oldState?.config.facets
+      for (let id in facets) {
+        let providers = facets[id], facet = providers[0].facet
+        let oldProviders = oldFacets && oldFacets[id] || none
+        if (providers.every(p => p.flags & ProviderFlag.Static)) {
+          address[facet.id] = (staticValues.length << 1) | 1
+          if (sameArray(oldProviders, providers)) {
+            staticValues.push(oldState!.facet(facet))
+          } else {
+            let value = facet.combine(providers.map(p => p.value))
+            staticValues.push(oldState && facet.compare(value, oldState.facet(facet)) ? oldState.facet(facet) : value)
+          }
+        } else {
+          for (let p of providers) {
+            if (p.flags & ProviderFlag.Static) {
+              address[p.id] = (staticValues.length << 1) | 1
+              staticValues.push(p.value)
+            } else {
+              address[p.id] = dynamicSlots.length << 1
+              dynamicSlots.push(a => p.dynamicSlot(a))
+            }
+          }
+          address[facet.id] = dynamicSlots.length << 1
+          dynamicSlots.push(a => dynamicFacetSlot(a, facet, providers))
+        }
+      }
+
+      let dynamic = dynamicSlots.map(f => f(address))
+      return new EditorState.Configuration(base, newCompartments, dynamic, address, staticValues, facets)
+    }
+
+    /// Create a configuration from the given set of extensions.
+    static create(extensions: EditorState.Extension) {
+      return EditorState.Configuration.resolve(extensions, new Map)
+    }
+  }
+
+  function flatten(extension: EditorState.Extension, compartments: Map<EditorState.Compartment, EditorState.Extension>, newCompartments: Map<EditorState.Compartment, EditorState.Extension>) {
+    let result: (FacetProvider<any> | EditorState.Field<any>)[][] = [[], [], [], [], []]
+    let seen = new Map<EditorState.Extension, number>()
+    function inner(ext: EditorState.Extension, prec: number) {
+      let known = seen.get(ext)
+      if (known != null) {
+        if (known <= prec) return
+        let found = result[known].indexOf(ext as any)
+        if (found > -1) result[known].splice(found, 1)
+        if (ext instanceof CompartmentInstance) newCompartments.delete(ext.compartment)
+      }
+      seen.set(ext, prec)
+      if (Array.isArray(ext)) {
+        for (let e of ext) inner(e, prec)
+      } else if (ext instanceof CompartmentInstance) {
+        if (newCompartments.has(ext.compartment))
+          throw new RangeError(`Duplicate use of compartment in extensions`)
+        let content = compartments.get(ext.compartment) || ext.inner
+        newCompartments.set(ext.compartment, content)
+        inner(content, prec)
+      } else if (ext instanceof PrecExtension) {
+        inner(ext.inner, ext.prec)
+      } else if (ext instanceof EditorState.Field) {
+        result[prec].push(ext)
+        if (ext.provides) inner(ext.provides, prec)
+      } else if (ext instanceof FacetProvider) {
+        result[prec].push(ext)
+        if (ext.facet.extensions) inner(ext.facet.extensions, Prec.Default)
+      } else if (ext instanceof Plot.Tag || ext instanceof Plot.Type ||
+        ext instanceof Leaf || ext instanceof Leaf.Type ||
+        ext instanceof Mark || ext instanceof Mark.Type) {
+        result[prec].push(schemaElement.of(ext) as FacetProvider<any>)
+      } else {
+        let content = (ext as any).extension
+        if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`)
+        inner(content, prec)
+      }
+    }
+    inner(extension, Prec.Default)
+    return result.reduce((a, b) => a.concat(b))
+  }
+
+  /// Extension values can be
+  /// [provided](#state.EditorStateConfig.extensions) when creating a
+  /// state to attach various kinds of configuration and behavior
+  /// information. They can either be built-in extension-providing
+  /// objects, such as [state fields](#state.StateField) or [facet
+  /// providers](#state.Facet.of), or objects with an extension in its
+  /// `extension` property. Extensions can be nested in arrays
+  /// arbitrarily deep—they will be flattened when processed.
+  export type Extension = Schema.Element | {extension: EditorState.Extension} | readonly EditorState.Extension[]
+
+  /// By default extensions are registered in the order they are found
+  /// in the flattened form of nested array that was provided.
+  /// Individual extension values can be assigned a precedence to
+  /// override this. Extensions that do not have a precedence set get
+  /// the precedence of the nearest parent with a precedence, or
+  /// [`default`](#state.Prec.default) if there is no such parent. The
+  /// final ordering of extensions is determined by first sorting by
+  /// precedence and then by order within each precedence.
+  export const prec = {
+    /// The highest precedence level, for extensions that should end up
+    /// near the start of the precedence ordering.
+    highest: mkPrec(Prec.Highest),
+    /// A higher-than-default precedence, for extensions that should
+    /// come before those with default precedence.
+    high: mkPrec(Prec.High),
+    /// The default precedence, which is also used for extensions
+    /// without an explicit precedence.
+    default: mkPrec(Prec.Default),
+    /// A lower-than-default precedence.
+    low: mkPrec(Prec.Low),
+    /// The lowest precedence level. Meant for things that should end up
+    /// near the end of the extension order.
+    lowest: mkPrec(Prec.Lowest)
+  }
+
+  /// Extension compartments can be used to make a configuration
+  /// dynamic. By [wrapping](#state.Compartment.of) part of your
+  /// configuration in a compartment, you can later
+  /// [replace](#state.Compartment.reconfigure) that part through a
+  /// transaction.
+  export class Compartment {
+    /// Create an instance of this compartment to add to your [state
+    /// configuration](#state.EditorStateConfig.extensions).
+    of(ext: EditorState.Extension): EditorState.Extension { return new CompartmentInstance(this, ext) }
+
+    /// Create an [effect](#state.TransactionSpec.effects) that
+    /// reconfigures this compartment.
+    reconfigure(content: EditorState.Extension): StateEffect<unknown> {
+      return EditorState.Compartment.reconfigureCompartment.of({compartment: this, extension: content})
+    }
+
+    /// Get the current content of the compartment in the state, or
+    /// `undefined` if it isn't present.
+    get(state: EditorState): EditorState.Extension | undefined {
+      return state.config.compartments.get(this)
+    }
+
+    /// @internal
+    static reconfigureCompartment = StateEffect.define<{compartment: EditorState.Compartment, extension: EditorState.Extension}>()
+  }
 }
 
 function addValue<T>(set: T[], value: T) {
   if (set.indexOf(value) < 0) set.push(value)
 }
 
-/// Extension values can be
-/// [provided](#state.EditorStateConfig.extensions) when creating a
-/// state to attach various kinds of configuration and behavior
-/// information. They can either be built-in extension-providing
-/// objects, such as [state fields](#state.StateField) or [facet
-/// providers](#state.Facet.of), or objects with an extension in its
-/// `extension` property. Extensions can be nested in arrays
-/// arbitrarily deep—they will be flattened when processed.
-export type Extension = Schema.Element | {extension: Extension} | readonly Extension[]
+const enum Prec { Lowest = 4, Low = 3, Default = 2, High = 1, Highest = 0}
 
-const Prec_ = {lowest: 4, low: 3, default: 2, high: 1, highest: 0}
-
-function prec(value: number) {
-  return (ext: Extension) => new PrecExtension(ext, value) as Extension
-}
-
-/// By default extensions are registered in the order they are found
-/// in the flattened form of nested array that was provided.
-/// Individual extension values can be assigned a precedence to
-/// override this. Extensions that do not have a precedence set get
-/// the precedence of the nearest parent with a precedence, or
-/// [`default`](#state.Prec.default) if there is no such parent. The
-/// final ordering of extensions is determined by first sorting by
-/// precedence and then by order within each precedence.
-export const Prec = {
-  /// The highest precedence level, for extensions that should end up
-  /// near the start of the precedence ordering.
-  highest: prec(Prec_.highest),
-  /// A higher-than-default precedence, for extensions that should
-  /// come before those with default precedence.
-  high: prec(Prec_.high),
-  /// The default precedence, which is also used for extensions
-  /// without an explicit precedence.
-  default: prec(Prec_.default),
-  /// A lower-than-default precedence.
-  low: prec(Prec_.low),
-  /// The lowest precedence level. Meant for things that should end up
-  /// near the end of the extension order.
-  lowest: prec(Prec_.lowest)
+function mkPrec(value: number) {
+  return (ext: EditorState.Extension) => new PrecExtension(ext, value) as EditorState.Extension
 }
 
 class PrecExtension {
-  constructor(readonly inner: Extension, readonly prec: number) {}
-  extension!: Extension
+  constructor(readonly inner: EditorState.Extension, readonly prec: number) {}
+  extension!: EditorState.Extension
 }
 
-export function sameArray<T>(a: readonly T[], b: readonly T[]) {
+function sameArray<T>(a: readonly T[], b: readonly T[]) {
   return a == b || a.length == b.length && a.every((e, i) => e === b[i])
 }
 
-export type Slot = Facet.Reader<any> | EditorState.Field<any> | "doc" | "selection"
+type Slot = Facet.Reader<any> | EditorState.Field<any> | "doc" | "selection"
 
 const enum ProviderFlag {
   Static = 1,
@@ -736,7 +879,7 @@ class DependencySet {
 
 class FacetProvider<Input> {
   readonly id = nextID++
-  extension!: Extension // Kludge to convince the type system these count as extensions
+  extension!: EditorState.Extension // Kludge to convince the type system these count as extensions
   dependencies: Slot[]
 
   constructor(dependencies: readonly Slot[],
@@ -871,155 +1014,13 @@ function getAddr(state: EditorState, addr: number) {
   return addr & 1 ? state.config.staticValues[addr >> 1] : state.values[addr >> 1]
 }
 
-/// Extension compartments can be used to make a configuration
-/// dynamic. By [wrapping](#state.Compartment.of) part of your
-/// configuration in a compartment, you can later
-/// [replace](#state.Compartment.reconfigure) that part through a
-/// transaction.
-export class Compartment {
-  /// Create an instance of this compartment to add to your [state
-  /// configuration](#state.EditorStateConfig.extensions).
-  of(ext: Extension): Extension { return new CompartmentInstance(this, ext) }
-
-  /// Create an [effect](#state.TransactionSpec.effects) that
-  /// reconfigures this compartment.
-  reconfigure(content: Extension): StateEffect<unknown> {
-    return Compartment.reconfigureCompartment.of({compartment: this, extension: content})
-  }
-
-  /// Get the current content of the compartment in the state, or
-  /// `undefined` if it isn't present.
-  get(state: EditorState): Extension | undefined {
-    return state.config.compartments.get(this)
-  }
-
-  /// @internal
-  static reconfigureCompartment = StateEffect.define<{compartment: Compartment, extension: Extension}>()
-}
-
 class CompartmentInstance {
-  constructor(readonly compartment: Compartment, readonly inner: Extension) {}
-  extension!: Extension
+  constructor(readonly compartment: EditorState.Compartment, readonly inner: EditorState.Extension) {}
+  extension!: EditorState.Extension
 }
 
 interface DynamicSlot {
   create(state: EditorState): SlotStatus
   update(state: EditorState, tr: Transaction): SlotStatus
   reconfigure(state: EditorState, oldState: EditorState): SlotStatus
-}
-
-export class Configuration {
-  readonly statusTemplate: SlotStatus[] = []
-
-  constructor(readonly base: Extension,
-              readonly compartments: Map<Compartment, Extension>,
-              readonly dynamicSlots: DynamicSlot[],
-              readonly address: {[id: number]: number},
-              readonly staticValues: readonly any[],
-              readonly facets: {[id: number]: readonly FacetProvider<any>[]}) {
-    while (this.statusTemplate.length < dynamicSlots.length)
-      this.statusTemplate.push(SlotStatus.Unresolved)
-  }
-
-  staticFacet<Output>(facet: Facet<any, Output>) {
-    let addr = this.address[facet.id]
-    return addr == null ? facet.default : this.staticValues[addr >> 1]
-  }
-
-  static resolve(base: Extension, compartments: Map<Compartment, Extension>, oldState?: EditorState) {
-    let fields: EditorState.Field<any>[] = []
-    let facets: {[id: number]: FacetProvider<any>[]} = Object.create(null)
-    let newCompartments = new Map<Compartment, Extension>()
-
-    for (let ext of flatten(base, compartments, newCompartments)) {
-      if (ext instanceof FacetProvider) (facets[ext.facet.id] || (facets[ext.facet.id] = [])).push(ext)
-      else fields.push(ext)
-    }
-
-    let address: {[id: number]: number} = Object.create(null)
-    let staticValues: any[] = []
-    let dynamicSlots: ((address: {[id: number]: number}) => DynamicSlot)[] = []
-
-    for (let field of fields) {
-      address[field.id] = dynamicSlots.length << 1
-      dynamicSlots.push(a => field.slot(a))
-    }
-
-    let oldFacets = oldState?.config.facets
-    for (let id in facets) {
-      let providers = facets[id], facet = providers[0].facet
-      let oldProviders = oldFacets && oldFacets[id] || none
-      if (providers.every(p => p.flags & ProviderFlag.Static)) {
-        address[facet.id] = (staticValues.length << 1) | 1
-        if (sameArray(oldProviders, providers)) {
-          staticValues.push(oldState!.facet(facet))
-        } else {
-          let value = facet.combine(providers.map(p => p.value))
-          staticValues.push(oldState && facet.compare(value, oldState.facet(facet)) ? oldState.facet(facet) : value)
-        }
-      } else {
-        for (let p of providers) {
-          if (p.flags & ProviderFlag.Static) {
-            address[p.id] = (staticValues.length << 1) | 1
-            staticValues.push(p.value)
-          } else {
-            address[p.id] = dynamicSlots.length << 1
-            dynamicSlots.push(a => p.dynamicSlot(a))
-          }
-        }
-        address[facet.id] = dynamicSlots.length << 1
-        dynamicSlots.push(a => dynamicFacetSlot(a, facet, providers))
-      }
-    }
-
-    let dynamic = dynamicSlots.map(f => f(address))
-    return new Configuration(base, newCompartments, dynamic, address, staticValues, facets)
-  }
-
-  /// Create a configuration from the given set of extensions.
-  static create(extensions: Extension) {
-    return Configuration.resolve(extensions, new Map)
-  }
-}
-
-function flatten(extension: Extension, compartments: Map<Compartment, Extension>, newCompartments: Map<Compartment, Extension>) {
-  let result: (FacetProvider<any> | EditorState.Field<any>)[][] = [[], [], [], [], []]
-  let seen = new Map<Extension, number>()
-  function inner(ext: Extension, prec: number) {
-    let known = seen.get(ext)
-    if (known != null) {
-      if (known <= prec) return
-      let found = result[known].indexOf(ext as any)
-      if (found > -1) result[known].splice(found, 1)
-      if (ext instanceof CompartmentInstance) newCompartments.delete(ext.compartment)
-    }
-    seen.set(ext, prec)
-    if (Array.isArray(ext)) {
-      for (let e of ext) inner(e, prec)
-    } else if (ext instanceof CompartmentInstance) {
-      if (newCompartments.has(ext.compartment))
-        throw new RangeError(`Duplicate use of compartment in extensions`)
-      let content = compartments.get(ext.compartment) || ext.inner
-      newCompartments.set(ext.compartment, content)
-      inner(content, prec)
-    } else if (ext instanceof PrecExtension) {
-      inner(ext.inner, ext.prec)
-    } else if (ext instanceof EditorState.Field) {
-      result[prec].push(ext)
-      if (ext.provides) inner(ext.provides, prec)
-    } else if (ext instanceof FacetProvider) {
-      result[prec].push(ext)
-      if (ext.facet.extensions) inner(ext.facet.extensions, Prec_.default)
-    } else if (ext instanceof Plot.Tag || ext instanceof Plot.Type ||
-               ext instanceof Leaf || ext instanceof Leaf.Type ||
-               ext instanceof Mark || ext instanceof Mark.Type) {
-      result[prec].push(schemaElement.of(ext) as FacetProvider<any>)
-    } else {
-      let content = (ext as any).extension
-      if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`)
-      inner(content, prec)
-    }
-  }
-  inner(extension, Prec_.default)
-  return result.reduce((a, b) => a.concat(b))
 }

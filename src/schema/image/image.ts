@@ -1,6 +1,6 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
 import {EditorView, PointSet, Decoration, KeyBinding} from "wordgard/view"
-import {EditorState, StateEffect, Prec} from "wordgard/state"
+import {EditorState, StateEffect} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
   validateParam: "string",
@@ -117,7 +117,7 @@ const resizeHandlers = EditorView.domEventHandlers({
 })
 
 export const dragHandle = [
-  Prec.high(resizeHandlers),
+  EditorState.prec.high(resizeHandlers),
   resizeState,
   Decoration.source.of(s => s.field(resizeState).deco),
 ]

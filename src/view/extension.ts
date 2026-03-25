@@ -1,4 +1,4 @@
-import {EditorState, Transaction, Facet, StateEffect, Extension, EditorSelection} from "wordgard/state"
+import {EditorState, Transaction, Facet, StateEffect, EditorSelection} from "wordgard/state"
 import {ChangeSet} from "wordgard/doc"
 import {StyleModule} from "style-mod"
 import {EditorView, DOMEventHandlers} from "./editorview"
@@ -126,7 +126,7 @@ export interface PluginSpec<V extends PluginValue> {
 
   /// Specify that the plugin provides additional extensions when
   /// added to an editor configuration.
-  provide?: (plugin: ViewPlugin<V>) => Extension // FIXME is this useful?
+  provide?: (plugin: ViewPlugin<V>) => EditorState.Extension // FIXME is this useful?
 }
 
 // FIXME rename EditorView.Plugin
@@ -136,7 +136,7 @@ export interface PluginSpec<V extends PluginValue> {
 /// that happen in the view.
 export class ViewPlugin<V extends PluginValue> {
   /// Instances of this class act as extensions.
-  extension: Extension
+  extension: EditorState.Extension
 
   private constructor(
     /// @internal
@@ -147,7 +147,7 @@ export class ViewPlugin<V extends PluginValue> {
     readonly domEventHandlers: DOMEventHandlers<V> | undefined,
     /// @internal
     readonly domEventObservers: DOMEventHandlers<V> | undefined,
-    buildExtensions: (plugin: ViewPlugin<V>) => Extension
+    buildExtensions: (plugin: ViewPlugin<V>) => EditorState.Extension
   ) {
     this.extension = buildExtensions(this)
   }

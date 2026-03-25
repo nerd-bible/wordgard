@@ -1,6 +1,6 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
-import {EditorState, type Extension, Transaction, StateEffect, Compartment} from "wordgard/state"
+import {EditorState, Transaction, StateEffect} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wordgard/schema"
 import {Image, ImageAlt} from "wordgard/schema/image"
@@ -9,7 +9,7 @@ import ist from "ist"
 const {DocTile} = EditorView
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
-function render(doc: Plot.Doc, ...config: Extension[]): InstanceType<typeof DocTile> {
+function render(doc: Plot.Doc, ...config: EditorState.Extension[]): InstanceType<typeof DocTile> {
   return DocTile.create(EditorState.create({doc, config}), document.createElement("div"))
 }
 
@@ -354,7 +354,7 @@ describe("DocTile", () => {
     })
 
     it("can remove attributes from tags", () => {
-      let comp = new Compartment()
+      let comp = new EditorState.Compartment()
       let node = render(doc(p("?")), comp.of(tagDecoration({
         query: Paragraph,
         attribute: "lang",

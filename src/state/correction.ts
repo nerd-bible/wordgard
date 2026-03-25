@@ -1,6 +1,6 @@
 import {Node, Pos, ChangeSet} from "wordgard/doc"
 import {Transaction} from "./transaction"
-import {Facet, Extension, EditorState} from "./state"
+import {Facet, EditorState} from "./state"
 
 const enum CorrectionEvent {
   ChildList = 0,
@@ -119,7 +119,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 export class Correction<PosType extends Pos.Node> {
   /// To take effect, corrections must be included in an editor
   /// configuration as extensions.
-  extension: Extension
+  extension: EditorState.Extension
 
   private constructor(
     /// @internal

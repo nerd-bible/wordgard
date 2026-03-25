@@ -1,4 +1,4 @@
-import {Facet, Annotation, EditorState, StateEffect, Transaction, Extension} from "wordgard/state"
+import {Facet, Annotation, EditorState, StateEffect, Transaction} from "wordgard/state"
 import {ChangeSet, Plot} from "wordgard/doc"
 
 /// An update is a set of changes and effects.
@@ -79,7 +79,7 @@ const collabField = EditorState.Field.define({
 })
 
 /// Create an instance of the collaborative editing plugin.
-export function collab(config: CollabConfig = {}): Extension {
+export function collab(config: CollabConfig = {}): EditorState.Extension {
   return [collabField, collabConfig.of({generatedID: Math.floor(Math.random() * 1e9).toString(36), ...config})]
 }
 
