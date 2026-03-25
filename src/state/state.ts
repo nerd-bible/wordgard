@@ -315,17 +315,21 @@ export class GardState {
         base = asArray(base).concat(effect.value)
       }
     }
-    let startValues
+    let startValues, doc = tr.newDoc
     if (!conf) {
       conf = GardState.Configuration.resolve(base, compartments, this)
-      // FIXME check the doc when the schema changes
       let intermediateState = new GardState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
                                             (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values
+      let schemaElts = conf.staticFacet(schemaElement)
+      if (schemaElts.some(elt => elt instanceof Plot.Tag && elt.isDoc)) {
+        let schema = Schema.define(schemaElts)
+        doc = schema.doc(doc.content)
+      }
     } else {
       startValues = tr.startState.values.slice()
     }
-    new GardState(conf, tr.newDoc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
+    new GardState(conf, doc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
   }
 
   /// A resolved form of the state's selection. Instead of raw
@@ -387,10 +391,16 @@ export class GardState {
   /// Create a new state. You'll usually only need this when
   /// initializing an editor—updated states are created by applying
   /// transactions.
+  ///
+  /// The schema of the 
   static create(spec: GardState.Spec): GardState {
-    let config = spec.config instanceof GardState.Configuration ? spec.config : GardState.Configuration.resolve(spec.config || [], new Map)
+    let config = spec.config instanceof GardState.Configuration ? spec.config
+      : GardState.Configuration.resolve(spec.config || [], new Map)
     let configSchema = config.staticFacet(schemaElement)
-    let schema = spec.doc instanceof Plot.Doc ? spec.doc.schema.append(configSchema) : Schema.define(configSchema)
+    let configHasDoc = configSchema.some(elt => elt instanceof Plot.Tag && elt.isDoc), schema
+    if (configHasDoc) schema = Schema.define(configSchema)
+    else if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
+    else throw new SchemaError(`No document plot provided, unable to create schema`)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? selectionAtStart({
       doc,
@@ -662,7 +672,7 @@ export namespace GardState {
         this.statusTemplate.push(SlotStatus.Unresolved)
     }
 
-    staticFacet<Output>(facet: Facet<any, Output>) {
+    staticFacet<Output>(facet: Facet<any, Output>): Output {
       let addr = this.address[facet.id]
       return addr == null ? facet.default : this.staticValues[addr >> 1]
     }
