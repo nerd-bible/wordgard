@@ -1,4 +1,4 @@
-import {EditorView, tagShape, tagDecoration, Widget, PointSet,
+import {Wordgard, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
 import {GardState, Transaction, StateEffect} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
@@ -6,7 +6,7 @@ import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wo
 import {Image, ImageAlt} from "wordgard/schema/image"
 import ist from "ist"
 
-const {DocTile} = EditorView
+const {DocTile} = Wordgard
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 
 function render(doc: Plot.Doc, ...config: GardState.Extension[]): InstanceType<typeof DocTile> {

@@ -1,4 +1,4 @@
-import {EditorView} from "wordgard/view"
+import {Wordgard} from "wordgard/view"
 import {GardSelection} from "wordgard/state"
 import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
@@ -6,14 +6,14 @@ import {tempView} from "./tempview.ts"
 
 const {doc, p, br, hr, blockquote, ul, li, strong} = basicBuilders
 
-const P = (view: EditorView, x: number, y: number) => {
+const P = (view: Wordgard, x: number, y: number) => {
   let pos = view.posAtCoords({x, y})
   return `${pos.pos}${pos.assoc < 0 ? "<" : pos.assoc ? ">" : ""}`
 }
 
 describe("coordsAtPos", () => {
   it("finds reasonable coordinates for simple text", () => {
-    let view = tempView(doc(p("abc def ghi jkl mno pqr stu")), EditorView.theme({
+    let view = tempView(doc(p("abc def ghi jkl mno pqr stu")), Wordgard.theme({
       "&": { width: "8ch" }
     }))
     for (let i = 1; i < view.state.doc.length - 1; i++) {
@@ -23,7 +23,7 @@ describe("coordsAtPos", () => {
   })
 
   it("properly assigns a side to positions", () => {
-    let view = tempView(doc(p("abcde fghijk")), EditorView.theme({
+    let view = tempView(doc(p("abcde fghijk")), Wordgard.theme({
       "&": { width: "8ch" }
     }))
     let p3 = view.coordsAtPos(3)
@@ -38,7 +38,7 @@ describe("coordsAtPos", () => {
   })
 
   it("assigns positions below text to the end", () => {
-    let view = tempView(doc(p("abcde")), EditorView.theme({
+    let view = tempView(doc(p("abcde")), Wordgard.theme({
       "p": { paddingBottom: "3px" }
     }))
     let p5 = view.coordsAtPos(5)
@@ -46,7 +46,7 @@ describe("coordsAtPos", () => {
   })
 
   it("assigns position below wrapped text to end", () => {
-    let view = tempView(doc(p("abcde fg")), EditorView.theme({
+    let view = tempView(doc(p("abcde fg")), Wordgard.theme({
       "p": { paddingBottom: "3px" },
       "&": { width: "6ch" }
     }))
@@ -78,7 +78,7 @@ describe("coordsAtPos", () => {
   })
 
   it("can handle different text height", () => {
-    let view = tempView(doc(p("abc", strong("def"), "ghi")), EditorView.theme({
+    let view = tempView(doc(p("abc", strong("def"), "ghi")), Wordgard.theme({
       "strong": {fontSize: "300%"}
     }))
     let c2 = view.coordsAtPos(2)
@@ -114,7 +114,7 @@ describe("moveVertically", () => {
   })
 
   it("can move within a paragraph", () => {
-    let view = tempView(doc(p("abcde fgh")), EditorView.theme({
+    let view = tempView(doc(p("abcde fgh")), Wordgard.theme({
       "&": { width: "6ch" }
     }))
     ist(view.moveVertically(s(1), true)?.head, 7)
@@ -141,7 +141,7 @@ describe("moveVertically", () => {
   })
 
   it("can enter nested blocks", () => {
-    let view = tempView(doc(p("one"), blockquote(p("two")), ul(li(p("three")), li(p("four"))), p("five")), EditorView.theme({
+    let view = tempView(doc(p("one"), blockquote(p("two")), ul(li(p("three")), li(p("four"))), p("five")), Wordgard.theme({
       "&": {fontFamily: "monospace"},
       "ul, li, blockquote": {margin: 0, padding: 0, listStyle: "none"}
     }))

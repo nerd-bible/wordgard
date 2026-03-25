@@ -1,7 +1,7 @@
 import {GardState, Facet} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema, Elt, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
-import {type EditorView} from "./editorview"
+import {type Wordgard} from "./editorview"
 
 export class Widget<T = unknown> {
   readonly type: Widget.Type<unknown extends T ? any : Widget.Type<T>>
@@ -28,13 +28,13 @@ export namespace Widget {
     render: (value: T) => Element | Text
     eq?: (a: T, b: T) => boolean
     destroy?: (value: T) => void
-    handleEvent?: (event: Event, view: EditorView) => boolean
+    handleEvent?: (event: Event, view: Wordgard) => boolean
   }
 
   export class Type<T> {
     render: (value: T) => Element | Text
     eq: (a: T, b: T) => boolean
-    handleEvent: (event: Event, view: EditorView) => boolean
+    handleEvent: (event: Event, view: Wordgard) => boolean
     destroy: (value: T) => void
 
     constructor(spec: Widget.Spec<T>) {

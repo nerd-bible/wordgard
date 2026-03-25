@@ -2,7 +2,7 @@ import {GardSelection, GardState, Annotation} from "wordgard/state"
 import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter,
         deleteWord, deleteUnit, deleteToLineEnd, toggleMarkByLabel} from "wordgard/command"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
         logException, mouseSelectionStyle, PluginInstance, getScrollMargins} from "./extension"
 import browser from "./browser"
@@ -62,7 +62,7 @@ export class InputState {
     this.lastSelectionTime = Date.now()
   }
 
-  constructor(readonly view: EditorView) {
+  constructor(readonly view: Wordgard) {
     this.handleEvent = this.handleEvent.bind(this)
     this.notifiedFocused = view.hasFocus
     // On Safari adding an input event handler somehow prevents an
@@ -158,11 +158,11 @@ export class InputState {
   }
 }
 
-type HandlerFunction = (view: EditorView, event: Event) => boolean | void
+type HandlerFunction = (view: Wordgard, event: Event) => boolean | void
 
 function bindHandler(
   plugin: PluginValue,
-  handler: (this: PluginValue, event: Event, view: EditorView) => boolean | void
+  handler: (this: PluginValue, event: Event, view: Wordgard) => boolean | void
 ): HandlerFunction {
   return (view, event) => {
     try {
@@ -203,7 +203,7 @@ export const modifierCodes = [16, 17, 18, 20, 91, 92, 224, 225]
 const dragScrollMargin = 6
 
 /// Interface that objects registered with
-/// [`EditorView.mouseSelectionStyle`](#view.EditorView^mouseSelectionStyle)
+/// [`Wordgard.mouseSelectionStyle`](#view.Wordgard^mouseSelectionStyle)
 /// must conform to.
 export interface MouseSelectionStyle {
   /// Return a new selection for the mouse gesture that starts with
@@ -229,7 +229,7 @@ export interface MouseSelectionStyle {
   update: (update: ViewUpdate) => boolean | void
 }
 
-export type MakeSelectionStyle = (view: EditorView, event: MouseEvent) => MouseSelectionStyle | null
+export type MakeSelectionStyle = (view: Wordgard, event: MouseEvent) => MouseSelectionStyle | null
 
 function dragScrollSpeed(dist: number) {
   return Math.max(0, dist) * 0.7 + 8
@@ -248,7 +248,7 @@ class MouseSelection {
   scrollSpeed = {x: 0, y: 0}
   scrolling = -1
 
-  constructor(private view: EditorView,
+  constructor(private view: Wordgard,
               private startEvent: MouseEvent,
               private style: MouseSelectionStyle,
               private mustSelect: boolean) {
@@ -347,17 +347,17 @@ class MouseSelection {
   }
 }
 
-function addsSelectionRange(view: EditorView, event: MouseEvent) {
+function addsSelectionRange(view: Wordgard, event: MouseEvent) {
   let facet = view.state.facet(clickAddsSelectionRange)
   return facet.length ? facet[0](event) : browser.mac ? event.metaKey : event.ctrlKey
 }
 
-function dragMovesSelection(view: EditorView, event: MouseEvent) {
+function dragMovesSelection(view: Wordgard, event: MouseEvent) {
   let facet = view.state.facet(dragBehavior)
   return facet.length ? facet[0](event) : browser.mac ? !event.altKey : !event.ctrlKey
 }
 
-function isInPrimarySelection(view: EditorView, event: MouseEvent) {
+function isInPrimarySelection(view: Wordgard, event: MouseEvent) {
   let {selection} = view.state
   if (selection.empty) return false
   // On boundary clicks, check whether the coordinates are inside the
@@ -373,7 +373,7 @@ function isInPrimarySelection(view: EditorView, event: MouseEvent) {
   return false
 }
 
-function eventBelongsToEditor(view: EditorView, event: Event): boolean {
+function eventBelongsToEditor(view: Wordgard, event: Event): boolean {
   if (!event.bubbles) return true
   if (event.defaultPrevented) return false
   for (let node = event.target as DOMNode | null, tile; node != view.contentDOM; node = node.parentNode)
@@ -383,8 +383,8 @@ function eventBelongsToEditor(view: EditorView, event: Event): boolean {
 }
 
 // FIXME use something less messy?
-const handlers: {[key: string]: (view: EditorView, event: any) => boolean} = Object.create(null)
-const observers: {[key: string]: (view: EditorView, event: any) => undefined} = Object.create(null)
+const handlers: {[key: string]: (view: Wordgard, event: any) => boolean} = Object.create(null)
+const observers: {[key: string]: (view: Wordgard, event: any) => undefined} = Object.create(null)
 
 observers.scroll = view => {
   view.inputState.lastScrollTop = view.scrollDOM.scrollTop
@@ -434,11 +434,11 @@ handlers.mousedown = (view, event: MouseEvent) => {
   return false
 }
 
-function queryPos(view: EditorView, event: MouseEvent) {
+function queryPos(view: Wordgard, event: MouseEvent) {
   return view.posAtCoords({x: event.clientX, y: event.clientY}) as PosAssoc
 }
 
-function rangeForClick(view: EditorView, pos: PosAssoc, type: number): GardSelection {
+function rangeForClick(view: Wordgard, pos: PosAssoc, type: number): GardSelection {
   if (type < 3 && pos.target != null) {
     let target = view.state.doc.nodeAt(pos.target)
     if (target && target.isLeaf && target.type.isSelectable) return GardSelection.range(pos.target, pos.target + target.length)
@@ -454,7 +454,7 @@ function rangeForClick(view: EditorView, pos: PosAssoc, type: number): GardSelec
   }
 }
 
-function basicMouseSelection(view: EditorView, event: MouseEvent) {
+function basicMouseSelection(view: Wordgard, event: MouseEvent) {
   let start = queryPos(view, event), type = event.detail
   let startSel = view.state.selection
   return {
@@ -521,7 +521,7 @@ handlers.drop = (view, event: DragEvent) => {
   return false
 }
 
-handlers.paste = (view: EditorView, event: ClipboardEvent) => {
+handlers.paste = (view: Wordgard, event: ClipboardEvent) => {
   if (view.state.readOnly || !event.clipboardData) return true
   let {state} = view
   let content = readClipboard(state, event.clipboardData, state.sel.head, view.inputState.shiftKey)
@@ -563,7 +563,7 @@ handlers.copy = handlers.cut = (view, event: ClipboardEvent) => {
 
 export const isFocusChange = Annotation.define<boolean>()
 
-function updateForFocusChange(view: EditorView) {
+function updateForFocusChange(view: Wordgard) {
   setTimeout(() => {
     let focus = view.hasFocus
     if (focus != view.inputState.notifiedFocused) {
@@ -617,7 +617,7 @@ observers.compositionend = view => {
   }
 }
 
-function findCompositionTarget(view: EditorView, prev: Text | null) {
+function findCompositionTarget(view: Wordgard, prev: Text | null) {
   let {focusNode, focusOffset} = view.observer.selectionRange
   if (!focusNode) return null
   let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
@@ -635,7 +635,7 @@ export type CompositionInfo = {
   wrapCursor?: readonly Mark<any>[] | null
 }
 
-export function getCompositionInfo(view: EditorView): CompositionInfo | null {
+export function getCompositionInfo(view: Wordgard): CompositionInfo | null {
   let target = view.inputState.compositionTarget()
 
   let wrap = view.inputState.wrappingComposition
@@ -680,7 +680,7 @@ observers.contextmenu = view => {
 //
 // Maybe: insertFromYank, insertFromDrop, insertFromPaste,
 // insertTranspose, deleteByDrag, deleteByCut
-const inputTypeCommands: {[inputType: string]: (view: EditorView) => boolean} = {
+const inputTypeCommands: {[inputType: string]: (view: Wordgard) => boolean} = {
   historyUndo: undo.bind(),
   historyRedo: redo.bind(),
   insertLineBreak: insertLineBreak.bind(),
@@ -761,13 +761,13 @@ function textSlice(text: string, marks: readonly Mark<any>[]) {
   return new Slice([Leaf.text(text.replace(/\r\n?|\n/g, " "), marks)])
 }
 
-function inputEventRange(event: InputEvent, view: EditorView) {
+function inputEventRange(event: InputEvent, view: Wordgard) {
   let range = event.getTargetRanges()[0]
   return {from: view.docTile.posFromDOM(range.startContainer, range.startOffset, -1),
           to: view.docTile.posFromDOM(range.endContainer, range.endOffset, 1)}
 }
 
-export function applyTextChange(view: EditorView, from: number, to: number, insert: Slice) {
+export function applyTextChange(view: Wordgard, from: number, to: number, insert: Slice) {
   let changes = ChangeSet.create(view.state.doc, {from, to, insert, fit: true})
   // FIXME define this more robustly
   view.dispatch({

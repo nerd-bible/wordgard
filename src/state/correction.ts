@@ -107,7 +107,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 /// as relative to the document _after_ the transaction (so `node.doc`).
 ///
 /// Corrections are wrappers around [transaction
-/// filters](#state.EditorState^transactionFilter). This means that
+/// filters](#state.GardState^transactionFilter). This means that
 /// their effect will be included in transactions as they are applied.
 /// It also means that a correction, though generally effective, does
 /// not _guarantee_ that an invariant will always be preserved,

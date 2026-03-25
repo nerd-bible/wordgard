@@ -126,8 +126,8 @@ export function history(config: HistoryConfig = {}): GardState.Extension {
 
 /// The state field used to store the history data. Should probably
 /// only be used when you want to
-/// [serialize](#state.EditorState.toJSON) or
-/// [deserialize](#state.EditorState^fromJSON) state objects in a way
+/// [serialize](#state.GardState.toJSON) or
+/// [deserialize](#state.GardState^fromJSON) state objects in a way
 /// that preserves history.
 export const historyField = historyField_ as GardState.Field<unknown>
 

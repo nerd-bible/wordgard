@@ -1,10 +1,10 @@
-import {EditorView, ContentPos, Widget, Decoration, PointSet} from "wordgard/view"
+import {Wordgard, ContentPos, Widget, Decoration, PointSet} from "wordgard/view"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
 
-const {DocTile} = EditorView as any
+const {DocTile} = Wordgard as any
 const {doc, p, $img, hr} = basicBuilders
 
 function render(doc: Plot.Doc, ...config: GardState.Extension[]) {

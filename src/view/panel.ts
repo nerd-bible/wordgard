@@ -1,7 +1,7 @@
 // FIXME figure out how to provide easy-to-use default styling for these
 
 import {Facet, GardState} from "wordgard/state"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 import {ViewPlugin, ViewUpdate} from "./extension"
 import {rmDOM} from "./dom"
 
@@ -41,18 +41,18 @@ export interface Panel {
   /// Update the panel DOM for a given view update.
   update?(update: ViewUpdate): void
   /// Called, when present, when the panel has been added the DOM.
-  connect?(view: EditorView): void
+  connect?(view: Wordgard): void
   /// Called when the editor with the panel is disconnected from the
   /// DOM.
-  disconnect?(view: EditorView): void
+  disconnect?(view: Wordgard): void
   /// Called when the panel is removed from the editor.
-  destroy?(view: EditorView): void
+  destroy?(view: Wordgard): void
 }
 
 /// Get the active panel created by the given constructor, if any.
 /// This can be useful when you need access to your panels' DOM
 /// structure.
-export function getPanel(view: EditorView, panel: PanelConstructor) {
+export function getPanel(view: Wordgard, panel: PanelConstructor) {
   let plugin = view.plugin(panelPlugin)
   let index = plugin ? plugin.specs.indexOf(panel) : -1
   return index > -1 ? plugin!.panels[index] : null
@@ -65,7 +65,7 @@ const panelPlugin = ViewPlugin.fromClass(class {
   top: PanelGroup
   bottom: PanelGroup
 
-  constructor(view: EditorView) {
+  constructor(view: Wordgard) {
     this.input = view.state.facet(showPanel)
     this.specs = this.input.filter(s => s) as PanelConstructor[]
     this.panels = this.specs.map(spec => spec(view))
@@ -118,20 +118,20 @@ const panelPlugin = ViewPlugin.fromClass(class {
     }
   }
 
-  connect(view: EditorView) {
+  connect(view: Wordgard) {
     for (let p of this.panels) p.connect?.(view)
   }
 
-  disconnect(view: EditorView) {
+  disconnect(view: Wordgard) {
     for (let p of this.panels) p.disconnect?.(view)
   }
 
-  destroy(view: EditorView) {
+  destroy(view: Wordgard) {
     this.top.sync([], view)
     this.bottom.sync([], view)
   }
 }, {
-  provide: plugin => EditorView.scrollMargins.of(view => {
+  provide: plugin => Wordgard.scrollMargins.of(view => {
     let value = view.plugin(plugin)
     return value && {top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin()}
   })
@@ -142,11 +142,11 @@ class PanelGroup {
   classes = ""
   panels: Panel[] = []
 
-  constructor(readonly view: EditorView, readonly top: boolean, readonly container: HTMLElement | undefined) {
+  constructor(readonly view: Wordgard, readonly top: boolean, readonly container: HTMLElement | undefined) {
     this.syncClasses()
   }
 
-  sync(panels: Panel[], view: EditorView) {
+  sync(panels: Panel[], view: Wordgard) {
     for (let p of this.panels) if (!panels.includes(p)) {
       if (view.connected) p.disconnect?.(view)
       p.destroy?.(view)
@@ -200,7 +200,7 @@ class PanelGroup {
 
 /// A function that initializes a panel. Used in
 /// [`showPanel`](#view.showPanel).
-export type PanelConstructor = (view: EditorView) => Panel
+export type PanelConstructor = (view: Wordgard) => Panel
 
 /// Opening a panel is done by providing a constructor function for
 /// the panel through this facet. (The panel is closed again when its

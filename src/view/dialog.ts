@@ -1,6 +1,6 @@
 import {StateEffect, GardState} from "wordgard/state"
 import {showPanel, Panel, PanelConstructor, getPanel} from "./panel"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 
 type DialogConfig = {
   /// A function to render the content of the dialog. The result
@@ -9,7 +9,7 @@ type DialogConfig = {
   ///
   /// If this is not given, the `label`, `input`, and `submitLabel`
   /// fields will be used to create a simple form for you.
-  content?: (view: EditorView, close: () => void) => HTMLElement
+  content?: (view: Wordgard, close: () => void) => HTMLElement
   /// When `content` isn't given, this provides the text shown in the
   /// dialog.
   label?: string
@@ -40,13 +40,13 @@ type DialogConfig = {
 /// dispatches a transaction, to include the `close` effect in it. If
 /// you don't, this function will automatically dispatch a separate
 /// transaction right after.
-export function showDialog(view: EditorView, config: DialogConfig): {
+export function showDialog(view: Wordgard, config: DialogConfig): {
   close: StateEffect<unknown>,
   result: Promise<HTMLFormElement | null>
 } {
   let resolve: (form: HTMLFormElement | null) => void
   let promise = new Promise<HTMLFormElement | null>(r => resolve = r)
-  let panelCtor = (view: EditorView) => createDialog(view, config, resolve)
+  let panelCtor = (view: Wordgard) => createDialog(view, config, resolve)
   if (view.state.field(dialogField, false)) {
     view.dispatch({effects: openDialogEffect.of(panelCtor)})
   } else {
@@ -65,7 +65,7 @@ export function showDialog(view: EditorView, config: DialogConfig): {
 
 /// Find the [`Panel`](#view.Panel) for an open dialog, using a class
 /// name as identifier.
-export function getDialog(view: EditorView, className: string) {
+export function getDialog(view: Wordgard, className: string) {
   let dialogs = view.state.field(dialogField, false) || []
   for (let open of dialogs) {
     let panel = getPanel(view, open)
@@ -89,7 +89,7 @@ const dialogField = GardState.Field.define<readonly PanelConstructor[]>({
 const openDialogEffect = StateEffect.define<PanelConstructor>()
 const closeDialogEffect = StateEffect.define<PanelConstructor>()
 
-function createDialog(view: EditorView, config: DialogConfig, result: (form: HTMLFormElement | null) => void): Panel {
+function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLFormElement | null) => void): Panel {
   let content = config.content ? config.content(view, () => done(null)) : null
   if (!content) {
     content = document.createElement("form")

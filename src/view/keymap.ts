@@ -2,7 +2,7 @@ import {enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transpo
         moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
 import {Facet, GardState} from "wordgard/state"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 import browser from "./browser"
 
 /// Key bindings associate keys with functions that should be run when
@@ -72,14 +72,14 @@ export namespace KeyBinding {
     /// Key to use specifically on Linux.
     linux?: string,
     /// The command to execute when this binding is triggered.
-    run: (view: EditorView) => boolean
+    run: (view: Wordgard) => boolean
     /// When given, this defines a second binding, using the (possibly
     /// platform-specific) key name, prefixed with `Shift-`, to activate
     /// this command.
-    shift?: (view: EditorView) => boolean
+    shift?: (view: Wordgard) => boolean
     /// When this property is present, the function is called for every
     /// key.
-    any?: (view: EditorView, event: KeyboardEvent) => boolean
+    any?: (view: Wordgard, event: KeyboardEvent) => boolean
     /// By default, key bindings apply when focus is on the editor
     /// content (the `"editor"` scope). Some extensions, mostly those
     /// that define their own panels, might want to allow registering
@@ -139,13 +139,13 @@ class NormalizedBinding {
   constructor(
     readonly flags: BindingFlag,
     readonly name: string,
-    readonly command: (view: EditorView, event: KeyboardEvent) => boolean
+    readonly command: (view: Wordgard, event: KeyboardEvent) => boolean
   ) {}
 }
 
 type Keymap = Record<string, NormalizedBinding[]>
 
-const handleKeyEvents = GardState.prec.default(EditorView.domEventHandlers({
+const handleKeyEvents = GardState.prec.default(Wordgard.domEventHandlers({
   keydown(event, view) {
     return runScopeHandlers(view, event, "editor")
   }
@@ -164,7 +164,7 @@ export const keyBinding = Facet.define<KeyBinding, readonly KeyBinding[]>({
 /// Run the key handlers registered for a given scope. The event
 /// object should be a `"keydown"` event. Returns true if any of the
 /// handlers handled it.
-export function runScopeHandlers(view: EditorView, event: KeyboardEvent, scope: string) {
+export function runScopeHandlers(view: Wordgard, event: KeyboardEvent, scope: string) {
   return runHandlers(getKeymap(view.state.facet(keyBinding)), event, view, scope)
 }
 
@@ -200,7 +200,7 @@ function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
   return scopes
 }
 
-function runHandlers(map: Keymap, event: KeyboardEvent, view: EditorView, scope: string): boolean {
+function runHandlers(map: Keymap, event: KeyboardEvent, view: Wordgard, scope: string): boolean {
   let handlers = map[scope]
   if (!handlers) return false
   

@@ -1,6 +1,6 @@
 import {GardState, Transaction, StateEffect, Facet, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 import {ViewPlugin, ViewUpdate, logException, getScrollMargins} from "./extension"
 import {windowRect} from "./dom"
 import browser from "./browser"
@@ -25,7 +25,7 @@ class TooltipViewManager {
   tooltipViews: readonly TooltipView[]
 
   constructor(
-    view: EditorView,
+    view: Wordgard,
     private readonly facet: Facet.Reader<readonly (Tooltip | null)[]>,
     private readonly createTooltipView: (tooltip: Tooltip, after: TooltipView | null) => TooltipView,
     private readonly removeTooltipView: (tooltipView: TooltipView) => void
@@ -106,7 +106,7 @@ export function tooltips(config: {
   /// `documentElement.clientWidth`/`clientHeight` to be available for
   /// showing tooltips. You can provide a function here that returns
   /// an alternative rectangle.
-  tooltipSpace?: (view: EditorView) => DOMRect
+  tooltipSpace?: (view: Wordgard) => DOMRect
 } = {}): GardState.Extension {
   return tooltipConfig.of(config)
 }
@@ -114,7 +114,7 @@ export function tooltips(config: {
 type TooltipConfig = {
   position: "fixed" | "absolute",
   parent: HTMLElement | null,
-  tooltipSpace: (view: EditorView) => DOMRect
+  tooltipSpace: (view: Wordgard) => DOMRect
 }
 
 const tooltipConfig = Facet.define<Partial<TooltipConfig>, TooltipConfig>({
@@ -143,7 +143,7 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
   lastTransaction = 0
   measureTimeout = -1
 
-  constructor(readonly view: EditorView) {
+  constructor(readonly view: Wordgard) {
     let config = view.state.facet(tooltipConfig)
     this.position = config.position
     this.parent = config.parent
@@ -233,11 +233,11 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
     return tooltipView
   }
 
-  connect(view: EditorView) {
+  connect(view: Wordgard) {
     for (let t of this.manager.tooltipViews) t.connect?.(view)
   }
 
-  disconnect(view: EditorView) {
+  disconnect(view: Wordgard) {
     for (let t of this.manager.tooltipViews) t.disconnect?.(view)
   }
 
@@ -383,7 +383,7 @@ function setLeftStyle(elt: HTMLElement, value: number) {
   if (isNaN(current) || Math.abs(value - current) > 1) elt.style.left = value + "px"
 }
 
-const baseTheme = EditorView.baseTheme({
+const baseTheme = Wordgard.baseTheme({
   ".wg-tooltip": {
     zIndex: 500,
     boxSizing: "border-box",
@@ -441,7 +441,7 @@ export interface Tooltip {
   end?: number
   /// A constructor function that creates the tooltip's [DOM
   /// representation](#view.TooltipView).
-  create(view: EditorView): TooltipView
+  create(view: Wordgard): TooltipView
   /// Whether the tooltip should be shown above or below the target
   /// position. Not guaranteed to be respected for hover tooltips
   /// since all hover tooltips for the same range are always
@@ -483,13 +483,13 @@ export interface TooltipView {
   /// Update the DOM element for a change in the view's state.
   update?(update: ViewUpdate): void
   /// Called when the tooltip is added to a DOM-connected editor.
-  connect?(view: EditorView): void
+  connect?(view: Wordgard): void
   /// Called when the editor containing the tooltip is disconnected,
   /// or before the tooltip is removed.
-  disconnect?(view: EditorView): void
+  disconnect?(view: Wordgard): void
   /// Called when the tooltip is removed from the editor or the editor
   /// is destroyed.
-  destroy?(view: EditorView): void
+  destroy?(view: Wordgard): void
   /// Called when the tooltip has been (re)positioned. The argument is
   /// the [space](#view.tooltips^config.tooltipSpace) available to the
   /// tooltip.
@@ -517,11 +517,11 @@ class HoverTooltipHost implements TooltipView {
   connected: boolean = false
 
   // Needs to be static so that host tooltip instances always match
-  static create(view: EditorView) {
+  static create(view: Wordgard) {
     return new HoverTooltipHost(view)
   }
 
-  private constructor(readonly view: EditorView) {
+  private constructor(readonly view: Wordgard) {
     this.dom = document.createElement("div")
     this.dom.classList.add("wg-tooltip-hover")
     this.manager = new TooltipViewManager(view, showHoverTooltip, (t, p) => this.createHostedView(t, p), t => t.dom.remove())
@@ -536,12 +536,12 @@ class HoverTooltipHost implements TooltipView {
     return hostedView
   }
 
-  connect(view: EditorView) {
+  connect(view: Wordgard) {
     for (let t of this.manager.tooltipViews) t.connect?.(view)
     this.connected = true
   }
 
-  disconnect(view: EditorView) {
+  disconnect(view: Wordgard) {
     for (let t of this.manager.tooltipViews) t.disconnect?.(view)
     this.connected = false
   }
@@ -556,7 +556,7 @@ class HoverTooltipHost implements TooltipView {
     this.manager.update(update)
   }
 
-  destroy(view: EditorView) {
+  destroy(view: Wordgard) {
     for (let t of this.manager.tooltipViews) t.destroy?.(view)
   }
 
@@ -598,7 +598,7 @@ const enum Hover { Time = 300, MaxDist = 6 }
 
 /// The type of function that can be used as a [hover tooltip
 /// source](#view.hoverTooltip^source).
-export type HoverTooltipSource = (view: EditorView, pos: number, side: -1 | 1) => Tooltip | readonly Tooltip[] | null | Promise<Tooltip | readonly Tooltip[] | null>
+export type HoverTooltipSource = (view: Wordgard, pos: number, side: -1 | 1) => Tooltip | readonly Tooltip[] | null | Promise<Tooltip | readonly Tooltip[] | null>
 
 class HoverPlugin {
   lastMove: {x: number, y: number, target: HTMLElement, time: number}
@@ -606,7 +606,7 @@ class HoverPlugin {
   restartTimeout = -1
   pending: {pos: number} | null = null
 
-  constructor(readonly view: EditorView,
+  constructor(readonly view: Wordgard,
               readonly source: HoverTooltipSource,
               readonly field: GardState.Field<readonly Tooltip[]>,
               readonly setHover: StateEffect.Type<readonly Tooltip[]>,
@@ -722,7 +722,7 @@ function isInTooltip(tooltip: HTMLElement, event: MouseEvent) {
     event.clientY >= top - tooltipMargin && event.clientY <= bottom + tooltipMargin
 }
 
-function isOverRange(view: EditorView, from: number, to: number, x: number, y: number, margin: number) {
+function isOverRange(view: Wordgard, from: number, to: number, x: number, y: number, margin: number) {
   let rect = view.contentDOM.getBoundingClientRect()
   if (rect.left > x || rect.right < x || rect.top > y || rect.bottom < y) return false
   let pos = view.posAtCoords({x, y}).pos
@@ -802,7 +802,7 @@ export function hoverTooltip(
 }
 
 /// Get the active tooltip view for a given tooltip, if available.
-export function getTooltip(view: EditorView, tooltip: Tooltip): TooltipView | null {
+export function getTooltip(view: Wordgard, tooltip: Tooltip): TooltipView | null {
   let plugin = view.plugin(tooltipPlugin)
   if (!plugin) return null
   let found = plugin.manager.tooltips.indexOf(tooltip)
@@ -824,7 +824,7 @@ export const closeHoverTooltips = closeHoverTooltipEffect.of(null)
 /// re-positioning or CSS change affecting the editor) that could
 /// invalidate the existing tooltip positions but isn't detected by
 /// the extension.
-export function repositionTooltips(view: EditorView) {
+export function repositionTooltips(view: Wordgard) {
   let plugin = view.plugin(tooltipPlugin)
   if (plugin) plugin.maybeMeasure()
 }

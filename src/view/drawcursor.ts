@@ -1,6 +1,6 @@
 import {Facet, GardState, Direction} from "wordgard/state"
 import {ViewPlugin, ViewUpdate, basePlugins} from "./extension"
-import {type EditorView} from "./editorview"
+import {type Wordgard} from "./editorview"
 
 export const cursorBlinkRate = Facet.define<number, number>({
   combine: inputs => inputs.length ? Math.min(...inputs) : 1200
@@ -12,7 +12,7 @@ export const cursorLayer = ViewPlugin.fromClass(class {
   readonly layer: HTMLElement
   pos: CursorPos = null
 
-  constructor(view: EditorView) {
+  constructor(view: Wordgard) {
     this.layer = view.scrollDOM.appendChild(document.createElement("div"))
     this.layer.className = "wg-cursorLayer"
     this.positionCursor = this.positionCursor.bind(this)
@@ -28,7 +28,7 @@ export const cursorLayer = ViewPlugin.fromClass(class {
     if (update.docChanged || update.selectionSet) update.view.requestDOMRead(this.positionCursor)
   }
 
-  docViewUpdate(view: EditorView) {
+  docViewUpdate(view: Wordgard) {
     view.requestDOMRead(this.positionCursor)
   }    
 
@@ -36,7 +36,7 @@ export const cursorLayer = ViewPlugin.fromClass(class {
     this.layer.remove()
   }
 
-  positionCursor(view: EditorView) {
+  positionCursor(view: Wordgard) {
     let pos = cursorPos(view), cur = this.pos
     if (!pos ? cur : !cur || cur.left != pos.left || cur.top != pos.top || cur.size != pos.size) {
       this.pos = pos
@@ -62,7 +62,7 @@ basePlugins[basePlugins.length] = cursorLayer
 
 const VertWidth = 30, VertGap = 5
 
-export function cursorPos(view: EditorView): CursorPos {
+export function cursorPos(view: Wordgard): CursorPos {
   let {state} = view, {empty, head, assoc} = state.selection
   if (!empty) return null
   let {left, right, top, bottom} = view.coordsAtPos(head, assoc || -1)

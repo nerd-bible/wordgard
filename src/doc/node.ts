@@ -576,7 +576,7 @@ export namespace Plot {
     /// [normalizing](#state.EditorSelection.normalize) a cursor
     /// position. By default, block nodes that are
     /// [isolating](#state.Tag.Spec.isolating),
-    /// [atomic](#state.EditorState.isAtom), or whitepace-preserving act
+    /// [atomic](#state.GardState.isAtom), or whitepace-preserving act
     /// as barriers.
     cursorBarrier?: boolean
     /// Indicates that this type of block is the default generic block

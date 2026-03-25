@@ -1,4 +1,4 @@
-import {EditorView} from "wordgard/view"
+import {Wordgard} from "wordgard/view"
 import {basicBuilders, Strong} from "wordgard/schema"
 import {GardSelection} from "wordgard/state"
 import ist from "ist"
@@ -8,11 +8,11 @@ const {doc, p, strong, em} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
-function compositionEvent(cm: EditorView, type: string) {
+function compositionEvent(cm: Wordgard, type: string) {
   cm.contentDOM.dispatchEvent(new CompositionEvent(type))
 }
 
-function inputEvent(cm: EditorView, type: string, init: InputEventInit) {
+function inputEvent(cm: Wordgard, type: string, init: InputEventInit) {
   cm.contentDOM.dispatchEvent(new InputEvent(type, init))
 }
 
@@ -23,7 +23,7 @@ function selEnd(node: Node) {
   return node as Text
 }
 
-function compose(view: EditorView, start: CompositionUpdate | (() => Text),
+function compose(view: Wordgard, start: CompositionUpdate | (() => Text),
                  ...args: (CompositionUpdate | {end?: (node: Text) => void, cancel?: boolean})[]) {
   let last = args[args.length - 1]
   let [updates, options] = Array.isArray(last)

@@ -1,7 +1,7 @@
 import {GardState, Transaction, Facet, StateEffect, GardSelection} from "wordgard/state"
 import {ChangeSet} from "wordgard/doc"
 import {StyleModule} from "style-mod"
-import {EditorView, DOMEventHandlers} from "./editorview"
+import {Wordgard, DOMEventHandlers} from "./editorview"
 import {Attrs} from "./attributes"
 import {ScrollStrategy} from "./dom"
 import {MakeSelectionStyle} from "./input"
@@ -19,11 +19,11 @@ export const beforeUpdate = Facet.define<(update: ViewUpdate) => void>()
 export const afterUpdate = Facet.define<(update: ViewUpdate) => void>()
 
 // FIXME make this a command?
-export const inputHandler = Facet.define<(view: EditorView, from: number, to: number, text: string,
+export const inputHandler = Facet.define<(view: Wordgard, from: number, to: number, text: string,
                                           insert: () => Transaction) => boolean>()
 
 export const scrollHandler = Facet.define<(
-  view: EditorView,
+  view: Wordgard,
   range: {from: number, to: number},
   options: {x: ScrollStrategy, y: ScrollStrategy, xMargin: number, yMargin: number}
 ) => boolean>()
@@ -57,7 +57,7 @@ export const scrollIntoView = StateEffect.define<ScrollTarget>({map: (t, ch) => 
 /// (for example when in an event handler).
 ///
 /// Either calls a handler registered with
-/// [`EditorView.exceptionSink`](#view.EditorView^exceptionSink),
+/// [`Wordgard.exceptionSink`](#view.Wordgard^exceptionSink),
 /// `window.onerror`, if defined, or `console.error` (in which case
 /// it'll pass `context`, when given, as first argument).
 export function logException(state: GardState, exception: any, context?: string) {
@@ -78,26 +78,26 @@ export interface PluginValue {
   /// any state that may be read by plugin fields) and _writing_ to
   /// the DOM for the changes in the update. To avoid unnecessary
   /// layout recomputations, it should _not_ read the DOM layout—use
-  /// [`requestMeasure`](#view.EditorView.requestMeasure) to schedule
+  /// [`requestMeasure`](#view.Wordgard.requestMeasure) to schedule
   /// your code in a DOM reading phase if you need to.
   update?(update: ViewUpdate): void
 
   /// When present, this will be called when an update causes any
   /// changes in the DOM representation of the document.
-  docViewUpdate?(view: EditorView): void
+  docViewUpdate?(view: Wordgard): void
 
   /// Called when the plugin is removed from an editor. This should
   /// clean up any changes it made to the editor itself.
-  destroy?(view: EditorView): void
+  destroy?(view: Wordgard): void
 
   /// Called when the editor is attached to the DOM. If the plugin
   /// needs to allocate any resource that must be released, or modify
   /// something outside the editor, it should do it in this method,
   /// and make sure to release/undo it in its `disconnect` method.
-  connect?(view: EditorView): void
+  connect?(view: Wordgard): void
 
   /// Called when the editor is removed from the DOM.
-  disconnect?(view: EditorView): void
+  disconnect?(view: Wordgard): void
 }
 
 export const basePlugins: ViewPlugin<any>[] = []
@@ -108,18 +108,18 @@ export const viewPlugin = Facet.define<ViewPlugin<any>>({
 
 let nextPluginID = 0
 
-// FIXME rename EditorView.Plugin.Spec
+// FIXME rename Wordgard.Plugin.Spec
 
 /// Provides additional information when defining a [view
 /// plugin](#view.ViewPlugin).
 export interface PluginSpec<V extends PluginValue> {
   /// Register the given [event
-  /// handlers](#view.EditorView^domEventHandlers) for the plugin.
+  /// handlers](#view.Wordgard^domEventHandlers) for the plugin.
   /// When called, these will have their `this` bound to the plugin
   /// value.
   eventHandlers?: DOMEventHandlers<V>,
 
-  /// Registers [event observers](#view.EditorView^domEventObservers)
+  /// Registers [event observers](#view.Wordgard^domEventObservers)
   /// for the plugin. Will, when called, have their `this` bound to
   /// the plugin value.
   eventObservers?: DOMEventHandlers<V>,
@@ -129,7 +129,7 @@ export interface PluginSpec<V extends PluginValue> {
   provide?: (plugin: ViewPlugin<V>) => GardState.Extension // FIXME is this useful?
 }
 
-// FIXME rename EditorView.Plugin
+// FIXME rename Wordgard.Plugin
 
 /// View plugins associate stateful values with a view. They can
 /// influence the way the content is drawn, and are notified of things
@@ -142,7 +142,7 @@ export class ViewPlugin<V extends PluginValue> {
     /// @internal
     readonly id: number,
     /// @internal
-    readonly create: (view: EditorView) => V,
+    readonly create: (view: Wordgard) => V,
     /// @internal
     readonly domEventHandlers: DOMEventHandlers<V> | undefined,
     /// @internal
@@ -154,7 +154,7 @@ export class ViewPlugin<V extends PluginValue> {
 
   /// Define a plugin from a constructor function that creates the
   /// plugin's value, given an editor view.
-  static define<V extends PluginValue>(create: (view: EditorView) => V, spec?: PluginSpec<V>) {
+  static define<V extends PluginValue>(create: (view: Wordgard) => V, spec?: PluginSpec<V>) {
     const {eventHandlers, eventObservers, provide} = spec || {}
     return new ViewPlugin<V>(nextPluginID++, create, eventHandlers, eventObservers, plugin => {
       let ext = [viewPlugin.of(plugin)]
@@ -165,7 +165,7 @@ export class ViewPlugin<V extends PluginValue> {
 
   /// Create a plugin for a class whose constructor takes a single
   /// editor view as argument.
-  static fromClass<V extends PluginValue>(cls: {new (view: EditorView): V}, spec?: PluginSpec<V>) {
+  static fromClass<V extends PluginValue>(cls: {new (view: Wordgard): V}, spec?: PluginSpec<V>) {
     return ViewPlugin.define(view => new cls(view), spec)
   }
 }
@@ -184,7 +184,7 @@ export class PluginInstance {
 
   constructor(public spec: ViewPlugin<any>) {}
 
-  update(view: EditorView) {
+  update(view: Wordgard) {
     if (!this.value) {
       if (!this.deactivated) {
         try { this.value = this.spec.create(view) }
@@ -209,14 +209,14 @@ export class PluginInstance {
     return this
   }
 
-  docViewUpdate(view: EditorView) {
+  docViewUpdate(view: Wordgard) {
     if (this.value?.docViewUpdate) {
       try { this.value.docViewUpdate(view) }
       catch(e) { logException(view.state, e, "doc view update listener") }
     }
   }
 
-  connect(view: EditorView) {
+  connect(view: Wordgard) {
     if (this.value?.connect) {
       try {
         this.value.connect(view)
@@ -227,7 +227,7 @@ export class PluginInstance {
     }
   }
 
-  disconnect(view: EditorView) {
+  disconnect(view: Wordgard) {
     if (!this.value?.disconnect) return
     try {
       this.value.disconnect(view)
@@ -237,7 +237,7 @@ export class PluginInstance {
     }
   }
 
-  destroy(view: EditorView) {
+  destroy(view: Wordgard) {
     if (view.connected) this.disconnect(view)
     if (this.value?.destroy) try {
       this.value.destroy(view)
@@ -246,22 +246,22 @@ export class PluginInstance {
     }
   }
 
-  deactivate(destroy: EditorView | null) {
+  deactivate(destroy: Wordgard | null) {
     if (destroy && this.value?.destroy) try { this.value.destroy(destroy) } catch {}
     this.deactivated = true
     this.value = null
   }
 }
 
-export type AttrSource = Attrs | ((view: EditorView) => Attrs | null)
+export type AttrSource = Attrs | ((view: Wordgard) => Attrs | null)
 
 export const editorAttributes = Facet.define<AttrSource>()
 
 export const contentAttributes = Facet.define<AttrSource>()
 
-export const scrollMargins = Facet.define<(view: EditorView) => Partial<DOMRect> | null>()
+export const scrollMargins = Facet.define<(view: Wordgard) => Partial<DOMRect> | null>()
 
-export function getScrollMargins(view: EditorView) {
+export function getScrollMargins(view: Wordgard) {
   let left = 0, right = 0, top = 0, bottom = 0
   for (let source of view.state.facet(scrollMargins)) {
     let m = source(view)
@@ -279,7 +279,7 @@ export const styleModule = Facet.define<StyleModule>()
 
 export const enum UpdateFlag { Focus = 1, Geometry = 2 }
 
-// FIXME rename to EditorView.Update
+// FIXME rename to Wordgard.Update
 
 /// View [plugins](#view.ViewPlugin) are given instances of this
 /// class, which describe what happened, whenever the view is updated.
@@ -289,7 +289,7 @@ export class ViewUpdate {
 
   private constructor(
     /// The editor view that the update is associated with.
-    readonly view: EditorView,
+    readonly view: Wordgard,
     /// The previous editor state.
     readonly startState: GardState,
     /// The new editor state.
@@ -308,7 +308,7 @@ export class ViewUpdate {
   }
 
   /// @internal
-  static create(view: EditorView, startState: GardState, state: GardState,
+  static create(view: Wordgard, startState: GardState, state: GardState,
                 transactions: readonly Transaction[], flags = 0) {
     return new ViewUpdate(view, startState, state, transactions, flags)
   }

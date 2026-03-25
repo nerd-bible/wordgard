@@ -1,7 +1,7 @@
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {getScale} from "./dom"
 import {UpdateFlag, ScrollTarget, scrollIntoView} from "./extension"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 
 export enum Direction { LTR, RTL }
 
@@ -48,7 +48,7 @@ export class ViewState {
     this.pending = []
   }
 
-  measure(view: EditorView) {
+  measure(view: Wordgard) {
     let dom = view.contentDOM, style = window.getComputedStyle(dom)
     this.defaultTextDirection = style.direction == "rtl" ? Direction.RTL : Direction.LTR
 
@@ -81,7 +81,7 @@ export class ViewState {
     return result
   }
 
-  initialMeasure(view: EditorView) {
+  initialMeasure(view: Wordgard) {
     this.initialized = true
     let domRect = view.contentDOM.getBoundingClientRect()
     this.contentDOMWidth = domRect.width

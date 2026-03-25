@@ -1,18 +1,18 @@
 // Helper library for browser test scripts
 
-import {EditorView} from "wordgard/view"
+import {Wordgard} from "wordgard/view"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {maybeTag} from "wordgard/schema"
 
 const workspace: HTMLElement = document.querySelector("#workspace")! as HTMLElement
 
-let currentTempView: EditorView | null = null
+let currentTempView: Wordgard | null = null
 let hide: any = null
 
 /// Create a hidden view with the given document and extensions that
 /// lives until the next call to `tempView`.
-export function tempView(doc: string | Plot.Doc, config: GardState.Extension = []): EditorView {
+export function tempView(doc: string | Plot.Doc, config: GardState.Extension = []): Wordgard {
   if (currentTempView) {
     currentTempView.dom.remove()
     currentTempView = null
@@ -22,7 +22,7 @@ export function tempView(doc: string | Plot.Doc, config: GardState.Extension = [
   if (typeof doc != "string") {
     t0 = maybeTag(doc, 0); t1 = maybeTag(doc, 1)
   }
-  currentTempView = new EditorView({doc, selection: t0 != null ? {anchor: t0, head: t1} : undefined, config})
+  currentTempView = new Wordgard({doc, selection: t0 != null ? {anchor: t0, head: t1} : undefined, config})
   workspace.appendChild(currentTempView.dom)
   workspace.style.pointerEvents = ""
   if (hide == null) hide = setTimeout(() => {
@@ -33,7 +33,7 @@ export function tempView(doc: string | Plot.Doc, config: GardState.Extension = [
 }
 
 /// Focus the given view or raise an error when the window doesn't have focus.
-export function requireFocus(view: EditorView): EditorView {
+export function requireFocus(view: Wordgard): Wordgard {
   if (!document.hasFocus())
     throw new Error("The document doesn't have focus, which is needed for this test")
   view.focus()

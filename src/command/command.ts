@@ -1,14 +1,14 @@
 import {Facet, GardState} from "wordgard/state"
-import {type EditorView} from "wordgard/view"
+import {type Wordgard} from "wordgard/view"
 
 const commandHandler = Facet.define<
-  [Command<unknown>, (view: EditorView, param: unknown) => boolean],
-  Map<Command<unknown>, readonly ((view: EditorView, param: unknown) => boolean)[]>
+  [Command<unknown>, (view: Wordgard, param: unknown) => boolean],
+  Map<Command<unknown>, readonly ((view: Wordgard, param: unknown) => boolean)[]>
 >({
   combine(handlers) {
-    let map = new Map<Command<unknown>, readonly ((view: EditorView, param: unknown) => boolean)[]>()
+    let map = new Map<Command<unknown>, readonly ((view: Wordgard, param: unknown) => boolean)[]>()
     for (let [cmd, handler] of handlers) {
-      let list = map.get(cmd) as ((view: EditorView, param: unknown) => boolean)[] | undefined
+      let list = map.get(cmd) as ((view: Wordgard, param: unknown) => boolean)[] | undefined
       if (!list) map.set(cmd, list = [])
       list.push(handler)
     }
@@ -28,20 +28,20 @@ const commandHandler = Facet.define<
 /// Command handlers should check whether their effect can be applied
 /// to the editor they are given, and return false if it cannot. If it
 /// can, the handler performs it as a side effect (which usually means
-/// [dispatching](#view.EditorView.dispatch) a transaction) and
+/// [dispatching](#view.Wordgard.dispatch) a transaction) and
 /// returns `true`.
 export class Command<Param = null> {
   private constructor(
-    readonly defaultHandler: (view: EditorView, param: Param) => boolean
+    readonly defaultHandler: (view: Wordgard, param: Param) => boolean
   ) {}
 
-  handler(handler: (view: EditorView, param: Param) => boolean): GardState.Extension {
+  handler(handler: (view: Wordgard, param: Param) => boolean): GardState.Extension {
     return commandHandler.of([this, handler] as any)
   }
 
-  dispatch(this: Command<null>, view: EditorView, param?: Param): boolean
-  dispatch(view: EditorView, param: Param): boolean
-  dispatch(view: EditorView, param: Param = null as Param): boolean {
+  dispatch(this: Command<null>, view: Wordgard, param?: Param): boolean
+  dispatch(view: Wordgard, param: Param): boolean
+  dispatch(view: Wordgard, param: Param = null as Param): boolean {
     let handlers = view.state.facet(commandHandler).get(this as Command<unknown>)
     if (handlers) for (let handler of handlers) {
       let result = handler(view, param)
@@ -50,13 +50,13 @@ export class Command<Param = null> {
     return this.defaultHandler(view, param)
   }
 
-  bind(this: Command<null>): (view: EditorView) => boolean
-  bind(param: Param): (view: EditorView) => boolean
-  bind(param: Param = null as Param): (view: EditorView) => boolean {
+  bind(this: Command<null>): (view: Wordgard) => boolean
+  bind(param: Param): (view: Wordgard) => boolean
+  bind(param: Param = null as Param): (view: Wordgard) => boolean {
     return view => this.dispatch(view, param)
   }
 
-  static define<Param = null>(defaultHandler?: (view: EditorView, param: Param) => boolean) {
+  static define<Param = null>(defaultHandler?: (view: Wordgard, param: Param) => boolean) {
     return new Command<Param>(defaultHandler || (() => false))
   }
 }

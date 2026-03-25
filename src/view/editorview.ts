@@ -25,32 +25,11 @@ import {cursorBlinkRate} from "./drawcursor"
 
 // FIXME use custom elements rather than classes to target CSS?
 
-/// The type of object given to the [`EditorView`](#view.EditorView)
-/// constructor.
-export interface EditorViewSpec extends Partial<GardState.Spec> {
-  /// The view's initial state. If not given, a new state is created
-  /// by passing this configuration object to
-  /// [`EditorState.create`](#state.EditorState^create), using its
-  /// `doc`, `selection`, and `extensions` field (if provided).
-  state?: GardState,
-  /// When given, the editor is immediately appended to the given
-  /// element on creation. (Otherwise, you'll have to place the view
-  /// element in the document yourself.)
-  parent?: Element | DocumentFragment
-  /// Pass an effect created with
-  /// [`EditorView.scrollIntoView`](#view.EditorView^scrollIntoView) or
-  /// [`EditorView.scrollSnapshot`](#view.EditorView.scrollSnapshot)
-  /// here to set an initial scroll position.
-  scrollTo?: StateEffect<any>,
-}
-
-// FIXME less generic name?
-
 /// An editor view represents the editor's user interface. It holds
 /// the editable DOM surface, and possibly other elements such as
 /// panels. It handles events and dispatches state transactions for
 /// editing actions.
-export class EditorView {
+export class Wordgard {
   /// The current editor state.
   get state() { return this.viewState.state }
 
@@ -84,7 +63,7 @@ export class EditorView {
   /// The editable DOM element holding the editor content. You should
   /// not, usually, interact with this content directly though the
   /// DOM, since the editor will immediately undo most of the changes
-  /// you make. Instead, [dispatch](#view.EditorView.dispatch)
+  /// you make. Instead, [dispatch](#view.Wordgard.dispatch)
   /// [transactions](#state.Transaction) to modify content, and
   /// [decorations](#view.Decoration) to style it.
   readonly contentDOM: HTMLElement
@@ -119,14 +98,14 @@ export class EditorView {
   observer: DOMObserver
 
   /// @internal
-  readRequests: ((view: EditorView) => void)[] = []
+  readRequests: ((view: Wordgard) => void)[] = []
   /// @internal
-  writeRequests: ((view: EditorView) => void)[] = []
+  writeRequests: ((view: Wordgard) => void)[] = []
 
   /// Construct a new view. You'll want to either provide a `parent`
   /// option, or put `view.dom` into your document after creating a
   /// view, so that the user can see the editor.
-  constructor(spec: EditorViewSpec) {
+  constructor(spec: Wordgard.Spec) {
     this.flush = this.flush.bind(this)
     this.dispatch = this.dispatch.bind(this)
 
@@ -147,7 +126,7 @@ export class EditorView {
     this.dom.appendChild(this.scrollDOM)
 
     if (!spec.state && !spec.doc)
-      throw new Error("When EditorViewSpec.state isn't given, the doc field must be present")
+      throw new Error("When Wordgard.Spec.state isn't given, the doc field must be present")
     this.viewState = new ViewState(spec.state || GardState.create(spec as GardState.Spec))
     if (spec.scrollTo && spec.scrollTo.is(scrollIntoView))
       this.viewState.scrollTarget = spec.scrollTo.value.clip(this.viewState.state)
@@ -205,7 +184,7 @@ export class EditorView {
   /// property, but updating the DOM will be deferred to the next
   /// display update.
   ///
-  /// You should usually call [`dispatch`](#view.EditorView.dispatch)
+  /// You should usually call [`dispatch`](#view.Wordgard.dispatch)
   /// instead, which uses this as a primitive.
   update(transaction: Transaction) {
     if (this.flushing) throw new Error("Cannot dispatch new updates during the editor flush phase")
@@ -373,7 +352,7 @@ export class EditorView {
 
   private showAnnouncements(trs: readonly Transaction[]) {
     let first = true
-    for (let tr of trs) for (let effect of tr.effects) if (effect.is(EditorView.announce)) {
+    for (let tr of trs) for (let effect of tr.effects) if (effect.is(Wordgard.announce)) {
       if (first) this.announceDOM.textContent = ""
       first = false
       let div = this.announceDOM.appendChild(document.createElement("div"))
@@ -383,17 +362,17 @@ export class EditorView {
 
   private mountStyles() {
     this.styleModules = this.state.facet(styleModule)
-    let nonce = this.state.facet(EditorView.cspNonce)
+    let nonce = this.state.facet(Wordgard.cspNonce)
     StyleModule.mount(this.root, this.styleModules.concat(baseTheme).reverse(), nonce ? {nonce} : undefined)
   }
 
   /// Schedule a function that needs to read from the (flushed) DOM.
-  requestDOMRead(read: (view: EditorView) => void) { // FIXME naming
+  requestDOMRead(read: (view: Wordgard) => void) { // FIXME naming
     this.scheduleFlush()
     if (this.readRequests.indexOf(read) < 0) this.readRequests.push(read)
   }
 
-  requestDOMWrite(write: (view: EditorView) => void) {
+  requestDOMWrite(write: (view: Wordgard) => void) {
     this.scheduleFlush()
     if (this.writeRequests.indexOf(write) < 0) this.writeRequests.push(write)
   }
@@ -542,7 +521,7 @@ export class EditorView {
     /// `"center"` to move it to the center.
     y?: ScrollStrategy,
     /// Effect similar to
-    /// [`y`](#view.EditorView^scrollIntoView^options.y), but for the
+    /// [`y`](#view.Wordgard^scrollIntoView^options.y), but for the
     /// horizontal scroll position.
     x?: ScrollStrategy,
     /// Extra vertical distance to add when moving something into
@@ -619,7 +598,7 @@ export class EditorView {
   /// module](https://github.com/marijnh/style-mod#documentation) to
   /// an editor view. The view will ensure that the module is
   /// mounted in its [document
-  /// root](#view.EditorView.constructor^config.root).
+  /// root](#view.Wordgard.constructor^config.root).
   static styleModule = styleModule
 
   /// Returns an extension that can be used to add DOM event handlers.
@@ -628,16 +607,16 @@ export class EditorView {
   /// extension precedence, and the first handler to return true will
   /// be assumed to have handled that event, and no other handlers or
   /// built-in behavior will be activated for it. These are registered
-  /// on the [content element](#view.EditorView.contentDOM), except
+  /// on the [content element](#view.Wordgard.contentDOM), except
   /// for `scroll` handlers, which will be called any time the
-  /// editor's [scroll element](#view.EditorView.scrollDOM) or one of
+  /// editor's [scroll element](#view.Wordgard.scrollDOM) or one of
   /// its parent nodes is scrolled.
   static domEventHandlers(handlers: DOMEventHandlers<any>): GardState.Extension {
     return ViewPlugin.define(() => ({}), {eventHandlers: handlers})
   }
 
   /// Create an extension that registers DOM event observers. Contrary
-  /// to event [handlers](#view.EditorView^domEventHandlers),
+  /// to event [handlers](#view.Wordgard^domEventHandlers),
   /// observers can't be prevented from running by a higher-precedence
   /// handler returning true. They also don't prevent other handlers
   /// and observers from running when they return true, and should not
@@ -689,7 +668,7 @@ export class EditorView {
   /// not have its `contenteditable` attribute set. (Note that this
   /// doesn't affect API calls that change the editor content, even
   /// when those are bound to keys or buttons. See the
-  /// [`readOnly`](#state.EditorState.readOnly) facet for that.)
+  /// [`readOnly`](#state.GardState.readOnly) facet for that.)
   static editable = editable
 
   /// Controls the length of a full cursor blink cycle, in milliseconds.
@@ -728,14 +707,14 @@ export class EditorView {
   ///
   /// Because the selectors will be prefixed with a scope class, rule
   /// that directly match the editor's [wrapper
-  /// element](#view.EditorView.dom)—to which the scope class will be
+  /// element](#view.Wordgard.dom)—to which the scope class will be
   /// added—need to be explicitly differentiated by adding an `&` to
   /// the selector for that element—for example
   /// `&.wg-focused`.
   ///
   /// When `dark` is set to true, the theme will be marked as dark,
   /// which will cause the `&dark` rules from [base
-  /// themes](#view.EditorView^baseTheme) to be used (as opposed to
+  /// themes](#view.Wordgard^baseTheme) to be used (as opposed to
   /// `&light` when a light theme is active).
   // FIXME work out whether we want a theme system at all, and make
   // dark/light integrate properly with client setting
@@ -760,7 +739,7 @@ export class EditorView {
   }
 
   /// Create an extension that adds styles to the base theme. Like
-  /// with [`theme`](#view.EditorView^theme), use `&` to indicate the
+  /// with [`theme`](#view.Wordgard^theme), use `&` to indicate the
   /// place of the editor wrapper element when directly targeting
   /// that. You can also use `&dark` or `&light` instead to only
   /// target editors with a dark or light theme.
@@ -793,11 +772,32 @@ export class EditorView {
   static DocTile = DocTile
 }
 
-let _wrapElement: {new (view: EditorView): HTMLElement} | null = null
+export namespace Wordgard {
+  /// The type of object given to the [`Wordgard`](#view.Wordgard)
+  /// constructor.
+  export interface Spec extends Partial<GardState.Spec> {
+    /// The view's initial state. If not given, a new state is created
+    /// by passing this configuration object to
+    /// [`GardState.create`](#state.GardState^create), using its
+    /// `doc`, `selection`, and `extensions` field (if provided).
+    state?: GardState,
+    /// When given, the editor is immediately appended to the given
+    /// element on creation. (Otherwise, you'll have to place the view
+    /// element in the document yourself.)
+    parent?: Element | DocumentFragment
+    /// Pass an effect created with
+    /// [`Wordgard.scrollIntoView`](#view.Wordgard^scrollIntoView) or
+    /// [`Wordgard.scrollSnapshot`](#view.Wordgard.scrollSnapshot)
+    /// here to set an initial scroll position.
+    scrollTo?: StateEffect<any>,
+  }
+}
+
+let _wrapElement: {new (view: Wordgard): HTMLElement} | null = null
 
 function wrapElementConstructor() {
   let ctor = class extends HTMLElement {
-    constructor(readonly view: EditorView) { super() }
+    constructor(readonly view: Wordgard) { super() }
     connectedCallback() { this.view.setConnected(true) }
     disconnectedCallback() { this.view.setConnected(false) }
   }
@@ -814,7 +814,7 @@ function wrapElementConstructor() {
   return ctor
 }
 
-function createWrapElement(view: EditorView) {
+function createWrapElement(view: Wordgard) {
   if (!_wrapElement) _wrapElement = wrapElementConstructor()
   return new _wrapElement(view)
 }
@@ -831,10 +831,10 @@ export interface DOMEventMap extends HTMLElementEventMap {
 /// is inferred to `any`, and should be explicitly set if you want type
 /// checking.
 export type DOMEventHandlers<This> = {
-  [event in keyof DOMEventMap]?: (this: This, event: DOMEventMap[event], view: EditorView) => boolean | void
+  [event in keyof DOMEventMap]?: (this: This, event: DOMEventMap[event], view: Wordgard) => boolean | void
 }
 
-function attrsFromFacet(view: EditorView, facet: Facet<AttrSource>, base: Attrs) {
+function attrsFromFacet(view: Wordgard, facet: Facet<AttrSource>, base: Attrs) {
   for (let sources = view.state.facet(facet), i = sources.length - 1; i >= 0; i--) {
     let source = sources[i], value = typeof source == "function" ? source(view) : source
     if (value) combineAttrs(value, base)

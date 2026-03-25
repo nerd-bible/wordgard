@@ -122,7 +122,7 @@ StateEffect.appendConfig = StateEffect.define<GardState.Extension>()
 
 export namespace Transaction {
   /// Describes a [transaction](#state.Transaction) when calling the
-  /// [`EditorState.update`](#state.EditorState.update) method.
+  /// [`GardState.update`](#state.GardState.update) method.
   export interface Spec {
     /// The changes to the document made by this transaction.
     changes?: ChangeSet.Spec
@@ -147,13 +147,13 @@ export namespace Transaction {
     /// scroll the current selection into view.
     scrollIntoView?: boolean,
     /// By default, transactions can be modified by [transaction
-    /// filters](#state.EditorState^transactionFilter). You can set this
+    /// filters](#state.GardState^transactionFilter). You can set this
     /// to `false` to disable that. This can be necessary for
     /// transactions that, for example, include annotations that must be
     /// kept consistent with their changes.
     filter?: boolean,
     /// Normally, when multiple specs are combined (for example by
-    /// [`EditorState.update`](#state.EditorState.update)), the
+    /// [`GardState.update`](#state.GardState.update)), the
     /// positions in `changes` are taken to refer to the document
     /// positions in the initial document. When a spec has `sequental`
     /// set to true, its positions will be taken to refer to the
@@ -166,9 +166,9 @@ export namespace Transaction {
 /// Typically, a user action creates a single transaction, which may
 /// contain any number of document changes, may change the selection,
 /// or have other effects. Create a transaction by calling
-/// [`EditorState.update`](#state.EditorState.update), or immediately
+/// [`GardState.update`](#state.GardState.update), or immediately
 /// dispatch one by calling
-/// [`EditorView.dispatch`](#view.EditorView.dispatch).
+/// [`Wordgard.dispatch`](#view.Wordgard.dispatch).
 export class Transaction {
   /// @internal
   _selection: GardSelection | null = null
@@ -204,7 +204,7 @@ export class Transaction {
   /// [`.state`](#state.Transaction.state)`.doc`, accessing this won't
   /// force the entire new state to be computed right away, so it is
   /// recommended that [transaction
-  /// filters](#state.EditorState^transactionFilter) use this property
+  /// filters](#state.GardState^transactionFilter) use this property
   /// when they need to look at the new document.
   newDoc: Plot.Doc
 

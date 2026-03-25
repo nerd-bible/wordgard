@@ -1,4 +1,4 @@
-import {EditorView, showDialog} from "wordgard/view"
+import {Wordgard, showDialog} from "wordgard/view"
 import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
 import {GardState, Transaction, Facet} from "wordgard/state"
@@ -14,9 +14,9 @@ import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBullet
         iconAlignCenter} from "./icon"
 
 export type MenuLabelWidget = {
-  render: (view: EditorView) => HTMLElement
+  render: (view: Wordgard) => HTMLElement
   rerender?: (tr: Transaction) => boolean
-  update?: (elt: HTMLElement, view: EditorView) => void
+  update?: (elt: HTMLElement, view: Wordgard) => void
 }
 
 export type MenuLabel = string | {icon: string, directional?: boolean} | MenuLabelWidget
@@ -64,12 +64,12 @@ export class MenuButton implements MenuItemSpec {
   declare rank: number
   declare description: string | undefined
   label: MenuLabel
-  run: (view: EditorView) => void
+  run: (view: Wordgard) => void
   active: ((state: GardState) => boolean) | undefined
   extension: GardState.Extension
 
   constructor(spec: {
-    run: (view: EditorView) => void
+    run: (view: Wordgard) => void
     active?: (state: GardState) => boolean
     label: MenuLabel
   } & MenuItemSpec) {

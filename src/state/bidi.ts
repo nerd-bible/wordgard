@@ -1,4 +1,4 @@
-/// Used to indicate [text direction](#view.EditorView.textDirection).
+/// Used to indicate [text direction](#view.Wordgard.textDirection).
 export enum Direction {
   // (These are chosen to match the base levels, in bidi algorithm
   // terms, of spans in that direction.)

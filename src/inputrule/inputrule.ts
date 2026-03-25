@@ -1,4 +1,4 @@
-import {EditorView, ViewUpdate} from "wordgard/view"
+import {Wordgard, ViewUpdate} from "wordgard/view"
 import {GardState, Facet, autoJoinBlocks} from "wordgard/state"
 import {isolateHistory} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"
@@ -6,7 +6,7 @@ import {findWrappable, wrapBlockRange} from "wordgard/command"
 
 export const inputRule = Facet.define<InputRule>()
 
-export const beforeUpdate = EditorView.beforeUpdate.of(applyInputRules)
+export const beforeUpdate = Wordgard.beforeUpdate.of(applyInputRules)
 
 export class InputRule {
   extension: GardState.Extension
@@ -14,7 +14,7 @@ export class InputRule {
   inCode: boolean
 
   private constructor(readonly expr: RegExp,
-                      readonly apply: (view: EditorView, match: DocMatchArray) => boolean,
+                      readonly apply: (view: Wordgard, match: DocMatchArray) => boolean,
                       spec: InputRule.Spec) {
     this.lookahead = spec.lookahead
     this.inCode = !!spec.inCode
@@ -96,7 +96,7 @@ export namespace InputRule {
     ///
     /// When given as a string, the full match will be replaced by
     /// that string.
-    apply: ((view: EditorView, match: DocMatchArray) => boolean) | string,
+    apply: ((view: Wordgard, match: DocMatchArray) => boolean) | string,
     /// Because the regular expression given in `expr` must end at the
     /// cursor, it is matched against a string that stops at the
     /// cursor, and cannot look beyond it. You can provide an
@@ -118,7 +118,7 @@ function ensureAnchor(regexp: RegExp) {
 }
 
 function applyString(text: string) {
-  return (view: EditorView, match: DocMatchArray) => {
+  return (view: Wordgard, match: DocMatchArray) => {
     view.dispatch({
       changes: {from: match[0].from.pos, to: match[0].to.pos, insert: [Leaf.text(text)]},
       annotations: isolateHistory.of("full")

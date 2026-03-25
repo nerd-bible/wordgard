@@ -1,5 +1,5 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
-import {EditorView, PointSet, Decoration, KeyBinding} from "wordgard/view"
+import {Wordgard, PointSet, Decoration, KeyBinding} from "wordgard/view"
 import {GardState, StateEffect} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
@@ -25,7 +25,7 @@ export const ImageSize = Mark.Type.define<number>("ImageSize", {
 })
 
 // FIXME make it possible to attach extensions to schema elements
-export const imageTheme = EditorView.theme({
+export const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {
     display: "inline-block",
     lineHeight: "0.1",
@@ -77,7 +77,7 @@ const resizeState = GardState.Field.define<{target: number, resizing: number, de
 
 const MIN_SIZE = 10
 
-const resizeHandlers = EditorView.domEventHandlers({
+const resizeHandlers = Wordgard.domEventHandlers({
   mousedown: (event, view) => {
     let resizing = view.state.field(resizeState)
     if (resizing.target < 0) return
@@ -122,7 +122,7 @@ export const dragHandle = [
   Decoration.source.of(s => s.field(resizeState).deco),
 ]
 
-export const resizeImage = (by: number, relative = false) => (view: EditorView) => {
+export const resizeImage = (by: number, relative = false) => (view: Wordgard) => {
   let {node} = view.state.sel
   if (node && view.state.doc.schema.markAllowed(ImageSize, node.type)) {
     let curWidth = node.mark(ImageSize) ?? view.nodeDOM(view.state.selection.from)!.getBoundingClientRect().width

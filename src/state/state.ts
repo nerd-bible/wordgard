@@ -13,9 +13,9 @@ const none: readonly any[] = []
 /// those into a single output value.
 ///
 /// Examples of uses of facets are the [tab
-/// size](#state.EditorState^tabSize), [editor
-/// attributes](#view.EditorView^editorAttributes), and [update
-/// listeners](#view.EditorView^updateListener).
+/// size](#state.GardState^tabSize), [editor
+/// attributes](#view.Wordgard^editorAttributes), and [update
+/// listeners](#view.Wordgard^updateListener).
 ///
 /// Note that `Facet` instances can be used anywhere where
 /// [`FacetReader`](#state.FacetReader) is expected.
@@ -42,7 +42,7 @@ export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Out
   }
 
   /// Returns a facet reader for this facet, which can be used to
-  /// [read](#state.EditorState.facet) it but not to define values for it.
+  /// [read](#state.GardState.facet) it but not to define values for it.
   get reader(): Facet.Reader<Output> { return this }
 
   /// Define a new facet.
@@ -147,7 +147,7 @@ export namespace Facet {
   }
 
   /// A facet reader can be used to fetch the value of a facet, through
-  /// [`EditorState.facet`](#state.EditorState.facet) or as a dependency
+  /// [`GardState.facet`](#state.GardState.facet) or as a dependency
   /// in [`Facet.compute`](#state.Facet.compute), but not to define new
   /// values for the facet.
   export type Reader<Output> = {
@@ -199,7 +199,7 @@ function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
 type DocSource = Plot.Doc | HTMLElement | DocumentFragment | string | Node.JSON | ((schema: Schema) => Plot.Doc)
 
 /// The editor state class is a persistent (immutable) data structure.
-/// To update a state, you [create](#state.EditorState.update) a
+/// To update a state, you [create](#state.GardState.update) a
 /// [transaction](#state.Transaction), which produces a _new_ state
 /// instance, without modifying the original object.
 ///
@@ -367,11 +367,11 @@ export class GardState { // FIXME rename to something less boring?
 
   /// Deserialize a state from its JSON representation. When custom
   /// fields should be deserialized, pass the same object you passed
-  /// to [`toJSON`](#state.EditorState.toJSON) when serializing as
+  /// to [`toJSON`](#state.GardState.toJSON) when serializing as
   /// third argument.
   static fromJSON(json: any, extensions: GardState.Extension, fields?: {[prop: string]: GardState.Field<any>}): GardState {
     if (!json)
-      throw new ValidationError("Invalid JSON representation for EditorState")
+      throw new ValidationError("Invalid JSON representation for GardState")
     let fieldInit = []
     if (fields) for (let prop in fields) {
       if (Object.prototype.hasOwnProperty.call(json, prop)) {
@@ -411,14 +411,14 @@ export class GardState { // FIXME rename to something less boring?
   }
 
   /// This facet controls the value of the
-  /// [`readOnly`](#state.EditorState.readOnly) getter, which is
+  /// [`readOnly`](#state.GardState.readOnly) getter, which is
   /// consulted by commands and extensions that implement editing
   /// functionality to determine whether they should apply. It
   /// defaults to false, but when its highest-precedence value is
   /// `true`, such functionality disables itself.
   ///
   /// Not to be confused with
-  /// [`EditorView.editable`](#view.EditorView^editable), which
+  /// [`Wordgard.editable`](#view.Wordgard^editable), which
   /// controls whether the editor's DOM is set to be editable (and
   /// thus focusable).
   static readOnly = Facet.define<boolean, boolean>({
@@ -426,11 +426,11 @@ export class GardState { // FIXME rename to something less boring?
   })
 
   /// Returns true when the editor is
-  /// [configured](#state.EditorState^readOnly) to be read-only.
+  /// [configured](#state.GardState^readOnly) to be read-only.
   get readOnly() { return this.facet(GardState.readOnly) }
 
   /// Registers translation phrases. The
-  /// [`phrase`](#state.EditorState.phrase) method will look through
+  /// [`phrase`](#state.GardState.phrase) method will look through
   /// all objects registered with this facet to find translations for
   /// its argument.
   static phrases = Facet.define<{[key: string]: string}>({
@@ -441,7 +441,7 @@ export class GardState { // FIXME rename to something less boring?
   })
 
   /// Look up a translation for the given phrase (via the
-  /// [`phrases`](#state.EditorState^phrases) facet), or return the
+  /// [`phrases`](#state.GardState^phrases) facet), or return the
   /// original string if no translation is found.
   ///
   /// If additional arguments are passed, they will be inserted in
@@ -505,7 +505,7 @@ export class GardState { // FIXME rename to something less boring?
   /// can either return a single transaction spec (possibly the input
   /// transaction), or an array of specs (which will be combined in
   /// the same way as the arguments to
-  /// [`EditorState.update`](#state.EditorState.update)).
+  /// [`GardState.update`](#state.GardState.update)).
   ///
   /// When possible, it is recommended to avoid accessing
   /// [`Transaction.state`](#state.Transaction.state) in a filter,
@@ -518,7 +518,7 @@ export class GardState { // FIXME rename to something less boring?
   static transactionFilter = Facet.define<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>()
 
   /// This is a more limited form of
-  /// [`transactionFilter`](#state.EditorState^transactionFilter),
+  /// [`transactionFilter`](#state.GardState^transactionFilter),
   /// which can only add
   /// [annotations](#state.TransactionSpec.annotations) and
   /// [effects](#state.TransactionSpec.effects). _But_, this type
@@ -534,7 +534,7 @@ export class GardState { // FIXME rename to something less boring?
 const initField = Facet.define<{field: GardState.Field<unknown>, create: (state: GardState) => unknown}>({static: true})
 
 export namespace GardState {
-  /// Options passed when [creating](#state.EditorState^create) an
+  /// Options passed when [creating](#state.GardState^create) an
   /// editor state.
   export interface Spec {
     /// The initial document.
@@ -639,7 +639,7 @@ export namespace GardState {
 
       /// A function used to serialize this field's content to JSON. Only
       /// necessary when this field is included in the argument to
-      /// [`EditorState.toJSON`](#state.EditorState.toJSON).
+      /// [`GardState.toJSON`](#state.GardState.toJSON).
       toJSON?: (value: Value, state: GardState) => any
 
       /// A function that deserializes the JSON representation of this
@@ -766,7 +766,7 @@ export namespace GardState {
   }
 
   /// Extension values can be
-  /// [provided](#state.EditorStateConfig.extensions) when creating a
+  /// [provided](#state.GardStateConfig.extensions) when creating a
   /// state to attach various kinds of configuration and behavior
   /// information. They can either be built-in extension-providing
   /// objects, such as [state fields](#state.StateField) or [facet
@@ -807,7 +807,7 @@ export namespace GardState {
   /// transaction.
   export class Compartment {
     /// Create an instance of this compartment to add to your [state
-    /// configuration](#state.EditorStateConfig.extensions).
+    /// configuration](#state.GardStateConfig.extensions).
     of(ext: GardState.Extension): GardState.Extension { return new CompartmentInstance(this, ext) }
 
     /// Create an [effect](#state.TransactionSpec.effects) that

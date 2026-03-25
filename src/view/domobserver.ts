@@ -1,6 +1,6 @@
 import {ChangeSet} from "wordgard/doc"
 import browser from "./browser"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
 import {Tile} from "./tile"
 import {readDOMSelection} from "./selection"
@@ -39,7 +39,7 @@ export class DOMObserver {
   resizeScroll: ResizeObserver | null = null
   darkThemeQuery: MediaQueryList | null = null
 
-  constructor(private view: EditorView) {
+  constructor(private view: Wordgard) {
     this.dom = view.contentDOM
     this.observer = new MutationObserver(mutations => {
       for (let mut of mutations) this.queue.push(mut)
@@ -226,7 +226,7 @@ function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
   return null
 }
 
-function buildSelectionRangeFromRange(view: EditorView, range: StaticRange) {
+function buildSelectionRangeFromRange(view: Wordgard, range: StaticRange) {
   let anchorNode = range.startContainer, anchorOffset = range.startOffset
   let focusNode = range.endContainer, focusOffset = range.endOffset
   let curAnchor = view.docTile.resolve(view.state.selection.anchor, -1)

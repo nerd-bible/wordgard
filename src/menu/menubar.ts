@@ -1,4 +1,4 @@
-import {showPanel, EditorView, ViewUpdate} from "wordgard/view"
+import {showPanel, Wordgard, ViewUpdate} from "wordgard/view"
 import {GardState, Facet, Direction} from "wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
@@ -13,7 +13,7 @@ function id(prefix: string) {
 
 const SVG = "http://www.w3.org/2000/svg"
 
-function labelButton(view: EditorView, button: HTMLElement, label: MenuLabel) {
+function labelButton(view: Wordgard, button: HTMLElement, label: MenuLabel) {
   button.textContent = ""
   if (typeof label == "string") {
     let span = button.appendChild(document.createElement("span"))
@@ -53,7 +53,7 @@ class BarButton {
   index = 0
   dynamicLabel: boolean
 
-  constructor(readonly item: MenuButton, view: EditorView) {
+  constructor(readonly item: MenuButton, view: Wordgard) {
     this.dom = document.createElement("button")
     this.dom.className = "wg-menu-button"
     this.dom.tabIndex = -1
@@ -65,7 +65,7 @@ class BarButton {
 
   get focusDOM() { return this.dom }
 
-  update(flags: F, view: EditorView, update: ViewUpdate | null) {
+  update(flags: F, view: Wordgard, update: ViewUpdate | null) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -105,7 +105,7 @@ class BarSubmenu {
   index = 0
   children: readonly BarElement[]
 
-  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], view: EditorView) {
+  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], view: Wordgard) {
     this.dom = document.createElement("div")
     this.dom.className = "wg-submenu"
     this.button = this.dom.appendChild(document.createElement("button"))
@@ -138,7 +138,7 @@ class BarSubmenu {
 
   get focusDOM() { return this.button }
 
-  update(flags: F, view: EditorView) {
+  update(flags: F, view: Wordgard) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -175,7 +175,7 @@ class BarSpacer {
   }
 }
 
-function instantiate(item: ResolvedMenuItem, view: EditorView, flat: BarElement[]): BarElement | BarSpacer {
+function instantiate(item: ResolvedMenuItem, view: Wordgard, flat: BarElement[]): BarElement | BarSpacer {
   let elt
   if (item instanceof ResolvedSubmenu)
     elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, view, flat)), view)
@@ -208,7 +208,7 @@ class MenuBar {
   focusTimeout = -1
   items: readonly MenuItem[]
 
-  constructor(readonly view: EditorView, readonly template: MenuTemplate | readonly MenuTemplate[]) {
+  constructor(readonly view: Wordgard, readonly template: MenuTemplate | readonly MenuTemplate[]) {
     this.dom = document.createElement("wg-menubar")
     this.dom.role = "toolbar"
     this.dom.setAttribute("aria-controls", view.contentDOM.id)
@@ -389,7 +389,7 @@ function defaultChild(children: readonly BarElement[]) {
   return children.length ? children.find(ch => ch.flags & F.Active) || children[0] : null
 }
 
-const theme = EditorView.baseTheme({
+const theme = Wordgard.baseTheme({
   "&": {
     "--wg-menu-item-size": "20px",
     "--wg-menu-highlight": "#6af"

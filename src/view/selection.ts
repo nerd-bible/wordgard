@@ -1,9 +1,9 @@
 import {GardSelection, Direction} from "wordgard/state"
 import {Pos} from "wordgard/doc"
-import {EditorView} from "./editorview"
+import {Wordgard} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
-export function setDOMSelection(view: EditorView) {
+export function setDOMSelection(view: Wordgard) {
   let {anchor, head, assoc} = view.state.selection
   let anchorDOM = view.docTile.resolve(anchor, anchor == head ? assoc || 1 : anchor < head ? 1 : -1)
   let headDOM = head == anchor ? anchorDOM : view.docTile.resolve(head, head < anchor ? 1 : -1)
@@ -27,7 +27,7 @@ export function setDOMSelection(view: EditorView) {
   if (!failed) view.observer.setSelectionRange(anchorDOM, headDOM)
 }
 
-export function readDOMSelection(view: EditorView, range: SelectionRange) {
+export function readDOMSelection(view: Wordgard, range: SelectionRange) {
   let anchor = view.docTile.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
     : view.docTile.posFromDOM(range.focusNode!, range.focusOffset, -1)
@@ -36,7 +36,7 @@ export function readDOMSelection(view: EditorView, range: SelectionRange) {
 
 const Y_STEP = 5
 
-export function moveVertically(view: EditorView, start: GardSelection, forward: boolean,
+export function moveVertically(view: Wordgard, start: GardSelection, forward: boolean,
                                distance: number = 0, selectNode = false) {
   let editorRect = view.contentDOM.getBoundingClientRect()
   let coords = view.coordsAtPos(start.head, start.assoc || -1)
@@ -77,7 +77,7 @@ export function moveVertically(view: EditorView, start: GardSelection, forward: 
   }
 }
 
-function findTargetVertically(view: EditorView, from: number, forward: boolean, x: number, allowNode: boolean) {
+function findTargetVertically(view: Wordgard, from: number, forward: boolean, x: number, allowNode: boolean) {
   let {parent, index, pos} = view.state.doc.resolve(from), entering = false
   for (;;) {
     if ((forward ? index == parent.node.content.length : !index) ||
@@ -127,7 +127,7 @@ function findTargetVertically(view: EditorView, from: number, forward: boolean, 
   }
 }
 
-export function moveToLineBoundary(view: EditorView, start: GardSelection, forward: boolean) {
+export function moveToLineBoundary(view: Wordgard, start: GardSelection, forward: boolean) {
   let block = view.state.doc.resolve(start.head).textblockParent
   if (!block) return null
   let startCoords = view.coordsAtPos(start.head, start.assoc || -1)

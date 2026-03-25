@@ -1,6 +1,6 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
 import {GardSelection, GardState, Direction} from "wordgard/state"
-import {type EditorView} from "wordgard/view"
+import {type Wordgard} from "wordgard/view"
 import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
         deleteSelection, deleteForward, deleteBackward,
         splitTextblock, joinListItems, unwrapBlockType, wrapBlock,
@@ -311,7 +311,7 @@ function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any)
   return state.update({changes, userEvent: "unwrap.list"})
 }
 
-function setSelection(view: EditorView, selection: GardSelection, extend?: boolean) {
+function setSelection(view: Wordgard, selection: GardSelection, extend?: boolean) {
   view.dispatch(view.state.update({
     selection: extend ? GardSelection.range(view.state.selection.anchor, selection.head, selection.goalColumn, selection.marks)
       : selection,
@@ -361,7 +361,7 @@ export const moveByWord = Command.define<{dir: "left" | "right", extend?: boolea
   return moved ? setSelection(view, moved, extend) : false
 })
 
-function nextVertical(view: EditorView, sel: GardSelection, forward: boolean,
+function nextVertical(view: Wordgard, sel: GardSelection, forward: boolean,
                       distance?: number, allowNode?: boolean) {
   let next = view.moveVertically(sel, forward, distance, allowNode)
   if (next) return next
@@ -383,9 +383,9 @@ export const moveByLine = Command.define<{dir: "up" | "down", extend?: boolean}>
   return moved ? setSelection(view, moved, extend) : false
 })
 
-function pageHeight(view: EditorView) {
+function pageHeight(view: Wordgard) {
   let marginTop = 0, marginBottom = 0
-  for (let source of view.state.facet((view.constructor as typeof EditorView).scrollMargins)) {
+  for (let source of view.state.facet((view.constructor as typeof Wordgard).scrollMargins)) {
     let margins = source(view)
     if (margins?.top) marginTop = Math.max(margins?.top, marginTop)
     if (margins?.bottom) marginBottom = Math.max(margins?.bottom, marginBottom)
