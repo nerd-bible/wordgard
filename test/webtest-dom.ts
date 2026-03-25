@@ -234,7 +234,7 @@ describe("parseSlice", () => {
     ist(parse("<hr><p>A<br></p>").slice, slice([hr, p().tag, "A", br]), eq)
   })
 
-  function isOpen(elt: HTMLElement) {
+  function isOpen(elt: Element) {
     return (elt.hasAttribute("open-start") ? OpenSide.Start : 0) | (elt.hasAttribute("open-end") ? OpenSide.End : 0)
   }
 

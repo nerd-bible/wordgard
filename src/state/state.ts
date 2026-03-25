@@ -1,11 +1,170 @@
-import {Schema, Plot, Node, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
+import {Schema, Plot, Node, Leaf, Mark, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
 import {EditorSelection, SelectionSpec, SelectionPos, wordAt, selectionAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
-import {Extension, Configuration, Facet, FacetReader, StateField, Slot, SlotStatus,
-        DynamicSlot, ensureAddr, getAddr, transactionFilter,
-        transactionExtender, Compartment, schemaElement} from "./facet"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
+
+let nextID = 0
+
+const none: readonly any[] = []
+
+/// A facet is a labeled value that is associated with an editor
+/// state. It takes inputs from any number of extensions, and combines
+/// those into a single output value.
+///
+/// Examples of uses of facets are the [tab
+/// size](#state.EditorState^tabSize), [editor
+/// attributes](#view.EditorView^editorAttributes), and [update
+/// listeners](#view.EditorView^updateListener).
+///
+/// Note that `Facet` instances can be used anywhere where
+/// [`FacetReader`](#state.FacetReader) is expected.
+export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Output> {
+  /// @internal
+  readonly id = nextID++
+  /// @internal
+  readonly default: Output
+  /// @internal
+  readonly extensions: Extension | undefined
+
+  private constructor(
+    /// @internal
+    readonly combine: (values: readonly Input[]) => Output,
+    /// @internal
+    readonly compareInput: (a: Input, b: Input) => boolean,
+    /// @internal
+    readonly compare: (a: Output, b: Output) => boolean,
+    private isStatic: boolean,
+    enables: Extension | undefined | ((self: Facet<Input, Output>) => Extension)
+  ) {
+    this.default = combine(none)
+    this.extensions = typeof enables == "function" ? enables(this) : enables
+  }
+
+  /// Returns a facet reader for this facet, which can be used to
+  /// [read](#state.EditorState.facet) it but not to define values for it.
+  get reader(): Facet.Reader<Output> { return this }
+
+  /// Define a new facet.
+  static define<Input, Output = readonly Input[]>(config: Facet.Spec<Input, Output> = {}) {
+    return new Facet<Input, Output>(config.combine || ((a: any) => a) as any,
+                                    config.compareInput || ((a, b) => a === b),
+                                    config.compare || (!config.combine ? sameArray as any : (a, b) => a === b),
+                                    !!config.static,
+                                    config.enables)
+  }
+
+  /// Returns an extension that adds the given value to this facet.
+  of(value: Input): Extension {
+    return new FacetProvider<Input>(none, this, ProviderFlag.Static, value)
+  }
+
+  /// Create an extension that computes a value for the facet from a
+  /// state. The given function should only depend on the state, not
+  /// any external non-constant inputs. Its return value will be kept
+  /// on state update, unless any of the fields or facets (including
+  /// document and selection) that it read are changed by the update,
+  /// in which case it is called again.
+  ///
+  /// In cases where your value depends only on a single field, you
+  /// can use the [`from`](#state.Facet.from) method instead.
+  compute(get: (state: EditorState) => Input): Extension {
+    if (this.isStatic) throw new Error("Can't compute a static facet")
+    return new FacetProvider<Input>([], this, ProviderFlag.Auto, get)
+  }
+
+  /// Create an extension that computes zero or more values for this
+  /// facet from a state.
+  computeN(get: (state: EditorState) => readonly Input[]): Extension {
+    if (this.isStatic) throw new Error("Can't compute a static facet")
+    return new FacetProvider<Input>([], this, ProviderFlag.Multi | ProviderFlag.Auto, get)
+  }
+
+  /// Shorthand method for registering a facet source with a state
+  /// field as input. If the field's type corresponds to this facet's
+  /// input type, the getter function can be omitted. If given, it
+  /// will be used to retrieve the input from the field value.
+  from<T extends Input>(field: EditorState.Field<T>): Extension
+  from<T>(field: EditorState.Field<T>, get: (value: T) => Input): Extension
+  from<T>(field: EditorState.Field<T>, get?: (value: T) => Input): Extension {
+    if (this.isStatic) throw new Error("Can't compute a static facet")
+    if (!get) get = x => x as any
+    return new FacetProvider<Input>([field], this, 0 as ProviderFlag, state => get!(state.field(field)))
+  }
+
+  /// Utility function for combining behaviors to fill in a config
+  /// object from an array of provided configs. `defaults` should hold
+  /// default values for all optional fields in `Config`.
+  ///
+  /// The function will, by default, error
+  /// when a field gets two values that aren't `===`-equal, but you can
+  /// provide combine functions per field to do something else.
+  static combineConfig<Config extends object>(
+    configs: readonly Partial<Config>[],
+    defaults: Partial<Config>, // Should hold only the optional properties of Config, but I haven't managed to express that
+    combine: {[P in keyof Config]?: (first: Config[P], second: Config[P]) => Config[P]} = {}
+  ): Config {
+    let result: any = {}
+    for (let config of configs) for (let key of Object.keys(config) as (keyof Config)[]) {
+      let value = config[key], current = result[key]
+      if (current === undefined) result[key] = value
+      else if (current === value || value === undefined) {} // No conflict
+      else if (Object.hasOwnProperty.call(combine, key)) result[key] = combine[key]!(current as any, value as any)
+      else throw new Error("Config merge conflict for field " + (key as string))
+    }
+    for (let key in defaults) if (result[key] === undefined) result[key] = defaults[key]
+    return result
+  }
+
+  tag!: Output
+}
+
+export namespace Facet {
+  export type Spec<Input, Output> = {
+    /// How to combine the input values into a single output value. When
+    /// not given, the array of input values becomes the output. This
+    /// function will immediately be called on creating the facet, with
+    /// an empty array, to compute the facet's default value when no
+    /// inputs are present.
+    combine?: (value: readonly Input[]) => Output,
+    /// How to compare output values to determine whether the value of
+    /// the facet changed. Defaults to comparing by `===` or, if no
+    /// `combine` function was given, comparing each element of the
+    /// array with `===`.
+    compare?: (a: Output, b: Output) => boolean,
+    /// How to compare input values to avoid recomputing the output
+    /// value when no inputs changed. Defaults to comparing with `===`.
+    compareInput?: (a: Input, b: Input) => boolean,
+    /// Forbids dynamic inputs to this facet.
+    static?: boolean,
+    /// If given, these extension(s) (or the result of calling the given
+    /// function with the facet) will be added to any state where this
+    /// facet is provided. (Note that, while a facet's default value can
+    /// be read from a state even if the facet wasn't present in the
+    /// state at all, these extensions won't be added in that
+    /// situation.)
+    enables?: Extension | ((self: Facet<Input, Output>) => Extension)
+  }
+
+  /// A facet reader can be used to fetch the value of a facet, through
+  /// [`EditorState.facet`](#state.EditorState.facet) or as a dependency
+  /// in [`Facet.compute`](#state.Facet.compute), but not to define new
+  /// values for the facet.
+  export type Reader<Output> = {
+    /// @internal
+    id: number
+    /// @internal
+    default: Output
+    /// Dummy tag that makes sure TypeScript doesn't consider all object
+    /// types as conforming to this type. Not actually present on the
+    /// object.
+    tag: Output
+  }
+}
+
+const schemaElement = Facet.define<Schema.Element | readonly Schema.Element[], readonly Schema.Element[]>({
+  combine: values => values.reduce((set: readonly Schema.Element[], elt) => set.concat(elt), none)
+})
 
 function readHTML(html: string): HTMLElement {
   let detachedDoc = document.implementation.createHTMLDocument("title")
@@ -39,27 +198,13 @@ function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
 
 type DocSource = Plot.Doc | HTMLElement | DocumentFragment | string | Node.JSON | ((schema: Schema) => Plot.Doc)
 
-export namespace EditorState {
-  /// Options passed when [creating](#state.EditorState^create) an
-  /// editor state.
-  export interface Spec {
-    /// The initial document.
-    doc: DocSource
-    /// The starting selection. Defaults to a cursor at the start of the
-    /// document.
-    selection?: EditorSelection | SelectionSpec | ((doc: Plot.Doc) => EditorSelection)
-    /// Configuration for this state.
-    config?: Extension | Configuration
-  }
-}
-
 /// The editor state class is a persistent (immutable) data structure.
 /// To update a state, you [create](#state.EditorState.update) a
 /// [transaction](#state.Transaction), which produces a _new_ state
 /// instance, without modifying the original object.
 ///
 /// _Do not_ mutate properties of a state directly.
-export class EditorState {
+export class EditorState { // FIXME rename to something less boring?
   /// @internal
   readonly status: SlotStatus[]
   /// @internal
@@ -110,9 +255,9 @@ export class EditorState {
   /// Retrieve the value of a [state field](#state.StateField). Throws
   /// an error when the state doesn't have that field, unless you pass
   /// `false` as second parameter.
-  field<T>(field: StateField<T>): T
-  field<T>(field: StateField<T>, require: false): T | undefined
-  field<T>(field: StateField<T>, require: boolean = true): T | undefined {
+  field<T>(field: EditorState.Field<T>): T
+  field<T>(field: EditorState.Field<T>, require: false): T | undefined
+  field<T>(field: EditorState.Field<T>, require: boolean = true): T | undefined {
     let addr = this.config.address[field.id]
     if (addr == null) {
       if (require) throw new RangeError("Field is not present in this state")
@@ -125,7 +270,7 @@ export class EditorState {
   }
 
   /// Get the value of a state [facet](#state.Facet).
-  facet<Output>(facet: FacetReader<Output>): Output {
+  facet<Output>(facet: Facet.Reader<Output>): Output {
     let track = this.track(facet)
     let addr = this.config.address[facet.id]
     if (addr == null) return facet.default
@@ -207,14 +352,14 @@ export class EditorState {
   /// fields should be serialized, you can pass them in as an object
   /// mapping property names (in the resulting object, which should
   /// not use `doc` or `selection`) to fields.
-  toJSON(fields?: {[prop: string]: StateField<any>}): any {
+  toJSON(fields?: {[prop: string]: EditorState.Field<any>}): any {
     let result: any = {
       doc: this.doc.toJSON(),
       selection: this.selection.toJSON()
     }
     if (fields) for (let prop in fields) {
       let value = fields[prop]
-      if (value instanceof StateField && this.config.address[value.id] != null)
+      if (value instanceof EditorState.Field && this.config.address[value.id] != null)
         result[prop] = value.spec.toJSON!(this.field(fields[prop]), this)
     }
     return result
@@ -224,7 +369,7 @@ export class EditorState {
   /// fields should be deserialized, pass the same object you passed
   /// to [`toJSON`](#state.EditorState.toJSON) when serializing as
   /// third argument.
-  static fromJSON(json: any, extensions: Extension, fields?: {[prop: string]: StateField<any>}): EditorState {
+  static fromJSON(json: any, extensions: Extension, fields?: {[prop: string]: EditorState.Field<any>}): EditorState {
     if (!json)
       throw new ValidationError("Invalid JSON representation for EditorState")
     let fieldInit = []
@@ -370,7 +515,7 @@ export class EditorState {
   /// (This functionality should be used with care. Indiscriminately
   /// modifying transaction is likely to break something or degrade
   /// the user experience.)
-  static transactionFilter = transactionFilter
+  static transactionFilter = Facet.define<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>()
 
   /// This is a more limited form of
   /// [`transactionFilter`](#state.EditorState^transactionFilter),
@@ -383,9 +528,498 @@ export class EditorState {
   /// but do want to process every transaction.
   ///
   /// Extenders run _after_ filters, when both are present.
-  static transactionExtender = transactionExtender
+  static transactionExtender = Facet.define<(tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null>()
+}
+
+const initField = Facet.define<{field: EditorState.Field<unknown>, create: (state: EditorState) => unknown}>({static: true})
+
+export namespace EditorState {
+  /// Options passed when [creating](#state.EditorState^create) an
+  /// editor state.
+  export interface Spec {
+    /// The initial document.
+    doc: DocSource
+    /// The starting selection. Defaults to a cursor at the start of the
+    /// document.
+    selection?: EditorSelection | SelectionSpec | ((doc: Plot.Doc) => EditorSelection)
+    /// Configuration for this state.
+    config?: Extension | Configuration
+  }
+
+  /// Fields can store additional information in an editor state, and
+  /// keep it in sync with the rest of the state.
+  export class Field<Value> {
+    /// @internal
+    public provides: Extension | undefined = undefined
+
+    private constructor(
+      /// @internal
+      readonly id: number,
+      private createF: (state: EditorState) => Value,
+      private updateF: (value: Value, tr: Transaction) => Value,
+      private compareF: (a: Value, b: Value) => boolean,
+      /// @internal
+      readonly spec: EditorState.Field.Spec<Value>
+    ) {}
+
+    /// Define a state field.
+    static define<Value>(config: EditorState.Field.Spec<Value>): EditorState.Field<Value> {
+      let field = new EditorState.Field<Value>(nextID++, config.create, config.update,
+                                               config.compare || ((a, b) => a === b), config)
+      if (config.provide) field.provides = config.provide(field)
+      return field
+    }
+
+    private create(state: EditorState) {
+      let init = state.facet(initField).find(i => i.field == this)
+      return (init?.create || this.createF)(state)
+    }
+
+    /// @internal
+    slot(addresses: {[id: number]: number}): DynamicSlot {
+      let idx = addresses[this.id] >> 1
+      return {
+        create: (state) => {
+          state.values[idx] = this.create(state)
+          return SlotStatus.Changed
+        },
+        update: (state, tr) => {
+          let oldVal = state.values[idx]
+          let value = this.updateF(oldVal, tr)
+          if (this.compareF(oldVal, value)) return 0
+          state.values[idx] = value
+          return SlotStatus.Changed
+        },
+        reconfigure: (state, oldState) => {
+          if (oldState.config.address[this.id] != null) {
+            state.values[idx] = oldState.field(this)
+            return 0
+          }
+          state.values[idx] = this.create(state)
+          return SlotStatus.Changed
+        }
+      }
+    }
+
+    /// Returns an extension that enables this field and overrides the
+    /// way it is initialized. Can be useful when you need to provide a
+    /// non-default starting value for the field.
+    init(create: (state: EditorState) => Value): Extension {
+      return [this, initField.of({field: this as any, create})]
+    }
+
+    /// State field instances can be used as
+    /// [`Extension`](#state.Extension) values to enable the field in a
+    /// given state.
+    get extension(): Extension { return this }
+  }
+
+  export namespace Field {
+    export type Spec<Value> = {
+      /// Creates the initial value for the field when a state is created.
+      create: (state: EditorState) => Value,
+
+      /// Compute a new value from the field's previous value and a
+      /// [transaction](#state.Transaction).
+      update: (value: Value, transaction: Transaction) => Value,
+
+      /// Compare two values of the field, returning `true` when they are
+      /// the same. This is used to avoid recomputing facets that depend
+      /// on the field when its value did not change. Defaults to using
+      /// `===`.
+      compare?: (a: Value, b: Value) => boolean,
+
+      /// Provide extensions based on this field. The given function will
+      /// be called once with the initialized field. It will usually want
+      /// to call some facet's [`from`](#state.Facet.from) method to
+      /// create facet inputs from this field, but can also return other
+      /// extensions that should be enabled when the field is present in a
+      /// configuration.
+      provide?: (field: EditorState.Field<Value>) => Extension
+
+      /// A function used to serialize this field's content to JSON. Only
+      /// necessary when this field is included in the argument to
+      /// [`EditorState.toJSON`](#state.EditorState.toJSON).
+      toJSON?: (value: Value, state: EditorState) => any
+
+      /// A function that deserializes the JSON representation of this
+      /// field's content.
+      fromJSON?: (json: any, state: EditorState) => Value
+    }
+  }
 }
 
 function addValue<T>(set: T[], value: T) {
   if (set.indexOf(value) < 0) set.push(value)
+}
+
+/// Extension values can be
+/// [provided](#state.EditorStateConfig.extensions) when creating a
+/// state to attach various kinds of configuration and behavior
+/// information. They can either be built-in extension-providing
+/// objects, such as [state fields](#state.StateField) or [facet
+/// providers](#state.Facet.of), or objects with an extension in its
+/// `extension` property. Extensions can be nested in arrays
+/// arbitrarily deep—they will be flattened when processed.
+export type Extension = Schema.Element | {extension: Extension} | readonly Extension[]
+
+const Prec_ = {lowest: 4, low: 3, default: 2, high: 1, highest: 0}
+
+function prec(value: number) {
+  return (ext: Extension) => new PrecExtension(ext, value) as Extension
+}
+
+/// By default extensions are registered in the order they are found
+/// in the flattened form of nested array that was provided.
+/// Individual extension values can be assigned a precedence to
+/// override this. Extensions that do not have a precedence set get
+/// the precedence of the nearest parent with a precedence, or
+/// [`default`](#state.Prec.default) if there is no such parent. The
+/// final ordering of extensions is determined by first sorting by
+/// precedence and then by order within each precedence.
+export const Prec = {
+  /// The highest precedence level, for extensions that should end up
+  /// near the start of the precedence ordering.
+  highest: prec(Prec_.highest),
+  /// A higher-than-default precedence, for extensions that should
+  /// come before those with default precedence.
+  high: prec(Prec_.high),
+  /// The default precedence, which is also used for extensions
+  /// without an explicit precedence.
+  default: prec(Prec_.default),
+  /// A lower-than-default precedence.
+  low: prec(Prec_.low),
+  /// The lowest precedence level. Meant for things that should end up
+  /// near the end of the extension order.
+  lowest: prec(Prec_.lowest)
+}
+
+class PrecExtension {
+  constructor(readonly inner: Extension, readonly prec: number) {}
+  extension!: Extension
+}
+
+export function sameArray<T>(a: readonly T[], b: readonly T[]) {
+  return a == b || a.length == b.length && a.every((e, i) => e === b[i])
+}
+
+export type Slot = Facet.Reader<any> | EditorState.Field<any> | "doc" | "selection"
+
+const enum ProviderFlag {
+  Static = 1,
+  Multi = 2, // Dynamic providers may produce an array of values
+  Auto = 4   // Dependencies automatically tracked
+}
+
+const enum SlotStatus {
+  Unresolved = 0,
+  Changed = 1,
+  Computed = 2,
+  Computing = 4
+}
+
+class DependencySet {
+  doc: boolean = false
+  sel: boolean = false
+  addrs: number[] = []
+  count: number = 0
+
+  update(deps: readonly Slot[], addresses: {[id: number]: number}) {
+    while (this.count < deps.length) {
+      let dep = deps[this.count++]
+      if (dep === "doc") this.doc = true
+      else if (dep === "selection") this.sel = true
+      else if (((addresses[dep.id] ?? 1) & 1) == 0) this.addrs.push(addresses[dep.id])
+    }
+  }
+}
+
+class FacetProvider<Input> {
+  readonly id = nextID++
+  extension!: Extension // Kludge to convince the type system these count as extensions
+  dependencies: Slot[]
+
+  constructor(dependencies: readonly Slot[],
+              readonly facet: Facet<Input, any>,
+              readonly flags: ProviderFlag,
+              readonly value: ((state: EditorState) => Input) | ((state: EditorState) => readonly Input[]) | Input) {
+    this.dependencies = dependencies as Slot[] // Only mutated for auto providers
+  }
+
+  dynamicSlot(addresses: {[id: number]: number}): DynamicSlot {
+    let getter: (state: EditorState) => any = this.value as any
+    let compare = this.facet.compareInput
+    let id = this.id, idx = addresses[id] >> 1
+    let multi = this.flags & ProviderFlag.Multi
+    let dependencies = this.dependencies
+    let auto: Slot[] | null = this.flags & ProviderFlag.Auto ? dependencies : null
+    let depSet = new DependencySet
+
+    return {
+      create(state) {
+        state.values[idx] = auto ? state.recordAccess(auto, getter) : getter(state)
+        return SlotStatus.Changed
+      },
+      update(state, tr) {
+        depSet.update(dependencies, addresses)
+        if ((depSet.doc && tr.docChanged) || (depSet.sel && (tr.docChanged || tr.selection)) || ensureAll(state, depSet.addrs)) {
+          let newVal = auto ? state.recordAccess(auto, getter) : getter(state)
+          if (multi ? !compareArray(newVal, state.values[idx], compare) : !compare(newVal, state.values[idx])) {
+            state.values[idx] = newVal
+            return SlotStatus.Changed
+          }
+        }
+        return 0
+      },
+      reconfigure(state, oldState) {
+        let newVal, oldAddr = oldState.config.address[id]
+        if (oldAddr != null) {
+          let oldVal = getAddr(oldState, oldAddr)
+          if (dependencies.every(dep => {
+            return dep instanceof Facet ? oldState.facet(dep) === state.facet(dep)
+              : dep instanceof EditorState.Field ? oldState.field(dep, false) == state.field(dep, false)
+              : true
+          }) || (multi ? compareArray(newVal = getter(state), oldVal, compare) : compare(newVal = getter(state), oldVal))) {
+            state.values[idx] = oldVal
+            return 0
+          }
+        } else {
+          newVal = auto ? state.recordAccess(auto, getter) : getter(state)
+        }
+        state.values[idx] = newVal
+        return SlotStatus.Changed
+      }
+    }
+  }
+}
+
+function compareArray<T>(a: readonly T[], b: readonly T[], compare: (a: T, b: T) => boolean) {
+  if (a.length != b.length) return false
+  for (let i = 0; i < a.length; i++) if (!compare(a[i], b[i])) return false
+  return true
+}
+
+function ensureAll(state: EditorState, addrs: readonly number[]) {
+  let changed = false
+  for (let addr of addrs)
+    if (ensureAddr(state, addr) & SlotStatus.Changed) changed = true
+  return changed
+}
+
+function dynamicFacetSlot<Input, Output>(
+  addresses: {[id: number]: number},
+  facet: Facet<Input, Output>,
+  providers: readonly FacetProvider<Input>[]
+): DynamicSlot {
+  let providerAddrs = providers.map(p => addresses[p.id])
+  let dynamic = providerAddrs.filter(p => !(p & 1))
+  let idx = addresses[facet.id] >> 1
+
+  function get(state: EditorState) {
+    let values: Input[] = []
+    for (let i = 0; i < providerAddrs.length; i++) {
+      let value = getAddr(state, providerAddrs[i])
+      if (providers[i].flags & ProviderFlag.Multi) for (let val of value) values.push(val)
+      else values.push(value)
+    }
+    return facet.combine(values)
+  }
+
+  return {
+    create(state) {
+      for (let addr of providerAddrs) ensureAddr(state, addr)
+      state.values[idx] = get(state)
+      return SlotStatus.Changed
+    },
+    update(state, tr) {
+      if (!ensureAll(state, dynamic)) return 0
+      let value = get(state)
+      if (facet.compare(value, state.values[idx])) return 0
+      state.values[idx] = value
+      return SlotStatus.Changed
+    },
+    reconfigure(state, oldState) {
+      let depChanged = ensureAll(state, providerAddrs)
+      let oldProviders = oldState.config.facets[facet.id], oldValue = oldState.facet(facet)
+      if (oldProviders && !depChanged && sameArray(providers, oldProviders)) {
+        state.values[idx] = oldValue
+        return 0
+      }
+      let value = get(state)
+      if (facet.compare(value, oldValue)) {
+        state.values[idx] = oldValue
+        return 0
+      }
+      state.values[idx] = value
+      return SlotStatus.Changed
+    }
+  }
+}
+
+function ensureAddr(state: EditorState, addr: number) {
+  if (addr & 1) return SlotStatus.Computed
+  let idx = addr >> 1
+  let status = state.status[idx]
+  if (status == SlotStatus.Computing) throw new Error("Cyclic dependency between fields and/or facets")
+  if (status & SlotStatus.Computed) return status
+  state.status[idx] = SlotStatus.Computing
+  let changed = state.computeSlot!(state, state.config.dynamicSlots[idx])
+  return state.status[idx] = SlotStatus.Computed | changed
+}
+
+function getAddr(state: EditorState, addr: number) {
+  return addr & 1 ? state.config.staticValues[addr >> 1] : state.values[addr >> 1]
+}
+
+/// Extension compartments can be used to make a configuration
+/// dynamic. By [wrapping](#state.Compartment.of) part of your
+/// configuration in a compartment, you can later
+/// [replace](#state.Compartment.reconfigure) that part through a
+/// transaction.
+export class Compartment {
+  /// Create an instance of this compartment to add to your [state
+  /// configuration](#state.EditorStateConfig.extensions).
+  of(ext: Extension): Extension { return new CompartmentInstance(this, ext) }
+
+  /// Create an [effect](#state.TransactionSpec.effects) that
+  /// reconfigures this compartment.
+  reconfigure(content: Extension): StateEffect<unknown> {
+    return Compartment.reconfigureCompartment.of({compartment: this, extension: content})
+  }
+
+  /// Get the current content of the compartment in the state, or
+  /// `undefined` if it isn't present.
+  get(state: EditorState): Extension | undefined {
+    return state.config.compartments.get(this)
+  }
+
+  /// @internal
+  static reconfigureCompartment = StateEffect.define<{compartment: Compartment, extension: Extension}>()
+}
+
+class CompartmentInstance {
+  constructor(readonly compartment: Compartment, readonly inner: Extension) {}
+  extension!: Extension
+}
+
+interface DynamicSlot {
+  create(state: EditorState): SlotStatus
+  update(state: EditorState, tr: Transaction): SlotStatus
+  reconfigure(state: EditorState, oldState: EditorState): SlotStatus
+}
+
+export class Configuration {
+  readonly statusTemplate: SlotStatus[] = []
+
+  constructor(readonly base: Extension,
+              readonly compartments: Map<Compartment, Extension>,
+              readonly dynamicSlots: DynamicSlot[],
+              readonly address: {[id: number]: number},
+              readonly staticValues: readonly any[],
+              readonly facets: {[id: number]: readonly FacetProvider<any>[]}) {
+    while (this.statusTemplate.length < dynamicSlots.length)
+      this.statusTemplate.push(SlotStatus.Unresolved)
+  }
+
+  staticFacet<Output>(facet: Facet<any, Output>) {
+    let addr = this.address[facet.id]
+    return addr == null ? facet.default : this.staticValues[addr >> 1]
+  }
+
+  static resolve(base: Extension, compartments: Map<Compartment, Extension>, oldState?: EditorState) {
+    let fields: EditorState.Field<any>[] = []
+    let facets: {[id: number]: FacetProvider<any>[]} = Object.create(null)
+    let newCompartments = new Map<Compartment, Extension>()
+
+    for (let ext of flatten(base, compartments, newCompartments)) {
+      if (ext instanceof FacetProvider) (facets[ext.facet.id] || (facets[ext.facet.id] = [])).push(ext)
+      else fields.push(ext)
+    }
+
+    let address: {[id: number]: number} = Object.create(null)
+    let staticValues: any[] = []
+    let dynamicSlots: ((address: {[id: number]: number}) => DynamicSlot)[] = []
+
+    for (let field of fields) {
+      address[field.id] = dynamicSlots.length << 1
+      dynamicSlots.push(a => field.slot(a))
+    }
+
+    let oldFacets = oldState?.config.facets
+    for (let id in facets) {
+      let providers = facets[id], facet = providers[0].facet
+      let oldProviders = oldFacets && oldFacets[id] || none
+      if (providers.every(p => p.flags & ProviderFlag.Static)) {
+        address[facet.id] = (staticValues.length << 1) | 1
+        if (sameArray(oldProviders, providers)) {
+          staticValues.push(oldState!.facet(facet))
+        } else {
+          let value = facet.combine(providers.map(p => p.value))
+          staticValues.push(oldState && facet.compare(value, oldState.facet(facet)) ? oldState.facet(facet) : value)
+        }
+      } else {
+        for (let p of providers) {
+          if (p.flags & ProviderFlag.Static) {
+            address[p.id] = (staticValues.length << 1) | 1
+            staticValues.push(p.value)
+          } else {
+            address[p.id] = dynamicSlots.length << 1
+            dynamicSlots.push(a => p.dynamicSlot(a))
+          }
+        }
+        address[facet.id] = dynamicSlots.length << 1
+        dynamicSlots.push(a => dynamicFacetSlot(a, facet, providers))
+      }
+    }
+
+    let dynamic = dynamicSlots.map(f => f(address))
+    return new Configuration(base, newCompartments, dynamic, address, staticValues, facets)
+  }
+
+  /// Create a configuration from the given set of extensions.
+  static create(extensions: Extension) {
+    return Configuration.resolve(extensions, new Map)
+  }
+}
+
+function flatten(extension: Extension, compartments: Map<Compartment, Extension>, newCompartments: Map<Compartment, Extension>) {
+  let result: (FacetProvider<any> | EditorState.Field<any>)[][] = [[], [], [], [], []]
+  let seen = new Map<Extension, number>()
+  function inner(ext: Extension, prec: number) {
+    let known = seen.get(ext)
+    if (known != null) {
+      if (known <= prec) return
+      let found = result[known].indexOf(ext as any)
+      if (found > -1) result[known].splice(found, 1)
+      if (ext instanceof CompartmentInstance) newCompartments.delete(ext.compartment)
+    }
+    seen.set(ext, prec)
+    if (Array.isArray(ext)) {
+      for (let e of ext) inner(e, prec)
+    } else if (ext instanceof CompartmentInstance) {
+      if (newCompartments.has(ext.compartment))
+        throw new RangeError(`Duplicate use of compartment in extensions`)
+      let content = compartments.get(ext.compartment) || ext.inner
+      newCompartments.set(ext.compartment, content)
+      inner(content, prec)
+    } else if (ext instanceof PrecExtension) {
+      inner(ext.inner, ext.prec)
+    } else if (ext instanceof EditorState.Field) {
+      result[prec].push(ext)
+      if (ext.provides) inner(ext.provides, prec)
+    } else if (ext instanceof FacetProvider) {
+      result[prec].push(ext)
+      if (ext.facet.extensions) inner(ext.facet.extensions, Prec_.default)
+    } else if (ext instanceof Plot.Tag || ext instanceof Plot.Type ||
+               ext instanceof Leaf || ext instanceof Leaf.Type ||
+               ext instanceof Mark || ext instanceof Mark.Type) {
+      result[prec].push(schemaElement.of(ext) as FacetProvider<any>)
+    } else {
+      let content = (ext as any).extension
+      if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`)
+      inner(content, prec)
+    }
+  }
+  inner(extension, Prec_.default)
+  return result.reduce((a, b) => a.concat(b))
 }

@@ -1,7 +1,6 @@
 import {Node, Pos, ChangeSet} from "wordgard/doc"
-import {Facet, Extension, transactionFilter} from "./facet"
 import {Transaction} from "./transaction"
-import {EditorState} from "./state"
+import {Facet, Extension, EditorState} from "./state"
 
 const enum CorrectionEvent {
   ChildList = 0,
@@ -132,7 +131,7 @@ export class Correction<PosType extends Pos.Node> {
   ) {
     this.extension = [
       corrections.of(this as any),
-      transactionFilter.of(tr => this.filter(tr))
+      EditorState.transactionFilter.of(tr => this.filter(tr))
     ]
   }
 

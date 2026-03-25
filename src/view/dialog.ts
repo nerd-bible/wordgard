@@ -1,4 +1,4 @@
-import {StateField, StateEffect} from "wordgard/state"
+import {StateEffect, EditorState} from "wordgard/state"
 import {showPanel, Panel, PanelConstructor, getPanel} from "./panel"
 import {EditorView} from "./editorview"
 
@@ -74,7 +74,7 @@ export function getDialog(view: EditorView, className: string) {
   return null
 }
 
-const dialogField = StateField.define<readonly PanelConstructor[]>({
+const dialogField = EditorState.Field.define<readonly PanelConstructor[]>({
   create() { return [] },
   update(dialogs, tr) {
     for (let e of tr.effects) {

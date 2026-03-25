@@ -1,6 +1,6 @@
 import {EditorView, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
-import {EditorState, type Extension, StateField, Transaction, StateEffect, Compartment} from "wordgard/state"
+import {EditorState, type Extension, Transaction, StateEffect, Compartment} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wordgard/schema"
 import {Image, ImageAlt} from "wordgard/schema/image"
@@ -289,7 +289,7 @@ describe("DocTile", () => {
     })
 
     it("can update widgets from a point set", () => {
-      let f = StateField.define({
+      let f = EditorState.Field.define({
         create: () => PointSet.create([[1, Decoration.widget(inlineWidget.of("x"))]]),
         update: () => PointSet.create([[4, Decoration.widget(inlineWidget.of("y"))]]),
         provide: f => Decoration.source.of(s => s.field(f))
@@ -299,7 +299,7 @@ describe("DocTile", () => {
     })
 
     it("can update widgets in place", () => {
-      let f = StateField.define({
+      let f = EditorState.Field.define({
         create: () => PointSet.create([[1, Decoration.widget(inlineWidget.of("x"))]]),
         update: () => PointSet.create([[1, Decoration.widget(inlineWidget.of("y"))]]),
         provide: f => Decoration.source.of(s => s.field(f))

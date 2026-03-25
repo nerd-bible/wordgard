@@ -1,6 +1,6 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
 import {EditorView, PointSet, Decoration, KeyBinding} from "wordgard/view"
-import {StateField, StateEffect, Prec} from "wordgard/state"
+import {EditorState, StateEffect, Prec} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
   validateParam: "string",
@@ -56,7 +56,7 @@ const handleElt = elt({_: "svg:svg", class: "wg-resize-handle", viewBox: "0 0 20
 const resizeWrapper = Decoration.wrapper(
   shape => elt({_: "span", class: "wg-resize-hover"}, handleElt, shape))
 
-const resizeState = StateField.define<{target: number, resizing: number, deco: PointSet<Decoration>}>({
+const resizeState = EditorState.Field.define<{target: number, resizing: number, deco: PointSet<Decoration>}>({
   create: () => ({target: -1, resizing: -1, deco: PointSet.empty}),
   update: (value, tr) => {
     for (let e of tr.effects) {

@@ -1,4 +1,4 @@
-import {EditorState, Transaction, StateField, StateEffect,
+import {EditorState, Transaction, StateEffect,
         Facet, Annotation, Extension, EditorSelection, SelectionJSON} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {undo, redo} from "wordgard/command"
@@ -48,7 +48,7 @@ const historyConfig = Facet.define<HistoryConfig, Required<HistoryConfig>>({
   }
 })
 
-const historyField_ = StateField.define({
+const historyField_ = EditorState.Field.define({
   create() {
     return new HistoryState(null, null)
   },
@@ -130,7 +130,7 @@ export function history(config: HistoryConfig = {}): Extension {
 /// [serialize](#state.EditorState.toJSON) or
 /// [deserialize](#state.EditorState^fromJSON) state objects in a way
 /// that preserves history.
-export const historyField = historyField_ as StateField<unknown>
+export const historyField = historyField_ as EditorState.Field<unknown>
 
 /// Undo or redo a single group of history events. Return null if no
 /// group is available. Note that transactions produced with this

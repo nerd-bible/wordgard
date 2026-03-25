@@ -1,5 +1,4 @@
-import {EditorState, Transaction, StateEffect, Facet, StateField,
-        Extension, FacetReader, Direction} from "wordgard/state"
+import {EditorState, Transaction, StateEffect, Facet, Extension, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
 import {EditorView} from "./editorview"
 import {ViewPlugin, ViewUpdate, logException, getScrollMargins} from "./extension"
@@ -27,7 +26,7 @@ class TooltipViewManager {
 
   constructor(
     view: EditorView,
-    private readonly facet: FacetReader<readonly (Tooltip | null)[]>,
+    private readonly facet: Facet.Reader<readonly (Tooltip | null)[]>,
     private readonly createTooltipView: (tooltip: Tooltip, after: TooltipView | null) => TooltipView,
     private readonly removeTooltipView: (tooltipView: TooltipView) => void
   ) {
@@ -609,7 +608,7 @@ class HoverPlugin {
 
   constructor(readonly view: EditorView,
               readonly source: HoverTooltipSource,
-              readonly field: StateField<readonly Tooltip[]>,
+              readonly field: EditorState.Field<readonly Tooltip[]>,
               readonly setHover: StateEffect.Type<readonly Tooltip[]>,
               readonly hoverTime: number) {
     this.lastMove = {x: 0, y: 0, target: view.dom, time: 0}
@@ -759,9 +758,9 @@ export function hoverTooltip(
     /// milliseconds. Defaults to 300ms.
     hoverTime?: number
   } = {}
-): Extension & {active: StateField<readonly Tooltip[]>} {
+): Extension & {active: EditorState.Field<readonly Tooltip[]>} {
   let setHover = StateEffect.define<readonly Tooltip[]>()
-  let hoverState = StateField.define<readonly Tooltip[]>({
+  let hoverState = EditorState.Field.define<readonly Tooltip[]>({
     create() { return [] },
 
     update(value, tr) {

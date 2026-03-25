@@ -1,6 +1,5 @@
 import {Plot, ChangeSet} from "wordgard/doc"
-import {EditorState} from "./state"
-import {transactionFilter, transactionExtender, Extension, Compartment} from "./facet"
+import type {EditorState, Extension} from "./state"
 import {EditorSelection, SelectionSpec, normalize} from "./selection"
 
 /// Annotations are tagged values that are used to add metadata to
@@ -120,8 +119,6 @@ export namespace StateEffect {
 StateEffect.reconfigure = StateEffect.define<Extension>()
 
 StateEffect.appendConfig = StateEffect.define<Extension>()
-
-Compartment.reconfigureCompartment = StateEffect.define<{compartment: Compartment, extension: Extension}>()
 
 export namespace Transaction {
   /// Describes a [transaction](#state.Transaction) when calling the
@@ -376,7 +373,7 @@ export function resolveTransaction(state: EditorState, specs: readonly Transacti
 // Finish a transaction by applying filters if necessary.
 function filterTransaction(tr: Transaction) {
   // Transaction filters
-  let filters = tr.startState.facet(transactionFilter)
+  let filters = tr.startState.facet((tr.startState.constructor as typeof EditorState).transactionFilter)
   for (let i = filters.length - 1; i >= 0; i--) {
     let filtered = filters[i](tr)
     if (filtered instanceof Transaction) tr = filtered
@@ -387,7 +384,8 @@ function filterTransaction(tr: Transaction) {
 }
 
 function extendTransaction(tr: Transaction) {
-  let state = tr.startState, extenders = state.facet(transactionExtender), spec: ResolvedSpec = tr
+  let state = tr.startState, spec: ResolvedSpec = tr
+  let extenders = state.facet((tr.startState.constructor as typeof EditorState).transactionExtender)
   for (let i = extenders.length - 1; i >= 0; i--) {
     let extension = extenders[i](tr)
     if (extension && Object.keys(extension).length)

@@ -1,5 +1,5 @@
 import ist from "ist"
-import {EditorState, Facet, type Extension, Prec, StateField, StateEffect} from "wordgard/state"
+import {EditorState, Facet, type Extension, Prec, StateEffect} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 
@@ -148,7 +148,7 @@ describe("EditorState facets", () => {
   it("creates newly added fields when reconfiguring", () => {
     let st = mk(num.of(2))
     let events: string[] = []
-    let field = StateField.define({
+    let field = EditorState.Field.define({
       create() {
         events.push("create")
         return 0
@@ -166,7 +166,7 @@ describe("EditorState facets", () => {
   it("applies effects from reconfiguring transaction to new fields", () => {
     let st = mk()
     let effect = StateEffect.define<number>()
-    let field = StateField.define<number>({
+    let field = EditorState.Field.define<number>({
       create(state) {
         return state.facet(num)[0] ?? 0
       },

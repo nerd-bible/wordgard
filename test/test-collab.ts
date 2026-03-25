@@ -1,4 +1,4 @@
-import {EditorState, Transaction, StateField, StateEffect, type Extension} from "wordgard/state"
+import {EditorState, Transaction, StateEffect, type Extension} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 import {history, isolateHistory, popHistory} from "wordgard/history"
@@ -250,7 +250,7 @@ describe("collab", () => {
       toString() { return `${this.from}-${this.to}=${this.id}` }
     }
     let addMark = StateEffect.define<Mark>({map: (v, m) => v.map(m)})
-    let marks = StateField.define<Mark[]>({
+    let marks = EditorState.Field.define<Mark[]>({
       create: () => [],
       update(value, tr) {
         value = value.map(m => m.map(tr.changes)).filter(x => x) as any

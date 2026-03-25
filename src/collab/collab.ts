@@ -1,4 +1,4 @@
-import {Facet, StateField, Annotation, EditorState, StateEffect, Transaction, Extension} from "wordgard/state"
+import {Facet, Annotation, EditorState, StateEffect, Transaction, Extension} from "wordgard/state"
 import {ChangeSet, Plot} from "wordgard/doc"
 
 /// An update is a set of changes and effects.
@@ -62,7 +62,7 @@ const collabConfig = Facet.define<CollabConfig & {generatedID: string}, Required
 
 const collabReceive = Annotation.define<CollabState>()
 
-const collabField = StateField.define({
+const collabField = EditorState.Field.define({
   create(state) {
     return new CollabState(state.facet(collabConfig).startVersion, state.doc, [])
   },
