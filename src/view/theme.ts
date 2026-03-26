@@ -49,14 +49,16 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     "--wg-border-color": "#444"
   },
 
-  ".wg-scroller": {
+  "wg-scroller": {
+    display: "block",
     height: "100%",
     overflowX: "auto",
     position: "relative",
     zIndex: 0,
   },
 
-  ".wg-content": {
+  "wg-content": {
+    display: "block",
     margin: 0,
     whiteSpace: "pre-wrap",
     boxSizing: "border-box",
@@ -66,7 +68,8 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     caretColor: "transparent",
   },
 
-  ".wg-cursorLayer": {
+  "wg-cursor-layer": {
+    display: "block",
     position: "absolute",
     left: 0,
     top: 0,
@@ -78,7 +81,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     zIndex: 150,
   },
 
-  "&.wg-focused > .wg-scroller > .wg-cursorLayer": {
+  "&.wg-focused > wg-scroller > .wg-cursorLayer": {
     animation: "steps(1) wg-blink 1.2s infinite"
   },
 
@@ -88,7 +91,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   "@keyframes wg-blink": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
   "@keyframes wg-blink2": {"0%": {}, "50%": {opacity: 0}, "100%": {}},
 
-  ".wg-cursor": {
+  "wg-cursor": {
     pointerEvents: "none",
     display: "none",
   },
@@ -100,7 +103,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     borderTop: "1.2px solid currentColor",
     marginTop: "-0.6px",
   },
-  "&.wg-focused > .wg-scroller > .wg-cursorLayer .wg-cursor": {
+  "&.wg-focused > wg-scroller > wg-cursor-layer wg-cursor": {
     display: "block"
   },
 
@@ -111,15 +114,16 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     }
   },
 
-  ".wg-announced": {
+  "wg-announced": {
     position: "fixed",
     top: "-10000px"
   },
   "@media print": {
-    ".wg-announced": { display: "none" }
+    "wg-announced": { display: "none" }
   },
 
-  ".wg-panels": {
+  "wg-panels": {
+    display: "block",
     boxSizing: "border-box",
     position: "sticky",
     left: 0,
@@ -128,7 +132,8 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     backgroundColor: "var(--wg-panel-color)"
   },
 
-  ".wg-dialog": {
+  "wg-dialog": {
+    display: "block",
     padding: "2px 19px 4px 6px",
     position: "relative",
     "& label": { fontSize: "80%" },

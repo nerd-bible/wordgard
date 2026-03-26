@@ -106,8 +106,7 @@ class BarSubmenu {
   children: readonly BarElement[]
 
   constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], view: Wordgard) {
-    this.dom = document.createElement("div")
-    this.dom.className = "wg-submenu"
+    this.dom = document.createElement("wg-submenu")
     this.button = this.dom.appendChild(document.createElement("button"))
     this.button.tabIndex = -1
     this.button.className = "wg-menu-button"
@@ -121,8 +120,7 @@ class BarSubmenu {
     }
     if (item.width != null) this.dom.style.setProperty("--wg-submenu-width", item.width + "ch")
     if (item.arrow) this.button.classList.add("wg-submenu-arrow")
-    this.list = this.dom.appendChild(document.createElement("div"))
-    this.list.className = "wg-menu-list"
+    this.list = this.dom.appendChild(document.createElement("wg-menu-list"))
     this.list.style.display = "none"
     this.list.role = "menu"
     this.list.id = id("wg-popup")
@@ -170,8 +168,7 @@ class BarSpacer {
   dom: HTMLElement
 
   constructor() {
-    this.dom = document.createElement("div")
-    this.dom.className = "wg-menu-spacer"
+    this.dom = document.createElement("wg-menu-spacer")
   }
 }
 
@@ -446,17 +443,19 @@ const theme = Wordgard.baseTheme({
     height: "var(--wg-menu-item-size)",
   },
 
-  ".wg-menu-spacer": {
+  "wg-menu-spacer": {
+    display: "block",
     width: "3px"
   },
 
-  ".wg-submenu": {
+  "wg-submenu": {
+    display: "block",
     position: "relative",
     lineHeight: ".6",
     whiteSpace: "nowrap"
   },
 
-  ".wg-menu-list": {
+  "wg-menu-list": {
     display: "flex",
     flexDirection: "column",
     alignItems: "stretch",
@@ -468,7 +467,7 @@ const theme = Wordgard.baseTheme({
     left: "-1.5px",
     top: "100%",
     border: "1px solid var(--wg-border-color)",
-    "& .wg-menu-list": {
+    "& wg-menu-list": {
       left: "100%",
       top: 0
     }

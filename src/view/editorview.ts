@@ -23,8 +23,6 @@ import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView}
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {cursorBlinkRate} from "./drawcursor"
 
-// FIXME use custom elements rather than classes to target CSS?
-
 /// An editor view represents the editor's user interface. It holds
 /// the editable DOM surface, and possibly other elements such as
 /// panels. It handles events and dispatches state transactions for
@@ -111,15 +109,13 @@ export class Wordgard {
 
     this.dom = createWrapElement(this)
 
-    this.contentDOM = document.createElement("div")
+    this.contentDOM = document.createElement("wg-content")
 
-    this.scrollDOM = document.createElement("div")
+    this.scrollDOM = document.createElement("wg-scroller")
     this.scrollDOM.tabIndex = -1
-    this.scrollDOM.className = "wg-scroller"
     this.scrollDOM.appendChild(this.contentDOM)
 
-    this.announceDOM = document.createElement("div")
-    this.announceDOM.className = "wg-announced"
+    this.announceDOM = document.createElement("wg-announced")
     this.announceDOM.setAttribute("aria-live", "polite")
 
     this.dom.appendChild(this.announceDOM)
@@ -336,7 +332,6 @@ export class Wordgard {
       autocapitalize: "off",
       translate: "no",
       contenteditable: !this.state.facet(editable) ? "false" : "true",
-      class: "wg-content",
       role: "textbox",
       "aria-multiline": "true"
     }

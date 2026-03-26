@@ -137,10 +137,9 @@ function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLF
   close.className = "wg-dialog-close"
   close.type = "button"
   close.append("×")
-  let panel = document.createElement("div")
+  let panel = document.createElement("wg-dialog")
   panel.append(content, close)
   if (config.class) panel.className = config.class
-  panel.classList.add("wg-dialog")
 
   function done(form: HTMLFormElement | null) {
     if (panel.contains(panel.ownerDocument.activeElement))

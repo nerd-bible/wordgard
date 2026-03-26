@@ -13,8 +13,7 @@ export const cursorLayer = ViewPlugin.fromClass(class {
   pos: CursorPos = null
 
   constructor(view: Wordgard) {
-    this.layer = view.scrollDOM.appendChild(document.createElement("div"))
-    this.layer.className = "wg-cursorLayer"
+    this.layer = view.scrollDOM.appendChild(document.createElement("wg-cursor-layer"))
     this.positionCursor = this.positionCursor.bind(this)
     view.requestDOMRead(this.positionCursor)
     setBlinkRate(view.state, this.layer)
@@ -46,8 +45,8 @@ export const cursorLayer = ViewPlugin.fromClass(class {
           if (cursor) cursor.remove()
         } else {
           if (!cursor)
-            cursor = this.layer.appendChild(document.createElement("div"))
-          cursor.className = "wg-cursor wg-cursor-" + (pos.horiz ? "h" : "v")
+            cursor = this.layer.appendChild(document.createElement("wg-cursor"))
+          cursor.className = "wg-cursor-" + (pos.horiz ? "h" : "v")
           cursor.style.top = pos.top + "px"
           cursor.style.left = pos.left + "px"
           cursor.style.width = pos.horiz ? pos.size + "px" : ""

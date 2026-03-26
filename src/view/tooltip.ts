@@ -168,7 +168,7 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
 
   createContainer() {
     if (this.parent) {
-      this.container = document.createElement("div")
+      this.container = document.createElement("wg-tooltip-root")
       this.container.style.position = "relative"
       this.container.className = this.view.themeClasses
       this.parent.appendChild(this.container)
@@ -219,9 +219,8 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
     let tooltipView = tooltip.create(this.view)
     let before = prev ? prev.dom : null
     tooltipView.dom.classList.add("wg-tooltip")
-    if (tooltip.arrow && !tooltipView.dom.querySelector(".wg-tooltip > .wg-tooltip-arrow")) {
-      let arrow = document.createElement("div")
-      arrow.className = "wg-tooltip-arrow"
+    if (tooltip.arrow && !tooltipView.dom.querySelector(".wg-tooltip > wg-tooltip-arrow")) {
+      let arrow = document.createElement("wg-tooltip-arrow")
       tooltipView.dom.appendChild(arrow)
     }
     tooltipView.dom.style.position = this.position
@@ -322,7 +321,7 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
         dom.style.top = Outside
         continue
       }
-      let arrow: HTMLElement | null = tooltip.arrow ? tView.dom.querySelector(".wg-tooltip-arrow") : null
+      let arrow: HTMLElement | null = tooltip.arrow ? tView.dom.querySelector("wg-tooltip-arrow") : null
       let arrowHeight = arrow ? Arrow.Size : 0
       let width = size.right - size.left, height = knownHeight.get(tView) ?? size.bottom - size.top
       let offset = tView.offset || noOffset, ltr = this.view.textDirection == Direction.LTR
@@ -393,7 +392,8 @@ const baseTheme = Wordgard.baseTheme({
   ".wg-tooltip-section:not(:first-child)": {
     borderTop: "1px solid var(--wg-border-color)",
   },
-  ".wg-tooltip-arrow": {
+  "wg-tooltip-arrow": {
+    display: "block",
     height: `${Arrow.Size}px`,
     width: `${Arrow.Size * 2}px`,
     position: "absolute",
@@ -522,8 +522,7 @@ class HoverTooltipHost implements TooltipView {
   }
 
   private constructor(readonly view: Wordgard) {
-    this.dom = document.createElement("div")
-    this.dom.classList.add("wg-tooltip-hover")
+    this.dom = document.createElement("wg-tooltip-hover")
     this.manager = new TooltipViewManager(view, showHoverTooltip, (t, p) => this.createHostedView(t, p), t => t.dom.remove())
   }
 
