@@ -1052,11 +1052,6 @@ function addSection(sections: number[], data: SectionData[] | null,
   }
 }
 
-function fitsTrivially(schema: Schema, from: Pos, to: Pos, slice: Slice) {
-  return from.parent.start == to.parent.start &&
-    slice.content.every(tok => tok.tokenType == TokenType.Node && schema.canContain(from.parent.node.type, tok.type))
-}
-
 function finishCx(cx: BuildContext, schema: Schema) {
   return cx.tag.create(cx.children.length || cx.tag.inlineContent ? cx.children
                        : [schema.createDefault(cx.tag.type)])
@@ -1097,44 +1092,60 @@ function splatContext(top: Token[], cx: BuildContext) {
 
 function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context: readonly Plot.Tag.Any[]) {
   if (!slice.length) return fitDeletion(doc, from, to)
-  if (fitsTrivially(doc.schema, from, to, slice)) return {from: from.pos, to: to.pos, slice}
 
   let preferredContext = -1
   for (let i = 0; i < context.length; i++) {
     let next = context[i]
-    if (next.type.defining) { preferredContext = i; break }
+    if (next.type.defining) preferredContext = i
+    else if (!next.isTextblock) break
+  }
+  let firstType = null, closeCount = 0
+  // Find the number of nodes this slice closes, relative to its
+  // start depth.
+  for (let i = 0, opened = 0; i < slice.content.length; i++) {
+    let tok = slice.content[i]
+    if (tok.tokenType == TokenType.Close) {
+      if (opened) opened--
+      else closeCount++
+    } else {
+      if (!i) firstType = tok.type
+      if (tok.tokenType == TokenType.Open) opened++
+    }
   }
 
-  // Scan over nodes covered entirely, see if the slice or one of its
+  // Scan over nodes either covered entirely, or covered from their
+  // start and closed by the slice, see if the slice or one of its
   // contexts can be inserted instead of that node. If so, replace the
   // node.
   let found: {from: number, to: number, slice: Slice} | undefined, foundCost = 1e8
-  let neutral = true, toEnded = false
-  for (let cxFrom = from.parent, cxTo = to.parent,
-           fromDepth = from.depth, toDepth = to.depth,
-           start = from.pos, end = to.pos;
-       cxFrom.parent;
-       cxFrom = cxFrom.parent, start--, fromDepth--) {
+  let neutral = true, toEnd = true
+  scan: for (let cxFrom = from.parent, cxTo = to.parent,
+             fromDepth = from.depth, toDepth = to.depth,
+             start = from.pos, end = to.pos;
+             cxFrom.parent;
+             cxFrom = cxFrom.parent, start--, fromDepth--) {
     if (cxFrom.start != start || cxFrom.node.type.isolating) break
-    while (toDepth > fromDepth) { cxTo = cxTo.parent!; toDepth--; end++ }
-    if (cxTo.end != end || cxTo.node.type.isolating) toEnded = true
+    while (toDepth > fromDepth) {
+      if (cxTo.node.type.isolating) break scan
+      cxTo = cxTo.parent!
+      toDepth--
+      end++
+    }
+    if (cxTo.end != end) {
+      if (!closeCount) break
+      toEnd = false
+    }
     if (!cxFrom.node.type.neutral) neutral = false
-    for (let i = -1, tag; i < context.length; i++) {
-      if (i >= 0) tag = context[i]
-      else if (slice.content[0].tokenType == TokenType.Node) tag = slice.content[0].tag
-      else continue
-      if (doc.schema.canContain(cxFrom.parent.node.type, tag.type)) {
-        if (!toEnded && fromDepth == toDepth) {
-          let cost = (neutral ? 0 : 2) + (i < preferredContext ? context.length - i : i - preferredContext)
-          if (foundCost > cost) {
-            found = {from: cxFrom.before, to: cxTo.after,
-                     slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1, true) : slice}
-            foundCost = cost
-          }
-        }
-        if (neutral && i >= preferredContext && foundCost > 1e7) {
-          found = {from: cxFrom.before, to: to.pos, slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1) : slice}
-          foundCost = 1e7
+    if (fromDepth == toDepth) for (let i = -1, type; i < context.length; i++) {
+      if (i >= 0) type = context[i].type
+      else if (!firstType) continue
+      else type = firstType
+      if (doc.schema.canContain(cxFrom.parent.node.type, type)) {
+        let cost = (neutral ? 0 : 2) + (i < preferredContext ? context.length - i : i - preferredContext) + (toEnd ? 0 : 1e7)
+        if (foundCost > cost) {
+          found = {from: cxFrom.before, to: toEnd ? cxTo.after : to.pos,
+                   slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1, toEnd) : slice}
+          foundCost = cost
         }
       }
     }

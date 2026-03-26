@@ -225,11 +225,18 @@ describe("ChangeSet", () => {
           doc(ul(li(p("one")), li(p("two...")))), eq)
     })
 
-    it("doesn't expand when pasting inline content only", () => {
+    it("doesn't expand when not covering or closing the entire node", () => {
       let d = doc(p("hi"))
       let src = doc(h1("!"))
       ist(ChangeSet.create(d, {from: 1, insert: src.slice(1, 2), fit: src.contextAt(1)}).apply(d),
           doc(p("!hi")), eq)
+    })
+
+    it("expands placement into an empty textblock", () => {
+      let d = doc(p())
+      let src = doc(h1("!"))
+      ist(ChangeSet.create(d, {from: 1, insert: src.slice(1, 2), fit: src.contextAt(1)}).apply(d),
+          doc(h1("!")), eq)
     })
 
     it("properly closes fitted nodes", () => {
