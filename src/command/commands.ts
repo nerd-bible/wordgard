@@ -10,6 +10,28 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 
 // FIXME check behavior around inline nodes with content for all of these
 
+/// This command handles text input. To selectively override the
+/// behavior of text input, provide a handler that, when the
+/// conditions that it requires apply, handles the input and returns
+/// true. `userEvent` will generally be one of `"input.type"`,
+/// `"input.type.compose"` (text inserted as part as a composition),
+/// or `"input.type.compose.start"` (initial text created by a started
+/// composition).
+export const insertText = Command.define<{from: number, to: number, insert: string, userEvent: string}>((
+  {state, dispatch},
+  {from, to, insert, userEvent}
+) => {
+  let marks = state.selection.marks || state.doc.resolve(to).marks()
+  let changes = ChangeSet.create(state.doc, {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true})
+  dispatch({
+    changes,
+    selection: GardSelection.cursor(changes.mapPos(to, 1), -1),
+    normalizeSelection: true,
+    userEvent
+  })
+  return true
+})
+
 /// Command to insert a line break. The default handler will, if the
 /// schema defines a [line break](#doc.Leaf.Spec.isLineBreak) node and
 /// the selection's parent node allows that, insert such a node.

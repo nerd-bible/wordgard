@@ -96,9 +96,9 @@ export class Wordgard {
   observer: DOMObserver
 
   /// @internal
-  readRequests: ((view: Wordgard) => void)[] = []
+  domReaders: ((view: Wordgard) => void)[] = []
   /// @internal
-  writeRequests: ((view: Wordgard) => void)[] = []
+  domWriters: ((view: Wordgard) => void)[] = []
 
   /// Construct a new view. You'll want to either provide a `parent`
   /// option, or put `view.dom` into your document after creating a
@@ -148,7 +148,7 @@ export class Wordgard {
       if (!this.viewState.initialized) this.viewState.initialMeasure(this)
       for (let plugin of this.plugins) plugin.connect(this)
       this.observer.connect()
-      if (this.viewState.pending.length || this.readRequests.length || this.writeRequests.length)
+      if (this.viewState.pending.length || this.domReaders.length || this.domWriters.length)
         this.scheduleFlush()
     } else {
       this.root = document
@@ -206,7 +206,6 @@ export class Wordgard {
         mainUpdate = ViewUpdate.create(this, flushedState, state = this.viewState.state, this.viewState.pending)
     }
 
-    // FIXME avoid unnecessary work
     this.willFlush = false
     this.flushing = true
     this.lastFlush = Date.now()
@@ -220,14 +219,14 @@ export class Wordgard {
           console.warn("Editor flush loop restarted more than 5 times")
           break
         }
-        let write = this.writeRequests
-        this.writeRequests = []
+        let write = this.domWriters
+        this.domWriters = []
         for (let f of write) f(this)
         let flags = this.viewState.measure(this)
-        let read = this.readRequests
-        this.readRequests = []
+        let read = this.domReaders
+        this.domReaders = []
         for (let f of read) f(this)
-        if (!flags && !this.writeRequests.length) break
+        if (!flags && !this.domWriters.length) break
         mainUpdate.flags |= flags
         if (flags) this.runUpdate(ViewUpdate.create(this, state, state, [], flags), null)
       }
@@ -273,8 +272,7 @@ export class Wordgard {
     let prevDocTile = this.docTile
     this.docTile = prevDocTile.update(update.state, changes, composition)
 
-    if ((composition?.wrapCursor || !composition &&
-        (changes.length && !(changes.length == 2 && changes[1] == -1) || update.selectionSet)) && this.hasFocus)
+    if ((composition?.wrapCursor || !composition && (prevDocTile != this.docTile || update.selectionSet)) && this.hasFocus)
       setDOMSelection(this)
     this.observer.clear()
     if (!update.empty) {
@@ -362,14 +360,21 @@ export class Wordgard {
   }
 
   /// Schedule a function that needs to read from the (flushed) DOM.
-  requestDOMRead(read: (view: Wordgard) => void) { // FIXME naming
+  /// During an editor update, when doing anything that needs to
+  /// access the DOM layout, it is important to schedule it with this
+  /// method, to avoid forcing unnecessary DOM layouts.
+  scheduleDOMRead(read: (view: Wordgard) => void) {
     this.scheduleFlush()
-    if (this.readRequests.indexOf(read) < 0) this.readRequests.push(read)
+    if (this.domReaders.indexOf(read) < 0) this.domReaders.push(read)
   }
 
-  requestDOMWrite(write: (view: Wordgard) => void) {
+  /// Schedule a function that needs to modify the DOM. When doing any
+  /// kind of DOM mutation that depends on a [DOM
+  /// read](#view.Wordgard.scheduleDOMRead), use this method, so that
+  /// read and write phases remain separate.
+  scheduleDOMWrite(write: (view: Wordgard) => void) {
     this.scheduleFlush()
-    if (this.writeRequests.indexOf(write) < 0) this.writeRequests.push(write)
+    if (this.domWriters.indexOf(write) < 0) this.domWriters.push(write)
   }
 
   /// Get the value of a specific plugin, if present. Note that
@@ -711,8 +716,6 @@ export class Wordgard {
   /// which will cause the `&dark` rules from [base
   /// themes](#view.Wordgard^baseTheme) to be used (as opposed to
   /// `&light` when a light theme is active).
-  // FIXME work out whether we want a theme system at all, and make
-  // dark/light integrate properly with client setting
   static theme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
     let prefix = StyleModule.newName()
     return [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))]
@@ -720,7 +723,7 @@ export class Wordgard {
 
   /// This facet controls whether a dark theme is active, which
   /// determines whether base theme rules with a `&dark` or `&light`
-  /// selector are applied. By default, the editor uses a CSS
+  /// selector are applied. If not configured, the editor uses a CSS
   /// `prefers-color-scheme: dark` query to determine whether to
   /// enable light or dark mode.
   static darkTheme = darkTheme

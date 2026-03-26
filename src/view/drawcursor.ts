@@ -15,7 +15,7 @@ export const cursorLayer = ViewPlugin.fromClass(class {
   constructor(view: Wordgard) {
     this.layer = view.scrollDOM.appendChild(document.createElement("wg-cursor-layer"))
     this.positionCursor = this.positionCursor.bind(this)
-    view.requestDOMRead(this.positionCursor)
+    view.scheduleDOMRead(this.positionCursor)
     setBlinkRate(view.state, this.layer)
   }
 
@@ -24,11 +24,11 @@ export const cursorLayer = ViewPlugin.fromClass(class {
       this.layer.style.animationName = this.layer.style.animationName == "wg-blink" ? "wg-blink2" : "wg-blink"
     if (update.state.facet(cursorBlinkRate) != update.startState.facet(cursorBlinkRate))
       setBlinkRate(update.state, this.layer)
-    if (update.docChanged || update.selectionSet) update.view.requestDOMRead(this.positionCursor)
+    if (update.docChanged || update.selectionSet) update.view.scheduleDOMRead(this.positionCursor)
   }
 
   docViewUpdate(view: Wordgard) {
-    view.requestDOMRead(this.positionCursor)
+    view.scheduleDOMRead(this.positionCursor)
   }    
 
   destroy() {
@@ -39,7 +39,7 @@ export const cursorLayer = ViewPlugin.fromClass(class {
     let pos = cursorPos(view), cur = this.pos
     if (!pos ? cur : !cur || cur.left != pos.left || cur.top != pos.top || cur.size != pos.size) {
       this.pos = pos
-      view.requestDOMWrite(() => {
+      view.scheduleDOMWrite(() => {
         let cursor = this.layer.firstChild as HTMLElement | null
         if (!pos) {
           if (cursor) cursor.remove()

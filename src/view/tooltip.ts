@@ -255,7 +255,7 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
 
   measure() {
     let measure = this.readMeasure()
-    this.view.requestDOMWrite(() => this.writeMeasure(measure))
+    this.view.scheduleDOMWrite(() => this.writeMeasure(measure))
   }
 
   readMeasure(): Measured {
@@ -369,7 +369,7 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
   }
 
   maybeMeasure() {
-    if (this.manager.tooltips.length) this.view.requestDOMRead(this.measure)
+    if (this.manager.tooltips.length) this.view.scheduleDOMRead(this.measure)
   }
 }, {
   eventObservers: {

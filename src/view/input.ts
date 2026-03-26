@@ -1,6 +1,6 @@
 import {GardSelection, GardState, Annotation} from "wordgard/state"
-import {Slice, Leaf, ChangeSet, Mark} from "wordgard/doc"
-import {undo, redo, insertLineBreak, enter,
+import {ChangeSet, Mark} from "wordgard/doc"
+import {undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, toggleMarkByLabel} from "wordgard/command"
 import {Wordgard} from "./editorview"
 import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
@@ -710,17 +710,20 @@ handlers.beforeinput = (view, event: InputEvent) => {
     return true
   }
 
-  if (type == "insertReplacementText" || type == "insertText") {
+  if (type == "insertText") {
     // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
     if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
+    let insert = event.data!.replace(/\r\n?|\n/g, " ")
+    let {from, to} = inputEventRange(event, view)
+    insertText.dispatch(view, {from, to, insert, userEvent: "input.type"})
+    return true
+  }
 
-    let slice = type == "insertText"
-      ? textSlice(event.data!, view.state.selection.marks || view.state.sel.from.marks())
-      // FIXME why is this in a dataTransfer anyway? Spec says it shouldn't be...
-      : readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
+  if (type == "insertReplacementText") {
+    let slice = readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
     if (slice) {
       let {from, to} = inputEventRange(event, view)
-      applyTextChange(view, from, to, slice)
+      view.dispatch({changes: {from, to, insert: slice, fit: true}})
       return true
     }
   } else if (type == "insertCompositionText") {
@@ -737,6 +740,7 @@ handlers.input = (view, event: InputEvent) => {
   if (event.inputType == "insertCompositionText" && view.inputState.currentComposition) {
     let {from, to, text} = view.inputState.currentComposition
     view.inputState.currentComposition = null
+    let start = !view.inputState.composing!.changes
     view.inputState.composing!.changes++
     view.observer.readSelectionRange()
     let sel = view.observer.selectionRange
@@ -752,33 +756,13 @@ handlers.input = (view, event: InputEvent) => {
       from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
       if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
     }
-    let marks = view.state.selection.marks || view.state.doc.resolve(to).marks()
-    view.dispatch({
-      changes: {from, to, insert: textSlice(text, marks), fit: true},
-      selection: anchor > -1 ? {anchor, head} : undefined,
-      userEvent: "input.type.compose"
-    })
+    insertText.dispatch(view, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
   }
   return false
-}
-
-function textSlice(text: string, marks: readonly Mark<any>[]) {
-  return new Slice([Leaf.text(text.replace(/\r\n?|\n/g, " "), marks)])
 }
 
 function inputEventRange(event: InputEvent, view: Wordgard) {
   let range = event.getTargetRanges()[0]
   return {from: view.docTile.posFromDOM(range.startContainer, range.startOffset, -1),
           to: view.docTile.posFromDOM(range.endContainer, range.endOffset, 1)}
-}
-
-export function applyTextChange(view: Wordgard, from: number, to: number, insert: Slice) {
-  let changes = ChangeSet.create(view.state.doc, {from, to, insert, fit: true})
-  // FIXME define this more robustly
-  view.dispatch({
-    changes,
-    selection: GardSelection.cursor(changes.mapPos(to, 1), -1),
-    normalizeSelection: true,
-    userEvent: "input.type"
-  })
 }
