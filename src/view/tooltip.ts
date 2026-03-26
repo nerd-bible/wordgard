@@ -1,6 +1,6 @@
 import {GardState, Transaction, StateEffect, Facet, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
-import {Wordgard, ViewPlugin, ViewUpdate} from "./editorview"
+import {Wordgard} from "./editorview"
 import {logException} from "./util"
 import {windowRect} from "./dom"
 import browser from "./browser"
@@ -36,7 +36,7 @@ class TooltipViewManager {
     this.tooltipViews = this.tooltips.map(t => prev = createTooltipView(t, prev))
   }
 
-  update(update: ViewUpdate, above?: boolean[]) {
+  update(update: Wordgard.Update, above?: boolean[]) {
     let input = update.state.facet(this.facet)
     let tooltips = input.filter(x => x) as Tooltip[]
     if (input === this.input) {
@@ -129,7 +129,7 @@ const knownHeight = new WeakMap<TooltipView, number>()
 
 const enum C { minVertSpace = 15 }
 
-const tooltipPlugin = ViewPlugin.fromClass(class {
+const tooltipPlugin = Wordgard.Plugin.fromClass(class {
   manager: TooltipViewManager
   above: boolean[] = []
   inView = true
@@ -192,7 +192,7 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
     }, 50)
   }
 
-  update(update: ViewUpdate) {
+  update(update: Wordgard.Update) {
     if (update.transactions.length) this.lastTransaction = Date.now()
     let updated = this.manager.update(update, this.above)
     if (updated) this.observeIntersection()
@@ -481,7 +481,7 @@ export interface TooltipView {
   /// tooltip.
   overlap?: boolean
   /// Update the DOM element for a change in the view's state.
-  update?(update: ViewUpdate): void
+  update?(update: Wordgard.Update): void
   /// Called when the tooltip is added to a DOM-connected editor.
   connect?(view: Wordgard): void
   /// Called when the editor containing the tooltip is disconnected,
@@ -551,7 +551,7 @@ class HoverTooltipHost implements TooltipView {
     }
   }
 
-  update(update: ViewUpdate) {
+  update(update: Wordgard.Update) {
     this.manager.update(update)
   }
 
@@ -794,7 +794,7 @@ export function hoverTooltip(
     active: hoverState,
     extension: [
       hoverState,
-      ViewPlugin.define(view => new HoverPlugin(view, source, hoverState, setHover, options.hoverTime || Hover.Time)),
+      Wordgard.Plugin.define(view => new HoverPlugin(view, source, hoverState, setHover, options.hoverTime || Hover.Time)),
       showHoverTooltipHost
     ]
   }

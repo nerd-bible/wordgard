@@ -1,4 +1,4 @@
-import {showPanel, Wordgard, ViewUpdate} from "wordgard/view"
+import {showPanel, Wordgard} from "wordgard/view"
 import {GardState, Facet, Direction} from "wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
@@ -65,7 +65,7 @@ class BarButton {
 
   get focusDOM() { return this.dom }
 
-  update(flags: F, view: Wordgard, update: ViewUpdate | null) {
+  update(flags: F, view: Wordgard, update: Wordgard.Update | null) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -227,7 +227,7 @@ class MenuBar {
     this.updateElts(true, this.selection)
   }
 
-  update(update: ViewUpdate) {
+  update(update: Wordgard.Update) {
     let items = update.state.facet(menuItem)
     if (items != this.items) {
       this.items = items
@@ -238,7 +238,7 @@ class MenuBar {
     }
   }
 
-  updateElts(update: ViewUpdate | boolean, selection: readonly BarElement[]) {
+  updateElts(update: Wordgard.Update | boolean, selection: readonly BarElement[]) {
     let {state} = this.view
     let changed = typeof update == "boolean" ? update : update.docChanged || update.selectionSet
     let updateObj = typeof update == "boolean" ? null : update

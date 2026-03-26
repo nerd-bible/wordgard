@@ -1,4 +1,4 @@
-import {Wordgard, ViewUpdate} from "wordgard/view"
+import {Wordgard} from "wordgard/view"
 import {GardState, Facet} from "wordgard/state"
 import {isolateHistory} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"
@@ -140,7 +140,7 @@ function getGroupIndices(match: RegExpMatchArray): ([number, number] | undefined
 export type DocMatch = {from: Pos, to: Pos, text: string}
 export type DocMatchArray = readonly (DocMatch | null)[] & {0: DocMatch}
 
-function applyInputRules(update: ViewUpdate) {
+function applyInputRules(update: Wordgard.Update) {
   let typed = -1
   for (let i = update.transactions.length - 1; i >= 0; i--) {
     if (update.transactions[i].isUserEvent("input.type")) {

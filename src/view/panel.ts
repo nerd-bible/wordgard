@@ -1,7 +1,7 @@
 // FIXME figure out how to provide easy-to-use default styling for these
 
 import {Facet, GardState} from "wordgard/state"
-import {Wordgard, ViewPlugin, ViewUpdate} from "./editorview"
+import {Wordgard} from "./editorview"
 import {rmDOM} from "./dom"
 
 type PanelConfig = {
@@ -38,7 +38,7 @@ export interface Panel {
   /// editor. Defaults to false.
   top?: boolean
   /// Update the panel DOM for a given view update.
-  update?(update: ViewUpdate): void
+  update?(update: Wordgard.Update): void
   /// Called, when present, when the panel has been added the DOM.
   connect?(view: Wordgard): void
   /// Called when the editor with the panel is disconnected from the
@@ -57,7 +57,7 @@ export function getPanel(view: Wordgard, panel: PanelConstructor) {
   return index > -1 ? plugin!.panels[index] : null
 }
 
-const panelPlugin = ViewPlugin.fromClass(class {
+const panelPlugin = Wordgard.Plugin.fromClass(class {
   input: readonly (null | PanelConstructor)[]
   specs: readonly PanelConstructor[]
   panels: Panel[]
@@ -76,7 +76,7 @@ const panelPlugin = ViewPlugin.fromClass(class {
     this.bottom.sync(this.panels.filter(p => !p.top), view)
   }
 
-  update(update: ViewUpdate) {
+  update(update: Wordgard.Update) {
     let conf = update.state.facet(panelConfig)
     if (this.top.container != conf.topContainer) {
       this.top.sync([], update.view)

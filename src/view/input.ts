@@ -2,8 +2,7 @@ import {GardSelection, GardState, Annotation, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, toggleMarkByLabel} from "wordgard/command"
-import {Wordgard} from "./editorview"
-import {ViewUpdate, PluginValue, PluginInstance} from "./editorview"
+import {Wordgard, PluginInstance} from "./editorview"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -137,7 +136,7 @@ export class InputState {
     this.mouseSelection = mouseSelection
   }
 
-  update(update: ViewUpdate) {
+  update(update: Wordgard.Update) {
     if (this.mouseSelection) this.mouseSelection.update(update)
     if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes)
     if (update.transactions.length) this.lastKeyCode = this.lastSelectionTime = 0
@@ -160,8 +159,8 @@ export class InputState {
 type HandlerFunction = (view: Wordgard, event: Event) => boolean | void
 
 function bindHandler(
-  plugin: PluginValue,
-  handler: (this: PluginValue, event: Event, view: Wordgard) => boolean | void
+  plugin: Wordgard.Plugin.Value,
+  handler: (this: Wordgard.Plugin.Value, event: Event, view: Wordgard) => boolean | void
 ): HandlerFunction {
   return (view, event) => {
     try {
@@ -227,7 +226,7 @@ export interface MouseSelectionStyle {
   /// update could change its result. Be wary of infinite loops when
   /// using this (where `get` returns a new selection, which will
   /// trigger `update`, which schedules another `get` in response).
-  update: (update: ViewUpdate) => boolean | void
+  update: (update: Wordgard.Update) => boolean | void
 }
 
 export type MakeSelectionStyle = (view: Wordgard, event: MouseEvent) => MouseSelectionStyle | null
@@ -340,7 +339,7 @@ class MouseSelection {
     this.mustSelect = false
   }
 
-  update(update: ViewUpdate) {
+  update(update: Wordgard.Update) {
     if (update.transactions.some(tr => tr.isUserEvent("input.type")))
       this.disconnect()
     else if (this.style.update(update))
