@@ -156,6 +156,7 @@ export namespace Mark {
     }
   }
 
+  // FIXME add support for defining marks
   export type Spec<Value> = {
     /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.

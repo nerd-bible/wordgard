@@ -610,7 +610,7 @@ export namespace Plot {
     /// is duplicated (dragged, pasted, etc) into a new position.
     /// Defaults to false.
     defining?: boolean
-    /// Neutral nodes can be completely replaced when their entire
+    /// Neutral nodes may be completely replaced when their entire
     /// content gets replaced. Defaults to `!defining`.
     neutral?: boolean
     /// Whether block nodes of this type should be automatically joined

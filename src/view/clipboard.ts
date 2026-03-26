@@ -4,7 +4,9 @@ import browser from "./browser"
 
 export const clipboardOutputFilter = Facet.define<(content: Slice, state: GardState) => Slice>()
 export const clipboardOutputHTMLFilter = Facet.define<(html: string, state: GardState) => string>()
-export const clipboardTextSerializer = Facet.define<(slice: Slice, state: GardState) => string | null>()
+export const clipboardTextSerializer = Facet.define<
+  (slice: Slice, context: readonly Plot.Tag.Any[], state: GardState) => string | null
+>()
 export const clipboardOutputTextFilter = Facet.define<(html: string, state: GardState) => string>()
 
 export const clipboardInputFilter = Facet.define<(content: Slice, state: GardState) => Slice>()
@@ -17,12 +19,19 @@ const openMark = Mark.Type.define<string>("Open", {
   target: Node.Group.All
 })
 
-export function writeClipboard(state: GardState, slice: Slice, data: DataTransfer) {
+export function writeClipboard(state: GardState, slice: Slice, context: readonly Plot.Tag.Any[], data: DataTransfer) {
   for (let filter of state.facet(clipboardOutputFilter)) slice = filter(slice, state)
 
-  // FIXME determine defining context nodes and marks
+  let includeContext = 0
+  for (let i = 0; i < context.length; i++) {
+    let next = context[i]
+    if (next.type.defining && (!includeContext || next.type != context[includeContext - 1].type)) includeContext = i + 1
+    else if (next.type.defining || !next.isTextblock) break
+  }
   let doc = detachedDoc(), dom = Elt.dom(serializeSlice(slice, {
     schema: state.doc.schema,
+    context,
+    includeContext,
     openMark
   }))
 
@@ -49,7 +58,7 @@ export function writeClipboard(state: GardState, slice: Slice, data: DataTransfe
 
   let text: string | undefined | null
   for (let serialize of state.facet(clipboardTextSerializer)) {
-    if ((text = serialize(slice, state)) != null) break
+    if ((text = serialize(slice, context, state)) != null) break
   }
   if (text == null) text = slice.textContent({blockSeparator: "\n\n"})
   for (let filter of state.facet(clipboardOutputTextFilter)) text = filter(text, state)
@@ -75,8 +84,7 @@ export function readClipboard(state: GardState, data: DataTransfer, targetContex
     let dom = readHTML(html)
     if (browser.webkit) restoreReplacedSpaces(dom)
 
-    let fromWordgard = !!dom.querySelector("[wg-content=true]")
-    // FIXME use target context?
+    let fromWordgard = dom.querySelector("[wg-content=true]")
     ;({slice, context} = parseSlice(state.doc.schema, dom, {
       collapseWhiteSpace: !fromWordgard,
       isOpen: fromWordgard ? isOpen : undefined

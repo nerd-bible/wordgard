@@ -70,6 +70,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   blockContent: ListItem,
   group: G.Content,
   role: Node.Role.List,
+  defining: true,
   shape: {
     element: "ol",
     attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
@@ -82,6 +83,7 @@ export const BulletList = Plot.defineBlock("BulletList", {
   blockContent: ListItem,
   group: G.Content,
   role: Node.Role.List,
+  defining: true,
   shape: {element: "ul"},
   autoJoin: true
 })

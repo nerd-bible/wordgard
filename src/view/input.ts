@@ -488,7 +488,8 @@ handlers.dragstart = (view, event: DragEvent) => {
   inputState.draggedContent = selection
 
   if (event.dataTransfer) {
-    writeClipboard(view.state, selectionSlice(view.state), event.dataTransfer)
+    let {slice, context} = selectionSlice(view.state)
+    writeClipboard(view.state, slice, context, event.dataTransfer)
     event.dataTransfer.effectAllowed = "copyMove"
   }
   return false
@@ -544,13 +545,17 @@ handlers.paste = (view: Wordgard, event: ClipboardEvent) => {
 }
 
 function selectionSlice(state: GardState) { // FIXME smarter primitive?
-  return state.doc.slice(state.selection.from, state.selection.to)
+  return {
+    slice: state.doc.slice(state.selection.from, state.selection.to),
+    context: state.doc.contextAt(state.selection.from)
+  }
 }
 
 handlers.copy = handlers.cut = (view, event: ClipboardEvent) => {
   let {state} = view
   if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
-    writeClipboard(state, selectionSlice(state), event.clipboardData)
+    let {slice, context} = selectionSlice(state)
+    writeClipboard(state, slice, context, event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
       view.dispatch({
         changes: state.selection.ranges.map(r => ({from: r.from, to: r.to})),
