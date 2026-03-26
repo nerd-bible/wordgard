@@ -1,15 +1,14 @@
-import {GardSelection, GardState, Annotation} from "wordgard/state"
+import {GardSelection, GardState, Annotation, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, toggleMarkByLabel} from "wordgard/command"
 import {Wordgard} from "./editorview"
-import {ViewUpdate, PluginValue, clickAddsSelectionRange, dragMovesSelection as dragBehavior,
-        logException, mouseSelectionStyle, PluginInstance, getScrollMargins} from "./extension"
+import {ViewUpdate, PluginValue, PluginInstance} from "./editorview"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
-import {eqArray} from "./util"
-import {Tile, PosAssoc} from "./tile"
+import {eqArray, logException} from "./util"
+import {Tile, CoordPos} from "./tile"
 
 export class InputState {
   shiftKey = false
@@ -202,6 +201,8 @@ export const modifierCodes = [16, 17, 18, 20, 91, 92, 224, 225]
 
 const dragScrollMargin = 6
 
+export const mouseSelectionStyle = Facet.define<MakeSelectionStyle>()
+
 /// Interface that objects registered with
 /// [`Wordgard.mouseSelectionStyle`](#view.Wordgard^mouseSelectionStyle)
 /// must conform to.
@@ -278,7 +279,7 @@ class MouseSelection {
     let left = 0, top = 0, right = this.view.win.innerWidth, bottom = this.view.win.innerHeight
     if (this.scrollParents.x) ({left, right} = this.scrollParents.x.getBoundingClientRect())
     if (this.scrollParents.y) ({top, bottom} = this.scrollParents.y.getBoundingClientRect())
-    let margins = getScrollMargins(this.view)
+    let margins = this.view.getScrollMargins()
 
     if (event.clientX - margins.left <= left + dragScrollMargin)
       sx = -dragScrollSpeed(left - event.clientX)
@@ -347,10 +348,14 @@ class MouseSelection {
   }
 }
 
+export const clickAddsSelectionRange = Facet.define<(event: MouseEvent) => boolean>()
+
 function addsSelectionRange(view: Wordgard, event: MouseEvent) {
   let facet = view.state.facet(clickAddsSelectionRange)
   return facet.length ? facet[0](event) : browser.mac ? event.metaKey : event.ctrlKey
 }
+
+export const dragBehavior = Facet.define<(event: MouseEvent) => boolean>()
 
 function dragMovesSelection(view: Wordgard, event: MouseEvent) {
   let facet = view.state.facet(dragBehavior)
@@ -435,10 +440,10 @@ handlers.mousedown = (view, event: MouseEvent) => {
 }
 
 function queryPos(view: Wordgard, event: MouseEvent) {
-  return view.posAtCoords({x: event.clientX, y: event.clientY}) as PosAssoc
+  return view.posAtCoords({x: event.clientX, y: event.clientY}) as CoordPos
 }
 
-function rangeForClick(view: Wordgard, pos: PosAssoc, type: number): GardSelection {
+function rangeForClick(view: Wordgard, pos: CoordPos, type: number): GardSelection {
   if (type < 3 && pos.target != null) {
     let target = view.state.doc.nodeAt(pos.target)
     if (target && target.isLeaf && target.type.isSelectable) return GardSelection.range(pos.target, pos.target + target.length)

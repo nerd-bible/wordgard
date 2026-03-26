@@ -33,17 +33,16 @@ const enum PosAssocFlag {
   VertOutside = 4
 }
 
-// FIXME rename
-export class PosAssoc {
+export class CoordPos {
   constructor(readonly pos: number, readonly target: number | null, readonly flags: PosAssocFlag) {}
   get assoc(): -1 | 0 | 1 { return ((this.flags & PosAssocFlag.AssocMask) - 1) as -1 | 0 | 1 }
   get vertOutside() { return (this.flags & PosAssocFlag.VertOutside) > 0 }
   map(mapping: ChangeSet) {
     let target = this.target == null ? null : mapping.mapPos(this.target, MapMode.TrackAfter)
-    return new PosAssoc(mapping.mapPos(this.pos), target, this.flags)
+    return new CoordPos(mapping.mapPos(this.pos), target, this.flags)
   }
   static create(pos: number, assoc: -1 | 0 | 1, target: number | null = null, vertOutside?: boolean) {
-    return new PosAssoc(pos, target, (assoc + 1) | (vertOutside ? PosAssocFlag.VertOutside : 0))
+    return new CoordPos(pos, target, (assoc + 1) | (vertOutside ? PosAssocFlag.VertOutside : 0))
   }
 }
 
@@ -178,13 +177,13 @@ export abstract class Tile {
   }
 
   // FIXME needs a lot of tests
-  posAtCoords(state: GardState, x: number, y: number): PosAssoc {
+  posAtCoords(state: GardState, x: number, y: number): CoordPos {
     let nodeTile = this.nearestNode()
     return nodeTile.posAtCoordsInner(nodeTile.posAtStart, state, x, y, null, Orientation.Col)
   }
 
   abstract posAtCoordsInner(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null,
-                            orientation: Orientation): PosAssoc
+                            orientation: Orientation): CoordPos
 
   static get(node: DOMNode) { return node.wgTile }
 }
@@ -232,7 +231,7 @@ export class CompositeTile extends Tile {
   }
 
   posAtCoordsInner(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null,
-                   orientation: Orientation): PosAssoc {
+                   orientation: Orientation): CoordPos {
     let {node} = this, outerOrientation = orientation
     if (node && node.isPlot) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
@@ -250,11 +249,11 @@ export class CompositeTile extends Tile {
     let after = outerOrientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
     let target = this.node && this.node.isLeaf &&
       x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom ? start : null
-    return PosAssoc.create(start + (after ? this.length - 2 * this.boundary: 0), after ? -1 : 1, target)
+    return CoordPos.create(start + (after ? this.length - 2 * this.boundary: 0), after ? -1 : 1, target)
   }
 
   // FIXME adopt the binary search trick from CodeMirror
-  posAtCoordsRow(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null): PosAssoc | null {
+  posAtCoordsRow(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null): CoordPos | null {
     let scan = new RowScan<Tile>(x, y)
     for (let child of this.children) {
       if (child.isPoint) continue
@@ -269,8 +268,8 @@ export class CompositeTile extends Tile {
     let closest = scan.closest, rect = scan.closestRect!
     let pos = this.posBeforeChild(closest, start)
     if (scan.dyClosest) { // Coords are vertically outside of the child
-      if (y > rect.bottom) return PosAssoc.create(pos + closest.length, -1, null, true)
-      else return PosAssoc.create(pos, 1, null, true)
+      if (y > rect.bottom) return CoordPos.create(pos + closest.length, -1, null, true)
+      else return CoordPos.create(pos, 1, null, true)
     }
     return closest.posAtCoordsInner(pos + closest.boundary, state,
                                     x, Math.max(rect!.top, Math.min(rect!.bottom, y)),
@@ -279,16 +278,16 @@ export class CompositeTile extends Tile {
 
   posAtCoordsCol(
     start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null
-  ): PosAssoc {
+  ): CoordPos {
     let lastBot = -1
     for (let child of this.children) {
       if (child.isPoint || child.dom.nodeType != 1) continue
       let rect = (child.dom as Element).getBoundingClientRect()
-      if (rect.top > y) return PosAssoc.create(this.posBeforeChild(child, start), y > (lastBot + rect.top) / 2 ? 1 : -1)
+      if (rect.top > y) return CoordPos.create(this.posBeforeChild(child, start), y > (lastBot + rect.top) / 2 ? 1 : -1)
       if (rect.bottom >= y) return child.posAtCoordsInner(this.posBeforeChild(child, start) + child.boundary, state,
                                                           x, y, textblock, Orientation.Col)
     }
-    return PosAssoc.create(start + this.length - 2 * this.boundary, -1)
+    return CoordPos.create(start + this.length - 2 * this.boundary, -1)
   }
 }
 
@@ -541,13 +540,13 @@ export class WidgetTile extends Tile {
   toString() { return this.widget.type == Widget.Text ? JSON.stringify(this.widget.value) : super.toString() }
 
   posAtCoordsInner(start: number, state: GardState, x: number, y: number,
-                   textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
-    if (!this.node) return PosAssoc.create(start, 0)
+                   textblock: TextblockMap | null, orientation: Orientation): CoordPos {
+    if (!this.node) return CoordPos.create(start, 0)
     let rect = this.dom.nodeType == 1 ? (this.dom as Element).getBoundingClientRect()
       : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
     let after = orientation == Orientation.Col ? y > (rect.top + rect.bottom) / 2
       : (x < (rect.left + rect.right) / 2) == (dirAt(state, start, 1, textblock) == Direction.LTR)
-    return after ? PosAssoc.create(start + this.length - 2 * this.boundary, -1, start) : PosAssoc.create(start, 1, start)
+    return after ? CoordPos.create(start + this.length - 2 * this.boundary, -1, start) : CoordPos.create(start, 1, start)
   }
 }
 
@@ -578,7 +577,7 @@ export class TextTile extends Tile {
   }
 
   posAtCoordsInner(start: number, state: GardState, x: number, y: number,
-                   textblock: TextblockMap | null, orientation: Orientation): PosAssoc {
+                   textblock: TextblockMap | null, orientation: Orientation): CoordPos {
     let scan = new RowScan<number>(x, y)
     for (let i = 0; i < this.length;) {
       let end = findClusterBreak(this.text, i)
@@ -592,8 +591,8 @@ export class TextTile extends Tile {
     let pos = start + closest, dir = dirAt(state, pos, 1, textblock)
     let after = scan.dyClosest ? y > rect.bottom
       : (x > (rect.left + rect.right) / 2) == (dir == Direction.LTR)
-    if (after) return PosAssoc.create(start + findClusterBreak(this.text, closest), -1)
-    else return PosAssoc.create(pos, 1)
+    if (after) return CoordPos.create(start + findClusterBreak(this.text, closest), -1)
+    else return CoordPos.create(pos, 1)
   }
 
   static of(text: string) {

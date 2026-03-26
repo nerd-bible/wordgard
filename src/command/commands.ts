@@ -21,6 +21,7 @@ export const insertText = Command.define<{from: number, to: number, insert: stri
   {state, dispatch},
   {from, to, insert, userEvent}
 ) => {
+  // FIXME support getting the default transaction spec somehow?
   let marks = state.selection.marks || state.doc.resolve(to).marks()
   let changes = ChangeSet.create(state.doc, {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true})
   dispatch({

@@ -1,27 +1,22 @@
-import {GardState, Transaction, GardSelection, StateEffect, Facet} from "wordgard/state"
+import {GardState, Transaction, Facet, StateEffect, GardSelection} from "wordgard/state"
 import {ChangeSet, Node} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocTile} from "./tile"
 import {coordsAtPos} from "./coords"
-import {ViewUpdate, styleModule, contentAttributes, editorAttributes, AttrSource,
-        clickAddsSelectionRange, dragMovesSelection, mouseSelectionStyle,
-        exceptionSink, beforeUpdate, afterUpdate, logException,
-        viewPlugin, ViewPlugin, PluginValue, PluginInstance,
-        scrollMargins, editable, inputHandler, scrollIntoView,
-        ScrollTarget, scrollHandler, getScrollMargins} from "./extension"
 import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
         clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter,
         clipboardTextParser, clipboardTextSerializer} from "./clipboard"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
-import {InputState, getCompositionInfo, isFocusChange} from "./input"
-import {ViewState, Direction} from "./viewstate"
+import {InputState, getCompositionInfo, isFocusChange,
+        mouseSelectionStyle, clickAddsSelectionRange, dragBehavior} from "./input"
+import {ViewState, Direction, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
 import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
-import {cursorBlinkRate} from "./drawcursor"
+import {exceptionSink, logException} from "./util"
 
 /// An editor view represents the editor's user interface. It holds
 /// the editable DOM surface, and possibly other elements such as
@@ -200,7 +195,7 @@ export class Wordgard {
     this.observer.pollSelection()
     let {flushedState, state} = this.viewState
     let mainUpdate = ViewUpdate.create(this, flushedState, state, this.viewState.pending)
-    for (let hook of state.facet(beforeUpdate)) {
+    for (let hook of state.facet(Wordgard.beforeUpdate)) {
       hook(mainUpdate)
       if (mainUpdate.transactions.length != this.viewState.pending.length)
         mainUpdate = ViewUpdate.create(this, flushedState, state = this.viewState.state, this.viewState.pending)
@@ -235,14 +230,14 @@ export class Wordgard {
       this.scrollTo(this.viewState.scrollTarget)
       this.viewState.scrollTarget = null
     }
-    if (!mainUpdate.empty) for (let listener of this.state.facet(afterUpdate)) {
+    if (!mainUpdate.empty) for (let listener of this.state.facet(Wordgard.afterUpdate)) {
       try { listener(mainUpdate) }
       catch (e) { logException(this.state, e, "update listener") }
     }
   }
 
   private scrollTo(target: ScrollTarget) {
-    for (let handler of this.state.facet(scrollHandler)) {
+    for (let handler of this.state.facet(Wordgard.scrollHandler)) {
       try { if (handler(this, target.range, target)) return true }
       catch(e) { logException(this.state, e, "scroll handler") }
     }
@@ -255,7 +250,7 @@ export class Wordgard {
       rect = new DOMRect(left, top, Math.max(rect.right, other.right) - left, Math.max(rect.bottom, other.bottom) - top)
     }
 
-    let margins = getScrollMargins(this)
+    let margins = this.getScrollMargins()
     let targetRect = new DOMRect(rect.left + margins.left, rect.top + margins.top,
                                  rect.width - margins.left - margins.right, rect.height - margins.top - margins.bottom)
     let {offsetWidth, offsetHeight} = this.scrollDOM
@@ -279,7 +274,7 @@ export class Wordgard {
       this.updatePlugins(update)
       this.inputState.update(update)
       this.showAnnouncements(update.transactions)
-      if (this.state.facet(styleModule) != this.styleModules) this.mountStyles()
+      if (this.state.facet(Wordgard.styleModule) != this.styleModules) this.mountStyles()
       this.updateAttrs()
     }
     if (this.docTile != prevDocTile) for (let plugin of this.plugins) plugin.docViewUpdate(this)
@@ -320,7 +315,7 @@ export class Wordgard {
   }
 
   private updateAttrs() {
-    let editorAttrs = attrsFromFacet(this, editorAttributes, {
+    let editorAttrs = attrsFromFacet(this, Wordgard.editorAttributes, {
       class: "wg-editor" + (this.hasFocus ? " wg-focused " : " ") + this.themeClasses,
       id: this.id
     })
@@ -329,12 +324,12 @@ export class Wordgard {
       autocorrect: "off",
       autocapitalize: "off",
       translate: "no",
-      contenteditable: !this.state.facet(editable) ? "false" : "true",
+      contenteditable: !this.state.facet(Wordgard.editable) ? "false" : "true",
       role: "textbox",
       "aria-multiline": "true"
     }
     if (this.state.readOnly) contentAttrs["aria-readonly"] = "true"
-    attrsFromFacet(this, contentAttributes, contentAttrs)
+    attrsFromFacet(this, Wordgard.contentAttributes, contentAttrs)
 
     let changedContent = updateAttrs(this.contentDOM, this.contentAttrs, contentAttrs)
     let changedEditor = updateAttrs(this.dom, this.editorAttrs, editorAttrs)
@@ -354,7 +349,7 @@ export class Wordgard {
   }
 
   private mountStyles() {
-    this.styleModules = this.state.facet(styleModule)
+    this.styleModules = this.state.facet(Wordgard.styleModule)
     let nonce = this.state.facet(Wordgard.cspNonce)
     StyleModule.mount(this.root, this.styleModules.concat(baseTheme).reverse(), nonce ? {nonce} : undefined)
   }
@@ -599,7 +594,7 @@ export class Wordgard {
   /// an editor view. The view will ensure that the module is
   /// mounted in its [document
   /// root](#view.Wordgard.constructor^config.root).
-  static styleModule = styleModule
+  static styleModule = Facet.define<StyleModule>()
 
   /// Returns an extension that can be used to add DOM event handlers.
   /// The value should be an object mapping event names to handler
@@ -625,22 +620,15 @@ export class Wordgard {
     return ViewPlugin.define(() => ({}), {eventObservers: observers})
   }
 
-  /// An input handler can override the way changes to the editable
-  /// DOM content are handled. Handlers are passed the document
-  /// positions between which the change was found, and the new
-  /// content. When one returns true, no further input handlers are
-  /// called and the default behavior is prevented.
-  ///
-  /// The `insert` argument can be used to get the default transaction
-  /// that would be applied for this input. This can be useful when
-  /// dispatching the custom behavior as a separate transaction.
-  static inputHandler = inputHandler
-
   /// Scroll handlers can override how things are scrolled into view.
   /// If they return `true`, no further handling happens for the
   /// scrolling. If they return false, the default scroll behavior is
   /// applied. Scroll handlers should never initiate editor updates.
-  static scrollHandler = scrollHandler
+  static scrollHandler = Facet.define<(
+    view: Wordgard,
+    range: {from: number, to: number},
+    options: {x: ScrollStrategy, y: ScrollStrategy, xMargin: number, yMargin: number}
+  ) => boolean>()
 
   /// Allows you to provide a function that should be called when the
   /// library catches an exception from an extension (mostly from view
@@ -655,13 +643,13 @@ export class Wordgard {
   /// A facet that can be used to register a function to be called
   /// right before the view updates. Any transactions dispatched by
   /// such functions will be included in the update.
-  static beforeUpdate = beforeUpdate
+  static beforeUpdate = Facet.define<(update: ViewUpdate) => void>()
 
   /// A facet that can be used to register a function to be called
   /// after the view updates. Dispatching transactions from such a
   /// function is allowed, but will cause another, separate update to
   /// happen.
-  static afterUpdate = afterUpdate
+  static afterUpdate = Facet.define<(update: ViewUpdate) => void>()
 
   /// Facet that controls whether the editor content DOM is editable.
   /// When its highest-precedence value is `false`, the element will
@@ -669,11 +657,13 @@ export class Wordgard {
   /// doesn't affect API calls that change the editor content, even
   /// when those are bound to keys or buttons. See the
   /// [`readOnly`](#state.GardState.readOnly) facet for that.)
-  static editable = editable
+  static editable = Facet.define<boolean, boolean>({combine: values => values.length ? values[0] : true })
 
   /// Controls the length of a full cursor blink cycle, in milliseconds.
   /// Defaults to 1200. Can be set to 0 to disable blinking.
-  static cursorBlinkRate = cursorBlinkRate
+  static cursorBlinkRate = Facet.define<number, number>({
+    combine: inputs => inputs.length ? Math.min(...inputs) : 1200
+  })
 
   /// Allows you to influence the way mouse selection happens. The
   /// functions in this facet will be called for a `mousedown` event
@@ -685,7 +675,7 @@ export class Wordgard {
   /// should move or copy the selection. The given predicate will be
   /// called with the `mousedown` event, and can return `true` when
   /// the drag should move the content.
-  static dragMovesSelection = dragMovesSelection
+  static dragMovesSelection = dragBehavior
 
   /// Facet used to configure whether a given selecting click adds a
   /// new range to the existing selection or replaces it entirely. The
@@ -698,7 +688,22 @@ export class Wordgard {
   /// should be considered invisible). This can be useful when the
   /// plugin introduces elements that cover part of that element (for
   /// example a horizontally fixed gutter).
-  static scrollMargins = scrollMargins
+  static scrollMargins = Facet.define<(view: Wordgard) => Partial<DOMRect> | null>()
+
+  /// @internal
+  getScrollMargins() {
+    let left = 0, right = 0, top = 0, bottom = 0
+    for (let source of this.state.facet(Wordgard.scrollMargins)) {
+      let m = source(this)
+      if (m) {
+        if (m.left != null) left = Math.max(left, m.left)
+        if (m.right != null) right = Math.max(right, m.right)
+        if (m.top != null) top = Math.max(top, m.top)
+        if (m.bottom != null) bottom = Math.max(bottom, m.bottom)
+      }
+    }
+    return {left, right, top, bottom}
+  }
 
   /// Create a theme extension. The first argument can be a
   /// [`style-mod`](https://github.com/marijnh/style-mod#documentation)
@@ -718,7 +723,7 @@ export class Wordgard {
   /// `&light` when a light theme is active).
   static theme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
     let prefix = StyleModule.newName()
-    return [theme.of(prefix), styleModule.of(buildTheme(`.${prefix}`, spec))]
+    return [theme.of(prefix), Wordgard.styleModule.of(buildTheme(`.${prefix}`, spec))]
   }
 
   /// This facet controls whether a dark theme is active, which
@@ -742,7 +747,7 @@ export class Wordgard {
   /// that. You can also use `&dark` or `&light` instead to only
   /// target editors with a dark or light theme.
   static baseTheme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
-    return GardState.prec.lowest(styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
+    return GardState.prec.lowest(Wordgard.styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
   }
 
   /// Provides a Content Security Policy nonce to use when creating
@@ -752,11 +757,11 @@ export class Wordgard {
 
   /// Facet that provides additional DOM attributes for the editor's
   /// editable DOM element.
-  static contentAttributes = contentAttributes
+  static contentAttributes = Facet.define<AttrSource>()
 
   /// Facet that provides DOM attributes for the editor's outer
   /// element.
-  static editorAttributes = editorAttributes
+  static editorAttributes = Facet.define<AttrSource>()
 
   /// State effect used to include screen reader announcements in a
   /// transaction. These will be added to the DOM in a visually hidden
@@ -838,4 +843,250 @@ function attrsFromFacet(view: Wordgard, facet: Facet<AttrSource>, base: Attrs) {
     if (value) combineAttrs(value, base)
   }
   return base
+}
+
+/// This is the interface plugin objects conform to.
+export interface PluginValue {
+  /// Notifies the plugin of an update that happened in the view. This
+  /// is called _before_ the view updates its own DOM. It is
+  /// responsible for updating the plugin's internal state (including
+  /// any state that may be read by plugin fields) and _writing_ to
+  /// the DOM for the changes in the update. To avoid unnecessary
+  /// layout recomputations, it should _not_ read the DOM layout—use
+  /// [`requestMeasure`](#view.Wordgard.requestMeasure) to schedule
+  /// your code in a DOM reading phase if you need to.
+  update?(update: ViewUpdate): void
+
+  /// When present, this will be called when an update causes any
+  /// changes in the DOM representation of the document.
+  docViewUpdate?(view: Wordgard): void
+
+  /// Called when the plugin is removed from an editor. This should
+  /// clean up any changes it made to the editor itself.
+  destroy?(view: Wordgard): void
+
+  /// Called when the editor is attached to the DOM. If the plugin
+  /// needs to allocate any resource that must be released, or modify
+  /// something outside the editor, it should do it in this method,
+  /// and make sure to release/undo it in its `disconnect` method.
+  connect?(view: Wordgard): void
+
+  /// Called when the editor is removed from the DOM.
+  disconnect?(view: Wordgard): void
+}
+
+export const basePlugins: ViewPlugin<any>[] = []
+
+export const viewPlugin = Facet.define<ViewPlugin<any>>({
+  combine: plugins => basePlugins.concat(plugins)
+})
+
+let nextPluginID = 0
+
+// FIXME rename Wordgard.Plugin.Spec
+
+/// Provides additional information when defining a [view
+/// plugin](#view.ViewPlugin).
+export interface PluginSpec<V extends PluginValue> {
+  /// Register the given [event
+  /// handlers](#view.Wordgard^domEventHandlers) for the plugin.
+  /// When called, these will have their `this` bound to the plugin
+  /// value.
+  eventHandlers?: DOMEventHandlers<V>,
+
+  /// Registers [event observers](#view.Wordgard^domEventObservers)
+  /// for the plugin. Will, when called, have their `this` bound to
+  /// the plugin value.
+  eventObservers?: DOMEventHandlers<V>,
+
+  /// Specify that the plugin provides additional extensions when
+  /// added to an editor configuration.
+  provide?: (plugin: ViewPlugin<V>) => GardState.Extension // FIXME is this useful?
+}
+
+// FIXME rename Wordgard.Plugin
+
+/// View plugins associate stateful values with a view. They can
+/// influence the way the content is drawn, and are notified of things
+/// that happen in the view.
+export class ViewPlugin<V extends PluginValue> {
+  /// Instances of this class act as extensions.
+  extension: GardState.Extension
+
+  private constructor(
+    /// @internal
+    readonly id: number,
+    /// @internal
+    readonly create: (view: Wordgard) => V,
+    /// @internal
+    readonly domEventHandlers: DOMEventHandlers<V> | undefined,
+    /// @internal
+    readonly domEventObservers: DOMEventHandlers<V> | undefined,
+    buildExtensions: (plugin: ViewPlugin<V>) => GardState.Extension
+  ) {
+    this.extension = buildExtensions(this)
+  }
+
+  /// Define a plugin from a constructor function that creates the
+  /// plugin's value, given an editor view.
+  static define<V extends PluginValue>(create: (view: Wordgard) => V, spec?: PluginSpec<V>) {
+    const {eventHandlers, eventObservers, provide} = spec || {}
+    return new ViewPlugin<V>(nextPluginID++, create, eventHandlers, eventObservers, plugin => {
+      let ext = [viewPlugin.of(plugin)]
+      if (provide) ext.push(provide(plugin))
+      return ext
+    })
+  }
+
+  /// Create a plugin for a class whose constructor takes a single
+  /// editor view as argument.
+  static fromClass<V extends PluginValue>(cls: {new (view: Wordgard): V}, spec?: PluginSpec<V>) {
+    return ViewPlugin.define(view => new cls(view), spec)
+  }
+}
+
+export class PluginInstance {
+  // When starting an update, all plugins have this field set to the
+  // update object, indicating they need to be updated. When finished
+  // updating, it is set to `null`. Retrieving a plugin that needs to
+  // be updated with `view.plugin` forces an eager update.
+  mustUpdate: ViewUpdate | null = null
+  // This is null when the plugin is initially created, but
+  // initialized on the first update.
+  value: PluginValue | null = null
+  // Set when the plugin has crashed, and will no longer run.
+  deactivated = false
+
+  constructor(public spec: ViewPlugin<any>) {}
+
+  update(view: Wordgard) {
+    if (!this.value) {
+      if (!this.deactivated) {
+        try { this.value = this.spec.create(view) }
+        catch (e) {
+          logException(view.state, e, "CodeMirror plugin crashed")
+          this.deactivate(null)
+        }
+      }
+    } else if (this.mustUpdate) {
+      let update = this.mustUpdate
+      this.mustUpdate = null
+      if (this.value.update) {
+        try {
+          this.value.update(update)
+        } catch (e) {
+          logException(update.state, e, "CodeMirror plugin crashed")
+          if (view.connected && this.value.disconnect) try { this.value.disconnect(view) } catch {}
+          this.deactivate(view)
+        }
+      }
+    }
+    return this
+  }
+
+  docViewUpdate(view: Wordgard) {
+    if (this.value?.docViewUpdate) {
+      try { this.value.docViewUpdate(view) }
+      catch(e) { logException(view.state, e, "doc view update listener") }
+    }
+  }
+
+  connect(view: Wordgard) {
+    if (this.value?.connect) {
+      try {
+        this.value.connect(view)
+      } catch (e) {
+        logException(view.state, e, "CodeMirror plugin crashed")
+        this.deactivate(view)
+      }
+    }
+  }
+
+  disconnect(view: Wordgard) {
+    if (!this.value?.disconnect) return
+    try {
+      this.value.disconnect(view)
+    } catch (e) {
+      logException(view.state, e, "CodeMirror plugin crashed")
+      this.deactivate(view)
+    }
+  }
+
+  destroy(view: Wordgard) {
+    if (view.connected) this.disconnect(view)
+    if (this.value?.destroy) try {
+      this.value.destroy(view)
+    } catch(e) {
+      logException(view.state, e, "CodeMirror plugin crashed")
+    }
+  }
+
+  deactivate(destroy: Wordgard | null) {
+    if (destroy && this.value?.destroy) try { this.value.destroy(destroy) } catch {}
+    this.deactivated = true
+    this.value = null
+  }
+}
+
+export type AttrSource = Attrs | ((view: Wordgard) => Attrs | null)
+
+export const enum UpdateFlag { Focus = 1, Geometry = 2 }
+
+// FIXME rename to Wordgard.Update
+
+/// View [plugins](#view.ViewPlugin) are given instances of this
+/// class, which describe what happened, whenever the view is updated.
+export class ViewUpdate {
+  /// The changes made to the document by this update.
+  readonly changes: ChangeSet
+
+  private constructor(
+    /// The editor view that the update is associated with.
+    readonly view: Wordgard,
+    /// The previous editor state.
+    readonly startState: GardState,
+    /// The new editor state.
+    readonly state: GardState,
+    /// The transactions involved in the update. May be empty.
+    readonly transactions: readonly Transaction[],
+    /// @internal
+    public flags: number
+  ) {
+    if (transactions.length) {
+      this.changes = transactions[0].changes
+      for (let i = 1; i < transactions.length; i++) this.changes = this.changes.compose(transactions[i].changes)
+    } else {
+      this.changes = ChangeSet.empty(startState.doc.length)
+    }
+  }
+
+  /// @internal
+  static create(view: Wordgard, startState: GardState, state: GardState,
+                transactions: readonly Transaction[], flags = 0) {
+    return new ViewUpdate(view, startState, state, transactions, flags)
+  }
+
+  /// Returns true when the document was modified or the size of the
+  /// editor, or elements within the editor, changed.
+  get geometryChanged() {
+    return this.docChanged || (this.flags & UpdateFlag.Geometry) > 0
+  }
+
+  /// True when this update indicates a focus change.
+  get focusChanged() {
+    return (this.flags & UpdateFlag.Focus) > 0
+  }
+
+  /// Whether the document changed in this update.
+  get docChanged() {
+    return !this.changes.empty
+  }
+
+  /// Whether the selection was explicitly set in this update.
+  get selectionSet() {
+    return this.transactions.some(tr => tr.selection)
+  }
+
+  /// @internal
+  get empty() { return this.flags == 0 && this.transactions.length == 0 }
 }

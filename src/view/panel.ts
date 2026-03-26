@@ -1,8 +1,7 @@
 // FIXME figure out how to provide easy-to-use default styling for these
 
 import {Facet, GardState} from "wordgard/state"
-import {Wordgard} from "./editorview"
-import {ViewPlugin, ViewUpdate} from "./extension"
+import {Wordgard, ViewPlugin, ViewUpdate} from "./editorview"
 import {rmDOM} from "./dom"
 
 type PanelConfig = {

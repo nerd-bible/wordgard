@@ -1,10 +1,5 @@
-import {Facet, GardState, Direction} from "wordgard/state"
-import {ViewPlugin, ViewUpdate, basePlugins} from "./extension"
-import {type Wordgard} from "./editorview"
-
-export const cursorBlinkRate = Facet.define<number, number>({
-  combine: inputs => inputs.length ? Math.min(...inputs) : 1200
-})
+import {GardState, Direction} from "wordgard/state"
+import {Wordgard, ViewPlugin, ViewUpdate, basePlugins} from "./editorview"
 
 type CursorPos = {left: number, top: number, size: number, horiz: boolean} | null
 
@@ -22,7 +17,7 @@ export const cursorLayer = ViewPlugin.fromClass(class {
   update(update: ViewUpdate) {
     if (update.transactions.some(tr => tr.selection))
       this.layer.style.animationName = this.layer.style.animationName == "wg-blink" ? "wg-blink2" : "wg-blink"
-    if (update.state.facet(cursorBlinkRate) != update.startState.facet(cursorBlinkRate))
+    if (update.state.facet(Wordgard.cursorBlinkRate) != update.startState.facet(Wordgard.cursorBlinkRate))
       setBlinkRate(update.state, this.layer)
     if (update.docChanged || update.selectionSet) update.view.scheduleDOMRead(this.positionCursor)
   }
@@ -80,5 +75,5 @@ export function cursorPos(view: Wordgard): CursorPos {
 }
 
 function setBlinkRate(state: GardState, dom: HTMLElement) {
-  dom.style.animationDuration = state.facet(cursorBlinkRate) + "ms"
+  dom.style.animationDuration = state.facet(Wordgard.cursorBlinkRate) + "ms"
 }

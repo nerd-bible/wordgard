@@ -1,7 +1,7 @@
 import {GardState, Transaction, StateEffect, Facet, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
-import {Wordgard} from "./editorview"
-import {ViewPlugin, ViewUpdate, logException, getScrollMargins} from "./extension"
+import {Wordgard, ViewPlugin, ViewUpdate} from "./editorview"
+import {logException} from "./util"
 import {windowRect} from "./dom"
 import browser from "./browser"
 
@@ -285,7 +285,7 @@ const tooltipPlugin = ViewPlugin.fromClass(class {
         ;({scaleX, scaleY} = this.view.viewState)
       }
     }
-    let visible = this.view.scrollDOM.getBoundingClientRect(), margins = getScrollMargins(this.view)
+    let visible = this.view.scrollDOM.getBoundingClientRect(), margins = this.view.getScrollMargins()
     let visLeft = visible.left + margins.left, visTop = visible.top + margins.top
     return {
       visible: new DOMRect(visLeft, visTop, visible.right - margins.right - visLeft, visible.bottom - margins.bottom - visTop),

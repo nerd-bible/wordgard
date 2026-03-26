@@ -1,7 +1,30 @@
-import {GardState, GardSelection, Transaction} from "wordgard/state"
-import {getScale} from "./dom"
-import {UpdateFlag, ScrollTarget, scrollIntoView} from "./extension"
+import {ChangeSet} from "wordgard/doc"
+import {GardState, GardSelection, Transaction, StateEffect} from "wordgard/state"
+import {getScale, ScrollStrategy} from "./dom"
+import {UpdateFlag} from "./editorview"
 import {Wordgard} from "./editorview"
+
+export const scrollIntoView = StateEffect.define<ScrollTarget>({map: (t, ch) => t.map(ch)})
+
+export class ScrollTarget {
+  constructor(
+    readonly range: GardSelection,
+    readonly y: ScrollStrategy = "nearest",
+    readonly x: ScrollStrategy = "nearest",
+    readonly yMargin: number = 5,
+    readonly xMargin: number = 5,
+  ) {}
+
+  map(changes: ChangeSet) {
+    return changes.empty ? this :
+      new ScrollTarget(this.range.map(changes), this.y, this.x, this.yMargin, this.xMargin)
+  }
+
+  clip(state: GardState) {
+    return this.range.to <= state.doc.length ? this :
+      new ScrollTarget(GardSelection.cursor(state.doc.length), this.y, this.x, this.yMargin, this.xMargin)
+  }
+}
 
 export enum Direction { LTR, RTL }
 
