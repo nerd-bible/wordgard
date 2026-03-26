@@ -47,12 +47,18 @@ export class KeyBinding {
   extension: GardState.Extension
 
   private constructor(readonly spec: KeyBinding.Spec) {
-    this.extension = keyBinding.of(this)
+    this.extension = KeyBinding.source.of(this)
   }
 
   /// Define a binding.
   static define(spec: KeyBinding.Spec) { return new KeyBinding(spec) }
 }
+
+const handleKeyEvents = GardState.prec.default(Wordgard.domEventHandlers({
+  keydown(event, view) {
+    return KeyBinding.runScopeHandlers(view, event, "editor")
+  }
+}))
 
 export namespace KeyBinding {
   /// A description of a key binding.
@@ -91,6 +97,23 @@ export namespace KeyBinding {
     /// their `preventDefault` called. You can set this to true to
     /// disable that behavior.
     allowDefault?: boolean
+  }
+
+  /// Facet used for registering key bindings.
+  ///
+  /// You can add multiple keymaps to an editor. Their priorities
+  /// determine their precedence (the ones specified early or with high
+  /// priority get checked first). When a handler has returned `true`
+  /// for a given key, no further handlers are called.
+  export const source = Facet.define<KeyBinding, readonly KeyBinding[]>({
+    enables: handleKeyEvents
+  })
+
+  /// Run the key handlers registered for a given scope. The event
+  /// object should be a `"keydown"` event. Returns true if any of the
+  /// handlers handled it.
+  export function runScopeHandlers(view: Wordgard, event: KeyboardEvent, scope: string) {
+    return runHandlers(getKeymap(view.state.facet(KeyBinding.source)), event, view, scope)
   }
 }
 
@@ -144,29 +167,6 @@ class NormalizedBinding {
 }
 
 type Keymap = Record<string, NormalizedBinding[]>
-
-const handleKeyEvents = GardState.prec.default(Wordgard.domEventHandlers({
-  keydown(event, view) {
-    return runScopeHandlers(view, event, "editor")
-  }
-}))
-
-/// Facet used for registering key bindings.
-///
-/// You can add multiple keymaps to an editor. Their priorities
-/// determine their precedence (the ones specified early or with high
-/// priority get checked first). When a handler has returned `true`
-/// for a given key, no further handlers are called.
-export const keyBinding = Facet.define<KeyBinding, readonly KeyBinding[]>({
-  enables: handleKeyEvents
-})
-
-/// Run the key handlers registered for a given scope. The event
-/// object should be a `"keydown"` event. Returns true if any of the
-/// handlers handled it.
-export function runScopeHandlers(view: Wordgard, event: KeyboardEvent, scope: string) {
-  return runHandlers(getKeymap(view.state.facet(keyBinding)), event, view, scope)
-}
 
 const keymapCache = new WeakMap<readonly KeyBinding[], Keymap>()
 
@@ -236,7 +236,7 @@ function runHandlers(map: Keymap, event: KeyboardEvent, view: Wordgard, scope: s
 
 function codePointSize(code: number): 1 | 2 { return code < 0x10000 ? 1 : 2 }
 
-export const charKeyCodes: Record<number, string> = {
+const charKeyCodes: Record<number, string> = {
   32: " ", 59: ";", 61: "=", 106: "*", 107: "+", 108: ",", 109: "-", 110: ".", 111: "/", 173: "-",
   186: ";", 187: "=", 188: ",", 189: "-", 190: ".", 191: "/", 192: "`", 219: "[", 220: "\\", 221: "]", 222: "'"
 }

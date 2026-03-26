@@ -1,5 +1,5 @@
 import {StateEffect, GardState} from "wordgard/state"
-import {showPanel, Panel, PanelConstructor, getPanel} from "./panel"
+import {Panel} from "./panel"
 import {Wordgard} from "./editorview"
 
 type DialogConfig = {
@@ -68,13 +68,13 @@ export function showDialog(view: Wordgard, config: DialogConfig): {
 export function getDialog(view: Wordgard, className: string) {
   let dialogs = view.state.field(dialogField, false) || []
   for (let open of dialogs) {
-    let panel = getPanel(view, open)
+    let panel = Panel.get(view, open)
     if (panel && panel.dom.classList.contains(className)) return panel
   }
   return null
 }
 
-const dialogField = GardState.Field.define<readonly PanelConstructor[]>({
+const dialogField = GardState.Field.define<readonly Panel.Constructor[]>({
   create() { return [] },
   update(dialogs, tr) {
     for (let e of tr.effects) {
@@ -83,11 +83,11 @@ const dialogField = GardState.Field.define<readonly PanelConstructor[]>({
     }
     return dialogs
   },
-  provide: f => showPanel.computeN(state => state.field(f))
+  provide: f => Panel.show.computeN(state => state.field(f))
 })
 
-const openDialogEffect = StateEffect.define<PanelConstructor>()
-const closeDialogEffect = StateEffect.define<PanelConstructor>()
+const openDialogEffect = StateEffect.define<Panel.Constructor>()
+const closeDialogEffect = StateEffect.define<Panel.Constructor>()
 
 function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLFormElement | null) => void): Panel {
   let content = config.content ? config.content(view, () => done(null)) : null

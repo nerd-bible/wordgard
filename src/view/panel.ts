@@ -24,11 +24,6 @@ const panelConfig = Facet.define<PanelConfig, PanelConfig>({
   }
 })
 
-/// Configures the panel-managing extension.
-export function panels(config?: PanelConfig): GardState.Extension {
-  return config ? [panelConfig.of(config)] : []
-}
-
 /// Object that describes an active panel.
 export interface Panel {
   /// The element representing this panel. The library will add the
@@ -48,25 +43,16 @@ export interface Panel {
   destroy?(view: Wordgard): void
 }
 
-/// Get the active panel created by the given constructor, if any.
-/// This can be useful when you need access to your panels' DOM
-/// structure.
-export function getPanel(view: Wordgard, panel: PanelConstructor) {
-  let plugin = view.plugin(panelPlugin)
-  let index = plugin ? plugin.specs.indexOf(panel) : -1
-  return index > -1 ? plugin!.panels[index] : null
-}
-
 const panelPlugin = Wordgard.Plugin.fromClass(class {
-  input: readonly (null | PanelConstructor)[]
-  specs: readonly PanelConstructor[]
+  input: readonly (null | Panel.Constructor)[]
+  specs: readonly Panel.Constructor[]
   panels: Panel[]
   top: PanelGroup
   bottom: PanelGroup
 
   constructor(view: Wordgard) {
-    this.input = view.state.facet(showPanel)
-    this.specs = this.input.filter(s => s) as PanelConstructor[]
+    this.input = view.state.facet(Panel.show)
+    this.specs = this.input.filter(s => s) as Panel.Constructor[]
     this.panels = this.specs.map(spec => spec(view))
     for (let p of this.panels) p.dom.classList.add("wg-panel")
     let conf = view.state.facet(panelConfig)
@@ -88,9 +74,9 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
     }
     this.top.syncClasses()
     this.bottom.syncClasses()
-    let input = update.state.facet(showPanel)
+    let input = update.state.facet(Panel.show)
     if (input != this.input) {
-      let specs = input.filter(x => x) as PanelConstructor[]
+      let specs = input.filter(x => x) as Panel.Constructor[]
       let panels = [], top: Panel[] = [], bottom: Panel[] = [], mount = []
       for (let spec of specs) {
         let known = this.specs.indexOf(spec), panel
@@ -135,6 +121,33 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
     return value && {top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin()}
   })
 })
+
+export namespace Panel {
+  /// Get the active panel created by the given constructor, if any.
+  /// This can be useful when you need access to your panels' DOM
+  /// structure.
+  export function get(view: Wordgard, panel: Panel.Constructor) {
+    let plugin = view.plugin(panelPlugin)
+    let index = plugin ? plugin.specs.indexOf(panel) : -1
+    return index > -1 ? plugin!.panels[index] : null
+  }
+
+  /// Configures the panel-managing extension.
+  export function configure(config?: PanelConfig): GardState.Extension {
+    return config ? [panelConfig.of(config)] : []
+  }
+
+  /// A function that initializes a panel. Used in
+  /// [`showPanel`](#view.showPanel).
+  export type Constructor = (view: Wordgard) => Panel
+
+  /// Opening a panel is done by providing a constructor function for
+  /// the panel through this facet. (The panel is closed again when its
+  /// constructor is no longer provided.) Values of `null` are ignored.
+  export const show = Facet.define<Panel.Constructor | null>({
+    enables: panelPlugin
+  })
+}
 
 class PanelGroup {
   dom: HTMLElement | undefined = undefined
@@ -196,14 +209,3 @@ class PanelGroup {
     for (let cls of (this.classes = this.view.themeClasses).split(" ")) if (cls) this.container.classList.add(cls)
   }
 }
-
-/// A function that initializes a panel. Used in
-/// [`showPanel`](#view.showPanel).
-export type PanelConstructor = (view: Wordgard) => Panel
-
-/// Opening a panel is done by providing a constructor function for
-/// the panel through this facet. (The panel is closed again when its
-/// constructor is no longer provided.) Values of `null` are ignored.
-export const showPanel = Facet.define<PanelConstructor | null>({
-  enables: panelPlugin
-})

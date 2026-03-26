@@ -1,4 +1,4 @@
-import {showPanel, Wordgard} from "wordgard/view"
+import {Panel, Wordgard} from "wordgard/view"
 import {GardState, Facet, Direction} from "wordgard/state"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
@@ -185,7 +185,7 @@ function instantiate(item: ResolvedMenuItem, view: Wordgard, flat: BarElement[])
   return elt
 }
 
-const menuPlugin = showPanel.of(view => {
+const menuPlugin = Panel.show.of(view => {
   let bar = new MenuBar(view, view.state.facet(barTemplate))
   return {
     dom: bar.dom,

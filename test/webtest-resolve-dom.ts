@@ -1,4 +1,4 @@
-import {Wordgard, ContentPos, Widget, Decoration, PointSet} from "wordgard/view"
+import {Wordgard, Widget, Decoration, PointSet} from "wordgard/view"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
@@ -11,7 +11,7 @@ function render(doc: Plot.Doc, ...config: GardState.Extension[]) {
   return DocTile.create(GardState.create({doc, config}), document.createElement("div"))
 }
 
-function isIn(pos: ContentPos, parent: string, offset: number) {
+function isIn(pos: {dom: Node, offset: number}, parent: string, offset: number) {
   ist(pos.dom.nodeValue || pos.dom.nodeName, parent)
   ist(pos.offset, offset)
 }
