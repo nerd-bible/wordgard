@@ -248,8 +248,9 @@ export class CompositeTile extends Tile {
     if (result) return result
     let rect = this.dom.getBoundingClientRect()
     let after = outerOrientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
-    return PosAssoc.create(start + (after ? this.length - 2 * this.boundary: 0), after ? -1 : 1,
-                           this.node && this.node.isLeaf ? start : null)
+    let target = this.node && this.node.isLeaf &&
+      x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom ? start : null
+    return PosAssoc.create(start + (after ? this.length - 2 * this.boundary: 0), after ? -1 : 1, target)
   }
 
   // FIXME adopt the binary search trick from CodeMirror
