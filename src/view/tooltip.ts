@@ -22,17 +22,17 @@ const enum Arrow { Size = 7, Offset = 14 }
 class TooltipViewManager {
   private input: readonly (Tooltip | null)[]
   tooltips: readonly Tooltip[]
-  tooltipViews: readonly TooltipView[]
+  tooltipViews: readonly Tooltip.View[]
 
   constructor(
     view: Wordgard,
     private readonly facet: Facet.Reader<readonly (Tooltip | null)[]>,
-    private readonly createTooltipView: (tooltip: Tooltip, after: TooltipView | null) => TooltipView,
-    private readonly removeTooltipView: (tooltipView: TooltipView) => void
+    private readonly createTooltipView: (tooltip: Tooltip, after: Tooltip.View | null) => Tooltip.View,
+    private readonly removeTooltipView: (tooltipView: Tooltip.View) => void
   ) {
     this.input = view.state.facet(facet)
     this.tooltips = this.input.filter(t => t) as Tooltip[]
-    let prev: TooltipView | null = null
+    let prev: Tooltip.View | null = null
     this.tooltipViews = this.tooltips.map(t => prev = createTooltipView(t, prev))
   }
 
@@ -44,7 +44,7 @@ class TooltipViewManager {
       return false
     }
 
-    let tooltipViews: TooltipView[] = [], newAbove: boolean[] | null = above ? [] : null
+    let tooltipViews: Tooltip.View[] = [], newAbove: boolean[] | null = above ? [] : null
     for (let i = 0; i < tooltips.length; i++) {
       let tip = tooltips[i], known = -1
       if (!tip) continue
@@ -78,39 +78,6 @@ class TooltipViewManager {
   }
 }
 
-/// Creates an extension that configures tooltip behavior.
-export function tooltips(config: {
-  /// By default, tooltips use `"fixed"`
-  /// [positioning](https://developer.mozilla.org/en-US/docs/Web/CSS/position),
-  /// which has the advantage that tooltips don't get cut off by
-  /// scrollable parent elements. However, CSS rules like `contain:
-  /// layout` can break fixed positioning in child nodes, which can be
-  /// worked about by using `"absolute"` here.
-  ///
-  /// On iOS, which at the time of writing still doesn't properly
-  /// support fixed positioning, the library always uses absolute
-  /// positioning.
-  ///
-  /// If the tooltip parent element sits in a transformed element, the
-  /// library also falls back to absolute positioning.
-  position?: "fixed" | "absolute",
-  /// The element to put the tooltips into. By default, they are put
-  /// in the editor (`wg-editor`) element, and that is usually what
-  /// you want. But in some layouts that can lead to positioning
-  /// issues, and you need to use a different parent to work around
-  /// those.
-  parent?: HTMLElement
-  /// By default, when figuring out whether there is room for a
-  /// tooltip at a given position, the extension considers the entire
-  /// space between 0,0 and
-  /// `documentElement.clientWidth`/`clientHeight` to be available for
-  /// showing tooltips. You can provide a function here that returns
-  /// an alternative rectangle.
-  tooltipSpace?: (view: Wordgard) => DOMRect
-} = {}): GardState.Extension {
-  return tooltipConfig.of(config)
-}
-
 type TooltipConfig = {
   position: "fixed" | "absolute",
   parent: HTMLElement | null,
@@ -125,7 +92,7 @@ const tooltipConfig = Facet.define<Partial<TooltipConfig>, TooltipConfig>({
   })
 })
 
-const knownHeight = new WeakMap<TooltipView, number>()
+const knownHeight = new WeakMap<Tooltip.View, number>()
 
 const enum C { minVertSpace = 15 }
 
@@ -151,7 +118,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
     this.createContainer()
     this.measure = this.measure.bind(this)
     this.resizeObserver = typeof ResizeObserver == "function" ? new ResizeObserver(() => this.measureSoon()) : null
-    this.manager = new TooltipViewManager(view, showTooltip, (t, p) => this.createTooltip(t, p), t => {
+    this.manager = new TooltipViewManager(view, Tooltip.show, (t, p) => this.createTooltip(t, p), t => {
       if (this.resizeObserver) this.resizeObserver.unobserve(t.dom)
       t.dom.remove()
     })
@@ -215,7 +182,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
     if (shouldMeasure) this.maybeMeasure()
   }
 
-  createTooltip(tooltip: Tooltip, prev: TooltipView | null) {
+  createTooltip(tooltip: Tooltip, prev: Tooltip.View | null) {
     let tooltipView = tooltip.create(this.view)
     let before = prev ? prev.dom : null
     tooltipView.dom.classList.add("wg-tooltip")
@@ -441,7 +408,7 @@ export interface Tooltip {
   end?: number
   /// A constructor function that creates the tooltip's [DOM
   /// representation](#view.TooltipView).
-  create(view: Wordgard): TooltipView
+  create(view: Wordgard): Tooltip.View
   /// Whether the tooltip should be shown above or below the target
   /// position. Not guaranteed to be respected for hover tooltips
   /// since all hover tooltips for the same range are always
@@ -460,58 +427,196 @@ export interface Tooltip {
   clip?: boolean
 }
 
-/// Describes the way a tooltip is displayed.
-export interface TooltipView {
-  /// The DOM element to position over the editor.
-  dom: HTMLElement
-  /// Adjust the position of the tooltip relative to its anchor
-  /// position. A positive `x` value will move the tooltip
-  /// horizontally along with the text direction (so right in
-  /// left-to-right context, left in right-to-left). A positive `y`
-  /// will move the tooltip up when it is above its anchor, and down
-  /// otherwise.
-  offset?: {x: number, y: number}
-  /// By default, a tooltip's screen position will be based on the
-  /// document position of its `pos` property. This method can be
-  /// provided to make the tooltip view itself responsible for finding
-  /// its screen position.
-  getCoords?: (pos: number) => DOMRect
-  /// By default, tooltips are moved when they overlap with other
-  /// tooltips. Set this to `true` to disable that behavior for this
-  /// tooltip.
-  overlap?: boolean
-  /// Update the DOM element for a change in the view's state.
-  update?(update: Wordgard.Update): void
-  /// Called when the tooltip is added to a DOM-connected editor.
-  connect?(view: Wordgard): void
-  /// Called when the editor containing the tooltip is disconnected,
-  /// or before the tooltip is removed.
-  disconnect?(view: Wordgard): void
-  /// Called when the tooltip is removed from the editor or the editor
-  /// is destroyed.
-  destroy?(view: Wordgard): void
-  /// Called when the tooltip has been (re)positioned. The argument is
-  /// the [space](#view.tooltips^config.tooltipSpace) available to the
-  /// tooltip.
-  positioned?(space: DOMRect): void,
-  /// By default, the library will restrict the size of tooltips so
-  /// that they don't stick out of the available space. Set this to
-  /// false to disable that.
-  resize?: boolean
+const closeHoverTooltipEffect = StateEffect.define<null>()
+
+export namespace Tooltip {
+  /// Creates an extension that configures tooltip behavior.
+  export function configure(config: {
+    /// By default, tooltips use `"fixed"`
+    /// [positioning](https://developer.mozilla.org/en-US/docs/Web/CSS/position),
+    /// which has the advantage that tooltips don't get cut off by
+    /// scrollable parent elements. However, CSS rules like `contain:
+    /// layout` can break fixed positioning in child nodes, which can be
+    /// worked about by using `"absolute"` here.
+    ///
+    /// On iOS, which at the time of writing still doesn't properly
+    /// support fixed positioning, the library always uses absolute
+    /// positioning.
+    ///
+    /// If the tooltip parent element sits in a transformed element, the
+    /// library also falls back to absolute positioning.
+    position?: "fixed" | "absolute",
+    /// The element to put the tooltips into. By default, they are put
+    /// in the editor (`wg-editor`) element, and that is usually what
+    /// you want. But in some layouts that can lead to positioning
+    /// issues, and you need to use a different parent to work around
+    /// those.
+    parent?: HTMLElement
+    /// By default, when figuring out whether there is room for a
+    /// tooltip at a given position, the extension considers the entire
+    /// space between 0,0 and
+    /// `documentElement.clientWidth`/`clientHeight` to be available for
+    /// showing tooltips. You can provide a function here that returns
+    /// an alternative rectangle.
+    tooltipSpace?: (view: Wordgard) => DOMRect
+  } = {}): GardState.Extension {
+    return tooltipConfig.of(config)
+  }
+
+  /// Describes the way a tooltip is displayed.
+  export interface View {
+    /// The DOM element to position over the editor.
+    dom: HTMLElement
+    /// Adjust the position of the tooltip relative to its anchor
+    /// position. A positive `x` value will move the tooltip
+    /// horizontally along with the text direction (so right in
+    /// left-to-right context, left in right-to-left). A positive `y`
+    /// will move the tooltip up when it is above its anchor, and down
+    /// otherwise.
+    offset?: {x: number, y: number}
+    /// By default, a tooltip's screen position will be based on the
+    /// document position of its `pos` property. This method can be
+    /// provided to make the tooltip view itself responsible for finding
+    /// its screen position.
+    getCoords?: (pos: number) => DOMRect
+    /// By default, tooltips are moved when they overlap with other
+    /// tooltips. Set this to `true` to disable that behavior for this
+    /// tooltip.
+    overlap?: boolean
+    /// Update the DOM element for a change in the view's state.
+    update?(update: Wordgard.Update): void
+    /// Called when the tooltip is added to a DOM-connected editor.
+    connect?(view: Wordgard): void
+    /// Called when the editor containing the tooltip is disconnected,
+    /// or before the tooltip is removed.
+    disconnect?(view: Wordgard): void
+    /// Called when the tooltip is removed from the editor or the editor
+    /// is destroyed.
+    destroy?(view: Wordgard): void
+    /// Called when the tooltip has been (re)positioned. The argument is
+    /// the [space](#view.tooltips^config.tooltipSpace) available to the
+    /// tooltip.
+    positioned?(space: DOMRect): void,
+    /// By default, the library will restrict the size of tooltips so
+    /// that they don't stick out of the available space. Set this to
+    /// false to disable that.
+    resize?: boolean
+  }
+
+
+  /// Facet to which an extension can add a value to show a tooltip.
+  export const show = Facet.define<Tooltip | null>({
+    enables: [tooltipPlugin, baseTheme]
+  })
+
+  /// Get the active tooltip view for a given tooltip, if available.
+  export function get(view: Wordgard, tooltip: Tooltip): Tooltip.View | null {
+    let plugin = view.plugin(tooltipPlugin)
+    if (!plugin) return null
+    let found = plugin.manager.tooltips.indexOf(tooltip)
+    return found < 0 ? null : plugin.manager.tooltipViews[found]
+  }
+
+  /// Tell the tooltip extension to recompute the position of the active
+  /// tooltips. This can be useful when something happens (such as a
+  /// re-positioning or CSS change affecting the editor) that could
+  /// invalidate the existing tooltip positions but isn't detected by
+  /// the extension.
+  export function reposition(view: Wordgard) {
+    let plugin = view.plugin(tooltipPlugin)
+    if (plugin) plugin.maybeMeasure()
+  }
+
+  // FIXME check if this can still be tree-shaken
+
+  /// Set up a hover tooltip, which shows up when the pointer hovers
+  /// over ranges of text. The callback is called when the mouse hovers
+  /// over the document text. It should, if there is a tooltip
+  /// associated with position `pos`, return the tooltip description
+  /// (either directly or in a promise). The `side` argument indicates
+  /// on which side of the position the pointer is—it will be -1 if the
+  /// pointer is before the position, 1 if after the position.
+  ///
+  /// Note that all hover tooltips are hosted within a single tooltip
+  /// container element. This allows multiple tooltips over the same
+  /// range to be "merged" together without overlapping.
+  ///
+  /// The return value is a valid [editor extension](#state.Extension)
+  /// but also provides an `active` property holding a state field that
+  /// can be used to read the currently active tooltips produced by this
+  /// extension.
+  export function hover(
+    source: HoverTooltipSource,
+    options: {
+      /// Controls whether a transaction hides the tooltip. The default
+      /// is to not hide.
+      hideOn?: (tr: Transaction, tooltip: Tooltip) => boolean,
+      /// When enabled (this defaults to false), close the tooltip
+      /// whenever the document changes or the selection is set.
+      hideOnChange?: boolean | "touch",
+      /// Hover time after which the tooltip should appear, in
+      /// milliseconds. Defaults to 300ms.
+      hoverTime?: number
+    } = {}
+  ): GardState.Extension & {active: GardState.Field<readonly Tooltip[]>} {
+    let setHover = StateEffect.define<readonly Tooltip[]>()
+    let hoverState = GardState.Field.define<readonly Tooltip[]>({
+      create() { return [] },
+
+      update(value, tr) {
+        if (value.length) {
+          if (options.hideOnChange && (tr.docChanged || tr.selection)) value = []
+          else if (options.hideOn) value = value.filter(v => !options.hideOn!(tr, v))
+          if (tr.docChanged) {
+            let mapped = []
+            for (let tooltip of value) {
+              let newPos = tr.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel)
+              if (newPos != null) {
+                let copy: Tooltip = Object.assign(Object.create(null), tooltip)
+                copy.pos = newPos
+                if (copy.end != null) copy.end = tr.changes.mapPos(copy.end)
+                mapped.push(copy)
+              }
+            }
+            value = mapped
+          }
+        }
+        for (let effect of tr.effects) {
+          if (effect.is(setHover)) value = effect.value
+          if (effect.is(closeHoverTooltipEffect)) value = []
+        }
+        return value
+      },
+
+      provide: f => showHoverTooltip.from(f)
+    })
+
+    return {
+      active: hoverState,
+      extension: [
+        hoverState,
+        Wordgard.Plugin.define(view => new HoverPlugin(view, source, hoverState, setHover, options.hoverTime || Hover.Time)),
+        showHoverTooltipHost
+      ]
+    }
+  }
+
+  /// Transaction effect that closes all hover tooltips.
+  export const closeHover = closeHoverTooltipEffect.of(null)
+
+  /// Returns true if any hover tooltips are currently active.
+  export function hasHover(state: GardState) {
+    return state.facet(showHoverTooltip).some(x => x)
+  }
 }
 
 const noOffset = {x: 0, y: 0}
-
-/// Facet to which an extension can add a value to show a tooltip.
-export const showTooltip = Facet.define<Tooltip | null>({
-  enables: [tooltipPlugin, baseTheme]
-})
 
 const showHoverTooltip = Facet.define<readonly Tooltip[], readonly Tooltip[]>({
   combine: inputs => inputs.reduce((a, i) => a.concat(i), [])
 })
 
-class HoverTooltipHost implements TooltipView {
+class HoverTooltipHost implements Tooltip.View {
   private readonly manager: TooltipViewManager
   dom: HTMLElement
   connected: boolean = false
@@ -526,7 +631,7 @@ class HoverTooltipHost implements TooltipView {
     this.manager = new TooltipViewManager(view, showHoverTooltip, (t, p) => this.createHostedView(t, p), t => t.dom.remove())
   }
 
-  createHostedView(tooltip: Tooltip, prev: TooltipView | null) {
+  createHostedView(tooltip: Tooltip, prev: Tooltip.View | null) {
     let hostedView = tooltip.create(this.view)
     hostedView.dom.classList.add("wg-tooltip-section")
     this.dom.insertBefore(hostedView.dom, prev ? prev.dom.nextSibling : this.dom.firstChild)
@@ -559,8 +664,8 @@ class HoverTooltipHost implements TooltipView {
     for (let t of this.manager.tooltipViews) t.destroy?.(view)
   }
 
-  passProp<Key extends keyof TooltipView>(name: Key): TooltipView[Key] | undefined {
-    let value: TooltipView[Key] | undefined = undefined
+  passProp<Key extends keyof Tooltip.View>(name: Key): Tooltip.View[Key] | undefined {
+    let value: Tooltip.View[Key] | undefined = undefined
     for (let view of this.manager.tooltipViews) {
       let given = view[name]
       if (given !== undefined) {
@@ -580,7 +685,7 @@ class HoverTooltipHost implements TooltipView {
   get resize() { return this.passProp("resize") }
 }
 
-const showHoverTooltipHost = showTooltip.compute(state => {
+const showHoverTooltipHost = Tooltip.show.compute(state => {
   let tooltips = state.facet(showHoverTooltip)
   if (tooltips.length === 0) return null
 
@@ -726,104 +831,4 @@ function isOverRange(view: Wordgard, from: number, to: number, x: number, y: num
   if (rect.left > x || rect.right < x || rect.top > y || rect.bottom < y) return false
   let pos = view.posAtCoords({x, y}).pos
   return pos >= from && pos <= to
-}
-
-/// Set up a hover tooltip, which shows up when the pointer hovers
-/// over ranges of text. The callback is called when the mouse hovers
-/// over the document text. It should, if there is a tooltip
-/// associated with position `pos`, return the tooltip description
-/// (either directly or in a promise). The `side` argument indicates
-/// on which side of the position the pointer is—it will be -1 if the
-/// pointer is before the position, 1 if after the position.
-///
-/// Note that all hover tooltips are hosted within a single tooltip
-/// container element. This allows multiple tooltips over the same
-/// range to be "merged" together without overlapping.
-///
-/// The return value is a valid [editor extension](#state.Extension)
-/// but also provides an `active` property holding a state field that
-/// can be used to read the currently active tooltips produced by this
-/// extension.
-export function hoverTooltip(
-  source: HoverTooltipSource,
-  options: {
-    /// Controls whether a transaction hides the tooltip. The default
-    /// is to not hide.
-    hideOn?: (tr: Transaction, tooltip: Tooltip) => boolean,
-    /// When enabled (this defaults to false), close the tooltip
-    /// whenever the document changes or the selection is set.
-    hideOnChange?: boolean | "touch",
-    /// Hover time after which the tooltip should appear, in
-    /// milliseconds. Defaults to 300ms.
-    hoverTime?: number
-  } = {}
-): GardState.Extension & {active: GardState.Field<readonly Tooltip[]>} {
-  let setHover = StateEffect.define<readonly Tooltip[]>()
-  let hoverState = GardState.Field.define<readonly Tooltip[]>({
-    create() { return [] },
-
-    update(value, tr) {
-      if (value.length) {
-        if (options.hideOnChange && (tr.docChanged || tr.selection)) value = []
-        else if (options.hideOn) value = value.filter(v => !options.hideOn!(tr, v))
-        if (tr.docChanged) {
-          let mapped = []
-          for (let tooltip of value) {
-            let newPos = tr.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel)
-            if (newPos != null) {
-              let copy: Tooltip = Object.assign(Object.create(null), tooltip)
-              copy.pos = newPos
-              if (copy.end != null) copy.end = tr.changes.mapPos(copy.end)
-              mapped.push(copy)
-            }
-          }
-          value = mapped
-        }
-      }
-      for (let effect of tr.effects) {
-        if (effect.is(setHover)) value = effect.value
-        if (effect.is(closeHoverTooltipEffect)) value = []
-      }
-      return value
-    },
-
-    provide: f => showHoverTooltip.from(f)
-  })
-
-  return {
-    active: hoverState,
-    extension: [
-      hoverState,
-      Wordgard.Plugin.define(view => new HoverPlugin(view, source, hoverState, setHover, options.hoverTime || Hover.Time)),
-      showHoverTooltipHost
-    ]
-  }
-}
-
-/// Get the active tooltip view for a given tooltip, if available.
-export function getTooltip(view: Wordgard, tooltip: Tooltip): TooltipView | null {
-  let plugin = view.plugin(tooltipPlugin)
-  if (!plugin) return null
-  let found = plugin.manager.tooltips.indexOf(tooltip)
-  return found < 0 ? null : plugin.manager.tooltipViews[found]
-}
-
-/// Returns true if any hover tooltips are currently active.
-export function hasHoverTooltips(state: GardState) {
-  return state.facet(showHoverTooltip).some(x => x)
-}
-
-const closeHoverTooltipEffect = StateEffect.define<null>()
-
-/// Transaction effect that closes all hover tooltips.
-export const closeHoverTooltips = closeHoverTooltipEffect.of(null)
-
-/// Tell the tooltip extension to recompute the position of the active
-/// tooltips. This can be useful when something happens (such as a
-/// re-positioning or CSS change affecting the editor) that could
-/// invalidate the existing tooltip positions but isn't detected by
-/// the extension.
-export function repositionTooltips(view: Wordgard) {
-  let plugin = view.plugin(tooltipPlugin)
-  if (plugin) plugin.maybeMeasure()
 }
