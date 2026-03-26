@@ -81,7 +81,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     zIndex: 150,
   },
 
-  "&.wg-focused > wg-scroller > .wg-cursorLayer": {
+  "&.wg-focused > wg-scroller > wg-cursor-layer": {
     animation: "steps(1) wg-blink 1.2s infinite"
   },
 
@@ -96,12 +96,12 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     display: "none",
   },
   ".wg-cursor-v": {
-    borderLeft: "1.2px solid currentColor",
-    marginLeft: "-0.6px",
+    borderLeft: "1.8px solid currentColor",
+    marginLeft: "-0.9px",
   },
   ".wg-cursor-h": {
-    borderTop: "1.2px solid currentColor",
-    marginTop: "-0.6px",
+    borderTop: "1.8px solid currentColor",
+    marginTop: "-0.9px",
   },
   "&.wg-focused > wg-scroller > wg-cursor-layer wg-cursor": {
     display: "block"
