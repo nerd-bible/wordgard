@@ -322,7 +322,7 @@ export class GardState {
                                             (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values
       let schemaElts = conf.staticFacet(schemaElement)
-      if (schemaElts.some(elt => elt instanceof Plot.Tag && elt.isDoc)) {
+      if (schemaElts.some(elt => elt instanceof Plot.Type && elt.isDoc)) {
         let schema = Schema.define(schemaElts)
         doc = schema.doc(doc.content)
       }
@@ -397,7 +397,7 @@ export class GardState {
     let config = spec.config instanceof GardState.Configuration ? spec.config
       : GardState.Configuration.resolve(spec.config || [], new Map)
     let configSchema = config.staticFacet(schemaElement)
-    let configHasDoc = configSchema.some(elt => elt instanceof Plot.Tag && elt.isDoc), schema
+    let configHasDoc = configSchema.some(elt => elt instanceof Plot.Type && elt.isDoc), schema
     if (configHasDoc) schema = Schema.define(configSchema)
     else if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
     else throw new SchemaError(`No document plot provided, unable to create schema`)
