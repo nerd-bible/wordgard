@@ -215,6 +215,11 @@ describe("DocTile", () => {
     ist(log.join(), "a,b,c")
   })
 
+  it("can handle adding a mark to part of a textblock", () => {
+    let tile = update(render(doc(p("one two"))), {changes: {from: 5, to: 8, add: Strong}})
+    ist(tile.dom.innerHTML, "<p>one <strong>two</strong></p>")
+  })
+
   // FIXME test nodes with inner structure
 
   describe("decoration", () => {

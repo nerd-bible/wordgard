@@ -837,7 +837,7 @@ class ContentUpdate {
         this.openWrappers(wrappers, node.tag, reuse)
         if (node.is(Leaf.Text)) {
           let next = (reuse || this.posB == start) && !(this.new.lastChild instanceof TextTile) && this.old.tileAfter()
-          if (!(next instanceof TextTile)) {
+          if (!(next instanceof TextTile) || this.reused.has(next)) {
             this.addText(node.param)
           } else if (next.text == node.param) {
             this.reused.set(next, Reused.Full)
