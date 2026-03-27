@@ -1,6 +1,6 @@
 import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding} from "wordgard/view"
-import {GardState, StateEffect} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
   validateParam: "string",
@@ -42,7 +42,7 @@ export const imageTheme = Wordgard.theme({
   }
 })
 
-const setResizing = StateEffect.define<{target: number, resizing: number}>({
+const setResizing = Transaction.Effect.define<{target: number, resizing: number}>({
   map: (value, mapping) => {
     let newPos = mapping.mapPos(value.target, MapMode.TrackAfter)
     return value == null ? undefined : {target: newPos, resizing: value.resizing}

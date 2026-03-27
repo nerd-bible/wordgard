@@ -1,4 +1,4 @@
-import {GardState, Transaction, StateEffect} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 import {history, isolateHistory, popHistory} from "wordgard/history"
@@ -228,7 +228,7 @@ describe("collab", () => {
   it("client ids survive reconfiguration", () => {
     let ext = collab()
     let state = GardState.create({doc: doc(p()), config: [ext]})
-    let state2 = state.update({effects: StateEffect.reconfigure.of(ext)}).state
+    let state2 = state.update({effects: Transaction.Effect.reconfigure.of(ext)}).state
     ist(getClientID(state), getClientID(state2))
   })
 
@@ -249,7 +249,7 @@ describe("collab", () => {
 
       toString() { return `${this.from}-${this.to}=${this.id}` }
     }
-    let addMark = StateEffect.define<Mark>({map: (v, m) => v.map(m)})
+    let addMark = Transaction.Effect.define<Mark>({map: (v, m) => v.map(m)})
     let marks = GardState.Field.define<Mark[]>({
       create: () => [],
       update(value, tr) {

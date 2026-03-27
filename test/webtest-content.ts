@@ -1,6 +1,6 @@
 import {Wordgard, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
-import {GardState, Transaction, StateEffect} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wordgard/schema"
 import {Image, ImageAlt} from "wordgard/schema/image"
@@ -371,7 +371,7 @@ describe("DocTile", () => {
 
     it("preserves DOM nodes when adding attributes", () => {
       let node = render(doc(p("a"))), para = node.dom.firstChild
-      node = update(node, {effects: StateEffect.reconfigure.of(tagDecoration({
+      node = update(node, {effects: Transaction.Effect.reconfigure.of(tagDecoration({
         query: Paragraph,
         attribute: "lang",
         value: "nl"
@@ -430,7 +430,7 @@ describe("DocTile", () => {
     it("can reuse DOM structure when adding a shape wrapper", () => {
       let node = render(doc(p($img)))
       let img = node.dom.querySelector("img")
-      node = update(node, {effects: StateEffect.appendConfig.of(Decoration.source.of(state => {
+      node = update(node, {effects: Transaction.Effect.appendConfig.of(Decoration.source.of(state => {
         return PointSet.create([[1, Decoration.wrapper(shape => elt({_: "span", class: "u"}, shape))]])
       }))})
       ist(node.dom.querySelector("img"), img)
@@ -453,7 +453,7 @@ describe("DocTile", () => {
     it("properly updates when tag shapes change", () => {
       let tile = render(doc(p("a")))
       tile = update(tile, {
-        effects: StateEffect.appendConfig.of(tagShape({tag: Paragraph, shape: elt("para", 0)}))
+        effects: Transaction.Effect.appendConfig.of(tagShape({tag: Paragraph, shape: elt("para", 0)}))
       })
       ist(tile.dom.innerHTML, "<para>a</para>")
     })
@@ -461,7 +461,7 @@ describe("DocTile", () => {
     it("properly updates when positional shapes change", () => {
       let tile = render(doc(p("a")))
       tile = update(tile, {
-        effects: StateEffect.appendConfig.of(Decoration.source.of(state => {
+        effects: Transaction.Effect.appendConfig.of(Decoration.source.of(state => {
           return PointSet.create([[0, Decoration.shape(elt("para"))]])
         }))
       })

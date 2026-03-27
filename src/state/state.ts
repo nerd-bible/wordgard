@@ -1,6 +1,6 @@
 import {Schema, Plot, Node, Leaf, Mark, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
 import {GardSelection, wordAt, selectionAtStart} from "./selection"
-import {Transaction, resolveTransaction, asArray, StateEffect} from "./transaction"
+import {Transaction, resolveTransaction, asArray} from "./transaction"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
 
@@ -309,10 +309,10 @@ export class GardState {
           conf = null
         }
         compartments.set(effect.value.compartment, effect.value.extension)
-      } else if (effect.is(StateEffect.reconfigure)) {
+      } else if (effect.is(Transaction.Effect.reconfigure)) {
         conf = null
         base = effect.value
-      } else if (effect.is(StateEffect.appendConfig)) {
+      } else if (effect.is(Transaction.Effect.appendConfig)) {
         conf = null
         base = asArray(base).concat(effect.value)
       }
@@ -824,7 +824,7 @@ export namespace GardState {
 
     /// Create an [effect](#state.TransactionSpec.effects) that
     /// reconfigures this compartment.
-    reconfigure(content: GardState.Extension): StateEffect<unknown> {
+    reconfigure(content: GardState.Extension): Transaction.Effect<unknown> {
       return GardState.Compartment.reconfigureCompartment.of({compartment: this, extension: content})
     }
 
@@ -835,7 +835,7 @@ export namespace GardState {
     }
 
     /// @internal
-    static reconfigureCompartment = StateEffect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
+    static reconfigureCompartment = Transaction.Effect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
 }
 

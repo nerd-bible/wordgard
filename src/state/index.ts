@@ -1,7 +1,7 @@
+export {Facet, GardState} from "./state"
+export {GardSelection} from "./selection"
+export {Transaction} from "./transaction"
 // FIXME
-export * from "./state"
-export * from "./selection"
-export * from "./transaction"
 export * from "./textblock"
 export {Direction, BidiSpan} from "./bidi"
-export * from "./correction"
+export {Correction} from "./correction"

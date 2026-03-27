@@ -1,4 +1,4 @@
-import {GardSelection, GardState, Annotation, Facet} from "wordgard/state"
+import {GardSelection, GardState, Transaction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
@@ -561,7 +561,7 @@ handlers.copy = handlers.cut = (view, event: ClipboardEvent) => {
   return true
 }
 
-export const isFocusChange = Annotation.define<boolean>()
+export const isFocusChange = Transaction.Annotation.define<boolean>()
 
 function updateForFocusChange(view: Wordgard) {
   setTimeout(() => {

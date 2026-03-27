@@ -1,7 +1,7 @@
 import {history, popHistory, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
 import {Plot, Leaf, ChangeSet} from "wordgard/doc"
 import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema"
-import {GardState, GardSelection, Transaction, StateEffect} from "wordgard/state"
+import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 
 const {doc, p} = basicBuilders
@@ -412,7 +412,7 @@ describe("history", () => {
 
   describe("effects", () => {
     it("includes inverted effects in the history", () => {
-      let set = StateEffect.define<number>()
+      let set = Transaction.Effect.define<number>()
       let field = GardState.Field.define({
         create: () => 0,
         update(val, tr) {
@@ -458,8 +458,8 @@ describe("history", () => {
       let from = mapping.mapPos(comment.from, 1), to = mapping.mapPos(comment.to, -1)
       return from >= to ? undefined : new Comment(from, to, comment.text)
     }
-    let addComment: StateEffect.Type<Comment> = StateEffect.define<Comment>({map: mapComment})
-    let rmComment: StateEffect.Type<Comment> = StateEffect.define<Comment>({map: mapComment})
+    let addComment = Transaction.Effect.define<Comment>({map: mapComment})
+    let rmComment = Transaction.Effect.define<Comment>({map: mapComment})
     let comments = GardState.Field.define<Comment[]>({
       create: () => [],
       update(value, tr) {

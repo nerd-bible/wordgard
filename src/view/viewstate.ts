@@ -1,10 +1,10 @@
 import {ChangeSet} from "wordgard/doc"
-import {GardState, GardSelection, Transaction, StateEffect} from "wordgard/state"
+import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {getScale, ScrollStrategy} from "./dom"
 import {UpdateFlag} from "./editorview"
 import {Wordgard} from "./editorview"
 
-export const scrollIntoView = StateEffect.define<ScrollTarget>({map: (t, ch) => t.map(ch)})
+export const scrollIntoView = Transaction.Effect.define<ScrollTarget>({map: (t, ch) => t.map(ch)})
 
 export class ScrollTarget {
   constructor(

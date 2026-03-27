@@ -1,4 +1,4 @@
-import {GardState, Transaction, StateEffect, Facet, Direction} from "wordgard/state"
+import {GardState, Transaction, Facet, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
 import {Wordgard} from "./editorview"
 import {logException} from "./util"
@@ -427,7 +427,7 @@ export interface Tooltip {
   clip?: boolean
 }
 
-const closeHoverTooltipEffect = StateEffect.define<null>()
+const closeHoverTooltipEffect = Transaction.Effect.define<null>()
 
 export namespace Tooltip {
   /// Creates an extension that configures tooltip behavior.
@@ -557,7 +557,7 @@ export namespace Tooltip {
       hoverTime?: number
     } = {}
   ): GardState.Extension & {active: GardState.Field<readonly Tooltip[]>} {
-    let setHover = StateEffect.define<readonly Tooltip[]>()
+    let setHover = Transaction.Effect.define<readonly Tooltip[]>()
     let hoverState = GardState.Field.define<readonly Tooltip[]>({
       create() { return [] },
 
@@ -711,7 +711,7 @@ class HoverPlugin {
   constructor(readonly view: Wordgard,
               readonly source: HoverTooltipSource,
               readonly field: GardState.Field<readonly Tooltip[]>,
-              readonly setHover: StateEffect.Type<readonly Tooltip[]>,
+              readonly setHover: Transaction.Effect.Type<readonly Tooltip[]>,
               readonly hoverTime: number) {
     this.lastMove = {x: 0, y: 0, target: view.dom, time: 0}
     this.checkHover = this.checkHover.bind(this)

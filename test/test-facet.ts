@@ -1,5 +1,5 @@
 import ist from "ist"
-import {GardState, Facet, StateEffect} from "wordgard/state"
+import {GardState, Facet, Transaction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 
@@ -97,7 +97,7 @@ describe("EditorState facets", () => {
     ist(ran, 2)
     st = st.update({selection: {anchor: 2}}).state
     ist(ran, 2)
-    st = st.update({effects: StateEffect.appendConfig.of(str.of("1"))}).state
+    st = st.update({effects: Transaction.Effect.appendConfig.of(str.of("1"))}).state
     ist(st.facet(num)[0], 6)
     ist(ran, 3)
   })
@@ -125,7 +125,7 @@ describe("EditorState facets", () => {
 
   it("survives reconfiguration", () => {
     let st = mk(num.compute(s => s.doc.length), num.of(2), str.of("3"))
-    let st2 = st.update({effects: StateEffect.reconfigure.of([num.compute(s => s.doc.length), num.of(2)])}).state
+    let st2 = st.update({effects: Transaction.Effect.reconfigure.of([num.compute(s => s.doc.length), num.of(2)])}).state
     ist(st.facet(num), st2.facet(num))
     ist(st2.facet(str).length, 0)
   })
@@ -135,13 +135,13 @@ describe("EditorState facets", () => {
       combine: v => ({count: v.length})
     })
     let st = mk(f.compute(s => s.doc.length), f.of(2))
-    let st2 = st.update({effects: StateEffect.appendConfig.of(str.of("hi"))}).state
+    let st2 = st.update({effects: Transaction.Effect.appendConfig.of(str.of("hi"))}).state
     ist(st.facet(f), st2.facet(f))
   })
 
   it("preserves static facets across reconfiguration", () => {
     let st = mk(num.of(1), num.of(2), str.of("3"))
-    let st2 = st.update({effects: StateEffect.reconfigure.of([num.of(1), num.of(2)])}).state
+    let st2 = st.update({effects: Transaction.Effect.reconfigure.of([num.of(1), num.of(2)])}).state
     ist(st.facet(num), st2.facet(num))
   })
 
@@ -158,14 +158,14 @@ describe("EditorState facets", () => {
         return val + 1
       }
     })
-    st = st.update({effects: StateEffect.appendConfig.of(field)}).state
+    st = st.update({effects: Transaction.Effect.appendConfig.of(field)}).state
     ist(events.join(", "), "create, update 0")
     ist(st.field(field), 1)
   })
 
   it("applies effects from reconfiguring transaction to new fields", () => {
     let st = mk()
-    let effect = StateEffect.define<number>()
+    let effect = Transaction.Effect.define<number>()
     let field = GardState.Field.define<number>({
       create(state) {
         return state.facet(num)[0] ?? 0
@@ -175,7 +175,7 @@ describe("EditorState facets", () => {
       }
     })
     st = st.update({effects: [
-      StateEffect.appendConfig.of([field, num.of(10)]),
+      Transaction.Effect.appendConfig.of([field, num.of(10)]),
       effect.of(5)
     ]}).state
     ist(st.field(field), 15)
@@ -188,15 +188,15 @@ describe("EditorState facets", () => {
 
   it("updates facets computed from static values on reconfigure", () => {
     let st = mk(num.compute(state => state.facet(str).length), str.of("A"))
-    st = st.update({effects: StateEffect.appendConfig.of(str.of("B"))}).state
+    st = st.update({effects: Transaction.Effect.appendConfig.of(str.of("B"))}).state
     ist(st.facet(num).join(","), "2")
-    ist(st.facet(num), st.update({effects: StateEffect.appendConfig.of(bool.of(false))}).state.facet(num))
+    ist(st.facet(num), st.update({effects: Transaction.Effect.appendConfig.of(bool.of(false))}).state.facet(num))
   })
 
   it("preserves dynamic facet values when dependencies stay the same", () => {
     let f = Facet.define<{a: number}>()
     let st1 = mk(f.compute(state => ({a: 1})), str.of("A"))
-    let st2 = st1.update({effects: StateEffect.appendConfig.of(bool.of(true))}).state
+    let st2 = st1.update({effects: Transaction.Effect.appendConfig.of(bool.of(true))}).state
     ist(st1.facet(f), st2.facet(f))
   })
 })

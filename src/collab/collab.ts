@@ -1,4 +1,4 @@
-import {Facet, Annotation, GardState, StateEffect, Transaction} from "wordgard/state"
+import {Facet, GardState, Transaction} from "wordgard/state"
 import {ChangeSet, Plot} from "wordgard/doc"
 
 /// An update is a set of changes and effects.
@@ -10,7 +10,7 @@ export interface Update {
   /// The effects in this update. There'll only ever be effects here
   /// when you configure your collab extension with a
   /// [`sharedEffects`](#collab.collab^config.sharedEffects) option.
-  effects?: readonly StateEffect<unknown>[]
+  effects?: readonly Transaction.Effect<unknown>[]
   /// The [ID](#collab.collab^config.clientID) of the client who
   /// created this update.
   clientID: string
@@ -19,7 +19,7 @@ export interface Update {
 class LocalUpdate {
   constructor(
     readonly changes: ChangeSet,
-    readonly effects: readonly StateEffect<unknown>[],
+    readonly effects: readonly Transaction.Effect<unknown>[],
   ) {}
 }
 
@@ -47,7 +47,7 @@ type CollabConfig = {
   /// returns will be sent to the server, much like changes are. Such
   /// effects are automatically remapped when conflicting remote
   /// changes come in.
-  sharedEffects?: (tr: Transaction) => readonly StateEffect<any>[]
+  sharedEffects?: (tr: Transaction) => readonly Transaction.Effect<any>[]
 }
 
 const collabConfig = Facet.define<CollabConfig & {generatedID: string}, Required<CollabConfig>>({
@@ -60,7 +60,7 @@ const collabConfig = Facet.define<CollabConfig & {generatedID: string}, Required
   }
 })
 
-const collabReceive = Annotation.define<CollabState>()
+const collabReceive = Transaction.Annotation.define<CollabState>()
 
 const collabField = GardState.Field.define({
   create(state) {
@@ -83,11 +83,11 @@ export function collab(config: CollabConfig = {}): GardState.Extension {
   return [collabField, collabConfig.of({generatedID: Math.floor(Math.random() * 1e9).toString(36), ...config})]
 }
 
-function collapseUpdates(updates: readonly {changes: ChangeSet, effects?: readonly StateEffect<unknown>[]}[]) {
+function collapseUpdates(updates: readonly {changes: ChangeSet, effects?: readonly Transaction.Effect<unknown>[]}[]) {
   let {changes, effects = []} = updates[0]
   for (let i = 1; i < updates.length; i++) {
     let next = updates[i]
-    effects = StateEffect.mapEffects(effects, next.changes)
+    effects = Transaction.Effect.mapEffects(effects, next.changes)
     if (next.effects) effects = effects.concat(next.effects)
     changes = changes.compose(next.changes)
   }
@@ -129,10 +129,10 @@ export function receiveUpdates(state: GardState, updates: readonly Update[]) {
   if (unconfirmed.length) {
     let ours = collapseUpdates(unconfirmed)
     let oursMapped = new LocalUpdate(ours.changes.map(changes, syncedDoc, false),
-                                     StateEffect.mapEffects(ours.effects, changes))
+                                     Transaction.Effect.mapEffects(ours.effects, changes))
     unconfirmed = [oursMapped]
     changes = changes.map(ours.changes, syncedDoc, true)
-    effects = StateEffect.mapEffects(effects, oursMapped.changes)
+    effects = Transaction.Effect.mapEffects(effects, oursMapped.changes)
   }
   syncedDoc = newSyncedDoc
 

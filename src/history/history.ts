@@ -1,24 +1,24 @@
-import {GardState, Transaction, StateEffect, Facet, Annotation, GardSelection} from "wordgard/state"
+import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {undo, redo} from "wordgard/command"
 
 const enum BranchName { Done, Undone }
 
-const fromHistory = Annotation.define<{side: BranchName, rest: Branch | null, selection: GardSelection}>()
+const fromHistory = Transaction.Annotation.define<{side: BranchName, rest: Branch | null, selection: GardSelection}>()
 
 /// Transaction annotation that will prevent that transaction from
 /// being combined with other transactions in the undo history. Given
 /// `"before"`, it'll prevent merging with previous transactions. With
 /// `"after"`, subsequent transactions won't be combined with this
 /// one. With `"full"`, the transaction is isolated on both sides.
-export const isolateHistory = Annotation.define<"before" | "after" | "full">()
+export const isolateHistory = Transaction.Annotation.define<"before" | "after" | "full">()
 
 /// This facet provides a way to register functions that, given a
 /// transaction, provide a set of effects that the history should
 /// store when inverting the transaction. This can be used to
 /// integrate specific effects in the history, so that they can be
 /// undone (and redone again).
-export const invertedEffects = Facet.define<(tr: Transaction) => readonly StateEffect<any>[]>()
+export const invertedEffects = Facet.define<(tr: Transaction) => readonly Transaction.Effect<any>[]>()
 
 interface HistoryConfig {
   /// The minimum depth (amount of events) to store. Defaults to 100.
@@ -168,7 +168,7 @@ class Branch {
     // change or effect.
     readonly changes: ChangeSet,
     // The effects associated with this event
-    readonly effects: readonly StateEffect<any>[],
+    readonly effects: readonly Transaction.Effect<any>[],
     // Accumulated mapping (from addToHistory==false) that should be
     // applied to this event and those below. `doc` refers to the doc
     // that doesn't have this change yet, which is both the start doc
@@ -183,9 +183,9 @@ class Branch {
   }
 
   // Assumes `this` is already resolved
-  addChanges(changes: ChangeSet, effects: readonly StateEffect<any>[]) {
+  addChanges(changes: ChangeSet, effects: readonly Transaction.Effect<any>[]) {
     return new Branch(changes.compose(this.changes),
-                          conc(StateEffect.mapEffects(effects, this.changes), this.effects),
+                          conc(Transaction.Effect.mapEffects(effects, this.changes), this.effects),
                           null, this.startSelection, this.next)
   }
 
@@ -203,7 +203,7 @@ class Branch {
     // Map the effects over the original mapping, and the selection
     // (referring to the state before this event's changes) over the
     // updated mapping.
-    return new Branch(mappedChanges, StateEffect.mapEffects(this.effects, change), null,
+    return new Branch(mappedChanges, Transaction.Effect.mapEffects(this.effects, change), null,
                       this.startSelection.map(mappedMapping), next)
   }
 
@@ -246,9 +246,9 @@ class Branch {
 
 function eventFromTransaction(tr: Transaction): {
   changes: ChangeSet,
-  effects: readonly StateEffect<any>[]
+  effects: readonly Transaction.Effect<any>[]
 } | null {
-  let effects: readonly StateEffect<any>[] = none
+  let effects: readonly Transaction.Effect<any>[] = none
   for (let invert of tr.startState.facet(invertedEffects)) {
     let result = invert(tr)
     if (result.length) effects = effects.concat(result)
@@ -298,7 +298,7 @@ class HistoryState {
     return this.prevTime ? new HistoryState(this.done, this.undone) : this
   }
 
-  addChanges(event: {changes: ChangeSet, effects: readonly StateEffect<any>[]},
+  addChanges(event: {changes: ChangeSet, effects: readonly Transaction.Effect<any>[]},
              time: number, userEvent: string | undefined,
              config: Required<HistoryConfig>, tr: Transaction): HistoryState {
     // Make sure the top of the done branch is resolved, so that we

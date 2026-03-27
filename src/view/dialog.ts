@@ -1,4 +1,4 @@
-import {StateEffect, GardState} from "wordgard/state"
+import {Transaction, GardState} from "wordgard/state"
 import {Panel} from "./panel"
 import {Wordgard} from "./editorview"
 
@@ -41,7 +41,7 @@ type DialogConfig = {
 /// you don't, this function will automatically dispatch a separate
 /// transaction right after.
 export function showDialog(view: Wordgard, config: DialogConfig): {
-  close: StateEffect<unknown>,
+  close: Transaction.Effect<unknown>,
   result: Promise<HTMLFormElement | null>
 } {
   let resolve: (form: HTMLFormElement | null) => void
@@ -50,7 +50,7 @@ export function showDialog(view: Wordgard, config: DialogConfig): {
   if (view.state.field(dialogField, false)) {
     view.dispatch({effects: openDialogEffect.of(panelCtor)})
   } else {
-    view.dispatch({effects: StateEffect.appendConfig.of(dialogField.init(() => [panelCtor]))})
+    view.dispatch({effects: Transaction.Effect.appendConfig.of(dialogField.init(() => [panelCtor]))})
   }
   let close = closeDialogEffect.of(panelCtor)
   return {close, result: promise.then(form => {
@@ -86,8 +86,8 @@ const dialogField = GardState.Field.define<readonly Panel.Constructor[]>({
   provide: f => Panel.show.computeN(state => state.field(f))
 })
 
-const openDialogEffect = StateEffect.define<Panel.Constructor>()
-const closeDialogEffect = StateEffect.define<Panel.Constructor>()
+const openDialogEffect = Transaction.Effect.define<Panel.Constructor>()
+const closeDialogEffect = Transaction.Effect.define<Panel.Constructor>()
 
 function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLFormElement | null) => void): Panel {
   let content = config.content ? config.content(view, () => done(null)) : null

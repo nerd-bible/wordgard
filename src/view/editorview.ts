@@ -1,4 +1,4 @@
-import {GardState, Transaction, Facet, StateEffect, GardSelection} from "wordgard/state"
+import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {ChangeSet, Node} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
@@ -528,7 +528,7 @@ export class Wordgard {
     /// strategy. Defaults to 5. Must be less than the width of the
     /// editor.
     xMargin?: number,
-  } = {}): StateEffect<unknown> {
+  } = {}): Transaction.Effect<unknown> {
     return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? GardSelection.cursor(pos) : pos,
                                               options.y, options.x, options.yMargin, options.xMargin))
   }
@@ -764,7 +764,7 @@ export class Wordgard {
   /// describe effects that are visually obvious but may not be
   /// noticed by screen reader users (such as moving to the next
   /// search match).
-  static announce = StateEffect.define<string>()
+  static announce = Transaction.Effect.define<string>()
 
   /// @internal for testing
   static DocTile = DocTile
@@ -787,7 +787,7 @@ export namespace Wordgard {
     /// [`Wordgard.scrollIntoView`](#view.Wordgard^scrollIntoView) or
     /// [`Wordgard.scrollSnapshot`](#view.Wordgard.scrollSnapshot)
     /// here to set an initial scroll position.
-    scrollTo?: StateEffect<any>,
+    scrollTo?: Transaction.Effect<any>,
   }
 }
 
