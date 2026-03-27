@@ -1,7 +1,8 @@
 import {GardSelection, GardState, Annotation, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter, insertText,
-        deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel} from "wordgard/command"
+        deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
+        transposeChars, deleteSelection} from "wordgard/command"
 import {Wordgard, PluginInstance} from "./editorview"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
@@ -682,12 +683,7 @@ observers.contextmenu = view => {
   view.inputState.lastContextMenu = Date.now()
 }
 
-// FIXME deleteHardLineBackward,
-// deleteHardLineForward, deleteContent, formatSetBlockTextDirection,
-// formatSetInlineTextDirection
-//
-// Maybe: insertFromYank, insertFromDrop, insertFromPaste,
-// insertTranspose, deleteByDrag, deleteByCut
+// FIXME formatSetBlockTextDirection, formatSetInlineTextDirection
 const inputTypeCommands: {[inputType: string]: (view: Wordgard) => boolean} = {
   historyUndo: undo.bind(),
   historyRedo: redo.bind(),
@@ -699,6 +695,14 @@ const inputTypeCommands: {[inputType: string]: (view: Wordgard) => boolean} = {
   deleteWordForward: deleteWord.bind("forward"),
   deleteSoftLineBackward: deleteToLineEnd.bind("backward"),
   deleteSoftLineForward: deleteToLineEnd.bind("forward"),
+  deleteHardLineBackward: deleteToLineEnd.bind("backward"),
+  deleteHardLineForward: deleteToLineEnd.bind("forward"),
+  deleteContent: view => {
+    let tr = deleteSelection(view.state)
+    if (tr) view.dispatch(tr)
+    return !!tr
+  },
+  insertTranspose: transposeChars.bind(),
   deleteEntireSoftLine: deleteLine.bind(),
   formatBold: toggleMarkByLabel.bind(Mark.Role.Strong),
   formatItalic: toggleMarkByLabel.bind(Mark.Role.Emphasis),
@@ -721,7 +725,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
     let {from, to} = inputEventRange(event, view)
     insertText.dispatch(view, {from, to, insert, userEvent: "input.type"})
     return true
-  } else if (type == "insertReplacementText") {
+  } else if (type == "insertReplacementText" || type == "insertFromYank") {
     let slice = readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
     if (slice) {
       let {from, to} = inputEventRange(event, view)
