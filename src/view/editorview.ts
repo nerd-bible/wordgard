@@ -18,6 +18,8 @@ import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView}
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {exceptionSink, logException} from "./util"
 
+// FIXME name this file and this package something else?
+
 /// An editor view represents the editor's user interface. It holds
 /// the editable DOM surface, and possibly other elements such as
 /// panels. It handles events and dispatches state transactions for

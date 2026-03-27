@@ -118,6 +118,19 @@ export const deleteToLineEnd = Command.define<"forward" | "backward">((view, dir
   return true
 })
 
+export const deleteLine = Command.define(view => {
+  let tr = deleteSelection(view.state), {selection} = view.state
+  if (tr) return (view.dispatch(tr), true)
+  let start = view.moveToLineBoundary(selection, false), end = view.moveToLineBoundary(selection, true)
+  if (!start || !end || start.head >= end.head) return false
+  view.dispatch({
+    changes: {correct: {from: start.head, to: end.head}},
+    scrollIntoView: true,
+    userEvent: "delete.line"
+  })
+  return true
+})
+
 export const transposeChars = Command.define(view => {
   let {state} = view, {sel} = state, head = state.selection.head
   if (!sel.empty) return false

@@ -134,8 +134,11 @@ export function moveToLineBoundary(view: Wordgard, start: GardSelection, forward
   if (!block) return null
   let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
   let dir = view.state.textDirection(block.node.tag)
-  let blockRect = (view.docTile.resolve(block.start, 0).dom as HTMLElement).getBoundingClientRect()
-  let {pos} = view.posAtCoords({x: forward == (dir == Direction.LTR) ? blockRect.right : blockRect.left,
-                                y: (startCoords.top + startCoords.bottom) / 2})
+  let y = (startCoords.top + startCoords.bottom) / 2, left = forward != (dir == Direction.LTR)
+  let {pos} = view.posAtCoords({x: left ? -1e7 : 1e7, y})
+  if (pos < block.start || pos > block.end) {
+    let blockRect = (view.docTile.resolve(block.start, 0).dom as Element).getBoundingClientRect()
+    pos = view.posAtCoords({x: left ? blockRect.left : blockRect.right, y}).pos
+  }
   return GardSelection.cursor(pos, forward ? -1 : 1)
 }

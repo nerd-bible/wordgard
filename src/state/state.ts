@@ -6,6 +6,8 @@ import {Direction} from "./bidi"
 
 let nextID = 0
 
+// FIXME reconsider whether computed facet inputs are worth it
+
 const none: readonly any[] = []
 
 /// A facet is a labeled value that is associated with an editor

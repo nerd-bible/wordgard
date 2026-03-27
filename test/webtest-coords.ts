@@ -42,7 +42,7 @@ describe("coordsAtPos", () => {
       "p": { paddingBottom: "3px" }
     }))
     let p5 = view.coordsAtPos(5)
-    ist(P(view, p5.left - 1, p5.bottom + 1), "6<")
+    ist(P(view, p5.left - 1, p5.bottom + 10), "7<")
   })
 
   it("assigns position below wrapped text to end", () => {

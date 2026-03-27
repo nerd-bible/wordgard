@@ -254,23 +254,19 @@ export class CompositeTile extends Tile {
 
   // FIXME adopt the binary search trick from CodeMirror
   posAtCoordsRow(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null): CoordPos | null {
-    let scan = new RowScan<Tile>(x, y)
-    for (let child of this.children) {
-      if (child.isPoint) continue
-      let rects, {dom} = child
-      if (dom.nodeType == 1) rects = (dom as Element).getClientRects()
-      else if (dom.nodeType == 3) rects = textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
-      else continue
-      for (let i = 0; i < rects.length; i++) scan.rect(rects[i], child)
-      if (scan.done) break
-    }
-    if (!scan.closest) return null
-    let closest = scan.closest, rect = scan.closestRect!
+    let result = rowScan<Tile>(x, y, add => {
+      for (let child of this.children) {
+        if (child.isPoint) continue
+        let rects, {dom} = child
+        if (dom.nodeType == 1) rects = (dom as Element).getClientRects()
+        else if (dom.nodeType == 3) rects = textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
+        else continue
+        for (let i = 0; i < rects.length; i++) if (add(rects[i], child)) return
+      }
+    })
+    if (!result) return null
+    let {closest, rect} = result
     let pos = this.posBeforeChild(closest, start)
-    if (scan.dyClosest) { // Coords are vertically outside of the child
-      if (y > rect.bottom) return CoordPos.create(pos + closest.length, -1, null, true)
-      else return CoordPos.create(pos, 1, null, true)
-    }
     return closest.posAtCoordsInner(pos + closest.boundary, state,
                                     x, Math.max(rect!.top, Math.min(rect!.bottom, y)),
                                     textblock, Orientation.Row)
@@ -294,45 +290,39 @@ export class CompositeTile extends Tile {
 // Algorithm for posAtCoords in row-layout elements (textblocks, block
 // containers with orientation=row, and text nodes). Locates the
 // closest element to the coordinates, prioritizing y closeness, and
-// organizing things that overlap vertically into rows, conceptually
-// expanding their height to the full height of the row.
-class RowScan<T> {
-  dxClosest = 1e9
-  dyClosest = 1e9
-  closest: T | null = null
-  closestRect: DOMRect | null = null
-  rowTop: number
-  rowBot: number
-
-  constructor(readonly x: number, readonly y: number) {
-    this.rowTop = this.rowBot = y
-  }
-
-  rect(rect: DOMRect, value: T) {
-    let {x, y} = this
-    let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
-    let dy = rect.top > y ? rect.top - y : rect.bottom < y ? y - rect.bottom : 0
-    if (rect.top <= this.rowBot && rect.bottom >= this.rowTop) {
-      // Rectangle is in the current row
-      this.rowTop = Math.min(rect.top, this.rowTop)
-      this.rowBot = Math.max(rect.bottom, this.rowBot)
-      dy = 0
-    }
-    if (this.closest == null || (dy - this.dyClosest || dx - this.dxClosest) < 0) {
-      if (this.closest && this.dyClosest && this.dxClosest < dx &&
-          this.closestRect!.top <= this.rowBot - 2 && this.closestRect!.bottom >= this.rowTop + 2) {
-        // Retroactively set dy to 0 if the current match is in this row.
-        this.dyClosest = 0
-      } else {
-        this.closest = value
-        this.dxClosest = dx
-        this.dyClosest = dy
-        this.closestRect = rect
+// organizing things that overlap vertically into rows.
+function rowScan<T>(
+  x: number, y: number, scan: (rect: (rect: DOMRect, value: T) => boolean) => void
+): {closest: T, rect: DOMRect} | null {
+  let closest: T | null = null, closestDx = 1e8, closestRect: DOMRect | null = null as any
+  let above: DOMRect | null = null as any, below: DOMRect | null = null as any
+  scan((rect: DOMRect, value: T) => {
+    if (rect.bottom < y) {
+      if (!above || above.bottom < rect.bottom) above = rect
+    } else if (rect.top > y) {
+      if (!below || below.top > rect.top) below = rect
+    } else {
+      let dx = rect.left > x ? rect.left - x : rect.right < x ? x - rect.right : 0
+      if (dx < closestDx) {
+        closest = value
+        closestDx = dx
+        closestRect = rect
+        return !dx
       }
     }
-  }
+    return false
+  })
 
-  get done() { return !this.dxClosest && !this.dyClosest }
+  if (closestRect) {
+    if (closestDx) {
+      if (above && above.bottom > closestRect.top) return rowScan(x, above.bottom - 1, scan)
+      if (below && below.top < closestRect.bottom) return rowScan(x, below.top + 1, scan)
+    }
+    return {closest: closest!, rect: closestRect}
+  }
+  let side: DOMRect | null = above && (!below || (y - above.bottom < below.top - y)) ? above : below
+  if (!side) return null
+  return rowScan(x, (side.top + side.bottom) / 2, scan)
 }
 
 export function dirAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
@@ -585,19 +575,17 @@ export class TextTile extends Tile {
 
   posAtCoordsInner(start: number, state: GardState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): CoordPos {
-    let scan = new RowScan<number>(x, y)
-    for (let i = 0; i < this.length;) {
-      let end = findClusterBreak(this.text, i)
-      let rect = singleRect(textRange(this.dom, i, end), 1)
-      if (rect.top == rect.bottom) continue
-      scan.rect(rect, i)
-      if (scan.done) break
-      i = end
-    }
-    let closest = scan.closest!, rect = scan.closestRect!
+    let {closest, rect} = rowScan<number>(x, y, add => {
+      for (let i = 0; i < this.length;) {
+        let end = findClusterBreak(this.text, i)
+        let rect = singleRect(textRange(this.dom, i, end), 1)
+        if (rect.top == rect.bottom) continue
+        if (add(rect, i)) break
+        i = end
+      }
+    })!
     let pos = start + closest, dir = dirAt(state, pos, 1, textblock)
-    let after = scan.dyClosest ? y > rect.bottom
-      : (x > (rect.left + rect.right) / 2) == (dir == Direction.LTR)
+    let after = (x > (rect.left + rect.right) / 2) == (dir == Direction.LTR)
     if (after) return CoordPos.create(start + findClusterBreak(this.text, closest), -1)
     else return CoordPos.create(pos, 1)
   }

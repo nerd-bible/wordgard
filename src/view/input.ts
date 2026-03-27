@@ -1,7 +1,7 @@
 import {GardSelection, GardState, Annotation, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter, insertText,
-        deleteWord, deleteUnit, deleteToLineEnd, toggleMarkByLabel} from "wordgard/command"
+        deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel} from "wordgard/command"
 import {Wordgard, PluginInstance} from "./editorview"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
@@ -506,7 +506,6 @@ handlers.dragend = view => {
 
 handlers.drop = (view, event: DragEvent) => {
   if (!event.dataTransfer || view.state.readOnly) return true
-  // FIXME allow handling of file drops
   let content = readClipboard(view.state, event.dataTransfer, view.state.sel.head, false)
   if (content) {
     let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY}).pos
@@ -661,11 +660,11 @@ export function getCompositionInfo(view: Wordgard): CompositionInfo | null {
   if (!target) return null
   let from = view.docTile.posBeforeDOM(target)
   if (from == null) return null
+  for (let tr of view.viewState.pending) from = tr.changes.mapPos(from, -1)
   let value = target.nodeValue!
   let oldTile = view.docTile.nearest(target)
   let oldLen = oldTile && oldTile.dom == target ? oldTile.length : 0
 
-  // FIXME use queued transaction mappings?
   return {
     fromA: from, toA: from + oldLen,
     text: value,
@@ -683,7 +682,7 @@ observers.contextmenu = view => {
   view.inputState.lastContextMenu = Date.now()
 }
 
-// FIXME deleteEntireSoftLine, deleteHardLineBackward,
+// FIXME deleteHardLineBackward,
 // deleteHardLineForward, deleteContent, formatSetBlockTextDirection,
 // formatSetInlineTextDirection
 //
@@ -700,6 +699,7 @@ const inputTypeCommands: {[inputType: string]: (view: Wordgard) => boolean} = {
   deleteWordForward: deleteWord.bind("forward"),
   deleteSoftLineBackward: deleteToLineEnd.bind("backward"),
   deleteSoftLineForward: deleteToLineEnd.bind("forward"),
+  deleteEntireSoftLine: deleteLine.bind(),
   formatBold: toggleMarkByLabel.bind(Mark.Role.Strong),
   formatItalic: toggleMarkByLabel.bind(Mark.Role.Emphasis),
   formatUnderline: toggleMarkByLabel.bind(Mark.Role.Underline),
