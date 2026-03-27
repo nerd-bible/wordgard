@@ -214,9 +214,8 @@ export interface MouseSelectionStyle {
   /// latest `mousemove` event will be passed.
   ///
   /// When `extend` is true, that means the new selection should, if
-  /// possible, extend the start selection. If `multiple` is true, the
-  /// new selection should be added to the original selection.
-  get: (curEvent: MouseEvent, extend: boolean, multiple: boolean) => GardSelection
+  /// possible, extend the start selection.
+  get: (curEvent: MouseEvent, extend: boolean) => GardSelection
   /// Called when the view is updated while the gesture is in
   /// progress. When the document changes, it may be necessary to map
   /// some data (like the original selection or start position)
@@ -243,7 +242,6 @@ function dist(a: MouseEvent, b: MouseEvent) {
 class MouseSelection {
   dragging: null | boolean
   extend: boolean
-  multiple: boolean
   lastEvent: MouseEvent
   scrollParents: {x?: HTMLElement, y?: HTMLElement}
   scrollSpeed = {x: 0, y: 0}
@@ -260,7 +258,6 @@ class MouseSelection {
     doc.addEventListener("mouseup", this.up = this.up.bind(this))
 
     this.extend = startEvent.shiftKey
-    this.multiple = addsSelectionRange(view, startEvent)
     this.dragging = isInPrimarySelection(view, startEvent) && startEvent.detail == 1 ? null : false
   }
 
@@ -331,8 +328,8 @@ class MouseSelection {
   }
 
   select(event: MouseEvent) {
-    let {view} = this, selection = this.style.get(event, this.extend, this.multiple)
-    if (this.mustSelect || !selection.eqPos(view.state.selection)) // FIXME preserve assoc somehow?
+    let {view} = this, selection = this.style.get(event, this.extend)
+    if (this.mustSelect || !selection.eqPos(view.state.selection))
       this.view.dispatch({
         selection,
         userEvent: "select.pointer"
@@ -346,13 +343,6 @@ class MouseSelection {
     else if (this.style.update(update))
       setTimeout(() => this.select(this.lastEvent), 20)
   }
-}
-
-export const clickAddsSelectionRange = Facet.define<(event: MouseEvent) => boolean>()
-
-function addsSelectionRange(view: Wordgard, event: MouseEvent) {
-  let facet = view.state.facet(clickAddsSelectionRange)
-  return facet.length ? facet[0](event) : browser.mac ? event.metaKey : event.ctrlKey
 }
 
 export const dragBehavior = Facet.define<(event: MouseEvent) => boolean>()
@@ -471,17 +461,18 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
     },
     get(event, extend) {
       let cur = queryPos(view, event), {from, to} = rangeForClick(view, cur, type)
-      if (start.pos != cur.pos && !extend) {
+      if (extend) {
+        if (from < startSel.anchor)
+          return GardSelection.range(startSel.anchor, from, from < to ? 1 : cur.assoc)
+        else
+          return GardSelection.range(startSel.anchor, to, from < to ? -1 : cur.assoc)
+      }
+      if (start.pos != cur.pos) {
         let startRange = rangeForClick(view, start, type)
         from = Math.min(startRange.from, from)
         to = Math.max(startRange.to, to)
       }
-      if (extend)
-        return startSel.extend(from, to)
-      else if (from == to)
-        return GardSelection.cursor(from, cur.assoc)
-      else
-        return GardSelection.range(from, to)
+      return GardSelection.range(from, to, cur.assoc)
     }
   } as MouseSelectionStyle
 }
@@ -742,7 +733,6 @@ handlers.beforeinput = (view, event: InputEvent) => {
 }
 
 handlers.input = (view, event: InputEvent) => {
-  // FIXME do this somewhere else?
   if (event.inputType == "insertCompositionText" && view.inputState.currentComposition) {
     let {from, to, text} = view.inputState.currentComposition
     view.inputState.currentComposition = null

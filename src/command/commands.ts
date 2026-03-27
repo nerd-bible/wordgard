@@ -349,8 +349,8 @@ function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any)
 
 function setSelection(view: Wordgard, selection: GardSelection, extend?: boolean) {
   view.dispatch(view.state.update({
-    selection: extend ? GardSelection.range(view.state.selection.anchor, selection.head, selection.goalColumn, selection.marks)
-      : selection,
+    selection: !extend ? selection
+      : GardSelection.range(view.state.selection.anchor, selection.head, selection.assoc, selection.goalColumn, selection.marks),
     scrollIntoView: true,
     userEvent: "select"
   }))

@@ -55,18 +55,6 @@ export class GardSelection {
     return this._ranges || (this._ranges = [{from: this.from, to: this.to}])
   }
 
-  /// Extend this selection to cover at least `from` to `to`.
-  extend(from: number, to: number = from) {
-    let {head, anchor} = this
-    if (from <= this.anchor && to >= this.anchor) {
-      anchor = from
-      head = to
-    } else {
-      head = Math.abs(from - this.anchor) > Math.abs(to - this.anchor) ? from : to
-    }
-    return GardSelection.createInner(anchor, head, 0, this.goalColumn)
-  }
-
   /// Returns true if this selection has the same head and anchor as
   /// the given selection.
   eqPos(other: GardSelection) {
@@ -91,7 +79,7 @@ export class GardSelection {
     let ranges = this.ranges.map(r => r.from == this.from && r.to == this.to ? main
       : GardSelection.mapRange(change, r.from, r.to, assoc))
     let [anchor, head] = this.anchor < this.head ? [main.from, main.to] : [main.to, main.from]
-    return GardSelection.createInner(anchor, head, anchor == head ? this.assoc : 0, this.goalColumn, ranges, this.marks)
+    return GardSelection.createInner(anchor, head, this.assoc, this.goalColumn, ranges, this.marks)
   }
 
   /// @internal
@@ -130,7 +118,7 @@ export class GardSelection {
     let marks = json.marks ? schema.marksFromJSON(json.marks) : undefined
     let ranges = Array.isArray(json.ranges) && json.ranges.every(r => typeof r.from == "number" && typeof r.to == "number")
     return GardSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, undefined,
-                                       ranges ? json.ranges! : undefined, marks)
+                                     ranges ? json.ranges! : undefined, marks)
   }
 
   /// Create a cursor selection range at the given position. You can
@@ -140,8 +128,9 @@ export class GardSelection {
   }
 
   /// Create a range selection.
-  static range(anchor: number, head: number, goalColumn?: number, marks?: readonly Mark<any>[]) {
-    return GardSelection.createInner(anchor, head, 0, goalColumn, undefined, marks)
+  static range(anchor: number, head: number, assoc?: -1 | 0 | 1, goalColumn?: number, marks?: readonly Mark<any>[]) {
+    if (assoc == null) assoc = head < anchor ? 1 : head > anchor ? -1 : 0
+    return GardSelection.createInner(anchor, head, assoc, goalColumn, undefined, marks)
   }
 
   private static createInner(anchor: number, head: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number,
@@ -153,7 +142,7 @@ export class GardSelection {
   /// Create a selection.
   static create(spec: GardSelection.Spec) {
     return GardSelection.createInner(spec.anchor, spec.head || spec.anchor, spec.assoc, spec.goalColumn,
-                                       spec.ranges, spec.marks)
+                                     spec.ranges, spec.marks)
   }
 
   /// Find the next normal cursor position after or before this selection's

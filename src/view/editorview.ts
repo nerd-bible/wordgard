@@ -10,8 +10,7 @@ import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFil
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
-import {InputState, getCompositionInfo, isFocusChange,
-        mouseSelectionStyle, clickAddsSelectionRange, dragBehavior} from "./input"
+import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle, dragBehavior} from "./input"
 import {ViewState, Direction, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
 import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
@@ -678,12 +677,6 @@ export class Wordgard {
   /// called with the `mousedown` event, and can return `true` when
   /// the drag should move the content.
   static dragMovesSelection = dragBehavior
-
-  /// Facet used to configure whether a given selecting click adds a
-  /// new range to the existing selection or replaces it entirely. The
-  /// default behavior is to check `event.metaKey` on macOS, and
-  /// `event.ctrlKey` elsewhere.
-  static clickAddsSelectionRange = clickAddsSelectionRange
 
   /// Facet that allows extensions to provide additional scroll
   /// margins (space around the sides of the scrolling element that

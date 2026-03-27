@@ -73,7 +73,7 @@ export function moveVertically(view: Wordgard, start: GardSelection, forward: bo
     } else {
       let coords = view.coordsForElement(nextNode.before)!
       if (forward ? coords.bottom > y : coords.top < y)
-        return GardSelection.range(nextNode.before, nextNode.after, goalColumn)
+        return GardSelection.range(nextNode.before, nextNode.after, undefined, goalColumn)
       scan = forward ? nextNode.after : nextNode.before
     }
   }
