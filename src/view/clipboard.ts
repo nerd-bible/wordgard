@@ -1,4 +1,4 @@
-import {Slice, Leaf, Plot, Node, Mark, Pos, serializeSlice, parseSlice, OpenSide, Token, Elt} from "wordgard/doc"
+import {Slice, Leaf, Plot, Node, Mark, Pos, serializeSlice, parseSlice, Token, Elt} from "wordgard/doc"
 import {Facet, GardState} from "wordgard/state"
 import browser from "./browser"
 
@@ -66,8 +66,7 @@ export function writeClipboard(state: GardState, slice: Slice, context: readonly
 }
 
 function isOpen(elt: Element) {
-  let value = elt.getAttribute("wg-open")
-  return value == "start" ? OpenSide.Start : value == "end" ? OpenSide.End : value ? OpenSide.Both : OpenSide.None
+  return (elt.getAttribute("wg-open") || null) as "start" | "end" | "start end" | null
 }
 
 export function readClipboard(state: GardState, data: DataTransfer, targetContext: Pos, plain: boolean) {

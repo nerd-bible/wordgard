@@ -1,4 +1,4 @@
-import {Slice, Token, TokenType, End} from "./slice"
+import {Slice, Token} from "./slice"
 import {TextOutput} from "./text"
 import {NodeShape} from "./shape"
 import type {Schema} from "./schema"
@@ -230,7 +230,7 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
     return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
   }
 
-  get tokenType(): TokenType.Node { return TokenType.Node }
+  get tokenType(): Token.Type.Node { return Token.Type.Node }
   get isLeaf(): true { return true }
   get isPlot(): false { return false }
 
@@ -448,7 +448,7 @@ export class Plot implements Node.Shared {
     return Mark.sameSet(this.tag.marks, marks) ? this : this.tag.withMarks(marks).create(this.content)
   }
 
-  get tokenType(): TokenType.Node { return TokenType.Node }
+  get tokenType(): Token.Type.Node { return Token.Type.Node }
 
   static defineInline(name: string, spec: Plot.Spec<null>): Plot.Tag<null> {
     checkTagName(name)
@@ -470,7 +470,7 @@ export class Plot implements Node.Shared {
     })
   }
 
-  static End = End
+  static End = Token.End
 }
 
 export namespace Plot {
@@ -500,7 +500,7 @@ export namespace Plot {
       })) : this
     }
 
-    get tokenType(): TokenType.Open { return TokenType.Open }
+    get tokenType(): Token.Type.Open { return Token.Type.Open }
 
     get inlineContent() { return this.type.inlineContent }
     get isTextblock() { return this.type.isTextblock }

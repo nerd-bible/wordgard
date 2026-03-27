@@ -382,5 +382,4 @@ export namespace ParseRule {
   export type Reject = typeof ParseRule.Reject
 }
 
-
 export type ParseRule<Param = any> = ParseRule.Element<Param> | ParseRule.Attribute<Param>

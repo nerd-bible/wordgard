@@ -1,6 +1,6 @@
 import {Schema} from "./schema"
 import {Plot, Node, Leaf} from "./node"
-import { Mark } from "./mark"
+import {Mark} from "./mark"
 import {Slice, Token} from "./slice"
 import {ParseRule} from "./shape"
 
@@ -100,7 +100,7 @@ export type ParseOptions = {
   /// (outside nodes that don't enable `preserveWhitespace`). Defaults
   /// to true.
   collapseWhiteSpace?: boolean
-  isOpen?: (elt: Element) => OpenSide
+  isOpen?: (elt: Element) => null | "start" | "end" | "start end"
   /// The rule set to use. Defaults to the rule set derived from the
   /// schema.
   ruleSet?: RuleSet
@@ -113,8 +113,6 @@ export function parseDoc(schema: Schema, doc: Element | DocumentFragment, option
   cx.sync(top)
   return cx.finishNode(cx.top) as Plot.Doc
 }
-
-export enum OpenSide { None = 0, Start = 1, End = 2, Both = 3 }
 
 export function parseSlice(schema: Schema, doc: Element | DocumentFragment, options: ParseOptions = {}) {
   let top = new NodeContext(guessParent(doc, schema), CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
@@ -340,12 +338,12 @@ class ParseContext {
       tag = tag.withMarks(p.addToSet(tag.marks))
       return false
     })
-    let open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
+    let test, open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
       (endOfSlice ? this.top.flags & CxFlag.OpenEnd : 0)
-    if (open && element && this.options.isOpen) {
-      let test = this.options.isOpen(element)
-      if (!(test & OpenSide.Start)) open &= ~CxFlag.OpenStart
-      if (!(test & OpenSide.End)) open &= ~CxFlag.OpenEnd
+    if ((open && element && this.options.isOpen) && (test = this.options.isOpen(element))) {
+      if (test == "start") open &= ~CxFlag.OpenStart
+      else if (test == "end") open &= ~CxFlag.OpenEnd
+      else if (test == "start end") open &= ~(CxFlag.OpenStart | CxFlag.OpenEnd)
     }
     this.top = new NodeContext(tag, (element ? CxFlag.Solid : CxFlag.None) | open, this.top)
     return marks

@@ -1,7 +1,7 @@
 import {Plot, Node} from "./node"
 import { Mark, subtractSet } from "./mark"
 import {Schema} from "./schema"
-import {Slice, SliceWalker, Token, TokenType, SliceJSON} from "./slice"
+import {Slice, Token} from "./slice"
 import {Pos} from "./pos"
 import {validate} from "./helper"
 import {ValidationError} from "./error"
@@ -11,7 +11,7 @@ class BuildContext {
   constructor(readonly tag: Plot.Tag.Any, readonly parent: BuildContext | null) {}
 }
 
-class Builder implements Pos.Walker, SliceWalker {
+class Builder implements Pos.Walker, Slice.Walker {
   stack: BuildContext
   modifications: readonly Modification[] | null = null
   schema: Schema
@@ -421,7 +421,7 @@ export namespace ChangeSet {
   export type JSON = readonly {
     length: number
     modifications?: readonly ModificationJSON[]
-    replacement?: SliceJSON
+    replacement?: Slice.JSON
   }[]
 }
 
@@ -673,11 +673,11 @@ function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
   if (!mods) return slice
   let content: Token[] = []
   for (let tok of slice.content) {
-    if (tok.tokenType == TokenType.Open) {
+    if (tok.tokenType == Token.Type.Open) {
       content.push(tok.withMarks(applyModifications(mods, tok.marks, tok.type)))
-    } else if (tok.tokenType == TokenType.Node) {
+    } else if (tok.tokenType == Token.Type.Node) {
       let node = tok.withMarks(applyModifications(mods, tok.marks, tok.type))
-      if (content.length && content[content.length - 1].tokenType == TokenType.Node)
+      if (content.length && content[content.length - 1].tokenType == Token.Type.Node)
         node.pushTo(content as Plot[])
       else
         content.push(node)
@@ -1061,7 +1061,7 @@ function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Tag.Any
   let top: Token[] = [], stack: BuildContext | null = null
   for (let i = depth - 1; i >= 0; i--) stack = new BuildContext(context[i], stack)
   for (let token of slice.content) {
-    if (token.tokenType == TokenType.Close) {
+    if (token.tokenType == Token.Type.Close) {
       if (stack) {
         let node = finishCx(stack, schema)
         stack = stack.parent
@@ -1069,7 +1069,7 @@ function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Tag.Any
       } else {
         top.push(token)
       }
-    } else if (token.tokenType == TokenType.Open) {
+    } else if (token.tokenType == Token.Type.Open) {
       stack = new BuildContext(token, stack)
     } else {
       ;(stack ? stack.children : top).push(token)
@@ -1104,12 +1104,12 @@ function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context
   // start depth.
   for (let i = 0, opened = 0; i < slice.content.length; i++) {
     let tok = slice.content[i]
-    if (tok.tokenType == TokenType.Close) {
+    if (tok.tokenType == Token.Type.Close) {
       if (opened) opened--
       else closeCount++
     } else {
       if (!i) firstType = tok.type
-      if (tok.tokenType == TokenType.Open) opened++
+      if (tok.tokenType == Token.Type.Open) opened++
     }
   }
 

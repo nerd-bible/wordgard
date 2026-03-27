@@ -1,6 +1,6 @@
 import {Plot, Node, Leaf} from "./node"
 import {Schema} from "./schema"
-import {Slice, Token, TokenType} from "./slice"
+import {Slice, Token} from "./slice"
 import {Mark} from "./mark"
 import {Elt, Attributes} from "./shape"
 
@@ -34,12 +34,12 @@ function flattenSlice(
     let result: Node[] = []
     for (; i < content.length;) {
       let tok = content[i++]
-      if (tok.tokenType == TokenType.Close) {
+      if (tok.tokenType == Token.Type.Close) {
         if (inner) break
         let tag = depth < context.length ? context[depth++] : genericTag
         if (openMark) tag = tag.withMarks(openMark.of("start").addToSet(tag.marks))
         result = [tag.create(result)]
-      } else if (tok.tokenType == TokenType.Open) {
+      } else if (tok.tokenType == Token.Type.Open) {
         let content = scan(true), tag = tok
         if (openMark) tag = tag.withMarks(openMark.of("end").addToSet(tag.marks))
         result.push(tag.create(content))
