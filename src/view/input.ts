@@ -44,7 +44,7 @@ export class InputState {
   // considered part of the composition on Safari, which fires events
   // in the wrong order
   compositionPendingKey = false
-  // FIXME add a timeout to guard against this leaking?
+  // Used to smuggle information from beforeinput to input
   currentComposition: {from: number, to: number, text: string} | null = null
   wrappingComposition: readonly Mark<any>[] | null = null
 
@@ -721,9 +721,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
     let {from, to} = inputEventRange(event, view)
     insertText.dispatch(view, {from, to, insert, userEvent: "input.type"})
     return true
-  }
-
-  if (type == "insertReplacementText") {
+  } else if (type == "insertReplacementText") {
     let slice = readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
     if (slice) {
       let {from, to} = inputEventRange(event, view)

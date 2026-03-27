@@ -52,6 +52,7 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
   }
 })
 
+// FIXME awkward
 basePlugins[basePlugins.length] = cursorLayer
 
 const VertWidth = 30, VertGap = 5

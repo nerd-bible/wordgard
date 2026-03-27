@@ -2,7 +2,7 @@ import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes, MapMode} from "wordg
 import {GardState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
-        renderWrapper, renderMarkWrapper} from "./decoration"
+        renderWrapper, renderMarkWrapper, DecoSet, getDecoSet} from "./decoration"
 import {eqArray} from "./util"
 import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
 import {type CompositionInfo} from "./input"
@@ -348,12 +348,18 @@ export function dirAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: 
 export class DocTile extends CompositeTile {
   declare dom: Element
 
-  constructor(public state: GardState, dom: Element, readonly cursorWrapper: readonly Mark<any>[] | null) {
+  constructor(
+    readonly state: GardState,
+    dom: Element,
+    readonly cursorWrapper: readonly Mark<any>[] | null,
+    readonly decoSet: DecoSet
+  ) {
     super(dom, 0)
   }
 
   static create(state: GardState, dom: Element) {
-    return new DocTile(state, dom, null).updateRanges(state, [0, state.doc.length])
+    return new DocTile(state, dom, null, {points: new Map, ranges: new Map})
+      .updateRanges(state, getDecoSet(state), [0, state.doc.length])
   }
 
   get isDoc() { return true }
@@ -361,10 +367,12 @@ export class DocTile extends CompositeTile {
   get node() { return this.state.doc }
 
   update(state: GardState, changes: ChangeSet.Sections, composition?: CompositionInfo | null) {
-    return this.updateRanges(state, findChangedRanges(this.state, state, changes), composition)
+    let decoSet = getDecoSet(state)
+    let changed = findChangedRanges(this.state, this.decoSet, state, decoSet, changes)
+    return this.updateRanges(state, decoSet, changed, composition)
   }
 
-  updateRanges(state: GardState, sections: ChangeSet.Sections, composition?: CompositionInfo | null) {
+  updateRanges(state: GardState, decoSet: DecoSet, sections: ChangeSet.Sections, composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
     if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
       return this
@@ -375,7 +383,7 @@ export class DocTile extends CompositeTile {
       if (!separated) composition = null
       else sections = separated
     }
-    let builder = new ContentUpdate(state, this, new DecoIterator(state), wrapper)
+    let builder = new ContentUpdate(state, this, new DecoIterator(state, decoSet), wrapper)
     for (let i = 0, posA = 0, startCovered = false; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
@@ -720,7 +728,7 @@ class ContentUpdate {
 
   constructor(readonly state: GardState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Mark<any>[] | null) {
     this.old = new TilePointer(old, 0, null)
-    this.new = new DocTile(state, old.dom as Element, cursorWrapper)
+    this.new = new DocTile(state, old.dom as Element, cursorWrapper, deco.decoSet)
     this.keepWalker = {
       enter: tile => {
         let span = tile.isSpanning && this.enterSpanning(tile.elt)

@@ -340,7 +340,9 @@ export abstract class Decoration implements PointSet.Value {
     return new WrapperDecoration(wrapper)
   }
 
-  static source = Facet.define<(state: GardState) => PointSet<Decoration>>()
+  static source = Facet.define<(state: GardState) => PointSet<Decoration>>({
+    combine: sources => sources.concat(nodeSelection)
+  })
 }
 
 class ShapeDecoration extends Decoration {
@@ -387,7 +389,14 @@ class WrapperDecoration extends Decoration {
 
   get mapMode() { return MapMode.TrackAfter }
   get side() { return 1e9 }
-}  
+}
+
+const nodeSelectionDeco = Decoration.attribute("class", "wg-selected-node")
+
+function nodeSelection(state: GardState) {
+  let {node, from} = state.sel
+  return node && node.isLeaf && node.type.isSelectable ? PointSet.create([[from.pos, nodeSelectionDeco]]) : PointSet.empty
+}
 
 function findAbove(array: readonly number[], start: number, n: number) {
   let from = start, to = array.length
@@ -582,6 +591,16 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
+export type DecoSet = {points: Map<(state: GardState) => PointSet<Decoration>, PointSet<Decoration>>,
+                       ranges: Map<(state: GardState) => RangeSet<RangeDecoration>, RangeSet<RangeDecoration>>}
+
+export function getDecoSet(state: GardState) {
+  let set: DecoSet = {points: new Map, ranges: new Map}
+  for (let src of state.facet(Decoration.source)) set.points.set(src, src(state))
+  for (let src of state.facet(RangeDecoration.source)) set.ranges.set(src, src(state))
+  return set
+}
+
 export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
   constructor(
     readonly from: readonly number[],
@@ -739,19 +758,10 @@ function joinRanges(ranges: number[][]) {
   }
 }
 
-function compareFacet<T>(stateA: GardState, stateB: GardState, facet: Facet<(state: GardState) => T>,
-                         cmp: (a: T | null, b: T | null) => void) {
-  let a = stateA.facet(facet), b = stateB.facet(facet), iB = 0
-  for (let eltA of a) {
-    let idx = b.indexOf(eltA, iB)
-    if (idx < 0) {
-      cmp(eltA(stateA), null)
-    } else {
-      while (iB < idx) cmp(null, b[iB++](stateB))
-      cmp(eltA(stateA), b[iB++](stateB))
-    }
-  }
-  while (iB < b.length) cmp(null, b[iB++](stateB))
+function compareDecoSet<T>(setA: Map<(state: GardState) => T, T>, setB: Map<(state: GardState) => T, T>,
+                           cmp: (a: T | null, b: T | null) => void) {
+  for (let [srcA, valA] of setA) cmp(valA, setB.get(srcA) || null)
+  for (let [srcB, valB] of setB) if (!setA.has(srcB)) cmp(null, valB)
 }
 
 function compareGlobal(stateA: GardState, stateB: GardState, facet: Facet<any>) {
@@ -761,10 +771,12 @@ function compareGlobal(stateA: GardState, stateB: GardState, facet: Facet<any>) 
 // Compare ranges and points in decoration facets for unchanged ranges
 // in the given change desc. Returns an array using the section format
 // used in change descs.
-export function findChangedRanges(prev: GardState, state: GardState, sections: ChangeSet.Sections) {
+export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
+                                  state: GardState, deco: DecoSet,
+                                  sections: ChangeSet.Sections) {
   let result: number[] = []
-  let globalChange = compareGlobal(prev, state, tagShapes) || compareGlobal(prev, state, tagWidgets) ||
-    compareGlobal(prev, state, tagWrappers) || compareGlobal(prev, state, tagAttributes)
+  let globalChange = compareGlobal(prevState, state, tagShapes) || compareGlobal(prevState, state, tagWidgets) ||
+    compareGlobal(prevState, state, tagWrappers) || compareGlobal(prevState, state, tagAttributes)
   // When node shapes change, we need a separate pass to see whether
   // their atomicity changed, and mark a replace for the whole node if
   // it did.
@@ -781,10 +793,10 @@ export function findChangedRanges(prev: GardState, state: GardState, sections: C
         if (from < curPos) { ranges.push(cur = []); curPos = 0 }
         addRange(cur, from, to)
       }
-      compareFacet(prev, state, RangeDecoration.source, (a, b) => {
+      compareDecoSet(prevDeco.ranges, deco.ranges, (a, b) => {
         (a || RangeSet.empty).compareRange(posA, b || RangeSet.empty, posB, len, add)
       })
-      compareFacet(prev, state, Decoration.source, (a, b) => {
+      compareDecoSet(prevDeco.points, deco.points, (a, b) => {
         (a || PointSet.empty).compareRange(posA, b || PointSet.empty, posB, len, (pos, val) => {
           add(pos, pos + 1)
           if (val instanceof ShapeDecoration) {
@@ -807,7 +819,7 @@ export function findChangedRanges(prev: GardState, state: GardState, sections: C
       addSection(result, len, ins)
     }
   }
-  if (shapeChanges.length) return addAtomicityChanges(result, prev, shapeChanges)
+  if (shapeChanges.length) return addAtomicityChanges(result, prevState, shapeChanges)
   return result
 }
 
@@ -1042,7 +1054,7 @@ export class DecoIterator {
   rangeIter: RangeIterator<RangeDecoration>[] = []
   pointIter: PointIterator<Decoration>[] = []
 
-  constructor(readonly state: GardState) {
+  constructor(readonly state: GardState, readonly decoSet: DecoSet) {
     this.globalWidgets = state.facet(tagWidgets)
     this.globalWrappers = state.facet(tagWrappers)
     this.globalAttrs = state.facet(tagAttributes)
@@ -1050,12 +1062,12 @@ export class DecoIterator {
     this.pos = state.doc.resolve(0)
     this.schema = state.doc.schema
     for (let s of state.facet(RangeDecoration.source)) {
-      let set = s(state)
-      if (set.length) this.rangeIter.push(set.iter())
+      let set = decoSet.ranges.get(s)
+      if (set?.length) this.rangeIter.push(set.iter())
     }
     for (let s of state.facet(Decoration.source)) {
-      let set = s(state)
-      if (set.length) this.pointIter.push(set.iter())
+      let set = decoSet.points.get(s)
+      if (set?.length) this.pointIter.push(set.iter())
     }
   }
 

@@ -190,8 +190,8 @@ export class Wordgard {
     }
   }
 
-  flush() {
-    if (!this.connected || this.inputState.currentComposition) return
+  flush(force = false) {
+    if ((!this.connected && !force) || this.inputState.currentComposition) return
     this.observer.pollSelection()
     let {flushedState, state} = this.viewState
     let mainUpdate = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
@@ -265,11 +265,6 @@ export class Wordgard {
     let composition = this.composing ? getCompositionInfo(this) : null
     let changes = domChanges ? ChangeSet.composeSections(domChanges, update.changes.sections) : update.changes.sections
     let prevDocTile = this.docTile
-    this.docTile = prevDocTile.update(update.state, changes, composition)
-
-    if ((composition?.wrapCursor || !composition && (prevDocTile != this.docTile || update.selectionSet)) && this.hasFocus)
-      setDOMSelection(this)
-    this.observer.clear()
     if (!update.empty) {
       this.updatePlugins(update)
       this.inputState.update(update)
@@ -277,6 +272,11 @@ export class Wordgard {
       if (this.state.facet(Wordgard.styleModule) != this.styleModules) this.mountStyles()
       this.updateAttrs()
     }
+    this.docTile = prevDocTile.update(update.state, changes, composition)
+
+    if ((composition?.wrapCursor || !composition && (prevDocTile != this.docTile || update.selectionSet)) && this.hasFocus)
+      setDOMSelection(this)
+    this.observer.clear()
     if (this.docTile != prevDocTile) for (let plugin of this.plugins) plugin.docViewUpdate(this)
   }
 
@@ -851,8 +851,6 @@ export const viewPlugin = Facet.define<Wordgard.Plugin<any>>({
   combine: plugins => basePlugins.concat(plugins)
 })
 
-let nextPluginID = 0
-
 export namespace Wordgard {
   /// View plugins associate stateful values with a view. They can
   /// influence the way the content is drawn, and are notified of things
@@ -862,8 +860,6 @@ export namespace Wordgard {
     extension: GardState.Extension
 
     private constructor(
-      /// @internal
-      readonly id: number,
       /// @internal
       readonly create: (view: Wordgard) => V,
       /// @internal
@@ -879,7 +875,7 @@ export namespace Wordgard {
     /// plugin's value, given an editor view.
     static define<V extends Wordgard.Plugin.Value>(create: (view: Wordgard) => V, spec?: Wordgard.Plugin.Spec<V>) {
       const {eventHandlers, eventObservers, provide} = spec || {}
-      return new Wordgard.Plugin<V>(nextPluginID++, create, eventHandlers, eventObservers, plugin => {
+      return new Wordgard.Plugin<V>(create, eventHandlers, eventObservers, plugin => {
         let ext = [viewPlugin.of(plugin)]
         if (provide) ext.push(provide(plugin))
         return ext
