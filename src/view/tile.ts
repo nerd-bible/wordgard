@@ -504,7 +504,6 @@ export class EltTile extends CompositeTile {
   get boundary() { return this._node && !(this.flags & TileFlag.Atom) ? 1 : 0 }
   get node() { return this._node }
 
-  // FIXME this no longer works if there may be non-content siblings
   get contentTile(): EltTile | null {
     if (!(this.flags & TileFlag.HasContent)) return null
     for (let ch of this.children) if (ch.isNodeInner && (ch.flags & TileFlag.HasContent)) return (ch as EltTile).contentTile

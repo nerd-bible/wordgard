@@ -40,8 +40,10 @@ export function moveVertically(view: Wordgard, start: GardSelection, forward: bo
                                distance: number = 0, selectNode = false) {
   let editorRect = view.contentDOM.getBoundingClientRect()
   let coords = view.coordsAtPos(start.head, start.assoc || -1)
-  let goalColumn = start.goalColumn ?? coords.left - editorRect.left // FIXME does this need to be flipped if RTL?
-  let x = editorRect.left + goalColumn, y = forward ? coords.bottom + distance : coords.top - distance
+  let baseDir = view.state.textDirection()
+  let goalColumn = start.goalColumn ?? (baseDir == Direction.LTR ? coords.left - editorRect.left : editorRect.right - coords.left)
+  let x = baseDir == Direction.LTR ? editorRect.left + goalColumn : editorRect.right - goalColumn
+  let y = forward ? coords.bottom + distance : coords.top - distance
   for (let scan = start.head;;) {
     let pos = view.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {

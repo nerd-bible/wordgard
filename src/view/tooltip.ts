@@ -527,8 +527,6 @@ export namespace Tooltip {
     if (plugin) plugin.maybeMeasure()
   }
 
-  // FIXME check if this can still be tree-shaken
-
   /// Set up a hover tooltip, which shows up when the pointer hovers
   /// over ranges of text. The callback is called when the mouse hovers
   /// over the document text. It should, if there is a tooltip
