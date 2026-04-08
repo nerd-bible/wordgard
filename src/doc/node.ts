@@ -123,8 +123,8 @@ export namespace Node {
     validateParam?: string | ((param: Param) => void)
     /// Assign one or more groups to this node type. Groups are used
     /// when specifying allowed content for a plot. Some pre-defined
-    /// group names (see [`Node.Group`](#doc.Node.Group)) are used to
-    /// identify the semantic role of nodes.
+    /// group names (see {@link Node.Group}) are used to identify the
+    /// semantic role of nodes.
     group?: Group | readonly Group[]
     /// Roles to add to this node type, which mark it as having a
     /// certain semantic role, such as being a list.
@@ -198,7 +198,7 @@ export namespace Node {
     /// which identifies it as the node canonical that represents a
     /// line break. Nodes marked as line breaks will be parsed from
     /// and serialized to newline characters inside
-    /// [whitespace-preserving](#state.Tag.Spec.preserveWhitespace)
+    /// {@link Plot.Spec.preserveWhitespace | whitespace-preserving}
     /// nodes.
     static LineBreak = new Role
   }

@@ -1,7 +1,7 @@
 import {enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transposeChars,
         moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
-import {Facet, GardState} from "wordgard/state"
+import {Facet, GardState, Command} from "wordgard/state"
 import {Wordgard} from "./editorview"
 import browser from "./browser"
 
@@ -78,11 +78,11 @@ export namespace KeyBinding {
     /// Key to use specifically on Linux.
     linux?: string,
     /// The command to execute when this binding is triggered.
-    run: (view: Wordgard) => boolean
+    run: Command.Bound<unknown, Wordgard> | ((view: Wordgard) => boolean)
     /// When given, this defines a second binding, using the (possibly
     /// platform-specific) key name, prefixed with `Shift-`, to activate
     /// this command.
-    shift?: (view: Wordgard) => boolean
+    shift?: Command.Bound<unknown, Wordgard> | ((view: Wordgard) => boolean)
     /// When this property is present, the function is called for every
     /// key.
     any?: (view: Wordgard, event: KeyboardEvent) => boolean
@@ -176,6 +176,11 @@ function getKeymap(bindings: readonly KeyBinding[]) {
   return found
 }
 
+function bind(run: Command.Bound<unknown, Wordgard> | ((view: Wordgard) => boolean)) {
+  if (typeof run == "function") return run
+  return (view: Wordgard) => view.dispatchCommand(run)
+}
+
 function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
   let scopes: Keymap = Object.create(null)
 
@@ -187,12 +192,12 @@ function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
       if (b.char) {
         if (key) throw new Error("A key binding may not provide both a char and a key field")
         if (b.shift) throw new Error("Shift-modified bindings are not supported for char bindings")
-        array.push(new NormalizedBinding(baseFlags | BindingFlag.Char, b.char, b.run))
+        array.push(new NormalizedBinding(baseFlags | BindingFlag.Char, b.char, bind(b.run)))
       }
       if (key)
-        array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName(key, platform), b.run))
+        array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName(key, platform), bind(b.run)))
       if (key && b.shift)
-        array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName("Shift-" + key, platform), b.shift))
+        array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName("Shift-" + key, platform), bind(b.shift)))
       if (b.any)
         array.push(new NormalizedBinding(BindingFlag.Any, "", b.any))
     }
@@ -247,8 +252,8 @@ for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // 
 // FIXME test whether beforeinput events make it possible to do without most of these
 
 export const defaultKeymap: readonly KeyBinding[] = ([
-  {key: "Enter", run: enter.bind()},
-  {key: "Shift-Enter", run: insertLineBreak.bind()},
+  {key: "Enter", run: enter},
+  {key: "Shift-Enter", run: insertLineBreak},
   {key: "Backspace", run: deleteUnit.bind("backward")},
   {key: "Delete", run: deleteUnit.bind("forward")},
   {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: deleteWord.bind("backward")},
@@ -273,10 +278,10 @@ export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "End", run: moveToLineSide.bind({dir: "forward"}), shift: moveToLineSide.bind({dir: "forward", extend: true})},
   {key: "Mod-Home", run: moveToDocSide.bind({side: "start"}), shift: moveToDocSide.bind({side: "start", extend: true})},
   {key: "Mod-End", run: moveToDocSide.bind({side: "end"}), shift: moveToDocSide.bind({side: "end", extend: true})},
-  {key: "Mod-a", run: selectAll.bind()},
-  {key: "Mod-z", run: undo.bind()},
-  {key: "Mod-y", mac: "Mod-Shift-z", run: redo.bind()},
-  {linux: "Ctrl-Shift-z", run: redo.bind()},
+  {key: "Mod-a", run: selectAll},
+  {key: "Mod-z", run: undo},
+  {key: "Mod-y", mac: "Mod-Shift-z", run: redo},
+  {linux: "Ctrl-Shift-z", run: redo},
   // MacOS Emacs-ish bindings
   {mac: "Ctrl-b", run: moveByUnit.bind({dir: "backward"}), shift: moveByUnit.bind({dir: "backward", extend: true})},
   {mac: "Ctrl-f", run: moveByUnit.bind({dir: "forward"}), shift: moveByUnit.bind({dir: "forward", extend: true})},
@@ -289,7 +294,7 @@ export const defaultKeymap: readonly KeyBinding[] = ([
   {mac: "Ctrl-h", run: deleteUnit.bind("backward")},
   {mac: "Ctrl-k", run: deleteToLineEnd.bind("forward")},
   {mac: "Ctrl-Alt-h", run: deleteWord.bind("backward")},
-  {mac: "Ctrl-o", run: insertLineBreak.bind()},
-  {mac: "Ctrl-t", run: transposeChars.bind()},
+  {mac: "Ctrl-o", run: insertLineBreak},
+  {mac: "Ctrl-t", run: transposeChars},
   {mac: "Ctrl-v", run: moveByPage.bind({dir: "down"})},
 ] as KeyBinding.Spec[]).map(KeyBinding.define)

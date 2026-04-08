@@ -1,4 +1,4 @@
-import {GardSelection, GardState, Transaction, Facet} from "wordgard/state"
+import {GardSelection, GardState, Transaction, Facet, Command} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
@@ -675,11 +675,11 @@ observers.contextmenu = view => {
 }
 
 // FIXME formatSetBlockTextDirection, formatSetInlineTextDirection
-const inputTypeCommands: {[inputType: string]: (view: Wordgard) => boolean} = {
-  historyUndo: undo.bind(),
-  historyRedo: redo.bind(),
-  insertLineBreak: insertLineBreak.bind(),
-  insertParagraph: enter.bind(),
+const inputTypeCommands: {[inputType: string]: Command.Bound<unknown, Wordgard>} = {
+  historyUndo: undo,
+  historyRedo: redo,
+  insertLineBreak: insertLineBreak,
+  insertParagraph: enter,
   deleteContentBackward: deleteUnit.bind("backward"),
   deleteContentForward: deleteUnit.bind("forward"),
   deleteWordBackward: deleteWord.bind("backward"),
@@ -693,8 +693,8 @@ const inputTypeCommands: {[inputType: string]: (view: Wordgard) => boolean} = {
     if (tr) view.dispatch(tr)
     return !!tr
   },
-  insertTranspose: transposeChars.bind(),
-  deleteEntireSoftLine: deleteLine.bind(),
+  insertTranspose: transposeChars,
+  deleteEntireSoftLine: deleteLine,
   formatBold: toggleMarkByLabel.bind(Mark.Role.Strong),
   formatItalic: toggleMarkByLabel.bind(Mark.Role.Emphasis),
   formatUnderline: toggleMarkByLabel.bind(Mark.Role.Underline),
