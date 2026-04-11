@@ -1,7 +1,6 @@
 import ist from "ist"
 import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
-        serialize, serializeSlice, parseDoc, parseSlice,
-        OpenSide, type ParseOptions} from "wordgard/doc"
+        serialize, serializeSlice, parseDoc, parseSlice, type ParseOptions} from "wordgard/doc"
 import {basicBuilders, builder, basicSchema, tag, Paragraph} from "wordgard/schema"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
@@ -234,8 +233,9 @@ describe("parseSlice", () => {
     ist(parse("<hr><p>A<br></p>").slice, slice([hr, p().tag, "A", br]), eq)
   })
 
-  function isOpen(elt: Element) {
-    return (elt.hasAttribute("open-start") ? OpenSide.Start : 0) | (elt.hasAttribute("open-end") ? OpenSide.End : 0)
+  function isOpen(elt: Element): "start" | "end" | "start end" | null {
+    let start = elt.hasAttribute("open-start"), end = elt.hasAttribute("open-end")
+    return start ? (end ? "start end" : "start") : end ? "end" : null
   }
 
   it("can query the DOM for open structure", () => {

@@ -675,19 +675,19 @@ observers.contextmenu = view => {
 }
 
 // FIXME formatSetBlockTextDirection, formatSetInlineTextDirection
-const inputTypeCommands: {[inputType: string]: Command.Bound<unknown, Wordgard>} = {
+const inputTypeCommands: {[inputType: string]: Command.Bound<any> | Command} = {
   historyUndo: undo,
   historyRedo: redo,
   insertLineBreak: insertLineBreak,
   insertParagraph: enter,
-  deleteContentBackward: deleteUnit.bind("backward"),
-  deleteContentForward: deleteUnit.bind("forward"),
-  deleteWordBackward: deleteWord.bind("backward"),
-  deleteWordForward: deleteWord.bind("forward"),
-  deleteSoftLineBackward: deleteToLineEnd.bind("backward"),
-  deleteSoftLineForward: deleteToLineEnd.bind("forward"),
-  deleteHardLineBackward: deleteToLineEnd.bind("backward"),
-  deleteHardLineForward: deleteToLineEnd.bind("forward"),
+  deleteContentBackward: Command.bind(deleteUnit, "backward"),
+  deleteContentForward: Command.bind(deleteUnit, "forward"),
+  deleteWordBackward: Command.bind(deleteWord, "backward"),
+  deleteWordForward: Command.bind(deleteWord, "forward"),
+  deleteSoftLineBackward: Command.bind(deleteToLineEnd, "backward"),
+  deleteSoftLineForward: Command.bind(deleteToLineEnd, "forward"),
+  deleteHardLineBackward: Command.bind(deleteToLineEnd, "backward"),
+  deleteHardLineForward: Command.bind(deleteToLineEnd, "forward"),
   deleteContent: view => {
     let tr = deleteSelection(view.state)
     if (tr) view.dispatch(tr)
@@ -695,9 +695,9 @@ const inputTypeCommands: {[inputType: string]: Command.Bound<unknown, Wordgard>}
   },
   insertTranspose: transposeChars,
   deleteEntireSoftLine: deleteLine,
-  formatBold: toggleMarkByLabel.bind(Mark.Role.Strong),
-  formatItalic: toggleMarkByLabel.bind(Mark.Role.Emphasis),
-  formatUnderline: toggleMarkByLabel.bind(Mark.Role.Underline),
+  formatBold: Command.bind(toggleMarkByLabel, Mark.Role.Strong),
+  formatItalic: Command.bind(toggleMarkByLabel, Mark.Role.Emphasis),
+  formatUnderline: Command.bind(toggleMarkByLabel, Mark.Role.Underline),
 }
 
 handlers.beforeinput = (view, event: InputEvent) => {
@@ -705,7 +705,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
 
   let command = inputTypeCommands[type]
   if (command) {
-    command(view)
+    view.dispatchCommand(command)
     return true
   }
 
@@ -714,7 +714,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
     if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
     let insert = event.data!.replace(/\r\n?|\n/g, " ")
     let {from, to} = inputEventRange(event, view)
-    insertText.dispatch(view, {from, to, insert, userEvent: "input.type"})
+    view.dispatchCommand(insertText, {from, to, insert, userEvent: "input.type"})
     return true
   } else if (type == "insertReplacementText" || type == "insertFromYank") {
     let slice = readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
@@ -752,7 +752,7 @@ handlers.input = (view, event: InputEvent) => {
       from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
       if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
     }
-    insertText.dispatch(view, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
+    view.dispatchCommand(insertText, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
   }
   return false
 }

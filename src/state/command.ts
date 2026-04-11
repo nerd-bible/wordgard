@@ -1,3 +1,4 @@
+import {type Wordgard} from "wordgard/view"
 import {GardState} from "./state"
 import {Transaction} from "./transaction"
 
@@ -14,24 +15,23 @@ import {Transaction} from "./transaction"
 /// to the editor they are given, and return false if it cannot. If it
 /// can, the handler performs it as a side effect (which usually means
 /// [dispatching](#view.Wordgard.dispatch) a transaction) and
-/// returns `true`.
-export class Command<Param = null, Target extends Command.Target = Command.Target> {
-  private constructor(
-    readonly defaultHandler: (target: Target, param: Param) => boolean
-  ) {}
-
-  bind(param: Param): Command.Bound<Param, Target> { return {command: this, param} }
-
-  static define<Param = null, Target extends Command.Target = Command.Target>(
-    defaultHandler?: (target: Target, param: Param) => boolean
-  ) {
-    return new Command<Param, Target>(defaultHandler || (() => false))
-  }
-}
+/// returns `true`. FIXME update
+export type Command<Param = null> = (target: Wordgard, param: Param) => boolean
 
 export namespace Command {
-  export type Bound<Param, Target extends Command.Target> =
-    {command: Command<Param, Target>, param: Param} | (Param extends null ? Command<null, Target> : never)
+  // FIXME better name
+  export type State<Param = null> = (target: {state: GardState, dispatch: (tr: Transaction) => void}, param: Param) => boolean
+
+  export class Bound<Param> {
+    declare private tag: "Command.Bound"
+    private constructor(readonly command: Command<Param>, readonly param: Param) {}
+    /// @internal
+    static bind<Param>(command: Command<Param>, param: Param): Command.Bound<Param> {
+      return new Bound(command, param)
+    }
+  }
+
+  export const bind = Bound.bind
 
   export type Target = {state: GardState, dispatch: (tr: Transaction) => void}
 }

@@ -298,7 +298,7 @@ class MenuBar {
         let child = this.selection[sLen - 1]
         if (child.flags & F.Disabled) {
         } else if (child instanceof BarButton) {
-          child.item.run(this.view)
+          this.view.dispatchCommand(child.item.run)
           this.setSelection([this.selection[0]])
         } else {
           let inner = defaultChild(child.children)
@@ -322,7 +322,7 @@ class MenuBar {
     }
 
     if (target instanceof BarButton) {
-      target.item.run(this.view)
+      this.view.dispatchCommand(target.item.run)
       this.setSelection(this.children.includes(target) ? [target] : this.selection.length ? [this.selection[0]] : [], false)
     } else if ((idx = this.selection.indexOf(target)) > -1 && idx < this.selection.length - 1) {
       // Closing an open submenu

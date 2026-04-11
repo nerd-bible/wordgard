@@ -78,11 +78,11 @@ export namespace KeyBinding {
     /// Key to use specifically on Linux.
     linux?: string,
     /// The command to execute when this binding is triggered.
-    run: Command.Bound<unknown, Wordgard> | ((view: Wordgard) => boolean)
+    run: Command.Bound<unknown> | ((view: Wordgard) => boolean)
     /// When given, this defines a second binding, using the (possibly
     /// platform-specific) key name, prefixed with `Shift-`, to activate
     /// this command.
-    shift?: Command.Bound<unknown, Wordgard> | ((view: Wordgard) => boolean)
+    shift?: Command.Bound<unknown> | ((view: Wordgard) => boolean)
     /// When this property is present, the function is called for every
     /// key.
     any?: (view: Wordgard, event: KeyboardEvent) => boolean
@@ -176,7 +176,7 @@ function getKeymap(bindings: readonly KeyBinding[]) {
   return found
 }
 
-function bind(run: Command.Bound<unknown, Wordgard> | ((view: Wordgard) => boolean)) {
+function bind(run: Command.Bound<unknown> | ((view: Wordgard) => boolean)) {
   if (typeof run == "function") return run
   return (view: Wordgard) => view.dispatchCommand(run)
 }
@@ -254,47 +254,71 @@ for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // 
 export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Enter", run: enter},
   {key: "Shift-Enter", run: insertLineBreak},
-  {key: "Backspace", run: deleteUnit.bind("backward")},
-  {key: "Delete", run: deleteUnit.bind("forward")},
-  {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: deleteWord.bind("backward")},
-  {key: "Ctrl-Delete", mac: "Alt-Delete", run: deleteWord.bind("forward")},
-  {mac: "Cmd-Backspace", run: deleteToLineEnd.bind("backward")},
-  {mac: "Cmd-Delete", run: deleteToLineEnd.bind("forward")},
-  {key: "ArrowLeft", run: moveByUnit.bind({dir: "left"}), shift: moveByUnit.bind({dir: "left", extend: true})},
-  {key: "ArrowRight", run: moveByUnit.bind({dir: "right"}), shift: moveByUnit.bind({dir: "right", extend: true})},
-  {key: "ArrowDown", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true})},
-  {key: "ArrowUp", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "down", extend: true})},
-  {key: "Mod-ArrowLeft", run: moveByWord.bind({dir: "left"}), shift: moveByWord.bind({dir: "left", extend: true})},
-  {key: "Mod-ArrowRight", run: moveByWord.bind({dir: "right"}), shift: moveByWord.bind({dir: "right", extend: true})},
-  {mac: "Cmd-ArrowLeft", run: moveToLineSide.bind({dir: "left"}), shift: moveToLineSide.bind({dir: "left", extend: true})},
-  {mac: "Cmd-ArrowRight", run: moveToLineSide.bind({dir: "right"}), shift: moveToLineSide.bind({dir: "right", extend: true})},
-  {mac: "Cmd-ArrowUp", run: moveToDocSide.bind({side: "start"}), shift: moveToDocSide.bind({side: "start", extend: true})},
-  {mac: "Cmd-ArrowDown", run: moveToDocSide.bind({side: "end"}), shift: moveToDocSide.bind({side: "end", extend: true})},
-  {mac: "Ctrl-ArrowUp", run: moveByPage.bind({dir: "up"}), shift: moveByPage.bind({dir: "up", extend: true})},
-  {mac: "Ctrl-ArrowDown", run: moveByPage.bind({dir: "down"}), shift: moveByPage.bind({dir: "down", extend: true})},
-  {key: "PageUp", run: moveByPage.bind({dir: "up"}), shift: moveByPage.bind({dir: "up", extend: true})},
-  {key: "PageDown", run: moveByPage.bind({dir: "down"}), shift: moveByPage.bind({dir: "down", extend: true})},
-  {key: "Home", run: moveToLineSide.bind({dir: "backward"}), shift: moveToLineSide.bind({dir: "backward", extend: true})},
-  {key: "End", run: moveToLineSide.bind({dir: "forward"}), shift: moveToLineSide.bind({dir: "forward", extend: true})},
-  {key: "Mod-Home", run: moveToDocSide.bind({side: "start"}), shift: moveToDocSide.bind({side: "start", extend: true})},
-  {key: "Mod-End", run: moveToDocSide.bind({side: "end"}), shift: moveToDocSide.bind({side: "end", extend: true})},
+  {key: "Backspace", run: Command.bind(deleteUnit, "backward")},
+  {key: "Delete", run: Command.bind(deleteUnit, "forward")},
+  {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: Command.bind(deleteWord, "backward")},
+  {key: "Ctrl-Delete", mac: "Alt-Delete", run: Command.bind(deleteWord, "forward")},
+  {mac: "Cmd-Backspace", run: Command.bind(deleteToLineEnd, "backward")},
+  {mac: "Cmd-Delete", run: Command.bind(deleteToLineEnd, "forward")},
+  {key: "ArrowLeft", run: Command.bind(moveByUnit, {dir: "left"}),
+   shift: Command.bind(moveByUnit, {dir: "left", extend: true})},
+  {key: "ArrowRight", run: Command.bind(moveByUnit, {dir: "right"}),
+   shift: Command.bind(moveByUnit, {dir: "right", extend: true})},
+  {key: "ArrowDown", run: Command.bind(moveByLine, {dir: "down"}),
+   shift: Command.bind(moveByLine, {dir: "down", extend: true})},
+  {key: "ArrowUp", run: Command.bind(moveByLine, {dir: "up"}),
+   shift: Command.bind(moveByLine, {dir: "down", extend: true})},
+  {key: "Mod-ArrowLeft", run: Command.bind(moveByWord, {dir: "left"}),
+    shift: Command.bind(moveByWord, {dir: "left", extend: true})},
+  {key: "Mod-ArrowRight", run: Command.bind(moveByWord, {dir: "right"}),
+   shift: Command.bind(moveByWord, {dir: "right", extend: true})},
+  {mac: "Cmd-ArrowLeft", run: Command.bind(moveToLineSide, {dir: "left"}),
+   shift: Command.bind(moveToLineSide, {dir: "left", extend: true})},
+  {mac: "Cmd-ArrowRight", run: Command.bind(moveToLineSide, {dir: "right"}),
+   shift: Command.bind(moveToLineSide, {dir: "right", extend: true})},
+  {mac: "Cmd-ArrowUp", run: Command.bind(moveToDocSide, {side: "start"}),
+   shift: Command.bind(moveToDocSide, {side: "start", extend: true})},
+  {mac: "Cmd-ArrowDown", run: Command.bind(moveToDocSide, {side: "end"}),
+   shift: Command.bind(moveToDocSide, {side: "end", extend: true})},
+  {mac: "Ctrl-ArrowUp", run: Command.bind(moveByPage, {dir: "up"}),
+   shift: Command.bind(moveByPage, {dir: "up", extend: true})},
+  {mac: "Ctrl-ArrowDown", run: Command.bind(moveByPage, {dir: "down"}),
+   shift: Command.bind(moveByPage, {dir: "down", extend: true})},
+  {key: "PageUp", run: Command.bind(moveByPage, {dir: "up"}),
+   shift: Command.bind(moveByPage, {dir: "up", extend: true})},
+  {key: "PageDown", run: Command.bind(moveByPage, {dir: "down"}),
+   shift: Command.bind(moveByPage, {dir: "down", extend: true})},
+  {key: "Home", run: Command.bind(moveToLineSide, {dir: "backward"}),
+   shift: Command.bind(moveToLineSide, {dir: "backward", extend: true})},
+  {key: "End", run: Command.bind(moveToLineSide, {dir: "forward"}),
+   shift: Command.bind(moveToLineSide, {dir: "forward", extend: true})},
+  {key: "Mod-Home", run: Command.bind(moveToDocSide, {side: "start"}),
+   shift: Command.bind(moveToDocSide, {side: "start", extend: true})},
+  {key: "Mod-End", run: Command.bind(moveToDocSide, {side: "end"}),
+   shift: Command.bind(moveToDocSide, {side: "end", extend: true})},
   {key: "Mod-a", run: selectAll},
   {key: "Mod-z", run: undo},
   {key: "Mod-y", mac: "Mod-Shift-z", run: redo},
   {linux: "Ctrl-Shift-z", run: redo},
   // MacOS Emacs-ish bindings
-  {mac: "Ctrl-b", run: moveByUnit.bind({dir: "backward"}), shift: moveByUnit.bind({dir: "backward", extend: true})},
-  {mac: "Ctrl-f", run: moveByUnit.bind({dir: "forward"}), shift: moveByUnit.bind({dir: "forward", extend: true})},
-  {mac: "Ctrl-p", run: moveByLine.bind({dir: "up"}), shift: moveByLine.bind({dir: "up", extend: true})},
-  {mac: "Ctrl-n", run: moveByLine.bind({dir: "down"}), shift: moveByLine.bind({dir: "down", extend: true})},
+  {mac: "Ctrl-b", run: Command.bind(moveByUnit, {dir: "backward"}),
+   shift: Command.bind(moveByUnit, {dir: "backward", extend: true})},
+  {mac: "Ctrl-f", run: Command.bind(moveByUnit, {dir: "forward"}),
+   shift: Command.bind(moveByUnit, {dir: "forward", extend: true})},
+  {mac: "Ctrl-p", run: Command.bind(moveByLine, {dir: "up"}),
+   shift: Command.bind(moveByLine, {dir: "up", extend: true})},
+  {mac: "Ctrl-n", run: Command.bind(moveByLine, {dir: "down"}),
+   shift: Command.bind(moveByLine, {dir: "down", extend: true})},
   // FIXME go to start/end of textblock
-  {mac: "Ctrl-a", run: moveToLineSide.bind({dir: "backward"}), shift: moveToLineSide.bind({dir: "backward", extend: true})},
-  {mac: "Ctrl-e", run: moveToLineSide.bind({dir: "forward"}), shift: moveToLineSide.bind({dir: "forward", extend: true})},
-  {mac: "Ctrl-d", run: deleteUnit.bind("forward")},
-  {mac: "Ctrl-h", run: deleteUnit.bind("backward")},
-  {mac: "Ctrl-k", run: deleteToLineEnd.bind("forward")},
-  {mac: "Ctrl-Alt-h", run: deleteWord.bind("backward")},
+  {mac: "Ctrl-a", run: Command.bind(moveToLineSide, {dir: "backward"}),
+   shift: Command.bind(moveToLineSide, {dir: "backward", extend: true})},
+  {mac: "Ctrl-e", run: Command.bind(moveToLineSide, {dir: "forward"}),
+   shift: Command.bind(moveToLineSide, {dir: "forward", extend: true})},
+  {mac: "Ctrl-d", run: Command.bind(deleteUnit, "forward")},
+  {mac: "Ctrl-h", run: Command.bind(deleteUnit, "backward")},
+  {mac: "Ctrl-k", run: Command.bind(deleteToLineEnd, "forward")},
+  {mac: "Ctrl-Alt-h", run: Command.bind(deleteWord, "backward")},
   {mac: "Ctrl-o", run: insertLineBreak},
   {mac: "Ctrl-t", run: transposeChars},
-  {mac: "Ctrl-v", run: moveByPage.bind({dir: "down"})},
+  {mac: "Ctrl-v", run: Command.bind(moveByPage, {dir: "down"})},
 ] as KeyBinding.Spec[]).map(KeyBinding.define)

@@ -1,4 +1,4 @@
-import {Command, liftEmptyBlock, insertLineBreak, enter,
+import {liftEmptyBlock, insertLineBreak, enter,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/command"
@@ -6,7 +6,7 @@ import {Plot, Mark, Leaf, Node, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/schema"
-import {GardState, GardSelection, Transaction} from "wordgard/state"
+import {GardState, GardSelection, Transaction, Command} from "wordgard/state"
 import ist from "ist"
 
 const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
@@ -43,10 +43,10 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction | null, expect
   }
 }
 
-function fromCmd<T>(command: Command<T>, param: T) {
+function fromCmd<T>(command: Command.State<T>, param: T) {
   return (state: GardState) => {
     let tr: Transaction | null = null
-    command.defaultHandler({state, dispatch: (t: Transaction | Transaction.Spec) => {
+    command({state, dispatch: (t: Transaction | Transaction.Spec) => {
       tr = t instanceof Transaction ? t : state.update(t)
     }} as any, param)
     return tr

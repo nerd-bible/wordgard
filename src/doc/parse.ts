@@ -341,9 +341,10 @@ class ParseContext {
     let test, open = (this.top.children.length ? 0 : this.top.flags & CxFlag.OpenStart) |
       (endOfSlice ? this.top.flags & CxFlag.OpenEnd : 0)
     if ((open && element && this.options.isOpen) && (test = this.options.isOpen(element))) {
-      if (test == "start") open &= ~CxFlag.OpenStart
-      else if (test == "end") open &= ~CxFlag.OpenEnd
-      else if (test == "start end") open &= ~(CxFlag.OpenStart | CxFlag.OpenEnd)
+      open &= ~(CxFlag.OpenStart | CxFlag.OpenEnd)
+      if (test == "start") open |= CxFlag.OpenStart
+      else if (test == "end") open |= CxFlag.OpenEnd
+      else if (test == "start end") open |= CxFlag.OpenStart | CxFlag.OpenEnd
     }
     this.top = new NodeContext(tag, (element ? CxFlag.Solid : CxFlag.None) | open, this.top)
     return marks

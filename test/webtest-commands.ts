@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/view"
-import {Command, deleteLine} from "wordgard/command"
-import {GardState} from "wordgard/state"
+import { deleteLine} from "wordgard/command"
+import {GardState, Command} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders, maybeTag} from "wordgard/schema"
 import ist from "ist"
@@ -12,7 +12,7 @@ function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function test1<T>(doc: Plot.Doc, cmd: Command<T>, arg: T, expect: Plot.Doc | null, config: GardState.Extension = []) {
   let view = tempView(doc, config)
-  let result = cmd.defaultHandler(view, arg)
+  let result = cmd(view, arg)
   ist(result, expect != null)
   if (expect) {
     ist(view.state.doc, expect, eq)

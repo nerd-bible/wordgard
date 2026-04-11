@@ -1,7 +1,7 @@
 import {Wordgard, showDialog} from "wordgard/view"
 import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
-import {GardState, Transaction, Facet} from "wordgard/state"
+import {GardState, Transaction, Facet, Command} from "wordgard/state"
 import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
@@ -64,12 +64,12 @@ export class MenuButton implements MenuItemSpec {
   declare rank: number
   declare description: string | undefined
   label: MenuLabel
-  run: (view: Wordgard) => void
+  run: Command.Bound<any> | Command
   active: ((state: GardState) => boolean) | undefined
   extension: GardState.Extension
 
   constructor(spec: {
-    run: (view: Wordgard) => void
+    run: Command.Bound<any> | Command
     active?: (state: GardState) => boolean
     label: MenuLabel
   } & MenuItemSpec) {
@@ -163,7 +163,7 @@ export function toggleInlineMark(config: {
 }) {
   let {mark, parent, rank, description, label} = config
   return new MenuButton({
-    run: toggleMark.bind(mark),
+    run: Command.bind(toggleMark, mark),
     active(state) {
       let {selection} = state
       if (selection.empty)
@@ -305,7 +305,7 @@ function selectionInType(tag: Plot.Tag.Any) {
 }
 
 export const ParagraphButton = new MenuButton({
-  run: changeTextblockType.bind(Paragraph),
+  run: Command.bind(changeTextblockType, Paragraph),
   active: selectionInType(Paragraph),
   label: "Paragraph",
   parent: TextblockStyle,
@@ -313,7 +313,7 @@ export const ParagraphButton = new MenuButton({
 })
 
 export const CodeBlockButton = new MenuButton({
-  run: changeTextblockType.bind(CodeBlock),
+  run: Command.bind(changeTextblockType, CodeBlock),
   active: selectionInType(CodeBlock),
   label: "Code block",
   parent: TextblockStyle,
@@ -321,7 +321,7 @@ export const CodeBlockButton = new MenuButton({
 })
 
 export const Heading1 = new MenuButton({
-  run: changeTextblockType.bind(Heading.of(1)),
+  run: Command.bind(changeTextblockType, Heading.of(1)),
   active: selectionInType(Heading.of(1)),
   label: "Heading 1",
   parent: TextblockStyle,
@@ -329,7 +329,7 @@ export const Heading1 = new MenuButton({
 })
 
 export const Heading2 = new MenuButton({
-  run: changeTextblockType.bind(Heading.of(2)),
+  run: Command.bind(changeTextblockType, Heading.of(2)),
   active: selectionInType(Heading.of(2)),
   label: "Heading 2",
   parent: TextblockStyle,
@@ -337,7 +337,7 @@ export const Heading2 = new MenuButton({
 })
 
 export const Heading3 = new MenuButton({
-  run: changeTextblockType.bind(Heading.of(3)),
+  run: Command.bind(changeTextblockType, Heading.of(3)),
   active: selectionInType(Heading.of(3)),
   label: "Heading 3",
   parent: TextblockStyle,
@@ -345,7 +345,7 @@ export const Heading3 = new MenuButton({
 })
 
 export const BulletListButton = new MenuButton({
-  run: toggleList.bind(BulletList),
+  run: Command.bind(toggleList, BulletList),
   active: listIsActive(BulletList),
   label: iconBulletList,
   description: "Toggle bullet list",
@@ -354,7 +354,7 @@ export const BulletListButton = new MenuButton({
 })
 
 export const OrderedListButton = new MenuButton({
-  run: toggleList.bind(OrderedList.default!),
+  run: Command.bind(toggleList, OrderedList.default!),
   active: listIsActive(OrderedList.default!),
   label: iconOrderedList,
   description: "Toggle ordered list",
@@ -363,7 +363,7 @@ export const OrderedListButton = new MenuButton({
 })
 
 export const BlockquoteButton = new MenuButton({
-  run: view => toggleBlock.bind(Blockquote),
+  run: Command.bind(toggleBlock, Blockquote),
   active: state => {
     for (let cur: Pos.Node | null = state.sel.head.parent; cur; cur = cur.parent)
       if (cur.node.type == Blockquote.type) return true
@@ -388,7 +388,7 @@ function alignmentAtCursor(state: GardState): null | "end" | "center" {
 }
 
 export const AlignStart = new MenuButton({
-  run: setAlignment.bind(null),
+  run: Command.bind(setAlignment, null),
   active: state => alignmentAtCursor(state) == null,
   label: iconAlignLeft,
   description: "Align text to block start",
@@ -397,7 +397,7 @@ export const AlignStart = new MenuButton({
 })
 
 export const AlignEnd = new MenuButton({
-  run: setAlignment.bind("end"),
+  run: Command.bind(setAlignment, "end"),
   active: state => alignmentAtCursor(state) == "end",
   label: iconAlignRight,
   description: "Align text to block end",
@@ -406,7 +406,7 @@ export const AlignEnd = new MenuButton({
 })
 
 export const AlignCenter = new MenuButton({
-  run: setAlignment.bind("center"),
+  run: Command.bind(setAlignment, "center"),
   active: state => alignmentAtCursor(state) == "center",
   label: iconAlignCenter,
   description: "Center text",

@@ -16,9 +16,8 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 /// `"input.type.compose"` (text inserted as part as a composition),
 /// or `"input.type.compose.start"` (initial text created by a started
 /// composition).
-export const insertText = Command.define<{from: number, to: number, insert: string, userEvent: string}>((
-  {state, dispatch},
-  {from, to, insert, userEvent}
+export const insertText: Command.State<{from: number, to: number, insert: string, userEvent: string}> = (
+  {state, dispatch}, {from, to, insert, userEvent}
 ) => {
   // FIXME support getting the default transaction spec somehow?
   let marks = state.selection.marks || state.doc.resolve(to).marks()
@@ -30,7 +29,7 @@ export const insertText = Command.define<{from: number, to: number, insert: stri
     userEvent
   }))
   return true
-})
+}
 
 /// Command to insert a line break. The default handler will, if the
 /// schema defines a [line break](#doc.Leaf.Spec.isLineBreak) node and
@@ -38,7 +37,7 @@ export const insertText = Command.define<{from: number, to: number, insert: stri
 /// Otherwise, in nodes marked as
 /// [whitespace-preserving](#doc.Plot.Spec.preserveWhitespace), this
 /// will insert a line break.
-export const insertLineBreak = Command.define(({state, dispatch}) => {
+export const insertLineBreak: Command.State = ({state, dispatch}) => {
   let {doc, sel} = state
   let brk = doc.schema.lineBreak, parent = sel.from.parent.node.type
   let marks = state.selection.marks || sel.from.marks(sel.to)
@@ -61,13 +60,13 @@ export const insertLineBreak = Command.define(({state, dispatch}) => {
   } else {
     return false
   }
-})
+}
 
 /// The command that handles enter presses. The default handler will,
 /// if the selection is not in an inline context, insert an empty
 /// default textblock in its position. Otherwise it first tries
 /// `liftEmptyTextblock`, then `splitTextblock`.
-export const enter = Command.define(({state, dispatch}) => {
+export const enter: Command.State = ({state, dispatch}) => {
   let {sel, doc} = state
   // When not in an inline context, try to create new empty textblock
   if (!sel.head.parent.node.inlineContent || !sel.anchor.parent.node.inlineContent) {
@@ -88,23 +87,23 @@ export const enter = Command.define(({state, dispatch}) => {
   if (!tr) return false
   dispatch(tr)
   return true
-})
+}
 
-export const deleteUnit = Command.define<"forward" | "backward">((view, dir) => {
-  let tr = deleteSelection(view.state) || (dir == "forward"
-    ? joinForward(view.state) || deleteForward(view.state)
-    : joinListItems(view.state) || joinBackward(view.state) || deleteBackward(view.state))
-  return tr ? (view.dispatch(tr), true) : false
-})
+export const deleteUnit: Command.State<"forward" | "backward"> = ({state, dispatch}, dir) => {
+  let tr = deleteSelection(state) || (dir == "forward"
+    ? joinForward(state) || deleteForward(state)
+    : joinListItems(state) || joinBackward(state) || deleteBackward(state))
+  return tr ? (dispatch(tr), true) : false
+}
 
-export const deleteWord = Command.define<"forward" | "backward">((view, dir) => {
-  let tr = deleteSelection(view.state) || (dir == "forward"
-    ? joinForward(view.state) || deleteForward(view.state, true)
-    : joinListItems(view.state) || joinBackward(view.state) || deleteBackward(view.state, true))
-  return tr ? (view.dispatch(tr), true) : false
-})
+export const deleteWord: Command.State<"forward" | "backward"> = ({state, dispatch}, dir) => {
+  let tr = deleteSelection(state) || (dir == "forward"
+    ? joinForward(state) || deleteForward(state, true)
+    : joinListItems(state) || joinBackward(state) || deleteBackward(state, true))
+  return tr ? (dispatch(tr), true) : false
+}
 
-export const deleteToLineEnd = Command.define<"forward" | "backward", Wordgard>((view, dir) => {
+export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
   let tr = deleteSelection(view.state), {selection} = view.state
   if (tr) return (view.dispatch(tr), true)
   let end = view.moveToLineBoundary(selection, dir == "forward")
@@ -115,9 +114,9 @@ export const deleteToLineEnd = Command.define<"forward" | "backward", Wordgard>(
     userEvent: "delete." + dir
   })
   return true
-})
+}
 
-export const deleteLine = Command.define((view: Wordgard) => {
+export const deleteLine: Command = view => {
   let tr = deleteSelection(view.state), {selection} = view.state
   if (tr) return (view.dispatch(tr), true)
   let start = view.moveToLineBoundary(selection, false), end = view.moveToLineBoundary(selection, true)
@@ -128,9 +127,9 @@ export const deleteLine = Command.define((view: Wordgard) => {
     userEvent: "delete.line"
   })
   return true
-})
+}
 
-export const transposeChars = Command.define(({state, dispatch}) => {
+export const transposeChars: Command.State = ({state, dispatch}) => {
   let {sel} = state, head = state.selection.head
   if (!sel.empty) return false
   let before = sel.head.nodeBefore, after = sel.head.nodeAfter
@@ -145,28 +144,28 @@ export const transposeChars = Command.define(({state, dispatch}) => {
     userEvent: "transpose"
   }))
   return true
-})
+}
 
-export const changeTextblockType = Command.define<Plot.Tag.Any>((view, tag) => {
-  let tr = setTextblockType(view.state, tag)
-  return tr ? (view.dispatch(tr), true) : false
-})
+export const changeTextblockType: Command.State<Plot.Tag.Any> = ({state, dispatch}, tag) => {
+  let tr = setTextblockType(state, tag)
+  return tr ? (dispatch(tr), true) : false
+}
 
-export const unwrapBlock = Command.define<Node.Query | null>((view, query) => {
-  let tr = unwrapBlockType(view.state, query ?? undefined)
-  return tr ? (view.dispatch(tr), true) : false
-})
+export const unwrapBlock: Command.State<Node.Query | null> = ({state, dispatch}, query) => {
+  let tr = unwrapBlockType(state, query ?? undefined)
+  return tr ? (dispatch(tr), true) : false
+}
 
-export const toggleBlock = Command.define<Plot.Tag.Any>((view, tag) => {
-  let tr = unwrapBlockType(view.state, tag) || wrapBlock(view.state, tag)
-  return tr ? (view.dispatch(tr), true) : false
-})
+export const toggleBlock: Command.State<Plot.Tag.Any> = ({state, dispatch}, tag) => {
+  let tr = unwrapBlockType(state, tag) || wrapBlock(state, tag)
+  return tr ? (dispatch(tr), true) : false
+}
 
 /// Toggle the given mark. If there is no selection, it is added to
 /// the cursor's active marks, or removed if it is already in there.
 /// Otherwise, if any selected content allows for the mark to be
 /// added, it is added. If not, remove the mark from the selection.
-export const toggleMark = Command.define<Mark<any>>(({state, dispatch}, mark) => {
+export const toggleMark: Command.State<Mark<any>> = ({state, dispatch}, mark) => {
   let {selection, doc} = state
   if (selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks(), add = !mark.isInSet(selMarks)
@@ -187,21 +186,21 @@ export const toggleMark = Command.define<Mark<any>>(({state, dispatch}, mark) =>
     }))
   }
   return true
-})
+}
 
 /// Search the schema for a mark with the given label (that has a
 /// default parameter), and run [`toggleMark`](#commands.toggleMark)
 /// with that mark.
-export const toggleMarkByLabel = Command.define<Mark.Role, Wordgard>((view, label) => {
+export const toggleMarkByLabel: Command<Mark.Role> = (view, label) => {
   let mark: Mark | null = null
   for (let type of view.state.doc.schema.marks) {
     if (type.hasRole(label) && type.default) { mark = type.default; break }
   }
   if (!mark) return false
-  return view.dispatchCommand(toggleMark.bind(mark))
-})
+  return view.dispatchCommand(Command.bind(toggleMark, mark))
+}
 
-export const setAlignment = Command.define<null | "end" | "center">(({state, dispatch}, align) => {
+export const setAlignment: Command.State<null | "end" | "center"> = ({state, dispatch}, align) => {
   let {schema} = state.doc
   let mark = schema.marks.find(m => m.hasRole(Mark.Role.Alignment))
   if (!mark) return false
@@ -217,14 +216,14 @@ export const setAlignment = Command.define<null | "end" | "center">(({state, dis
     userEvent: "mark.set.alignment",
   }))
   return true
-})
+}
 
-export const toggleList = Command.define<Plot.Tag.Any>((view, listTag) => {
-  let {state} = view, blocks = selectedTextblocks(state)
+export const toggleList: Command.State<Plot.Tag.Any> = ({state, dispatch}, listTag) => {
+  let blocks = selectedTextblocks(state)
   if (!blocks.length) return false
   let tr = addList(state, blocks, listTag) || removeList(state, blocks, listTag)
-  return tr ? (view.dispatch(tr), true) : false
-})
+  return tr ? (dispatch(tr), true) : false
+}
 
 export const listIsActive = (listTag: Plot.Tag.Any): (state: GardState) => boolean => state => {
   return selectedTextblocks(state).every(b => {
@@ -371,11 +370,13 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: GardSt
 /// visually through bidirectional text, so when going left, the
 /// motion will go back in left-to-right text, and
 /// forward in right-to-left text.
-export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}>((view, {dir, extend}) => {
-  let {state} = view, {selection} = state, forward = isForward(dir, state)
+export const moveByUnit: Command.State<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}> = (
+  target, {dir, extend}
+) => {
+  let {state} = target, {selection} = state, forward = isForward(dir, state)
   if (!selection.empty && !extend) {
     let next = selection.normalCursorAtBound(state, forward)
-    return next ? setSelection(view, next) : false
+    return next ? setSelection(target, next) : false
   } else {
     let next = selection.nextNormalCursor(state, forward)
     if (!next) return false
@@ -383,18 +384,18 @@ export const moveByUnit = Command.define<{dir: "left" | "right" | "forward" | "b
       if (node.isPlot) return !node.type.isolating
       if (node.type.isSelectable) next = GardSelection.range(pos, pos + node.length)
     })
-    return setSelection(view, next, !!extend)
+    return setSelection(target, next, !!extend)
   }
-})
+}
 
 /// Move the selection head one word in the indicated direction. Keep
 /// the anchor in place if `extend` is true. The default handler moves
 /// visually.
-export const moveByWord = Command.define<{dir: "left" | "right", extend?: boolean}>((view, {dir, extend}) => {
-  let {state} = view, forward = (dir == "right") == ltrAtCursor(state)
+export const moveByWord: Command.State<{dir: "left" | "right", extend?: boolean}> = (target, {dir, extend}) => {
+  let {state} = target, forward = (dir == "right") == ltrAtCursor(state)
   let moved = state.selection.skipWord(state, forward)
-  return moved ? setSelection(view, moved, extend) : false
-})
+  return moved ? setSelection(target, moved, extend) : false
+}
 
 function nextVertical(view: Wordgard, sel: GardSelection, forward: boolean,
                       distance?: number, allowNode?: boolean) {
@@ -406,7 +407,7 @@ function nextVertical(view: Wordgard, sel: GardSelection, forward: boolean,
 
 /// Move the selection head one line up or down. When `extend` is
 /// true, keep the anchor in place.
-export const moveByLine = Command.define<{dir: "up" | "down", extend?: boolean}, Wordgard>((view, {dir, extend}) => {
+export const moveByLine: Command<{dir: "up" | "down", extend?: boolean}> = (view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = dir == "down"
   if (state.sel.node) {
     let next = !extend && state.selection.normalCursorAtBound(state, forward)
@@ -416,7 +417,7 @@ export const moveByLine = Command.define<{dir: "up" | "down", extend?: boolean},
   }
   let moved = nextVertical(view, selection, forward, undefined, !extend)
   return moved ? setSelection(view, moved, extend) : false
-})
+}
 
 function pageHeight(view: Wordgard) {
   let marginTop = 0, marginBottom = 0
@@ -431,39 +432,39 @@ function pageHeight(view: Wordgard) {
 
 /// Move the selection head one page up or down. Extend the selection
 /// when the `extend` flag is true.
-export const moveByPage = Command.define<{dir: "up" | "down", extend?: boolean}, Wordgard>((view, {dir, extend}) => {
+export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = dir == "down"
   let moved = selection.empty || extend ? nextVertical(view, selection, forward, pageHeight(view))
     : forward ? GardSelection.cursor(selection.to, -1) : GardSelection.cursor(selection.from, 1)
   return moved ? setSelection(view, moved, extend) : false
-})
+}
 
 // FIXME do we need a motion to texblock start/end variant?
-export const moveToLineSide = Command.define<{
+export const moveToLineSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
-}, Wordgard>((view, {dir, extend}) => {
+}> = (view, {dir, extend}) => {
   let pos = view.moveToLineBoundary(view.state.selection, isForward(dir, view.state))
   return pos ? setSelection(view, pos, extend) : false
-})
+}
 
-export const moveToDocSide = Command.define<{side: "start" | "end", extend?: boolean}>((view, {side, extend}) => {
-  let {state} = view
+export const moveToDocSide: Command.State<{side: "start" | "end", extend?: boolean}> = (target, {side, extend}) => {
+  let {state} = target
   let pos = side == "start" ? GardSelection.atStart(state) : GardSelection.atEnd(state)
   if (state.selection.empty && pos.head == state.selection.head) return false
-  return setSelection(view, pos, extend)
-})
+  return setSelection(target, pos, extend)
+}
 
-export const selectAll = Command.define(target => {
+export const selectAll: Command.State = target => {
   target.dispatch(target.state.update({
     selection: GardSelection.range(0, target.state.doc.length),
     userEvent: "select.all"
   }))
   return true
-})
+}
 
 /// Undo an edit. Does not have a default handler, but a handler is
 /// added by the history extension.
-export const undo = Command.define()
+export const undo: Command = () => false
 
 /// Redo an edit. Does not have a default handler.
-export const redo = Command.define()
+export const redo: Command = () => false

@@ -18,13 +18,13 @@ import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {exceptionSink, logException} from "./util"
 
 const commandHandler = Facet.define<
-  [Command<unknown, Wordgard>, (view: Wordgard, param: unknown) => boolean],
-  Map<Command<unknown, Wordgard>, readonly ((view: Wordgard, param: unknown) => boolean)[]>
+  [Command<any>, (view: Wordgard, param: any) => boolean],
+  Map<Command<any>, readonly ((view: Wordgard, param: any) => boolean)[]>
 >({
   combine(handlers) {
-    let map = new Map<Command<unknown, Wordgard>, readonly ((view: Wordgard, param: unknown) => boolean)[]>()
+    let map = new Map<Command<any>, readonly ((view: Wordgard, param: any) => boolean)[]>()
     for (let [cmd, handler] of handlers) {
-      let list = map.get(cmd) as ((view: Wordgard, param: unknown) => boolean)[] | undefined
+      let list = map.get(cmd) as ((view: Wordgard, param: any) => boolean)[] | undefined
       if (!list) map.set(cmd, list = [])
       list.push(handler)
     }
@@ -186,14 +186,16 @@ export class Wordgard {
     else this.update(this.state.update(...input as Transaction.Spec[]))
   }
 
-  dispatchCommand<Param>(command: Command.Bound<Param, Wordgard>) {
-    let {command: cmd, param} = command instanceof Command ? {command, param: null} : command
+  dispatchCommand<Param>(command: Command<null> | Command.Bound<any>): boolean
+  dispatchCommand<Param>(command: Command<Param>, param: Param): boolean
+  dispatchCommand<Param>(command: Command<any> | Command.Bound<any>, p?: Param): boolean {
+    let {command: cmd, param} = command instanceof Command.Bound ? command : {command, param: p ?? null}
     let handlers = this.state.facet(commandHandler).get(cmd)
     if (handlers) for (let handler of handlers) {
-      let result = handler(view, param)
+      let result = handler(this, param)
       if (result) return true
     }
-    return this.defaultHandler(view, param)
+    return cmd(this, param)
   }
 
   /// Update the view for the given transaction. Updates
@@ -638,7 +640,7 @@ export class Wordgard {
 
   /// Create an extension that adds a handler for the given {@link
   /// state.Command | command}.
-  commandHandler<Param>(command: Command<Param, Wordgard>, handler: (view: Wordgard, param: Param) => boolean): GardState.Extension {
+  static commandHandler<Param>(command: Command<Param>, handler: (view: Wordgard, param: Param) => boolean): GardState.Extension {
     return commandHandler.of([command, handler] as any)
   }
 
