@@ -12,7 +12,7 @@ function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function test1<T>(doc: Plot.Doc, cmd: Command<T>, arg: T, expect: Plot.Doc | null, config: GardState.Extension = []) {
   let view = tempView(doc, config)
-  let result = cmd(view, arg)
+  let result = Command.dispatch(view, cmd, arg)
   ist(result, expect != null)
   if (expect) {
     ist(view.state.doc, expect, eq)

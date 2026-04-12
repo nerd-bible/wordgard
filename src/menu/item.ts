@@ -64,12 +64,12 @@ export class MenuButton implements MenuItemSpec {
   declare rank: number
   declare description: string | undefined
   label: MenuLabel
-  run: Command.Bound<any> | Command
+  run: Command.Bound | Command
   active: ((state: GardState) => boolean) | undefined
   extension: GardState.Extension
 
   constructor(spec: {
-    run: Command.Bound<any> | Command
+    run: Command.Bound | Command
     active?: (state: GardState) => boolean
     label: MenuLabel
   } & MenuItemSpec) {

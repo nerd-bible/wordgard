@@ -6,20 +6,20 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 
 /// If the cursor is in an empty textblock that can be lifted out of a
 /// parent, return a transaction that does this.
-export function liftEmptyBlock(state: GardState) {
+export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
   let sel = state.sel, block = sel.head.textblockParent
-  if (!sel.empty || !block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return null
+  if (!sel.empty || !block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return false
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
   for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
        level; first = false, index = level.index, level = level.parent) {
-    if (!first && state.doc.schema.canContain(level.node.type, block.node.type)) return state.update({
+    if (!first && state.doc.schema.canContain(level.node.type, block.node.type)) return {
       changes: [
         {from: start, to: block.before, insert: before},
         {from: block.after, to: end, insert: after}
       ],
       scrollIntoView: true,
       userEvent: "unwrap.empty"
-    })
+    }
     if (level.node.isInline || level.node.type.isolating) break
     if (index) atStart = false
     if (atStart) start--
@@ -28,16 +28,16 @@ export function liftEmptyBlock(state: GardState) {
     if (atEnd) end++
     else after.unshift(level.node.tag.split(false))
   }
-  return null
+  return false
 }
 
 /// Split the textblock at the cursor position, if any. If the
 /// textblock is the first child of a list item, also split that item,
 /// unless `splitListItem` is false.
-export function splitTextblock(state: GardState, splitListItem = true) {
+export function splitTextblock(state: GardState, splitListItem = true): Transaction.Spec | false {
   let sel = state.sel, {schema} = state.doc
   let before = sel.from.textblockParent
-  if (!before || !before.parent) return null
+  if (!before || !before.parent) return false
   let tokens: Token[] = []
   for (let p = sel.from.parent;; p = p.parent!) {
     tokens.push(Plot.End)
@@ -55,10 +55,10 @@ export function splitTextblock(state: GardState, splitListItem = true) {
       if (index < p.node.content.length) atEnd = false
       let tag = p.node.tag.split(atEnd), nextTag = atEnd && !p.node.type.spec.preserveOnSplitAtEnd ? null : tag
       if (!nextTag || !schema.canContain(p.parent!.node.type, tag.type)) {
-        if (!atEnd) return null
+        if (!atEnd) return false
         let defaultType = schema.defaultContentPlot(p.parent!.node.type)
         if (defaultType) tag = schema.addMarksFrom(tag, defaultType)
-        else return null
+        else return false
       }
       tokens.splice(insert, 0, tag)
       if (p == after) break
@@ -77,42 +77,42 @@ export function splitTextblock(state: GardState, splitListItem = true) {
       })
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
-  return state.update({
+  return {
     changes: changeSet,
     selection: GardSelection.cursor(changeSet.mapPos(sel.to.pos, 1)),
     scrollIntoView: true,
     userEvent: "split.textblock"
-  })
+  }
 }
 
 /// Returns a transaction that deletes the selection, or null if the
 /// selection is empty.
-export function deleteSelection(state: GardState) {
-  if (state.selection.ranges.every(r => r.from == r.to)) return null
-  return state.update(autoJoinBlocks(state, {
+export function deleteSelection(state: GardState): Transaction.Spec | false {
+  if (state.selection.ranges.every(r => r.from == r.to)) return false
+  return autoJoinBlocks(state, {
     changes: {correct: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})), local: true},
     normalizeSelection: true,
     scrollIntoView: true,
     userEvent: "delete.selection"
-  }))
+  })
 }
 
 /// If the cursor is at the start of a textblock that can be joined to
 /// a textblock before it, return a transaction to performs this join.
-export function joinBackward(state: GardState) {
+export function joinBackward(state: GardState): Transaction.Spec | false {
   let {head, empty} = state.sel, block = head.textblockParent
-  if (!empty || !block || !head.isAtStart(block)) return null
+  if (!empty || !block || !head.isAtStart(block)) return false
   let scan = block, target = scan.node
   while (!scan.index) {
-    if (!scan.parent) return null
+    if (!scan.parent) return false
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock) return null
+    if (scan.node.type.isolating || !scan.node.isBlock) return false
   }
   let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
   while (before.isLeaf || !before.isTextblock) {
-    if (before.isLeaf || before.type.isAtom || before.type.isolating || !before.isBlock) return null
+    if (before.isLeaf || before.type.isAtom || before.type.isolating || !before.isBlock) return false
     let last = before.content.length - 1
-    if (last < 0) return null
+    if (last < 0) return false
     parent = before
     before = before.content[last]
     pos--
@@ -126,32 +126,32 @@ export function joinBackward(state: GardState) {
       insert: [schema.addMarksFrom(before.tag, target.tag)]
     })
   let changeSet = ChangeSet.create(state.doc, changes)
-  return state.update({
+  return {
     changes: changeSet,
     selection: GardSelection.cursor(changeSet.mapPos(head.pos), -1),
     scrollIntoView: true,
     userEvent: "join.backward"
-  })
+  }
 }
 
 /// If the cursor is at the start of a list item that has another item
 /// before it, return a transaction that joins those two items.
-export function joinListItems(state: GardState) {
+export function joinListItems(state: GardState): Transaction.Spec | false {
   let {empty, head} = state.sel
-  if (!empty || head.index || head.inText) return null
+  if (!empty || head.index || head.inText) return false
   for (let scan = head.parent;;) {
     let next = scan.parent
-    if (!next) return null
+    if (!next) return false
     if (scan.node.isBlock && next.node.type.hasRole(Node.Role.List)) {
       let prev = scan.previousSibling
-      if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.doc.schema.canContain(prev.type, ch.type))) return null
-      return state.update({
+      if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.doc.schema.canContain(prev.type, ch.type))) return false
+      return {
         changes: {from: scan.before - 1, to: scan.before + 1},
         userEvent: "join.backward.list",
         scrollIntoView: true
-      })
+      }
     }
-    if (scan.index) return null
+    if (scan.index) return false
     scan = next
   }
 }
@@ -159,20 +159,20 @@ export function joinListItems(state: GardState) {
 /// If the cursor is at the end of a textblock that can be joined to
 /// the textblock after it, return a transaction that performs this
 /// join.
-export function joinForward(state: GardState) {
+export function joinForward(state: GardState): Transaction.Spec | false {
   let {head, empty} = state.sel, block = head.textblockParent
-  if (!empty || !block || !head.isAtEnd(block)) return null
+  if (!empty || !block || !head.isAtEnd(block)) return false
   let scan = block, target = scan.node
   for (;;) {
-    if (!scan.parent) return null
+    if (!scan.parent) return false
     if (scan.index < scan.parent.node.content.length - 1) break
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock) return null
+    if (scan.node.type.isolating || !scan.node.isBlock) return false
   }
   let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
   while (after.isLeaf || !after.isTextblock) {
     if (after.isLeaf || after.type.isolating || after.type.isAtom || !after.isBlock || !after.content.length)
-      return null
+      return false
     parent = after
     after = after.content[0]
     pos++
@@ -186,32 +186,32 @@ export function joinForward(state: GardState) {
       from: block.before, to: block.start,
       insert: [schema.addMarksFrom(target.tag, after.tag)]
     })
-  return state.update({
+  return {
     changes,
     scrollIntoView: true,
     userEvent: "join.forward"
-  })
+  }
 }
 
 /// Create a transaction that deletes the text cluster or atomic node
 /// in front of the cursor, if possible.
-export function deleteBackward(state: GardState, word = false) {
+export function deleteBackward(state: GardState, word = false): Transaction.Spec | false {
   let sel = state.sel
-  if (!sel.empty) return null
+  if (!sel.empty) return false
 
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (!index) {
-    if (scan.node.type.isolating || !scan.parent) return null
+    if (scan.node.type.isolating || !scan.parent) return false
     index = scan.index
     scan = scan.parent
     pos--
   }
   let next = sel.head.inText ? sel.head.nodeBefore! : scan.node.content[--index]
   for (;;) {
-    if (next.isPlot && next.type.isolating) return null
+    if (next.isPlot && next.type.isolating) return false
     if (next.isLeaf || next.type.isAtom) break
     let last = next.content.length - 1
-    if (last < 0) return null
+    if (last < 0) return false
     next = next.content[last]
     pos--
   }
@@ -232,44 +232,44 @@ export function deleteBackward(state: GardState, word = false) {
     } else {
       size = next.length - findClusterBreak(next.param, next.length, false)
     }
-    return state.update({
+    return {
       changes: {from: pos - size, to: pos},
       scrollIntoView: true,
       userEvent: "delete.backward"
-    })
+    }
   }
   let from = pos - next.length, to = pos
   let parent: Pos.Plot | null = state.doc.resolve(pos).parent
   while (parent && parent.node.isBlock && parent.node.content.length == 1) {
-    if (!parent.parent) return null
+    if (!parent.parent) return false
     parent = parent.parent
     from--; to++
   }
-  return state.update({
+  return {
     changes: {from, to},
     scrollIntoView: true,
     userEvent: "delete.backward"
-  })
+  }
 }
 
 /// Return a transaction that deletes the element (text cluster or
 /// leaf node) after the cursor, if any.
-export function deleteForward(state: GardState, word = false) {
+export function deleteForward(state: GardState, word = false): Transaction.Spec | false {
   let sel = state.sel
-  if (!sel.empty) return null
+  if (!sel.empty) return false
 
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (index == scan.node.content.length) {
-    if (scan.node.type.isolating || !scan.parent) return null
+    if (scan.node.type.isolating || !scan.parent) return false
     index = scan.index + 1
     scan = scan.parent
     pos++
   }
   let next = sel.head.inText ? sel.head.nodeAfter! : scan.node.content[index]
   for (;;) {
-    if (next.isPlot && next.type.isolating) return null
+    if (next.isPlot && next.type.isolating) return false
     if (next.isLeaf || next.type.isAtom) break
-    if (!next.content.length) return null
+    if (!next.content.length) return false
     next = next.content[0]
     pos++
   }
@@ -299,20 +299,20 @@ export function deleteForward(state: GardState, word = false) {
   let from = pos, to = pos + next.length
   let parent: Pos.Plot | null = state.doc.resolve(pos).parent
   while (parent && parent.node.isBlock && parent.node.content.length == 1) {
-    if (!parent.parent) return null
+    if (!parent.parent) return false
     parent = parent.parent
     from--; to++
   }
-  return state.update({
+  return {
     changes: {from, to},
     scrollIntoView: true,
     userEvent: "delete.forward"
-  })
+  }
 }
 
 /// Try to change the type of selected textblocks to the given tag.
 /// Will return null if no such changes are possible.
-export function setTextblockType(state: GardState, tag: Plot.Tag.Any) {
+export function setTextblockType(state: GardState, tag: Plot.Tag.Any): Transaction.Spec | false {
   let changes: ChangeSet.Spec[] = [], {schema} = state.doc
   for (let block of selectedTextblocks(state)) {
     if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
@@ -320,13 +320,13 @@ export function setTextblockType(state: GardState, tag: Plot.Tag.Any) {
       for (let ch of clearNonFitting(schema, block, tag.type)) changes.push(ch)
     }
   }
-  if (!changes.length) return null
-  return state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "settype"}))
+  if (!changes.length) return false
+  return autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "settype"})
 }
 
 /// Try to wrap selected textblocks in the given wrapper. Will return
 /// null if no wrapping is possible.
-export function wrapBlock(state: GardState, wrapper: Plot.Tag.Any) {
+export function wrapBlock(state: GardState, wrapper: Plot.Tag.Any): Transaction.Spec | false {
   let changes: ChangeSet.Spec[] = [], lastTo = -1
   for (let {from, to} of state.selection.ranges) {
     let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
@@ -334,14 +334,14 @@ export function wrapBlock(state: GardState, wrapper: Plot.Tag.Any) {
     changes.push(wrapBlockRange(range, wrapper))
     lastTo = range.to.pos
   }
-  if (!changes.length) return null
-  return state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "wrap"}))
+  if (!changes.length) return false
+  return autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "wrap"})
 }
 
 /// Try to unwrap blocks around the selection. The second argument, if
 /// given, indicates what kind of wrapping plots may be removed.
 /// Returns null when no unwrapping is possible.
-export function unwrapBlockType(state: GardState, query?: Node.Query) {
+export function unwrapBlockType(state: GardState, query?: Node.Query): Transaction.Spec | false {
   let targets: Pos.Node[] = [], changes: ChangeSet.Spec[] = []
   for (let {from, to} of state.selection.ranges) {
     if (!targets.some(t => t.after > from && t.before < to)) {
@@ -352,8 +352,8 @@ export function unwrapBlockType(state: GardState, query?: Node.Query) {
       }
     }
   }
-  if (!targets.length) return null
-  return state.update(autoJoinBlocks(state, {changes, scrollIntoView: true, normalizeSelection: true, userEvent: "unwrap"}))
+  if (!targets.length) return false
+  return autoJoinBlocks(state, {changes, scrollIntoView: true, normalizeSelection: true, userEvent: "unwrap"})
 }
 
 export function selectedTextblocks(state: GardState) {

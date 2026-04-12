@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
-import {GardSelection, GardState, Direction} from "wordgard/state"
+import {GardSelection, GardState, Direction, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/view"
 import {Command} from "./command"
 import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
@@ -17,19 +17,18 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 /// `"input.type.compose"` (text inserted as part as a composition),
 /// or `"input.type.compose.start"` (initial text created by a started
 /// composition).
-export const insertText: Command.State<{from: number, to: number, insert: string, userEvent: string}> = (
-  {state, dispatch}, {from, to, insert, userEvent}
+export const insertText: Command.Pure<{from: number, to: number, insert: string, userEvent: string}> = (
+  {state}, {from, to, insert, userEvent}
 ) => {
   // FIXME support getting the default transaction spec somehow?
   let marks = state.selection.marks || state.doc.resolve(to).marks()
   let changes = ChangeSet.create(state.doc, {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true})
-  dispatch(state.update({
+  return {
     changes,
     selection: GardSelection.cursor(changes.mapPos(to, 1), -1),
     normalizeSelection: true,
     userEvent
-  }))
-  return true
+  }
 }
 
 /// Command to insert a line break. The default handler will, if the
@@ -38,36 +37,34 @@ export const insertText: Command.State<{from: number, to: number, insert: string
 /// Otherwise, in nodes marked as
 /// [whitespace-preserving](#doc.Plot.Spec.preserveWhitespace), this
 /// will insert a line break.
-export const insertLineBreak: Command.State = ({state, dispatch}) => {
+export const insertLineBreak: Command.Pure = ({state}) => {
   let {doc, sel} = state
   let brk = doc.schema.lineBreak, parent = sel.from.parent.node.type
   let marks = state.selection.marks || sel.from.marks(sel.to)
   if (brk && doc.schema.canContain(parent, brk.type)) {
-    dispatch(state.update({
+    return {
       changes: {from: sel.from.pos, to: sel.to.pos, insert: [brk.withMarks(marks)], fit: true},
       selection: {anchor: sel.from.pos + 1},
       scrollIntoView: true,
       userEvent: "insert.linebreak"
-    }))
-    return true
-  } else if (parent.preserveWhitespace && sel.to.parent.start == sel.from.parent.start) {
-    dispatch(state.update({
+    }
+  }
+  if (parent.preserveWhitespace && sel.to.parent.start == sel.from.parent.start) {
+    return {
       changes: {from: sel.from.pos, to: sel.to.pos, insert: [Leaf.text("\n", marks)]},
       selection: GardSelection.cursor(sel.from.pos + 1, -1),
       scrollIntoView: true,
       userEvent: "input"
-    }))
-    return true
-  } else {
-    return false
+    }
   }
+  return false
 }
 
 /// The command that handles enter presses. The default handler will,
 /// if the selection is not in an inline context, insert an empty
 /// default textblock in its position. Otherwise it first tries
 /// `liftEmptyTextblock`, then `splitTextblock`.
-export const enter: Command.State = ({state, dispatch}) => {
+export const enter: Command.Pure = ({state}) => {
   let {sel, doc} = state
   // When not in an inline context, try to create new empty textblock
   if (!sel.head.parent.node.inlineContent || !sel.anchor.parent.node.inlineContent) {
@@ -75,33 +72,27 @@ export const enter: Command.State = ({state, dispatch}) => {
     if (!wrap) return false
     let content: Plot[] = []
     for (let i = wrap.length - 1; i >= 0; i--) content = [wrap[i].create(content)]
-    dispatch(state.update({
+    return {
       changes: {from: sel.from.pos, to: sel.to.pos, insert: content, fit: true},
       selection: GardSelection.cursor(sel.from.pos + content[0].length, -1),
       normalizeSelection: true,
       scrollIntoView: true,
       userEvent: "insert.textblock"
-    }))
-    return true
+    }
   }
-  let tr = liftEmptyBlock(state) || splitTextblock(state)
-  if (!tr) return false
-  dispatch(tr)
-  return true
+  return liftEmptyBlock(state) || splitTextblock(state)
 }
 
-export const deleteUnit: Command.State<"forward" | "backward"> = ({state, dispatch}, dir) => {
-  let tr = deleteSelection(state) || (dir == "forward"
+export const deleteUnit: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
+  return deleteSelection(state) || (dir == "forward"
     ? joinForward(state) || deleteForward(state)
     : joinListItems(state) || joinBackward(state) || deleteBackward(state))
-  return tr ? (dispatch(tr), true) : false
 }
 
-export const deleteWord: Command.State<"forward" | "backward"> = ({state, dispatch}, dir) => {
-  let tr = deleteSelection(state) || (dir == "forward"
+export const deleteWord: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
+  return deleteSelection(state) || (dir == "forward"
     ? joinForward(state) || deleteForward(state, true)
     : joinListItems(state) || joinBackward(state) || deleteBackward(state, true))
-  return tr ? (dispatch(tr), true) : false
 }
 
 export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
@@ -109,12 +100,11 @@ export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
   if (tr) return (view.dispatch(tr), true)
   let end = view.moveToLineBoundary(selection, dir == "forward")
   if (!end || end.head == selection.head) return false
-  view.dispatch({
+  return {
     changes: {correct: dir == "forward" ? {from: selection.head, to: end.head} : {from: end.head, to: selection.head}},
     scrollIntoView: true,
     userEvent: "delete." + dir
-  })
-  return true
+  }
 }
 
 export const deleteLine: Command = view => {
@@ -122,71 +112,66 @@ export const deleteLine: Command = view => {
   if (tr) return (view.dispatch(tr), true)
   let start = view.moveToLineBoundary(selection, false), end = view.moveToLineBoundary(selection, true)
   if (!start || !end || start.head >= end.head) return false
-  view.dispatch({
+  return {
     changes: {correct: {from: start.head, to: end.head}},
     scrollIntoView: true,
     userEvent: "delete.line"
-  })
-  return true
+  }
 }
 
-export const transposeChars: Command.State = ({state, dispatch}) => {
+export const transposeChars: Command.Pure = ({state}) => {
   let {sel} = state, head = state.selection.head
   if (!sel.empty) return false
   let before = sel.head.nodeBefore, after = sel.head.nodeAfter
   if (!before || !before.is(Leaf.Text) || !after || !after.is(Leaf.Text)) return false
   let lenBefore = before.param.length - findClusterBreak(before.param, before.param.length, false)
   let lenAfter = findClusterBreak(after.param, 0)
-  dispatch(state.update({
+  return {
     changes: [{from: head - lenBefore, to: head},
               {from: head + lenAfter, insert: [Leaf.text(before.param.slice(before.param.length - lenBefore))]}],
     selection: GardSelection.cursor(head + lenAfter, -1),
     scrollIntoView: true,
     userEvent: "transpose"
-  }))
-  return true
+  }
 }
 
-export const changeTextblockType: Command.State<Plot.Tag.Any> = ({state, dispatch}, tag) => {
-  let tr = setTextblockType(state, tag)
-  return tr ? (dispatch(tr), true) : false
+export const changeTextblockType: Command.Pure<Plot.Tag.Any> = ({state}, tag) => {
+  // FIXME inline
+  return setTextblockType(state, tag)
 }
 
-export const unwrapBlock: Command.State<Node.Query | null> = ({state, dispatch}, query) => {
-  let tr = unwrapBlockType(state, query ?? undefined)
-  return tr ? (dispatch(tr), true) : false
+export const unwrapBlock: Command.Pure<Node.Query | null> = ({state}, query) => {
+  return unwrapBlockType(state, query ?? undefined) // FIXME inline?
 }
 
-export const toggleBlock: Command.State<Plot.Tag.Any> = ({state, dispatch}, tag) => {
-  let tr = unwrapBlockType(state, tag) || wrapBlock(state, tag)
-  return tr ? (dispatch(tr), true) : false
+export const toggleBlock: Command.Pure<Plot.Tag.Any> = ({state}, tag) => {
+  return unwrapBlockType(state, tag) || wrapBlock(state, tag)
 }
 
 /// Toggle the given mark. If there is no selection, it is added to
 /// the cursor's active marks, or removed if it is already in there.
 /// Otherwise, if any selected content allows for the mark to be
 /// added, it is added. If not, remove the mark from the selection.
-export const toggleMark: Command.State<Mark<any>> = ({state, dispatch}, mark) => {
+export const toggleMark: Command.Pure<Mark<any>> = ({state}, mark) => {
   let {selection, doc} = state
   if (selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks(), add = !mark.isInSet(selMarks)
     let newMarks = add ? mark.addToSet(selMarks) : mark.removeFromSet(selMarks)
-    dispatch(state.update({
+    return {
       selection: GardSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newMarks),
       userEvent: add ? "mark.add" : "mark.remove"
-    }))
+    }
   } else if (selection.ranges.some(r => canAddMarkInRange(doc, r.from, r.to, mark))) {
-    dispatch(state.update({
+    return {
       changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: mark})),
       userEvent: "mark.add"
-    }))
+    }
   } else {
-    dispatch(state.update({
+    return {
       changes: selection.ranges.map(r => ({from: r.from, to: r.to, remove: mark})),
       userEvent: "mark.remove"
-    }))
+    }
   }
-  return true
 }
 
 /// Search the schema for a mark with the given label (that has a
@@ -201,7 +186,7 @@ export const toggleMarkByLabel: Command<Mark.Role> = (view, label) => {
   return Command.dispatch(view, toggleMark, mark)
 }
 
-export const setAlignment: Command.State<null | "end" | "center"> = ({state, dispatch}, align) => {
+export const setAlignment: Command.Pure<null | "end" | "center"> = ({state}, align) => {
   let {schema} = state.doc
   let mark = schema.marks.find(m => m.hasRole(Mark.Role.Alignment))
   if (!mark) return false
@@ -212,18 +197,16 @@ export const setAlignment: Command.State<null | "end" | "center"> = ({state, dis
       changes.push(align ? {from: block.before, add: mark.of(align)} : {from: block.before, remove: mark.of(cur)})
   }
   if (!changes.length) return false
-  dispatch(state.update({
+  return {
     changes,
     userEvent: "mark.set.alignment",
-  }))
-  return true
+  }
 }
 
-export const toggleList: Command.State<Plot.Tag.Any> = ({state, dispatch}, listTag) => {
+export const toggleList: Command.Pure<Plot.Tag.Any> = ({state}, listTag) => {
   let blocks = selectedTextblocks(state)
   if (!blocks.length) return false
-  let tr = addList(state, blocks, listTag) || removeList(state, blocks, listTag)
-  return tr ? (dispatch(tr), true) : false
+  return addList(state, blocks, listTag) || removeList(state, blocks, listTag)
 }
 
 export const listIsActive = (listTag: Plot.Tag.Any): (state: GardState) => boolean => state => {
@@ -248,7 +231,7 @@ function autoJoin(a: Plot.Tag.Any, b: Plot.Tag.Any) {
   return typeof autoJoin == "function" ? autoJoin(a, b) : typeof autoJoin == "boolean" ? autoJoin : a.eq(b)
 }
 
-function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag.Any) {
+function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag.Any): Transaction.Spec | false {
   let plan: ({wrap: Pos.Plot, item: Plot.Tag.Any} | {change: Pos.Node, item: Pos.Node})[] = []
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let lastItem = -1, {schema} = state.doc
@@ -273,7 +256,7 @@ function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag.Any) {
       lastItem = item.before
     }
   }
-  if (!plan.length) return null
+  if (!plan.length) return false
   let changes: ChangeSet.Spec[] = []
   for (let step of plan) {
     if ("wrap" in step) { // Wrap block in a list
@@ -310,10 +293,10 @@ function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag.Any) {
       }
     }
   }
-  return state.update({changes, userEvent: "wrap.list"})
+  return {changes, userEvent: "wrap.list"}
 }
 
-function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any) {
+function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any): Transaction.Spec | false {
   let plan: {item: Pos.Plot, rewrap: Plot.Tag.Any | null}[] = [], lastItem = -1
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let {schema} = state.doc
@@ -331,7 +314,7 @@ function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any)
       chBefore.add(item.after)
     }
   }
-  if (!plan.length) return null
+  if (!plan.length) return false
   let changes: ChangeSet.Spec[] = []
   for (let {item, rewrap} of plan) {
     let openFrom = item.before, openTo = item.start, open: Token[] = rewrap ? [rewrap] : []
@@ -343,17 +326,16 @@ function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any)
     else if (!chAfter.has(item.after)) close.push(listTag)
     changes.push({from: closeFrom, to: closeTo, insert: close})
   }
-  return state.update({changes, userEvent: "unwrap.list"})
+  return {changes, userEvent: "unwrap.list"}
 }
 
-function setSelection(target: Command.Target, selection: GardSelection, extend?: boolean) {
-  target.dispatch(target.state.update({
+function setSelection(selection: GardSelection, extend?: GardState | false): Transaction.Spec {
+  return {
     selection: !extend ? selection
-      : GardSelection.range(target.state.selection.anchor, selection.head, selection.assoc, selection.goalColumn, selection.marks),
+      : GardSelection.range(extend.selection.anchor, selection.head, selection.assoc, selection.goalColumn, selection.marks),
     scrollIntoView: true,
     userEvent: "select"
-  }))
-  return true
+  }
 }
 
 function ltrAtCursor(state: GardState) {
@@ -371,13 +353,13 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: GardSt
 /// visually through bidirectional text, so when going left, the
 /// motion will go back in left-to-right text, and
 /// forward in right-to-left text.
-export const moveByUnit: Command.State<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}> = (
-  target, {dir, extend}
+export const moveByUnit: Command.Pure<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}> = (
+  {state}, {dir, extend}
 ) => {
-  let {state} = target, {selection} = state, forward = isForward(dir, state)
+  let {selection} = state, forward = isForward(dir, state)
   if (!selection.empty && !extend) {
     let next = selection.normalCursorAtBound(state, forward)
-    return next ? setSelection(target, next) : false
+    return next ? setSelection(next) : false
   } else {
     let next = selection.nextNormalCursor(state, forward)
     if (!next) return false
@@ -385,17 +367,17 @@ export const moveByUnit: Command.State<{dir: "left" | "right" | "forward" | "bac
       if (node.isPlot) return !node.type.isolating
       if (node.type.isSelectable) next = GardSelection.range(pos, pos + node.length)
     })
-    return setSelection(target, next, !!extend)
+    return setSelection(next, extend && state)
   }
 }
 
 /// Move the selection head one word in the indicated direction. Keep
 /// the anchor in place if `extend` is true. The default handler moves
 /// visually.
-export const moveByWord: Command.State<{dir: "left" | "right", extend?: boolean}> = (target, {dir, extend}) => {
-  let {state} = target, forward = (dir == "right") == ltrAtCursor(state)
+export const moveByWord: Command.Pure<{dir: "left" | "right", extend?: boolean}> = ({state}, {dir, extend}) => {
+  let forward = (dir == "right") == ltrAtCursor(state)
   let moved = state.selection.skipWord(state, forward)
-  return moved ? setSelection(target, moved, extend) : false
+  return moved ? setSelection(moved, extend && state) : false
 }
 
 function nextVertical(view: Wordgard, sel: GardSelection, forward: boolean,
@@ -413,11 +395,11 @@ export const moveByLine: Command<{dir: "up" | "down", extend?: boolean}> = (view
   if (state.sel.node) {
     let next = !extend && state.selection.normalCursorAtBound(state, forward)
     if (next && !state.doc.resolve(next.head).parent.node.inlineContent)
-      return setSelection(view, GardSelection.cursor(next.head, next.assoc, selection.goalColumn))
+      return setSelection(GardSelection.cursor(next.head, next.assoc, selection.goalColumn))
     selection = GardSelection.cursor(forward ? selection.to : selection.from, 0, selection.goalColumn)
   }
   let moved = nextVertical(view, selection, forward, undefined, !extend)
-  return moved ? setSelection(view, moved, extend) : false
+  return moved ? setSelection(moved, extend && state) : false
 }
 
 function pageHeight(view: Wordgard) {
@@ -437,7 +419,7 @@ export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (view
   let {state} = view, {selection} = state, forward = dir == "down"
   let moved = selection.empty || extend ? nextVertical(view, selection, forward, pageHeight(view))
     : forward ? GardSelection.cursor(selection.to, -1) : GardSelection.cursor(selection.from, 1)
-  return moved ? setSelection(view, moved, extend) : false
+  return moved ? setSelection(moved, extend && state) : false
 }
 
 // FIXME do we need a motion to texblock start/end variant?
@@ -445,22 +427,21 @@ export const moveToLineSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
 }> = (view, {dir, extend}) => {
   let pos = view.moveToLineBoundary(view.state.selection, isForward(dir, view.state))
-  return pos ? setSelection(view, pos, extend) : false
+  return pos ? setSelection(pos, extend && view.state) : false
 }
 
-export const moveToDocSide: Command.State<{side: "start" | "end", extend?: boolean}> = (target, {side, extend}) => {
+export const moveToDocSide: Command.Pure<{side: "start" | "end", extend?: boolean}> = (target, {side, extend}) => {
   let {state} = target
   let pos = side == "start" ? GardSelection.atStart(state) : GardSelection.atEnd(state)
   if (state.selection.empty && pos.head == state.selection.head) return false
-  return setSelection(target, pos, extend)
+  return setSelection(pos, extend && state)
 }
 
-export const selectAll: Command.State = target => {
-  target.dispatch(target.state.update({
-    selection: GardSelection.range(0, target.state.doc.length),
+export const selectAll: Command.Pure = ({state}) => {
+  return {
+    selection: GardSelection.range(0, state.doc.length),
     userEvent: "select.all"
-  }))
-  return true
+  }
 }
 
 /// Undo an edit. Does not have a default handler, but a handler is

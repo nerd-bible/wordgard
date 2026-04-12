@@ -78,11 +78,11 @@ export namespace KeyBinding {
     /// Key to use specifically on Linux.
     linux?: string,
     /// The command to execute when this binding is triggered.
-    run: Command.Bound<unknown> | ((view: Wordgard) => boolean)
+    run: Command.Bound | Command
     /// When given, this defines a second binding, using the (possibly
     /// platform-specific) key name, prefixed with `Shift-`, to activate
     /// this command.
-    shift?: Command.Bound<unknown> | ((view: Wordgard) => boolean)
+    shift?: Command.Bound | Command
     /// When this property is present, the function is called for every
     /// key.
     any?: (view: Wordgard, event: KeyboardEvent) => boolean
@@ -176,8 +176,7 @@ function getKeymap(bindings: readonly KeyBinding[]) {
   return found
 }
 
-function bind(run: Command.Bound<unknown> | ((view: Wordgard) => boolean)) {
-  if (typeof run == "function") return run
+function bind(run: Command.Bound | Command): (view: Wordgard) => boolean {
   return (view: Wordgard) => Command.dispatch(view, run)
 }
 

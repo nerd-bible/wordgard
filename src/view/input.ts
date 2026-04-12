@@ -675,7 +675,7 @@ observers.contextmenu = view => {
 }
 
 // FIXME formatSetBlockTextDirection, formatSetInlineTextDirection
-const inputTypeCommands: {[inputType: string]: Command.Bound<any> | Command} = {
+const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   historyUndo: undo,
   historyRedo: redo,
   insertLineBreak: insertLineBreak,

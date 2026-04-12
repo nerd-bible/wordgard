@@ -24,7 +24,7 @@ function selectionFrom(doc: Plot.Doc) {
   }
 }
 
-function test(doc: Plot.Doc, f: (state: GardState) => Transaction | null, expect?: Plot.Doc) {
+function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, expect?: Plot.Doc) {
   let state = GardState.create({
     doc,
     selection: selectionFrom(doc)
@@ -32,7 +32,8 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction | null, expect
   let result = f(state)
   if (expect) {
     ist(result)
-    state = result!.state
+    let tr = state.update(result as Transaction.Spec)
+    state = tr.state
     ist(state.doc, expect, eq)
     if (maybeTag(expect, 0) != null) {
       let expectedSel = selectionFrom(expect)
@@ -43,24 +44,18 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction | null, expect
   }
 }
 
-function fromCmd<T>(command: Command.State<T>, param: T) {
-  return (state: GardState) => {
-    let tr: Transaction | null = null
-    command({state, dispatch: (t: Transaction | Transaction.Spec) => {
-      tr = t instanceof Transaction ? t : state.update(t)
-    }} as any, param)
-    return tr
-  }
+function fromCmd<T>(command: Command.Pure<T>, param: T) {
+  return (state: GardState) => command({state}, param)
 }
 
-function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: GardState) => Transaction | null,
+function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: GardState) => Transaction.Spec | false,
                       expect: readonly Mark<any>[]) {
   let state = GardState.create({
     doc: doc(p()),
     selection: GardSelection.cursor(1, 0, undefined, before)
   })
   let tr = f(state)
-  if (tr) state = tr.state
+  if (tr) state = state.update(tr).state
   ist(state.selection.marks!, expect, Mark.sameSet)
 }
 
@@ -583,7 +578,8 @@ describe("unwrapBlock", () => {
       selection: {anchor: 0, head: 8}
     })
     let tr = unwrapBlockType(state, list)
-    ist(tr!.state.doc, s.doc([p("a"), p("b")]), eq)
+    ist(tr)
+    if (tr) ist(state.update(tr).state.doc, s.doc([p("a"), p("b")]), eq)
   })
 
   it("will auto-join unwrapped nodes", () => {
