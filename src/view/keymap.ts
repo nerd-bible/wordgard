@@ -1,7 +1,7 @@
-import {enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transposeChars,
+import {Command, enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transposeChars,
         moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
-import {Facet, GardState, Command} from "wordgard/state"
+import {Facet, GardState} from "wordgard/state"
 import {Wordgard} from "./editorview"
 import browser from "./browser"
 
@@ -178,7 +178,7 @@ function getKeymap(bindings: readonly KeyBinding[]) {
 
 function bind(run: Command.Bound<unknown> | ((view: Wordgard) => boolean)) {
   if (typeof run == "function") return run
-  return (view: Wordgard) => view.dispatchCommand(run)
+  return (view: Wordgard) => Command.dispatch(view, run)
 }
 
 function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {

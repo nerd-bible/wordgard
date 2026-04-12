@@ -1,6 +1,7 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
-import {GardSelection, GardState, Direction, Command} from "wordgard/state"
+import {GardSelection, GardState, Direction} from "wordgard/state"
 import {type Wordgard} from "wordgard/view"
+import {Command} from "./command"
 import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
         deleteSelection, deleteForward, deleteBackward,
         splitTextblock, joinListItems, unwrapBlockType, wrapBlock,
@@ -197,7 +198,7 @@ export const toggleMarkByLabel: Command<Mark.Role> = (view, label) => {
     if (type.hasRole(label) && type.default) { mark = type.default; break }
   }
   if (!mark) return false
-  return view.dispatchCommand(Command.bind(toggleMark, mark))
+  return Command.dispatch(view, toggleMark, mark)
 }
 
 export const setAlignment: Command.State<null | "end" | "center"> = ({state, dispatch}, align) => {

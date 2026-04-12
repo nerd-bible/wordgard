@@ -1,7 +1,6 @@
 import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
-import {undo, redo} from "wordgard/command"
-import {Wordgard} from "wordgard/view"
+import {Command, undo, redo} from "wordgard/command"
 
 const enum BranchName { Done, Undone }
 
@@ -114,11 +113,11 @@ export function history(config: HistoryConfig = {}): GardState.Extension {
   return [
     historyField_,
     historyConfig.of(config),
-    Wordgard.commandHandler(undo, view => {
+    Command.handler(undo, view => {
       let tr = popHistory(view.state)
       return tr ? (view.dispatch(tr), true) : false
     }),
-    Wordgard.commandHandler(redo, view => {
+    Command.handler(redo, view => {
       let tr = popHistory(view.state, true)
       return tr ? (view.dispatch(tr), true) : false
     })

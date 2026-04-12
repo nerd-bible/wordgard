@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/view"
-import { deleteLine} from "wordgard/command"
-import {GardState, Command} from "wordgard/state"
+import {Command, deleteLine} from "wordgard/command"
+import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders, maybeTag} from "wordgard/schema"
 import ist from "ist"

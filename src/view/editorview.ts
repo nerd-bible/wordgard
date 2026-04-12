@@ -1,4 +1,4 @@
-import {GardState, Transaction, Facet, GardSelection, Command} from "wordgard/state"
+import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {ChangeSet, Node} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
@@ -16,21 +16,6 @@ import browser from "./browser"
 import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {exceptionSink, logException} from "./util"
-
-const commandHandler = Facet.define<
-  [Command<any>, (view: Wordgard, param: any) => boolean],
-  Map<Command<any>, readonly ((view: Wordgard, param: any) => boolean)[]>
->({
-  combine(handlers) {
-    let map = new Map<Command<any>, readonly ((view: Wordgard, param: any) => boolean)[]>()
-    for (let [cmd, handler] of handlers) {
-      let list = map.get(cmd) as ((view: Wordgard, param: any) => boolean)[] | undefined
-      if (!list) map.set(cmd, list = [])
-      list.push(handler)
-    }
-    return map
-  }
-})
 
 // FIXME name this file and this package something else?
 
@@ -184,18 +169,6 @@ export class Wordgard {
   dispatch(...input: (Transaction | Transaction.Spec)[]) {
     if (input.length == 1 && input[0] instanceof Transaction) this.update(input[0])
     else this.update(this.state.update(...input as Transaction.Spec[]))
-  }
-
-  dispatchCommand<Param>(command: Command<null> | Command.Bound<any>): boolean
-  dispatchCommand<Param>(command: Command<Param>, param: Param): boolean
-  dispatchCommand<Param>(command: Command<any> | Command.Bound<any>, p?: Param): boolean {
-    let {command: cmd, param} = command instanceof Command.Bound ? command : {command, param: p ?? null}
-    let handlers = this.state.facet(commandHandler).get(cmd)
-    if (handlers) for (let handler of handlers) {
-      let result = handler(this, param)
-      if (result) return true
-    }
-    return cmd(this, param)
   }
 
   /// Update the view for the given transaction. Updates
@@ -636,12 +609,6 @@ export class Wordgard {
   /// its parent nodes is scrolled.
   static domEventHandlers(handlers: DOMEventHandlers<any>): GardState.Extension {
     return Wordgard.Plugin.define(() => ({}), {eventHandlers: handlers})
-  }
-
-  /// Create an extension that adds a handler for the given {@link
-  /// state.Command | command}.
-  static commandHandler<Param>(command: Command<Param>, handler: (view: Wordgard, param: Param) => boolean): GardState.Extension {
-    return commandHandler.of([command, handler] as any)
   }
 
   /// Create an extension that registers DOM event observers. Contrary

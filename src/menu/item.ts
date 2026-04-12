@@ -1,7 +1,7 @@
 import {Wordgard, showDialog} from "wordgard/view"
-import {toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
+import {Command, toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
-import {GardState, Transaction, Facet, Command} from "wordgard/state"
+import {GardState, Transaction, Facet} from "wordgard/state"
 import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,

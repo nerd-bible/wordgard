@@ -1,5 +1,6 @@
 import {Panel, Wordgard} from "wordgard/view"
 import {GardState, Facet, Direction} from "wordgard/state"
+import {Command} from "wordgard/command"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
@@ -298,7 +299,7 @@ class MenuBar {
         let child = this.selection[sLen - 1]
         if (child.flags & F.Disabled) {
         } else if (child instanceof BarButton) {
-          this.view.dispatchCommand(child.item.run)
+          Command.dispatch(this.view, child.item.run)
           this.setSelection([this.selection[0]])
         } else {
           let inner = defaultChild(child.children)
@@ -322,7 +323,7 @@ class MenuBar {
     }
 
     if (target instanceof BarButton) {
-      this.view.dispatchCommand(target.item.run)
+      Command.dispatch(this.view, target.item.run)
       this.setSelection(this.children.includes(target) ? [target] : this.selection.length ? [this.selection[0]] : [], false)
     } else if ((idx = this.selection.indexOf(target)) > -1 && idx < this.selection.length - 1) {
       // Closing an open submenu

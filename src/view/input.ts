@@ -1,6 +1,6 @@
-import {GardSelection, GardState, Transaction, Facet, Command} from "wordgard/state"
+import {GardSelection, GardState, Transaction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
-import {undo, redo, insertLineBreak, enter, insertText,
+import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
         transposeChars, deleteSelection} from "wordgard/command"
 import {Wordgard, PluginInstance} from "./editorview"
@@ -705,7 +705,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
 
   let command = inputTypeCommands[type]
   if (command) {
-    view.dispatchCommand(command)
+    Command.dispatch(view, command)
     return true
   }
 
@@ -714,7 +714,7 @@ handlers.beforeinput = (view, event: InputEvent) => {
     if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
     let insert = event.data!.replace(/\r\n?|\n/g, " ")
     let {from, to} = inputEventRange(event, view)
-    view.dispatchCommand(insertText, {from, to, insert, userEvent: "input.type"})
+    Command.dispatch(view, insertText, {from, to, insert, userEvent: "input.type"})
     return true
   } else if (type == "insertReplacementText" || type == "insertFromYank") {
     let slice = readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
@@ -752,7 +752,7 @@ handlers.input = (view, event: InputEvent) => {
       from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
       if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
     }
-    view.dispatchCommand(insertText, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
+    Command.dispatch(view, insertText, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
   }
   return false
 }
