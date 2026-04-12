@@ -1,4 +1,4 @@
-import {history, popHistory, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
+import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
 import {Plot, Leaf, ChangeSet} from "wordgard/doc"
 import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
@@ -31,15 +31,12 @@ function receive(state: GardState, text: string, from: number, to = from) {
   return state.update({changes: {from, to, insert: [Leaf.text(text)]},
                        annotations: Transaction.addToHistory.of(false)}).state
 }
-function command(state: GardState, f: (state: GardState) => Transaction | null, success: boolean | null = true) {
+function command(state: GardState, f: (state: GardState) => Transaction.Spec | false, success: boolean | null = true) {
   let tr = f(state)
   if (success != null) ist(!!tr, success)
-  return tr ? tr.state : state
+  return tr ? state.update(tr).state : state
 }
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
-
-let undo = (state: GardState) => popHistory(state)
-let redo = (state: GardState) => popHistory(state, true)
 
 describe("history", () => {
   it("allows to undo a change", () => {

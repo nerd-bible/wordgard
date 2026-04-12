@@ -1,6 +1,6 @@
 import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
-import {Command, undo, redo} from "wordgard/command"
+import {Command, undo as undoCmd, redo as redoCmd} from "wordgard/command"
 
 const enum BranchName { Done, Undone }
 
@@ -113,14 +113,8 @@ export function history(config: HistoryConfig = {}): GardState.Extension {
   return [
     historyField_,
     historyConfig.of(config),
-    Command.handler(undo, view => {
-      let tr = popHistory(view.state)
-      return tr ? (view.dispatch(tr), true) : false
-    }),
-    Command.handler(redo, view => {
-      let tr = popHistory(view.state, true)
-      return tr ? (view.dispatch(tr), true) : false
-    })
+    Command.handler(undoCmd, view => undo(view.state)),
+    Command.handler(redoCmd, view => redo(view.state))
   ]
 }
 
@@ -131,15 +125,23 @@ export function history(config: HistoryConfig = {}): GardState.Extension {
 /// that preserves history.
 export const historyField = historyField_ as GardState.Field<unknown>
 
-/// Undo or redo a single group of history events. Return null if no
-/// group is available. Note that transactions produced with this
+/// Undo a single group of history events. Returns false if no group
+/// is available. Note that transaction specs produced with this
 /// function should be dispatched as-is, and not combined with further
 /// changes.
-export function popHistory(state: GardState, redo = false) {
-  if (state.readOnly) return null
+export function undo(state: GardState) {
   let historyState = state.field(historyField_, false)
-  if (!historyState) return null
-  return historyState.pop(redo ? BranchName.Undone : BranchName.Done, state)
+  if (state.readOnly || !historyState) return false
+  return historyState.pop(BranchName.Done, state)
+}
+
+/// Redo a single group of undone history events. Returns false if no
+/// group is available. Transaction specs produced with this
+/// function should be dispatched as-is.
+export function redo(state: GardState) {
+  let historyState = state.field(historyField_, false)
+  if (state.readOnly || !historyState) return false
+  return historyState.pop(BranchName.Undone, state)
 }
 
 function depth(branch: Branch | null | undefined) {
@@ -319,10 +321,10 @@ class HistoryState {
     return new HistoryState(done, null, time, userEvent)
   }
 
-  pop(side: BranchName, state: GardState): Transaction | null {
+  pop(side: BranchName, state: GardState): Transaction.Spec | false {
     let branch = side == BranchName.Done ? this.done : this.undone
-    if (!branch || !(branch = branch.resolve())) return null
-    return state.update({
+    if (!branch || !(branch = branch.resolve())) return false
+    return {
       changes: branch.changes,
       selection: branch.startSelection,
       effects: branch.effects,
@@ -330,7 +332,7 @@ class HistoryState {
       filter: false,
       userEvent: side == BranchName.Done ? "undo" : "redo",
       scrollIntoView: true
-    })
+    }
   }
 
   clip(minDepth: number) {

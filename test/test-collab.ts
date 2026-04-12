@@ -1,7 +1,7 @@
 import {GardState, Transaction} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
-import {history, isolateHistory, popHistory} from "wordgard/history"
+import {history, isolateHistory, undo, redo} from "wordgard/history"
 import ist from "ist"
 import {collab, receiveUpdates, sendableUpdate, type Update, getSyncedVersion, getClientID} from "wordgard/collab"
 
@@ -47,8 +47,10 @@ class DummyServer {
     for (let i = 0; i < this.states.length; i++) if (i != client) this.sync(i)
   }
 
-  update(client: number, f: (state: GardState) => Transaction) {
-    this.states[client] = f(this.states[client]).state
+  update(client: number, f: (state: GardState) => Transaction | Transaction.Spec) {
+    let state = this.states[client], tr = f(state)
+    if (!(tr instanceof Transaction)) tr = state.update(tr)
+    this.states[client] = (tr as Transaction).state
     this.broadcast(client)
   }
 
@@ -57,12 +59,12 @@ class DummyServer {
   }
 
   undo(client: number) {
-    let tr = popHistory(this.states[client])
+    let tr = undo(this.states[client])
     if (tr) this.update(client, () => tr)
   }
 
   redo(client: number) {
-    let tr = popHistory(this.states[client], true)
+    let tr = redo(this.states[client])
     if (tr) this.update(client, () => tr)
   }
 
