@@ -1,5 +1,4 @@
 import {elt, ParseRule, Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
-import {Image, ImageAlt} from "wordgard/schema/image"
 
 const G = Node.Group
 
@@ -99,6 +98,28 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
   role: Node.Role.LineBreak,
   toText: () => "\n",
   shape: {element: "br"}
+})
+
+export const Image = Leaf.Type.defineInline<string>("Image", {
+  validateParam: "string",
+  shape: {structure: src => elt({_: "img", src})},
+  selectable: true,
+  parseRules: [{
+    selector: "img[src]",
+    readElement: elt => (elt as HTMLImageElement).src
+  }]
+})
+
+export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
+  target: Image,
+  validate: "string",
+  shape: {attribute: "alt", value: 0}
+})
+
+export const ImageSize = Mark.Type.define<number>("ImageSize", {
+  target: Image,
+  validate: "number",
+  shape: {attribute: "style", value: size => `width: ${size}px`}
 })
 
 export const Emphasis = Mark.define("Emphasis", {

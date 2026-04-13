@@ -7,7 +7,7 @@
   "exports": {
     "./doc": "./dist/doc.js",
     "./schema": "./dist/schema.js",
-    "./schema/image": "./dist/schema/image.js",
+    "./image": "./dist/image.js",
     "./state": "./dist/state.js",
     "./view": "./dist/view.js",
     "./command": "./dist/command.js",

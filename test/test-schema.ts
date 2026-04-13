@@ -1,7 +1,6 @@
 import ist from "ist"
 import {Plot, Leaf, Mark, Node, Schema} from "wordgard/doc"
-import {basicBuilders, Paragraph, CodeBlock, Blockquote, Strong, basicSchema, builder} from "wordgard/schema"
-import {Image} from "wordgard/schema/image"
+import {basicBuilders, Paragraph, CodeBlock, Blockquote, Strong, Image, basicSchema, builder} from "wordgard/schema"
 const {doc, p, strong, $img} = basicBuilders
 
 describe("Schema", () => {

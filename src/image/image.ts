@@ -1,30 +1,8 @@
-import {Leaf, Mark, elt, MapMode} from "wordgard/doc"
+import {elt, MapMode} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding} from "wordgard/view"
 import {GardState, Transaction} from "wordgard/state"
+import {ImageSize, ImageAlt, Image} from "wordgard/schema"
 
-export const Image = Leaf.Type.defineInline<string>("Image", {
-  validateParam: "string",
-  shape: {structure: src => elt({_: "img", src})},
-  selectable: true,
-  parseRules: [{
-    selector: "img[src]",
-    readElement: elt => (elt as HTMLImageElement).src
-  }]
-})
-
-export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
-  target: Image,
-  validate: "string",
-  shape: {attribute: "alt", value: 0}
-})
-
-export const ImageSize = Mark.Type.define<number>("ImageSize", {
-  target: Image,
-  validate: "number",
-  shape: {attribute: "style", value: size => `width: ${size}px`}
-})
-
-// FIXME make it possible to attach extensions to schema elements
 export const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {
     display: "inline-block",
@@ -142,3 +120,14 @@ export const resizeImageKeymap = [
   KeyBinding.define({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeImage(1.1, true)}),
   KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeImage(0.9, true)}),
 ]
+
+// FIXME creation menu item, with hooks to customize
+
+export function image(conf: {
+  resize?: boolean
+} = {}): GardState.Extension {
+  return [
+    Image, ImageAlt,
+    conf.resize ? [ImageSize, resizeImageKeymap, dragHandle, imageTheme] : []
+  ]
+}

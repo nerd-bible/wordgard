@@ -2,8 +2,7 @@ import {Wordgard, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
-import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, builder} from "wordgard/schema"
-import {Image, ImageAlt} from "wordgard/schema/image"
+import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, Image, ImageAlt, builder} from "wordgard/schema"
 import ist from "ist"
 
 const {DocTile} = Wordgard
