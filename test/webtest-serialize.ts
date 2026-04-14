@@ -1,8 +1,8 @@
 import ist from "ist"
 import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
         serialize, serializeSlice, parseDoc, parseSlice, type ParseOptions, RuleSet} from "wordgard/doc"
-import {basicBuilders, builder, basicSchema, tag, Paragraph, Heading} from "wordgard/schema"
-const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
+import {basicBuilders, builder, basicSchema, tag, Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema"
+const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -207,6 +207,15 @@ describe("parseDoc", () => {
       {selector: "p.h", plot: Heading.of(1), precedence: 2}
     ])
     ist(parse("<p class=h>H</p>", {ruleSet: rules}), doc(h1("H")), eq)
+  })
+
+  it("can parse different image types", () => {
+    let schema = Schema.define(basicSchema.elements.concat([Figure, CaptionedFigure]))
+    let doc = builder(schema)
+    let html = `<p>Img: <img src=test.png></p>
+<figure><img src=test.png></figure>
+<figure><img src=test.png><figcaption>Caption</figcaption></figure>`
+    ist(parse(html, {schema}), doc(p("Img: ", img("test.png")), fig("test.png"), capFig("test.png", "Caption")), eq)
   })
 })
 

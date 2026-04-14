@@ -114,6 +114,7 @@ export const Figure = Leaf.Type.defineBlock<string>("Figure", {
   validateParam: "string",
   shape: {structure: src => elt("figure", elt({_: "img", src}))},
   selectable: true,
+  group: G.Content,
   parseRules: [{
     selector: "figure:has(img[src])",
     readElement: elt => (elt.querySelector("img[src]") as HTMLImageElement).src,
@@ -121,14 +122,27 @@ export const Figure = Leaf.Type.defineBlock<string>("Figure", {
   }]
 })
 
+export const CaptionedFigure = Plot.Type.defineBlock<string>("CaptionedFigure", {
+  inlineContent: true,
+  validateParam: "string",
+  shape: {structure: src => elt("figure", elt({_: "img", src}), elt("figcaption", 0))},
+  group: G.Content,
+  parseRules: [{
+    selector: "figure:has(img[src]):has(figcaption)",
+    readElement: elt => (elt.querySelector("img[src]") as HTMLImageElement).src,
+    contentElement: "figcaption",
+    precedence: 4
+  }]
+})
+
 export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
-  target: [Image, Figure],
+  target: [Image, Figure, CaptionedFigure],
   validate: "string",
   shape: {attribute: "alt", value: 0, preferTarget: "img"}
 })
 
 export const ImageSize = Mark.Type.define<number>("ImageSize", {
-  target: [Image, Figure],
+  target: [Image, Figure, CaptionedFigure],
   validate: "number",
   shape: {attribute: "style", value: size => `width: ${size}px`, preferTarget: "img"}
 })

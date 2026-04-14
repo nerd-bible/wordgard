@@ -2,6 +2,8 @@ import {Plot, Leaf, Node} from "./node"
 import {Mark} from "./mark"
 import {DOMElement} from "./helper"
 
+// FIXME need some way to add parse rules and/or change DOM shapes without replacing node/mark config entirely
+
 export class Elt<T = string> {
   private constructor(
     readonly tagName: string,

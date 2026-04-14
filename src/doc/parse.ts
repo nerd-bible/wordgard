@@ -201,9 +201,9 @@ class ParseContext {
 
   parseElementByRule(elt: Element, match: {rule: ParseRule.Element<unknown>, value?: unknown},
                      marks: readonly Mark[], endOfSlice: boolean) {
-    let sync, plot, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
+    let sync, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.plot) {
-      plot = rule.plot instanceof Plot.Tag ? rule.plot :
+      let plot = rule.plot instanceof Plot.Tag ? rule.plot :
         rule.plot instanceof Plot.Type ? (hasValue ? rule.plot.of(match.value) : rule.plot.default) : null
       if (!plot) throw new Error(`Parse rule for ${rule.selector} is missing a parameter`)
       let innerMarks = this.enter(plot, marks, endOfSlice, elt)
@@ -225,7 +225,7 @@ class ParseContext {
     }
     let startIn = this.top
 
-    if (!plot || !isLeaf) {
+    if (!isLeaf) {
       let content = elt
       if (typeof rule.contentElement == "string") content = elt.querySelector(rule.contentElement) || elt
       else if (typeof rule.contentElement == "function") content = rule.contentElement(elt)

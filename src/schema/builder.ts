@@ -1,7 +1,8 @@
 import {Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
 import {basicSchema} from "./schema"
-import {Image, ImageAlt, Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
+import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
+        Image, ImageAlt, Figure, CaptionedFigure,
         Emphasis, Strong, Code, Link} from "./schema"
 
 export type ContentSpec = Node | string | number | null | readonly ContentSpec[]
@@ -110,6 +111,8 @@ export const basicBuilders = {
   pre: builder(CodeBlock),
   preLang: builder(CodeBlockLanguage),
   img: builder(Image),
+  fig: builder(Figure),
+  capFig: builder(CaptionedFigure),
   $img: builder(Image.of("test.png")),
   imgAlt: builder(ImageAlt),
   br: builder(LineBreak),
