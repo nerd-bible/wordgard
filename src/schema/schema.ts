@@ -102,7 +102,7 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
 
 export const Image = Leaf.Type.defineInline<string>("Image", {
   validateParam: "string",
-  shape: {structure: src => elt({_: "img", src})},
+  shape: {element: "img", attributes: src => ({src})},
   selectable: true,
   parseRules: [{
     selector: "img[src]",
@@ -110,16 +110,27 @@ export const Image = Leaf.Type.defineInline<string>("Image", {
   }]
 })
 
+export const Figure = Leaf.Type.defineBlock<string>("Figure", {
+  validateParam: "string",
+  shape: {structure: src => elt("figure", elt({_: "img", src}))},
+  selectable: true,
+  parseRules: [{
+    selector: "figure:has(img[src])",
+    readElement: elt => (elt.querySelector("img[src]") as HTMLImageElement).src,
+    precedence: 2
+  }]
+})
+
 export const ImageAlt = Mark.Type.define<string>("ImageAlt", {
-  target: Image,
+  target: [Image, Figure],
   validate: "string",
-  shape: {attribute: "alt", value: 0}
+  shape: {attribute: "alt", value: 0, preferTarget: "img"}
 })
 
 export const ImageSize = Mark.Type.define<number>("ImageSize", {
-  target: Image,
+  target: [Image, Figure],
   validate: "number",
-  shape: {attribute: "style", value: size => `width: ${size}px`}
+  shape: {attribute: "style", value: size => `width: ${size}px`, preferTarget: "img"}
 })
 
 export const Emphasis = Mark.define("Emphasis", {

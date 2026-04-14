@@ -1,7 +1,7 @@
 import ist from "ist"
 import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
-        serialize, serializeSlice, parseDoc, parseSlice, type ParseOptions} from "wordgard/doc"
-import {basicBuilders, builder, basicSchema, tag, Paragraph} from "wordgard/schema"
+        serialize, serializeSlice, parseDoc, parseSlice, type ParseOptions, RuleSet} from "wordgard/doc"
+import {basicBuilders, builder, basicSchema, tag, Paragraph, Heading} from "wordgard/schema"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
@@ -199,6 +199,14 @@ describe("parseDoc", () => {
 
   it("joins text nodes", () => {
     ist(parse("<p>a<span>b</span></p>"), doc(p("ab")), eq)
+  })
+
+  it("uses parse rule precedence", () => {
+    let rules = new RuleSet([
+      {selector: "p", plot: Paragraph},
+      {selector: "p.h", plot: Heading.of(1), precedence: 2}
+    ])
+    ist(parse("<p class=h>H</p>", {ruleSet: rules}), doc(h1("H")), eq)
   })
 })
 

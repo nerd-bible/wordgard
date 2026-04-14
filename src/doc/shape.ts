@@ -365,17 +365,23 @@ export namespace ParseRule {
     /// Ignore DOM nodes matching this selector or predicate, when
     /// they appear in this plot's content element.
     ignoreContent?: string | ((elt: DOMElement) => boolean)
+    /// A number between -10 and 10 (inclusive) that specifies the
+    /// relative precedence of this rule. Defaults to 0.
+    precedence?: number
   }
 
   export interface Attribute<Param> {
     attribute: string
     mark?: Mark.Type<Param> | Mark<Param>
-      ignore?: boolean
+    ignore?: boolean
     clearMark?: (mark: Mark<unknown>) => boolean
     param?: Param
     value?: string
     readAttribute?: (value: string) => Param | ParseRule.Reject
     consuming?: boolean
+    /// A number between -10 and 10 (inclusive) that specifies the
+    /// relative precedence of this rule. Defaults to 0.
+    precedence?: number
   }
 
   export const Reject: unique symbol = Symbol("reject")

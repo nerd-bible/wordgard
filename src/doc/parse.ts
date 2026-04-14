@@ -6,7 +6,13 @@ import {ParseRule} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 
-const SchemaCache = new WeakMap<Schema, RuleSet>()
+const schemaCache = new WeakMap<Schema, RuleSet>()
+
+function addByPrec<T extends {precedence?: number}>(array: T[], value: T) {
+  let prec = value.precedence ?? 0, i = array.length
+  while (i > 0 && prec > (array[i - 1].precedence ?? 0)) i--
+  array.splice(i, 0, value)
+}
 
 /// A collection of parse rules. Usually derived from a schema.
 export class RuleSet {
@@ -17,23 +23,20 @@ export class RuleSet {
 
   /// Create a rule set with the given parse rules.
   constructor(readonly rules: readonly ParseRule[]) {
-    for (let rule of rules) {
-      if ("selector" in rule) this.elementRules.push(rule)
-      else this.attributeRules.push(rule)
-    }
+    for (let rule of rules) addByPrec("selector" in rule ? this.elementRules : this.attributeRules, rule)
   }
 
   /// Create a rule set containing all the parse rules attached to
   /// nodes and marks in the given schema, as well as the rules that
   /// can be derived from the node and mark shape declarations.
   static fromSchema(schema: Schema) {
-    let cached = SchemaCache.get(schema)
+    let cached = schemaCache.get(schema)
     if (cached) return cached
 
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
       let {spec: {shape, parseRules}} = tag
-      if ("element" in shape && shape.element) rules.push({
+      if ("element" in shape && shape.element && (shape.read || tag.default)) rules.push({
         selector: shape.selector || shape.element,
         readElement: shape.read,
         leaf: tag.isLeaf ? tag : undefined,
@@ -48,7 +51,7 @@ export class RuleSet {
     for (let mark of schema.marks) {
       let {shape, parseRules} = mark.spec
       if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
-      if ("element" in shape) {
+      if ("element" in shape && (shape.read || mark.default)) {
         rules.push({
           selector: shape.selector || shape.element,
           readElement: shape.read,
@@ -77,7 +80,7 @@ export class RuleSet {
       }
     }
     let result = new RuleSet(rules)
-    SchemaCache.set(schema, result)
+    schemaCache.set(schema, result)
     return result
   }
 
