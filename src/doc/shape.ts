@@ -49,19 +49,42 @@ export class Elt<T = string> {
     return dom
   }
 
+  wrap(wrapper: Elt<T>, target?: Elt.Selector) {
+    if (target) {
+      let added = this.modifyBySelector(wrapper, target)
+      if (added) return added
+    }
+    return wrapper.fill([this])
+  }
+
   addAttrs(attrs: Attributes, target?: Elt.Selector) {
     if (target) {
-      let added = this.addAttrsBySelector(attrs, target)
+      let added = this.modifyBySelector(attrs, target)
       if (added) return added
     }
     return Elt.new(this.tagName, Attributes.merge(this.attrs, attrs), this.children)
   }
 
-  private addAttrsBySelector(attrs: Attributes, target: Elt.Selector): Elt<T> | null {
-    if (target.match(this)) return this.addAttrs(attrs)
+
+  fill(content: Elt.Fragment<T>) {
+    let children: (0 | T | Elt<T>)[] = []
+    for (let ch of this.children) {
+      if (ch === 0) {
+        for (let c of content) children.push(c)
+      } else if (ch instanceof Elt && ch.hasContent) {
+        children.push(ch.fill(content))
+      } else {
+        children.push(ch)
+      }
+    }
+    return new Elt(this.tagName, this.attrs, children)
+  }
+
+  private modifyBySelector(mod: Attributes | Elt<T>, target: Elt.Selector): Elt<T> | null {
+    if (target.match(this)) return mod instanceof Elt ? mod.fill([this]) : this.addAttrs(mod)
     for (let i = 0; i < this.children.length; i++) {
       let ch = this.children[i], matched
-      if (ch instanceof Elt && (matched = ch.addAttrsBySelector(attrs, target))) {
+      if (ch instanceof Elt && (matched = ch.modifyBySelector(mod, target))) {
         let copy = this.children.slice()
         copy[i] = matched
         return Elt.new(this.tagName, this.attrs, copy)

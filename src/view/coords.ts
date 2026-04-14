@@ -25,13 +25,13 @@ export function coordsAtPos(view: Wordgard, pos: number, assoc: -1 | 1): DOMRect
   if (tagTile.node.isPlot && tagTile.node.type.orientation == "column") {
     if (offset && (assoc < 0 || offset == maxOffset(node))) {
       let before = node.childNodes[offset - 1]
-      if (before.nodeType == 1) return flattenH((before as HTMLElement).getBoundingClientRect(), false)
+      if (before.nodeType == 1) return flattenH((before as Element).getBoundingClientRect(), false)
     }
     if (offset < maxOffset(node)) {
       let after = node.childNodes[offset]
-      if (after.nodeType == 1) return flattenH((after as HTMLElement).getBoundingClientRect(), true)
+      if (after.nodeType == 1) return flattenH((after as Element).getBoundingClientRect(), true)
     }
-    return flattenH((node as HTMLElement).getBoundingClientRect(), assoc > 0)
+    return flattenH((node as Element).getBoundingClientRect(), assoc > 0)
   }
 
   // Inline, not in text node
@@ -41,16 +41,16 @@ export function coordsAtPos(view: Wordgard, pos: number, assoc: -1 | 1): DOMRect
         // BR nodes tend to only return the rectangle before them.
         // Only use them if they are the last element in their parent
         : before.nodeType == 1 && (before.nodeName != "BR" || !before.nextSibling) ? before : null
-    if (target) return flattenV(singleRect(target as Range | HTMLElement, 1), dirAt(view.state, pos, assoc) == Direction.RTL)
+    if (target) return flattenV(singleRect(target as Range | Element, 1), dirAt(view.state, pos, assoc) == Direction.RTL)
   }
   if (offset < maxOffset(node)) {
     let after = node.childNodes[offset]
     let target = !after ? null : after.nodeType == 3 ? textRange(after as Text, 0, 0)
         : after.nodeType == 1 ? after : null
-    if (target) return flattenV(singleRect(target as Range | HTMLElement, -1), dirAt(view.state, pos, assoc) == Direction.LTR)
+    if (target) return flattenV(singleRect(target as Range | Element, -1), dirAt(view.state, pos, assoc) == Direction.LTR)
   }
   // All else failed, just try to get a rectangle for the target node
-  return flattenV(singleRect(node.nodeType == 3 ? textRange(node as Text, 0, node.nodeValue!.length) : node as HTMLElement, -assoc),
+  return flattenV(singleRect(node.nodeType == 3 ? textRange(node as Text, 0, node.nodeValue!.length) : node as Element, -assoc),
                   assoc > 0)
 }
 

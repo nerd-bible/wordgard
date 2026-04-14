@@ -19,7 +19,7 @@ export function getSelection(root: DocumentOrShadowRoot): Selection | null {
   return target.getSelection()
 }
 
-export function hasSelection(dom: HTMLElement, selection: SelectionRange): boolean {
+export function hasSelection(dom: Element, selection: SelectionRange): boolean {
   if (!selection.focusNode) return false
   try {
     // Firefox will raise 'permission denied' errors when accessing
@@ -258,7 +258,7 @@ function nonZero(rect: DOMRect) {
   return rect.top < rect.bottom || rect.left < rect.right
 }
 
-export function singleRect(target: HTMLElement | Range, bias: number): DOMRect {
+export function singleRect(target: Element | Range, bias: number): DOMRect {
   let rects = target.getClientRects()
   if (rects.length) {
     let first = rects[bias < 0 ? 0 : rects.length - 1]
@@ -271,7 +271,7 @@ export function getRoot(node: Node | null | undefined): DocumentOrShadowRoot | n
   while (node) {
     if (node && (node.nodeType == 9 || node.nodeType == 11 && (node as ShadowRoot).host))
       return node as unknown as DocumentOrShadowRoot
-    node = (node as HTMLElement).assignedSlot || node.parentNode
+    node = (node as Element).assignedSlot || node.parentNode
   }
   return null
 }

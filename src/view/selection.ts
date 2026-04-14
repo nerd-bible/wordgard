@@ -48,7 +48,7 @@ export function moveVertically(view: Wordgard, start: GardSelection, forward: bo
     let pos = view.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {
       let elt = view.docTile.resolve(block.start, 0)
-      let rect = (elt.dom as HTMLElement).getBoundingClientRect()
+      let rect = (elt.dom as Element).getBoundingClientRect()
       if (forward ? y < rect.top : y > rect.bottom) y = forward ? rect.top : rect.bottom
       while (forward ? rect.bottom >= y : rect.top <= y) {
         let found = elt.tile.posAtCoords(view.state, x, y)
@@ -106,7 +106,7 @@ function findTargetVertically(view: Wordgard, from: number, forward: boolean, x:
         for (let chPos = nextPos + 1, i = 0; i < next.content.length; i++) {
           let ch = next.content[i]
           let {tile} = view.docTile.resolve(chPos + 1, 0)
-          let rect = (tile.dom as HTMLElement).getBoundingClientRect()
+          let rect = (tile.dom as Element).getBoundingClientRect()
           let dist = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
           if (closestDist < 0 || dist < closestDist) {
             closestDist = dist

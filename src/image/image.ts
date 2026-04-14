@@ -31,8 +31,7 @@ const handleElt = elt({_: "svg:svg", class: "wg-resize-handle", viewBox: "0 0 20
                       elt({_: "svg:path", d: "M20 0L0 20M20 5L5 20M20 10L10 20", stroke: "#000000aa", "stroke-width": "1.5"}),
                       elt({_: "svg:polygon", points: "0,20 20,20 20,0", fill: "transparent", class: "wg-resize-handle-active"}))
 
-const resizeWrapper = Decoration.wrapper(
-  shape => elt({_: "span", class: "wg-resize-hover"}, handleElt, shape))
+const resizeWrapper = Decoration.wrapper(elt({_: "span", class: "wg-resize-hover"}, handleElt, 0), {target: "img"})
 
 const resizeState = GardState.Field.define<{target: number, resizing: number, deco: PointSet<Decoration>}>({
   create: () => ({target: -1, resizing: -1, deco: PointSet.empty}),
@@ -44,7 +43,7 @@ const resizeState = GardState.Field.define<{target: number, resizing: number, de
           return {target: -1, resizing: -1, deco: PointSet.empty}
         let deco: [number, Decoration][] = [[target, resizeWrapper]]
         if (resizing > -1)
-          deco.push([target, Decoration.attribute("style", `width: ${resizing}px`, {selector: "img"})])
+          deco.push([target, Decoration.attribute("style", `width: ${resizing}px`, {target: "img"})])
         return {target, resizing, deco: PointSet.create(deco)}
       }
     }
@@ -54,6 +53,11 @@ const resizeState = GardState.Field.define<{target: number, resizing: number, de
 })
 
 const MIN_SIZE = 10
+
+function imageNode(view: Wordgard, pos: number) {
+  let dom = view.nodeDOM(pos)!
+  return dom.nodeName == "IMG" ? dom : dom.querySelector("img[src]")!
+}
 
 const resizeHandlers = Wordgard.domEventHandlers({
   mousedown: (event, view) => {
@@ -66,19 +70,20 @@ const resizeHandlers = Wordgard.domEventHandlers({
       dom = next
     }
     let node = view.state.doc.nodeAt(resizing.target)!
-    let width = node.tag.mark(ImageSize) ?? view.nodeDOM(resizing.target)!.getBoundingClientRect().width
+    let width = node.tag.mark(ImageSize) ?? imageNode(view, resizing.target).getBoundingClientRect().width
     view.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
     event.preventDefault()
   },
   mousemove: (event, view) => {
     let resizing = view.state.field(resizeState)
     if (resizing.resizing > -1) {
-      let dom = view.nodeDOM(resizing.target)!
+      let dom = imageNode(view, resizing.target)
       let width = event.clientX - dom.getBoundingClientRect().left
       if (width >= MIN_SIZE && Math.abs(width - resizing.resizing) >= 1)
         view.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
     } else {
-      let node = view.nodeFromDOM(event.target as HTMLElement)
+      let elt = (event.target as HTMLElement).closest("img, .wg-resize-handle")
+      let node = elt && view.nodeFromDOM(elt)
       let target = node && view.state.doc.schema.markAllowed(ImageSize, node.node.type) ? node.pos : -1
       if (target != resizing.target)
         view.dispatch({effects: setResizing.of({target, resizing: -1})})
@@ -103,7 +108,7 @@ export const dragHandle = [
 export const resizeImage = (by: number, relative = false) => (view: Wordgard) => {
   let {node} = view.state.sel
   if (node && view.state.doc.schema.markAllowed(ImageSize, node.type)) {
-    let curWidth = node.mark(ImageSize) ?? view.nodeDOM(view.state.selection.from)!.getBoundingClientRect().width
+    let curWidth = node.mark(ImageSize) ?? imageNode(view, view.state.selection.from).getBoundingClientRect().width
     let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
     if (newWidth != curWidth) {
       view.dispatch({

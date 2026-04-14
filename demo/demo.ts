@@ -1,13 +1,16 @@
 import {Wordgard, defaultKeymap} from "wordgard/view"
-import {basicSchema} from "wordgard/schema"
+import {basicSchema, CaptionedFigure} from "wordgard/schema"
 import {image} from "wordgard/image"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 
 ;(window as any).view = new Wordgard({
   parent: document.body,
-  doc: "<h3>Hello <img src='data:image/gif;base64,R0lGODlhHgAeAKEBAAAAAPX/APX/APX/ACH5BAEKAAIALAAAAAAeAB4AAAJalI+pyxoPQ5si2kjR3Zjy/0zgyIymY55aSh4fAEcwwLncLMebAeKQv+vpHsBL5TUMFC3HW3KJYUmbUlI1Rb3WstoOtxuygSGJsVcMLqUb3cw1g/7AF7u5nVIAADs='></h3><p>I am Wordgard</p><ul><li>List</li><li>Etc</li></ul>",
+  doc: `<h3>Hello</h3>
+<figure><img src=flower.jpg><figcaption>A flower</figcaption></figure>
+<p>I am Wordgard</p>`,
   config: [
+    CaptionedFigure,
     basicSchema.elements,
     image({resize: true}),
     defaultKeymap,

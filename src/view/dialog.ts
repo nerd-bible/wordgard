@@ -9,7 +9,7 @@ type DialogConfig = {
   ///
   /// If this is not given, the `label`, `input`, and `submitLabel`
   /// fields will be used to create a simple form for you.
-  content?: (view: Wordgard, close: () => void) => HTMLElement
+  content?: (view: Wordgard, close: () => void) => Element
   /// When `content` isn't given, this provides the text shown in the
   /// dialog.
   label?: string

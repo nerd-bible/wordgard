@@ -69,7 +69,10 @@ export function tagShape(spec: {
   let {tag, shape, atom} = spec, shapeFunc: (tag: Node.Tag) => Shape
   let type = tag instanceof Node.Type.Base ? tag : tag.type
   if (typeof shape == "function") {
-    if (atom == null) throw new Error("Dynamic tag shapes must provide an 'atom' field")
+    if (atom == null) {
+      if (type.isLeaf) atom = true
+      else throw new Error("Dynamic tag shapes must provide an 'atom' field")
+    }
     shapeFunc = tag => addMarkAttributes(shape(tag), tag)
   } else {
     if (atom == null) atom = !shape.hasContent
@@ -151,19 +154,10 @@ function applyDeco(shape: Shape, deco: Decoration, tag: Node.Tag) {
   if (deco instanceof AttributeDecoration) {
     let attrs: Attributes = [deco.attribute, deco.value]
     return deco.selector && shape instanceof Elt ? shape.addAttrs(attrs, deco.selector) : addAttrs(shape, attrs, tag.isInline)
+  } else if (deco instanceof WrapperDecoration) {
+    return deco.selector && shape instanceof Elt ? shape.wrap(deco.elt, deco.selector) : deco.elt.fill([shape])
   }
-  if (deco instanceof WrapperDecoration) return checkWrap(shape, deco.wrap(shape))
   return shape
-}
-
-function checkWrap(inner: Shape, outer: Shape): Shape {
-  let scan = (shape: Shape | string | 0): boolean => {
-    if (shape == inner) return true
-    if (shape instanceof Elt) return shape.children.some(scan)
-    return false
-  }
-  if (!scan(outer)) throw new Error("Wrapping decorations must include the original shape in their output")
-  return outer
 }
 
 const baseTagShape = memo((tag: Node.Tag): Shape => {
@@ -328,16 +322,17 @@ export abstract class Decoration implements PointSet.Value {
     return new WidgetDecoration(widget, spec?.side || 0, spec?.mapMode ?? MapMode.TrackDel)
   }
 
-  static attribute(attribute: string, value: string, spec?: {selector?: string}) {
-    return new AttributeDecoration(attribute, value, spec?.selector ? Elt.Selector.parse(spec.selector) : null)
+  static attribute(attribute: string, value: string, spec?: {target?: string}) {
+    return new AttributeDecoration(attribute, value, spec?.target ? Elt.Selector.parse(spec.target) : null)
   }
 
   static shape(shape: Shape) {
     return new ShapeDecoration(shape)
   }
 
-  static wrapper(wrapper: (shape: Shape) => Shape) {
-    return new WrapperDecoration(wrapper)
+  static wrapper(wrapper: DecoElt, spec?: {target?: string}) {
+    if (!wrapper.hasContent) throw new Error("Wrapper decoration elements must have a content hole")
+    return new WrapperDecoration(wrapper, spec?.target ? Elt.Selector.parse(spec.target) : null)
   }
 
   static source = Facet.define<(state: GardState) => PointSet<Decoration>>({
@@ -381,10 +376,10 @@ class AttributeDecoration extends Decoration {
 }
 
 class WrapperDecoration extends Decoration {
-  constructor(readonly wrap: (shape: Shape) => Shape) { super() }
+  constructor(readonly elt: DecoElt, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
-    return this == other || other instanceof WrapperDecoration && other.wrap == this.wrap
+    return this == other || other instanceof WrapperDecoration && other.elt.eq(this.elt) && other.selector == this.selector
   }
 
   get mapMode() { return MapMode.TrackAfter }

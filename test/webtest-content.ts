@@ -200,8 +200,7 @@ describe("DocTile", () => {
     })
     const imgWidget = tagShape({
       tag: Image,
-      shape: t => trackedWidget.of(t.param as string),
-      atom: true
+      shape: t => trackedWidget.of(t.param as string)
     })
 
     let tile = update(render(doc(p("ab", img("a"), "cd")), imgWidget), {
@@ -421,24 +420,34 @@ describe("DocTile", () => {
     })
 
     it("can add wrapping structure to a specific node", () => {
-      let deco = PointSet.create([[3, Decoration.wrapper(s => elt("div", elt("hr"), s))]])
+      let deco = PointSet.create([[3, Decoration.wrapper(elt("div", elt("hr"), 0))]])
       ist(render(doc(p("x"), p("y")), Decoration.source.of(() => deco)).dom.innerHTML,
           "<p>x</p><div><hr><p>y</p></div>")
     })
 
     it("can handle a change modifying the depth of a plot's wrapper", () => {
-      let deco = PointSet.create([[0, Decoration.wrapper(s => elt("div", elt("hr"), s))]])
+      let deco = PointSet.create([[0, Decoration.wrapper(elt("div", elt("hr"), 0))]])
       let node = update(render(doc(p("x"), p("y"))), {
         effects: Transaction.Effect.appendConfig.of(Decoration.source.of(() => deco))
       })
       ist(node.dom.innerHTML, "<div><hr><p>x</p></div><p>y</p>")
     })
 
+    it("supports selectors for wrapper decorations", () => {
+      let complexImg = tagShape({
+        tag: Image,
+        shape: i => elt({_: "span", class: "my-image"}, elt({_: "img", src: i.param as string}))
+      })
+      let deco = PointSet.create([[2, Decoration.wrapper(elt({_: "span", class: "inner"}, 0), {target: "img"})]])
+      let tile = render(doc(p("»", $img)), [complexImg, Decoration.source.of(() => deco)])
+      ist(tile.dom.innerHTML, '<p>»<span class="my-image"><span class="inner"><img src="test.png"></span></span></p>')
+    })
+
     it("can reuse DOM structure when adding a shape wrapper", () => {
       let node = render(doc(p($img)))
       let img = node.dom.querySelector("img")
       node = update(node, {effects: Transaction.Effect.appendConfig.of(Decoration.source.of(state => {
-        return PointSet.create([[1, Decoration.wrapper(shape => elt({_: "span", class: "u"}, shape))]])
+        return PointSet.create([[1, Decoration.wrapper(elt({_: "span", class: "u"}, 0))]])
       }))})
       ist(node.dom.querySelector("img"), img)
     })

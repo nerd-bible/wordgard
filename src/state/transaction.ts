@@ -281,6 +281,8 @@ export namespace Transaction {
       return result
     }
 
+    // FIXME move these?
+
     /// This effect can be used to reconfigure the root extensions of
     /// the editor. Doing this will discard any extensions
     /// [appended](#state.StateEffect^appendConfig), but does not reset

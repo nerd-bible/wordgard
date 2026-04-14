@@ -24,16 +24,16 @@ export function attrsEq(a: Attrs | null, b: Attrs | null, ignore?: string): bool
   return true
 }
 
-export function updateAttrs(dom: HTMLElement, prev: Attrs | null, attrs: Attrs | null) {
+export function updateAttrs(dom: Element, prev: Attrs | null, attrs: Attrs | null) {
   let changed = false
   if (prev) for (let name in prev) if (!(attrs && name in attrs)) {
     changed = true
-    if (name == "style") dom.style.cssText = ""
+    if (name == "style") (dom as HTMLElement).style.cssText = ""
     else dom.removeAttribute(name)
   }
   if (attrs) for (let name in attrs) if (!(prev && prev[name] == attrs[name])) {
     changed = true
-    if (name == "style") dom.style.cssText = attrs[name]
+    if (name == "style") (dom as HTMLElement).style.cssText = attrs[name]
     else dom.setAttribute(name, attrs[name])
   }
   return changed

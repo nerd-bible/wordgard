@@ -315,6 +315,7 @@ export class Wordgard {
       this.state.facet(theme)
   }
 
+  // FIXME rely on :focus pseudoselector instead of wg-focused?
   private updateAttrs() {
     let editorAttrs = attrsFromFacet(this, Wordgard.editorAttributes, {
       class: "wg-editor" + (this.hasFocus ? " wg-focused " : " ") + this.themeClasses,
@@ -432,12 +433,12 @@ export class Wordgard {
     return {node: viewPos.tile.dom, offset: viewPos.offset}
   }
 
-  nodeDOM(pos: number): HTMLElement | null {
+  nodeDOM(pos: number): Element | null {
     this.checkFlushed()
     let viewPos = this.docTile.resolve(pos, 1)
     if (viewPos.dom.nodeType != 1) return null
     let after = viewPos.dom.childNodes[viewPos.offset]
-    return after && after.nodeType == 1 ? after as HTMLElement : null
+    return after && after.nodeType == 1 ? after as Element : null
   }
 
   /// Find the document position at the given DOM node. Can be useful
@@ -450,7 +451,7 @@ export class Wordgard {
 
   /// Find the Wordgard node represented by the given DOM node, or one
   /// of its parent nodes, if any. Will not return the outer document node.
-  nodeFromDOM(node: HTMLElement): {pos: number, node: Node} | null {
+  nodeFromDOM(node: Element): {pos: number, node: Node} | null {
     let tile = this.docTile.nearest(node, true)
     return tile && tile != this.docTile ? {pos: tile.posBefore, node: tile.node!} : null
   }
@@ -459,7 +460,7 @@ export class Wordgard {
   posAtCoords(coords: {x: number, y: number}): {pos: number, assoc: -1 | 0 | 1, target: number | null} {
     this.checkFlushed()
     let elt = ((this.root as any).elementFromPoint ? this.root : this.dom.ownerDocument)
-                .elementFromPoint(coords.x, coords.y) as HTMLElement
+                .elementFromPoint(coords.x, coords.y)
     let tile = (elt && this.docTile.nearest(elt)) || this.docTile
     return tile.posAtCoords(this.state, coords.x, coords.y)
   }
