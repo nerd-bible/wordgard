@@ -729,7 +729,10 @@ class ContentUpdate {
         }
       },
       leave: tile => {
-        this.up()
+        if (tile.isNodeOuter) {
+          this.leaveNode()
+          this.leaveWrappers()
+        }
       },
       skip: (tile, from, to) => {
         if (!(tile instanceof TextTile)) {

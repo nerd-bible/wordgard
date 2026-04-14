@@ -426,6 +426,14 @@ describe("DocTile", () => {
           "<p>x</p><div><hr><p>y</p></div>")
     })
 
+    it("can handle a change modifying the depth of a plot's wrapper", () => {
+      let deco = PointSet.create([[0, Decoration.wrapper(s => elt("div", elt("hr"), s))]])
+      let node = update(render(doc(p("x"), p("y"))), {
+        effects: Transaction.Effect.appendConfig.of(Decoration.source.of(() => deco))
+      })
+      ist(node.dom.innerHTML, "<div><hr><p>x</p></div><p>y</p>")
+    })
+
     it("can reuse DOM structure when adding a shape wrapper", () => {
       let node = render(doc(p($img)))
       let img = node.dom.querySelector("img")
