@@ -31,6 +31,8 @@ type DialogConfig = {
   top?: boolean
 }
 
+// FIXME refine interface
+
 /// Show a panel above or below the editor to show the user a message
 /// or prompt them for input. Returns an effect that can be dispatched
 /// to close the dialog, and a promise that resolves when the dialog
@@ -93,6 +95,7 @@ function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLF
   let content = config.content ? config.content(view, () => done(null)) : null
   if (!content) {
     content = document.createElement("form")
+    content.className = "wg-form"
     if (config.input) {
       let input = document.createElement("input")
       for (let attr in config.input) {

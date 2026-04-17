@@ -386,6 +386,7 @@ export namespace ParseRule {
     ignore?: boolean | "skip"
     param?: Param
     readElement?: (element: DOMElement) => Param | ParseRule.Reject
+    marksFrom?: string
     contentElement?: string | ((elt: DOMElement) => DOMElement)
     /// Ignore DOM nodes matching this selector or predicate, when
     /// they appear in this plot's content element.

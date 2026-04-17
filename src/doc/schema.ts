@@ -64,6 +64,14 @@ export class Schema {
       throw new ValidationError(`Mark type ${mark.name} cannot target node ${node.name}`)
   }
 
+  /// Test whether the given mark or tag type is included in this
+  /// schema.
+  has(elt: Mark<any> | Mark.Type<any> | Node.Tag | Node.Type<any>) {
+    if (elt instanceof Mark || elt instanceof Node.Tag.Base) elt = elt.type
+    if (elt instanceof Mark.Type) return this.marksByName[elt.name] == elt
+    return this.tagsByName[elt.name] == elt
+  }
+
   /// Test whether a node type matches the given group query. When
   /// multiple group names, separated by spaces, are given, this
   /// tests whether the node is in _all_ of those groups.

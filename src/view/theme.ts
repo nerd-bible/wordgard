@@ -136,7 +136,9 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     display: "block",
     padding: "2px 19px 4px 6px",
     position: "relative",
-    "& label": { fontSize: "80%" },
+    "& label, & .wg-label": {
+      fontSize: "80%"
+    }
   },
   ".wg-dialog-close": {
     position: "absolute",

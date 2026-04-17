@@ -33,17 +33,6 @@ export const CodeBlock = Plot.defineBlock("CodeBlock", {
   shape: {element: "pre"},
 })
 
-export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
-  role: Mark.Role.Alignment,
-  target: G.Textblock,
-  keepOnSplit: true,
-  keepOnTypeChange: true,
-  shape: {attribute: "style", value: align => `text-align: ${align}`},
-  parseRules: [
-    {attribute: "style/text-align", readAttribute: value => /^(end|center)$/.test(value) ? value as any : ParseRule.Reject}
-  ]
-})
-
 export const CodeBlockLanguage = Mark.Type.define<string>("CodeBlockLanguage", {
   target: CodeBlock,
   validate: "string",
@@ -117,6 +106,7 @@ export const Figure = Leaf.Type.defineBlock<string>("Figure", {
   group: G.Content,
   parseRules: [{
     selector: "figure:has(img[src])",
+    marksFrom: "img[src]",
     readElement: elt => (elt.querySelector("img[src]") as HTMLImageElement).src,
     precedence: 2
   }]
@@ -129,6 +119,7 @@ export const CaptionedFigure = Plot.Type.defineBlock<string>("CaptionedFigure", 
   group: G.Content,
   parseRules: [{
     selector: "figure:has(img[src]):has(figcaption)",
+    marksFrom: "img[src]",
     readElement: elt => (elt.querySelector("img[src]") as HTMLImageElement).src,
     contentElement: "figcaption",
     precedence: 4
@@ -145,6 +136,17 @@ export const ImageSize = Mark.Type.define<number>("ImageSize", {
   target: [Image, Figure, CaptionedFigure],
   validate: "number",
   shape: {attribute: "style", value: size => `width: ${size}px`, preferTarget: "img"}
+})
+
+export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
+  role: Mark.Role.Alignment,
+  target: [G.Textblock, Figure, CaptionedFigure],
+  keepOnSplit: true,
+  keepOnTypeChange: true,
+  shape: {attribute: "style", value: align => `text-align: ${align}`},
+  parseRules: [
+    {attribute: "style/text-align", readAttribute: value => /^(end|center)$/.test(value) ? value as any : ParseRule.Reject}
+  ]
 })
 
 export const Emphasis = Mark.define("Emphasis", {

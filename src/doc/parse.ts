@@ -194,6 +194,10 @@ class ParseContext {
       if (sync) this.sync(top)
     } else {
       let innerMarks = this.parseAttributes(elt, marks)
+      if (innerMarks && match.rule.marksFrom) {
+        let inner = elt.querySelector(match.rule.marksFrom)
+        if (inner) innerMarks = this.parseAttributes(inner, innerMarks)
+      }
       if (innerMarks)
         this.parseElementByRule(elt, match, innerMarks, endOfSlice)
     }
