@@ -52,8 +52,12 @@ export class DOMObserver {
     this.onThemeChange = this.onThemeChange.bind(this)
 
     if (typeof ResizeObserver == "function") {
+      let lastFlushSeen = 0
       this.resizeScroll = new ResizeObserver(() => {
-        if (this.view.lastFlush < Date.now() - 75) this.onResize()
+        if (this.view.lastFlush != lastFlushSeen) {
+          lastFlushSeen = this.view.lastFlush
+          this.onResize()
+        }
       })
     }
     this.readSelectionRange()

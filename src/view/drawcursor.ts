@@ -19,7 +19,7 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
       this.layer.style.animationName = this.layer.style.animationName == "wg-blink" ? "wg-blink2" : "wg-blink"
     if (update.state.facet(Wordgard.cursorBlinkRate) != update.startState.facet(Wordgard.cursorBlinkRate))
       setBlinkRate(update.state, this.layer)
-    if (update.docChanged || update.selectionSet) update.view.scheduleDOMRead(this.positionCursor)
+    if (update.docChanged || update.selectionSet || update.geometryChanged) update.view.scheduleDOMRead(this.positionCursor)
   }
 
   docViewUpdate(view: Wordgard) {
