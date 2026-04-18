@@ -152,7 +152,6 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   },
   ".wg-dialog-button": {
     color: "inherit",
-    fontSize: "80%",
     padding: ".1em .4em",
     border: "1px solid var(--wg-border-color)",
     borderRadius: "3px",
