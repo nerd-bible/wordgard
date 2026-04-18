@@ -423,19 +423,12 @@ export class DocTile extends CompositeTile {
   resolve(pos: number, assoc: -1 | 0 | 1 = 0) {
     let found: Tile | undefined, foundDepth = 0, offset = 0
     let scan = (tile: Tile, off: number, depth: number) => {
-      if (tile.isNode && !tile.isPlotContent) {
-        for (let ch of tile.children) {
-          if (scan(ch, off, depth + 1)) return true
-          off -= ch.length
-          if (off < 0) return true
-        }
-        return false
-      }
+      let isPlace = !(tile.isNode && !tile.isPlotContent)
       for (let i = 0;; i++) {
-        if (!off && (!found || assoc > 0 || !assoc && foundDepth > depth)) { found = tile; offset = i; foundDepth = depth }
+        if (isPlace && !off && (!found || assoc > 0 || !assoc && foundDepth > depth)) { found = tile; offset = i; foundDepth = depth }
         if (i == tile.children.length) break
         let ch = tile.children[i]
-        if (ch.isPoint && !off) {
+        if (isPlace && ch.isPoint && !off) {
           if (ch.flags & TileFlag.PointBefore) found = undefined
           else if ((ch.flags & TileFlag.PointAfter) || assoc < 0) return true
         }
