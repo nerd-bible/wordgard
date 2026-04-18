@@ -13,17 +13,18 @@ const LOG_update = false
 export const enum TileFlag {
   None = 0,
   NodeInner = 1,
-  Spanning = 2,
-  Point = 4,
-  PointBefore = 8,
-  PointAfter = 16,
+  PlotContent = 2,
+  Spanning = 4,
+  Point = 8,
+  PointBefore = 16,
+  PointAfter = 32,
   PointSide = PointBefore | PointAfter,
-  Composition = 32,
-  Synced = 64, // Node has been synced. DOM content matches child list / text content, child array becomes read-only
-  Atom = 128, // Composite tile whose length isn't determined by child length
-  HasContent = 256, // EltTile whose elt has a content hole
-  AfterContent = 512, // Tiles that sit after their parent's content position
-  ContentNotLast = 1024, // EltTile that has children with AfterContent flag
+  Composition = 64,
+  Synced = 128, // Node has been synced. DOM content matches child list / text content, child array becomes read-only
+  Atom = 256, // Composite tile whose length isn't determined by child length
+  HasContent = 512, // EltTile whose elt has a content hole
+  AfterContent = 1024, // Tiles that sit after their parent's content position
+  ContentNotLast = 2048, // EltTile that has children with AfterContent flag
 }
 
 const enum Orientation { Row, Col }
@@ -75,6 +76,7 @@ export abstract class Tile {
   get isNodeOuter() { return false }
   get isNodeInner() { return (this.flags & TileFlag.NodeInner) > 0 }
   get isNode() { return this.isNodeOuter || (this.flags & TileFlag.NodeInner) > 0 }
+  get isPlotContent() { return (this.flags & TileFlag.PlotContent) > 0 }
   get isText() { return false }
   get isDoc() { return false }
   get isSpanning() { return false }
@@ -344,7 +346,7 @@ export class DocTile extends CompositeTile {
     readonly cursorWrapper: readonly Mark<any>[] | null,
     readonly decoSet: DecoSet
   ) {
-    super(dom, 0)
+    super(dom, TileFlag.PlotContent)
   }
 
   static create(state: GardState, dom: Element) {
@@ -421,6 +423,14 @@ export class DocTile extends CompositeTile {
   resolve(pos: number, assoc: -1 | 0 | 1 = 0) {
     let found: Tile | undefined, foundDepth = 0, offset = 0
     let scan = (tile: Tile, off: number, depth: number) => {
+      if (tile.isNode && !tile.isPlotContent) {
+        for (let ch of tile.children) {
+          if (scan(ch, off, depth + 1)) return true
+          off -= ch.length
+          if (off < 0) return true
+        }
+        return false
+      }
       for (let i = 0;; i++) {
         if (!off && (!found || assoc > 0 || !assoc && foundDepth > depth)) { found = tile; offset = i; foundDepth = depth }
         if (i == tile.children.length) break
@@ -897,9 +907,13 @@ class ContentUpdate {
       let tile = EltTile.of(shape, node, flags, node ? node.length : 0, dom)
       let afterContentInner = TileFlag.None
       for (let ch of shape.children) {
-        if (ch === 0) afterContentInner = TileFlag.AfterContent
-        else tile.addChild(this.buildNodeShape(null, typeof ch == "string" ? Widget.Text.of(ch) : ch,
-                                               reusable ? reusable.children : reuse, afterContentInner))
+        if (ch === 0) {
+          afterContentInner = TileFlag.AfterContent
+          tile.flags |= TileFlag.PlotContent
+        } else {
+          tile.addChild(this.buildNodeShape(null, typeof ch == "string" ? Widget.Text.of(ch) : ch,
+                                            reusable ? reusable.children : reuse, afterContentInner))
+        }
       }
       return tile
     } else {

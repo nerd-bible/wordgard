@@ -5,7 +5,7 @@ import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
 
 const {DocTile} = Wordgard as any
-const {doc, p, $img, hr} = basicBuilders
+const {doc, p, $img, hr, capFig, strong, em, code} = basicBuilders
 
 function render(doc: Plot.Doc, ...config: GardState.Extension[]) {
   return DocTile.create(GardState.create({doc, config}), document.createElement("div"))
@@ -59,4 +59,27 @@ describe("DocTile.resolve", () => {
     isIn(node.resolve(4, 1), "cd", 1)
   })
 
+  it("picks the correct side on mark boundaries", () => {
+    let node = render(doc(p("a", em("b", strong("c")), code("d"))))
+    isIn(node.resolve(2, -1), "a", 1)
+    isIn(node.resolve(2, 0), "P", 1)
+    isIn(node.resolve(2, 1), "b", 0)
+    isIn(node.resolve(3, -1), "b", 1)
+    isIn(node.resolve(3, 0), "EM", 1)
+    isIn(node.resolve(3, 1), "c", 0)
+    isIn(node.resolve(4, -1), "c", 1)
+    isIn(node.resolve(4, 0), "P", 2)
+    isIn(node.resolve(4, 1), "d", 0)
+    isIn(node.resolve(5, -1), "d", 1)
+    isIn(node.resolve(5, 0), "P", 3)
+    isIn(node.resolve(5, 1), "P", 3)
+  })
+
+  it("does not resolve into inner node structure", () => {
+    Plot.Doc.noValidate(() => {
+      let node = render(doc(p("a"), capFig("test.png", "Caption")))
+      isIn(node.resolve(4, -1), "FIGCAPTION", 0)
+      isIn(node.resolve(11, 1), "FIGCAPTION", 1)
+    })
+  })
 })
