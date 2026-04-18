@@ -389,8 +389,7 @@ function defaultChild(children: readonly BarElement[]) {
 
 const theme = Wordgard.baseTheme({
   "&": {
-    "--wg-menu-item-size": "20px",
-    "--wg-menu-highlight": "#6af"
+    "--wg-menu-item-size": "20px"
   },
   "&light": {
     "--wg-menu-color": "#555"
@@ -409,7 +408,7 @@ const theme = Wordgard.baseTheme({
   },
 
   ".wg-menu-button:focus": {
-    outline: "1.5px solid var(--wg-menu-highlight)"
+    outline: "1.5px solid var(--wg-highlight-color)"
   },
 
   ".wg-menu-button": {
@@ -425,7 +424,7 @@ const theme = Wordgard.baseTheme({
       opacity: "0.3"
     },
     "&[aria-pressed]": {
-      color: "var(--wg-menu-highlight)"
+      color: "var(--wg-highlight-color)"
     },
     "&:hover": {
       backgroundColor: "#88888820",

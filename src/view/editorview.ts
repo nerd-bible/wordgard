@@ -64,7 +64,7 @@ export class Wordgard {
 
   private announceDOM: HTMLElement
 
-  private id = "wg-editor-" + Math.floor(Math.random() * 0xffffff).toString(16)
+  private id = "wordgard-" + Math.floor(Math.random() * 0xffffff).toString(16)
 
   /// @internal
   inputState!: InputState
@@ -315,10 +315,9 @@ export class Wordgard {
       this.state.facet(theme)
   }
 
-  // FIXME rely on :focus pseudoselector instead of wg-focused?
   private updateAttrs() {
     let editorAttrs = attrsFromFacet(this, Wordgard.editorAttributes, {
-      class: "wg-editor" + (this.hasFocus ? " wg-focused " : " ") + this.themeClasses,
+      class: this.themeClasses,
       id: this.id
     })
     let contentAttrs: Attrs = {
@@ -711,7 +710,7 @@ export class Wordgard {
   /// element](#view.Wordgard.dom)—to which the scope class will be
   /// added—need to be explicitly differentiated by adding an `&` to
   /// the selector for that element—for example
-  /// `&.wg-focused`.
+  /// `&:has(wg-content:focus)`.
   ///
   /// When `dark` is set to true, the theme will be marked as dark,
   /// which will cause the `&dark` rules from [base

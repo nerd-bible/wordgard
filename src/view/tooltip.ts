@@ -447,7 +447,7 @@ export namespace Tooltip {
     /// library also falls back to absolute positioning.
     position?: "fixed" | "absolute",
     /// The element to put the tooltips into. By default, they are put
-    /// in the editor (`wg-editor`) element, and that is usually what
+    /// in the editor (`<wordgard>`) element, and that is usually what
     /// you want. But in some layouts that can lead to positioning
     /// issues, and you need to use a different parent to work around
     /// those.

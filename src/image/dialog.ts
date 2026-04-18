@@ -252,9 +252,9 @@ const imageDialogTheme = Wordgard.baseTheme({
   },
   ".wg-img-radio input:focus + svg": {
     borderRadius: "2px",
-    outline: "2px solid var(--wg-menu-highlight)",
+    outline: "2px solid var(--wg-highlight-color)",
   },
-  ".wg-img-radio input:checked + svg .wg-img-icon-image": { fill: "var(--wg-menu-highlight)" },
+  ".wg-img-radio input:checked + svg .wg-img-icon-image": { fill: "var(--wg-highlight-color)" },
   ".wg-img-upload": {
     boxSizing: "border-box",
     padding: "4px",

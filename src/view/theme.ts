@@ -23,21 +23,24 @@ export function buildTheme(main: string, spec: {[name: string]: StyleSpec}, scop
 
 export const baseTheme = buildTheme("." + baseThemeID, {
   "&": {
+    "--wg-highlight-color": "#6af",
     position: "relative !important",
     boxSizing: "border-box",
-    "&.wg-focused": {
-      // Provide a simple default outline to make sure a focused
-      // editor is visually distinct. Can't leave the default behavior
-      // because that will apply to the content element, which is
-      // inside the scrollable container and doesn't include the
-      // gutters. We also can't use an 'auto' outline, since those
-      // are, for some reason, drawn behind the element content, which
-      // will cause things like the active line background to cover
-      // the outline (#297).
-      outline: "1px dotted #212121"
-    },
     display: "flex !important",
     flexDirection: "column",
+    border: "1px solid var(--wg-border-color)"
+  },
+
+  "&:has(wg-content:focus)": {
+    outline: "1px solid var(--wg-highlight-color)",
+
+    "& > wg-scroller > wg-cursor-layer": {
+      animation: "steps(1) wg-blink 1.2s infinite"
+    },
+
+    "& > wg-scroller > wg-cursor-layer wg-cursor": {
+      display: "block"
+    }
   },
 
   "&light": {
@@ -81,10 +84,6 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     zIndex: 150,
   },
 
-  "&.wg-focused > wg-scroller > wg-cursor-layer": {
-    animation: "steps(1) wg-blink 1.2s infinite"
-  },
-
   // Two animations defined so that we can switch between them to
   // restart the animation without forcing another style
   // recomputation.
@@ -103,10 +102,6 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     borderTop: "1.8px solid currentColor",
     marginTop: "-0.9px",
   },
-  "&.wg-focused > wg-scroller > wg-cursor-layer wg-cursor": {
-    display: "block"
-  },
-
   ".wg-selected-node": {
     outline: "2px solid #68f",
     "&::selection, & *::selection": {
