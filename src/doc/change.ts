@@ -269,7 +269,7 @@ export class ChangeSet {
   }
 
   /// Returns the change itself if it can be applied to this document
-  /// and produce a valid document, or a modified version of the
+  /// and produce a valid new document, or a modified version of the
   /// change that _is_ correct.
   correct(doc: Plot.Doc, local = false) {
     let fitter = new ChangeFitter(doc, local)
@@ -304,6 +304,23 @@ export class ChangeSet {
     }
     if (pos > posA) throw new RangeError(`Position ${pos} is out of range for changeset of length ${posA}`)
     return posB
+  }
+
+  findInserted(pred: (tag: Node.Tag) => boolean) {
+    let found: number | null = null
+    this.iterChanges((_f, _t, pos, _to, inserted) => {
+      if (found != null) return
+      for (let tok of inserted.content) {
+        if (tok.tokenType == Token.Type.Node) {
+          if (pred(tok.tag)) return found = pos
+          pos += tok.length
+        } else {
+          if (tok.tokenType == Token.Type.Open && pred(tok)) return found = pos
+          pos++
+        }
+      }
+    })
+    return found
   }
 
   touchesRange(from: number, to: number) {

@@ -40,8 +40,8 @@ function imageTypeButtons(state: GardState, active: Node.Tag | null) {
     let flip = state.textDirection() == Direction.RTL
     icon.appendChild(rect(type == "start" ? (flip ? 12 : 2) : type == "end" ? (flip ? 2 : 12) : 7, 6, 10, 10, "wg-img-icon-image"))
     if (type == "inline") {
-      icon.appendChild(rect(1, 12, 4, 3, "wg-img-icon-text"))
-      icon.appendChild(rect(19, 12, 4, 3, "wg-img-icon-text"))
+      icon.appendChild(rect(1, 12, 5, 3, "wg-img-icon-text"))
+      icon.appendChild(rect(18, 12, 5, 3, "wg-img-icon-text"))
     }
     icon.appendChild(rect(1, 18, 22, 3, "wg-img-icon-text"))
     return cr("label", {class: "wg-img-radio", title: labelText},
@@ -163,17 +163,18 @@ function buildImagePanel(view: Wordgard) {
       if (tag instanceof Plot.Tag)
         change = {from, to: from + 1, insert: [tag]}
       else
-        change = {from, to: sel.from.parent.after, insert: [tag]}
+        change = {from, to: sel.from.parent.after, insert: [tag], fit: true}
     } else {
       change = {from: sel.from.pos, to: sel.to.pos, insert: [tag instanceof Plot.Tag ? tag.create() : tag], fit: true}
     }
 
     view.focus()
+    let changes = ChangeSet.create(state.doc, change), pos = changes.findInserted(t => t == tag) ?? change.from
     view.dispatch({
       changes: change,
       effects: setImageDialog.of(false),
       userEvent: "insert.image",
-      selection: tag instanceof Plot.Tag ? {anchor: change.from + 1} : {anchor: change.from, head: change.from + 1}
+      selection: tag instanceof Plot.Tag ? {anchor: pos + 1} : {anchor: pos, head: pos + 1},
     })
   }
 
@@ -249,12 +250,14 @@ const imageDialogTheme = Wordgard.baseTheme({
       "& .wg-img-icon-text": {fill: "#bbb"},
       "& .wg-img-icon-image": {fill: "#888"},
     },
+    "& input:checked + svg .wg-img-icon-image": {
+      fill: "var(--wg-highlight-color)"
+    },
+    "& input:focus + svg": {
+      borderRadius: "2px",
+      outline: "2px solid var(--wg-highlight-color)",
+    },
   },
-  ".wg-img-radio input:focus + svg": {
-    borderRadius: "2px",
-    outline: "2px solid var(--wg-highlight-color)",
-  },
-  ".wg-img-radio input:checked + svg .wg-img-icon-image": { fill: "var(--wg-highlight-color)" },
   ".wg-img-upload": {
     boxSizing: "border-box",
     padding: "4px",
