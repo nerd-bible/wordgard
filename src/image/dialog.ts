@@ -247,13 +247,14 @@ const imageDialogTheme = Wordgard.baseTheme({
       marginRight: "6px",
       width: "24px",
       "& .wg-img-icon-text": {fill: "#bbb"},
-      "& .wg-img-icon-image": {fill: "#4bb"},
+      "& .wg-img-icon-image": {fill: "#888"},
     },
   },
-  ".wg-img-radio input:checked + svg": {
+  ".wg-img-radio input:focus + svg": {
     borderRadius: "2px",
-    outline: "2px solid var(--wg-menu-highlight)"
+    outline: "2px solid var(--wg-menu-highlight)",
   },
+  ".wg-img-radio input:checked + svg .wg-img-icon-image": { fill: "var(--wg-menu-highlight)" },
   ".wg-img-upload": {
     boxSizing: "border-box",
     padding: "4px",

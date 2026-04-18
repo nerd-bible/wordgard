@@ -138,7 +138,8 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     position: "relative",
     "& label, & .wg-label": {
       fontSize: "80%"
-    }
+    },
+    borderBottom: "1px solid var(--wg-border-color)"
   },
   ".wg-dialog-close": {
     position: "absolute",
