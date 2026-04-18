@@ -421,24 +421,30 @@ export class DocTile extends CompositeTile {
   }
 
   resolve(pos: number, assoc: -1 | 0 | 1 = 0) {
+    // FIXME the tracking of whether we're in a valid resolveable
+    // place is way too obscure. Need a better way to distinguish node
+    // content positions.
     let found: Tile | undefined, foundDepth = 0, offset = 0
     let scan = (tile: Tile, off: number, depth: number) => {
       let isPlace = !(tile.isNode && !tile.isPlotContent)
       for (let i = 0;; i++) {
-        if (isPlace && !off && (!found || assoc > 0 || !assoc && foundDepth > depth)) { found = tile; offset = i; foundDepth = depth }
-        if (i == tile.children.length) break
-        let ch = tile.children[i]
-        if (isPlace && ch.isPoint && !off) {
+        let ch = i == tile.children.length ? null : tile.children[i]
+        if (isPlace && !off && (!found || assoc > 0 || !assoc && foundDepth > depth) && !(ch && ch.isNodeInner && !(ch.flags & TileFlag.AfterContent))) {
+          found = tile; offset = i; foundDepth = depth
+        }
+        if (!ch) break
+        if (isPlace && !ch.isNodeInner && ch.isPoint && !off) {
           if (ch.flags & TileFlag.PointBefore) found = undefined
           else if ((ch.flags & TileFlag.PointAfter) || assoc < 0) return true
         }
         if (ch.boundary ? off && off < ch.length : off <= ch.length) {
           if (ch.isText && (!off ? assoc > 0 : off == ch.length ? assoc < 0 : true)) {
             found = ch; offset = off; foundDepth = depth + 1
-          } else if (!ch.isAtom && scan(ch, off - ch.boundary, depth + 1)) {
+          } else if (!ch.isAtom && !(isPlace && ch.isNodeInner) && scan(ch, off - ch.boundary, depth + 1)) {
             return true
           }
         }
+        if (isPlace && ch.flags & TileFlag.AfterContent) isPlace = false
         off -= ch.length
         if (off < 0) return true
       }
