@@ -1,6 +1,6 @@
-import {elt, MapMode, Node, Mark} from "wordgard/doc"
+import {elt, MapMode, Node, Mark, ChangeSet, Plot} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding, Panel} from "wordgard/view"
-import {GardState, Transaction, GardSelection} from "wordgard/state"
+import {GardState, Transaction, GardSelection, Facet} from "wordgard/state"
 import {Command} from "wordgard/command"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wordgard/schema"
 import {MenuButton, iconImage, Commands} from "wordgard/menu"
@@ -133,6 +133,9 @@ export const resizeImageKeymap = [
   KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeImage(0.9, true)}),
 ]
 
+// FIXME support progress tracking?
+export const imageUploader = Facet.define<(file: File, view: Wordgard) => Promise<string>>()
+
 function activeImage(sel: GardSelection.Resolved) {
   if (sel.node && imageTypes.includes(sel.node.type)) return sel.node.tag
   if (sel.head.parent.start == sel.anchor.parent.start && sel.head.parent.node.type == CaptionedFigure)
@@ -150,13 +153,13 @@ function rect(x: number, y: number, w: number, h: number, cls: string) {
   return elt
 }
 
-function alignButtons(state: GardState, active: Node.Tag | null) {
-  let fig = state.doc.schema.has(Figure) ? Figure : state.doc.schema.has(CaptionedFigure) ? CaptionedFigure : null
-  let img = state.doc.schema.has(Image)
-  let align = fig && state.doc.schema.markAllowed(Alignment, fig)
-  if (!align && !(fig && img)) return null
+function imageTypeButtons(state: GardState, active: Node.Tag | null) {
+  let hasImg = state.doc.schema.has(Image), hasFig = state.doc.schema.has(Figure), hasCap = state.doc.schema.has(CaptionedFigure)
+  let align = (hasFig || hasCap) && state.doc.schema.markAllowed(Alignment, hasFig ? Figure : CaptionedFigure)
+  if (!align && !(hasImg && (hasFig || hasCap))) return null
   let buttons: HTMLElement[] = []
   function button(type: "inline" | "start" | "center" | "end", label: string, active: boolean | null) {
+    let labelText = state.phrase(label)
     let icon = document.createElementNS(svg, "svg")
     icon.setAttribute("viewbox", "0 0 24 22")
     icon.setAttribute("width", "24"); icon.setAttribute("height", "22")
@@ -168,16 +171,31 @@ function alignButtons(state: GardState, active: Node.Tag | null) {
       icon.appendChild(rect(19, 12, 4, 3, "wg-img-icon-text"))
     }
     icon.appendChild(rect(1, 18, 22, 3, "wg-img-icon-text"))
-    return cr("label", {class: "wg-img-radio"},
-              cr("input", {type: "radio", "aria-label": state.phrase(label),
+    return cr("label", {class: "wg-img-radio", title: labelText},
+              cr("input", {type: "radio", "aria-label": labelText,
                            name: "type", value: type, checked: active ? "checked" : null}), icon)
   }
   let aligned = !active || active.type == Image ? null : active.mark(Alignment) || "start" as const
-  if (img) buttons.push(button("inline", "Inline", aligned == null))
+  if (hasImg) buttons.push(button("inline", "Inline", aligned == null))
   buttons.push(button("start", "Figure", aligned == "start"))
   if (align) {
     buttons.push(button("center", "Centered figure", aligned == "center"))
     buttons.push(button("end", "Figure aligned to end", aligned == "end"))
+  }
+  if (hasFig && hasCap) {
+    let caption = cr(
+      "label", " ",
+      cr("input", {type: "checkbox", name: "caption",
+                   checked: active && active.type == CaptionedFigure ? "checked" : null}),
+      state.phrase(" Captioned"))
+    if (hasImg) {
+      let imageRadio = buttons[0].querySelector("input") as HTMLInputElement
+      for (let b of buttons) b.querySelector("input")!.addEventListener("change", () => {
+        caption.style.display = imageRadio.checked ? "none" : ""
+      })
+      if (!aligned) caption.style.display = "none"
+    }
+    buttons.push(caption)
   }
   return [cr("span", {class: "wg-label"}, state.phrase("Image style:")), cr("span", buttons)]
 }
@@ -198,53 +216,74 @@ function buildImagePanel(view: Wordgard) {
   let size = !view.state.doc.schema.has(ImageSize) ? null :
     [cr("label", {for: "wg-img-size"}, state.phrase("Width in pixels:")),
      cr("input", {type: "number", id: "wg-img-size", name: "size", value: active ? active.mark(ImageSize) : ""})]
+  let file = !view.state.facet(imageUploader).length ? null :
+    cr("input", {type: "file", id: "wg-img-file", name: "file", "aria-label": state.phrase("Upload an image"),
+                 onchange: startUpload})
   let form = cr(
-    "form", {class: "wg-img-form"},
+    "form", {class: "wg-img-form", onkeydown},
     cr("div", {class: "wg-form-line wg-dialog-title"}, state.phrase(active ? "Update image" : "Insert image")),
     cr("label", {for: "wg-img-src"}, state.phrase("Image source:")),
-    cr("input", {type: "text", id: "wg-img-src", name: "src",
-                 value: active ? active.param : "", placeholder: "https://..."}),
-    cr("label", {for: "wg-img-file"}, state.phrase("Or upload a file:")),
-    cr("input", {type: "file", id: "wg-img-file", name: "file"}), // FIXME hide if no upload hook
-    cr("label", {id: "wg-img-alt"}, state.phrase("Alternative text:")),
+    cr("span", {class: "wg-img-src-line"},
+       cr("input", {type: "text", id: "wg-img-src", name: "src", required: "required",
+                    value: active ? active.param : "", placeholder: "https://..."}), file),
+    cr("label", {for: "wg-img-alt"}, state.phrase("Alternative text:")),
     cr("input", {type: "text", id: "wg-img-alt", name: "alt",
                  value: active && active.mark(ImageAlt) || "",
                  placeholder: state.phrase("Describe the image:")}),
-    alignButtons(state, active),
+    imageTypeButtons(state, active),
     size,
     cr("div", {class: "wg-form-line"},
        cr("button", {type: "submit", class: "wg-dialog-button"}, state.phrase(active ? "Update" : "Insert")), " ",
-       cr("button", {type: "button", class: "wg-dialog-button", onclick: close}, state.phrase("Cancel")))) as HTMLFormElement
+       cr("button", {type: "button", class: "wg-dialog-button", onclick: close}, state.phrase("Cancel"))))
 
   function onsubmit(e: Event) {
     e.preventDefault()
     let {state} = view, sel = (state.field(imageDialog) || state.selection).resolve(state.doc)
-    let from = sel.from.pos, to = sel.to.pos
-    if (sel.from.parent.node.type == CaptionedFigure && sel.to.parent.start == sel.from.parent.start) {
-      from = sel.from.parent.before
-      to = sel.from.parent.after
-    }
 
-    // FIXME validate
     let data = new FormData(form)
     let src = data.get("src") as string
-    let type = data.get("type") as string | null
+    let type = data.get("type") as string | null, cap = !!data.get("caption") || !state.doc.schema.has(Figure)
     let marks: readonly Mark<any>[] = []
     if (type == "center" || type == "end") marks = Alignment.of(type).addToSet(marks)
     if (data.get("alt")) marks = ImageAlt.of(data.get("alt") as string).addToSet(marks)
     if (data.get("size")) marks = ImageSize.of(Number(data.get("size") as string)).addToSet(marks)
-    let tag = type == "inline" ? Image.of(src, marks) : Figure.of(src, marks)
+    let tag = type == "inline" ? Image.of(src, marks) : cap ? CaptionedFigure.of(src, marks) : Figure.of(src, marks)
+
+    let change: ChangeSet.Spec
+    if (sel.from.parent.node.type == CaptionedFigure && sel.to.parent.start == sel.from.parent.start) {
+      let from = sel.from.parent.before
+      // Replacing a captioned figure
+      if (tag instanceof Plot.Tag)
+        change = {from, to: from + 1, insert: [tag]}
+      else
+        change = {from, to: sel.from.parent.after, insert: [tag]}
+    } else {
+      change = {from: sel.from.pos, to: sel.to.pos, insert: [tag instanceof Plot.Tag ? tag.create() : tag], fit: true}
+    }
+
     view.focus()
     view.dispatch({
-      changes: {from, to, insert: [tag], fit: true},
+      changes: change,
       effects: setImageDialog.of(false),
-      userEvent: "insert.image"
+      userEvent: "insert.image",
+      selection: tag instanceof Plot.Tag ? {anchor: change.from + 1} : {anchor: change.from, head: change.from + 1}
     })
   }
 
   function close() {
     view.focus()
     view.dispatch({effects: setImageDialog.of(false)})
+  }
+
+  function onkeydown(e: KeyboardEvent) {
+    if (e.key == "Escape") {
+      e.preventDefault()
+      close()
+    }
+  }
+
+  function startUpload() {
+    // FIXME
   }
 
   return cr("wg-dialog", {class: "wg-img-dialog", onsubmit}, form)
@@ -292,8 +331,18 @@ const imageDialogTheme = Wordgard.baseTheme({
   ".wg-dialog-title": {
     fontSize: "80%",
     fontWeight: "bold",
+    textAlign: "center"
+  },
+  ".wg-img-src-line": {
+    display: "flex",
+    gap: "7px",
+    "& [type=text]": {
+      flex: "1"
+    }
   },
   ".wg-img-radio": {
+    display: "inline-block",
+    verticalAlign: "middle",
     "& input[type=radio]": {
       opacity: "0",
       position: "absolute",
@@ -301,9 +350,9 @@ const imageDialogTheme = Wordgard.baseTheme({
     },
     "& svg": {
       marginRight: "6px",
-      width: "25px",
-      "& .wg-img-icon-text": {fill: "#999"},
-      "& .wg-img-icon-image": {fill: "#47e"},
+      width: "24px",
+      "& .wg-img-icon-text": {fill: "#bbb"},
+      "& .wg-img-icon-image": {fill: "#4bb"},
     },
   },
   ".wg-img-radio input:checked + svg": {
