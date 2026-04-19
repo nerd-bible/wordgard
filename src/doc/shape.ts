@@ -320,7 +320,7 @@ export type AttributeShape<Param> = {
   value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
   /// An optional function that converts the value of the attribute
   /// back into a parameter value. Used in the parse rule.
-  readAttribute?: (value: string) => Param | ParseRule.Reject
+  readAttribute?: (value: string) => Param | ParseRule.Reject // FIXME this is too easy to confuse with ElementShape.read
   /// If the target node may be a composite shape (rather than a
   /// single DOM element), you can provide a limited form of selector
   /// here to target a specific element in that shape. Node names and

@@ -89,6 +89,60 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
   shape: {element: "br"}
 })
 
+// FIXME must somehow be possible to reconfigure these (and lists) to
+// have block content. Or have other cell types, and connect them via
+// a Cell group?
+
+export const Cell = Plot.defineBlock("Cell", {
+  inlineContent: true,
+  group: G.TableCell,
+  isolating: true,
+  shape: {element: "td"}
+})
+
+export const HeaderCell = Plot.defineBlock("Cell", {
+  inlineContent: true,
+  group: G.TableCell,
+  isolating: true,
+  shape: {element: "th"}
+})
+
+export const TableRow = Plot.defineBlock("TableRow", {
+  blockContent: G.TableCell,
+  shape: {element: "tr"}
+})
+
+export const Table = Plot.defineBlock("Table", {
+  blockContent: TableRow,
+  isolating: true,
+  group: G.Content,
+  shape: {structure: elt("table", elt("tbody", 0))},
+  parseRules: [{selector: "table"}]
+})
+
+function validatePosInt(value: any) {
+  if (typeof value != "number" || Math.round(value) != value || value < 1)
+    throw new RangeError(`${value} is not a positive integer`)
+}
+
+function readPosInt(value: string) {
+  let num = Number.parseInt(value)
+  if (Number.isNaN(num) || num < 1) return ParseRule.Reject
+  return num
+}
+
+export const ColSpan = Mark.Type.define<number>("ColSpan", {
+  target: G.TableCell,
+  validate: validatePosInt,
+  shape: {attribute: "colspan", value: span => String(span), readAttribute: readPosInt}
+})
+
+export const RowSpan = Mark.Type.define<number>("RowSpan", {
+  target: G.TableCell,
+  validate: validatePosInt,
+  shape: {attribute: "rowspan", value: span => String(span), readAttribute: readPosInt}
+})
+
 export const Image = Leaf.Type.defineInline<string>("Image", {
   validateParam: "string",
   shape: {element: "img", attributes: src => ({src})},
