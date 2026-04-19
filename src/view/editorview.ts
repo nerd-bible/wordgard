@@ -284,10 +284,12 @@ export class Wordgard {
   private updatePlugins(update: Wordgard.Update) {
     let specs = update.state.facet(viewPlugin)
     let configChange = specs != update.startState.facet(viewPlugin)
-    if (configChange) {
-      let newPlugins = []
+    // When the phrases change, reinitialize the plugins
+    let reset = update.state.facet(GardState.phrases) != update.startState.facet(GardState.phrases)
+    if (configChange || reset) {
+      let newPlugins: PluginInstance[] = []
       for (let spec of specs) {
-        let found = this.plugins.findIndex(p => p.spec == spec)
+        let found = reset ? -1 : this.plugins.findIndex(p => p.spec == spec)
         if (found < 0) {
           let plugin = new PluginInstance(spec)
           newPlugins.push(plugin)
@@ -321,9 +323,6 @@ export class Wordgard {
       id: this.id
     })
     let contentAttrs: Attrs = {
-      spellcheck: "false",
-      autocorrect: "off",
-      autocapitalize: "off",
       translate: "no",
       contenteditable: !this.state.facet(Wordgard.editable) ? "false" : "true",
       role: "textbox",
