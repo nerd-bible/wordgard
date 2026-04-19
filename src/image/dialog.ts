@@ -112,6 +112,8 @@ function startUpload(view: Wordgard, file: HTMLInputElement, set: (url: string) 
   })
 }
 
+// FIXME add support for custom mark fields. Move size into that.
+
 function buildImagePanel(view: Wordgard) {
   let {state} = view
   let sel = (state.field(imageDialog) || state.selection).resolve(state.doc)
@@ -213,7 +215,7 @@ const imageDialogTheme = Wordgard.baseTheme({
     fontFamily: "sans-serif",
     padding: "5px 3px",
     display: "grid",
-    gap: "8px 10px",
+    gap: "8px",
     alignItems: "center",
     gridTemplateColumns: "max-content auto",
     "& label, & .wg-label": {

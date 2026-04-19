@@ -1,6 +1,6 @@
 import {Wordgard, defaultKeymap} from "wordgard/view"
 import {basicSchema} from "wordgard/schema"
-import {image, figure, imageResizing} from "wordgard/image"
+import {image, figure, imageResizing, imageUploader} from "wordgard/image"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 

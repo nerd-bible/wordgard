@@ -445,7 +445,7 @@ const theme = Wordgard.baseTheme({
 
   "wg-menu-spacer": {
     display: "block",
-    width: "3px"
+    width: "7px"
   },
 
   "wg-submenu": {

@@ -1,9 +1,9 @@
 import {elt, MapMode} from "wordgard/doc"
-import {Wordgard, PointSet, Decoration, KeyBinding} from "wordgard/view"
+import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/view"
 import {GardState, Transaction} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema"
 import {MenuButton, iconImage, Commands} from "wordgard/menu"
-import {imageDialog, insertImage, activeImage} from "./dialog"
+import {imageDialog, insertImage, activeImage, imageUploader} from "./dialog"
 
 export const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {
@@ -128,6 +128,10 @@ export const resizeImageKeymap = [
   KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeImage(0.9, true)}),
 ]
 
+export const imageKeymap = [
+  KeyBinding.define({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
+]
+
 export const InsertImageButton = new MenuButton({
   run: insertImage,
   active: state => !!activeImage(state.sel),
@@ -137,7 +141,32 @@ export const InsertImageButton = new MenuButton({
   rank: 80,
 })
 
-const baseSupport = [ImageAlt, InsertImageButton, imageDialog]
+export const imageDropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({
+  drop: (event, view) => {
+    let {state} = view, upload = state.facet(imageUploader)[0]
+    const type = state.doc.schema.has(Image) ? Image : state.doc.schema.has(Figure) ? Figure : null
+    if (!type || !upload || !event.dataTransfer) return false
+    let files = event.dataTransfer.files, uploads: Promise<string>[] = []
+    for (let i = 0; i < files.length; i++) {
+      let file = files[i]
+      if (/^image\//.test(file.type))
+        uploads.push(upload(file, view, () => {}))
+    }
+    if (!uploads.length) return false
+    let dropPos = {x: event.clientX, y: event.clientY}
+    Promise.all(uploads).then(urls => {
+      view.dispatch({
+        changes: {from: view.posAtCoords(dropPos).pos, insert: urls.map(u => type.of(u)), fit: true},
+        userEvent: "drop.image"
+      })
+    }, err => {
+      logException(state, err, "Dropped image upload")
+    })
+    return true
+  }
+}))
+
+const baseSupport = [ImageAlt, InsertImageButton, imageDialog, imageKeymap, imageDropHandler]
 
 export function image(): GardState.Extension {
   return [Image, baseSupport]
