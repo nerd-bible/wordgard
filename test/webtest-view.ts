@@ -41,25 +41,6 @@ describe("Wordgard", () => {
     ist(view.dom.classList.contains("something"))
   })
 
-  it("redraws the view when phrases change", () => {
-    let plugin = Wordgard.Plugin.fromClass(class {
-      elt: HTMLElement
-      constructor(view: Wordgard) {
-        let elt = this.elt = view.dom.appendChild(document.createElement("div"))
-        elt.textContent = view.state.phrase("Hello")
-        elt.style.position = "absolute"
-        elt.className = "greeting"
-      }
-      destroy() { this.elt.remove() }
-    })
-    let lang = new GardState.Compartment
-    let view = tempView(doc(p("one")), [plugin, lang.of([])])
-    ist(view.dom.querySelector(".greeting")!.textContent, "Hello")
-    view.dispatch({effects: lang.reconfigure(GardState.phrases.of({Hello: "Bonjour"}))})
-    view.flush()
-    ist(view.dom.querySelector(".greeting")!.textContent, "Bonjour")
-  })
-
   it("repairs changes to text nodes", () => {
     let view = tempView(doc(p("abc")))
     view.contentDOM.firstChild!.firstChild!.nodeValue = "a"

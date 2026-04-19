@@ -284,12 +284,10 @@ export class Wordgard {
   private updatePlugins(update: Wordgard.Update) {
     let specs = update.state.facet(viewPlugin)
     let configChange = specs != update.startState.facet(viewPlugin)
-    // When the phrases change, reinitialize the plugins
-    let reset = update.state.facet(GardState.phrases) != update.startState.facet(GardState.phrases)
-    if (configChange || reset) {
+    if (configChange) {
       let newPlugins: PluginInstance[] = []
       for (let spec of specs) {
-        let found = reset ? -1 : this.plugins.findIndex(p => p.spec == spec)
+        let found = this.plugins.findIndex(p => p.spec == spec)
         if (found < 0) {
           let plugin = new PluginInstance(spec)
           newPlugins.push(plugin)
