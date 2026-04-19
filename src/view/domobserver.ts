@@ -2,7 +2,7 @@ import {ChangeSet} from "wordgard/doc"
 import browser from "./browser"
 import {Wordgard} from "./editorview"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
-import {Tile} from "./tile"
+import {Tile, TileFlag} from "./tile"
 import {readDOMSelection} from "./selection"
 
 const observeOptions = {
@@ -191,6 +191,7 @@ export class DOMObserver {
   findMutation(record: MutationRecord): [number, number] | null {
     let tile = this.view.docTile.nearest(record.target)
     if (!tile || tile.ignoreMutations) return null
+    tile.flags |= TileFlag.Dirty
     if (record.type == "attributes" || record.type == "characterData") {
       if (tile.dom == record.target) {
         return [tile.posBefore, tile.posAfter]

@@ -25,6 +25,7 @@ export const enum TileFlag {
   HasContent = 512, // EltTile whose elt has a content hole
   AfterContent = 1024, // Tiles that sit after their parent's content position
   ContentNotLast = 2048, // EltTile that has children with AfterContent flag
+  Dirty = 4096, // DOM change observed in this node, must not reuse
 }
 
 const enum Orientation { Row, Col }
@@ -702,7 +703,7 @@ class TilePointer {
         let before = tile.children[--index]
         if (!before.isPoint) break
         if (!reused.has(before) && before instanceof WidgetTile && before.widget.eq(widget) &&
-            (before.flags & TileFlag.PointSide) == sideFlag) {
+            (before.flags & TileFlag.PointSide) == sideFlag && !(before.flags & TileFlag.Dirty)) {
           reused.set(before, Reused.Full)
           return before
         }
@@ -749,7 +750,7 @@ class ContentUpdate {
           this.new.addChild(tile)
         } else if (this.new.lastChild instanceof TextTile && !this.new.lastChild.isComposition) {
           this.addText(tile.text.slice(from, to))
-        } else if (!from && to == tile.text.length) {
+        } else if (!from && to == tile.text.length && !(tile.flags & TileFlag.Dirty)) {
           this.reused.set(tile, Reused.Full)
           this.new.addChild(tile)
         } else if (!this.reused.has(tile)) {
@@ -845,7 +846,7 @@ class ContentUpdate {
           let next = (reuse || this.posB == start) && !(this.new.lastChild instanceof TextTile) && this.old.tileAfter()
           if (!(next instanceof TextTile) || this.reused.has(next)) {
             this.addText(node.param)
-          } else if (next.text == node.param) {
+          } else if (next.text == node.param && !(next.flags & TileFlag.Dirty)) {
             this.reused.set(next, Reused.Full)
             this.new.addChild(next)
           } else {
@@ -899,7 +900,10 @@ class ContentUpdate {
       if (reusable = this.findReusableTile(shape, reuse, strict) || this.findReusableTile(shape, reuse, strict = false)) {
         this.reused.set(reusable, Reused.DOM)
         dom = reusable.dom as Element
-        if (!strict) updateAttributes(dom, (reusable as EltTile).elt.attrs, shape.attrs)
+        if (reusable.flags & TileFlag.Dirty)
+          updateAttributes(dom, takeAttributes(reusable.dom as Element), shape.attrs)
+        else if (!strict)
+          updateAttributes(dom, (reusable as EltTile).elt.attrs, shape.attrs)
       }
       let flags = (node ? (shape.hasContent ? TileFlag.None : TileFlag.Atom)
         : TileFlag.NodeInner | (shape.hasContent ? TileFlag.None : TileFlag.Point)) | afterContent
