@@ -96,8 +96,8 @@ export class Mark<Value = unknown> {
     return set
   }
 
-  isInSet(set: readonly Mark<any>[]): Mark | null {
-    for (let v of set) if (v.eq(this)) return v
+  isInSet(set: readonly Mark<any>[]): Mark<Value> | null {
+    for (let v of set) if (v.eq(this)) return v as Mark<Value>
     return null
   }
 
@@ -146,8 +146,8 @@ export namespace Mark {
       return set
     }
 
-    isInSet(set: readonly Mark[]): Mark | null {
-      for (let v of set) if (v.type == this) return v
+    isInSet(set: readonly Mark[]): Mark<Value> | null {
+      for (let v of set) if (v.type == this) return v as Mark<Value>
       return null
     }
 
@@ -205,7 +205,7 @@ export namespace Mark {
 
     constructor(readonly spec: ElementShape<Value>) {
       this.name = spec.element
-      let {attributes} = spec
+      const {attributes} = spec
       if (typeof attributes == "function") {
         this.attrs = (value: Value) => Attributes.read(attributes(value))
       } else {
@@ -221,7 +221,7 @@ export namespace Mark {
 
     constructor(readonly spec: AttributeShape<Value> | AttributesShape<Value>, type: Mark.Type<Value>) {
       if ("attribute" in spec) {
-        let {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
+        const {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
         if (value === 0) {
           if (type.default) throw new SchemaError("Attribute shapes for parameter-less marks cannot use 0 as value")
           if (style) this.get = param => ["style", style + param]
@@ -236,7 +236,7 @@ export namespace Mark {
           this.get = () => attrs
         }
       } else {
-        let {attributes} = spec
+        const {attributes} = spec
         if (typeof attributes == "function") {
           this.get = param => Attributes.read(attributes(param))
         } else {

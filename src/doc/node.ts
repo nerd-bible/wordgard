@@ -495,7 +495,7 @@ export namespace Plot {
       return new Plot(this, children ? joinText(children) : none)
     }
 
-    split(atEnd: boolean) {
+    split(atEnd: boolean): Tag<Param> {
       return this.marks.length ? this.withMarks(this.marks.filter(p => {
         let {keepOnSplit} = p.type.spec
         return keepOnSplit && (keepOnSplit === true || keepOnSplit(this, atEnd))
