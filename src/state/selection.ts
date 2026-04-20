@@ -2,7 +2,7 @@ import {Schema, Plot, Node, Leaf, ChangeSet, Mark, Pos, ValidationError} from "w
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
-import {GardState} from "./state"
+import type {GardState, Facet} from "./state"
 
 interface SelectionContext {
   doc: Plot.Doc
@@ -38,7 +38,10 @@ export class GardSelection {
     /// Used mostly for making the effect of toggling inline styles
     /// stick until something is inserted. Marks that aren't valid for
     /// the inserted content will be ignored.
-    readonly marks: readonly Mark[] | undefined
+    readonly marks: readonly Mark[] | undefined,
+    /// The type of this selection, if there's a special type
+    /// associated with it.
+    readonly type: GardSelection.Type | undefined
   ) {}
 
   /// The lower boundary of the selected range.
@@ -73,13 +76,14 @@ export class GardSelection {
 
   /// Map a selection through a change. Used to adjust the selection
   /// position for changes.
-  map(change: ChangeSet, assoc = -1): GardSelection {
+  map(change: ChangeSet, assoc: -1 | 1 = -1): GardSelection {
     if (change.empty) return this
+    if (this.type && this.type.map) return this.type.map(this, change, assoc)
     let main = GardSelection.mapRange(change, this.from, this.to, assoc)
     let ranges = this.ranges.map(r => r.from == this.from && r.to == this.to ? main
       : GardSelection.mapRange(change, r.from, r.to, assoc))
     let [anchor, head] = this.anchor < this.head ? [main.from, main.to] : [main.to, main.from]
-    return GardSelection.createInner(anchor, head, this.assoc, this.goalColumn, ranges, this.marks)
+    return GardSelection.createInner(anchor, head, this.assoc, this.goalColumn, ranges, this.marks, this.type)
   }
 
   /// @internal
@@ -111,14 +115,15 @@ export class GardSelection {
   }
 
   /// Create a selection from a JSON representation.
-  static fromJSON(schema: Schema, json: GardSelection.JSON): GardSelection {
+  static fromJSON(config: GardState.Configuration, schema: Schema, json: GardSelection.JSON): GardSelection {
     if (!json || typeof json.anchor != "number")
       throw new ValidationError("Invalid JSON representation for EditorSelection")
     let anchor = json.anchor, head = typeof json.head == "number" ? json.head : anchor
     let marks = json.marks ? schema.marksFromJSON(json.marks) : undefined
     let ranges = Array.isArray(json.ranges) && json.ranges.every(r => typeof r.from == "number" && typeof r.to == "number")
+    let type = json.type ? config.staticFacet(GardSelection.Type.source).find(t => t.name == json.type) : undefined
     return GardSelection.createInner(anchor, head, typeof json.assoc == "number" ? json.assoc : 0, undefined,
-                                     ranges ? json.ranges! : undefined, marks)
+                                     ranges ? json.ranges! : undefined, marks, type)
   }
 
   /// Create a cursor selection range at the given position. You can
@@ -134,15 +139,18 @@ export class GardSelection {
   }
 
   private static createInner(anchor: number, head: number, assoc: -1 | 0 | 1 = 0, goalColumn?: number,
-                             ranges?: readonly {from: number, to: number}[], marks?: readonly Mark<any>[]) {
-    if (anchor != head) assoc = head < anchor ? 1 : -1
-    return new GardSelection(anchor, head, assoc, goalColumn, ranges, marks)
+                             ranges?: readonly {from: number, to: number}[], marks?: readonly Mark<any>[],
+                             type?: GardSelection.Type) {
+    if (anchor != head && !assoc) assoc = head < anchor ? 1 : -1
+    return new GardSelection(anchor, head, assoc, goalColumn, ranges, marks, type)
   }
 
   /// Create a selection.
   static create(spec: GardSelection.Spec) {
-    return GardSelection.createInner(spec.anchor, spec.head || spec.anchor, spec.assoc, spec.goalColumn,
-                                     spec.ranges, spec.marks)
+    let {anchor, head = anchor} = spec
+    if (spec.ranges && !spec.ranges.some(r => r.from == Math.min(anchor, head) && r.to == Math.max(anchor, head)))
+      throw new RangeError("When given, ranges must include the main range")
+    return GardSelection.createInner(anchor, head, spec.assoc, spec.goalColumn, spec.ranges, spec.marks, spec.type)
   }
 
   /// Find the next normal cursor position after or before this selection's
@@ -197,7 +205,8 @@ export namespace GardSelection {
     head?: number
     assoc?: -1 | 0 | 1,
     ranges?: readonly {from: number, to: number}[]
-    marks?: Record<string, any>
+    marks?: Record<string, any>,
+    type?: string
   }
 
   /// A description of an editor selection.
@@ -227,6 +236,7 @@ export namespace GardSelection {
     /// the marks of inline content inserted at that selection. This is
     /// used for things like toggling emphasis on a cursor selection.
     marks?: readonly Mark<any>[]
+    type?: GardSelection.Type
   }
 
   /// A selection object where the selection positions have been
@@ -238,7 +248,9 @@ export namespace GardSelection {
     /// The head of the selection.
     head: Pos
 
-    constructor(doc: Plot.Doc,
+    private _ranges: readonly {from: Pos, to: Pos}[] | null = null
+
+    constructor(readonly doc: Plot.Doc,
                 /// The original selection.
                 readonly selection: GardSelection) {
       this.anchor = doc.resolve(selection.anchor)
@@ -249,6 +261,14 @@ export namespace GardSelection {
     get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
     /// The upper bound of the selection.
     get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
+
+    get ranges() {
+      return this._ranges || (this._ranges = this.resolveRanges())
+    }
+
+    private resolveRanges(): readonly {from: Pos, to: Pos}[] {
+      return this.selection.ranges.map(({from, to}) => ({from: this.doc.resolve(from), to: this.doc.resolve(to)}))
+    }
 
     /// True when the selection is empty (a cursor).
     get empty() { return this.selection.empty }
@@ -265,6 +285,26 @@ export namespace GardSelection {
       if (from.inText || to.inText || from.parent.start != to.parent.start || from.index != to.index - 1) return null
       return this.from.nodeAfter
     }
+  }
+
+  export class Type {
+    extension: GardState.Extension
+
+    constructor(
+      readonly name: string,
+      readonly map?: (sel: GardSelection, change: ChangeSet, assoc: -1 | 1) => GardSelection
+    ) {
+      this.extension = GardSelection.Type.source.of(this)
+    }
+
+    static define(name: string, config: {
+      map?: (sel: GardSelection, change: ChangeSet, assoc: -1 | 1) => GardSelection
+    } = {}) {
+      return new GardSelection.Type(name, config.map)
+    }
+
+    /// @internal
+    declare static source: Facet<GardSelection.Type>
   }
 }
 
@@ -380,7 +420,8 @@ function skipWord(cx: SelectionContext, start: number, assoc: -1 | 1, forward: b
       let next = map.skipWord(pos, assoc, forward, visually)
       if (next) return next
       if (!block.parent) return last
-      let end: {pos: number, assoc: -1 | 1} = visually ? map.visualTextblockSide(!forward) : forward ? {pos: block.end, assoc: -1} : {pos: block.start, assoc: 1}
+      let end: {pos: number, assoc: -1 | 1} = visually ? map.visualTextblockSide(!forward)
+        : forward ? {pos: block.end, assoc: -1} : {pos: block.start, assoc: 1}
       if (end.pos != start) last = end
       pos = forward ? block.after : block.before
     }

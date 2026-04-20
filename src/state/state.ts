@@ -387,7 +387,7 @@ export class GardState {
     }
     let config = GardState.Configuration.create([extensions, fieldInit])
     let schema = Schema.define(config.staticFacet(schemaElement))
-    return GardState.fromConfig(config, schema.docFromJSON(json.doc), GardSelection.fromJSON(schema, json.selection))
+    return GardState.fromConfig(config, schema.docFromJSON(json.doc), GardSelection.fromJSON(config, schema, json.selection))
   }
 
   /// Create a new state. You'll usually only need this when
@@ -1036,3 +1036,12 @@ interface DynamicSlot {
   update(state: GardState, tr: Transaction): SlotStatus
   reconfigure(state: GardState, oldState: GardState): SlotStatus
 }
+
+GardSelection.Type.source = Facet.define<GardSelection.Type>({
+  combine(values) {
+    for (let i = 0; i < values.length; i++) for (let j = i + 1; j < values.length; j++)
+      if (values[i].name == values[j].name) throw new Error(`Multiple selection types with name ${values[i].name} active`)
+    return values
+  },
+  static: true
+})
