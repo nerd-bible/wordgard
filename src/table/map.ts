@@ -51,6 +51,7 @@ export class TableMap {
   }
 
   /// Find the left side of the cell at the given position.
+  // FIXME is this used?
   colCount(pos: number) {
     for (let i = 0; i < this.map.length; i++)
       if (this.map[i] == pos) return i % this.width
@@ -110,7 +111,7 @@ export class TableMap {
   }
 
   /// Find the table map for the given table node.
-  static get(table: Plot) {
+  static get(table: Plot): TableMap {
     let found = cache.get(table)
     if (!found) cache.set(table, found = computeMap(table))
     return found

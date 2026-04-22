@@ -1,7 +1,6 @@
 // This file defines helpers for normalizing tables, making sure no
 // cells overlap (which can happen, if you have the wrong col- and
-// rowspans) and that each row has the same width. Uses the problems
-// reported by `TableMap`.
+// rowspans). Uses the problems reported by `TableMap`.
 
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Table, ColSpan, RowSpan} from "wordgard/schema"

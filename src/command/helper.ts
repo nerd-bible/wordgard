@@ -143,7 +143,7 @@ export function joinListItems(state: GardState): Transaction.Spec | false {
     let next = scan.parent
     if (!next) return false
     if (scan.node.isBlock && next.node.type.hasRole(Node.Role.List)) {
-      let prev = scan.previousSibling
+      const prev = scan.previousSibling
       if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.doc.schema.canContain(prev.type, ch.type))) return false
       return {
         changes: {from: scan.before - 1, to: scan.before + 1},
