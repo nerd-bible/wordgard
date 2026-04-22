@@ -139,7 +139,7 @@ export class InputState {
 
   update(update: Wordgard.Update) {
     if (this.mouseSelection) this.mouseSelection.update(update)
-    if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes)
+    if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state.doc)
     if (update.transactions.length) this.lastKeyCode = this.lastSelectionTime = 0
   }
 
@@ -456,7 +456,7 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
     update(update) {
       if (update.docChanged) {
         start = start.map(update.changes)
-        startSel = startSel.map(update.changes)
+        startSel = startSel.map(update.changes, update.state.doc)
       }
     },
     get(event, extend) {

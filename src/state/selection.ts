@@ -76,7 +76,7 @@ export class GardSelection {
 
   /// Map a selection through a change. Used to adjust the selection
   /// position for changes.
-  map(change: ChangeSet, assoc: -1 | 1 = -1): GardSelection {
+  map(change: ChangeSet, doc: Plot.Doc | (() => Plot.Doc), assoc: -1 | 1 = -1): GardSelection {
     if (change.empty) return this
     if (this.type && this.type.map) return this.type.map(this, change, assoc)
     let main = GardSelection.mapRange(change, this.from, this.to, assoc)

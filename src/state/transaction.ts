@@ -62,7 +62,7 @@ export class Transaction {
   /// current selection through the changes made by the transaction.
   get newSelection() {
     if (!this._selection) {
-      let sel = this.selection || this.startState.selection.map(this.changes)
+      let sel = this.selection || this.startState.selection.map(this.changes, this.newDoc)
       this._selection = this.normalizeSelection ? normalize({
         doc: this.newDoc,
         textDirection: this.startState.textDirection,
@@ -358,7 +358,8 @@ export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec
   }
   return {
     changes,
-    selection: b.selection ? b.selection.map(mapForB) : a.selection?.map(mapForA),
+    selection: b.selection ? b.selection.map(mapForB, () => changes.apply(doc))
+      : a.selection?.map(mapForA, () => changes.apply(doc)),
     normalizeSelection: b.normalizeSelection || a.normalizeSelection,
     effects: Transaction.Effect.mapEffects(a.effects, mapForA).concat(Transaction.Effect.mapEffects(b.effects, mapForB)),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,

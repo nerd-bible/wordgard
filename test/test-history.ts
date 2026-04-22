@@ -398,13 +398,13 @@ describe("history", () => {
     let state = mkState(doc(p("a"), p("b"), p("c")))
     state = state.update({selection: GardSelection.create({
       anchor: 1,
-      ranges: [2, 5, 8].map(n => ({from: n, to: n}))
+      ranges: [1, 5, 8].map(n => ({from: n, to: n}))
     })}).state
     state = state.update({changes: [1, 4, 7].map(n => ({from: n, insert: [Leaf.text("-")]}))}).state
     state = command(state, undo)
     state = state.update({selection:  {anchor: 1}}).state
     state = command(state, redo)
-    ist(state.selection.ranges.map(r => r.from).join(","), "3,7,11")
+    ist(state.selection.ranges.map(r => r.from).join(","), "1,7,11")
   })
 
   describe("effects", () => {

@@ -100,7 +100,7 @@ const historyField_ = GardState.Field.define({
       let result: Branch | null = null
       for (let i = json.length - 1; i >= 0; i--)
         result = new Branch(ChangeSet.fromJSON(state.doc.schema, json[i].changes),
-                                none, null, GardSelection.fromJSON(state.doc.schema, json[i].selection), result)
+                            none, null, GardSelection.fromJSON(state.config, state.doc.schema, json[i].selection), result)
                                 
       return result
     }
@@ -206,7 +206,7 @@ class Branch {
     // (referring to the state before this event's changes) over the
     // updated mapping.
     return new Branch(mappedChanges, Transaction.Effect.mapEffects(this.effects, change), null,
-                      this.startSelection.map(mappedMapping), next)
+                      this.startSelection.map(mappedMapping, () => mappedChanges.apply(change.apply(doc))), next)
   }
 
   // When serializing to JSON, we first fully resolve the whole history.

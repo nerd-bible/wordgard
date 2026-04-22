@@ -239,14 +239,14 @@ export class Wordgard {
 
   private scrollTo(target: ScrollTarget) {
     for (let handler of this.state.facet(Wordgard.scrollHandler)) {
-      try { if (handler(this, target.range, target)) return true }
+      try { if (handler(this, target)) return true }
       catch(e) { logException(this.state, e, "scroll handler") }
     }
 
-    let {range} = target
-    let rect = this.coordsAtPos(range.head, range.empty ? range.assoc || -1 : range.head > range.anchor ? -1 : 1)
-    if (!range.empty) {
-      let other = this.coordsAtPos(range.anchor, range.anchor > range.head ? -1 : 1)
+    let {from, to, assoc} = target
+    let rect = this.coordsAtPos(from, from == to ? assoc : 1)
+    if (from != to) {
+      let other = this.coordsAtPos(to, -1)
       let left = Math.min(rect.left, other.left), top = Math.min(rect.top, other.top)
       rect = new DOMRect(left, top, Math.max(rect.right, other.right) - left, Math.max(rect.bottom, other.bottom) - top)
     }
@@ -255,8 +255,7 @@ export class Wordgard {
     let targetRect = new DOMRect(rect.left + margins.left, rect.top + margins.top,
                                  rect.width - margins.left - margins.right, rect.height - margins.top - margins.bottom)
     let {offsetWidth, offsetHeight} = this.scrollDOM
-    scrollRectIntoView(this.scrollDOM, targetRect, range.head < range.anchor ? -1 : 1,
-                       target.x, target.y,
+    scrollRectIntoView(this.scrollDOM, targetRect, assoc, target.x, target.y,
                        Math.max(Math.min(target.xMargin, offsetWidth), -offsetWidth),
                        Math.max(Math.min(target.yMargin, offsetHeight), -offsetHeight),
                        this.state.textDirection() == Direction.LTR)
@@ -526,8 +525,9 @@ export class Wordgard {
     /// editor.
     xMargin?: number,
   } = {}): Transaction.Effect<unknown> {
-    return scrollIntoView.of(new ScrollTarget(typeof pos == "number" ? GardSelection.cursor(pos) : pos,
-                                              options.y, options.x, options.yMargin, options.xMargin))
+    let [from, to, assoc]: [number, number, -1 | 1] = typeof pos == "number" ? [pos, pos, -1] :
+      [pos.from, pos.to, pos.empty ? pos.assoc || -1 : pos.head < pos.anchor ? -1 : 1]
+    return scrollIntoView.of(new ScrollTarget(from, to, assoc, options.y, options.x, options.yMargin, options.xMargin))
   }
 
   /// Filter functions provided through this facet will be run on a
@@ -624,8 +624,7 @@ export class Wordgard {
   /// applied. Scroll handlers should never initiate editor updates.
   static scrollHandler = Facet.define<(
     view: Wordgard,
-    range: {from: number, to: number},
-    options: {x: ScrollStrategy, y: ScrollStrategy, xMargin: number, yMargin: number}
+    target: {from: number, to: number, x: ScrollStrategy, y: ScrollStrategy, xMargin: number, yMargin: number}
   ) => boolean>()
 
   /// Allows you to provide a function that should be called when the

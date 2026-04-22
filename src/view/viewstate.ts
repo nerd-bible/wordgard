@@ -1,5 +1,5 @@
 import {ChangeSet} from "wordgard/doc"
-import {GardState, GardSelection, Transaction} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 import {getScale, ScrollStrategy} from "./dom"
 import {UpdateFlag} from "./editorview"
 import {Wordgard} from "./editorview"
@@ -8,7 +8,12 @@ export const scrollIntoView = Transaction.Effect.define<ScrollTarget>({map: (t, 
 
 export class ScrollTarget {
   constructor(
-    readonly range: GardSelection,
+    readonly from: number,
+    readonly to: number,
+    // If from == to, this indicates the direction to map the position
+    // in. Otherwise, it tells which side of the range is the head
+    // (more important) side.
+    readonly assoc: -1 | 1,
     readonly y: ScrollStrategy = "nearest",
     readonly x: ScrollStrategy = "nearest",
     readonly yMargin: number = 5,
@@ -16,13 +21,21 @@ export class ScrollTarget {
   ) {}
 
   map(changes: ChangeSet) {
-    return changes.empty ? this :
-      new ScrollTarget(this.range.map(changes), this.y, this.x, this.yMargin, this.xMargin)
+    if (changes.empty) return this
+    let from: number, to: number
+    if (this.from == this.to) {
+      from = to = changes.mapPos(this.from, this.assoc)
+    } else {
+      from = changes.mapPos(this.from, 1)
+      to = Math.max(from, changes.mapPos(this.to, -1))
+    }
+    return new ScrollTarget(from, to, this.assoc, this.y, this.x, this.yMargin, this.xMargin)
   }
 
   clip(state: GardState) {
-    return this.range.to <= state.doc.length ? this :
-      new ScrollTarget(GardSelection.cursor(state.doc.length), this.y, this.x, this.yMargin, this.xMargin)
+    let len = state.doc.length
+    return this.to <= len ? this :
+      new ScrollTarget(Math.min(len, this.from), Math.min(len, this.to), this.assoc, this.y, this.x, this.yMargin, this.xMargin)
   }
 }
 
@@ -55,9 +68,8 @@ export class ViewState {
   update(tr: Transaction) {
     if (this.scrollTarget) this.scrollTarget = this.scrollTarget.map(tr.changes)
     if (tr.scrollIntoView) {
-      let {selection} = tr.state
-      this.scrollTarget = new ScrollTarget(
-        selection.empty ? selection : GardSelection.cursor(selection.head, selection.head > selection.anchor ? -1 : 1))
+      let {selection: sel} = tr.state
+      this.scrollTarget = new ScrollTarget(sel.head, sel.head, sel.empty ? sel.assoc || -1 : sel.head < sel.anchor ? -1 : 1)
     }
     for (let e of tr.effects)
       if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)
