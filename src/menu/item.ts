@@ -1,5 +1,5 @@
 import {Wordgard, showDialog} from "wordgard/view"
-import {Command, toggleMark, changeTextblockType, toggleBlock, toggleList, listIsActive,
+import {Command, toggleMark, setTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
 import {GardState, Transaction, Facet} from "wordgard/state"
 import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
@@ -305,7 +305,7 @@ function selectionInType(tag: Plot.Tag.Any) {
 }
 
 export const ParagraphButton = new MenuButton({
-  run: Command.bind(changeTextblockType, Paragraph),
+  run: Command.bind(setTextblockType, Paragraph),
   active: selectionInType(Paragraph),
   label: "Paragraph",
   parent: TextblockStyle,
@@ -313,7 +313,7 @@ export const ParagraphButton = new MenuButton({
 })
 
 export const CodeBlockButton = new MenuButton({
-  run: Command.bind(changeTextblockType, CodeBlock),
+  run: Command.bind(setTextblockType, CodeBlock),
   active: selectionInType(CodeBlock),
   label: "Code block",
   parent: TextblockStyle,
@@ -321,7 +321,7 @@ export const CodeBlockButton = new MenuButton({
 })
 
 export const Heading1 = new MenuButton({
-  run: Command.bind(changeTextblockType, Heading.of(1)),
+  run: Command.bind(setTextblockType, Heading.of(1)),
   active: selectionInType(Heading.of(1)),
   label: "Heading 1",
   parent: TextblockStyle,
@@ -329,7 +329,7 @@ export const Heading1 = new MenuButton({
 })
 
 export const Heading2 = new MenuButton({
-  run: Command.bind(changeTextblockType, Heading.of(2)),
+  run: Command.bind(setTextblockType, Heading.of(2)),
   active: selectionInType(Heading.of(2)),
   label: "Heading 2",
   parent: TextblockStyle,
@@ -337,7 +337,7 @@ export const Heading2 = new MenuButton({
 })
 
 export const Heading3 = new MenuButton({
-  run: Command.bind(changeTextblockType, Heading.of(3)),
+  run: Command.bind(setTextblockType, Heading.of(3)),
   active: selectionInType(Heading.of(3)),
   label: "Heading 3",
   parent: TextblockStyle,

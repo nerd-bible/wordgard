@@ -2,9 +2,10 @@ import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
 import {GardSelection, GardState, Direction, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/view"
 import {Command} from "./command"
-import {joinForward, joinBackward, liftEmptyBlock, setTextblockType,
+import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBlocks,
         deleteSelection, deleteForward, deleteBackward,
-        splitTextblock, joinListItems, unwrapBlockType, wrapBlock,
+        splitTextblock, joinListItems, findUnwrappable, doUnwrapBlock,
+        findWrappable, wrapBlockRange,
         canAddMarkInRange, selectedTextblocks} from "./helper"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
@@ -136,17 +137,57 @@ export const transposeChars: Command.Pure = ({state}) => {
   }
 }
 
-export const changeTextblockType: Command.Pure<Plot.Tag.Any> = ({state}, tag) => {
-  // FIXME inline
-  return setTextblockType(state, tag)
+export const setTextblockType: Command.Pure<Plot.Tag.Any> = ({state}, tag) => {
+  let changes: ChangeSet.Spec[] = [], {schema} = state.doc
+  for (let block of selectedTextblocks(state)) {
+    if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
+      changes.push({from: block.before, to: block.before + 1, insert: [schema.addMarksFrom(block.node.tag, tag)]})
+      for (let ch of clearNonFitting(schema, block, tag.type)) changes.push(ch)
+    }
+  }
+  if (!changes.length) return false
+  return autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "settype"})
 }
 
+/// Try to unwrap blocks around the selection. The second argument, if
+/// given, indicates what kind of wrapping plots may be removed.
+/// Returns null when no unwrapping is possible.
 export const unwrapBlock: Command.Pure<Node.Query | null> = ({state}, query) => {
-  return unwrapBlockType(state, query ?? undefined) // FIXME inline?
+  let targets: Pos.Node[] = [], changes: ChangeSet.Spec[] = []
+  for (let {from, to} of state.selection.ranges) {
+    if (!targets.some(t => t.after > from && t.before < to)) {
+      let result = findUnwrappable(state.doc.schema, state.doc.resolve(from), state.doc.resolve(to), query ?? undefined)
+      if (result) for (let node of result) {
+        targets.push(node)
+        changes.push(doUnwrapBlock(node, from, to))
+      }
+    }
+  }
+  if (!targets.length) return false
+  return autoJoinBlocks(state, {
+    changes,
+    scrollIntoView: true,
+    userEvent: "unwrap"
+  })
 }
 
-export const toggleBlock: Command.Pure<Plot.Tag.Any> = ({state}, tag) => {
-  return unwrapBlockType(state, tag) || wrapBlock(state, tag)
+/// Try to wrap selected textblocks in the given wrapper. Will return
+/// null if no wrapping is possible.
+export const wrapBlock: Command.Pure<Plot.Tag.Any> = ({state}, wrapper) => {
+  let changes: ChangeSet.Spec[] = [], lastTo = -1
+  for (let {from, to} of state.selection.ranges) {
+    let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
+    if (!range || range.from.pos < lastTo) continue
+    changes.push(wrapBlockRange(range, wrapper))
+    lastTo = range.to.pos
+  }
+  if (!changes.length) return false
+  return autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "wrap"})
+}
+
+
+export const toggleBlock: Command.Pure<Plot.Tag.Any> = (target, tag) => {
+  return unwrapBlock(target, tag) || wrapBlock(target, tag)
 }
 
 /// Toggle the given mark. If there is no selection, it is added to

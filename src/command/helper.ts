@@ -316,56 +316,6 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   }
 }
 
-/// Try to change the type of selected textblocks to the given tag.
-/// Will return null if no such changes are possible.
-export function setTextblockType(state: GardState, tag: Plot.Tag.Any): Transaction.Spec | false {
-  let changes: ChangeSet.Spec[] = [], {schema} = state.doc
-  for (let block of selectedTextblocks(state)) {
-    if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
-      changes.push({from: block.before, to: block.before + 1, insert: [schema.addMarksFrom(block.node.tag, tag)]})
-      for (let ch of clearNonFitting(schema, block, tag.type)) changes.push(ch)
-    }
-  }
-  if (!changes.length) return false
-  return autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "settype"})
-}
-
-/// Try to wrap selected textblocks in the given wrapper. Will return
-/// null if no wrapping is possible.
-export function wrapBlock(state: GardState, wrapper: Plot.Tag.Any): Transaction.Spec | false {
-  let changes: ChangeSet.Spec[] = [], lastTo = -1
-  for (let {from, to} of state.selection.ranges) {
-    let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
-    if (!range || range.from.pos < lastTo) continue
-    changes.push(wrapBlockRange(range, wrapper))
-    lastTo = range.to.pos
-  }
-  if (!changes.length) return false
-  return autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "wrap"})
-}
-
-/// Try to unwrap blocks around the selection. The second argument, if
-/// given, indicates what kind of wrapping plots may be removed.
-/// Returns null when no unwrapping is possible.
-export function unwrapBlockType(state: GardState, query?: Node.Query): Transaction.Spec | false {
-  let targets: Pos.Node[] = [], changes: ChangeSet.Spec[] = []
-  for (let {from, to} of state.selection.ranges) {
-    if (!targets.some(t => t.after > from && t.before < to)) {
-      let result = findUnwrappable(state.doc.schema, state.doc.resolve(from), state.doc.resolve(to), query)
-      if (result) for (let node of result) {
-        targets.push(node)
-        changes.push(unwrapBlock(node, from, to))
-      }
-    }
-  }
-  if (!targets.length) return false
-  return autoJoinBlocks(state, {
-    changes,
-    scrollIntoView: true,
-    userEvent: "unwrap"
-  })
-}
-
 export function selectedTextblocks(state: GardState) {
   let textblocks: Pos.Plot[] = [], lastBlock = -1
   for (let {from, to} of state.selection.ranges) {
@@ -483,10 +433,9 @@ export function findUnwrappable(schema: Schema, from: Pos, to: Pos, query?: Node
   return candidates
 }
 
-// FIXME find export name that doesn't collide with command
 /// Unwrap the given block node, or the node's children between `from`
 /// and `to`.
-function unwrapBlock(block: Pos.Plot, from?: number, to?: number): ChangeSet.Spec {
+export function doUnwrapBlock(block: Pos.Plot, from?: number, to?: number): ChangeSet.Spec {
   let changes: ChangeSet.Spec[] = [], {schema} = block.doc
   let outer = block.parent!.node, wrapText = textblockChild(schema, outer.type)
 

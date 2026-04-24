@@ -1,7 +1,7 @@
 import {Command, liftEmptyBlock, insertLineBreak, enter,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
-        wrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/command"
+        wrapBlock, unwrapBlock, toggleList, toggleMark} from "wordgard/command"
 import {Plot, Mark, Leaf, Node, Schema, ChangeSet} from "wordgard/doc"
 import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
@@ -70,8 +70,10 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, 
   }
 }
 
-function fromCmd<T>(command: Command.Pure<T>, param: T) {
-  return (state: GardState) => command({state}, param)
+function fromCmd<T>(command: Command.Pure<T>, param: T): (state: GardState) => Transaction.Spec | false
+function fromCmd(command: Command.Pure<null>): (state: GardState) => Transaction.Spec | false
+function fromCmd<T>(command: Command.Pure<T>, param?: T) {
+  return (state: GardState) => command({state}, param!)
 }
 
 function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: GardState) => Transaction.Spec | false,
@@ -468,127 +470,127 @@ describe("deleteForward", () => {
 
 describe("setTextblockType", () => {
   it("can change the type of a paragraph", () => {
-    test(doc(p("a", 0), p("b")), s => setTextblockType(s, Heading.of(1)), doc(h1("a", 0), p("b")))
+    test(doc(p("a", 0), p("b")), fromCmd(setTextblockType, Heading.of(1)), doc(h1("a", 0), p("b")))
   })
 
   it("can change the type of two paragraphs", () => {
-    test(doc(p(0, "a"), p("b", 1)), s => setTextblockType(s, Heading.of(1)), doc(h1(0, "a"), h1("b", 1)))
+    test(doc(p(0, "a"), p("b", 1)), fromCmd(setTextblockType, Heading.of(1)), doc(h1(0, "a"), h1("b", 1)))
   })
 
   it("can change the type of two paragraphs at different depth", () => {
-    test(doc(p(0, "a"), blockquote(p("b", 1))), s => setTextblockType(s, Heading.of(1)), doc(h1(0, "a"), blockquote(h1("b", 1))))
+    test(doc(p(0, "a"), blockquote(p("b", 1))), fromCmd(setTextblockType, Heading.of(1)), doc(h1(0, "a"), blockquote(h1("b", 1))))
   })
 
   it("returns false at the top level", () => {
     let s = Schema.define([Plot.defineDoc({inlineContent: true}), Paragraph])
-    test(s.doc([]), s => setTextblockType(s, Paragraph))
+    test(s.doc([]), fromCmd(setTextblockType, Paragraph))
   })
 
   it("returns false when the node is already of that type", () => {
-    test(doc(p(0)), s => setTextblockType(s, Paragraph))
+    test(doc(p(0)), fromCmd(setTextblockType, Paragraph))
   })
 
   it("works on multiple selections", () => {
     test(doc(h1(0, "h"), p("a", 1), blockquote(p("b"), pre("c", 2)), pre("d", 4)),
-         s => setTextblockType(s, Paragraph),
+         fromCmd(setTextblockType, Paragraph),
          doc(p(0, "h"), p("a", 1), blockquote(p("b"), p("c", 2)), p("d", 4)))
   })
 
   it("clears disallowed content", () => {
-    test(doc(p("a", 0, $img)), s => setTextblockType(s, TextOnly), doc(to("a", 0)))
+    test(doc(p("a", 0, $img)), fromCmd(setTextblockType, TextOnly), doc(to("a", 0)))
   })
 
   it("preserves marks when appropriate", () => {
-    test(doc(pp(p(0, "a")), p("b", 1)), s => setTextblockType(s, Heading.of(1)), doc(pp(h1(0, "a")), h1("b", 1)))
+    test(doc(pp(p(0, "a")), p("b", 1)), fromCmd(setTextblockType, Heading.of(1)), doc(pp(h1(0, "a")), h1("b", 1)))
   })
 
   it("drops marks when appropriate", () => {
-    test(doc(bp(p(0, "a"))), s => setTextblockType(s, Heading.of(1)), doc(h1(0, "a")))
+    test(doc(bp(p(0, "a"))), fromCmd(setTextblockType, Heading.of(1)), doc(h1(0, "a")))
   })
 })
 
 describe("wrapBlock", () => {
   it("can wrap a paragraph in a blockquote", () => {
-    test(doc(p(0)), s => wrapBlock(s, Blockquote), doc(blockquote(p(0))))
+    test(doc(p(0)), fromCmd(wrapBlock, Blockquote), doc(blockquote(p(0))))
   })
 
   it("can wrap two paragraphs in a blockquote", () => {
-    test(doc(p(0), p(1)), s => wrapBlock(s, Blockquote), doc(blockquote(p(0), p(1))))
+    test(doc(p(0), p(1)), fromCmd(wrapBlock, Blockquote), doc(blockquote(p(0), p(1))))
   })
 
   it("can wrap three paragraphs in a blockquote", () => {
-    test(doc(p(0), p("wow"), p(1)), s => wrapBlock(s, Blockquote), doc(blockquote(p(0), p("wow"), p(1))))
+    test(doc(p(0), p("wow"), p(1)), fromCmd(wrapBlock, Blockquote), doc(blockquote(p(0), p("wow"), p(1))))
   })
 
   it("can content inside a blockquote", () => {
-    test(doc(blockquote(p("a"), p(0), p("b"))), s => wrapBlock(s, Blockquote), doc(blockquote(p("a"), blockquote(p(0)), p("b"))))
+    test(doc(blockquote(p("a"), p(0), p("b"))), fromCmd(wrapBlock, Blockquote), doc(blockquote(p("a"), blockquote(p(0)), p("b"))))
   })
 
   it("will expand to cover a partially selected node", () => {
-    test(doc(p(0), blockquote(p(1), p("a"))), s => wrapBlock(s, Blockquote), doc(blockquote(p(0), blockquote(p(1), p("a")))))
+    test(doc(p(0), blockquote(p(1), p("a"))), fromCmd(wrapBlock, Blockquote), doc(blockquote(p(0), blockquote(p(1), p("a")))))
   })
 
   it("will create required wrapper nodes", () => {
-    test(doc(p("a", 0), p("b"), p("c", 1), p("d")), s => wrapBlock(s, BulletList),
+    test(doc(p("a", 0), p("b"), p("c", 1), p("d")), fromCmd(wrapBlock, BulletList),
          doc(ul(li(p("a", 0)), li(p("b")), li(p("c", 1))), p("d")))
   })
 
   it("will pick the innermost valid depth", () => {
-    test(doc(blockquote(p("a", 0))), s => wrapBlock(s, BulletList), doc(blockquote(ul(li(p("a", 0))))))
+    test(doc(blockquote(p("a", 0))), fromCmd(wrapBlock, BulletList), doc(blockquote(ul(li(p("a", 0))))))
   })
 
   it("will join to adjacent auto-join node", () => {
-    test(doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))), s => wrapBlock(s, Blockquote),
+    test(doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))), fromCmd(wrapBlock, Blockquote),
          doc(blockquote(p("a"), p("b"), p("c"))))
   })
 })
 
 describe("unwrapBlock", () => {
   it("can unwrap a quote", () => {
-    test(doc(blockquote(p("a", 0))), unwrapBlockType, doc(p("a", 0)))
+    test(doc(blockquote(p("a", 0))), fromCmd(unwrapBlock), doc(p("a", 0)))
   })
 
   it("can unwrap multiple children from a quote", () => {
-    test(doc(blockquote(p("a", 0), p("b", 1))), unwrapBlockType, doc(p("a", 0), p("b", 1)))
+    test(doc(blockquote(p("a", 0), p("b", 1))), fromCmd(unwrapBlock), doc(p("a", 0), p("b", 1)))
   })
 
   it("can partially unwrap quote with content left at end", () => {
-    test(doc(blockquote(p("a", 0), p("b"))), unwrapBlockType, doc(p("a", 0), blockquote(p("b"))))
+    test(doc(blockquote(p("a", 0), p("b"))), fromCmd(unwrapBlock), doc(p("a", 0), blockquote(p("b"))))
   })
 
   it("can partially unwrap quote with content left at start", () => {
-    test(doc(blockquote(p("a"), p("b", 0))), unwrapBlockType, doc(blockquote(p("a")), p("b", 0)))
+    test(doc(blockquote(p("a"), p("b", 0))), fromCmd(unwrapBlock), doc(blockquote(p("a")), p("b", 0)))
   })
 
   it("can partially unwrap quote with content left at both sides", () => {
-    test(doc(blockquote(p("a"), p("b", 0), p("c"))), unwrapBlockType, doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))))
+    test(doc(blockquote(p("a"), p("b", 0), p("c"))), fromCmd(unwrapBlock), doc(blockquote(p("a")), p("b", 0), blockquote(p("c"))))
   })
 
   it("can unwrap a list", () => {
-    test(doc(ul(li(p("a", 0)), li(p("b", 1)))), unwrapBlockType, doc(p("a", 0), p("b", 1)))
+    test(doc(ul(li(p("a", 0)), li(p("b", 1)))), fromCmd(unwrapBlock), doc(p("a", 0), p("b", 1)))
   })
 
   it("can partially unwrap a list", () => {
-    test(doc(ul(li(p("a")), li(p("b", 0)), li(p("c")))), unwrapBlockType, doc(ul(li(p("a"))), p("b", 0), ul(li(p("c")))))
+    test(doc(ul(li(p("a")), li(p("b", 0)), li(p("c")))), fromCmd(unwrapBlock), doc(ul(li(p("a"))), p("b", 0), ul(li(p("c")))))
   })
 
   it("can partially unwrap nested content at start", () => {
-    test(doc(ul(li(p("a")), li(blockquote(p("b", 0))))), s => unwrapBlockType(s, BulletList),
+    test(doc(ul(li(p("a")), li(blockquote(p("b", 0))))), fromCmd(unwrapBlock, BulletList),
          doc(ul(li(p("a"))), blockquote(p("b", 0))))
   })
 
   it("can partially unwrap nested content at end", () => {
-    test(doc(ul(li(blockquote(p("a", 0))), li(p("b")))), s => unwrapBlockType(s, BulletList),
+    test(doc(ul(li(blockquote(p("a", 0))), li(p("b")))), fromCmd(unwrapBlock, BulletList),
          doc(blockquote(p("a", 0)), ul(li((p("b"))))))
   })
 
   it("can unwrap children from multiple parents", () => {
-    test(doc(ul(li(p("a"), p("b", 0))), ul(li(p("c", 1), p("d")))), unwrapBlockType,
+    test(doc(ul(li(p("a"), p("b", 0))), ul(li(p("c", 1), p("d")))), fromCmd(unwrapBlock),
          doc(ul(li(p("a"))), p("b", 0), p("c", 1), ul(li(p("d")))))
   })
 
   it("returns null at the top level", () => {
-    test(doc(p("a", 0)), unwrapBlockType)
+    test(doc(p("a", 0)), fromCmd(unwrapBlock))
   })
 
   it("can unwrap textblock list items", () => {
@@ -599,13 +601,13 @@ describe("unwrapBlock", () => {
       doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),
       selection: {anchor: 0, head: 8}
     })
-    let tr = unwrapBlockType(state, list)
+    let tr = unwrapBlock({state}, list)
     ist(tr)
     if (tr) ist(state.update(tr).state.doc, s.doc([p("a"), p("b")]), eq)
   })
 
   it("will auto-join unwrapped nodes", () => {
-    test(doc(ul(li(p("a"))), blockquote(ul(li(p(0, "b"))))), unwrapBlockType,
+    test(doc(ul(li(p("a"))), blockquote(ul(li(p(0, "b"))))), fromCmd(unwrapBlock),
          doc(ul(li(p("a")), li(p(0, "b")))))
     
   })
