@@ -13,19 +13,20 @@ export class SelectionType {
   ) {}
 }
 
-// FIXME check all comments
-
-/// An editor selection holds one or more selection ranges.
+/// The base class for editor selections. Actual selections will be a
+/// subclass of this—usually {@link GardSelection.Text} or {@link
+/// GardSelection.Node}, but it is also possible for extensions to
+/// provide custom types.
 export abstract class GardSelection {
   constructor(
-    /// The anchor of the range—the side that doesn't move when you
-    /// extend it.
+    /// The anchor of the selection—the side that doesn't move when
+    /// you extend it.
     readonly anchor: number,
-    /// The head of the range, which is moved when the range is
-    /// [extended](#state.EditorSelection.extend).
+    /// The head of the selection, which is moved when it is extended
+    /// (for example by moving the cursor while holding Shift).
     readonly head: number,
     /// The goal column (stored vertical offset) associated with a
-    /// cursor. This is used to preserve the vertical position when
+    /// selection. This is used to preserve the vertical position when
     /// moving across lines of different length.
     readonly goalColumn?: number
   ) {}
@@ -39,17 +40,13 @@ export abstract class GardSelection {
   /// True when `anchor` and `head` are at the same position.
   get empty(): boolean { return this.anchor == this.head }
 
-  private _ranges: readonly {from: number, to: number}[] | null = null
-
   /// Returns true when this is an empty text selection.
   get isCursor(): boolean { return this.empty && this instanceof GardSelection.Text }
 
-  /// The set of ranges covered by this selection, sorted.
-  get ranges() {
-    return this._ranges || (this._ranges = this.enumerateRanges())
-  }
-
-  enumerateRanges() { return [this] }
+  /// The set of ranges covered by this selection, sorted. By default,
+  /// this is just the selection's main `from` to `to`, but custom
+  /// selection implementations can override it.
+  get ranges() { return [this] }
 
   /// The range that should be used when replacing this selection with
   /// other content (for example when typing or pasting over it) or
@@ -57,9 +54,23 @@ export abstract class GardSelection {
   /// `this.to`.
   get replacemenRange(): {from: number, to: number} { return this }
 
-  // FIXME rename, check uses of plain 'assoc'
-  get anchorSide(): -1 | 1 { return this.anchor > this.head ? -1 : 1 }
+  /// The side that the selection head is associated with. -1 means it
+  /// is after the elemente before its position, 1 means it is before
+  /// the element after its position. This influences where the
+  /// selection is drawn (for example when on a line wrapping boundary
+  /// or in bidirectional text) and where further motion takes it. It
+  /// is valid for it to point in a direction where the is no element
+  /// (say, -1 when at the start of its parent node).
+  ///
+  /// By default, this joint points in the direction of the anchor or
+  /// forward if that is equal to the head, but selection types like
+  /// {@link GardSelection.Text} can override it.
   get headSide(): -1 | 1 { return this.head > this.anchor ? -1 : 1 }
+
+  /// The {@link GardSelection.headSide | side} associated with the
+  /// selection anchor. Also by default points towards the head, or if
+  /// that is the same position, forward.
+  get anchorSide(): -1 | 1 { return this.anchor > this.head ? -1 : 1 }
 
   /// Compare this selection to another selection.
   abstract eq(other: GardSelection): boolean
@@ -71,7 +82,9 @@ export abstract class GardSelection {
   }
 
   /// Map a selection through a change. Used to adjust the selection
-  /// position for changes.
+  /// position for changes. `doc` may or may not be used by the
+  /// mapping, depending on the selection type. If it is expensive to
+  /// compute, it is recommended to pass it lazily as a function.
   abstract map(change: ChangeSet, doc: Plot.Doc | (() => Plot.Doc), assoc?: -1 | 1): GardSelection
 
   /// @internal
@@ -106,13 +119,12 @@ export abstract class GardSelection {
     return type.fromJSON(doc, json)
   }
 
-  /// Create a cursor selection range at the given position. You can
-  /// safely ignore the optional arguments in most situations.
+  /// Create a cursor text selection at the given position.
   static cursor(pos: number, side?: -1 | 1, goalColumn?: number) {
     return GardSelection.Text.createInner(pos, pos, side, goalColumn)
   }
 
-  /// Create a range selection.
+  /// Create a text selection.
   static range(anchor: number, head?: number, headSide?: -1 | 1, goalColumn?: number) {
     return GardSelection.Text.createInner(anchor, head ?? anchor, headSide, goalColumn)
   }
@@ -122,11 +134,8 @@ export abstract class GardSelection {
     return GardSelection.Node.create(pos, node, goalColumn)
   }
 
-  // FIXME I don't like these. Try to replace them with a different interface
-  // FIXME also maybe move them to Text
-
   /// Find the next normal cursor position after or before this selection's
-  /// head.
+  /// head. FIXME document normal positions
   nextNormalCursor(cx: GardSelection.Context, forward = true): GardSelection.Text | null {
     let found = scanNormalFrom(toContext(cx), this.head, this.headSide, forward, true)
     return found && GardSelection.cursor(found.pos, found.side)
@@ -168,7 +177,12 @@ export abstract class GardSelection {
   /// @internal
   declare static selectionType: Facet<SelectionType>
 
-  static define<T extends GardSelection, JSON>(
+  /// Create an extension that registers a custom selection type. Such
+  /// a selection is only valid in a state that has the extension
+  /// active. The JSON representation of a selection will be tagged
+  /// with the `tag` string, and created and read via the functions
+  /// passed here.
+  static define<T extends GardSelection, JSON extends object>(
     tag: string, cls: {new(...args: any[]): T},
     toJSON: (sel: T) => JSON,
     fromJSON: (doc: Plot.Doc, json: JSON) => T
@@ -178,6 +192,9 @@ export abstract class GardSelection {
 }
 
 export namespace GardSelection {
+  /// Text selections hold a single arbitrary range in the document.
+  /// They represent a cursor when their anchor and head are the same
+  /// position.
   export class Text extends GardSelection {
     private constructor(
       anchor: number,
@@ -261,12 +278,14 @@ export namespace GardSelection {
     export type JSON = {
       anchor: number
       head?: number
-      side?: -1 | 0 | 1
+      side?: -1 | 1
       marks?: Record<string, any>
     }
 
+    /// @internal
     export const type = new SelectionType("text", Text, ((sel: Text): JSON => {
-      let result: JSON = {anchor: sel.anchor, side: sel.headSide}
+      let result: JSON = {anchor: sel.anchor}
+      if (sel.headSide != (sel.head > sel.anchor ? -1 : 1)) result.side = sel.headSide
       if (!sel.empty) result.head = sel.head
       if (sel.marks) {
         result.marks = {}
@@ -282,6 +301,10 @@ export namespace GardSelection {
     }) as any)
   }
 
+  /// Node selections select a single node. They are created, for
+  /// example, when clicking on or moving into a {@link
+  /// doc.Leaf.Spec.selectable | selectable} leaf node. Use {@link
+  /// GardSelection.node} to create one.
   export class Node extends GardSelection {
     private constructor(
       from: number,
@@ -326,8 +349,9 @@ export namespace GardSelection {
   }
 
   /// A selection object where the selection positions have been
-  /// [resolved](#doc.DocNode.resolve). This is derived from the
-  /// regular, canonical selection, for convenience.
+  /// [resolved](#doc.DocNode.resolve). In an editor state, {@link
+  /// GardState.sel} provides an instance of this, derived from the
+  /// regular canonical selection, for convenience.
   export class Resolved {
     /// The selection anchor.
     anchor: Pos
@@ -336,9 +360,12 @@ export namespace GardSelection {
 
     private _ranges: readonly {from: Pos, to: Pos}[] | null = null
 
-    constructor(readonly doc: Plot.Doc,
-                /// The original selection.
-                readonly selection: GardSelection) {
+    constructor(
+      /// @internal
+      readonly doc: Plot.Doc,
+      /// The original selection.
+      readonly selection: GardSelection
+    ) {
       this.anchor = doc.resolve(selection.anchor)
       this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
     }
@@ -348,6 +375,7 @@ export namespace GardSelection {
     /// The upper bound of the selection.
     get to() { return this.anchor.pos > this.head.pos ? this.anchor : this.head }
 
+    /// The selection ranges.
     get ranges() {
       return this._ranges || (this._ranges = this.resolveRanges())
     }
@@ -356,19 +384,23 @@ export namespace GardSelection {
       return this.selection.ranges.map(({from, to}) => ({from: this.doc.resolve(from), to: this.doc.resolve(to)}))
     }
 
+    /// The resolved replacement range.
     get replacementRange(): {from: Pos, to: Pos} {
       let repl = this.selection.replacemenRange
       if (repl.from == this.selection.from && repl.to == this.selection.to) return this
       return {from: this.doc.resolve(repl.from), to: this.doc.resolve(repl.to)}
     }
 
+    /// The active marks for this selection. If this is a cursor
+    /// selection with explicitly stored {@link
+    /// GardSelection.Text.Spec.marks | marks}, those are returned.
+    /// Otherwise, this computes the marks that should be applied to
+    /// content inserted in the selection's position, based on
+    /// spanning marks on the surrounding nodes.
     get activeMarks(): readonly Mark[] {
       let repl = this.replacementRange
       return (this.selection instanceof GardSelection.Text && this.selection.marks) || repl.from.marks(repl.to)
     }
-
-    /// True when the selection is empty (a cursor).
-    get empty() { return this.selection.empty }
   }
 
   /// Many selection related functions need access to a configuration
