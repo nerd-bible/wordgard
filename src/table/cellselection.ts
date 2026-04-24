@@ -35,12 +35,12 @@ export class CellSelection extends GardSelection {
 
   moveHead(doc: Plot.Doc, dir: "up" | "down" | "forward" | "backward") {
     let head = doc.resolve(this.head), headPos = this.head - (this.head > this.anchor ? head.nodeAfter!.length : 0)
-    let table = head.parent!.parent!, map = TableMap.get(table.node), rect = map.findCell(headPos - table.start)
+    let table = head.parent!.parent!, map = TableMap.get(table.node, table.start), rect = map.findCell(headPos)
     let col = dir == "backward" ? rect.startCol - 1 : dir == "forward" ? rect.endCol : rect.startCol
     let row = dir == "up" ? rect.startRow - 1 : dir == "down" ? rect.endRow : rect.startRow
     if (col < 0 || col >= map.width || row < 0 || row >= map.height) return null
-    let newHead = map.cellAt(col, row, table.node) + table.start
-    if (this.head > this.anchor) newHead += map.cellEnd(newHead, table.start)
+    let newHead = map.cellAt(col, row)
+    if (this.head > this.anchor) newHead = map.cellEnd(newHead)
     return CellSelection.between(doc, this.anchor, newHead)
   }
 
@@ -53,12 +53,12 @@ export class CellSelection extends GardSelection {
         !table || table.start > to.pos || table.end < to.pos)
       return null
     let toPos = to.pos - toCell.length
-    let map = TableMap.get(table.node)
-    let cells = map.cellsInRect(map.rectBetween(from.pos - table.start, toPos - table.start))
+    let map = TableMap.get(table.node, table.start)
+    let cells = map.cellsInRect(map.rectBetween(from.pos, toPos))
     return new CellSelection(
       anchor, head,
-      cells.map(pos => ({from: pos + table.start + 1, to: map.cellEnd(pos, table.start) - 1})),
-      cells.indexOf(anchor - table.start - (anchor < head ? 0 : toCell.length)))
+      cells.map(pos => ({from: pos + 1, to: map.cellEnd(pos) - 1})),
+      cells.indexOf(anchor - (anchor < head ? 0 : toCell.length)))
   }
 
   static extension = GardSelection.define<CellSelection, {anchor: number, head: number}>(

@@ -9,15 +9,15 @@ import {TableMap} from "./tablemap"
 
 /// Correct tables where the cells do not form a proper rectangle.
 export const tableCorrection = Correction.onContent(Table, (pos, state) => {
-  let map = TableMap.get(pos.node)
-  if (!map.problems) return null
+  let map = TableMap.get(pos.node, pos.start)
+  if (!map.data.problems) return null
 
   // Track which rows we must add cells to, so that we can adjust that
   // when fixing collisions.
   let mustAdd: number[] = [], changes: ChangeSet.Spec[] = []
   for (let i = 0; i < map.height; i++) mustAdd.push(0)
-  for (let i = 0; i < map.problems.length; i++) {
-    let prob = map.problems[i]
+  for (let i = 0; i < map.data.problems.length; i++) {
+    let prob = map.data.problems[i]
     if (prob.type == "collision") {
       let cell = pos.node.nodeAt(prob.pos)!, cur = ColSpan.isInSet(cell.marks)!, newVal = cur.value - prob.n
       let from = pos.start + prob.pos, rowSpan = cell.mark(RowSpan) ?? 1

@@ -9,12 +9,8 @@
 // compute the start position of the table and offset positions passed
 // to or gotten from this structure by that amount.
 
-// FIXME rename tablemap.ts
-
 import {Plot} from "wordgard/doc"
 import {Table, ColSpan, RowSpan} from "wordgard/schema"
-
-let cache = new WeakMap
 
 export class Rect {
   constructor(readonly startCol: number,
@@ -30,56 +26,46 @@ type Problem =
 
 // FIXME store offset in a wrapper object for less awkward access
 
-/// A table map describes the structore of a given table. To avoid
-/// recomputing them all the time, they are cached per table node. To
-/// be able to do that, positions saved in the map are relative to the
-/// start of the table, rather than the start of the document.
-export class TableMap {
+class MapData {
   constructor(
+    readonly table: Plot,
     readonly width: number,
     readonly height: number,
     readonly map: number[],
     readonly problems: Problem[] | null,
     readonly cellEnds: Map<number, number>
   ) {}
+}
+
+let cache = new WeakMap<Plot, MapData>()
+
+/// A table map describes the structore of a given table. To avoid
+/// recomputing them all the time, they are cached per table node. To
+/// be able to do that, positions saved in the map are relative to the
+/// start of the table, rather than the start of the document.
+export class TableMap {
+  constructor(readonly start: number, readonly data: MapData) {}
+
+  get width() { return this.data.width }
+  get height() { return this.data.height }
 
   /// Find the dimensions of the cell at the given position.
   findCell(pos: number) {
-    for (let i = 0; i < this.map.length; i++) if (this.map[i] == pos) {
-      let startCol = i % this.width, startRow = (i / this.width) | 0
+    let localPos = pos - this.start, {map, width, height} = this.data
+    for (let i = 0; i < map.length; i++) if (map[i] == localPos) {
+      let startCol = i % width, startRow = (i / width) | 0
       let endCol = startCol + 1, endRow = startRow + 1
-      for (let j = 1; endCol < this.width && this.map[i + j] == pos; j++) endCol++
-      for (let j = 1; endRow < this.height && this.map[i + (this.width * j)] == pos; j++) endRow++
+      for (let j = 1; endCol < width && map[i + j] == pos; j++) endCol++
+      for (let j = 1; endRow < height && map[i + (width * j)] == pos; j++) endRow++
       return new Rect(startCol, startRow, endCol, endRow)
     }
     throw new RangeError(`No cell with offset ${pos} found`)
   }
 
-  cellEnd(pos: number, tableOffset = 0) {
-    let end = this.cellEnds.get(pos - tableOffset)
+  cellEnd(pos: number) {
+    let end = this.data.cellEnds.get(pos - this.start)
     if (end == null) throw new Error(`No cell with offset ${pos} found`)
-    return end + tableOffset
-  }
-
-  /// Find the left side of the cell at the given position.
-  // FIXME is this used?
-  colCount(pos: number) {
-    for (let i = 0; i < this.map.length; i++)
-      if (this.map[i] == pos) return i % this.width
-    throw new RangeError("No cell with offset " + pos + " found")
-  }
-
-  /// Find the next cell in the given direction, starting from the cell
-  /// at `pos`, if any.
-  nextCell(pos: number, axis: "horiz" | "vert", dir: -1 | 1) {
-    let {startCol, endCol, startRow, endRow} = this.findCell(pos)
-    if (axis == "horiz") {
-      if (dir < 0 ? startCol == 0 : endCol == this.width) return null
-      return this.map[startRow * this.width + (dir < 0 ? startCol - 1 : endCol)]
-    } else {
-      if (dir < 0 ? startRow == 0 : endRow == this.height) return null
-      return this.map[startCol + this.width * (dir < 0 ? startRow - 1 : endRow)]
-    }
+    return end + this.start
   }
 
   /// Get the rectangle spanning the two given cells.
@@ -93,14 +79,14 @@ export class TableMap {
   /// Return the position of all cells that have their top start
   /// corner in the given rectangle.
   cellsInRect(rect: Rect) {
-    let result: number[] = []
+    let result: number[] = [], {map, width} = this.data
     for (let row = rect.startRow; row < rect.endRow; row++) {
       for (let col = rect.startCol; col < rect.endCol; col++) {
-        let index = row * this.width + col, pos = this.map[index]
+        let index = row * width + col, pos = map[index]
         if (result.indexOf(pos) < 0 &&
-            (col != rect.startCol || !col || this.map[index - 1] != pos) &&
-            (row != rect.startRow || !row || this.map[index - this.width] != pos))
-          result.push(pos)
+            (col != rect.startCol || !col || map[index - 1] != pos) &&
+            (row != rect.startRow || !row || map[index - width] != pos))
+          result.push(pos + this.start)
       }
     }
     return result
@@ -108,24 +94,25 @@ export class TableMap {
 
   /// Return the position at which the cell at the given row and column
   /// starts, or would start, if a cell started there.
-  cellAt(col: number, row: number, table: Plot) {
+  cellAt(col: number, row: number) {
+    let {width, map, table} = this.data
     for (let i = 0, rowStart = 0;; i++) {
       let rowEnd = rowStart + table.content[i].length
       if (i == row) {
-        let index = col + row * this.width, rowEndIndex = (row + 1) * this.width
+        let index = col + row * width, rowEndIndex = (row + 1) * width
         // Skip past cells from previous rows (via rowspan)
-        while (index < rowEndIndex && this.map[index] < rowStart) index++
-        return index == rowEndIndex ? rowEnd - 1 : this.map[index]
+        while (index < rowEndIndex && map[index] < rowStart) index++
+        return (index == rowEndIndex ? rowEnd - 1 : map[index]) + this.start
       }
       rowStart = rowEnd
     }
   }
 
   /// Find the table map for the given table node.
-  static get(table: Plot): TableMap {
-    let found = cache.get(table)
-    if (!found) cache.set(table, found = computeMap(table))
-    return found
+  static get(table: Plot, start: number): TableMap {
+    let data = cache.get(table)
+    if (!data) cache.set(table, data = computeMap(table))
+    return new TableMap(start, data)
   }
 }
 
@@ -168,7 +155,7 @@ function computeMap(table: Plot) {
     pos++
   }
 
-  return new TableMap(width, height, map, problems, cellEnd)
+  return new MapData(table, width, height, map, problems, cellEnd)
 }
 
 function findWidth(table: Plot) {
