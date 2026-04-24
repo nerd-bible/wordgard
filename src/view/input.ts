@@ -439,13 +439,13 @@ function rangeForClick(view: Wordgard, pos: CoordPos, type: number): GardSelecti
     if (target && target.isLeaf && target.type.isSelectable) return GardSelection.range(pos.target, pos.target + target.length)
   }
   if (type == 1) { // Single click
-    return GardSelection.near(view.state, pos.pos, pos.assoc || -1)
+    return GardSelection.near(view.state, pos.pos, pos.side || -1)
   } else if (type == 2) { // Double click
-    return view.state.wordAt(pos.pos, pos.assoc || 1)
+    return view.state.wordAt(pos.pos, pos.side || 1)
   } else { // Triple click
     let cx = view.state.doc.resolve(pos.pos), block = cx.textblockParent
     if (block) return GardSelection.range(block.start, block.end)
-    else return GardSelection.near(view.state, pos.pos, pos.assoc || -1)
+    else return GardSelection.near(view.state, pos.pos, pos.side || -1)
   }
 }
 
@@ -463,16 +463,16 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
       let cur = queryPos(view, event), {from, to} = rangeForClick(view, cur, type)
       if (extend) {
         if (from < startSel.anchor)
-          return GardSelection.range(startSel.anchor, from, from < to ? 1 : cur.assoc)
+          return GardSelection.range(startSel.anchor, from, from < to ? 1 : cur.side)
         else
-          return GardSelection.range(startSel.anchor, to, from < to ? -1 : cur.assoc)
+          return GardSelection.range(startSel.anchor, to, from < to ? -1 : cur.side)
       }
       if (start.pos != cur.pos) {
         let startRange = rangeForClick(view, start, type)
         from = Math.min(startRange.from, from)
         to = Math.max(startRange.to, to)
       }
-      return GardSelection.range(from, to, cur.assoc)
+      return GardSelection.range(from, to, cur.side)
     }
   } as MouseSelectionStyle
 }
@@ -530,8 +530,7 @@ handlers.paste = (view: Wordgard, event: ClipboardEvent) => {
     })
     view.dispatch({
       changes,
-      selection: GardSelection.cursor(changes.mapPos(state.selection.from, 1), -1),
-      normalizeSelection: true,
+      selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.to, 1), -1),
       userEvent: "input.paste",
       scrollIntoView: true
     })
@@ -593,10 +592,10 @@ observers.compositionstart = observers.compositionupdate = (view, event: Composi
 
     let wrap: readonly Mark<any>[] | null = null
     if (!view.inputState.composing.changes && !event.data) {
-      let sel = view.state.sel, mark = sel.marks || sel.from.marks()
-      if (sel.empty && (sel.marks || !sel.head.inText && sel.head.index) &&
-          !eqArray(sel.head.nodeBefore?.tag.marks, mark))
-        wrap = mark
+      let sel = view.state.selection, rSel = view.state.sel
+      if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
+          !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
+        wrap = rSel.activeMarks
     }
 
     if (wrap) try {

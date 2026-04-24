@@ -452,7 +452,7 @@ export class Wordgard {
   }
 
   /// Get the document position at the given screen coordinates.
-  posAtCoords(coords: {x: number, y: number}): {pos: number, assoc: -1 | 0 | 1, target: number | null} {
+  posAtCoords(coords: {x: number, y: number}): {pos: number, side: -1 | 1, target: number | null} {
     this.checkFlushed()
     let elt = ((this.root as any).elementFromPoint ? this.root : this.dom.ownerDocument)
                 .elementFromPoint(coords.x, coords.y)
@@ -526,7 +526,7 @@ export class Wordgard {
     xMargin?: number,
   } = {}): Transaction.Effect<unknown> {
     let [from, to, assoc]: [number, number, -1 | 1] = typeof pos == "number" ? [pos, pos, -1] :
-      [pos.from, pos.to, pos.empty ? pos.assoc || -1 : pos.head < pos.anchor ? -1 : 1]
+      [pos.from, pos.to, pos.empty ? pos.headSide : pos.head < pos.anchor ? -1 : 1]
     return scrollIntoView.of(new ScrollTarget(from, to, assoc, options.y, options.x, options.yMargin, options.xMargin))
   }
 

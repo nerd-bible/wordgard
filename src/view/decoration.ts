@@ -1,4 +1,4 @@
-import {GardState, Facet} from "wordgard/state"
+import {GardState, Facet, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema, Elt, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type Wordgard} from "./editorview"
@@ -389,8 +389,11 @@ class WrapperDecoration extends Decoration {
 const nodeSelectionDeco = Decoration.attribute("class", "wg-selected-node")
 
 function nodeSelection(state: GardState) {
-  let {node, from} = state.sel
-  return node && node.isLeaf && node.type.isSelectable ? PointSet.create([[from.pos, nodeSelectionDeco]]) : PointSet.empty
+  if (state.selection instanceof GardSelection.Node) {
+    let {node, from} = state.selection
+    if (node.isLeaf && node.type.isSelectable) return PointSet.create([[from, nodeSelectionDeco]])
+  }
+  return PointSet.empty
 }
 
 function findAbove(array: readonly number[], start: number, n: number) {

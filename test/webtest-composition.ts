@@ -17,7 +17,7 @@ function inputEvent(cm: Wordgard, type: string, init: InputEventInit) {
 }
 
 type CompositionUpdate = [number, number, string, () => Text] | [number, number, string]
-  
+
 function selEnd(node: Node) {
   document.getSelection()!.collapse(node, node.nodeValue!.length)
   return node as Text
@@ -64,7 +64,7 @@ function compose(view: Wordgard, start: CompositionUpdate | (() => Text),
         sel.collapse(node, fromDOM.offset + text.length)
       }
       inputEvent(view, "input", {inputType: "insertCompositionText", data: text, isComposing: true})
-    }      
+    }
 
     let {focusNode, focusOffset} = sel
     let stack = []
@@ -167,7 +167,7 @@ describe("composition", () => {
 
   it("supports composition in a cursor wrapper", () => {
     let view = requireFocus(tempView(doc(p(0))))
-    view.dispatch({selection: GardSelection.cursor(1, undefined, undefined, [Strong])})
+    view.dispatch({selection: GardSelection.Text.create({anchor: 1, marks: [Strong]})})
     compose(view, [1, 1, "a", () => {
       ist(view.contentDOM.innerHTML, "<p><strong><img></strong></p>")
       let sel = window.getSelection()!

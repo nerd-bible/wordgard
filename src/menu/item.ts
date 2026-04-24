@@ -166,8 +166,8 @@ export function toggleInlineMark(config: {
     run: Command.bind(toggleMark, mark),
     active(state) {
       let {selection} = state
-      if (selection.empty)
-        return !!mark.isInSet(selection.marks || state.sel.head.marks())
+      if (selection.isCursor)
+        return !!mark.isInSet(state.sel.activeMarks)
       else
         return !selection.ranges.some(r => canAddMarkInRange(state.doc, r.from, r.to, mark))
     },

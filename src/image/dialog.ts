@@ -10,7 +10,7 @@ export const imageUploader = Facet.define<(file: File, view: Wordgard, progress:
 const imageTypes = [Image, Figure, CaptionedFigure]
 
 export function activeImage(sel: GardSelection.Resolved) {
-  if (sel.node && imageTypes.includes(sel.node.type)) return sel.node.tag
+  if (sel.selection instanceof GardSelection.Node && imageTypes.includes(sel.selection.node.type)) return sel.selection.node.tag
   if (sel.head.parent.start == sel.anchor.parent.start && sel.head.parent.node.type == CaptionedFigure)
     return sel.head.parent.node.tag
   return null

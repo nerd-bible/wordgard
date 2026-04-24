@@ -1,6 +1,6 @@
 import {Plot, ChangeSet} from "wordgard/doc"
 import type {GardState} from "./state"
-import {GardSelection, normalize} from "./selection"
+import {GardSelection} from "./selection"
 
 /// Changes to the editor state are grouped into transactions.
 /// Typically, a user action creates a single transaction, which may
@@ -10,8 +10,6 @@ import {GardSelection, normalize} from "./selection"
 /// dispatch one by calling
 /// [`Wordgard.dispatch`](#view.Wordgard.dispatch).
 export class Transaction {
-  /// @internal
-  _selection: GardSelection | null = null
   /// @internal
   _state: GardState | null = null
 
@@ -23,10 +21,6 @@ export class Transaction {
     /// The selection set by this transaction, or undefined if it
     /// doesn't explicitly set a selection.
     readonly selection: GardSelection | undefined,
-    /// Whether [selection
-    /// normalization](#state.TransactionSpec.normalizeSelection) is
-    /// enabled for this transaction,
-    readonly normalizeSelection: boolean,
     /// The effects added to the transaction.
     readonly effects: readonly Transaction.Effect<any>[],
     /// @internal
@@ -38,6 +32,8 @@ export class Transaction {
     if (!annotations.some((a: Transaction.Annotation<any>) => a.type == Transaction.time))
       this.annotations = annotations.concat(Transaction.time.of(Date.now()))
     this.newDoc = this.changes.apply(this.startState.doc)
+    this.newSelection = selection || startState.selection.map(changes, this.newDoc)
+    this.newSelection.check(startState.config, this.newDoc)
   }
 
   /// The new document produced by the transaction. Contrary to
@@ -48,28 +44,18 @@ export class Transaction {
   /// when they need to look at the new document.
   newDoc: Plot.Doc
 
-  /// @internal
-  static create(startState: GardState, changes: ChangeSet,
-                selection: GardSelection | undefined, normalizeSelection: boolean,
-                effects: readonly Transaction.Effect<any>[], annotations: readonly Transaction.Annotation<any>[],
-                scrollIntoView: boolean) {
-    return new Transaction(startState, changes, selection, normalizeSelection, effects, annotations, scrollIntoView)
-  }
-
   /// The new selection produced by the transaction. If
   /// [`this.selection`](#state.Transaction.selection) is undefined,
   /// this will [map](#state.EditorSelection.map) the start state's
   /// current selection through the changes made by the transaction.
-  get newSelection() {
-    if (!this._selection) {
-      let sel = this.selection || this.startState.selection.map(this.changes, this.newDoc)
-      this._selection = this.normalizeSelection ? normalize({
-        doc: this.newDoc,
-        textDirection: this.startState.textDirection,
-        visualCursorMotion: this.startState.visualCursorMotion,
-      }, sel) : sel
-    }
-    return this._selection
+  newSelection: GardSelection
+
+  /// @internal
+  static create(startState: GardState, changes: ChangeSet,
+                selection: GardSelection | undefined,
+                effects: readonly Transaction.Effect<any>[], annotations: readonly Transaction.Annotation<any>[],
+                scrollIntoView: boolean) {
+    return new Transaction(startState, changes, selection, effects, annotations, scrollIntoView)
   }
 
   /// The new state created by the transaction.
@@ -173,11 +159,7 @@ export namespace Transaction {
     /// When set, this transaction explicitly updates the selection.
     /// Offsets in this selection should refer to the document as it is
     /// _after_ the transaction.
-    selection?: GardSelection | GardSelection.Spec | undefined,
-    /// When true, cursor ranges in the provided selection will be
-    /// [normalized](#state.EditorSelection.normalize) in the created
-    /// state.
-    normalizeSelection?: boolean,
+    selection?: GardSelection | GardSelection.Text.Spec | ((doc: Plot.Doc) => GardSelection) | undefined,
     /// Attach [state effects](#state.StateEffect) to this transaction.
     /// Again, when they contain positions and this same spec makes
     /// changes, those positions should refer to positions in the
@@ -338,7 +320,6 @@ Transaction.remote = Transaction.Annotation.define<boolean>()
 type ResolvedSpec = {
   changes: ChangeSet,
   selection: GardSelection | undefined,
-  normalizeSelection: boolean,
   effects: readonly Transaction.Effect<any>[],
   annotations: readonly Transaction.Annotation<any>[],
   scrollIntoView: boolean
@@ -360,7 +341,6 @@ export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec
     changes,
     selection: b.selection ? b.selection.map(mapForB, () => changes.apply(doc))
       : a.selection?.map(mapForA, () => changes.apply(doc)),
-    normalizeSelection: b.normalizeSelection || a.normalizeSelection,
     effects: Transaction.Effect.mapEffects(a.effects, mapForA).concat(Transaction.Effect.mapEffects(b.effects, mapForB)),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
     scrollIntoView: a.scrollIntoView || b.scrollIntoView,
@@ -369,12 +349,13 @@ export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec
 }
 
 export function resolveTransactionInner(doc: Plot.Doc, spec: Transaction.Spec): ResolvedSpec {
+  let changes = spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || [])
   let sel = spec.selection, annotations = asArray(spec.annotations)
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
+  if (typeof sel == "function") sel = sel(changes.apply(doc))
   return {
-    changes: spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || []),
-    selection: sel && (sel instanceof GardSelection ? sel : GardSelection.create(sel)),
-    normalizeSelection: !!spec.normalizeSelection,
+    changes,
+    selection: sel && (sel instanceof GardSelection ? sel : GardSelection.Text.create(sel)),
     effects: asArray(spec.effects),
     annotations,
     scrollIntoView: !!spec.scrollIntoView,
@@ -392,7 +373,7 @@ export function resolveTransaction(state: GardState, specs: readonly Transaction
     let s2 = resolveTransactionInner(seq && spec.changes ? s.changes.apply(state.doc) : state.doc, spec)
     s = mergeTransaction(state.doc, s, s2, !!spec.sequential)
   }
-  let tr = Transaction.create(state, s.changes, s.selection, s.normalizeSelection, s.effects, s.annotations, s.scrollIntoView)
+  let tr = Transaction.create(state, s.changes, s.selection, s.effects, s.annotations, s.scrollIntoView)
   return extendTransaction(filter ? filterTransaction(tr) : tr)
 }
 
@@ -417,7 +398,7 @@ function extendTransaction(tr: Transaction) {
     if (extension && Object.keys(extension).length)
       spec = mergeTransaction(state.doc, tr, resolveTransactionInner(state.doc, extension), true)
   }
-  return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, tr.normalizeSelection, spec.effects,
+  return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, spec.effects,
                                               spec.annotations, spec.scrollIntoView)
 }
 

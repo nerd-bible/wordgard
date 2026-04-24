@@ -1,6 +1,5 @@
 import {Wordgard} from "wordgard/view"
 import {Leaf} from "wordgard/doc"
-import {GardState} from "wordgard/state"
 import {basicBuilders} from "wordgard/schema"
 import ist from "ist"
 import {tempView} from "./tempview.ts"

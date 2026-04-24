@@ -21,7 +21,9 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
   {state}, {from, to, insert, userEvent}
 ) => {
   // FIXME support getting the default transaction spec somehow?
-  let marks = state.selection.marks || state.doc.resolve(to).marks()
+  // FIXME separate selection replacement from range replacement
+  let {selection} = state
+  let marks = from == selection.from && to == selection.to ? state.sel.activeMarks : state.doc.resolve(to).marks()
   let changes = ChangeSet.create(state.doc, {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true})
   return {
     changes,
@@ -40,24 +42,18 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
 export const insertLineBreak: Command.Pure = ({state}) => {
   let {doc, sel} = state
   let brk = doc.schema.lineBreak, parent = sel.from.parent.node.type
-  let marks = state.selection.marks || sel.from.marks(sel.to)
-  if (brk && doc.schema.canContain(parent, brk.type)) {
-    return {
-      changes: {from: sel.from.pos, to: sel.to.pos, insert: [brk.withMarks(marks)], fit: true},
-      selection: {anchor: sel.from.pos + 1},
-      scrollIntoView: true,
-      userEvent: "insert.linebreak"
-    }
+  let {from, to} = state.selection.replacemenRange
+  let insertBreak = brk && doc.schema.canContain(parent, brk.type)
+  if (!(insertBreak || parent.preserveWhitespace && sel.to.parent.start == sel.from.parent.start)) return false
+  let insert = insertBreak ? brk!.withMarks(state.sel.activeMarks) : Leaf.text("\n", state.sel.activeMarks)
+  let changes = ChangeSet.create(state.doc, {from, to, insert: [insert], fit: true})
+  let pos = changes.findInserted(t => insertBreak ? t.type == brk!.type : t.isText)
+  return {
+    changes,
+    selection: GardSelection.cursor(pos == null ? from : pos + 1, -1),
+    scrollIntoView: true,
+    userEvent: insertBreak ? "insert.linebreak" : "input"
   }
-  if (parent.preserveWhitespace && sel.to.parent.start == sel.from.parent.start) {
-    return {
-      changes: {from: sel.from.pos, to: sel.to.pos, insert: [Leaf.text("\n", marks)]},
-      selection: GardSelection.cursor(sel.from.pos + 1, -1),
-      scrollIntoView: true,
-      userEvent: "input"
-    }
-  }
-  return false
 }
 
 /// The command that handles enter presses. The default handler will,
@@ -68,13 +64,16 @@ export const enter: Command.Pure = ({state}) => {
   let {sel, doc} = state
   // When not in an inline context, try to create new empty textblock
   if (!sel.head.parent.node.inlineContent || !sel.anchor.parent.node.inlineContent) {
-    let wrap = doc.schema.findWrapping(sel.from.parent.node.type, Leaf.Text)
+    let {from, to} = sel.replacementRange
+    let wrap = doc.schema.findWrapping(from.parent.node.type, Leaf.Text)
     if (!wrap) return false
     let content: Plot[] = []
     for (let i = wrap.length - 1; i >= 0; i--) content = [wrap[i].create(content)]
+    let changes = ChangeSet.create(state.doc, {from: from.pos, to: to.pos, insert: content, fit: true})
+    let placed = content.length ? changes.findInserted(t => t == content[0].tag) : null
     return {
-      changes: {from: sel.from.pos, to: sel.to.pos, insert: content, fit: true},
-      selection: GardSelection.cursor(sel.from.pos + content[0].length, -1),
+      changes,
+      selection: placed != null ? GardSelection.cursor(placed + wrap.length, -1) : undefined,
       normalizeSelection: true,
       scrollIntoView: true,
       userEvent: "insert.textblock"
@@ -98,6 +97,7 @@ export const deleteWord: Command.Pure<"forward" | "backward"> = ({state}, dir) =
 export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
   let tr = deleteSelection(view.state), {selection} = view.state
   if (tr) return (view.dispatch(tr), true)
+  if (!(selection instanceof GardSelection.Text)) return false
   let end = view.moveToLineBoundary(selection, dir == "forward")
   if (!end || end.head == selection.head) return false
   return {
@@ -110,6 +110,7 @@ export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
 export const deleteLine: Command = view => {
   let tr = deleteSelection(view.state), {selection} = view.state
   if (tr) return (view.dispatch(tr), true)
+  if (!(selection instanceof GardSelection.Text)) return false
   let start = view.moveToLineBoundary(selection, false), end = view.moveToLineBoundary(selection, true)
   if (!start || !end || start.head >= end.head) return false
   return {
@@ -120,8 +121,8 @@ export const deleteLine: Command = view => {
 }
 
 export const transposeChars: Command.Pure = ({state}) => {
+  if (!state.selection.isCursor) return false
   let {sel} = state, head = state.selection.head
-  if (!sel.empty) return false
   let before = sel.head.nodeBefore, after = sel.head.nodeAfter
   if (!before || !before.is(Leaf.Text) || !after || !after.is(Leaf.Text)) return false
   let lenBefore = before.param.length - findClusterBreak(before.param, before.param.length, false)
@@ -154,11 +155,12 @@ export const toggleBlock: Command.Pure<Plot.Tag.Any> = ({state}, tag) => {
 /// added, it is added. If not, remove the mark from the selection.
 export const toggleMark: Command.Pure<Mark<any>> = ({state}, mark) => {
   let {selection, doc} = state
-  if (selection.empty) {
+  if (selection instanceof GardSelection.Text && selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks(), add = !mark.isInSet(selMarks)
     let newMarks = add ? mark.addToSet(selMarks) : mark.removeFromSet(selMarks)
     return {
-      selection: GardSelection.cursor(selection.head, selection.assoc, selection.goalColumn, newMarks),
+      selection: GardSelection.Text.create({anchor: selection.anchor, headSide: selection.headSide,
+                                            goalColumn: selection.goalColumn, marks: newMarks}),
       userEvent: add ? "mark.add" : "mark.remove"
     }
   } else if (selection.ranges.some(r => canAddMarkInRange(doc, r.from, r.to, mark))) {
@@ -329,10 +331,9 @@ function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any)
   return {changes, userEvent: "unwrap.list"}
 }
 
-function setSelection(selection: GardSelection, extend?: GardState | false): Transaction.Spec {
+function setSelection(selection: GardSelection): Transaction.Spec {
   return {
-    selection: !extend ? selection
-      : GardSelection.range(extend.selection.anchor, selection.head, selection.assoc, selection.goalColumn, selection.marks),
+    selection: selection,
     scrollIntoView: true,
     userEvent: "select"
   }
@@ -347,6 +348,16 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: GardSt
   return dir == "forward" ? true : dir == "backward" ? false : (dir == "right") == ltrAtCursor(state)
 }
 
+function asTextSel(sel: GardSelection, forward: boolean): GardSelection.Text {
+  if (sel instanceof GardSelection.Text) return sel
+  let {from, to} = sel.replacemenRange
+  return forward ? GardSelection.range(from, to) : GardSelection.range(to, from)
+}
+
+function extendSel(base: GardSelection, head: GardSelection.Text) {
+  return GardSelection.range(base.anchor, head.head, head.headSide, head.goalColumn)
+}
+
 /// Move the selection head one unit (text cluster, atomic node, or
 /// node boundary) in the indicated direction. When `extend` is true,
 /// keep the selection anchor in place. The default handler moves
@@ -356,18 +367,18 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: GardSt
 export const moveByUnit: Command.Pure<{dir: "left" | "right" | "forward" | "backward", extend?: boolean}> = (
   {state}, {dir, extend}
 ) => {
-  let {selection} = state, forward = isForward(dir, state)
+  let forward = isForward(dir, state), selection = asTextSel(state.selection, forward)
   if (!selection.empty && !extend) {
     let next = selection.normalCursorAtBound(state, forward)
     return next ? setSelection(next) : false
   } else {
-    let next = selection.nextNormalCursor(state, forward)
+    let next: GardSelection | null = selection.nextNormalCursor(state, forward)
     if (!next) return false
     if (!extend) state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
       if (node.isPlot) return !node.type.isolating
-      if (node.type.isSelectable) next = GardSelection.range(pos, pos + node.length)
+      if (node.type.isSelectable) next = GardSelection.node(pos, node)
     })
-    return setSelection(next, extend && state)
+    return setSelection(extend ? extendSel(selection, next as GardSelection.Text) : next)
   }
 }
 
@@ -376,8 +387,9 @@ export const moveByUnit: Command.Pure<{dir: "left" | "right" | "forward" | "back
 /// visually.
 export const moveByWord: Command.Pure<{dir: "left" | "right", extend?: boolean}> = ({state}, {dir, extend}) => {
   let forward = (dir == "right") == ltrAtCursor(state)
-  let moved = state.selection.skipWord(state, forward)
-  return moved ? setSelection(moved, extend && state) : false
+  let selection = asTextSel(state.selection, forward)
+  let moved = selection.skipWord(state, forward)
+  return moved ? setSelection(extend ? extendSel(selection, moved) : moved) : false
 }
 
 function nextVertical(view: Wordgard, sel: GardSelection, forward: boolean,
@@ -392,14 +404,16 @@ function nextVertical(view: Wordgard, sel: GardSelection, forward: boolean,
 /// true, keep the anchor in place.
 export const moveByLine: Command<{dir: "up" | "down", extend?: boolean}> = (view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = dir == "down"
-  if (state.sel.node) {
+  if (state.selection instanceof GardSelection.Node) {
     let next = !extend && state.selection.normalCursorAtBound(state, forward)
     if (next && !state.doc.resolve(next.head).parent.node.inlineContent)
-      return setSelection(GardSelection.cursor(next.head, next.assoc, selection.goalColumn))
-    selection = GardSelection.cursor(forward ? selection.to : selection.from, 0, selection.goalColumn)
+      return setSelection(GardSelection.cursor(next.head, next.headSide, state.selection.goalColumn))
+    selection = GardSelection.cursor(forward ? selection.to : selection.from, undefined, selection.goalColumn)
+  } else {
+    selection = asTextSel(state.selection, forward)
   }
   let moved = nextVertical(view, selection, forward, undefined, !extend)
-  return moved ? setSelection(moved, extend && state) : false
+  return moved ? setSelection(extend ? extendSel(selection, moved as GardSelection.Text) : moved) : false
 }
 
 function pageHeight(view: Wordgard) {
@@ -417,9 +431,9 @@ function pageHeight(view: Wordgard) {
 /// when the `extend` flag is true.
 export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (view, {dir, extend}) => {
   let {state} = view, {selection} = state, forward = dir == "down"
-  let moved = selection.empty || extend ? nextVertical(view, selection, forward, pageHeight(view))
+  let moved = selection.empty || extend ? nextVertical(view, selection, forward, pageHeight(view), !extend)
     : forward ? GardSelection.cursor(selection.to, -1) : GardSelection.cursor(selection.from, 1)
-  return moved ? setSelection(moved, extend && state) : false
+  return moved ? setSelection(extend ? extendSel(selection, moved as GardSelection.Text) : moved) : false
 }
 
 // FIXME do we need a motion to texblock start/end variant?
@@ -427,14 +441,14 @@ export const moveToLineSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
 }> = (view, {dir, extend}) => {
   let pos = view.moveToLineBoundary(view.state.selection, isForward(dir, view.state))
-  return pos ? setSelection(pos, extend && view.state) : false
+  return pos ? setSelection(extend ? extendSel(view.state.selection, pos) : pos) : false
 }
 
 export const moveToDocSide: Command.Pure<{side: "start" | "end", extend?: boolean}> = (target, {side, extend}) => {
   let {state} = target
   let pos = side == "start" ? GardSelection.atStart(state) : GardSelection.atEnd(state)
   if (state.selection.empty && pos.head == state.selection.head) return false
-  return setSelection(pos, extend && state)
+  return setSelection(extend ? extendSel(state.selection, pos) : pos)
 }
 
 export const selectAll: Command.Pure = ({state}) => {

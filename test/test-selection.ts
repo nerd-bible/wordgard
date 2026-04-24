@@ -25,11 +25,13 @@ const doc = builder(schema)
 
 function normalPositions(state: GardState) {
   let result: number[] = []
+  let ii = 0
   for (let cur = GardSelection.atStart(state);;) {
     result.push(cur.head)
     let next = cur.nextNormalCursor(state)
     if (next == null) return result
     cur = next
+    if (++ii > state.doc.length * 2) throw new Error("STUCK " + result)
   }
 }
 

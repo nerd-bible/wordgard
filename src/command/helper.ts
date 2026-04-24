@@ -7,8 +7,9 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 /// If the cursor is in an empty textblock that can be lifted out of a
 /// parent, return a transaction that does this.
 export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
+  if (!state.selection.isCursor) return false
   let sel = state.sel, block = sel.head.textblockParent
-  if (!sel.empty || !block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return false
+  if (!block || !sel.head.isAtStart(block) || !sel.head.isAtEnd(block)) return false
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
   for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
        level; first = false, index = level.index, level = level.parent) {
@@ -35,11 +36,11 @@ export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
 /// textblock is the first child of a list item, also split that item,
 /// unless `splitListItem` is false.
 export function splitTextblock(state: GardState, splitListItem = true): Transaction.Spec | false {
-  let sel = state.sel, {schema} = state.doc
-  let before = sel.from.textblockParent
+  let {from, to} = state.sel.replacementRange, {schema} = state.doc
+  let before = from.textblockParent
   if (!before || !before.parent) return false
   let tokens: Token[] = []
-  for (let p = sel.from.parent;; p = p.parent!) {
+  for (let p = from.parent;; p = p.parent!) {
     tokens.push(Plot.End)
     if (p == before) break
   }
@@ -48,10 +49,10 @@ export function splitTextblock(state: GardState, splitListItem = true): Transact
       before.isFirst && before.parent.parent?.node.type.hasRole(Node.Role.List))
     tokens.push(Plot.End, before.parent.node.tag.split(false))
 
-  let after = sel.to.textblockParent
+  let after = to.textblockParent
   if (after) {
     let atEnd = true, insert = tokens.length
-    for (let p = sel.to.parent, index = sel.to.index;; index = p.index + 1, p = p.parent!) {
+    for (let p = to.parent, index = to.index;; index = p.index + 1, p = p.parent!) {
       if (index < p.node.content.length) atEnd = false
       let tag = p.node.tag.split(atEnd), nextTag = atEnd && !p.node.type.spec.preserveOnSplitAtEnd ? null : tag
       if (!nextTag || !schema.canContain(p.parent!.node.type, tag.type)) {
@@ -65,10 +66,10 @@ export function splitTextblock(state: GardState, splitListItem = true): Transact
     }
   }
   let changes: ChangeSet.Spec[] = [{
-    from: sel.from.pos, to: sel.to.pos,
+    from: from.pos, to: to.pos,
     insert: tokens
   }]
-  if (sel.from.isAtStart(before)) {
+  if (from.isAtStart(before)) {
     let deflt = schema.defaultContentPlot(before.parent.node.type)
     if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({
@@ -79,19 +80,21 @@ export function splitTextblock(state: GardState, splitListItem = true): Transact
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
   return {
     changes: changeSet,
-    selection: GardSelection.cursor(changeSet.mapPos(sel.to.pos, 1)),
+    selection: GardSelection.cursor(changeSet.mapPos(to.pos, 1)),
     scrollIntoView: true,
     userEvent: "split.textblock"
   }
 }
 
-/// Returns a transaction that deletes the selection, or null if the
+/// Returns a transaction that deletes the selection, or false if the
 /// selection is empty.
 export function deleteSelection(state: GardState): Transaction.Spec | false {
-  if (state.selection.ranges.every(r => r.from == r.to)) return false
+  let {from, to} = state.selection.replacemenRange
+  if (from == to) return false
+  let changes = ChangeSet.create(state.doc, {correct: {from, to, fit: true}, local: true})
   return autoJoinBlocks(state, {
-    changes: {correct: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})), local: true},
-    normalizeSelection: true,
+    changes,
+    selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(from, -1), 1),
     scrollIntoView: true,
     userEvent: "delete.selection"
   })
@@ -100,8 +103,9 @@ export function deleteSelection(state: GardState): Transaction.Spec | false {
 /// If the cursor is at the start of a textblock that can be joined to
 /// a textblock before it, return a transaction to performs this join.
 export function joinBackward(state: GardState): Transaction.Spec | false {
-  let {head, empty} = state.sel, block = head.textblockParent
-  if (!empty || !block || !head.isAtStart(block)) return false
+  if (!state.selection.isCursor) return false
+  let {head} = state.sel, block = head.textblockParent
+  if (!block || !head.isAtStart(block)) return false
   let scan = block, target = scan.node
   while (!scan.index) {
     if (!scan.parent) return false
@@ -137,8 +141,9 @@ export function joinBackward(state: GardState): Transaction.Spec | false {
 /// If the cursor is at the start of a list item that has another item
 /// before it, return a transaction that joins those two items.
 export function joinListItems(state: GardState): Transaction.Spec | false {
-  let {empty, head} = state.sel
-  if (!empty || head.index || head.inText) return false
+  if (!state.selection.isCursor) return false
+  let {head} = state.sel
+  if (head.index || head.inText) return false
   for (let scan = head.parent;;) {
     let next = scan.parent
     if (!next) return false
@@ -160,8 +165,9 @@ export function joinListItems(state: GardState): Transaction.Spec | false {
 /// the textblock after it, return a transaction that performs this
 /// join.
 export function joinForward(state: GardState): Transaction.Spec | false {
-  let {head, empty} = state.sel, block = head.textblockParent
-  if (!empty || !block || !head.isAtEnd(block)) return false
+  if (!state.selection.isCursor) return false
+  let {head} = state.sel, block = head.textblockParent
+  if (!block || !head.isAtEnd(block)) return false
   let scan = block, target = scan.node
   for (;;) {
     if (!scan.parent) return false
@@ -196,9 +202,9 @@ export function joinForward(state: GardState): Transaction.Spec | false {
 /// Create a transaction that deletes the text cluster or atomic node
 /// in front of the cursor, if possible.
 export function deleteBackward(state: GardState, word = false): Transaction.Spec | false {
-  let sel = state.sel
-  if (!sel.empty) return false
+  if (!state.selection.isCursor) return false
 
+  let sel = state.sel
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (!index) {
     if (scan.node.type.isolating || !scan.parent) return false
@@ -255,9 +261,9 @@ export function deleteBackward(state: GardState, word = false): Transaction.Spec
 /// Return a transaction that deletes the element (text cluster or
 /// leaf node) after the cursor, if any.
 export function deleteForward(state: GardState, word = false): Transaction.Spec | false {
-  let sel = state.sel
-  if (!sel.empty) return false
+  if (!state.selection.isCursor) return false
 
+  let sel = state.sel
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (index == scan.node.content.length) {
     if (scan.node.type.isolating || !scan.parent) return false
@@ -353,7 +359,11 @@ export function unwrapBlockType(state: GardState, query?: Node.Query): Transacti
     }
   }
   if (!targets.length) return false
-  return autoJoinBlocks(state, {changes, scrollIntoView: true, normalizeSelection: true, userEvent: "unwrap"})
+  return autoJoinBlocks(state, {
+    changes,
+    scrollIntoView: true,
+    userEvent: "unwrap"
+  })
 }
 
 export function selectedTextblocks(state: GardState) {

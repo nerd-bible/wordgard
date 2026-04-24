@@ -1,6 +1,6 @@
 import {elt, MapMode} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/view"
-import {GardState, Transaction} from "wordgard/state"
+import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema"
 import {MenuButton, iconImage, Commands} from "wordgard/menu"
 import {imageDialog, insertImage, activeImage, imageUploader} from "./dialog"
@@ -108,9 +108,9 @@ export const dragHandle = [
 ]
 
 export const resizeImage = (by: number, relative = false) => (view: Wordgard) => {
-  let {node} = view.state.sel
-  if (node && view.state.doc.schema.markAllowed(ImageSize, node.type)) {
-    let curWidth = node.mark(ImageSize) ?? imageNode(view, view.state.selection.from).getBoundingClientRect().width
+  let {selection} = view.state
+  if (selection instanceof GardSelection.Node && view.state.doc.schema.markAllowed(ImageSize, selection.node.type)) {
+    let curWidth = selection.node.mark(ImageSize) ?? imageNode(view, view.state.selection.from).getBoundingClientRect().width
     let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
     if (newWidth != curWidth) {
       view.dispatch({

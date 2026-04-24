@@ -4,9 +4,9 @@ import {Wordgard} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
 export function setDOMSelection(view: Wordgard) {
-  let {anchor, head, assoc} = view.state.selection
-  let anchorDOM = view.docTile.resolve(anchor, anchor == head ? assoc || 1 : anchor < head ? 1 : -1)
-  let headDOM = head == anchor ? anchorDOM : view.docTile.resolve(head, head < anchor ? 1 : -1)
+  let {anchor, head, anchorSide, headSide} = view.state.selection
+  let anchorDOM = view.docTile.resolve(anchor, anchorSide)
+  let headDOM = head == anchor ? anchorDOM : view.docTile.resolve(head, headSide)
   let domSel = getSelection(view.root)
   if (!domSel) return
   if (domSel.focusNode &&
@@ -36,10 +36,12 @@ export function readDOMSelection(view: Wordgard, range: SelectionRange) {
 
 const Y_STEP = 5
 
-export function moveVertically(view: Wordgard, start: GardSelection, forward: boolean,
-                               distance: number = 0, selectNode = false) {
+export function moveVertically(
+  view: Wordgard, start: GardSelection, forward: boolean,
+  distance: number = 0, selectNode = false
+): GardSelection | null {
   let editorRect = view.contentDOM.getBoundingClientRect()
-  let coords = view.coordsAtPos(start.head, start.assoc || -1)
+  let coords = view.coordsAtPos(start.head, start.headSide)
   let baseDir = view.state.textDirection()
   let goalColumn = start.goalColumn ?? (baseDir == Direction.LTR ? coords.left - editorRect.left : editorRect.right - coords.left)
   let x = baseDir == Direction.LTR ? editorRect.left + goalColumn : editorRect.right - goalColumn
@@ -52,20 +54,20 @@ export function moveVertically(view: Wordgard, start: GardSelection, forward: bo
       if (forward ? y < rect.top : y > rect.bottom) y = forward ? rect.top : rect.bottom
       while (forward ? rect.bottom >= y : rect.top <= y) {
         let found = elt.tile.posAtCoords(view.state, x, y)
-        if (!found.vertOutside && found.pos != start.head) return GardSelection.cursor(found.pos, found.assoc, goalColumn)
+        if (!found.vertOutside && found.pos != start.head) return GardSelection.cursor(found.pos, found.side, goalColumn)
         y += forward ? Y_STEP : -Y_STEP
       }
       if (!block.parent) return null
       scan = forward ? block.after : block.before
     }
 
-    let nextCursor = GardSelection.cursor(scan, 0).nextNormalCursor(view.state, forward)
+    let nextCursor = GardSelection.cursor(scan).nextNormalCursor(view.state, forward)
     if (!nextCursor) return null
     let nextNode = findTargetVertically(view, scan, forward, x, selectNode)
     if (!nextNode || (forward ? nextCursor.head <= nextNode.before : nextCursor.head >= nextNode.after)) {
-      let coords = view.coordsAtPos(nextCursor.head, nextCursor.assoc || -1)
+      let coords = view.coordsAtPos(nextCursor.head, nextCursor.headSide)
       if (forward ? coords.bottom > y : coords.top < y)
-        return GardSelection.cursor(nextCursor.head, nextCursor.assoc, goalColumn)
+        return GardSelection.cursor(nextCursor.head, nextCursor.headSide, goalColumn)
       if (!nextNode) return null
     }
     if (nextNode instanceof Pos.Plot) {
@@ -73,7 +75,7 @@ export function moveVertically(view: Wordgard, start: GardSelection, forward: bo
     } else {
       let coords = view.coordsForElement(nextNode.before)!
       if (forward ? coords.bottom > y : coords.top < y)
-        return GardSelection.range(nextNode.before, nextNode.after, undefined, goalColumn)
+        return GardSelection.node(nextNode.before, nextNode.node, goalColumn)
       scan = forward ? nextNode.after : nextNode.before
     }
   }
@@ -132,7 +134,7 @@ function findTargetVertically(view: Wordgard, from: number, forward: boolean, x:
 export function moveToLineBoundary(view: Wordgard, start: GardSelection, forward: boolean) {
   let block = view.state.doc.resolve(start.head).textblockParent
   if (!block) return null
-  let startCoords = view.coordsAtPos(start.head, start.assoc || -1)
+  let startCoords = view.coordsAtPos(start.head, start.headSide)
   let dir = view.state.textDirection(block.node.tag)
   let y = (startCoords.top + startCoords.bottom) / 2, left = forward != (dir == Direction.LTR)
   let {pos} = view.posAtCoords({x: left ? -1e7 : 1e7, y})

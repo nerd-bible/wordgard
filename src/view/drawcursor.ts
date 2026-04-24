@@ -19,7 +19,9 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
       this.layer.style.animationName = this.layer.style.animationName == "wg-blink" ? "wg-blink2" : "wg-blink"
     if (update.state.facet(Wordgard.cursorBlinkRate) != update.startState.facet(Wordgard.cursorBlinkRate))
       setBlinkRate(update.state, this.layer)
-    if (update.docChanged || update.selectionSet || update.geometryChanged) update.view.scheduleDOMRead(this.positionCursor)
+    if ((update.docChanged || update.selectionSet || update.geometryChanged) &&
+        (update.startState.selection.isCursor || update.state.selection.isCursor))
+      update.view.scheduleDOMRead(this.positionCursor)
   }
 
   docViewUpdate(view: Wordgard) {
@@ -58,14 +60,15 @@ basePlugins[basePlugins.length] = cursorLayer
 const VertWidth = 30, VertGap = 5
 
 export function cursorPos(view: Wordgard): CursorPos {
-  let {state} = view, {empty, head, assoc} = state.selection
-  if (!empty) return null
-  let {left, right, top, bottom} = view.coordsAtPos(head, assoc || -1)
+  let {state} = view
+  if (!state.selection.isCursor) return null
+  let {head, headSide} = state.selection
+  let {left, right, top, bottom} = view.coordsAtPos(head, headSide)
   let horiz = top == bottom, size = horiz ? right - left : bottom - top
   if (horiz && size > VertWidth) {
     size = VertWidth
     if (view.state.textDirection() == Direction.RTL) left = right - size
-    let other = view.coordsAtPos(head, assoc > 0 ? -1 : 1)
+    let other = view.coordsAtPos(head, headSide > 0 ? -1 : 1)
     if (other.top == other.bottom && other.top != top) {
       let move = Math.min(VertGap, Math.abs(other.top - top) / 2)
       top = bottom = top + move * (other.top < top ? -1 : 1)

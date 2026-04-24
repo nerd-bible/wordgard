@@ -69,7 +69,7 @@ export class ViewState {
     if (this.scrollTarget) this.scrollTarget = this.scrollTarget.map(tr.changes)
     if (tr.scrollIntoView) {
       let {selection: sel} = tr.state
-      this.scrollTarget = new ScrollTarget(sel.head, sel.head, sel.empty ? sel.assoc || -1 : sel.head < sel.anchor ? -1 : 1)
+      this.scrollTarget = new ScrollTarget(sel.head, sel.head, sel.headSide)
     }
     for (let e of tr.effects)
       if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)

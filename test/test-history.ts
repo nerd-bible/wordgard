@@ -373,16 +373,14 @@ describe("history", () => {
 
   it("properly maps selections through non-history changes", () => {
     let state = mkState(doc(p("abc")))
-    state = state.update({selection: GardSelection.create({
-      anchor: 1,
-      ranges: [{from: 1, to: 1}, {from: 2, to: 2}, {from: 3, to: 3}]
-    })}).state
+    state = state.update({selection: GardSelection.range(1, 2)}).state
     state = state.update({changes: {from: 1, to: 4, insert: [Leaf.text("d")]}}).state
     state = state.update({changes: [{from: 1, insert: [Leaf.text("x")]}, {from: 2, insert: [Leaf.text("y")]}],
                           annotations: Transaction.addToHistory.of(false)}).state
     state = command(state, undo)
     ist(state.doc, doc(p("xabcy")), eq)
-    ist(state.selection.ranges.map(r => r.from).join(","), "1,3,4")
+    ist(state.selection.from, 2)
+    ist(state.selection.to, 3)
   })
 
   it("properly maps selections in deeper events", () => {
@@ -396,15 +394,13 @@ describe("history", () => {
 
   it("restores selection on redo", () => {
     let state = mkState(doc(p("a"), p("b"), p("c")))
-    state = state.update({selection: GardSelection.create({
-      anchor: 1,
-      ranges: [1, 5, 8].map(n => ({from: n, to: n}))
-    })}).state
+    state = state.update({selection: GardSelection.range(1, 8)}).state
     state = state.update({changes: [1, 4, 7].map(n => ({from: n, insert: [Leaf.text("-")]}))}).state
     state = command(state, undo)
-    state = state.update({selection:  {anchor: 1}}).state
+    state = state.update({selection: {anchor: 1}}).state
     state = command(state, redo)
-    ist(state.selection.ranges.map(r => r.from).join(","), "1,7,11")
+    ist(state.selection.from, 2)
+    ist(state.selection.to, 11)
   })
 
   describe("effects", () => {

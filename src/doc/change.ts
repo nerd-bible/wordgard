@@ -979,6 +979,7 @@ function markableSections(doc: Plot.Doc, from: number, to: number, spanning: boo
   })
 }
 
+// FIXME use string literals?
 export enum MapMode {
   /// Map a position to a valid new position, even when its context
   /// was deleted.

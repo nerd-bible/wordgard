@@ -8,7 +8,7 @@ const {doc, p, br, hr, blockquote, ul, li, strong} = basicBuilders
 
 const P = (view: Wordgard, x: number, y: number) => {
   let pos = view.posAtCoords({x, y})
-  return `${pos.pos}${pos.assoc < 0 ? "<" : pos.assoc ? ">" : ""}`
+  return `${pos.pos}${pos.side < 0 ? "<" : pos.side ? ">" : ""}`
 }
 
 describe("coordsAtPos", () => {
@@ -99,7 +99,7 @@ describe("coordsAtPos", () => {
 function s(pos: number, b?: number) {
   if (b == null) return GardSelection.cursor(pos)
   if (b == 1 || b == -1) return GardSelection.cursor(pos, b)
-  return GardSelection.cursor(pos, 0, b)
+  return GardSelection.cursor(pos, 1, b)
 }
 
 describe("moveVertically", () => {

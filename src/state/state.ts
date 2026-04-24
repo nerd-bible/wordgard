@@ -1,5 +1,5 @@
 import {Schema, Plot, Node, Leaf, Mark, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
-import {GardSelection, wordAt, selectionAtStart} from "./selection"
+import {SelectionType, GardSelection, wordAt, cursorAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray} from "./transaction"
 import {TextblockMap} from "./textblock"
 import {Direction} from "./bidi"
@@ -361,7 +361,7 @@ export class GardState {
   toJSON(fields?: {[prop: string]: GardState.Field<any>}): any {
     let result: any = {
       doc: this.doc.toJSON(),
-      selection: this.selection.toJSON()
+      selection: this.selection.toJSON(this)
     }
     if (fields) for (let prop in fields) {
       let value = fields[prop]
@@ -387,7 +387,8 @@ export class GardState {
     }
     let config = GardState.Configuration.create([extensions, fieldInit])
     let schema = Schema.define(config.staticFacet(schemaElement))
-    return GardState.fromConfig(config, schema.docFromJSON(json.doc), GardSelection.fromJSON(config, schema, json.selection))
+    let doc = schema.docFromJSON(json.doc)
+    return GardState.fromConfig(config, doc, GardSelection.fromJSON({config, doc}, json.selection))
   }
 
   /// Create a new state. You'll usually only need this when
@@ -404,22 +405,18 @@ export class GardState {
     else if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
     else throw new SchemaError(`No document plot provided, unable to create schema`)
     let doc = readDoc(schema, spec.doc)
-    let selection = !spec.selection ? selectionAtStart({
-      doc,
-      textDirection: config.staticFacet(GardState.textDirection),
-      visualCursorMotion: config.staticFacet(GardState.visualCursorMotion),
-    })
+    let selection = !spec.selection ? cursorAtStart({doc, config})
       : typeof spec.selection == "function" ? spec.selection(doc)
       : spec.selection instanceof GardSelection ? spec.selection
-      : GardSelection.create(spec.selection)
+      : GardSelection.Text.create(spec.selection)
     return GardState.fromConfig(config, doc, selection)
   }
 
   /// @internal
   static fromConfig(config: GardState.Configuration, doc: Plot.Doc, selection: GardSelection) {
-    selection.check(doc)
+    selection.check(config, doc)
     return new GardState(config, doc, selection, config.dynamicSlots.map(() => null),
-                           (state, slot) => slot.create(state), null)
+                         (state, slot) => slot.create(state), null)
   }
 
   /// This facet controls the value of the
@@ -553,7 +550,7 @@ export namespace GardState {
     doc: DocSource
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
-    selection?: GardSelection | GardSelection.Spec | ((doc: Plot.Doc) => GardSelection)
+    selection?: GardSelection | GardSelection.Text.Spec | ((doc: Plot.Doc) => GardSelection)
     /// Configuration for this state.
     config?: GardState.Extension | GardState.Configuration
   }
@@ -660,7 +657,6 @@ export namespace GardState {
     }
   }
 
-
   export class Configuration {
     readonly statusTemplate: SlotStatus[] = []
 
@@ -733,6 +729,12 @@ export namespace GardState {
     static create(extensions: GardState.Extension) {
       return GardState.Configuration.resolve(extensions, new Map)
     }
+
+    // Kludge to avoid cyclic dep with ./selection
+    /// @internal
+    get textDirection() { return this.staticFacet(GardState.textDirection) }
+    /// @internal
+    get visualCursorMotion() { return this.staticFacet(GardState.visualCursorMotion) }
   }
 
   function flatten(extension: GardState.Extension, compartments: Map<GardState.Compartment, GardState.Extension>, newCompartments: Map<GardState.Compartment, GardState.Extension>) {
@@ -1037,11 +1039,13 @@ interface DynamicSlot {
   reconfigure(state: GardState, oldState: GardState): SlotStatus
 }
 
-GardSelection.Type.source = Facet.define<GardSelection.Type>({
+GardSelection.selectionType = Facet.define<SelectionType>({
   combine(values) {
-    for (let i = 0; i < values.length; i++) for (let j = i + 1; j < values.length; j++)
-      if (values[i].name == values[j].name) throw new Error(`Multiple selection types with name ${values[i].name} active`)
-    return values
+    let types = [GardSelection.Text.type, GardSelection.Node.type, ...values]
+    for (let i = 0; i < types.length; i++) for (let j = i + 1; j < types.length; j++) {
+      if (types[i].tag == types[j].tag) throw new Error("Duplicate selection JSON tag: " + types[i].tag)
+    }
+    return types
   },
   static: true
 })

@@ -744,8 +744,8 @@ class HoverPlugin {
   startHover() {
     clearTimeout(this.restartTimeout)
     let {view, lastMove} = this
-    let {pos, assoc} = view.posAtCoords(lastMove)
-    let open = this.source(view, pos, assoc || -1)
+    let {pos, side} = view.posAtCoords(lastMove)
+    let open = this.source(view, pos, side || -1)
 
     if ((open as any)?.then) {
       let pending = this.pending = {pos}

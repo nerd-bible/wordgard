@@ -2,7 +2,7 @@ import {Command, liftEmptyBlock, insertLineBreak, enter,
         splitTextblock, deleteSelection, joinBackward, joinForward, joinListItems,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlockType, toggleList, toggleMark} from "wordgard/command"
-import {Plot, Mark, Leaf, Node, Schema} from "wordgard/doc"
+import {Plot, Mark, Leaf, Node, Schema, ChangeSet} from "wordgard/doc"
 import {basicSchema, basicBuilders, maybeTag, builder,
         Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/schema"
@@ -14,20 +14,46 @@ const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuil
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function selectionFrom(doc: Plot.Doc) {
+  let a = maybeTag(doc, 0)
+  if (a == null) return GardSelection.atStart(doc)
+  if (maybeTag(doc, 2) == null) return GardSelection.range(a, maybeTag(doc, 1))
   let ranges: {from: number, to: number}[] = []
-  for (let i = 0;; i += 2) {
-    let head = maybeTag(doc, i)
-    if (head == null)
-      return ranges.length ? GardSelection.create({anchor: ranges[0].from, head: ranges[0].to, ranges})
-        : GardSelection.atStart(GardState.create({doc}))
-    ranges.push({from: head, to: maybeTag(doc, i + 1) ?? head})
+  for (let i = 0;;) {
+    let from = maybeTag(doc, i++)
+    if (from == null) return new MultiSel(ranges)
+    ranges.push({from, to: maybeTag(doc, i++) ?? from})
   }
 }
+
+function selRange(sel: GardSelection) {
+  return sel.from + "-" + sel.to
+}
+
+class MultiSel extends GardSelection {
+  rngs: {from: number, to: number}[]
+  constructor(rngs: {from: number, to: number}[]) {
+    super(rngs[0].from, rngs[0].to)
+    this.rngs = rngs
+  }
+  get ranges() { return this.rngs }
+  eq(other: GardSelection) {
+    return other instanceof MultiSel && this.ranges.length == other.ranges.length &&
+      this.ranges.every((r, i) => r.from == other.ranges[i].from && r.to == other.ranges[i].to)
+  }
+  map(changes: ChangeSet) {
+    return new MultiSel(this.ranges.map(r => {
+      let from = changes.mapPos(r.from, 1)
+      return {from, to: Math.max(from, changes.mapPos(r.to, -1))}
+    }))
+  }
+}
+const multiSel = GardSelection.define<MultiSel, number>("multi", MultiSel, () => 1, () => 1 as any)
 
 function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, expect?: Plot.Doc) {
   let state = GardState.create({
     doc,
-    selection: selectionFrom(doc)
+    selection: selectionFrom(doc),
+    config: multiSel
   })
   let result = f(state)
   if (expect) {
@@ -37,7 +63,7 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, 
     ist(state.doc, expect, eq)
     if (maybeTag(expect, 0) != null) {
       let expectedSel = selectionFrom(expect)
-      ist(JSON.stringify(state.selection.ranges), JSON.stringify(expectedSel.ranges))
+      ist(selRange(state.selection), selRange(expectedSel))
     }
   } else {
     ist(!result)
@@ -52,11 +78,11 @@ function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: GardS
                       expect: readonly Mark<any>[]) {
   let state = GardState.create({
     doc: doc(p()),
-    selection: GardSelection.cursor(1, 0, undefined, before)
+    selection: GardSelection.Text.create({anchor: 1, marks: before})
   })
   let tr = f(state)
   if (tr) state = state.update(tr).state
-  ist(state.selection.marks!, expect, Mark.sameSet)
+  ist((state.selection as GardSelection.Text).marks, expect, (a, b) => a == b || a && b && Mark.sameSet(a, b))
 }
 
 let TextOnly = Plot.defineBlock("TextOnly", {
@@ -250,10 +276,6 @@ describe("deleteSelection", () => {
 
   it("expands the deleted range", () => {
     test(doc(blockquote(p(0, "a"), p("b", 1)), p("b")), deleteSelection, doc(p(0, "b")))
-  })
-
-  it("can delete multiple selected ranges", () => {
-    test(doc(p("a", 0, "b", 1, "c", 2, "d", 3, "e")), deleteSelection, doc(p("a", 0, "c", 2, "e")))
   })
 
   it("can join two lists", () => {

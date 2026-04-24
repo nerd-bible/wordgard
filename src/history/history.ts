@@ -81,11 +81,11 @@ const historyField_ = GardState.Field.define({
     return state.clip(config.minDepth)
   },
 
-  toJSON(value) {
+  toJSON(value, state) {
     let mkJSON = (value: Branch | null) => {
-      let events: {changes: ChangeSet.JSON, selection: GardSelection.JSON}[] = []
+      let events: {changes: ChangeSet.JSON, selection: unknown}[] = []
       for (let cur = value; cur; cur = cur.next)
-        events.push({changes: cur.changes.toJSON(), selection: cur.startSelection.toJSON()})
+        events.push({changes: cur.changes.toJSON(), selection: cur.startSelection.toJSON(state)})
       return events
     }
     return {
@@ -96,11 +96,11 @@ const historyField_ = GardState.Field.define({
 
   fromJSON(json: any, state: GardState) {
     if (!json || !Array.isArray(json.done) || !Array.isArray(json.undone)) throw new RangeError("Invalid history JSON")
-    let buildBranch = (json: {changes: ChangeSet.JSON, selection: GardSelection.JSON}[]) => {
+    let buildBranch = (json: {changes: ChangeSet.JSON, selection: unknown}[]) => {
       let result: Branch | null = null
       for (let i = json.length - 1; i >= 0; i--)
         result = new Branch(ChangeSet.fromJSON(state.doc.schema, json[i].changes),
-                            none, null, GardSelection.fromJSON(state.config, state.doc.schema, json[i].selection), result)
+                            none, null, GardSelection.fromJSON(state, json[i].selection), result)
                                 
       return result
     }
@@ -157,7 +157,7 @@ export const redoDepth = (state: GardState) => depth(state.field(historyField_, 
 export type HistEventJSON = {
   changes: ChangeSet.JSON,
   mapped?: ChangeSet.JSON,
-  startSelection: GardSelection.JSON
+  startSelection: unknown
 }
 
 // History branch events store groups of changes or effects that need

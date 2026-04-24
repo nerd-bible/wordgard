@@ -129,9 +129,9 @@ export class TextblockMap {
   // require associating non-canonical (higher bidi span level)
   // positions with a given visual position, which is likely to confuse
   // people. (And would generally be a lot more complicated.)
-  moveVisually(start: number, assoc: number, forward: boolean, skipped?: string[]): {pos: number, assoc: -1 | 1} | null {
+  moveVisually(start: number, side: number, forward: boolean, skipped?: string[]): {pos: number, side: -1 | 1} | null {
     let startIndex = this.toIndex(start), {order, dir} = this
-    let spanI = BidiSpan.find(order, startIndex, assoc)
+    let spanI = BidiSpan.find(order, startIndex, side)
     let span = order[spanI], spanEnd = span.side(forward, dir)
     // End of span
     if (startIndex == spanEnd) {
@@ -148,17 +148,17 @@ export class TextblockMap {
 
     let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)]
     if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level)
-      return {pos: this.fromIndex(nextSpan.side(!forward, dir)), assoc: nextSpan.forward(forward, dir) ? 1 : -1}
-    return {pos: this.fromIndex(nextIndex), assoc: span.forward(forward, dir) ? -1 : 1}
+      return {pos: this.fromIndex(nextSpan.side(!forward, dir)), side: nextSpan.forward(forward, dir) ? 1 : -1}
+    return {pos: this.fromIndex(nextIndex), side: span.forward(forward, dir) ? -1 : 1}
   }
 
-  skipWord(start: number, assoc: number, forward: boolean, visually: boolean): {pos: number, assoc: -1 | 1} | null {
-    let word = "", skipped = [""], cur: {pos: number, assoc: -1 | 1} | null = null
-    let history = new Map<number, {pos: number, assoc: -1 | 1}>()
+  skipWord(start: number, side: number, forward: boolean, visually: boolean): {pos: number, side: -1 | 1} | null {
+    let word = "", skipped = [""], cur: {pos: number, side: -1 | 1} | null = null
+    let history = new Map<number, {pos: number, side: -1 | 1}>()
     for (;;) {
       let next, char, from = cur ? cur.pos : start
       if (visually) {
-        next = this.moveVisually(from, cur ? cur.assoc : assoc, forward, skipped)
+        next = this.moveVisually(from, cur ? cur.side : side, forward, skipped)
         char = skipped[0]
       } else {
         next = this.moveLogically(from, forward)
@@ -180,21 +180,21 @@ export class TextblockMap {
     return history.get(segments[forward ? 0 : segments.length - 1].segment.length) || cur
   }
 
-  visualTextblockSide(start: boolean): {pos: number, assoc: -1 | 1} {
-    let pos, assoc: -1 | 1
+  visualTextblockSide(start: boolean): {pos: number, side: -1 | 1} {
+    let pos, side: -1 | 1
     if (start) {
       let span = this.order[0]
-      ;[pos, assoc] = span.dir == this.dir ? [span.from, 1] : [span.to, -1]
+      ;[pos, side] = span.dir == this.dir ? [span.from, 1] : [span.to, -1]
     } else {
       let span = this.order[this.order.length - 1]
-      ;[pos, assoc] = span.dir == this.dir ? [span.to, -1] : [span.from, 1]
+      ;[pos, side] = span.dir == this.dir ? [span.to, -1] : [span.from, 1]
     }
-    return {pos: this.fromIndex(pos), assoc}
+    return {pos: this.fromIndex(pos), side}
   }
 
-  moveLogically(start: number, forward: boolean): {pos: number, assoc: -1 | 1} | null {
+  moveLogically(start: number, forward: boolean): {pos: number, side: -1 | 1} | null {
     let index = this.toIndex(start)
     let next = findClusterBreak(this.text, index, forward)
-    return next == index ? null : {pos: this.fromIndex(next), assoc: forward ? -1 : 1}
+    return next == index ? null : {pos: this.fromIndex(next), side: forward ? -1 : 1}
   }
 }

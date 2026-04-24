@@ -30,21 +30,14 @@ export const enum TileFlag {
 
 const enum Orientation { Row, Col }
 
-const enum PosAssocFlag {
-  AssocMask = 3,
-  VertOutside = 4
-}
-
 export class CoordPos {
-  constructor(readonly pos: number, readonly target: number | null, readonly flags: PosAssocFlag) {}
-  get assoc(): -1 | 0 | 1 { return ((this.flags & PosAssocFlag.AssocMask) - 1) as -1 | 0 | 1 }
-  get vertOutside() { return (this.flags & PosAssocFlag.VertOutside) > 0 }
+  constructor(readonly pos: number, readonly target: number | null, readonly side: -1 | 1, readonly vertOutside: boolean) {}
   map(mapping: ChangeSet) {
     let target = this.target == null ? null : mapping.mapPos(this.target, MapMode.TrackAfter)
-    return new CoordPos(mapping.mapPos(this.pos), target, this.flags)
+    return new CoordPos(mapping.mapPos(this.pos), target, this.side, this.vertOutside)
   }
-  static create(pos: number, assoc: -1 | 0 | 1, target: number | null = null, vertOutside?: boolean) {
-    return new CoordPos(pos, target, (assoc + 1) | (vertOutside ? PosAssocFlag.VertOutside : 0))
+  static create(pos: number, side: -1 | 1, target: number | null = null, vertOutside = false) {
+    return new CoordPos(pos, target, side, vertOutside)
   }
 }
 
@@ -548,7 +541,7 @@ export class WidgetTile extends Tile {
 
   posAtCoordsInner(start: number, state: GardState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): CoordPos {
-    if (!this.node) return CoordPos.create(start, 0)
+    if (!this.node) return CoordPos.create(start, 1)
     let rect = this.dom.nodeType == 1 ? (this.dom as Element).getBoundingClientRect()
       : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
     let after = orientation == Orientation.Col ? y > (rect.top + rect.bottom) / 2
