@@ -5,7 +5,7 @@
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Table, ColSpan, RowSpan} from "wordgard/schema"
 import {Correction} from "wordgard/state"
-import {TableMap} from "./map"
+import {TableMap} from "./tablemap"
 
 /// Correct tables where the cells do not form a proper rectangle.
 export const tableCorrection = Correction.onContent(Table, (pos, state) => {

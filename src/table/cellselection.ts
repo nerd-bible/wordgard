@@ -3,7 +3,7 @@ import {Decoration, PointSet} from "wordgard/view"
 import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
 import {Table, TableRow} from "wordgard/schema"
 
-import {TableMap} from "./map"
+import {TableMap} from "./tablemap"
 
 export class CellSelection extends GardSelection {
   constructor(
