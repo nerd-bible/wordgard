@@ -100,7 +100,7 @@ export const Cell = Plot.defineBlock("Cell", {
   shape: {element: "td"}
 })
 
-export const HeaderCell = Plot.defineBlock("Cell", {
+export const HeaderCell = Plot.defineBlock("HeaderCell", {
   inlineContent: true,
   group: G.TableCell,
   isolating: true,
@@ -109,6 +109,7 @@ export const HeaderCell = Plot.defineBlock("Cell", {
 
 export const TableRow = Plot.defineBlock("TableRow", {
   blockContent: G.TableCell,
+  canBeEmpty: true,
   shape: {element: "tr"}
 })
 

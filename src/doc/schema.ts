@@ -38,7 +38,7 @@ export class Schema {
       this.validateTag(node)
     } else {
       this.validateTag(node.tag)
-      if (!node.tag.inlineContent && node.content.length == 0)
+      if (!node.type.canBeEmpty && node.content.length == 0)
         throw new ValidationError(`Node ${node.name} with block content may not be empty`)
       for (let ch of node.content) {
         if (!this.canContain(node.type, ch.type) || node.inlineContent != ch.isInline)
@@ -127,7 +127,7 @@ export class Schema {
     let child = this.defaultContentTag(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     if (child.isLeaf) return child
-    return child.create(child.inlineContent ? [] : [this.createDefault(child.type)])
+    return child.create(child.type.canBeEmpty ? [] : [this.createDefault(child.type)])
   }
 
   findWrapping(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag.Any[] | null {
@@ -231,8 +231,8 @@ export class Schema {
           throw new SchemaError(`Node type ${tag.name} has ${tag.inlineContent ? "block" : "inline"
                                   } content, but allows ${child.name} as a child`)
       }
-      if (!tag.inlineContent && !sawDefaultable)
-        throw new SchemaError(`Node ${tag.name} has block content, but all possible children require non-default parameters`)
+      if (!tag.canBeEmpty && !sawDefaultable)
+        throw new SchemaError(`Node ${tag.name} has required content, but all possible children require non-default parameters`)
     }
     schemaCache.set(spec, new WeakRef(schema))
     return schema

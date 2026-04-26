@@ -16,6 +16,7 @@ const enum NodeFlag {
   Doc = 8,
   NullParam = 16,
   Selectable = 32,
+  CanBeEmpty = 64,
 }
 
 export type Node = Plot | Leaf.Any
@@ -462,10 +463,11 @@ export class Plot implements Node.Shared {
     return new Plot.Type<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
   }
 
-  static defineDoc(spec: {inlineContent?: Node.Query | true, blockContent?: Node.Query}) {
+  static defineDoc(spec: {inlineContent?: Node.Query | true, blockContent?: Node.Query, canBeEmpty?: boolean}) {
     if (!spec.inlineContent && !spec.blockContent) throw new SchemaError("Doc nodes must allow content")
     let flags = NodeFlag.NullParam | NodeFlag.Doc | NodeFlag.NullParam
     if (spec.inlineContent) flags |= NodeFlag.InlineContent
+    if (spec.inlineContent || spec.canBeEmpty) flags |= NodeFlag.CanBeEmpty
     return new Plot.Type<null>("Doc", flags, {
       ...spec,
       shape: {element: ""}
@@ -568,6 +570,7 @@ export namespace Plot {
     get isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
     get isLeaf(): false { return false }
     get isPlot(): true { return true }
+    get canBeEmpty() { return (this.flags & NodeFlag.CanBeEmpty) > 0 }
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
@@ -581,6 +584,10 @@ export namespace Plot {
     /// valid content. If set to `true`, any inline node may appear in
     /// this node.
     inlineContent?: Node.Query | true
+    /// Plots with block content, by default, require at least one
+    /// child. You can set this to true to allow them to be empty.
+    /// Plots with inlne content can always be empty.
+    canBeEmpty?: boolean
     /// Whether the sides of this plot act as a 'barrier' when
     /// [normalizing](#state.EditorSelection.normalize) a cursor
     /// position, which means that a separate cursor position exists
@@ -679,6 +686,7 @@ function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
   let flags = inline ? NodeFlag.Inline : NodeFlag.None
   if (spec.inlineContent && spec.blockContent) throw new SchemaError("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
+  if (spec.inlineContent || spec.canBeEmpty) flags |= NodeFlag.CanBeEmpty
   if ((spec as Leaf.Spec<any>).selectable) flags |= NodeFlag.Selectable
   return flags
 }

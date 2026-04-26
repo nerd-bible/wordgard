@@ -380,7 +380,7 @@ class ParseContext {
       }
     }
     let open = cx.flags & (CxFlag.OpenEnd | CxFlag.OpenStart)
-    if (!open && !cx.tag.inlineContent && cx.tag.isPlot && !cx.children.length)
+    if (!open && !cx.tag.type.canBeEmpty && cx.tag.isPlot && !cx.children.length)
       cx.children.push(this.schema.createDefault(cx.tag.type))
     let node = cx.tag.isDoc ? this.schema.doc(cx.children) : cx.tag.create(cx.children)
     if (open) this.open.set(node, open)

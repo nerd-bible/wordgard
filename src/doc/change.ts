@@ -718,7 +718,7 @@ class FitLevel {
     readonly tag: Plot.Tag.Any,
     readonly next: FitLevel | null,
   ) {
-    if (!this.tag.inlineContent && !this.tag.isLeaf) this.flags |= FitFlag.NeedsChild
+    if (!this.tag.type.canBeEmpty) this.flags |= FitFlag.NeedsChild
   }
 }
 
@@ -1071,7 +1071,7 @@ function addSection(sections: number[], data: SectionData[] | null,
 }
 
 function finishCx(cx: BuildContext, schema: Schema) {
-  return cx.tag.create(cx.children.length || cx.tag.inlineContent ? cx.children
+  return cx.tag.create(cx.children.length || cx.tag.type.canBeEmpty ? cx.children
                        : [schema.createDefault(cx.tag.type)])
 }
 
