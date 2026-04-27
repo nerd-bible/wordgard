@@ -1,7 +1,8 @@
-import {GardState, GardSelection} from "wordgard/state"
+import {GardState, GardSelection, Direction} from "wordgard/state"
 import {Decoration, PointSet, Wordgard} from "wordgard/view"
 import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
 import {Table, TableRow} from "wordgard/schema"
+import {Command, moveByUnit, moveByLine, moveByWord, moveToLineSide} from "wordgard/command"
 
 import {TableMap} from "./tablemap"
 
@@ -42,7 +43,7 @@ export class CellSelection extends GardSelection {
       || GardSelection.near(doc, changes.mapPos(this.head), assoc)
   }
 
-  moveHead(doc: Plot.Doc, dir: "up" | "down" | "forward" | "backward") {
+  moveHead(doc: Plot.Doc, dir: "up" | "down" | "forward" | "backward"): CellSelection | null {
     let head = doc.resolve(this.head), inv = this.head < this.anchor
     let headPos = this.head - (inv ? 0 : head.nodeBefore!.length)
     let table = head.parent!.parent!, map = TableMap.get(table.node, table.start), rect = map.findCell(headPos)
@@ -150,3 +151,59 @@ export const tableSelectionFilter = GardState.prec.low(GardState.transactionFilt
   let normalized = normalizeTableSelection(tr.newSelection, tr.newDoc)
   return normalized ? [tr, {selection: normalized}] : tr
 }))
+
+type Dir = "left" | "right" | "forward" | "backward" | "up" | "down"
+
+function resolveDir(dir: "left" | "right", state: GardState): "forward" | "backward" {
+  let block = state.sel.head.textblockParent
+  return (dir == "right") == (state.textDirection(block ? block.node.tag : undefined) == Direction.LTR)
+    ? "forward" : "backward"
+}
+
+function cursorCommand(view: Wordgard, {dir, extend}: {dir: Dir, extend?: boolean}) {
+  let {state} = view, {selection} = state
+  if (!(selection instanceof CellSelection)) return false
+  let newSel
+  if (!extend) {
+    newSel = GardSelection.near(state, selection.replacemenRange.from, 1)
+  } else {
+    if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
+    newSel = selection.moveHead(state.doc, dir)
+    if (!newSel) {
+      let forward = dir == "forward" || dir == "down"
+      let table = state.sel.from.parent!.parent!
+      let next = GardSelection.near(state, forward ? table.after : table.before, forward ? 1 : -1)
+      newSel = GardSelection.range(forward ? table.before : table.after, next.head, next.headSide)
+    }
+  }
+  view.dispatch({
+    selection: newSel,
+    scrollIntoView: true,
+    userEvent: "select"
+  })
+  return true
+}
+
+function moveToRowSide(view: Wordgard, {dir, extend}: {dir: "left" | "right" | "forward" | "backward", extend?: boolean}) {
+  let {state} = view, {selection} = state
+  if (!(selection instanceof CellSelection)) return false
+  if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
+  for (;;) {
+    let next: CellSelection | null = (selection as CellSelection).moveHead(state.doc, dir)
+    if (!next) break
+    selection = next
+  }
+  if (selection != state.selection) view.dispatch({
+    selection,
+    scrollIntoView: true,
+    userEvent: "select"
+  })
+  return true
+}
+
+export const cellSelectionCommands = [
+  Command.handler(moveByUnit, cursorCommand),
+  Command.handler(moveByWord, cursorCommand),
+  Command.handler(moveByLine, cursorCommand),
+  Command.handler(moveToLineSide, moveToRowSide)
+]

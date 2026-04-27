@@ -266,7 +266,7 @@ export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "ArrowDown", run: Command.bind(moveByLine, {dir: "down"}),
    shift: Command.bind(moveByLine, {dir: "down", extend: true})},
   {key: "ArrowUp", run: Command.bind(moveByLine, {dir: "up"}),
-   shift: Command.bind(moveByLine, {dir: "down", extend: true})},
+   shift: Command.bind(moveByLine, {dir: "up", extend: true})},
   {key: "Mod-ArrowLeft", run: Command.bind(moveByWord, {dir: "left"}),
     shift: Command.bind(moveByWord, {dir: "left", extend: true})},
   {key: "Mod-ArrowRight", run: Command.bind(moveByWord, {dir: "right"}),
