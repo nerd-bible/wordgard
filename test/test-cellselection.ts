@@ -71,6 +71,16 @@ function testNorm(doc: Plot.Doc, anchor: number, head: number, result: string | 
   }
 }
 
+function testMove(doc: Plot.Doc, anchor: number, head: number, dir: "forward" | "backward" | "up" | "down", cells: string | null) {
+  let sel = CellSelection.between(doc, anchor, head)!.moveHead(doc, dir)
+  if (cells) {
+    ist(sel)
+    checkSel(sel!, doc, cells)
+  } else {
+    ist(!sel)
+  }
+}
+
 describe("CellSelection", () => {
   it("Can select two adjacent cells", () =>
     testSel(mkTable(), 7, 17, "2,1 3,1"))
@@ -135,5 +145,34 @@ describe("CellSelection", () => {
 
     it("moves out of two tables", () =>
       testNorm(doc(table(tr(td("x"))), p("a"), table(tr(td("y")))), 3, 13, "0-17"))
+  })
+
+  describe("moveHead", () => {
+    it("can move forward", () =>
+      testMove(mkTable(), 24, 29, "forward", "2,2 3,2"))
+    
+    it("can move backward", () =>
+      testMove(mkTable(), 24, 29, "backward", "1,2 2,2"))
+
+    it("can move up", () =>
+      testMove(mkTable(), 24, 29, "up", "2,1 2,2"))
+
+    it("can move down", () =>
+      testMove(mkTable(), 24, 29, "down", "2,2 2,3"))
+
+    it("moves the head", () =>
+      testMove(mkTable(), 2, 17, "backward", "1,1 2,1"))
+
+    it("moves the head when inverted", () =>
+      testMove(mkTable(), 17, 2, "forward", "2,1 3,1"))
+
+    it("extends to a rectangle", () =>
+      testMove(mkTable(), 2, 17, "down", "1,1 2,1 3,1 1,2 2,2 3,2"))
+
+    it("extend when hitting a colspan node", () =>
+      testMove(mkTable(3, 3, "1,1:3x1"), 9, 14, "up", "1,1 1,2 2,2 3,2"))
+
+    it("extend when hitting a rowspan node", () =>
+      testMove(mkTable(3, 3, "2,1:1x3"), 24, 2, "forward", "1,1 2,1 1,2 1,3"))
   })
 })

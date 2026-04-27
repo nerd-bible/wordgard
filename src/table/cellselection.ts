@@ -17,6 +17,13 @@ export class CellSelection extends GardSelection {
 
   get ranges() { return this._ranges }
 
+  get replacemenRange() { return this._ranges[this.anchorRange] }
+
+  get domSelection() {
+    let {from, to} = this.replacemenRange
+    return {anchor: from, anchorSide: 1, head: to, headSide: -1} as const
+  }
+
   eq(other: GardSelection) {
     return other instanceof CellSelection && other.anchor == this.anchor && other.head == this.head
   }
@@ -36,14 +43,16 @@ export class CellSelection extends GardSelection {
   }
 
   moveHead(doc: Plot.Doc, dir: "up" | "down" | "forward" | "backward") {
-    let head = doc.resolve(this.head), headPos = this.head - (this.head > this.anchor ? head.nodeAfter!.length : 0)
+    let head = doc.resolve(this.head), inv = this.head < this.anchor
+    let headPos = this.head - (inv ? 0 : head.nodeBefore!.length)
     let table = head.parent!.parent!, map = TableMap.get(table.node, table.start), rect = map.findCell(headPos)
+    let anchorPos = inv ? map.nearestCell(this.anchor, -1).from : this.anchor
     let col = dir == "backward" ? rect.startCol - 1 : dir == "forward" ? rect.endCol : rect.startCol
     let row = dir == "up" ? rect.startRow - 1 : dir == "down" ? rect.endRow : rect.startRow
     if (col < 0 || col >= map.width || row < 0 || row >= map.height) return null
     let newHead = map.cellAt(col, row)
-    if (this.head > this.anchor) newHead = map.cellEnd(newHead)
-    return CellSelection.between(doc, this.anchor, newHead)
+    return newHead >= anchorPos ? CellSelection.between(doc, anchorPos, map.cellEnd(newHead))
+      : CellSelection.between(doc, newHead, map.cellEnd(anchorPos))
   }
 
   static between(doc: Plot.Doc, anchor: number, head: number) {
@@ -95,7 +104,8 @@ export const drawCellSelection: GardState.Extension = [
   Wordgard.baseTheme({
     ".wg-selected-cell": {
       background: "#ddf",
-      "&::selection": {background: "transparent"}
+      "&::selection, & ::selection": {backgroundColor: "transparent"},
+      "& :focus ::selection, & :focus::selection": {backgroundColor: "Highlight"}
     },
   })
 ]

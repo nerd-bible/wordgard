@@ -54,6 +54,11 @@ export abstract class GardSelection {
   /// `this.to`.
   get replacemenRange(): {from: number, to: number} { return this }
 
+  /// This can be overridden to control the DOM selection created for
+  /// a selection. The default is to just return the selection's own
+  /// head and anchor.
+  get domSelection(): {head: number, headSide: -1 | 1, anchor: number, anchorSide: -1 | 1} { return this }
+
   /// The side that the selection head is associated with. -1 means it
   /// is after the elemente before its position, 1 means it is before
   /// the element after its position. This influences where the

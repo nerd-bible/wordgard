@@ -4,7 +4,7 @@ import {Wordgard} from "./editorview"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
 export function setDOMSelection(view: Wordgard) {
-  let {anchor, head, anchorSide, headSide} = view.state.selection
+  let {anchor, head, anchorSide, headSide} = view.state.selection.domSelection
   let anchorDOM = view.docTile.resolve(anchor, anchorSide)
   let headDOM = head == anchor ? anchorDOM : view.docTile.resolve(head, headSide)
   let domSel = getSelection(view.root)
