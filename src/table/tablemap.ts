@@ -55,11 +55,27 @@ export class TableMap {
     for (let i = 0; i < map.length; i++) if (map[i] == localPos) {
       let startCol = i % width, startRow = (i / width) | 0
       let endCol = startCol + 1, endRow = startRow + 1
-      for (let j = 1; endCol < width && map[i + j] == pos; j++) endCol++
-      for (let j = 1; endRow < height && map[i + (width * j)] == pos; j++) endRow++
+      for (let j = 1; endCol < width && map[i + j] == localPos; j++) endCol++
+      for (let j = 1; endRow < height && map[i + (width * j)] == localPos; j++) endRow++
       return new Rect(startCol, startRow, endCol, endRow)
     }
     throw new RangeError(`No cell with offset ${pos} found`)
+  }
+
+  nearestCell(pos: number, bias: -1 | 1) {
+    let localPos = pos - this.start, after = -1, before = -1
+    let {map, cellEnds} = this.data
+    for (let i = 0; i < map.length; i++) {
+      let cellPos = map[i]
+      if (cellPos >= localPos && (after < 0 || after > cellPos)) after = cellPos
+      if (cellPos < localPos && before < cellPos) before = cellPos
+    }
+    if (before > -1) {
+      let beforeEnd = cellEnds.get(before)!
+      if (beforeEnd > localPos || after < 0 || bias < 0)
+        return {from: before + this.start, to: beforeEnd + this.start}
+    }
+    return {from: after + this.start, to: cellEnds.get(after)! + this.start}
   }
 
   cellEnd(pos: number) {
@@ -83,7 +99,7 @@ export class TableMap {
     for (let row = rect.startRow; row < rect.endRow; row++) {
       for (let col = rect.startCol; col < rect.endCol; col++) {
         let index = row * width + col, pos = map[index]
-        if (result.indexOf(pos) < 0 &&
+        if (result.indexOf(pos + this.start) < 0 &&
             (col != rect.startCol || !col || map[index - 1] != pos) &&
             (row != rect.startRow || !row || map[index - width] != pos))
           result.push(pos + this.start)

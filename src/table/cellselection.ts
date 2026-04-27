@@ -1,5 +1,5 @@
 import {GardState, GardSelection} from "wordgard/state"
-import {Decoration, PointSet} from "wordgard/view"
+import {Decoration, PointSet, Wordgard} from "wordgard/view"
 import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
 import {Table, TableRow} from "wordgard/schema"
 
@@ -14,6 +14,8 @@ export class CellSelection extends GardSelection {
   ) {
     super(anchor, head)
   }
+
+  get ranges() { return this._ranges }
 
   eq(other: GardSelection) {
     return other instanceof CellSelection && other.anchor == this.anchor && other.head == this.head
@@ -73,7 +75,7 @@ export class CellSelection extends GardSelection {
     })
 }
 
-export const drawCellSelection = GardState.Field.define<PointSet<Decoration>>({
+const cellSelectionDeco = GardState.Field.define<PointSet<Decoration>>({
   create: getCellDeco,
   update: (deco, tr) => {
     return tr.docChanged || tr.selection ? getCellDeco(tr.state) : deco
@@ -85,21 +87,56 @@ const selectedCell = Decoration.attribute("class", "wg-selected-cell")
 
 function getCellDeco(state: GardState): PointSet<Decoration> {
   if (!(state.selection instanceof CellSelection)) return PointSet.empty
-  return PointSet.create(state.selection.ranges.map(({from}) => [from, selectedCell]))
+  return PointSet.create(state.selection.ranges.map(({from}) => [from - 1, selectedCell]))
 }
 
-export function normalizeToCellSelection(sel: GardSelection.Resolved) {
-  if (sel instanceof CellSelection) return sel
-  for (let cx: Pos.Plot | null = sel.from.parent; cx; cx = cx.parent) {
-    if (sel.doc.schema.matchNode(cx.node.type, Node.Group.TableCell)) {
-      const table = cx.parent?.parent
-      // Selection goes from one cell in a table to another cell in
-      // the same table, and has only one range
-      if (table && sel.to.pos <= table.end && sel.to.pos > cx.end) {
-        let after = sel.to.parentAt(cx.depth).after, doc = cx.doc
-        return sel.anchor < sel.head ? CellSelection.between(doc, cx.before, after) : CellSelection.between(doc, after, cx.before)
+export const drawCellSelection: GardState.Extension = [
+  cellSelectionDeco,
+  Wordgard.baseTheme({
+    ".wg-selected-cell": {
+      background: "#ddf",
+      "&::selection": {background: "transparent"}
+    },
+  })
+]
+
+/// Given a selection, this returns null if that selection is valid
+/// (is a cell selection, or a selection that starts and ends outside
+/// of tables, or in the same table cell). Otherwise, it will expand a
+/// selection within a single table to a cell selection, or expand a
+/// selection that crosses table boundaries to cover the entire table(s).
+export function normalizeTableSelection(sel: GardSelection, doc: Plot.Doc): GardSelection | null {
+  if (sel instanceof CellSelection) return null
+  let {from, to} = sel, modified = false
+  for (let parent: Pos.Plot | null = doc.resolve(sel.from).parent, cell: Pos.Plot | null = null;
+       parent; parent = parent.parent) {
+    if (doc.schema.matchNode(parent.node.type, Node.Group.TableCell)) cell = parent
+    if (parent.node.type == Table.type) {
+      if (to > parent.end) {
+        // Move out of a partially covered table
+        from = parent.before
+        modified = true
+      } else if (!cell || to > cell.end) {
+        // Inside this table, but not in same cell
+        let map = TableMap.get(parent.node, parent.start)
+        let start = map.nearestCell(from, 1), end = map.nearestCell(to, -1)
+        if (start.from > end.from) end = start
+        return sel.anchor < sel.head
+          ? CellSelection.between(doc, start.from, end.to)
+          : CellSelection.between(doc, end.to, start.from)
       }
     }
   }
-  return null
+  for (let parent: Pos.Plot | null = doc.resolve(sel.to).parent; parent; parent = parent.parent) {
+    if (parent.node.type == Table.type && from < parent.start) {
+      to = parent.after
+      modified = true
+    }
+  }
+  return !modified ? null : sel.anchor < sel.head ? GardSelection.range(from, to) : GardSelection.range(to, from)
 }
+
+export const tableSelectionFilter = GardState.prec.low(GardState.transactionFilter.of(tr => {
+  let normalized = normalizeTableSelection(tr.newSelection, tr.newDoc)
+  return normalized ? [tr, {selection: normalized}] : tr
+}))

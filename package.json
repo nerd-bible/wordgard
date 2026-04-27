@@ -8,6 +8,7 @@
     "./doc": "./dist/doc.js",
     "./schema": "./dist/schema.js",
     "./image": "./dist/image.js",
+    "./table": "./dist/table.js",
     "./state": "./dist/state.js",
     "./view": "./dist/view.js",
     "./command": "./dist/command.js",

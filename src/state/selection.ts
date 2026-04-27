@@ -46,7 +46,7 @@ export abstract class GardSelection {
   /// The set of ranges covered by this selection, sorted. By default,
   /// this is just the selection's main `from` to `to`, but custom
   /// selection implementations can override it.
-  get ranges() { return [this] }
+  get ranges(): readonly {from: number, to: number}[] { return [this] }
 
   /// The range that should be used when replacing this selection with
   /// other content (for example when typing or pasting over it) or

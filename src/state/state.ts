@@ -508,8 +508,8 @@ export class GardState {
   }
 
   /// Facet used to register a hook that gets a chance to update or
-  /// replace transaction specs before they are applied. This will
-  /// only be applied for transactions that don't have
+  /// replace transactions before they are applied. This will only be
+  /// applied for transactions that don't have
   /// [`filter`](#state.TransactionSpec.filter) set to `false`. You
   /// can either return a single transaction spec (possibly the input
   /// transaction), or an array of specs (which will be combined in

@@ -405,6 +405,11 @@ export class Plot implements Node.Shared {
     return null
   }
 
+  plotAt(pos: number): Plot | null {
+    let node = this.nodeAt(pos)
+    return node instanceof Plot ? node : null
+  }
+
   /// @internal
   iterInner(contentStart: number, from: number, to: number,
             f: (node: Node, pos: number, parent: Plot | null, index: number) => boolean | void) {

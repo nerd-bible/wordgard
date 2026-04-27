@@ -104,6 +104,8 @@ export class Mark<Value = unknown> {
   static sameSet(a: readonly Mark<any>[], b: readonly Mark<any>[]): boolean {
     return eqArray(a, b)
   }
+
+  static none: readonly Mark[] = none
 }
 
 export namespace Mark {
