@@ -64,7 +64,8 @@ export function moveVertically(
     let nextCursor = GardSelection.cursor(scan).nextNormalCursor(view.state, forward)
     if (!nextCursor) return null
     let nextNode = findTargetVertically(view, scan, forward, x, selectNode)
-    if (!nextNode || (forward ? nextCursor.head <= nextNode.before : nextCursor.head >= nextNode.after)) {
+    if (!nextNode || ((forward ? nextCursor.head <= nextNode.before : nextCursor.head >= nextNode.after) &&
+                      view.state.doc.resolve(nextCursor.head).depth < nextNode.depth)) {
       let coords = view.coordsAtPos(nextCursor.head, nextCursor.headSide)
       if (forward ? coords.bottom > y : coords.top < y)
         return GardSelection.cursor(nextCursor.head, nextCursor.headSide, goalColumn)
@@ -88,7 +89,7 @@ function findTargetVertically(view: Wordgard, from: number, forward: boolean, x:
         parent.node.type.orientation == "row" && !entering) {
       if (!parent.parent) return null
       index = parent.index + (forward ? 1 : 0)
-      pos += (forward ? 1 : -1)
+      pos = forward ? parent.after : parent.before
       parent = parent.parent
       entering = false
     } else {
@@ -120,6 +121,7 @@ function findTargetVertically(view: Wordgard, from: number, forward: boolean, x:
         parent = node
         index = closest
         pos = closestPos
+        entering = true
       } else if (next.isTextblock) {
         return node
       } else {

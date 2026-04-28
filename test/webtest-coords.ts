@@ -1,10 +1,13 @@
 import {Wordgard} from "wordgard/view"
 import {GardSelection} from "wordgard/state"
-import {basicBuilders} from "wordgard/schema"
+import {basicBuilders, builder, Table, TableRow, Cell, basicSchema} from "wordgard/schema"
+import {Schema} from "wordgard/doc"
 import ist from "ist"
 import {tempView} from "./tempview.ts"
 
-const {doc, p, br, hr, blockquote, ul, li, strong} = basicBuilders
+const schema = Schema.define(basicSchema.elements.concat(Table, TableRow, Cell))
+const {p, br, hr, blockquote, ul, li, strong, table, tr, td} = basicBuilders
+const doc = builder(schema)
 
 const P = (view: Wordgard, x: number, y: number) => {
   let pos = view.posAtCoords({x, y})
@@ -153,5 +156,20 @@ describe("moveVertically", () => {
     ist(view.moveVertically(s(26), false)?.head, 17)
     ist(view.moveVertically(s(17), false)?.head, 9)
     ist(view.moveVertically(s(9), false)?.head, 3)
+  })
+
+  it("can move through rows in a table", () => {
+    let view = tempView(doc(p("a"), table(tr(td("a"), td("a")), tr(td("a"), td("a"))), p("a".repeat(10))),
+                        Wordgard.theme({td: {padding: "0"}}))
+    ist(view.moveVertically(s(2), true)?.head, 7)
+    ist(view.moveVertically(s(7), true)?.head, 15)
+    ist(view.moveVertically(s(14), true)?.head, 22)
+    ist(view.moveVertically(s(9), true)?.head, 17)
+    ist(view.moveVertically(s(17), true)?.head, 22, ">")
+    ist(view.moveVertically(s(22), false)?.head, 14)
+    ist(view.moveVertically(s(32), false)?.head, 18)
+    ist(view.moveVertically(s(18), false)?.head, 10)
+    ist(view.moveVertically(s(10), false)?.head, 2)
+    ist(view.moveVertically(s(6), false)?.head, 1)
   })
 })

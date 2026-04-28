@@ -1,8 +1,8 @@
 import ist from "ist"
 import {Schema, Plot, Node} from "wordgard/doc"
-import {basicSchema, basicBuilders, builder, maybeTag} from "wordgard/schema"
+import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow, Cell, HeaderCell} from "wordgard/schema"
 import {GardSelection, GardState, Direction} from "wordgard/state"
-const {p, hr, blockquote, pre, $img} = basicBuilders
+const {p, hr, blockquote, pre, $img, table, tr, td, th} = basicBuilders
 
 let Iso = Plot.defineBlock("Iso", {
   blockContent: Node.Group.Content,
@@ -20,7 +20,8 @@ let InlineB = Plot.defineInline("InlineB", {
   shape: {element: "span"}
 }), b = builder(InlineB)
 
-const schema = Schema.define([...basicSchema.tags, ...basicSchema.marks, Iso, InlineA, InlineB])
+const schema = Schema.define([...basicSchema.tags, ...basicSchema.marks, Iso, InlineA, InlineB,
+                              Table, TableRow, Cell, HeaderCell])
 const doc = builder(schema)
 
 function normalPositions(state: GardState) {
@@ -89,6 +90,10 @@ describe("nextNormalCursor", () => {
 
   it("exits text nodes", () => {
     testNormal(doc(p(0, "a", 1, "b", 2, $img, 3, "c", 4, "d", 5)))
+  })
+
+  it("enters tables", () => {
+    testNormal(doc(p(0, "a", 1), table(tr(td(2, "b", 3), td(4)), tr(td(5, "c", 6), th(7, "d", 8))), 9))
   })
 
   describe("bidi", () => {
