@@ -2,7 +2,8 @@ import {Command} from "wordgard/command"
 import {Plot, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow,
         Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema"
-import {CellSelection, normalizeTableSelection, toggleHeaderCell, addRow, deleteRow, addColumn, deleteColumn} from "wordgard/table"
+import {CellSelection, normalizeTableSelection, toggleHeaderCell,
+        addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 
@@ -13,7 +14,7 @@ const doc = builder(schema)
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
-function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, expect?: Plot.Doc) {
+function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, expect: Plot.Doc | null) {
   let selFrom = maybeTag(doc, 0), sel = selFrom != null && GardSelection.range(selFrom, maybeTag(doc, 1) ?? selFrom)
   let state = GardState.create({
     doc,
@@ -26,7 +27,13 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, 
     let tr = state.update(result as Transaction.Spec)
     state = tr.state
     ist(state.doc, expect, eq)
-    if (maybeTag(expect, 0) != null) ist(maybeTag(expect, 0), state.selection.head)
+    let selFrom = maybeTag(expect, 0)
+    if (selFrom != null) {
+      let sel: GardSelection = GardSelection.range(selFrom, maybeTag(expect, 1) ?? selFrom)
+      sel = normalizeTableSelection(sel, state.doc) || sel
+      ist(state.selection.head, sel.head)
+      ist(state.selection.anchor, sel.anchor)
+    }
   } else {
     ist(!result)
   }
@@ -54,6 +61,9 @@ describe("toggleHeaderCell", () => {
 
 describe("addRow", () => {
   let after = fromCmd(addRow, "after"), before = fromCmd(addRow, "before")
+
+  it("does nothing when not in a table", () =>
+    test(doc(p("a", 0), table(tr(td("b")))), before, null))
 
   it("can add a row after", () =>
     test(doc(table(tr(td("a", 0), td("b")), tr(td("c"), td("d")))), after,
@@ -122,6 +132,9 @@ describe("addColumn", () => {
 describe("deleteColumn", () => {
   let del = fromCmd(deleteColumn)
 
+  it("does nothing outside of a table", () =>
+    test(doc(p("a", 0)), del, null))
+
   it("deletes the column with the cursor", () =>
     test(doc(table(tr(td("a"), td("b", 0)), tr(td("c"), td("d")))), del,
          doc(table(tr(td("a", 0)), tr(td("c"))))))
@@ -153,4 +166,52 @@ describe("deleteColumn", () => {
   it("can delete an entire table", () =>
     test(doc(p("a"), table(tr(td("b", 0)), tr(td("c")))), del,
          doc(p("a", 0))))
+})
+
+describe("mergeCells", () => {
+  let merge = fromCmd(mergeCells)
+
+  it("refuses to merge a single cell", () =>
+    test(doc(table(tr(td("a", 0), td("b")))), merge, null))
+
+  it("can merge a row", () =>
+    test(doc(table(tr(td("a", 0), td("b"), td("c", 1)))), merge,
+         doc(table(tr(colspan(3, td("abc")))))))
+
+  it("can merge a column", () =>
+    test(doc(table(tr(td("a", 0), td("b")), tr(td("c", 1), td("d")))), merge,
+         doc(table(tr(rowspan(2, td("ac")), td("b")), tr(td("d"))))))
+
+  it("can merge a rectangle", () =>
+    test(doc(table(tr(td("a"), td("b"), td("c", 1), td("d")),
+                   tr(td("e"), td("f"), td("g"), td("h")),
+                   tr(td("i"), colspan(2, td(0, "j")), td("k")))), merge,
+         doc(table(tr(td("a"), 0, rowspan(3, colspan(2, td("bcfgj"))), 1, td("d")),
+                   tr(td("e"), td("h")),
+                   tr(td("i"), td("k"))))))
+
+  it("won't merge a broken rectangle", () =>
+    test(doc(table(tr(td("a", 0), colspan(2, td("b"))),
+                   tr(td("c"), td("d", 1), td("e")))), merge, null))
+})
+
+describe("splitCell", () => {
+  let split = fromCmd(splitCell)
+
+  it("does nothing on regular cells", () =>
+    test(doc(table(tr(td("a", 0), td("b")))), split, null))
+
+  it("can split a column span", () =>
+    test(doc(table(tr(colspan(2, td("a"))), tr(colspan(2, td("b", 0))))), split,
+         doc(table(tr(colspan(2, td("a"))), tr(td("b", 0), td(1))))))
+
+  it("can split a row span", () =>
+    test(doc(table(tr(rowspan(2, td("a", 0)), td("b")), tr(td("c")))), split,
+         doc(table(tr(0, td("a"), td("b")), tr(td(), 1, td("c"))))))
+
+  it("can split a rectangle", () =>
+    test(doc(table(tr(td("a"), 0, rowspan(2, colspan(2, td("b"))), 1, td("c")),
+                   tr(td("d"), td("e")))), split,
+         doc(table(tr(td("a"), 0, td("b"), td(), td("c")),
+                   tr(td("d"), td(), td(), 1, td("e"))))))
 })

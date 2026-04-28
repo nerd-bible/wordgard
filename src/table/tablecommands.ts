@@ -9,20 +9,26 @@ import {CellSelection} from "./cellselection"
 // FIXME support block-child cells
 
 function tableContext(state: GardState) {
-  if (state.selection instanceof CellSelection)
-    return {table: state.sel.anchor.parent!.parent!,
-            cells: state.selection.ranges.map(r => r.from - 1)}
-  for (let node: Pos.Plot | null = state.sel.head.parent; node; node = node.parent) {
-    if (state.doc.schema.matchNode(node.node.type, Node.Group.TableCell) && node.parent?.parent)
-      return {table: node.parent!.parent!, cells: [node.before]}
+  let table: Pos.Plot | undefined, cells: number[] | undefined
+  if (state.selection instanceof CellSelection) {
+    table = state.sel.anchor.parent!.parent!
+    cells = state.selection.ranges.map(r => r.from - 1)
+  } else {
+    for (let node: Pos.Plot | null = state.sel.head.parent; node; node = node.parent) {
+      if (state.doc.schema.matchNode(node.node.type, Node.Group.TableCell) && node.parent?.parent) {
+        table = node.parent!.parent!
+        cells = [node.before]
+        break
+      }
+    }
   }
-  return null
+  return cells ? {cells, map: TableMap.get(table!.node, table!.start)} : null
 }
 
 export const toggleHeaderCell: Command.Pure = ({state}) => {
   let cx = tableContext(state)
   if (!cx) return false
-  let cells = cx.cells.map(c => cx.table.node.nodeAt(c - cx.table.start)!)
+  let cells = cx.cells.map(c => cx.map.getCell(c))
   let changes: ChangeSet.Spec[] = []
   if (cells.some(x => x.type != HeaderCell.type)) {
     for (let i = 0; i < cells.length; i++) {
@@ -40,17 +46,16 @@ export const toggleHeaderCell: Command.Pure = ({state}) => {
   return {changes}
 }
 
-function selectedRect(state: GardState, cx: {table: Pos.Plot, cells: number[]}, map: TableMap) {
+function selectedRect(state: GardState, cx: {cells: number[], map: TableMap}) {
   return state.selection instanceof CellSelection
-    ? map.rectBetween(state.selection.anchorCell, state.selection.headCell)
-    : map.cellRect(cx.cells[0])
+    ? cx.map.rectBetween(state.selection.anchorCell, state.selection.headCell)
+    : cx.map.cellRect(cx.cells[0])
 }
 
 export const addColumn: Command.Pure<"before" | "after"> = ({state}, side) => {
   let cx = tableContext(state)
   if (!cx) return false
-  let map = TableMap.get(cx.table.node, cx.table.start)
-  let rect = selectedRect(state, cx, map)
+  let {map} = cx, rect = selectedRect(state, cx)
   let col = side == "before" ? rect.startCol : rect.endCol
 
   let changes: ChangeSet.Spec[] = [], adjusted = new Set<number>()
@@ -75,12 +80,11 @@ export const addColumn: Command.Pure<"before" | "after"> = ({state}, side) => {
 export const deleteColumn: Command.Pure = ({state}) => {
   let cx = tableContext(state)
   if (!cx) return false
-  let map = TableMap.get(cx.table.node, cx.table.start)
-  let rect = selectedRect(state, cx, map)
+  let {map} = cx, rect = selectedRect(state, cx)
   if (rect.startCol == 0 && rect.endCol == map.width) {
     return {
-      changes: {from: cx.table.before, to: cx.table.after, fit: true},
-      selection: doc => GardSelection.near(doc, cx.table.before, -1),
+      changes: {from: map.tablePos, to: map.tablePos + map.table.length, fit: true},
+      selection: doc => GardSelection.near(doc, map.tablePos, -1),
       userevent: "delete.table"
     }
   }
@@ -128,8 +132,7 @@ export const deleteColumn: Command.Pure = ({state}) => {
 export const addRow: Command.Pure<"before" | "after"> = ({state}, side) => {
   let cx = tableContext(state)
   if (!cx) return false
-  let map = TableMap.get(cx.table.node, cx.table.start)
-  let rect = selectedRect(state, cx, map)
+  let {map} = cx, rect = selectedRect(state, cx)
   let row = side == "before" ? rect.startRow : rect.endRow
 
   let changes: ChangeSet.Spec[] = [], adjusted = new Set<number>()
@@ -161,12 +164,11 @@ export const addRow: Command.Pure<"before" | "after"> = ({state}, side) => {
 export const deleteRow: Command.Pure = ({state}) => {
   let cx = tableContext(state)
   if (!cx) return false
-  let map = TableMap.get(cx.table.node, cx.table.start)
-  let rect = selectedRect(state, cx, map)
+  let {map} = cx, rect = selectedRect(state, cx)
   if (rect.startRow == 0 && rect.endRow == map.height) {
     return {
-      changes: {from: cx.table.before, to: cx.table.after, fit: true},
-      selection: doc => GardSelection.near(doc, cx.table.before, -1),
+      changes: {from: map.tablePos, to: map.tablePos + map.table.length, fit: true},
+      selection: doc => GardSelection.near(doc, map.tablePos, -1),
       userEvent: "delete.table"
     }
   }
@@ -200,7 +202,7 @@ export const deleteRow: Command.Pure = ({state}) => {
 
   let delPos = state.selection.from
   for (let row = rect.startRow; row < rect.endRow; row++) {
-    let rowPos = map.rowPos(row), rowNode = map.data.table.content[row]
+    let rowPos = map.rowPos(row), rowNode = map.table.content[row]
     delPos = Math.min(delPos, rowPos)
     changes.push({from: rowPos, to: rowPos + rowNode.length})
   }
@@ -208,5 +210,56 @@ export const deleteRow: Command.Pure = ({state}) => {
     changes,
     selection: doc => GardSelection.near(doc, delPos, -1),
     userEvent: "delete.row"
+  }
+}
+
+export const mergeCells: Command.Pure = ({state}) => {
+  if (!(state.selection instanceof CellSelection) || state.selection.ranges.length == 1) return false
+  let cx = tableContext(state)!
+  let {map} = cx, rect = selectedRect(state, cx)
+  if (map.cellsOverlapRectangle(rect)) return false
+
+  let movedContent: Node[] = [], changes: ChangeSet.Spec[] = []
+  for (let i = 1; i < cx.cells.length; i++) {
+    let pos = cx.cells[i], node = map.getCell(pos)
+    if (node.content.length && !(node.content[0].isPlot && !node.content[0].content.length))
+      movedContent = movedContent.concat(node.content)
+    changes.push({from: pos, to: pos + node.length})
+  }
+  let pos = cx.cells[0]
+  let width = rect.endCol - rect.startCol, height = rect.endRow - rect.startRow
+  if (width > 1) changes.push({from: pos, add: ColSpan.of(width)})
+  if (height > 1) changes.push({from: pos, add: RowSpan.of(height)})
+  if (movedContent.length) changes.push({from: map.cellEnd(pos) - 1, insert: movedContent})
+  return {
+    changes,
+    selection: doc => CellSelection.between(doc, pos, pos + doc.nodeAt(pos)!.length)!,
+    userEvent: "join.cell"
+  }
+}
+
+export const splitCell: Command.Pure = ({state}) => {
+  let cx = tableContext(state)
+  if (!cx || cx.cells.length > 1) return false
+  let {map} = cx, pos = cx.cells[0], node = map.getCell(pos)
+  let colSpan = ColSpan.isInSet(node.marks), rowSpan = RowSpan.isInSet(node.marks)
+  if (!colSpan && !rowSpan) return false
+
+  let changes: ChangeSet.Spec[] = [], rect = map.cellRect(pos), lastInsert = -1
+  for (let row = rect.startRow, first = true; row < rect.endRow; row++) {
+    let insertPos = lastInsert = map.cellInsertionPos(rect.endCol, row)
+    let cell = state.doc.schema.createAndFill(Cell)
+    for (let col = rect.startCol; col < rect.endCol; col++) {
+      if (first) { first = false; continue }
+      changes.push({from: insertPos, insert: [cell]})
+    }
+  }
+  if (colSpan) changes.push({from: pos, remove: colSpan})
+  if (rowSpan) changes.push({from: pos, remove: rowSpan})
+  let changeSet = ChangeSet.create(state.doc, changes)
+  return {
+    changes: changeSet,
+    selection: doc => CellSelection.between(doc, pos, changeSet.mapPos(lastInsert, 1))!,
+    userEvent: "split.cell"
   }
 }

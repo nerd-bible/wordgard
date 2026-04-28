@@ -50,6 +50,8 @@ export class TableMap {
 
   get width() { return this.data.width }
   get height() { return this.data.height }
+  get table() { return this.data.table }
+  get tablePos() { return this.start - 1 }
 
   /// Find the dimensions of the cell at the given position.
   cellRect(pos: number) {
@@ -141,6 +143,23 @@ export class TableMap {
     let found = this.data.table.plotAt(pos - this.start)
     if (!found) throw new Error("Invalid cell position")
     return found
+  }
+
+  cellsOverlapRectangle(rect: Rect) {
+    let {width, height, map} = this.data
+    let indexTop = rect.startRow * width + rect.startCol, indexBefore = indexTop
+    let indexBottom = (rect.endRow - 1) * width + rect.endCol, indexAfter = indexTop + (rect.endCol - rect.startCol - 1)
+    for (let i = rect.startRow; i < rect.endRow; i++) {
+      if (rect.startCol > 0 && map[indexBefore] == map[indexBefore - 1] ||
+          rect.endCol < width && map[indexAfter] == map[indexAfter + 1]) return true
+      indexBefore += width; indexAfter += width
+    }
+    for (let i = rect.startCol; i < rect.endCol; i++) {
+      if (rect.startRow > 0 && map[indexTop] == map[indexTop - width] ||
+          rect.endRow < height && map[indexBottom] == map[indexBottom + width]) return true
+      indexTop++; indexBottom++
+    }
+    return false
   }
 
   /// Find the table map for the given table node.
