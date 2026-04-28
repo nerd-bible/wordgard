@@ -47,7 +47,7 @@ export const tableCorrection = Correction.onContent(Table, (pos, state) => {
       let cell = state.doc.schema.defaultContentPlot(row.tag.type)!
       let nodes = []
       for (let j = 0; j < add; j++)
-        nodes.push(cell.create(cell.isBlock ? [state.doc.schema.createDefault(cell.type)] : []))
+        nodes.push(state.doc.schema.createAndFill(cell))
       let side = (i == 0 || first == i - 1) && last == i ? curPos + 1 : end - 1
       changes.push({from: side, insert: nodes})
     }

@@ -9,6 +9,8 @@
 // compute the start position of the table and offset positions passed
 // to or gotten from this structure by that amount.
 
+// FIXME export or not?
+
 import {Plot} from "wordgard/doc"
 import {Table, ColSpan, RowSpan} from "wordgard/schema"
 
@@ -50,7 +52,7 @@ export class TableMap {
   get height() { return this.data.height }
 
   /// Find the dimensions of the cell at the given position.
-  findCell(pos: number) {
+  cellRect(pos: number) {
     let localPos = pos - this.start, {map, width, height} = this.data
     for (let i = 0; i < map.length; i++) if (map[i] == localPos) {
       let startCol = i % width, startRow = (i / width) | 0
@@ -86,8 +88,8 @@ export class TableMap {
 
   /// Get the rectangle spanning the two given cells.
   rectBetween(a: number, b: number) {
-    let {startCol: startColA, endCol: endColA, startRow: startRowA, endRow: endRowA} = this.findCell(a)
-    let {startCol: startColB, endCol: endColB, startRow: startRowB, endRow: endRowB} = this.findCell(b)
+    let {startCol: startColA, endCol: endColA, startRow: startRowA, endRow: endRowA} = this.cellRect(a)
+    let {startCol: startColB, endCol: endColB, startRow: startRowB, endRow: endRowB} = this.cellRect(b)
     return new Rect(Math.min(startColA, startColB), Math.min(startRowA, startRowB),
                     Math.max(endColA, endColB), Math.max(endRowA, endRowB))
   }
@@ -100,28 +102,45 @@ export class TableMap {
       for (let col = rect.startCol; col < rect.endCol; col++) {
         let index = row * width + col, pos = map[index]
         if (result.indexOf(pos + this.start) < 0 &&
-            (col != rect.startCol || !col || map[index - 1] != pos) &&
-            (row != rect.startRow || !row || map[index - width] != pos))
+          (col != rect.startCol || !col || map[index - 1] != pos) &&
+          (row != rect.startRow || !row || map[index - width] != pos))
           result.push(pos + this.start)
       }
     }
     return result
   }
 
-  /// Return the position at which the cell at the given row and column
-  /// starts, or would start, if a cell started there.
+  /// Return the position of the cell that occupies the position at the
+  /// given row and column (which must be in bounds for the table).
   cellAt(col: number, row: number) {
-    let {width, map, table} = this.data
-    for (let i = 0, rowStart = 0;; i++) {
-      let rowEnd = rowStart + table.content[i].length
-      if (i == row) {
-        let index = col + row * width, rowEndIndex = (row + 1) * width
-        // Skip past cells from previous rows (via rowspan)
-        while (index < rowEndIndex && map[index] < rowStart) index++
-        return (index == rowEndIndex ? rowEnd - 1 : map[index]) + this.start
-      }
-      rowStart = rowEnd
+    let {width, map} = this.data
+    return map[col + row * width] + this.start
+  }
+
+  /// Get the position at the start of the given row (which may be
+  /// `width` to query the position after the last row).
+  rowPos(row: number) {
+    let {start} = this, {table} = this.data
+    for (let r = 0; r < row; r++) start += table.content[r].length
+    return start
+  }
+
+  /// Get the position where a cell would have to be inserted to
+  /// appear at the given column and row.
+  cellInsertionPos(col: number, row: number) {
+    let {width, map} = this.data
+    for (let scan = col;; scan++) {
+      if (scan == width) return this.rowPos(row + 1) - 1
+      let index = scan + row * width, pos = map[index]
+      if (!row || pos != map[index - width]) return pos + this.start
     }
+  }
+
+  /// Get the node for the cell at the given position.
+  getCell(pos: number): Plot {
+    let found = this.data.table.plotAt(pos - this.start)
+    if (!found) throw new Error("Invalid cell position")
+    return found
   }
 
   /// Find the table map for the given table node.

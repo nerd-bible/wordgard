@@ -58,7 +58,7 @@ export function splitTextblock(state: GardState, splitListItem = true): Transact
       if (!nextTag || !schema.canContain(p.parent!.node.type, tag.type)) {
         if (!atEnd) return false
         let defaultType = schema.defaultContentPlot(p.parent!.node.type)
-        if (defaultType) tag = schema.addMarksFrom(tag, defaultType)
+        if (defaultType) tag = schema.withMarksFrom(tag, defaultType)
         else return false
       }
       tokens.splice(insert, 0, tag)
@@ -74,7 +74,7 @@ export function splitTextblock(state: GardState, splitListItem = true): Transact
     if (deflt && !deflt.eq(before.node.tag))
       changes.unshift({
         from: before.before, to: before.start,
-        insert: [schema.addMarksFrom(before.node.tag, deflt)]
+        insert: [schema.withMarksFrom(before.node.tag, deflt)]
       })
   }
   let changeSet = ChangeSet.create(state.doc, {correct: changes, local: true})
@@ -127,7 +127,7 @@ export function joinBackward(state: GardState): Transaction.Spec | false {
   if (!before.content.length && !before.tag.eq(target.tag) && schema.canContain(parent.type, target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
-      insert: [schema.addMarksFrom(before.tag, target.tag)]
+      insert: [schema.withMarksFrom(before.tag, target.tag)]
     })
   let changeSet = ChangeSet.create(state.doc, changes)
   return {
@@ -190,7 +190,7 @@ export function joinForward(state: GardState): Transaction.Spec | false {
   if (!target.content.length && !target.tag.eq(after.tag) && schema.canContain(parent.type, after.type))
     changes.push({
       from: block.before, to: block.start,
-      insert: [schema.addMarksFrom(target.tag, after.tag)]
+      insert: [schema.withMarksFrom(target.tag, after.tag)]
     })
   return {
     changes,

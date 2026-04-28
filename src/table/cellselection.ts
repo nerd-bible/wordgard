@@ -10,6 +10,8 @@ export class CellSelection extends GardSelection {
   constructor(
     anchor: number,
     head: number,
+    readonly anchorCell: number,
+    readonly headCell: number,
     readonly _ranges: readonly {from: number, to: number}[],
     readonly anchorRange: number
   ) {
@@ -31,9 +33,8 @@ export class CellSelection extends GardSelection {
 
   map(changes: ChangeSet, doc: Plot.Doc | (() => Plot.Doc), assoc: -1 | 1 = -1) {
     if (typeof doc == "function") doc = doc()
-    let fromPos = this.from, toPos = this.to
-    let from = doc.resolve(changes.mapPos(fromPos, this.headSide))
-    let to = doc.resolve(changes.mapPos(toPos, this.anchorSide))
+    let fromPos = changes.mapPos(this.from, 1), toPos = changes.mapPos(this.to, -1)
+    let from = doc.resolve(fromPos), to = doc.resolve(toPos)
     let after = from.nodeAfter, before = to.nodeBefore
     if (after && after.type == Table.type) fromPos += 2
     else if (after && after.type == TableRow.type) fromPos++
@@ -46,7 +47,7 @@ export class CellSelection extends GardSelection {
   moveHead(doc: Plot.Doc, dir: "up" | "down" | "forward" | "backward"): CellSelection | null {
     let head = doc.resolve(this.head), inv = this.head < this.anchor
     let headPos = this.head - (inv ? 0 : head.nodeBefore!.length)
-    let table = head.parent!.parent!, map = TableMap.get(table.node, table.start), rect = map.findCell(headPos)
+    let table = head.parent!.parent!, map = TableMap.get(table.node, table.start), rect = map.cellRect(headPos)
     let anchorPos = inv ? map.nearestCell(this.anchor, -1).from : this.anchor
     let col = dir == "backward" ? rect.startCol - 1 : dir == "forward" ? rect.endCol : rect.startCol
     let row = dir == "up" ? rect.startRow - 1 : dir == "down" ? rect.endRow : rect.startRow
@@ -67,10 +68,14 @@ export class CellSelection extends GardSelection {
     let toPos = to.pos - toCell.length
     let map = TableMap.get(table.node, table.start)
     let cells = map.cellsInRect(map.rectBetween(from.pos, toPos))
+    let anchorCell = anchor, headCell = head
+    if (anchor > head) anchorCell -= toCell.length
+    else headCell -= toCell.length
     return new CellSelection(
       anchor, head,
+      anchorCell, headCell,
       cells.map(pos => ({from: pos + 1, to: map.cellEnd(pos) - 1})),
-      cells.indexOf(anchor - (anchor < head ? 0 : toCell.length)))
+      cells.indexOf(head - (head < anchor ? 0 : toCell.length)))
   }
 
   static extension = GardSelection.define<CellSelection, {anchor: number, head: number}>(

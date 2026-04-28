@@ -96,7 +96,7 @@ export class Schema {
     return false
   }
 
-  addMarksFrom<T extends Node.Tag>(from: Node.Tag, to: T): T {
+  withMarksFrom<T extends Node.Tag>(from: Node.Tag, to: T): T {
     if (!from.marks.length) return to
     let marks = to.marks
     for (let mark of from.marks) if (this.markAllowed(mark.type, to.type) && (mark.type.set || !mark.isInSet(marks))) {
@@ -126,8 +126,12 @@ export class Schema {
   createDefault(parent: Plot.Type<any>): Node {
     let child = this.defaultContentTag(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
-    if (child.isLeaf) return child
-    return child.create(child.type.canBeEmpty ? [] : [this.createDefault(child.type)])
+    return this.createAndFill(child)
+  }
+
+  createAndFill(parent: Node.Tag): Node {
+    if (parent.isLeaf) return parent
+    return parent.create(parent.type.canBeEmpty ? [] : [this.createDefault(parent.type)])
   }
 
   findWrapping(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag.Any[] | null {
