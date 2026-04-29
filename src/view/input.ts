@@ -1,5 +1,5 @@
 import {GardSelection, GardState, Transaction, Facet} from "wordgard/state"
-import {ChangeSet, Mark} from "wordgard/doc"
+import {Plot, ChangeSet, Mark, Slice} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
         transposeChars, deleteSelection} from "wordgard/command"
@@ -517,10 +517,20 @@ handlers.drop = (view, event: DragEvent) => {
   return false
 }
 
+export const pasteHandler = Facet.define<(
+  view: Wordgard,
+  event: ClipboardEvent,
+  slice: Slice,
+  context: readonly Plot.Tag.Any[]
+) => boolean>()
+
 handlers.paste = (view: Wordgard, event: ClipboardEvent) => {
   if (view.state.readOnly || !event.clipboardData) return true
   let {state} = view
   let content = readClipboard(state, event.clipboardData, state.sel.head, view.inputState.shiftKey)
+  if (view.state.facet(pasteHandler).some(h => h(view, event, content ? content.slice : Slice.empty,
+                                                 content ? content.context : [])))
+    return true
   if (content) { // FIXME proper multi-selection pasting
     let changes = ChangeSet.create(view.state.doc, {
       from: state.selection.from,

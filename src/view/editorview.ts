@@ -10,7 +10,7 @@ import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFil
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
-import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle, dragBehavior} from "./input"
+import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle, dragBehavior, pasteHandler} from "./input"
 import {ViewState, Direction, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
 import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
@@ -563,6 +563,10 @@ export class Wordgard {
 
   /// Filter to run on plain text read from the clipboard.
   static clipboardInputTextFilter = clipboardInputTextFilter
+
+  /// Facet that allows you to register handlers to override paste
+  /// behavior.
+  static pasteHandler = pasteHandler
 
   /// This annotation is added to transactions created because the
   /// editor's focused status changed. It holds `true` when the editor

@@ -4,7 +4,8 @@ import {image, figure, imageResizing} from "wordgard/image"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 import {Table, TableRow, Cell, HeaderCell} from "wordgard/schema"
-import {CellSelection, tableSelectionFilter, drawCellSelection, tableTheme, cellSelectionCommands} from "wordgard/table"
+import {CellSelection, tableSelectionFilter, drawCellSelection, tableTheme,
+        cellSelectionCommands, tablePasteHandler} from "wordgard/table"
 
 ;(window as any).view = new Wordgard({
   parent: document.body,
@@ -26,6 +27,7 @@ import {CellSelection, tableSelectionFilter, drawCellSelection, tableTheme, cell
     staticMenu,
     menuBar(),
     Table, TableRow, Cell, HeaderCell,
-    CellSelection, tableSelectionFilter, drawCellSelection, tableTheme, cellSelectionCommands
+    CellSelection, tableSelectionFilter, drawCellSelection, tableTheme,
+    cellSelectionCommands, tablePasteHandler
   ]
 })

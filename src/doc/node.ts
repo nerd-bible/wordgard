@@ -19,6 +19,8 @@ const enum NodeFlag {
   CanBeEmpty = 64,
 }
 
+// FIXME make these types easier to import (and ideally to understand)
+
 export type Node = Plot | Leaf.Any
 
 export namespace Node {

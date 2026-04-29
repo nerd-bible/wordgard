@@ -4,3 +4,4 @@ export {CellSelection, normalizeTableSelection, tableSelectionFilter, drawCellSe
         cellSelectionCommands} from "./cellselection"
 export {tableTheme} from "./table"
 export * from "./tablecommands"
+export {tablePasteHandler, handleTablePaste} from "./tablepaste"

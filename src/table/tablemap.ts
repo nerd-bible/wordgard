@@ -134,7 +134,7 @@ export class TableMap {
     for (let scan = col;; scan++) {
       if (scan == width) return this.rowPos(row + 1) - 1
       let index = scan + row * width, pos = map[index]
-      if (!row || pos != map[index - width]) return pos + this.start
+      if (!row || pos != map[index - width] && (!col || pos != map[index - 1])) return pos + this.start
     }
   }
 

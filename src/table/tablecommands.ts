@@ -8,7 +8,7 @@ import {CellSelection} from "./cellselection"
 
 // FIXME support block-child cells
 
-function tableContext(state: GardState) {
+export function tableContext(state: GardState) {
   let table: Pos.Plot | undefined, cells: number[] | undefined
   if (state.selection instanceof CellSelection) {
     table = state.sel.anchor.parent!.parent!
@@ -248,7 +248,7 @@ export const splitCell: Command.Pure = ({state}) => {
   let changes: ChangeSet.Spec[] = [], rect = map.cellRect(pos), lastInsert = -1
   for (let row = rect.startRow, first = true; row < rect.endRow; row++) {
     let insertPos = lastInsert = map.cellInsertionPos(rect.endCol, row)
-    let cell = state.doc.schema.createAndFill(Cell)
+    let cell = state.doc.schema.createAndFill(node.type.default!)
     for (let col = rect.startCol; col < rect.endCol; col++) {
       if (first) { first = false; continue }
       changes.push({from: insertPos, insert: [cell]})
