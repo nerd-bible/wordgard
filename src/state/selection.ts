@@ -548,8 +548,8 @@ export function wordAt(state: GardState, pos: number, bias: -1 | 1) {
       start -= (j - next)
       j = next
     }
-    if (!i) break
-    cur = res.parent.node.content[--i]
+    if (--i == 0) break
+    cur = res.parent.node.content[i - 1]
   }
   scanForward: for (let i = res.index + 1, cur = res.nodeAfter; cur;) {
     if (!cur.is(Leaf.Text)) break

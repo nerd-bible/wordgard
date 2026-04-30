@@ -416,6 +416,7 @@ handlers.mousedown = (view, event: MouseEvent) => {
     let mustFocus = !view.hasFocus
     view.inputState.startMouseSelection(new MouseSelection(view, event, style, mustFocus))
     if (mustFocus) view.observer.ignore(() => {
+      // FIXME on Firefox this somehow focuses the cell selection
       view.contentDOM.focus({preventScroll: true})
       let active = view.root.activeElement
       if (active && !active.contains(view.contentDOM)) (active as HTMLElement).blur()
