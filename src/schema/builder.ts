@@ -4,7 +4,7 @@ import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Image, ImageAlt, Figure, CaptionedFigure,
         Emphasis, Strong, Code, Link,
-        Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan} from "./schema"
+        Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "./schema"
 
 export type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
@@ -120,6 +120,8 @@ export const basicBuilders = {
   tr: builder(TableRow),
   td: builder(Cell),
   th: builder(HeaderCell),
+  tdB: builder(BlockCell),
+  thB: builder(BlockHeaderCell),
   rowspan: builder(RowSpan),
   colspan: builder(ColSpan),
   br: builder(LineBreak),

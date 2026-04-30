@@ -109,6 +109,24 @@ export const HeaderCell = Plot.defineBlock("HeaderCell", {
   shape: {element: "th"}
 })
 
+// FIXME better name
+
+export const BlockCell = Plot.defineBlock("Cell", {
+  blockContent: G.Content,
+  group: G.TableCell,
+  isolating: true,
+  cursorBarrier: false,
+  shape: {element: "td"}
+})
+
+export const BlockHeaderCell = Plot.defineBlock("HeaderCell", {
+  blockContent: G.Content,
+  group: G.TableCell,
+  isolating: true,
+  cursorBarrier: false,
+  shape: {element: "th"}
+})
+
 export const TableRow = Plot.defineBlock("TableRow", {
   blockContent: G.TableCell,
   canBeEmpty: true,

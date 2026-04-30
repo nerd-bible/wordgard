@@ -1,6 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
-import {Pos, Node, ChangeSet} from "wordgard/doc"
-import {TableRow, HeaderCell, Cell, ColSpan, RowSpan} from "wordgard/schema"
+import {Pos, Node, ChangeSet, Schema} from "wordgard/doc"
+import {TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema"
 import {Command} from "wordgard/command"
 
 import {TableMap} from "./tablemap"
@@ -25,22 +25,35 @@ export function tableContext(state: GardState) {
   return cells ? {cells, map: TableMap.get(table!.node, table!.start)} : null
 }
 
+export function cellTag(schema: Schema) {
+  if (schema.has(Cell)) return Cell
+  if (schema.has(BlockCell)) return BlockCell
+  throw new Error(`No cell type in schema`)
+}
+
+export function headerCellTag(schema: Schema) {
+  if (schema.has(HeaderCell)) return HeaderCell
+  if (schema.has(BlockHeaderCell)) return BlockHeaderCell
+  return null
+}
+
 export const toggleHeaderCell: Command.Pure = ({state}) => {
-  let cx = tableContext(state)
-  if (!cx) return false
+  let cx = tableContext(state), header = headerCellTag(state.doc.schema)
+  if (!cx || !header) return false
   let cells = cx.cells.map(c => cx.map.getCell(c))
   let changes: ChangeSet.Spec[] = []
-  if (cells.some(x => x.type != HeaderCell.type)) {
+  if (cells.some(x => x.type != header.type)) {
     for (let i = 0; i < cells.length; i++) {
       let cell = cells[i], pos = cx.cells[i]
-      if (cell.type != HeaderCell.type)
-        changes.push({from: pos, to: pos + 1, insert: [state.doc.schema.withMarksFrom(cell.tag, HeaderCell)]})
+      if (cell.type != header.type)
+        changes.push({from: pos, to: pos + 1, insert: [state.doc.schema.withMarksFrom(cell.tag, header)]})
     }
   } else {
+    let tag = cellTag(state.doc.schema)
     for (let i = 0; i < cells.length; i++) {
       let cell = cells[i], pos = cx.cells[i]
-      if (cell.type == HeaderCell.type)
-        changes.push({from: pos, to: pos + 1, insert: [state.doc.schema.withMarksFrom(cell.tag, Cell)]})
+      if (cell.type == header.type)
+        changes.push({from: pos, to: pos + 1, insert: [state.doc.schema.withMarksFrom(cell.tag, tag)]})
     }
   }
   return {changes}
@@ -68,7 +81,7 @@ export const addColumn: Command.Pure<"before" | "after"> = ({state}, side) => {
         adjusted.add(pos)
       }
     } else {
-      changes.push({from: map.cellInsertionPos(col, row), insert: [state.doc.schema.createAndFill(Cell)]})
+      changes.push({from: map.cellInsertionPos(col, row), insert: [state.doc.schema.createAndFill(cellTag(state.doc.schema))]})
     }
   }
   return {
@@ -153,7 +166,7 @@ export const addRow: Command.Pure<"before" | "after"> = ({state}, side) => {
       }
     }
   }
-  let cell = state.doc.schema.createAndFill(Cell), content: Node[] = []
+  let cell = state.doc.schema.createAndFill(cellTag(state.doc.schema)), content: Node[] = []
   for (let i = 0; i < cellCount; i++) content.push(cell)
   changes.push({from: map.rowPos(row), insert: [TableRow.create(content)]})
 

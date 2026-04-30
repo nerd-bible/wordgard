@@ -1,11 +1,11 @@
 import {Plot, Node, Slice, Token, Schema, ChangeSet} from "wordgard/doc"
-import {Table, Cell, TableRow, RowSpan, ColSpan} from "wordgard/schema"
+import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {GardState, Transaction} from "wordgard/state"
 import {Wordgard} from "wordgard/view"
 
 import {TableMap} from "./tablemap"
 import {CellSelection} from "./cellselection"
-import {tableContext} from "./tablecommands"
+import {tableContext, cellTag} from "./tablecommands"
 
 function fitSlice(schema: Schema, parent: Plot.Tag.Any, slice: Slice, context: readonly Plot.Tag.Any[]) {
   let wrap = schema.findWrapping(schema.docTag.type, parent.type)
@@ -50,7 +50,7 @@ function ensureRectangular(schema: Schema, rows: (readonly Node[])[]) {
   let width = widths.reduce((a, b) => Math.max(a, b))
   for (let r = 0; r < widths.length; r++) {
     if (r >= rows.length) rows[r] = []
-    for (let i = widths[r]; i < width; i++) rows[r] = rows[r].concat(schema.createAndFill(Cell))
+    for (let i = widths[r]; i < width; i++) rows[r] = rows[r].concat(schema.createAndFill(cellTag(schema)))
   }
   return {height: rows.length, width, rows}
 }
@@ -102,7 +102,7 @@ function growTableHorizontally(schema: Schema, map: TableMap, width: number) {
   if (width > map.width) {
     for (let row = 0; row < map.height; row++) {
       let lastCell = (map.table.content[row] as Plot).lastChild
-      let fillCell = schema.createAndFill((lastCell || Cell).type.default!), cells = []
+      let fillCell = schema.createAndFill((lastCell || cellTag(schema)).type.default!), cells = []
       for (let i = map.width; i < width; i++) cells.push(fillCell)
       changes.push({from: map.cellInsertionPos(map.width, row), insert: cells})
     }
@@ -114,7 +114,7 @@ function growTableVertically(schema: Schema, map: TableMap, height: number) {
   let changes: ChangeSet.Spec[] = []
   if (height > map.height) {
     let cells: Node[] = []
-    for (let i = 0; i < map.width; i++) cells.push(schema.createAndFill(Cell))
+    for (let i = 0; i < map.width; i++) cells.push(schema.createAndFill(cellTag(schema)))
     let row = TableRow.create(cells), rows = []
     for (let i = map.height; i < height; i++) rows.push(row)
     changes.push({from: map.rowPos(map.height), insert: rows})
@@ -218,7 +218,7 @@ export function handleTablePaste(state: GardState, slice: Slice, context: readon
   if (state.selection instanceof CellSelection) {
     let cells = pastedCells(schema, slice, context)
     if (!cells) {
-      let single = fitSlice(schema, Cell, slice, context)
+      let single = fitSlice(schema, cellTag(schema), slice, context)
       if (!single) return false
       cells = {width: 1, height: 1, rows: [[single]]}
     }
