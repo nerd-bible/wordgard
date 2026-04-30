@@ -89,12 +89,15 @@ export function splitTextblock(state: GardState, splitListItem = true): Transact
 /// Returns a transaction that deletes the selection, or false if the
 /// selection is empty.
 export function deleteSelection(state: GardState): Transaction.Spec | false {
-  let {from, to} = state.selection.replacemenRange
-  if (from == to) return false
-  let changes = ChangeSet.create(state.doc, {correct: {from, to, fit: true}, local: true})
+  let {ranges} = state.selection
+  if (ranges.every(r => r.from == r.to)) return false
+  let changes = ChangeSet.create(state.doc, {
+    correct: ranges.filter(r => r.from < r.to).map(r => ({from: r.from, to: r.to, fit: true})),
+    local: true
+  })
   return autoJoinBlocks(state, {
     changes,
-    selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(from, -1), 1),
+    selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.head, -1), 1),
     scrollIntoView: true,
     userEvent: "delete.selection"
   })
