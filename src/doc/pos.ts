@@ -10,6 +10,14 @@ export class Pos {
     readonly inText: number
   ) {}
 
+  matchingParent(pred: (plot: _Plot) => boolean) {
+    for (let {parent} = this;;) {
+      if (pred(parent.node)) return parent
+      if (!parent.parent) return null
+      ;({parent} = parent)
+    }
+  }
+
   advance(distance: number, walk?: Pos.Walker) {
     return distance ? advancePos(distance, this.parent, this.pos, this.index, this.inText, walk) : this
   }

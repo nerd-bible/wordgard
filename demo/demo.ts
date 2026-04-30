@@ -5,7 +5,7 @@ import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 import {Table, TableRow, Cell, HeaderCell} from "wordgard/schema"
 import {CellSelection, tableSelectionFilter, drawCellSelection, tableTheme,
-        cellSelectionCommands, tablePasteHandler} from "wordgard/table"
+        cellSelectionCommands, tablePasteHandler, tableCorrection, cellSelectionTripleClick} from "wordgard/table"
 
 ;(window as any).view = new Wordgard({
   parent: document.body,
@@ -28,6 +28,6 @@ import {CellSelection, tableSelectionFilter, drawCellSelection, tableTheme,
     menuBar(),
     Table, TableRow, Cell, HeaderCell,
     CellSelection, tableSelectionFilter, drawCellSelection, tableTheme,
-    cellSelectionCommands, tablePasteHandler
+    cellSelectionCommands, tablePasteHandler, tableCorrection, cellSelectionTripleClick
   ]
 })

@@ -213,3 +213,18 @@ export const cellSelectionCommands = [
   Command.handler(moveByLine, cursorCommand),
   Command.handler(moveToLineSide, moveToRowSide)
 ]
+
+export const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((view, event) => {
+  if (event.detail == 3) {
+    let pos = view.state.doc.resolve(view.posAtCoords({x: event.clientX, y: event.clientY}).pos)
+    let cell = pos.matchingParent(n => view.state.doc.schema.matchNode(n.type, Node.Group.TableCell))
+    if (cell) {
+      let from = cell.before, to = cell.after
+      return {
+        get(event) { return CellSelection.between(view.state.doc, from, to) || GardSelection.near(view.state, from, 1) },
+        update(update) { from = update.changes.mapPos(from, 1); to = Math.max(from, update.changes.mapPos(to, -1)) }
+      }
+    }
+  }
+  return null
+})
