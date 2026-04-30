@@ -60,7 +60,7 @@ export const addColumn: Command.Pure<"before" | "after"> = ({state}, side) => {
 
   let changes: ChangeSet.Spec[] = [], adjusted = new Set<number>()
   for (let row = 0, pos; row < map.height; row++) {
-    if (col > 0 && col < map.width && map.cellAt(col - 1, row) == (pos = map.cellAt(col, row))) {
+    if (col > 0 && col < map.width && map.cellAt(col - 1, row) == (pos = map.cellAt(col, row)) && pos != null) {
       // Inside a col-spanning cell
       if (!adjusted.has(pos)) {
         let value = map.getCell(pos).mark(ColSpan) ?? 1
@@ -92,7 +92,9 @@ export const deleteColumn: Command.Pure = ({state}) => {
   let changes: ChangeSet.Spec[] = [], handled = new Set<number>(), delPos = state.selection.from
   for (let row = 0; row < map.height; row++) {
     for (let col = rect.startCol; col < rect.endCol;) {
-      let cell = map.cellAt(col, row), node = map.getCell(cell), span = node.mark(ColSpan) ?? 1
+      let cell = map.cellAt(col, row)
+      if (cell == null) continue
+      let node = map.getCell(cell), span = node.mark(ColSpan) ?? 1
       if (col == rect.startCol && col > 0 && map.cellAt(col - 1, row) == cell) {
         // Part of a col-spanning cell starting before this col
         let cellRect = map.cellRect(cell)
@@ -141,7 +143,7 @@ export const addRow: Command.Pure<"before" | "after"> = ({state}, side) => {
     // Look for row-spanning cells overlapping the new row
     for (let col = 0; col < map.width; col++) {
       let above = map.cellAt(col, row - 1), below = map.cellAt(col, row)
-      if (above == below) {
+      if (above != null && above == below) {
         cellCount--
         if (!adjusted.has(above)) {
           let value = map.getCell(above).mark(RowSpan)!
@@ -178,7 +180,7 @@ export const deleteRow: Command.Pure = ({state}) => {
   for (let col = 0; col < map.width; col++) {
     if (rect.startRow > 0) {
       let above = map.cellAt(col, rect.startRow - 1)
-      if (!handled.has(above) && map.cellAt(col, rect.startRow) == above) {
+      if (above != null && !handled.has(above) && map.cellAt(col, rect.startRow) == above) {
         let cellRect = map.cellRect(above)
         let rowsAbove = rect.startRow - cellRect.startRow, rowsBelow = Math.max(0, cellRect.endRow - rect.endRow)
         let rows = rowsAbove + rowsBelow
@@ -189,7 +191,7 @@ export const deleteRow: Command.Pure = ({state}) => {
     }
     if (rect.endRow < map.height) {
       let below = map.cellAt(col, rect.endRow)
-      if (!handled.has(below) && map.cellAt(col, rect.endRow - 1) == below) {
+      if (below != null && !handled.has(below) && map.cellAt(col, rect.endRow - 1) == below) {
         let cell = map.getCell(below), cellRect = map.cellRect(below)
         let rowSpan = cellRect.endRow - rect.endRow
         changes.push({from: below, to: below + cell.length})

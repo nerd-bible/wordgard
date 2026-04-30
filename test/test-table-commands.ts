@@ -102,10 +102,10 @@ describe("deleteRow", () => {
          doc(table(tr(td("a"), td("b", 0))))))
 
   it("adjusts rowspans for cells extending into the rows", () =>
-    test(doc(table(tr(td("a"), rowspan(2, td("b")), rowspan(3, colspan(2, td("c")), td("d"))),
+    test(doc(table(tr(td("a"), rowspan(2, td("b")), rowspan(3, colspan(2, td("c"))), td("d")),
                    tr(td("e", 0), rowspan(2, td("f"))),
                    tr(td("g"), td("h")))), del,
-         doc(table(tr(td("a"), td("b"), rowspan(2, colspan(2, td("c")), td("d"))),
+         doc(table(tr(td("a"), td("b"), rowspan(2, colspan(2, td("c"))), td("d")),
                    tr(td("g"), td("h"), td("f"))))))
 
   it("can delete an entire table", () =>

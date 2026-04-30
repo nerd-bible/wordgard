@@ -101,8 +101,8 @@ function growTableHorizontally(schema: Schema, map: TableMap, width: number) {
   let changes: ChangeSet.Spec[] = []
   if (width > map.width) {
     for (let row = 0; row < map.height; row++) {
-      let lastCell = map.getCell(map.cellAt(map.width - 1, row))
-      let fillCell = schema.createAndFill(lastCell.type.default!), cells = []
+      let lastCell = (map.table.content[row] as Plot).lastChild
+      let fillCell = schema.createAndFill((lastCell || Cell).type.default!), cells = []
       for (let i = map.width; i < width; i++) cells.push(fillCell)
       changes.push({from: map.cellInsertionPos(map.width, row), insert: cells})
     }
@@ -110,11 +110,11 @@ function growTableHorizontally(schema: Schema, map: TableMap, width: number) {
   return changes
 }
 
-function growTableVertically(schema: Schema, map: TableMap, width: number, height: number) {
+function growTableVertically(schema: Schema, map: TableMap, height: number) {
   let changes: ChangeSet.Spec[] = []
   if (height > map.height) {
     let cells: Node[] = []
-    for (let i = 0; i < width; i++) cells.push(schema.createAndFill(Cell))
+    for (let i = 0; i < map.width; i++) cells.push(schema.createAndFill(Cell))
     let row = TableRow.create(cells), rows = []
     for (let i = map.height; i < height; i++) rows.push(row)
     changes.push({from: map.rowPos(map.height), insert: rows})
@@ -129,7 +129,7 @@ function isolateVertically(schema: Schema, map: TableMap, startCol: number, endC
   if (row == 0 || row == map.height) return changes
   for (let col = startCol; col < endCol;) {
     let pos = map.cellAt(col, row)
-    if (map.cellAt(col, row - 1) == pos) {
+    if (pos != null && map.cellAt(col, row - 1) == pos) {
       let node = map.getCell(pos), rect = map.cellRect(pos)
       let topRows = row - rect.startRow, botRows = rect.endRow - row
       changes.push(topRows == 1 ? {from: pos, remove: RowSpan.isInSet(node.marks)!} : {from: pos, add: RowSpan.of(topRows)})
@@ -150,7 +150,7 @@ function isolateHorizontally(schema: Schema, map: TableMap, startRow: number, en
   if (col == 0 || col == map.width) return changes
   for (let row = startRow; row < endRow;) {
     let pos = map.cellAt(col, row)
-    if (map.cellAt(col - 1, row) == pos) {
+    if (pos != null && map.cellAt(col - 1, row) == pos) {
       let node = map.getCell(pos), rect = map.cellRect(pos)
       let topCols = col - rect.startCol, botCols = rect.endCol - col
       changes.push(topCols == 1 ? {from: pos, remove: ColSpan.isInSet(node.marks)!} : {from: pos, add: ColSpan.of(topCols)})
@@ -190,7 +190,7 @@ export function insertCells(state: GardState, map: TableMap, startCol: number, s
   flush()
   if (startCol) changes = isolateHorizontally(schema, map, startRow, endRow, startCol)
   flush()
-  if (map.height < endRow) changes = growTableVertically(schema, map, endCol, endRow)
+  if (map.height < endRow) changes = growTableVertically(schema, map, endRow)
   else if (endRow < map.height) changes = isolateVertically(schema, map, startCol, endCol, endRow)
   flush()
   if (startRow) changes = isolateVertically(schema, map, startCol, endCol, startRow)
@@ -201,8 +201,10 @@ export function insertCells(state: GardState, map: TableMap, startCol: number, s
     changes.push({from: map.cellInsertionPos(startCol, row), to: map.cellInsertionPos(endCol, row), insert: content})
   }
   flush()
+  let startCell = map.cellAt(startCol, startRow)
   let endCell = map.cellAt(endCol - 1, endRow - 1)
-  let selection = CellSelection.between(doc, map.cellAt(startCol, startRow), endCell + map.getCell(endCell).length)!
+  let selection = startCell == null || endCell == null ? undefined
+    : CellSelection.between(doc, startCell, endCell + map.getCell(endCell).length)!
   return {
     changes: changeSet!,
     selection,

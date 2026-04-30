@@ -1,0 +1,42 @@
+import {Plot, Schema} from "wordgard/doc"
+import {basicSchema, basicBuilders, builder, Table, TableRow,
+        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema"
+import {tableCorrection} from "wordgard/table"
+import {GardState} from "wordgard/state"
+import ist from "ist"
+
+const {table, tr, td, rowspan, colspan} = basicBuilders
+
+const schema = Schema.define(basicSchema.elements.concat([Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan]))
+const doc = builder(schema)
+
+function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
+
+function test(doc: Plot.Doc, expect: Plot.Doc | null) {
+  let state = GardState.create({doc})
+  let tr = tableCorrection.scan(state)
+  if (expect) {
+    ist(tr)
+    ist(state.update(tr!).newDoc, expect, eq)
+  } else {
+    ist(!tr)
+  }
+}
+
+describe("tableCorrection", () => {
+  it("adds cells to rows that are too short", () =>
+    test(doc(table(tr(td("a"), td("b")), tr(td("c")))),
+         doc(table(tr(td("a"), td("b")), tr(td("c"), td())))))
+
+  it("prefers to add cells to the start of the first row", () =>
+    test(doc(table(tr(td("a")), tr(td("b"), td("c")))),
+         doc(table(tr(td(), td("a")), tr(td("b"), td("c"))))))
+
+  it("notices rowspans sticking out", () =>
+    test(doc(table(tr(td("a"), rowspan(2, td("b")), td("c")))),
+         doc(table(tr(td("a"), td("b"), td("c"))))))
+
+  it("fixes span collisions", () =>
+    test(doc(table(tr(td("a"), rowspan(3, td("b")), td("c")), tr(colspan(3, td("d"))), tr(td("e"), td("f")))),
+         doc(table(tr(td("a"), rowspan(3, td("b")), td("c")), tr(td("d"), td()), tr(td("e"), td("f"))))))
+})

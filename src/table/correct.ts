@@ -19,14 +19,25 @@ export const tableCorrection = Correction.onContent(Table, (pos, state) => {
   for (let i = 0; i < map.data.problems.length; i++) {
     let prob = map.data.problems[i]
     if (prob.type == "collision") {
-      let cell = pos.node.nodeAt(prob.pos)!, cur = ColSpan.isInSet(cell.marks)!, newVal = cur.value - prob.n
-      let from = pos.start + prob.pos, rowSpan = cell.mark(RowSpan) ?? 1
-      for (let j = 0; j < rowSpan; j++) mustAdd[prob.row + j] += prob.n
-      changes.push(newVal == 1 ? {from, remove: cur} : {from, add: ColSpan.of(newVal)})
+      let pos = prob.pos + map.start, rect = map.cellRect(pos), cell = map.getCell(pos)
+      let colSpan = ColSpan.isInSet(cell.marks), rowSpan = RowSpan.isInSet(cell.marks)
+      if (colSpan) changes.push({from: pos, remove: colSpan})
+      if (rowSpan) changes.push({from: pos, remove: rowSpan})
+      for (let row = rect.startRow, endRow = row + (rowSpan ? rowSpan.value : 1), first = true; row < endRow; row++) {
+        for (let col = rect.startCol, endCol = col + (colSpan ? colSpan.value : 1); col < endCol; col++) {
+          if (first) {
+            first = false
+          } else if (map.cellAt(col, row) == pos) {
+            let from = pos
+            for (let scan = 0; from == pos; scan++) from = map.cellInsertionPos(col + scan, row)
+            changes.push({from, insert: [state.doc.schema.createAndFill(cell.type.default!)]})
+          }
+        }
+      }
     } else if (prob.type == "missing") {
       mustAdd[prob.row] += prob.n
     } else if (prob.type == "overlong_rowspan") {
-      let cell = pos.node.nodeAt(prob.pos)!, cur = RowSpan.isInSet(cell.marks)!, newVal = cur.value - prob.n
+      let cell = map.getCell(prob.pos + map.start), cur = RowSpan.isInSet(cell.marks)!, newVal = cur.value - prob.n
       let from = pos.start + prob.pos
       changes.push(newVal == 1 ? {from, remove: cur} : {from, add: RowSpan.of(newVal)})
     }

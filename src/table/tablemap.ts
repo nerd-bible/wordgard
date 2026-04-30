@@ -22,7 +22,7 @@ export class Rect {
 }
 
 type Problem =
-  | {type: "collision", pos: number, row: number, n: number}
+  | {type: "collision", pos: number}
   | {type: "missing", row: number, n: number}
   | {type: "overlong_rowspan", pos: number, n: number}
 
@@ -71,8 +71,10 @@ export class TableMap {
     let {map, cellEnds} = this.data
     for (let i = 0; i < map.length; i++) {
       let cellPos = map[i]
-      if (cellPos >= localPos && (after < 0 || after > cellPos)) after = cellPos
-      if (cellPos < localPos && before < cellPos) before = cellPos
+      if (cellPos > 0) {
+        if (cellPos >= localPos && (after < 0 || after > cellPos)) after = cellPos
+        if (cellPos < localPos && before < cellPos) before = cellPos
+      }
     }
     if (before > -1) {
       let beforeEnd = cellEnds.get(before)!
@@ -103,9 +105,9 @@ export class TableMap {
     for (let row = rect.startRow; row < rect.endRow; row++) {
       for (let col = rect.startCol; col < rect.endCol; col++) {
         let index = row * width + col, pos = map[index]
-        if (result.indexOf(pos + this.start) < 0 &&
-          (col != rect.startCol || !col || map[index - 1] != pos) &&
-          (row != rect.startRow || !row || map[index - width] != pos))
+        if (pos > 0 && result.indexOf(pos + this.start) < 0 &&
+            (col != rect.startCol || !col || map[index - 1] != pos) &&
+            (row != rect.startRow || !row || map[index - width] != pos))
           result.push(pos + this.start)
       }
     }
@@ -116,7 +118,7 @@ export class TableMap {
   /// given row and column (which must be in bounds for the table).
   cellAt(col: number, row: number) {
     let {width, map} = this.data
-    return map[col + row * width] + this.start
+    return map[col + row * width] + this.start || null
   }
 
   /// Get the position at the start of the given row (which may be
@@ -134,7 +136,7 @@ export class TableMap {
     for (let scan = col;; scan++) {
       if (scan == width) return this.rowPos(row + 1) - 1
       let index = scan + row * width, pos = map[index]
-      if (!row || pos != map[index - width] && (!col || pos != map[index - 1])) return pos + this.start
+      if (pos && (!row || pos != map[index - width] && (!col || pos != map[index - 1]))) return pos + this.start
     }
   }
 
@@ -150,13 +152,13 @@ export class TableMap {
     let indexTop = rect.startRow * width + rect.startCol, indexBefore = indexTop
     let indexBottom = (rect.endRow - 1) * width + rect.endCol, indexAfter = indexTop + (rect.endCol - rect.startCol - 1)
     for (let i = rect.startRow; i < rect.endRow; i++) {
-      if (rect.startCol > 0 && map[indexBefore] == map[indexBefore - 1] ||
-          rect.endCol < width && map[indexAfter] == map[indexAfter + 1]) return true
+      if (rect.startCol > 0 && sameCell(map[indexBefore], map[indexBefore - 1]) ||
+          rect.endCol < width && sameCell(map[indexAfter], map[indexAfter + 1])) return true
       indexBefore += width; indexAfter += width
     }
     for (let i = rect.startCol; i < rect.endCol; i++) {
-      if (rect.startRow > 0 && map[indexTop] == map[indexTop - width] ||
-          rect.endRow < height && map[indexBottom] == map[indexBottom + width]) return true
+      if (rect.startRow > 0 && sameCell(map[indexTop], map[indexTop - width]) ||
+          rect.endRow < height && sameCell(map[indexBottom], map[indexBottom + width])) return true
       indexTop++; indexBottom++
     }
     return false
@@ -170,66 +172,66 @@ export class TableMap {
   }
 }
 
+function sameCell(a: number, b: number) {
+  return a != 0 && a == b
+}
+
 // Compute a table map.
 function computeMap(table: Plot) {
   if (table.tag != Table) throw new RangeError(`Not a table node: ${table.type.name}`)
-  let width = findWidth(table), height = table.content.length
-  let map = [], mapPos = 0, problems: Problem[] | null = null
+  let width = (table.content[0] as Plot).content.reduce((w, c) => w + (c.mark(ColSpan) ?? 1), 0)
+  let height = table.content.length
+  let map: number[] = [], mapPos = 0, problems: Problem[] | null = null
   for (let i = 0, e = width * height; i < e; i++) map[i] = 0
   let cellEnd = new Map<number, number>()
 
   for (let row = 0, pos = 0; row < height; row++) {
     let rowNode = table.content[row] as Plot
     pos++
-    for (let i = 0;; i++) {
+    for (let i = 0, col = 0;; i++) {
       while (mapPos < map.length && map[mapPos] != 0) mapPos++
       if (i == rowNode.content.length) break
       let cellNode = rowNode.content[i]
       cellEnd.set(pos, pos + cellNode.length)
-      let colspan = cellNode.mark(ColSpan) ?? 1, rowspan = cellNode.mark(RowSpan) ?? 1
-      for (let h = 0; h < rowspan; h++) {
+      let colSpan = cellNode.mark(ColSpan) ?? 1, rowSpan = cellNode.mark(RowSpan) ?? 1
+      let exceed = col + colSpan - width
+      if (exceed > 0) {
+        map = growMap(map, width, height, exceed)
+        width += exceed
+        mapPos += row * exceed
+      }
+      for (let h = 0; h < rowSpan; h++) {
         if (h + row >= height) {
-          (problems || (problems = [])).push({type: "overlong_rowspan", pos, n: rowspan - h})
+          (problems || (problems = [])).push({type: "overlong_rowspan", pos, n: rowSpan - h})
           break
         }
-        let start = mapPos + (h * width)
-        for (let w = 0; w < colspan; w++) {
-          if (map[start + w] == 0)
-            map[start + w] = pos
-          else
-            (problems || (problems = [])).push({type: "collision", row, pos, n: colspan - w})
+        let start = mapPos + (h * width), collided = 0
+        for (let w = 0; w < colSpan; w++) {
+          if (map[start + w] == 0) map[start + w] = pos
+          else collided++
         }
+        if (collided) (problems || (problems = [])).push({type: "collision", pos})
       }
-      mapPos += colspan
+      mapPos += colSpan
+      col += colSpan
       pos += cellNode.length
     }
-    let expectedPos = (row + 1) * width, missing = 0
-    while (mapPos < expectedPos) if (map[mapPos++] == 0) missing++
-    if (missing) (problems || (problems = [])).push({type: "missing", row, n: missing})
     pos++
+  }
+  for (let row = 0, i = width; row < height; row++, i += width) {
+    let missing = 0
+    while (missing < width && map[i - missing - 1] == 0) missing++
+    if (missing) (problems || (problems = [])).push({type: "missing", row, n: missing})
   }
 
   return new MapData(table, width, height, map, problems, cellEnd)
 }
 
-function findWidth(table: Plot) {
-  let width = -1, hasRowSpan = false
-  for (let row = 0; row < table.content.length; row++) {
-    let rowNode = table.content[row] as Plot, rowWidth = 0
-    if (hasRowSpan) for (let j = 0; j < row; j++) {
-      let prevRow = table.content[j] as Plot
-      for (let i = 0; i < prevRow.content.length; i++) {
-        let cell = prevRow.content[i]
-        if (j + (cell.mark(RowSpan) ?? 1) > row) rowWidth += cell.mark(ColSpan) ?? 1
-      }
-    }
-    for (let i = 0; i < rowNode.content.length; i++) {
-      let cell = rowNode.content[i]
-      rowWidth += cell.mark(ColSpan) ?? 1
-      if ((cell.mark(RowSpan) ?? 1) > 1) hasRowSpan = true
-    }
-    if (width == -1) width = rowWidth
-    else if (width != rowWidth) width = Math.max(width, rowWidth)
+function growMap(map: number[], width: number, height: number, count: number) {
+  let newMap: number[] = []
+  for (let row = 0, i = 0; row < height; row++) {
+    for (let col = 0; col < width; col++) newMap.push(map[i++])
+    for (let j = 0; j < count; j++) newMap.push(0)
   }
-  return width
+  return newMap
 }

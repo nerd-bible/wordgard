@@ -53,6 +53,7 @@ export class CellSelection extends GardSelection {
     let row = dir == "up" ? rect.startRow - 1 : dir == "down" ? rect.endRow : rect.startRow
     if (col < 0 || col >= map.width || row < 0 || row >= map.height) return null
     let newHead = map.cellAt(col, row)
+    if (newHead == null) return null
     return newHead >= anchorPos ? CellSelection.between(doc, anchorPos, map.cellEnd(newHead))
       : CellSelection.between(doc, newHead, map.cellEnd(anchorPos))
   }
