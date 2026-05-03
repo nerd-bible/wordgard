@@ -176,7 +176,7 @@ function buildImagePanel(view: Wordgard) {
       changes: change,
       effects: setImageDialog.of(false),
       userEvent: "insert.image",
-      selection: tag instanceof Plot.Tag ? {anchor: pos + 1} : {anchor: pos, head: pos + 1},
+      selection: tag instanceof Plot.Tag ? {anchor: pos + 1} : GardSelection.node(pos, tag)
     })
   }
 

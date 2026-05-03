@@ -437,7 +437,7 @@ function queryPos(view: Wordgard, event: MouseEvent) {
 function rangeForClick(view: Wordgard, pos: CoordPos, type: number): GardSelection {
   if (type < 3 && pos.target != null) {
     let target = view.state.doc.nodeAt(pos.target)
-    if (target && target.isLeaf && target.type.isSelectable) return GardSelection.range(pos.target, pos.target + target.length)
+    if (target && target.isLeaf && target.type.isSelectable) return GardSelection.node(pos.target, target)
   }
   if (type == 1) { // Single click
     return GardSelection.near(view.state, pos.pos, pos.side || -1)
@@ -461,7 +461,7 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
       }
     },
     get(event, extend) {
-      let cur = queryPos(view, event), {from, to} = rangeForClick(view, cur, type)
+      let cur = queryPos(view, event), range = rangeForClick(view, cur, type), {from, to} = range
       if (extend) {
         if (from < startSel.anchor)
           return GardSelection.range(startSel.anchor, from, from < to ? 1 : cur.side)
@@ -473,7 +473,7 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
         from = Math.min(startRange.from, from)
         to = Math.max(startRange.to, to)
       }
-      return GardSelection.range(from, to, cur.side)
+      return from == range.from && to == range.to ? range : GardSelection.range(from, to, cur.side)
     }
   } as MouseSelectionStyle
 }
