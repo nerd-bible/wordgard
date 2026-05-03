@@ -4,7 +4,15 @@ import {Command} from "wordgard/command"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
-type BarElement = BarButton | BarSubmenu
+interface BarElement {
+  dom: Element
+  focusDOM: HTMLElement
+  item: Submenu | MenuButton
+  flags: F
+  update(flags: F, view: Wordgard, update: Wordgard.Update | null): void
+  children: readonly BarElement[] | null
+  run: ((view: Wordgard) => void) | null
+}
 
 let nextID = 0
 
@@ -48,7 +56,7 @@ const enum F {
   Hidden = 32,
 }
 
-class BarButton {
+class BarButton implements BarElement {
   dom: HTMLElement
   flags: F = 0 as F
   index = 0
@@ -93,9 +101,15 @@ class BarButton {
       }
     }
   }
+
+  get children() { return null }
+
+  run(view: Wordgard) {
+    Command.dispatch(view, this.item.run)
+  }
 }
 
-class BarSubmenu {
+class BarSubmenu implements BarElement {
   dom: HTMLElement
   button: HTMLElement
   list: HTMLElement
@@ -163,6 +177,8 @@ class BarSubmenu {
       }
     }
   }
+
+  get run() { return null }
 }
 
 class BarSpacer {
@@ -248,7 +264,7 @@ class MenuBar {
       if (update && (update === true || (elt.item.updateFor ? update.transactions.some(tr => elt.item.updateFor!(tr)) : changed))) {
         flags = ((elt.item.select ? elt.item.select(state) : true) ? 0 : F.Hidden) |
           ((elt.item.enable ? elt.item.enable(state) : true) ? 0 : F.Disabled) |
-          ((elt instanceof BarButton && elt.item.active ? elt.item.active(state) : false) ? F.Active : 0)
+          ((elt.item instanceof MenuButton && elt.item.active ? elt.item.active(state) : false) ? F.Active : 0)
       } else {
         flags = elt.flags & (F.Hidden | F.Disabled | F.Active)
       }
@@ -287,7 +303,7 @@ class MenuBar {
         let parent = this.selection[sLen - 2] as BarSubmenu
         let next = findNextChild(parent.children, this.selection[sLen - 1], event.key == "ArrowUp" ? -1 : 1)
         if (next) this.setSelection(this.selection.slice(0, sLen - 1).concat(next))
-      } else if (sLen == 1 && this.selection[0] instanceof BarSubmenu) {
+      } else if (sLen == 1 && this.selection[0].children) {
         let inner = defaultChild(this.selection[0].children)
         if (inner) this.setSelection([this.selection[0], inner])
       }
@@ -298,12 +314,12 @@ class MenuBar {
       if (sLen) {
         let child = this.selection[sLen - 1]
         if (child.flags & F.Disabled) {
-        } else if (child instanceof BarButton) {
-          Command.dispatch(this.view, child.item.run)
-          this.setSelection([this.selection[0]])
-        } else {
+        } else if (child.children) {
           let inner = defaultChild(child.children)
           if (inner) this.setSelection(this.selection.concat(inner))
+        } else { // FIXME exclude custom
+          if (child.run) child.run(this.view)
+          this.setSelection([this.selection[0]])
         }
       }
     } else if (event.key == "Escape" && sLen > 1) {
@@ -322,20 +338,23 @@ class MenuBar {
       if (target) break
     }
 
-    if (target instanceof BarButton) {
-      Command.dispatch(this.view, target.item.run)
-      this.setSelection(this.children.includes(target) ? [target] : this.selection.length ? [this.selection[0]] : [], false)
-    } else if ((idx = this.selection.indexOf(target)) > -1 && idx < this.selection.length - 1) {
-      // Closing an open submenu
-      this.setSelection(this.selection.slice(0, idx + 1), false)
-    } else {
-      for (let i = 0; i < this.selection.length; i++) {
-        let {children} = i ? this.selection[i - 1] as BarSubmenu : this
-        if (children.includes(target)) {
-          let next = defaultChild(target.children)
-          if (next) this.setSelection(this.selection.slice(0, i).concat([target, next]), false)
+    if (target.flags & F.Disabled) {
+    } else if (target.children) {
+      if ((idx = this.selection.indexOf(target)) > -1 && idx < this.selection.length - 1) {
+        // Closing an open submenu
+        this.setSelection(this.selection.slice(0, idx + 1), false)
+      } else {
+        for (let i = 0; i < this.selection.length; i++) {
+          let {children} = i ? this.selection[i - 1] as BarSubmenu : this
+          if (children.includes(target)) {
+            let next = defaultChild(target.children)
+            if (next) this.setSelection(this.selection.slice(0, i).concat([target, next]), false)
+          }
         }
       }
+    } else {
+      if (target.run) target.run(this.view)
+      this.setSelection(this.children.includes(target) ? [target] : this.selection.length ? [this.selection[0]] : [], false)
     }
     event.preventDefault()
   }
