@@ -97,7 +97,9 @@ export function deleteSelection(state: GardState): Transaction.Spec | false {
   })
   return autoJoinBlocks(state, {
     changes,
-    selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.head, -1), 1),
+    selection: doc => state.selection instanceof GardSelection.Text
+      ? GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.head, -1), 1)
+      : state.selection.map(changes, doc),
     scrollIntoView: true,
     userEvent: "delete.selection"
   })

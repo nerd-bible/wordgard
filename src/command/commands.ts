@@ -83,6 +83,8 @@ export const enter: Command.Pure = ({state}) => {
   return liftEmptyBlock(state) || splitTextblock(state)
 }
 
+// FIXME clear empty textblock at cursor, if possible
+
 export const deleteUnit: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
   return deleteSelection(state) || (dir == "forward"
     ? joinForward(state) || deleteForward(state)

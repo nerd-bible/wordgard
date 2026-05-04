@@ -2,6 +2,8 @@
 // cells overlap (which can happen, if you have the wrong col- and
 // rowspans). Uses the problems reported by `TableMap`.
 
+// FIXME doesn't seem reliable. Failed when merging row in the middle of a table
+
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Table, ColSpan, RowSpan} from "wordgard/schema"
 import {Correction} from "wordgard/state"

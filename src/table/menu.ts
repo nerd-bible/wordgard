@@ -1,11 +1,13 @@
-import {CustomControl, Submenu, iconTable, Commands} from "wordgard/menu"
+import {CustomControl, Submenu, MenuButton, iconTable, Commands} from "wordgard/menu"
 import {Wordgard} from "wordgard/view"
 import {Direction, GardSelection} from "wordgard/state"
-import {Table, TableRow} from "wordgard/schema"
+import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {Plot, ChangeSet} from "wordgard/doc"
-import {cellTag} from "./tablecommands"
+import {Command} from "wordgard/command"
+import {cellTag, addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell} from "./tablecommands"
+import {CellSelection} from "./cellselection"
 
-export const createTable = new Submenu({
+export const createTableMenu = new Submenu({
   select(state) {
     return !state.sel.head.matchingParent(plot => plot.type == Table.type)
   },
@@ -116,7 +118,83 @@ export const createTableControl = new CustomControl({
       view.focus()
     })
   },
-  parent: createTable
+  parent: createTableMenu
+})
+
+export const modifyTableMenu = new Submenu({
+  select(state) {
+    return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
+  },
+  label: iconTable,
+  description: "Insert a table",
+  parent: Commands,
+  rank: 90
+})
+
+export const addRowAboveButton = new MenuButton({
+  run: view => Command.dispatch(view, addRow, "before"),
+  label: "Add row above",
+  parent: modifyTableMenu,
+  rank: 10,
+})
+
+export const addRowBelowButton = new MenuButton({
+  run: view => Command.dispatch(view, addRow, "after"),
+  label: "Add row below",
+  parent: modifyTableMenu,
+  rank: 11,
+})
+
+export const deleteRowButton = new MenuButton({
+  run: deleteRow,
+  label: "Delete row",
+  parent: modifyTableMenu,
+  rank: 15
+})
+
+export const addColumnBeforeButton = new MenuButton({
+  run: view => Command.dispatch(view, addColumn, "before"),
+  label: "Add column before",
+  parent: modifyTableMenu,
+  rank: 20,
+})
+
+export const addColumnAfterButton = new MenuButton({
+  run: view => Command.dispatch(view, addColumn, "after"),
+  label: "Add column after",
+  parent: modifyTableMenu,
+  rank: 21,
+})
+
+export const deleteColumnButton = new MenuButton({
+  run: deleteColumn,
+  label: "Delete column",
+  parent: modifyTableMenu,
+  rank: 25,
+})
+
+export const mergeCellsButton = new MenuButton({
+  run: mergeCells,
+  select: state => {
+    let {selection} = state
+    return selection instanceof CellSelection && selection.ranges.length > 1
+  },
+  label: "Merge cells",
+  parent: modifyTableMenu,
+  rank: 30,
+})
+
+export const splitCellButton = new MenuButton({
+  run: splitCell,
+  select: state => {
+    let {selection} = state
+    if (!(selection instanceof CellSelection) || selection.ranges.length != 1) return false
+    let cell = state.sel.from.nodeAfter
+    return !!(cell && (cell.mark(ColSpan) || cell.mark(RowSpan)))
+  },
+  label: "Split cell",
+  parent: modifyTableMenu,
+  rank: 40,
 })
 
 const tableMenuTheme = Wordgard.baseTheme({
@@ -132,7 +210,11 @@ const tableMenuTheme = Wordgard.baseTheme({
 })
 
 export const tableMenu = [
-  createTable,
+  createTableMenu,
   createTableControl,
+  modifyTableMenu,
+  addRowAboveButton, addRowBelowButton, deleteRowButton,
+  addColumnAfterButton, addColumnBeforeButton, deleteColumnButton,
+  mergeCellsButton, splitCellButton,
   tableMenuTheme
 ]

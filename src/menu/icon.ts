@@ -82,6 +82,8 @@ export const iconVerticalDots: MenuLabel = {
   icon: "M59 81a9 9 0 1 1-19 0 9 9 0 0 1 19 0m0-31a9 9 0 1 1-19 0 9 9 0 0 1 19 0m0-31a9 9 0 1 1-19 0 9 9 0 0 1 19 0"
 }
 
+// FIXME make a little less high
+
 export const iconTable: MenuLabel = {
   icon: "M0 13a13 13 0 0 1 13-13h74a13 13 0 0 1 13 13v74a 13 13 0 0 1 -13 13h-74a13 13 0 0 1 -13 -13v-74M7 23v20h25v-20h-25M37 23v20h26v-20h-26M68 23v20h25v-20h-26M7 48v20h25v-20h-25M37 48v20h26v-20h-26M68 48v20h25v-20h-26M7 73v14a6 6 0 0 0 6 6h19v-20h-25M37 73v20h26v-20h-26M68 73v20h19a6 6 0 0 0 6 -6v-14h-26"
 }
