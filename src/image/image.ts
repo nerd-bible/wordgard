@@ -2,7 +2,7 @@ import {elt, MapMode} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/view"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema"
-import {MenuButton, iconImage, Commands} from "wordgard/menu"
+import {MenuButton, icon, Commands} from "wordgard/menu"
 import {imageDialog, insertImage, activeImage, imageUploader} from "./dialog"
 
 export const imageTheme = Wordgard.theme({
@@ -135,7 +135,7 @@ export const imageKeymap = [
 export const InsertImageButton = new MenuButton({
   run: insertImage,
   active: state => !!activeImage(state.sel),
-  label: iconImage,
+  label: icon.Image,
   description: "Insert an image",
   parent: Commands, // FIXME better group
   rank: 80,

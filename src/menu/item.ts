@@ -7,11 +7,7 @@ import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
         Underline, Superscript, Subscript,
         Alignment} from "wordgard/schema"
-import {iconUndo, iconRedo, iconBold, iconItalic, iconCode, iconLink, iconBulletList,
-        iconOrderedList, iconQuote, iconUnderline, iconSuperscript, iconSubscript,
-        iconAlignLeft,
-        iconAlignRight,
-        iconAlignCenter} from "./icon"
+import {icon} from "./icon"
 
 export type MenuLabelWidget = {
   render: (view: Wordgard) => HTMLElement
@@ -188,7 +184,7 @@ export const ToggleStrong = toggleInlineMark({
   parent: InlineStyles,
   rank: 10,
   description: "Toggle strong emphasis",
-  label: iconBold
+  label: icon.Bold
 })
 
 export const ToggleEmphasis = toggleInlineMark({
@@ -196,7 +192,7 @@ export const ToggleEmphasis = toggleInlineMark({
   parent: InlineStyles,
   rank: 12,
   description: "Toggle emphasis",
-  label: iconItalic
+  label: icon.Italic
 })
 
 export const ToggleCode = toggleInlineMark({
@@ -204,7 +200,7 @@ export const ToggleCode = toggleInlineMark({
   parent: InlineStyles,
   rank: 30,
   description: "Toggle code font",
-  label: iconCode
+  label: icon.Code
 })
 
 export const ToggleUnderline = toggleInlineMark({
@@ -212,7 +208,7 @@ export const ToggleUnderline = toggleInlineMark({
   parent: InlineStyles,
   rank: 14,
   description: "Toggle underline",
-  label: iconUnderline
+  label: icon.Underline
 })
 
 export const ToggleSuperscript = toggleInlineMark({
@@ -220,7 +216,7 @@ export const ToggleSuperscript = toggleInlineMark({
   parent: InlineStyles,
   rank: 16,
   description: "Toggle superscript",
-  label: iconSuperscript
+  label: icon.Superscript
 })
 
 export const ToggleSubscript = toggleInlineMark({
@@ -228,7 +224,7 @@ export const ToggleSubscript = toggleInlineMark({
   parent: InlineStyles,
   rank: 18,
   description: "Toggle subscript",
-  label: iconSubscript
+  label: icon.Subscript
 })
 
 export const ToggleLink = new MenuButton({
@@ -270,7 +266,7 @@ export const ToggleLink = new MenuButton({
   enable(state) {
     return !state.selection.empty
   },
-  label: iconLink,
+  label: icon.Link,
   description: "Create a link",
   parent: InlineStyles,
   rank: 50,
@@ -280,7 +276,7 @@ export const ToggleLink = new MenuButton({
 
 export const Undo = new MenuButton({
   run: () => { console.log("undo"); return true },
-  label: iconUndo,
+  label: icon.Undo,
   description: "Undo",
   parent: Commands,
   rank: 10
@@ -288,7 +284,7 @@ export const Undo = new MenuButton({
 
 export const Redo = new MenuButton({
   run: () => { console.log("redo"); return true },
-  label: iconRedo,
+  label: icon.Redo,
   description: "Redo",
   parent: Commands,
   rank: 20
@@ -352,7 +348,7 @@ export const Heading3 = new MenuButton({
 export const BulletListButton = new MenuButton({
   run: Command.bind(toggleList, BulletList),
   active: listIsActive(BulletList),
-  label: iconBulletList,
+  label: icon.BulletList,
   description: "Toggle bullet list",
   parent: BlockMenu,
   rank: 20
@@ -361,7 +357,7 @@ export const BulletListButton = new MenuButton({
 export const OrderedListButton = new MenuButton({
   run: Command.bind(toggleList, OrderedList.default!),
   active: listIsActive(OrderedList.default!),
-  label: iconOrderedList,
+  label: icon.OrderedList,
   description: "Toggle ordered list",
   parent: BlockMenu,
   rank: 30
@@ -374,7 +370,7 @@ export const BlockquoteButton = new MenuButton({
       if (cur.node.type == Blockquote.type) return true
     return false
   },
-  label: iconQuote,
+  label: icon.Quote,
   description: "Toggle blockquote",
   parent: BlockMenu,
   rank: 40
@@ -395,7 +391,7 @@ function alignmentAtCursor(state: GardState): null | "end" | "center" {
 export const AlignStart = new MenuButton({
   run: Command.bind(setAlignment, null),
   active: state => alignmentAtCursor(state) == null,
-  label: iconAlignLeft,
+  label: icon.AlignLeft,
   description: "Align text to block start",
   parent: AlignmentMenu,
   rank: 10
@@ -404,7 +400,7 @@ export const AlignStart = new MenuButton({
 export const AlignEnd = new MenuButton({
   run: Command.bind(setAlignment, "end"),
   active: state => alignmentAtCursor(state) == "end",
-  label: iconAlignRight,
+  label: icon.AlignRight,
   description: "Align text to block end",
   parent: AlignmentMenu,
   rank: 20
@@ -413,7 +409,7 @@ export const AlignEnd = new MenuButton({
 export const AlignCenter = new MenuButton({
   run: Command.bind(setAlignment, "center"),
   active: state => alignmentAtCursor(state) == "center",
-  label: iconAlignCenter,
+  label: icon.AlignCenter,
   description: "Center text",
   parent: AlignmentMenu,
   rank: 30

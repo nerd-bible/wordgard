@@ -1,4 +1,4 @@
-import {CustomControl, Submenu, MenuButton, iconTable, Commands} from "wordgard/menu"
+import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
 import {Wordgard} from "wordgard/view"
 import {Direction, GardSelection} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
@@ -11,7 +11,7 @@ export const createTableMenu = new Submenu({
   select(state) {
     return !state.sel.head.matchingParent(plot => plot.type == Table.type)
   },
-  label: iconTable,
+  label: icon.Table,
   description: "Insert a table",
   parent: Commands,
   rank: 90
@@ -125,7 +125,7 @@ export const modifyTableMenu = new Submenu({
   select(state) {
     return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
   },
-  label: iconTable,
+  label: icon.Table,
   description: "Insert a table",
   parent: Commands,
   rank: 90
