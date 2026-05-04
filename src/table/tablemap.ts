@@ -181,12 +181,12 @@ function computeMap(table: Plot) {
   if (table.tag != Table) throw new RangeError(`Not a table node: ${table.type.name}`)
   let width = (table.content[0] as Plot).content.reduce((w, c) => w + (c.mark(ColSpan) ?? 1), 0)
   let height = table.content.length
-  let map: number[] = [], mapPos = 0, problems: Problem[] | null = null
+  let map: number[] = [], problems: Problem[] | null = null
   for (let i = 0, e = width * height; i < e; i++) map[i] = 0
   let cellEnd = new Map<number, number>()
 
   for (let row = 0, pos = 0; row < height; row++) {
-    let rowNode = table.content[row] as Plot
+    let rowNode = table.content[row] as Plot, mapPos = row * width
     pos++
     for (let i = 0, col = 0;; i++) {
       while (mapPos < map.length && map[mapPos] != 0) mapPos++

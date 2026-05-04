@@ -39,4 +39,8 @@ describe("tableCorrection", () => {
   it("fixes span collisions", () =>
     test(doc(table(tr(td("a"), rowspan(3, td("b")), td("c")), tr(colspan(3, td("d"))), tr(td("e"), td("f")))),
          doc(table(tr(td("a"), rowspan(3, td("b")), td("c")), tr(td("d"), td()), tr(td("e"), td("f"))))))
+
+  it("adds missing cells in the middle", () =>
+    test(doc(table(tr(td("a"), td("b")), tr(td("c")), tr(td("d"), td("e")))),
+         doc(table(tr(td("a"), td("b")), tr(td("c"), td()), tr(td("d"), td("e"))))))
 })
