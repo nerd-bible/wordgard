@@ -1,13 +1,14 @@
 import {Panel, Wordgard} from "wordgard/view"
 import {GardState, Facet, Direction} from "wordgard/state"
 import {Command} from "wordgard/command"
-import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  Submenu, Top,
+import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  CustomControl, Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
 
 interface BarElement {
   dom: Element
   focusDOM: HTMLElement
-  item: Submenu | MenuButton
+  index: number
+  item: Submenu | MenuButton | CustomControl
   flags: F
   update(flags: F, view: Wordgard, update: Wordgard.Update | null): void
   children: readonly BarElement[] | null
@@ -109,6 +110,40 @@ class BarButton implements BarElement {
   }
 }
 
+class BarControl implements BarElement {
+  dom: HTMLElement
+  focusDOM: HTMLElement
+  flags: F = 0 as F
+  index = 0
+
+  constructor(readonly item: CustomControl, view: Wordgard, done: () => void) {
+    let {dom, focus} = item.render(view, done)
+    this.dom = dom
+    this.focusDOM = focus || dom
+    this.focusDOM.tabIndex = -1
+  }
+
+  update(flags: F, view: Wordgard, update: Wordgard.Update | null) {
+    if (flags != this.flags) {
+      if ((flags & F.Hidden) != (this.flags & F.Hidden))
+        this.dom.style.display = flags & F.Hidden ? "none" : ""
+      if ((flags & F.Disabled) != (this.flags & F.Disabled) && this.item.setEnabled)
+        this.item.setEnabled(this.dom, !(flags & F.Disabled))
+      if ((flags & F.Selected) != (this.flags & F.Selected)) {
+        if (flags & F.Selected) this.focusDOM.setAttribute("aria-selected", "true")
+        else this.focusDOM.removeAttribute("aria-selected")
+        this.focusDOM.tabIndex = flags & F.Selected ? 0 : -1
+      }
+      this.flags = flags
+    }
+  }
+
+  get children() { return null }
+
+  get run() { return null }
+}
+
+
 class BarSubmenu implements BarElement {
   dom: HTMLElement
   button: HTMLElement
@@ -189,14 +224,16 @@ class BarSpacer {
   }
 }
 
-function instantiate(item: ResolvedMenuItem, view: Wordgard, flat: BarElement[]): BarElement | BarSpacer {
-  let elt
+function instantiate(item: ResolvedMenuItem, bar: MenuBar, flat: BarElement[]): BarElement | BarSpacer {
+  let elt: BarElement
   if (item instanceof ResolvedSubmenu)
-    elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, view, flat)), view)
+    elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, bar, flat)), bar.view)
   else if (item === "|")
     return new BarSpacer()
+  else if (item instanceof MenuButton)
+    elt = new BarButton(item, bar.view)
   else
-    elt = new BarButton(item, view)
+    elt = new BarControl(item, bar.view, () => bar.up())
   elt.index = flat.length
   flat.push(elt)
   return elt
@@ -237,7 +274,7 @@ class MenuBar {
   init() {
     let elts: BarElement[] = []
     this.elts = elts
-    let children = resolveMenu(this.items, this.template).map(i => instantiate(i, this.view, elts))
+    let children = resolveMenu(this.items, this.template).map(i => instantiate(i, this, elts))
     this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
@@ -290,7 +327,7 @@ class MenuBar {
   }
 
   key(event: KeyboardEvent) {
-    if (event.ctrlKey || event.altKey || event.metaKey) return
+    if (event.ctrlKey || event.altKey || event.metaKey || event.defaultPrevented) return
     let sLen = this.selection.length
     if (event.key == "ArrowLeft" || event.key == "ArrowRight") {
       if (sLen) {
@@ -379,6 +416,11 @@ class MenuBar {
         }
       }, 20)
     }
+  }
+
+  up() {
+    if (this.selection.length > 1)
+      this.setSelection([this.selection[0]])
   }
 }
 

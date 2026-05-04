@@ -5,3 +5,4 @@ export {CellSelection, normalizeTableSelection, tableSelectionFilter, drawCellSe
 export {tableTheme} from "./table"
 export * from "./tablecommands"
 export {tablePasteHandler, handleTablePaste} from "./tablepaste"
+export {tableMenu} from "./menu"

@@ -39,30 +39,25 @@ export interface MenuItemSpec {
   description?: string
 }
 
-// FIXME messy
-function fillItem(spec: MenuItemSpec, obj: {
+class BaseItem {
   select: ((state: GardState) => boolean) | undefined
   enable: ((state: GardState) => boolean) | undefined
   updateFor: ((tr: Transaction) => boolean) | undefined
   parent: MenuGroup | Submenu | undefined
   rank: number
   description: string | undefined
-}) {
-  obj.select = spec.select
-  obj.enable = spec.enable
-  obj.updateFor = spec.updateFor
-  obj.parent = spec.parent
-  obj.rank = spec.rank ?? 100
-  obj.description = spec.description
+
+  constructor(spec: MenuItemSpec) {
+    this.select = spec.select
+    this.enable = spec.enable
+    this.updateFor = spec.updateFor
+    this.parent = spec.parent
+    this.rank = spec.rank ?? 100
+    this.description = spec.description
+  }
 }
 
-export class MenuButton implements MenuItemSpec {
-  declare select: ((state: GardState) => boolean) | undefined
-  declare enable: ((state: GardState) => boolean) | undefined
-  declare updateFor: ((tr: Transaction) => boolean) | undefined
-  declare parent: MenuGroup | Submenu | undefined
-  declare rank: number
-  declare description: string | undefined
+export class MenuButton extends BaseItem {
   label: MenuLabel
   run: Command.Bound | Command
   active: ((state: GardState) => boolean) | undefined
@@ -73,7 +68,7 @@ export class MenuButton implements MenuItemSpec {
     active?: (state: GardState) => boolean
     label: MenuLabel
   } & MenuItemSpec) {
-    fillItem(spec, this)
+    super(spec)
     this.run = spec.run
     this.active = spec.active
     this.label = spec.label
@@ -81,13 +76,23 @@ export class MenuButton implements MenuItemSpec {
   }
 }
 
-export class Submenu implements MenuItemSpec {
-  declare select: ((state: GardState) => boolean) | undefined
-  declare enable: ((state: GardState) => boolean) | undefined
-  declare updateFor: ((tr: Transaction) => boolean) | undefined
-  declare parent: MenuGroup | Submenu | undefined
-  declare rank: number
-  declare description: string | undefined
+export class CustomControl extends BaseItem {
+  render: (view: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
+  setEnabled: ((dom: Element, enabled: boolean) => void) | undefined
+  extension: GardState.Extension
+
+  constructor(spec: {
+    render: (view: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
+    setEnabled?: (focus: Element, enabled: boolean) => void
+  } & MenuItemSpec) {
+    super(spec)
+    this.render = spec.render
+    this.setEnabled = spec.setEnabled
+    this.extension = menuItem.of(this)
+  }
+}
+
+export class Submenu extends BaseItem {
   label: MenuLabel | undefined
   defaultLabel: MenuLabel | undefined
   arrow: boolean
@@ -100,7 +105,7 @@ export class Submenu implements MenuItemSpec {
     arrow?: boolean
     width?: number
   } & MenuItemSpec) {
-    fillItem(spec, this)
+    super(spec)
     this.label = spec.label
     this.defaultLabel = spec.defaultLabel
     this.arrow = spec.arrow !== false
@@ -135,7 +140,7 @@ export class MenuGroup {
   }
 }
 
-export type MenuItem = MenuButton | Submenu | MenuGroup
+export type MenuItem = MenuButton | CustomControl | Submenu | MenuGroup
 
 export const menuItem = Facet.define<MenuItem>()
 
@@ -423,7 +428,7 @@ export const staticMenu: GardState.Extension[] = [
   BulletListButton, OrderedListButton, BlockquoteButton
 ]
 
-export type ResolvedMenuItem = MenuButton | "|" | ResolvedSubmenu
+export type ResolvedMenuItem = MenuButton | CustomControl | "|" | ResolvedSubmenu
 
 export class ResolvedSubmenu {
   constructor(readonly item: Submenu, readonly content: readonly ResolvedMenuItem[]) {}

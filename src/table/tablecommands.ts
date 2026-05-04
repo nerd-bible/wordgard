@@ -14,12 +14,10 @@ export function tableContext(state: GardState) {
     table = state.sel.anchor.parent!.parent!
     cells = state.selection.ranges.map(r => r.from - 1)
   } else {
-    for (let node: Pos.Plot | null = state.sel.head.parent; node; node = node.parent) {
-      if (state.doc.schema.matchNode(node.node.type, Node.Group.TableCell) && node.parent?.parent) {
-        table = node.parent!.parent!
-        cells = [node.before]
-        break
-      }
+    let cellPos = state.sel.head.matchingParent(node => state.doc.schema.matchNode(node.type, Node.Group.TableCell))
+    if (cellPos && cellPos.parent?.parent) {
+      table = cellPos.parent.parent
+      cells = [cellPos.before]
     }
   }
   return cells ? {cells, map: TableMap.get(table!.node, table!.start)} : null
