@@ -76,8 +76,7 @@ class DimensionPicker {
       let rect = this.svg.appendChild(document.createElementNS(SVG, "rect"))
       rect.setAttribute("width", String(Grid.Size))
       rect.setAttribute("height", String(Grid.Size))
-      let xOff = x * Grid.Skip + Grid.Margin
-      rect.setAttribute("x", String(this.ltr ? xOff : width - xOff))
+      rect.setAttribute("x", String(this.ltr ? x * Grid.Skip + Grid.Margin : width - (x + 1) * Grid.Skip))
       rect.setAttribute("y", String(y * Grid.Skip + Grid.Margin))
       rect.setAttribute("class", "wg-dimension-cell" + (x < this.width && y < this.height ? " wg-dimension-cell-active" : ""))
     }

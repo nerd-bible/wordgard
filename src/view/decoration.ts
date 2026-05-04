@@ -806,7 +806,7 @@ export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
       for (let i = 0; i < joined.length;) {
         let from = Math.max(pos, joined[i++]), to = Math.min(end, joined[i++])
         if (from > pos) addSection(result, from - pos, -1)
-        addSection(result, to - from, -2)
+        if (from < to) addSection(result, to - from, -2)
         pos = to
       }
       if (pos < end) addSection(result, end - pos, -1)
