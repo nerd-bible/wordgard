@@ -6,8 +6,6 @@ import {Command} from "wordgard/command"
 import {TableMap} from "./tablemap"
 import {CellSelection} from "./cellselection"
 
-// FIXME support block-child cells
-
 export function tableContext(state: GardState) {
   let table: Pos.Plot | undefined, cells: number[] | undefined
   if (state.selection instanceof CellSelection) {

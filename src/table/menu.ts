@@ -11,20 +11,26 @@ import {CellSelection} from "./cellselection"
 const SVG = "http://www.w3.org/2000/svg"
 const enum Grid { Size = 15, Margin = 4, Skip = Size + Margin, MaxW = 15, MaxH = 15 }
 
-// FIXME screen reader output
+// FIXME test screen reader output
+
 class DimensionPicker {
   dom: HTMLElement
   svg: SVGElement
+  announce: HTMLElement
   width = 2
   height = 2
-  gridWidth = 8
-  gridHeight = 6
+  gridWidth = 6
+  gridHeight = 4
   ltr: boolean
 
-  constructor(view: Wordgard, readonly finish: (width: number, height: number) => void) {
+  constructor(readonly view: Wordgard, readonly finish: (width: number, height: number) => void) {
     this.dom = document.createElement("div")
     this.dom.className = "wg-dimension-picker"
+    this.announce = this.dom.appendChild(document.createElement("div"))
+    this.announce.className = "wg-dimension-announce"
+    this.announce.setAttribute("aria-live", "polite")
     this.svg = this.dom.appendChild(document.createElementNS(SVG, "svg"))
+    this.svg.setAttribute("aria-hidden", "true")
     this.ltr = view.state.textDirection() == Direction.LTR
     this.render()
     this.dom.addEventListener("mousemove", e => {
@@ -59,6 +65,9 @@ class DimensionPicker {
   }
 
   render() {
+    this.dom.setAttribute("aria-label", this.view.state.phrase("Table dimensions $1 by $2. Use arrow keys to change.",
+                                                               this.width, this.height))
+    this.announce.textContent = this.view.state.phrase("$1 by $2", this.width, this.height)
     this.svg.textContent = ""
     let width = this.gridWidth * Grid.Skip + Grid.Margin
     this.svg.setAttribute("width", String(width))

@@ -24,8 +24,6 @@ type Problem =
   | {type: "missing", row: number, n: number}
   | {type: "overlong_rowspan", pos: number, n: number}
 
-// FIXME store offset in a wrapper object for less awkward access
-
 class MapData {
   constructor(
     readonly table: Plot,

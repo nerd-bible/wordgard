@@ -449,6 +449,8 @@ export class GardState {
     }
   })
 
+  // FIXME make this more static to make reliable, typed translations easier
+
   /// Look up a translation for the given phrase (via the
   /// [`phrases`](#state.GardState^phrases) facet), or return the
   /// original string if no translation is found.

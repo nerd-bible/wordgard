@@ -14,7 +14,6 @@ const tableTheme = Wordgard.baseTheme({
   },
   "td, th": {
     verticalAlign: "top",
-    boxSizing: "border-box", // FIXME used?
     border: "1px solid var(--wg-border-color)",
     padding: "3px 6px",
     textAlign: "left"
@@ -26,6 +25,11 @@ const tableTheme = Wordgard.baseTheme({
     "& :focus ::selection, & :focus::selection": {backgroundColor: "Highlight"}
   },
 
+  ".wg-dimension-announce": {
+    position: "absolute",
+    width: "0px",
+    overflow: "hidden"
+  },
   ".wg-dimension-cell": {
     fill: "none",
     stroke: "#ccc",
