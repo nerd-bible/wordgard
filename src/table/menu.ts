@@ -99,7 +99,7 @@ function insertTable(view: Wordgard, width: number, height: number) {
   let row = TableRow.create(cells), rows: Plot[] = []
   for (let i = 0; i < height; i++) rows.push(row)
   let table = Table.create(rows), {from, to} = state.selection.replacemenRange
-  let changes = ChangeSet.create(state.doc, {correct: {from, to, insert: [table], fit: true}, local: true})
+  let changes = ChangeSet.create(state.doc, {from, to, insert: [table], fit: true})
   let tablePos = changes.findInserted(tag => tag.type == Table.type)
   view.dispatch({
     changes,

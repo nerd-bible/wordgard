@@ -3,7 +3,7 @@ import {Plot, Mark, Leaf, Node, ChangeSet, type Token, Schema} from "wordgard/do
 import {basicSchema, basicBuilders, tag, maybeTag,
         CodeBlockLanguage, Emphasis, Strong, Link, ImageAlt} from "wordgard/schema"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
-const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, img, imgAlt, $img, a, em, strong} = basicBuilders
+const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, hr, img, imgAlt, $img, a, em, strong} = basicBuilders
 
 type ChangeData = (Token | string)[] | {add: Mark<any>} | {remove: Mark<any>}
 
@@ -227,8 +227,8 @@ describe("ChangeSet", () => {
     it("doesn't expand when not covering or closing the entire node", () => {
       let d = doc(p("hi"))
       let src = doc(h1("!"))
-      ist(ChangeSet.create(d, {from: 1, insert: src.slice(1, 2), fit: src.contextAt(1)}).apply(d),
-          doc(p("!hi")), eq)
+      ist(ChangeSet.create(d, {from: 1, to: 2, insert: src.slice(1, 2), fit: src.contextAt(1)}).apply(d),
+          doc(p("!i")), eq)
     })
 
     it("expands placement into an empty textblock", () => {
@@ -251,6 +251,14 @@ describe("ChangeSet", () => {
         {from: 0, insert: slice(".."), fit: true},
         {from: 8, insert: slice(".."), fit: true},
       ]).apply(d), doc(p(".."), p("ab"), p("cd"), p("..")), eq)
+    })
+
+    it("moves block insertions out of textblocks", () => {
+      let d = doc(h1("abc"), p("def"))
+      ist(ChangeSet.create(d, {from: 1, insert: [hr], fit: true}).apply(d),
+          doc(hr, h1("abc"), p("def")), eq)
+      ist(ChangeSet.create(d, {from: 4, insert: [hr], fit: true}).apply(d),
+          doc(h1("abc"), hr, p("def")), eq)
     })
   })
 

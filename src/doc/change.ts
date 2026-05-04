@@ -1170,6 +1170,22 @@ function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context
   }
   if (found) return found
 
+  // If the replacement range is an empty range at the start or end of
+  // a plot, see if moving it out of the plot improves the fit.
+  if (from.pos == to.pos && !from.inText) {
+    let cx: Pos.Plot = from.parent, before = from.pos, after = from.pos
+    for (; cx.parent && !cx.node.type.isolating && (before == cx.start || after == cx.end); cx = cx.parent, before--, after++) {
+      for (let i = -1; i < context.length; i++) {
+        let type = i >= 0 ? context[i].type : firstType
+        if (!type) continue
+        if (doc.schema.canContain(cx.parent.node.type, type)) {
+          let pos = before == cx.start ? cx.before : cx.after
+          return {from: pos, to: pos, slice: i >= 0 ? closeSlice(doc.schema, slice, context, i + 1, true) : slice}
+        }
+      }
+    }
+  }
+
   for (let i = 0; i < context.length; i++) {
     if (doc.schema.canContain(from.parent.node.type, context[i].type)) {
       slice = closeSlice(doc.schema, slice, context, i + 1, true)
