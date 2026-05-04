@@ -314,7 +314,7 @@ class MenuBar {
     }
     if (update && selection.some(e => e.flags & F.Hidden)) {
       let reset = selection[0].flags & F.Hidden ? findChild(this.children, true) : selection[0]
-      this.setSelection(reset ? [reset] : [])
+      this.setSelection(reset ? [reset] : [], this.dom.contains(document.activeElement))
     }
   }
 
@@ -368,6 +368,7 @@ class MenuBar {
   }
 
   click(event: MouseEvent) {
+    if (event.defaultPrevented) return
     let target: BarElement | undefined, idx
     for (let node = event.target as Node | null;; node = node.parentNode) {
       if (!node || node == this.dom) return
@@ -420,7 +421,7 @@ class MenuBar {
 
   up() {
     if (this.selection.length > 1)
-      this.setSelection([this.selection[0]])
+      this.setSelection([this.selection[0]], false)
   }
 }
 
