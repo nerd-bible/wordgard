@@ -1,4 +1,4 @@
-import {CellSelection, normalizeTableSelection} from "wordgard/table"
+import {CellSelection} from "wordgard/table"
 import {GardSelection} from "wordgard/state"
 import {Plot, Leaf, Mark, Schema} from "wordgard/doc"
 import {Table, TableRow, Cell, ColSpan, RowSpan, basicSchema, basicBuilders, builder} from "wordgard/schema"
@@ -58,7 +58,7 @@ function testSel(doc: Plot.Doc, anchor: number, head: number, cells: string) {
 }
 
 function testNorm(doc: Plot.Doc, anchor: number, head: number, result: string | null) {
-  let sel = normalizeTableSelection(GardSelection.range(anchor, head), doc)
+  let sel = CellSelection.normalize(GardSelection.range(anchor, head), doc)
   if (!result) {
     ist(!sel)
   } else if (/^\d+-\d+$/.test(result)) {

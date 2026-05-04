@@ -1,7 +1,7 @@
 import {Plot, Schema, Slice, Leaf, Token} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow,
         Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema"
-import {CellSelection, normalizeTableSelection, handleTablePaste} from "wordgard/table"
+import {CellSelection, handleTablePaste} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 
@@ -16,7 +16,7 @@ function selFor(doc: Plot.Doc): GardSelection | undefined {
   let from = maybeTag(doc, 0)
   if (from == null) return undefined
   let range = GardSelection.range(from, maybeTag(doc, 1) ?? from)
-  return normalizeTableSelection(range, doc) || range
+  return CellSelection.normalize(range, doc) || range
 }
 
 function test(doc: Plot.Doc, content: Token[] | {slice: readonly Token[], context: readonly Plot.Tag.Any[]},

@@ -2,7 +2,7 @@ import {Command} from "wordgard/command"
 import {Plot, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow,
         Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema"
-import {CellSelection, normalizeTableSelection, toggleHeaderCell,
+import {CellSelection, toggleHeaderCell,
         addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
@@ -18,7 +18,7 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, 
   let selFrom = maybeTag(doc, 0), sel = selFrom != null && GardSelection.range(selFrom, maybeTag(doc, 1) ?? selFrom)
   let state = GardState.create({
     doc,
-    selection: sel ? normalizeTableSelection(sel, doc) || sel : undefined,
+    selection: sel ? CellSelection.normalize(sel, doc) || sel : undefined,
     config: CellSelection
   })
   let result = f(state)
@@ -30,7 +30,7 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, 
     let selFrom = maybeTag(expect, 0)
     if (selFrom != null) {
       let sel: GardSelection = GardSelection.range(selFrom, maybeTag(expect, 1) ?? selFrom)
-      sel = normalizeTableSelection(sel, state.doc) || sel
+      sel = CellSelection.normalize(sel, state.doc) || sel
       ist(state.selection.head, sel.head)
       ist(state.selection.anchor, sel.anchor)
     }
