@@ -1,8 +1,6 @@
-export * from "./tablemap"
-export {tableCorrection} from "./correct"
-export {CellSelection, normalizeTableSelection, tableSelectionFilter, drawCellSelection,
-        cellSelectionCommands, cellSelectionTripleClick} from "./cellselection"
-export {tableTheme} from "./table"
-export * from "./tablecommands"
-export {tablePasteHandler, handleTablePaste} from "./tablepaste"
-export {tableMenu} from "./menu"
+export {tables} from "./table"
+export {CellSelection} from "./cellselection"
+export {addColumn, addRow, deleteColumn, deleteRow, toggleHeaderCell, mergeCells, splitCell} from "./tablecommands"
+export {menu, tableMenu} from "./menu"
+
+export {Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema"

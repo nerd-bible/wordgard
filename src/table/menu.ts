@@ -1,21 +1,12 @@
 import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
 import {Wordgard} from "wordgard/view"
-import {Direction, GardSelection} from "wordgard/state"
+import {GardState, Direction, GardSelection} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command} from "wordgard/command"
-import {cellTag, addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell} from "./tablecommands"
+import {cellTag, headerCellTag,
+        addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell, toggleHeaderCell} from "./tablecommands"
 import {CellSelection} from "./cellselection"
-
-export const createTableMenu = new Submenu({
-  select(state) {
-    return !state.sel.head.matchingParent(plot => plot.type == Table.type)
-  },
-  label: icon.Table,
-  description: "Insert a table",
-  parent: Commands,
-  rank: 90
-})
 
 const SVG = "http://www.w3.org/2000/svg"
 const enum Grid { Size = 15, Margin = 4, Skip = Size + Margin, MaxW = 15, MaxH = 15 }
@@ -109,18 +100,17 @@ function insertTable(view: Wordgard, width: number, height: number) {
   })
 }
 
-export const createTableControl = new CustomControl({
-  render(view, done) {
-    return new DimensionPicker(view, (width, height) => {
-      done()
-      insertTable(view, width, height)
-      view.focus()
-    })
+const createTable = new Submenu({
+  select(state) {
+    return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
   },
-  parent: createTableMenu
+  label: icon.Table,
+  description: "Insert a table",
+  parent: Commands,
+  rank: 90
 })
 
-export const modifyTableMenu = new Submenu({
+const modifyTable = new Submenu({
   select(state) {
     return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
   },
@@ -130,90 +120,106 @@ export const modifyTableMenu = new Submenu({
   rank: 90
 })
 
-export const addRowAboveButton = new MenuButton({
-  run: view => Command.dispatch(view, addRow, "before"),
-  label: "Add row above",
-  parent: modifyTableMenu,
-  rank: 10,
-})
+export const menu = {
+  createTable,
 
-export const addRowBelowButton = new MenuButton({
-  run: view => Command.dispatch(view, addRow, "after"),
-  label: "Add row below",
-  parent: modifyTableMenu,
-  rank: 11,
-})
+  dimensionPicker: new CustomControl({
+    render(view, done) {
+      return new DimensionPicker(view, (width, height) => {
+        done()
+        insertTable(view, width, height)
+        view.focus()
+      })
+    },
+    parent: createTable
+  }),
 
-export const deleteRowButton = new MenuButton({
-  run: deleteRow,
-  label: "Delete row",
-  parent: modifyTableMenu,
-  rank: 15
-})
+  modifyTable,
 
-export const addColumnBeforeButton = new MenuButton({
-  run: view => Command.dispatch(view, addColumn, "before"),
-  label: "Add column before",
-  parent: modifyTableMenu,
-  rank: 20,
-})
+  toggleHeader: new MenuButton({
+    run: toggleHeaderCell,
+    select: state => !!headerCellTag(state.doc.schema),
+    label: "Toggle header cells",
+    parent: modifyTable,
+    rank: 10
+  }),
 
-export const addColumnAfterButton = new MenuButton({
-  run: view => Command.dispatch(view, addColumn, "after"),
-  label: "Add column after",
-  parent: modifyTableMenu,
-  rank: 21,
-})
+  addRowAbove: new MenuButton({
+    run: view => Command.dispatch(view, addRow, "before"),
+    label: "Add row above",
+    parent: modifyTable,
+    rank: 20,
+  }),
 
-export const deleteColumnButton = new MenuButton({
-  run: deleteColumn,
-  label: "Delete column",
-  parent: modifyTableMenu,
-  rank: 25,
-})
+  addRowBelow: new MenuButton({
+    run: view => Command.dispatch(view, addRow, "after"),
+    label: "Add row below",
+    parent: modifyTable,
+    rank: 21,
+  }),
 
-export const mergeCellsButton = new MenuButton({
-  run: mergeCells,
-  select: state => {
-    let {selection} = state
-    return selection instanceof CellSelection && selection.ranges.length > 1
-  },
-  label: "Merge cells",
-  parent: modifyTableMenu,
-  rank: 30,
-})
+  deleteRow: new MenuButton({
+    run: deleteRow,
+    label: "Delete row",
+    parent: modifyTable,
+    rank: 25
+  }),
 
-export const splitCellButton = new MenuButton({
-  run: splitCell,
-  select: state => {
-    let {selection} = state
-    if (!(selection instanceof CellSelection) || selection.ranges.length != 1) return false
-    let cell = state.sel.from.nodeAfter
-    return !!(cell && (cell.mark(ColSpan) || cell.mark(RowSpan)))
-  },
-  label: "Split cell",
-  parent: modifyTableMenu,
-  rank: 40,
-})
+  addColumnBefore: new MenuButton({
+    run: view => Command.dispatch(view, addColumn, "before"),
+    label: "Add column before",
+    parent: modifyTable,
+    rank: 30,
+  }),
 
-const tableMenuTheme = Wordgard.baseTheme({
-  ".wg-dimension-cell": {
-    fill: "none",
-    stroke: "#ccc",
-    strokeWidth: "1.5px",
-    rx: "2px"
-  },
-  ".wg-dimension-cell-active": {
-    stroke: "var(--wg-highlight-color)"
-  }
-})
+  addColumnAfter: new MenuButton({
+    run: view => Command.dispatch(view, addColumn, "after"),
+    label: "Add column after",
+    parent: modifyTable,
+    rank: 31,
+  }),
 
-export const tableMenu = [
-  createTableMenu,
-  createTableControl,
-  modifyTableMenu,
-  addRowAboveButton, addRowBelowButton, deleteRowButton,
-  addColumnAfterButton, addColumnBeforeButton, deleteColumnButton,
-  mergeCellsButton, splitCellButton,
-  tableMenuTheme
-]
+  deleteColumn: new MenuButton({
+    run: deleteColumn,
+    label: "Delete column",
+    parent: modifyTable,
+    rank: 35,
+  }),
+
+  mergeCells: new MenuButton({
+    run: mergeCells,
+    select: state => {
+      let {selection} = state
+      return selection instanceof CellSelection && selection.ranges.length > 1 &&
+        state.doc.schema.has(ColSpan) && state.doc.schema.has(RowSpan)
+    },
+    label: "Merge cells",
+    parent: modifyTable,
+    rank: 40,
+  }),
+
+  splitCell: new MenuButton({
+    run: splitCell,
+    select: state => {
+      let {selection} = state
+      if (!(selection instanceof CellSelection) || selection.ranges.length != 1) return false
+      let cell = state.sel.from.nodeAfter
+      return !!(cell && (cell.mark(ColSpan) || cell.mark(RowSpan)))
+    },
+    label: "Split cell",
+    parent: modifyTable,
+    rank: 41,
+  })
+}
+
+export function tableMenu(): GardState.Extension {
+  return [
+    menu.createTable,
+    menu.dimensionPicker,
+    menu.modifyTable,
+    menu.toggleHeader,
+    menu.addRowAbove, menu.addRowBelow, menu.deleteRow,
+    menu.addColumnBefore, menu.addColumnAfter, menu.deleteColumn,
+    menu.mergeCells, menu.splitCell
+  ]
+}

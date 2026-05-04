@@ -9,8 +9,6 @@
 // compute the start position of the table and offset positions passed
 // to or gotten from this structure by that amount.
 
-// FIXME export or not?
-
 import {Plot} from "wordgard/doc"
 import {Table, ColSpan, RowSpan} from "wordgard/schema"
 

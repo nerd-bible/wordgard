@@ -6,6 +6,90 @@ import {Command, moveByUnit, moveByLine, moveByWord, moveToLineSide} from "wordg
 
 import {TableMap} from "./tablemap"
 
+const cellSelectionDeco = GardState.Field.define<PointSet<Decoration>>({
+  create: getCellDeco,
+  update: (deco, tr) => {
+    return tr.docChanged || tr.selection ? getCellDeco(tr.state) : deco
+  },
+  provide: f => Decoration.source.of(s => s.field(f))
+})
+
+const selectedCell = Decoration.attribute("class", "wg-selected-cell")
+
+function getCellDeco(state: GardState): PointSet<Decoration> {
+  if (!(state.selection instanceof CellSelection)) return PointSet.empty
+  return PointSet.create(state.selection.ranges.map(({from}) => [from - 1, selectedCell]))
+}
+
+const tableSelectionFilter = GardState.prec.low(GardState.transactionFilter.of(tr => {
+  let normalized = CellSelection.normalize(tr.newSelection, tr.newDoc)
+  return normalized ? [tr, {selection: normalized}] : tr
+}))
+
+type Dir = "left" | "right" | "forward" | "backward" | "up" | "down"
+
+function resolveDir(dir: "left" | "right", state: GardState): "forward" | "backward" {
+  let block = state.sel.head.textblockParent
+  return (dir == "right") == (state.textDirection(block ? block.node.tag : undefined) == Direction.LTR)
+    ? "forward" : "backward"
+}
+
+function cursorCommand(view: Wordgard, {dir, extend}: {dir: Dir, extend?: boolean}) {
+  let {state} = view, {selection} = state
+  if (!(selection instanceof CellSelection)) return false
+  let newSel
+  if (!extend) {
+    newSel = GardSelection.near(state, selection.replacemenRange.from, 1)
+  } else {
+    if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
+    newSel = selection.moveHead(state.doc, dir)
+    if (!newSel) {
+      let forward = dir == "forward" || dir == "down"
+      let table = state.sel.from.parent!.parent!
+      let next = GardSelection.near(state, forward ? table.after : table.before, forward ? 1 : -1)
+      newSel = GardSelection.range(forward ? table.before : table.after, next.head, next.headSide)
+    }
+  }
+  view.dispatch({
+    selection: newSel,
+    scrollIntoView: true,
+    userEvent: "select"
+  })
+  return true
+}
+
+function moveToRowSide(view: Wordgard, {dir, extend}: {dir: "left" | "right" | "forward" | "backward", extend?: boolean}) {
+  let {state} = view, {selection} = state
+  if (!(selection instanceof CellSelection)) return false
+  if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
+  for (;;) {
+    let next: CellSelection | null = (selection as CellSelection).moveHead(state.doc, dir)
+    if (!next) break
+    selection = next
+  }
+  if (selection != state.selection) view.dispatch({
+    selection,
+    scrollIntoView: true,
+    userEvent: "select"
+  })
+  return true
+}
+
+const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((view, event) => {
+  if (event.detail == 3) {
+    let pos = view.state.doc.resolve(view.posAtCoords({x: event.clientX, y: event.clientY}).pos)
+    let cell = pos.matchingParent(n => view.state.doc.schema.matchNode(n.type, Node.Group.TableCell))
+    if (cell) {
+      let from = cell.before, to = cell.after
+      return {
+        get(event) { return CellSelection.between(view.state.doc, from, to) || GardSelection.near(view.state, from, 1) },
+        update(update) { from = update.changes.mapPos(from, 1); to = Math.max(from, update.changes.mapPos(to, -1)) }
+      }
+    }
+  }
+  return null
+})
+
 export class CellSelection extends GardSelection {
   constructor(
     anchor: number,
@@ -79,152 +163,59 @@ export class CellSelection extends GardSelection {
       cells.indexOf(head - (head < anchor ? 0 : toCell.length)))
   }
 
-  static extension = GardSelection.define<CellSelection, {anchor: number, head: number}>(
-    "cell", CellSelection,
-    sel => ({anchor: sel.anchor, head: sel.head}),
-    (doc, json) => {
-      if (!json || typeof json.anchor != "number" || typeof json.head != "number")
-        throw new ValidationError("Invalid JSON data for CellSelection")
-      let sel = CellSelection.between(doc, json.anchor, json.head)
-      if (!sel) throw new ValidationError("Cell selection from JSON doesn't span actual cells")
-      return sel
-    })
-}
-
-const cellSelectionDeco = GardState.Field.define<PointSet<Decoration>>({
-  create: getCellDeco,
-  update: (deco, tr) => {
-    return tr.docChanged || tr.selection ? getCellDeco(tr.state) : deco
-  },
-  provide: f => Decoration.source.of(s => s.field(f))
-})
-
-const selectedCell = Decoration.attribute("class", "wg-selected-cell")
-
-function getCellDeco(state: GardState): PointSet<Decoration> {
-  if (!(state.selection instanceof CellSelection)) return PointSet.empty
-  return PointSet.create(state.selection.ranges.map(({from}) => [from - 1, selectedCell]))
-}
-
-export const drawCellSelection: GardState.Extension = [
-  cellSelectionDeco,
-  Wordgard.baseTheme({
-    ".wg-selected-cell": {
-      background: "#ddf",
-      "&::selection, & ::selection": {backgroundColor: "transparent"},
-      "& :focus ::selection, & :focus::selection": {backgroundColor: "Highlight"}
-    },
-  })
-]
-
-/// Given a selection, this returns null if that selection is valid
-/// (is a cell selection, or a selection that starts and ends outside
-/// of tables, or in the same table cell). Otherwise, it will expand a
-/// selection within a single table to a cell selection, or expand a
-/// selection that crosses table boundaries to cover the entire table(s).
-export function normalizeTableSelection(sel: GardSelection, doc: Plot.Doc): GardSelection | null {
-  if (sel instanceof CellSelection) return null
-  let {from, to} = sel, modified = false
-  for (let parent: Pos.Plot | null = doc.resolve(sel.from).parent, cell: Pos.Plot | null = null;
-       parent; parent = parent.parent) {
-    if (doc.schema.matchNode(parent.node.type, Node.Group.TableCell)) cell = parent
-    if (parent.node.type == Table.type) {
-      if (to > parent.end) {
-        // Move out of a partially covered table
-        from = parent.before
+  /// Given a selection, this returns null if that selection is valid
+  /// (is a cell selection, or a selection that starts and ends outside
+  /// of tables, or in the same table cell). Otherwise, it will expand a
+  /// selection within a single table to a cell selection, or expand a
+  /// selection that crosses table boundaries to cover the entire table(s).
+  static normalize(sel: GardSelection, doc: Plot.Doc): GardSelection | null {
+    if (sel instanceof CellSelection) return null
+    let {from, to} = sel, modified = false
+    for (let parent: Pos.Plot | null = doc.resolve(sel.from).parent, cell: Pos.Plot | null = null;
+         parent; parent = parent.parent) {
+      if (doc.schema.matchNode(parent.node.type, Node.Group.TableCell)) cell = parent
+      if (parent.node.type == Table.type) {
+        if (to > parent.end) {
+          // Move out of a partially covered table
+          from = parent.before
+          modified = true
+        } else if (!cell || to > cell.end) {
+          // Inside this table, but not in same cell
+          let map = TableMap.get(parent.node, parent.start)
+          let start = map.nearestCell(from, 1), end = map.nearestCell(to, -1)
+          if (start.from > end.from) end = start
+          return sel.anchor < sel.head
+            ? CellSelection.between(doc, start.from, end.to)
+            : CellSelection.between(doc, end.to, start.from)
+        }
+      }
+    }
+    for (let parent: Pos.Plot | null = doc.resolve(sel.to).parent; parent; parent = parent.parent) {
+      if (parent.node.type == Table.type && from < parent.start) {
+        to = parent.after
         modified = true
-      } else if (!cell || to > cell.end) {
-        // Inside this table, but not in same cell
-        let map = TableMap.get(parent.node, parent.start)
-        let start = map.nearestCell(from, 1), end = map.nearestCell(to, -1)
-        if (start.from > end.from) end = start
-        return sel.anchor < sel.head
-          ? CellSelection.between(doc, start.from, end.to)
-          : CellSelection.between(doc, end.to, start.from)
       }
     }
+    return !modified ? null : sel.anchor < sel.head ? GardSelection.range(from, to) : GardSelection.range(to, from)
   }
-  for (let parent: Pos.Plot | null = doc.resolve(sel.to).parent; parent; parent = parent.parent) {
-    if (parent.node.type == Table.type && from < parent.start) {
-      to = parent.after
-      modified = true
-    }
-  }
-  return !modified ? null : sel.anchor < sel.head ? GardSelection.range(from, to) : GardSelection.range(to, from)
+
+  static extension = [
+    GardSelection.define<CellSelection, {anchor: number, head: number}>(
+      "cell", CellSelection,
+      sel => ({anchor: sel.anchor, head: sel.head}),
+      (doc, json) => {
+        if (!json || typeof json.anchor != "number" || typeof json.head != "number")
+          throw new ValidationError("Invalid JSON data for CellSelection")
+        let sel = CellSelection.between(doc, json.anchor, json.head)
+        if (!sel) throw new ValidationError("Cell selection from JSON doesn't span actual cells")
+        return sel
+      }),
+    cellSelectionDeco,
+    tableSelectionFilter,
+    Command.handler(moveByUnit, cursorCommand),
+    Command.handler(moveByWord, cursorCommand),
+    Command.handler(moveByLine, cursorCommand),
+    Command.handler(moveToLineSide, moveToRowSide),
+    cellSelectionTripleClick
+  ]
 }
-
-export const tableSelectionFilter = GardState.prec.low(GardState.transactionFilter.of(tr => {
-  let normalized = normalizeTableSelection(tr.newSelection, tr.newDoc)
-  return normalized ? [tr, {selection: normalized}] : tr
-}))
-
-type Dir = "left" | "right" | "forward" | "backward" | "up" | "down"
-
-function resolveDir(dir: "left" | "right", state: GardState): "forward" | "backward" {
-  let block = state.sel.head.textblockParent
-  return (dir == "right") == (state.textDirection(block ? block.node.tag : undefined) == Direction.LTR)
-    ? "forward" : "backward"
-}
-
-function cursorCommand(view: Wordgard, {dir, extend}: {dir: Dir, extend?: boolean}) {
-  let {state} = view, {selection} = state
-  if (!(selection instanceof CellSelection)) return false
-  let newSel
-  if (!extend) {
-    newSel = GardSelection.near(state, selection.replacemenRange.from, 1)
-  } else {
-    if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
-    newSel = selection.moveHead(state.doc, dir)
-    if (!newSel) {
-      let forward = dir == "forward" || dir == "down"
-      let table = state.sel.from.parent!.parent!
-      let next = GardSelection.near(state, forward ? table.after : table.before, forward ? 1 : -1)
-      newSel = GardSelection.range(forward ? table.before : table.after, next.head, next.headSide)
-    }
-  }
-  view.dispatch({
-    selection: newSel,
-    scrollIntoView: true,
-    userEvent: "select"
-  })
-  return true
-}
-
-function moveToRowSide(view: Wordgard, {dir, extend}: {dir: "left" | "right" | "forward" | "backward", extend?: boolean}) {
-  let {state} = view, {selection} = state
-  if (!(selection instanceof CellSelection)) return false
-  if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
-  for (;;) {
-    let next: CellSelection | null = (selection as CellSelection).moveHead(state.doc, dir)
-    if (!next) break
-    selection = next
-  }
-  if (selection != state.selection) view.dispatch({
-    selection,
-    scrollIntoView: true,
-    userEvent: "select"
-  })
-  return true
-}
-
-export const cellSelectionCommands = [
-  Command.handler(moveByUnit, cursorCommand),
-  Command.handler(moveByWord, cursorCommand),
-  Command.handler(moveByLine, cursorCommand),
-  Command.handler(moveToLineSide, moveToRowSide)
-]
-
-export const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((view, event) => {
-  if (event.detail == 3) {
-    let pos = view.state.doc.resolve(view.posAtCoords({x: event.clientX, y: event.clientY}).pos)
-    let cell = pos.matchingParent(n => view.state.doc.schema.matchNode(n.type, Node.Group.TableCell))
-    if (cell) {
-      let from = cell.before, to = cell.after
-      return {
-        get(event) { return CellSelection.between(view.state.doc, from, to) || GardSelection.near(view.state, from, 1) },
-        update(update) { from = update.changes.mapPos(from, 1); to = Math.max(from, update.changes.mapPos(to, -1)) }
-      }
-    }
-  }
-  return null
-})
