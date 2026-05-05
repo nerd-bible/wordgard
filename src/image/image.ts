@@ -3,7 +3,7 @@ import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema"
 import {MenuButton, icon, Commands} from "wordgard/menu"
-import {imageDialog, insertImage, activeImage, imageUploader} from "./dialog"
+import {imageDialog, insertImage, activeImage, imageUploader, phrases} from "./dialog"
 
 export const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {
@@ -136,7 +136,7 @@ export const InsertImageButton = new MenuButton({
   run: insertImage,
   active: state => !!activeImage(state.sel),
   label: icon.Image,
-  description: "Insert an image",
+  description: phrases.ref("insert_image"),
   parent: Commands, // FIXME better group
   rank: 80,
 })

@@ -6,8 +6,6 @@ import {Direction} from "./bidi"
 
 let nextID = 0
 
-// FIXME reconsider whether computed facet inputs are worth it
-
 const none: readonly any[] = []
 
 /// A facet is a labeled value that is associated with an editor
@@ -437,38 +435,6 @@ export class GardState {
   /// Returns true when the editor is
   /// [configured](#state.GardState^readOnly) to be read-only.
   get readOnly() { return this.facet(GardState.readOnly) }
-
-  /// Registers translation phrases. The
-  /// [`phrase`](#state.GardState.phrase) method will look through
-  /// all objects registered with this facet to find translations for
-  /// its argument.
-  static phrases = Facet.define<{[key: string]: string}>({
-    compare(a, b) {
-      let kA = Object.keys(a), kB = Object.keys(b)
-      return kA.length == kB.length && kA.every(k => a[k as any] == b[k as any])
-    }
-  })
-
-  // FIXME make this more static to make reliable, typed translations easier
-
-  /// Look up a translation for the given phrase (via the
-  /// [`phrases`](#state.GardState^phrases) facet), or return the
-  /// original string if no translation is found.
-  ///
-  /// If additional arguments are passed, they will be inserted in
-  /// place of markers like `$1` (for the first value) and `$2`, etc.
-  /// A single `$` is equivalent to `$1`, and `$$` will produce a
-  /// literal dollar sign.
-  phrase(phrase: string, ...insert: any[]): string {
-    for (let map of this.facet(GardState.phrases))
-      if (Object.prototype.hasOwnProperty.call(map, phrase)) { phrase = map[phrase]; break }
-    if (insert.length) phrase = phrase.replace(/\$(\$|\d*)/g, (m, i) => {
-      if (i == "$") return "$"
-      let n = +(i || 1)
-      return !n || n > insert.length ? m : insert[n - 1]
-    })
-    return phrase
-  }
 
   /// Configure the text direction in the editor. A `Direction` value
   /// sets the direction for the entire editor. A function is

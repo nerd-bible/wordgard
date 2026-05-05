@@ -1,12 +1,28 @@
 import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
 import {Wordgard} from "wordgard/view"
-import {GardState, Direction, GardSelection} from "wordgard/state"
+import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command} from "wordgard/command"
 import {cellTag, headerCellTag,
         addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell, toggleHeaderCell} from "./tablecommands"
 import {CellSelection} from "./cellselection"
+
+export const phrases = PhraseSet.define({
+  dimensions_title: "Table dimensions $1 by $2. Use arrow keys to change.",
+  dimensions_live: "$1 by $2",
+  insert_table: "Insert a table",
+  modify_table: "Modify table",
+  toggle_header: "Toggle header cells",
+  add_row_above: "Add row above",
+  add_row_below: "Add row below",
+  delete_row: "Delete row",
+  add_col_before: "Add column before",
+  add_col_after: "Add column before",
+  delete_col: "Delete column",
+  merge_cells: "Merge cells",
+  split_cell: "Split cell",
+})
 
 const SVG = "http://www.w3.org/2000/svg"
 const enum Grid { Size = 15, Margin = 4, Skip = Size + Margin, MaxW = 15, MaxH = 15 }
@@ -65,9 +81,8 @@ class DimensionPicker {
   }
 
   render() {
-    this.dom.setAttribute("aria-label", this.view.state.phrase("Table dimensions $1 by $2. Use arrow keys to change.",
-                                                               this.width, this.height))
-    this.announce.textContent = this.view.state.phrase("$1 by $2", this.width, this.height)
+    this.dom.setAttribute("aria-label", phrases.get(this.view.state, "dimensions_title", this.width, this.height))
+    this.announce.textContent = phrases.get(this.view.state, "dimensions_live", this.width, this.height)
     this.svg.textContent = ""
     let width = this.gridWidth * Grid.Skip + Grid.Margin
     this.svg.setAttribute("width", String(width))
@@ -114,7 +129,7 @@ const createTable = new Submenu({
     return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
   },
   label: icon.Table,
-  description: "Insert a table",
+  description: phrases.ref("insert_table"),
   parent: Commands,
   rank: 90
 })
@@ -124,7 +139,7 @@ const modifyTable = new Submenu({
     return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
   },
   label: icon.Table,
-  description: "Insert a table",
+  description: phrases.ref("modify_table"),
   parent: Commands,
   rank: 90
 })
@@ -148,49 +163,49 @@ export const menu = {
   toggleHeader: new MenuButton({
     run: toggleHeaderCell,
     select: state => !!headerCellTag(state.doc.schema),
-    label: "Toggle header cells",
+    label: phrases.ref("toggle_header"),
     parent: modifyTable,
     rank: 10
   }),
 
   addRowAbove: new MenuButton({
     run: view => Command.dispatch(view, addRow, "before"),
-    label: "Add row above",
+    label: phrases.ref("add_row_above"),
     parent: modifyTable,
     rank: 20,
   }),
 
   addRowBelow: new MenuButton({
     run: view => Command.dispatch(view, addRow, "after"),
-    label: "Add row below",
+    label: phrases.ref("add_row_below"),
     parent: modifyTable,
     rank: 21,
   }),
 
   deleteRow: new MenuButton({
     run: deleteRow,
-    label: "Delete row",
+    label: phrases.ref("delete_row"),
     parent: modifyTable,
     rank: 25
   }),
 
   addColumnBefore: new MenuButton({
     run: view => Command.dispatch(view, addColumn, "before"),
-    label: "Add column before",
+    label: phrases.ref("add_col_before"),
     parent: modifyTable,
     rank: 30,
   }),
 
   addColumnAfter: new MenuButton({
     run: view => Command.dispatch(view, addColumn, "after"),
-    label: "Add column after",
+    label: phrases.ref("add_col_after"),
     parent: modifyTable,
     rank: 31,
   }),
 
   deleteColumn: new MenuButton({
     run: deleteColumn,
-    label: "Delete column",
+    label: phrases.ref("delete_col"),
     parent: modifyTable,
     rank: 35,
   }),
@@ -202,7 +217,7 @@ export const menu = {
       return selection instanceof CellSelection && selection.ranges.length > 1 &&
         state.doc.schema.has(ColSpan) && state.doc.schema.has(RowSpan)
     },
-    label: "Merge cells",
+    label: phrases.ref("merge_cells"),
     parent: modifyTable,
     rank: 40,
   }),
@@ -215,7 +230,7 @@ export const menu = {
       let cell = state.sel.from.nodeAfter
       return !!(cell && (cell.mark(ColSpan) || cell.mark(RowSpan)))
     },
-    label: "Split cell",
+    label: phrases.ref("split_cell"),
     parent: modifyTable,
     rank: 41,
   })

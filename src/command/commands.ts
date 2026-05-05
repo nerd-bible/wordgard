@@ -28,6 +28,7 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
   let changes = ChangeSet.create(state.doc, {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true})
   return {
     changes,
+    // FIXME this will not move into the new paragraph when inserting from a block cursor
     selection: GardSelection.cursor(changes.mapPos(to, 1), -1),
     normalizeSelection: true,
     userEvent

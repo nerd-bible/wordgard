@@ -1,5 +1,5 @@
 import {Panel, Wordgard} from "wordgard/view"
-import {GardState, Facet, Direction} from "wordgard/state"
+import {GardState, Facet, Direction, PhraseSet} from "wordgard/state"
 import {Command} from "wordgard/command"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  CustomControl, Submenu, Top,
         MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
@@ -23,13 +23,14 @@ function id(prefix: string) {
 
 const SVG = "http://www.w3.org/2000/svg"
 
-function labelButton(view: Wordgard, button: HTMLElement, label: MenuLabel) {
+function labelButton(view: Wordgard, button: HTMLElement, label?: MenuLabel) {
   button.textContent = ""
-  if (typeof label == "string") {
+  if (!label) {
+  } else if (typeof label == "function") {
     let span = button.appendChild(document.createElement("span"))
     span.className = "wg-button-label"
-    span.textContent = view.state.phrase(label)
-  } else if ((label as {icon: string}).icon != null) {
+    span.textContent = label(view.state)
+  } else if ("icon" in label) {
     let svg = button.appendChild(document.createElementNS(SVG, "svg"))
     svg.classList.add("wg-icon")
     svg.setAttribute("viewBox", "0 0 100 100")
@@ -70,7 +71,7 @@ class BarButton implements BarElement {
     labelButton(view, this.dom, item.label)
     this.dynamicLabel = isMenuLabelWidget(item.label) && item.label.rerender != null
     if (item.description)
-      this.dom.setAttribute("aria-label", this.dom.title = view.state.phrase(item.description))
+      this.dom.setAttribute("aria-label", this.dom.title = item.description(view.state))
   }
 
   get focusDOM() { return this.dom }
@@ -163,7 +164,7 @@ class BarSubmenu implements BarElement {
     this.button.setAttribute("aria-haspopup", "true")
     this.button.setAttribute("aria-expanded", "false")
     if (item.description)
-      this.button.setAttribute("aria-label", this.button.title = view.state.phrase(item.description))
+      this.button.setAttribute("aria-label", this.button.title = item.description(view.state))
     if (item.label) {
       labelButton(view, this.button, item.label)
       this.activeChild = -2
@@ -207,7 +208,7 @@ class BarSubmenu implements BarElement {
       let activeChild = this.children.findIndex(ch => ch.flags & F.Active)
       if (this.activeChild != activeChild) {
         this.activeChild = activeChild
-        let label = (activeChild < 0 ? this.item.defaultLabel : (this.children[activeChild].item as MenuButton).label) ?? ""
+        let label = activeChild < 0 ? this.item.defaultLabel : (this.children[activeChild].item as MenuButton).label
         labelButton(view, this.button, label)
       }
     }
@@ -283,7 +284,7 @@ class MenuBar {
 
   update(update: Wordgard.Update) {
     let items = update.state.facet(menuItem)
-    if (items != this.items) {
+    if (items != this.items || PhraseSet.didChange(update.startState, update.state)) {
       this.items = items
       this.dom.textContent = ""
       this.init()

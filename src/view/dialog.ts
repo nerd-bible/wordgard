@@ -1,6 +1,7 @@
 import {Transaction, GardState} from "wordgard/state"
 import {Panel} from "./panel"
 import {Wordgard} from "./editorview"
+import {phrases} from "./phrases"
 
 type DialogConfig = {
   /// A function to render the content of the dialog. The result
@@ -136,7 +137,7 @@ function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLF
   }
   let close = document.createElement("button")
   close.onclick = () => done(null)
-  close.setAttribute("aria-label", view.state.phrase("close"))
+  close.setAttribute("aria-label", phrases.get(view.state, "dialog_close"))
   close.className = "wg-dialog-close"
   close.type = "button"
   close.append("×")

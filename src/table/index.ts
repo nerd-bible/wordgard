@@ -1,7 +1,7 @@
 export {tables} from "./table"
 export {CellSelection} from "./cellselection"
 export {addColumn, addRow, deleteColumn, deleteRow, toggleHeaderCell, mergeCells, splitCell} from "./tablecommands"
-export {menu, tableMenu} from "./menu"
+export {menu, tableMenu, phrases} from "./menu"
 export {handleTablePaste} from "./tablepaste"
 export {tableCorrection} from "./correct"
 

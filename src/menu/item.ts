@@ -1,7 +1,7 @@
 import {Wordgard, showDialog} from "wordgard/view"
 import {Command, toggleMark, setTextblockType, toggleBlock, toggleList, listIsActive,
         canAddMarkInRange, setAlignment} from "wordgard/command"
-import {GardState, Transaction, Facet} from "wordgard/state"
+import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
 import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
         Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
@@ -15,7 +15,7 @@ export type MenuLabelWidget = {
   update?: (elt: HTMLElement, view: Wordgard) => void
 }
 
-export type MenuLabel = string | {icon: string, directional?: boolean} | MenuLabelWidget
+export type MenuLabel = PhraseSet.Ref | {icon: string, directional?: boolean} | MenuLabelWidget
 
 export function isMenuLabelWidget(label: MenuLabel): label is MenuLabelWidget {
   return !!(label as any).render
@@ -32,7 +32,7 @@ export interface MenuItemSpec {
   updateFor?: (tr: Transaction) => boolean
   parent?: MenuGroup | Submenu
   rank?: number
-  description?: string
+  description?: PhraseSet.Ref
 }
 
 class BaseItem {
@@ -41,7 +41,7 @@ class BaseItem {
   updateFor: ((tr: Transaction) => boolean) | undefined
   parent: MenuGroup | Submenu | undefined
   rank: number
-  description: string | undefined
+  description: PhraseSet.Ref | undefined
 
   constructor(spec: MenuItemSpec) {
     this.select = spec.select
@@ -155,11 +155,37 @@ export const Commands = new MenuGroup({parent: Top, rank: 10})
 export const InlineStyles = new MenuGroup({parent: Top, rank: 30, margin: true})
 export const BlockMenu = new MenuGroup({parent: Top, rank: 50, margin: true})
 
+// FIXME split up, move out of here with the items
+export const phrases = PhraseSet.define({
+  block_style: "Block style",
+  toggle_strong: "Toggle strong emphasis",
+  toggle_em: "Toggle emphasis",
+  toggle_code: "Toggle code font",
+  toggle_underline: "Toggle underline",
+  toggle_super: "Toggle superscript",
+  toggle_sub: "Toggle subscript",
+  create_link: "Create a link",
+  undo: "Undo",
+  redo: "Redo",
+  paragraph: "Paragraph",
+  code_block: "Code block",
+  heading_1: "Heading 1",
+  heading_2: "Heading 2",
+  heading_3: "Heading 3",
+  toggle_bullet_list: "Toggle bullet list",
+  toggle_ordered_list: "Toggle ordered list",
+  toggle_quote: "Toggle blockquote",
+  alignment: "Alignment",
+  align_start: "Align text to block start",
+  align_end: "Align text to block end",
+  align_center: "Center text",
+})
+
 export function toggleInlineMark(config: {
   mark: Mark<any>,
   parent?: MenuGroup | Submenu
   rank?: number
-  description?: string
+  description?: PhraseSet.Ref
   label: MenuLabel
 }) {
   let {mark, parent, rank, description, label} = config
@@ -183,7 +209,7 @@ export const ToggleStrong = toggleInlineMark({
   mark: Strong,
   parent: InlineStyles,
   rank: 10,
-  description: "Toggle strong emphasis",
+  description: phrases.ref("toggle_strong"),
   label: icon.Bold
 })
 
@@ -191,7 +217,7 @@ export const ToggleEmphasis = toggleInlineMark({
   mark: Emphasis,
   parent: InlineStyles,
   rank: 12,
-  description: "Toggle emphasis",
+  description: phrases.ref("toggle_em"),
   label: icon.Italic
 })
 
@@ -199,7 +225,7 @@ export const ToggleCode = toggleInlineMark({
   mark: Code,
   parent: InlineStyles,
   rank: 30,
-  description: "Toggle code font",
+  description: phrases.ref("toggle_code"),
   label: icon.Code
 })
 
@@ -207,7 +233,7 @@ export const ToggleUnderline = toggleInlineMark({
   mark: Underline,
   parent: InlineStyles,
   rank: 14,
-  description: "Toggle underline",
+  description: phrases.ref("toggle_underline"),
   label: icon.Underline
 })
 
@@ -215,7 +241,7 @@ export const ToggleSuperscript = toggleInlineMark({
   mark: Superscript,
   parent: InlineStyles,
   rank: 16,
-  description: "Toggle superscript",
+  description: phrases.ref("toggle_super"),
   label: icon.Superscript
 })
 
@@ -223,7 +249,7 @@ export const ToggleSubscript = toggleInlineMark({
   mark: Subscript,
   parent: InlineStyles,
   rank: 18,
-  description: "Toggle subscript",
+  description: phrases.ref("toggle_sub"),
   label: icon.Subscript
 })
 
@@ -267,7 +293,7 @@ export const ToggleLink = new MenuButton({
     return !state.selection.empty
   },
   label: icon.Link,
-  description: "Create a link",
+  description: phrases.ref("create_link"),
   parent: InlineStyles,
   rank: 50,
 })
@@ -277,7 +303,7 @@ export const ToggleLink = new MenuButton({
 export const Undo = new MenuButton({
   run: () => { console.log("undo"); return true },
   label: icon.Undo,
-  description: "Undo",
+  description: phrases.ref("undo"),
   parent: Commands,
   rank: 10
 })
@@ -285,14 +311,14 @@ export const Undo = new MenuButton({
 export const Redo = new MenuButton({
   run: () => { console.log("redo"); return true },
   label: icon.Redo,
-  description: "Redo",
+  description: phrases.ref("redo"),
   parent: Commands,
   rank: 20
 })
 
 export const TextblockStyle = new Submenu({
-  defaultLabel: "Block style",
-  description: "Block style",
+  defaultLabel: phrases.ref("block_style"),
+  description: phrases.ref("block_style"),
   parent: Top,
   rank: 5,
   width: 10,
@@ -308,7 +334,7 @@ function selectionInType(tag: Plot.Tag.Any) {
 export const ParagraphButton = new MenuButton({
   run: Command.bind(setTextblockType, Paragraph),
   active: selectionInType(Paragraph),
-  label: "Paragraph",
+  label: phrases.ref("paragraph"),
   parent: TextblockStyle,
   rank: 10
 })
@@ -316,7 +342,7 @@ export const ParagraphButton = new MenuButton({
 export const CodeBlockButton = new MenuButton({
   run: Command.bind(setTextblockType, CodeBlock),
   active: selectionInType(CodeBlock),
-  label: "Code block",
+  label: phrases.ref("code_block"),
   parent: TextblockStyle,
   rank: 30
 })
@@ -324,7 +350,7 @@ export const CodeBlockButton = new MenuButton({
 export const Heading1 = new MenuButton({
   run: Command.bind(setTextblockType, Heading.of(1)),
   active: selectionInType(Heading.of(1)),
-  label: "Heading 1",
+  label: phrases.ref("heading_1"),
   parent: TextblockStyle,
   rank: 50
 })
@@ -332,7 +358,7 @@ export const Heading1 = new MenuButton({
 export const Heading2 = new MenuButton({
   run: Command.bind(setTextblockType, Heading.of(2)),
   active: selectionInType(Heading.of(2)),
-  label: "Heading 2",
+  label: phrases.ref("heading_2"),
   parent: TextblockStyle,
   rank: 51
 })
@@ -340,7 +366,7 @@ export const Heading2 = new MenuButton({
 export const Heading3 = new MenuButton({
   run: Command.bind(setTextblockType, Heading.of(3)),
   active: selectionInType(Heading.of(3)),
-  label: "Heading 3",
+  label: phrases.ref("heading_3"),
   parent: TextblockStyle,
   rank: 52
 })
@@ -349,7 +375,7 @@ export const BulletListButton = new MenuButton({
   run: Command.bind(toggleList, BulletList),
   active: listIsActive(BulletList),
   label: icon.BulletList,
-  description: "Toggle bullet list",
+  description: phrases.ref("toggle_bullet_list"),
   parent: BlockMenu,
   rank: 20
 })
@@ -358,7 +384,7 @@ export const OrderedListButton = new MenuButton({
   run: Command.bind(toggleList, OrderedList.default!),
   active: listIsActive(OrderedList.default!),
   label: icon.OrderedList,
-  description: "Toggle ordered list",
+  description: phrases.ref("toggle_ordered_list"),
   parent: BlockMenu,
   rank: 30
 })
@@ -371,13 +397,13 @@ export const BlockquoteButton = new MenuButton({
     return false
   },
   label: icon.Quote,
-  description: "Toggle blockquote",
+  description: phrases.ref("toggle_quote"),
   parent: BlockMenu,
   rank: 40
 })
 
 export const AlignmentMenu = new Submenu({
-  description: "Alignment",
+  description: phrases.ref("alignment"),
   parent: BlockMenu,
   arrow: false,
   rank: 10
@@ -392,7 +418,7 @@ export const AlignStart = new MenuButton({
   run: Command.bind(setAlignment, null),
   active: state => alignmentAtCursor(state) == null,
   label: icon.AlignLeft,
-  description: "Align text to block start",
+  description: phrases.ref("align_start"),
   parent: AlignmentMenu,
   rank: 10
 })
@@ -401,7 +427,7 @@ export const AlignEnd = new MenuButton({
   run: Command.bind(setAlignment, "end"),
   active: state => alignmentAtCursor(state) == "end",
   label: icon.AlignRight,
-  description: "Align text to block end",
+  description: phrases.ref("align_end"),
   parent: AlignmentMenu,
   rank: 20
 })
@@ -410,7 +436,7 @@ export const AlignCenter = new MenuButton({
   run: Command.bind(setAlignment, "center"),
   active: state => alignmentAtCursor(state) == "center",
   label: icon.AlignCenter,
-  description: "Center text",
+  description: phrases.ref("align_center"),
   parent: AlignmentMenu,
   rank: 30
 })
