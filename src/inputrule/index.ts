@@ -1,2 +1,2 @@
-export * from "./inputrule"
-export * from "./rules"
+export {InputRule} from "./inputrule"
+export {emDash, ellipsis, openDoubleQuote, closeDoubleQuote, openSingleQuote, closeSingleQuote, smartQuotes} from "./rules"

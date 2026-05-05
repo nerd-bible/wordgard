@@ -9,6 +9,7 @@
     "./schema": "./dist/schema.js",
     "./image": "./dist/image.js",
     "./table": "./dist/table.js",
+    "./list": "./dist/list.js",
     "./state": "./dist/state.js",
     "./view": "./dist/view.js",
     "./command": "./dist/command.js",

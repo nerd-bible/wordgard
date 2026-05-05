@@ -4,5 +4,3 @@ export {addColumn, addRow, deleteColumn, deleteRow, toggleHeaderCell, mergeCells
 export {menu, tableMenu, phrases} from "./menu"
 export {handleTablePaste} from "./tablepaste"
 export {tableCorrection} from "./correct"
-
-export {Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema"

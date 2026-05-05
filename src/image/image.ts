@@ -5,7 +5,7 @@ import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/sche
 import {MenuButton, icon, Commands} from "wordgard/menu"
 import {imageDialog, insertImage, activeImage, imageUploader, phrases} from "./dialog"
 
-export const imageTheme = Wordgard.theme({
+const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {
     display: "inline-block",
     lineHeight: "0.1",
@@ -101,7 +101,7 @@ const resizeHandlers = Wordgard.domEventHandlers({
   }
 })
 
-export const dragHandle = [
+const dragHandle = [
   GardState.prec.high(resizeHandlers),
   resizeState,
   Decoration.source.of(s => s.field(resizeState).deco),
@@ -132,6 +132,7 @@ export const imageKeymap = [
   KeyBinding.define({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
 ]
 
+// FIXME name
 export const InsertImageButton = new MenuButton({
   run: insertImage,
   active: state => !!activeImage(state.sel),

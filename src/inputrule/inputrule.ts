@@ -4,9 +4,9 @@ import {isolateHistory} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"
 import {findWrappable, wrapBlockRange, autoJoinBlocks} from "wordgard/command"
 
-export const inputRule = Facet.define<InputRule>()
+const inputRule = Facet.define<InputRule>()
 
-export const beforeUpdate = Wordgard.beforeUpdate.of(applyInputRules)
+const beforeUpdate = Wordgard.beforeUpdate.of(applyInputRules)
 
 export class InputRule {
   extension: GardState.Extension
@@ -14,7 +14,7 @@ export class InputRule {
   inCode: boolean
 
   private constructor(readonly expr: RegExp,
-                      readonly apply: (view: Wordgard, match: DocMatchArray) => boolean,
+                      readonly apply: (view: Wordgard, match: InputRule.MatchArray) => boolean,
                       spec: InputRule.Spec) {
     this.lookahead = spec.lookahead
     this.inCode = !!spec.inCode
@@ -28,13 +28,12 @@ export class InputRule {
   }
 
   /// Build an input rule for automatically wrapping a textblock when
-  /// a given string is typed. The `expr` argument is directly passed
-  /// through to the `InputRule` constructor. You'll probably want the
-  /// regexp to start with `^`, so that the pattern can only occur at
-  /// the start of a textblock. `tag` gives the type of plot to wrap in.
+  /// a given string is typed. You'll probably want the regexp to
+  /// start with `^`, so that the pattern can only occur at the start
+  /// of a textblock. `tag` gives the type of plot to wrap in.
   static wrapping(
     expr: RegExp,
-    tag: Plot.Tag.Any | ((match: DocMatchArray) => Plot.Tag.Any)
+    tag: Plot.Tag.Any | ((match: InputRule.MatchArray) => Plot.Tag.Any)
   ) {
     return InputRule.define({
       expr,
@@ -59,10 +58,10 @@ export class InputRule {
   /// regexp with `^` so that it is only matched at the start of a
   /// textblock. The optional `getAttrs` parameter can be used to compute
   /// the new node's attributes, and works the same as in the
-  /// `wrappingInputRule` function.
+  /// `InputRule.wrapping` function.
   static textblockType(
     expr: RegExp,
-    tag: Plot.Tag.Any | ((match: DocMatchArray) => Plot.Tag.Any)
+    tag: Plot.Tag.Any | ((match: InputRule.MatchArray) => Plot.Tag.Any)
   ) {
     return InputRule.define({
       expr,
@@ -96,7 +95,7 @@ export namespace InputRule {
     ///
     /// When given as a string, the full match will be replaced by
     /// that string.
-    apply: ((view: Wordgard, match: DocMatchArray) => boolean) | string,
+    apply: ((view: Wordgard, match: InputRule.MatchArray) => boolean) | string,
     /// Because the regular expression given in `expr` must end at the
     /// cursor, it is matched against a string that stops at the
     /// cursor, and cannot look beyond it. You can provide an
@@ -109,6 +108,9 @@ export namespace InputRule {
     // FIXME should this also check marks?
     inCode?: boolean
   }
+
+  export type Match = {from: Pos, to: Pos, text: string}
+  export type MatchArray = readonly (InputRule.Match | null)[] & {0: InputRule.Match}
 }
 
 function ensureAnchor(regexp: RegExp) {
@@ -118,7 +120,7 @@ function ensureAnchor(regexp: RegExp) {
 }
 
 function applyString(text: string) {
-  return (view: Wordgard, match: DocMatchArray) => {
+  return (view: Wordgard, match: InputRule.MatchArray) => {
     view.dispatch({
       changes: {from: match[0].from.pos, to: match[0].to.pos, insert: [Leaf.text(text)]},
       annotations: isolateHistory.of("full")
@@ -136,9 +138,6 @@ function getGroupIndices(match: RegExpMatchArray): ([number, number] | undefined
   }
   return result
 }
-
-export type DocMatch = {from: Pos, to: Pos, text: string}
-export type DocMatchArray = readonly (DocMatch | null)[] & {0: DocMatch}
 
 function applyInputRules(update: Wordgard.Update) {
   let typed = -1
@@ -160,7 +159,7 @@ function applyInputRules(update: Wordgard.Update) {
     if (!match || rule.lookahead && !rule.lookahead.test(textAfter ?? (textAfter = map.text.slice(curIndex))))
       continue
     let indices = getGroupIndices(match)
-    let docMatch: (DocMatch | null)[] = [], parent = -1
+    let docMatch: (InputRule.Match | null)[] = [], parent = -1
     for (let i = 0; i < match.length; i++) {
       let text = match[i]
       if (text == null) {
@@ -176,6 +175,6 @@ function applyInputRules(update: Wordgard.Update) {
         docMatch.push({from, to, text})
       }
     }
-    if (rule.apply(update.view, docMatch as any as DocMatchArray)) break
+    if (rule.apply(update.view, docMatch as any as InputRule.MatchArray)) break
   }
 }

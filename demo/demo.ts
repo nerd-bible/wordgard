@@ -1,6 +1,7 @@
 import {Wordgard, defaultKeymap} from "wordgard/view"
 import {basicSchema} from "wordgard/schema"
 import {image, figure, imageResizing} from "wordgard/image"
+import {orderedList, bulletList} from "wordgard/list"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 import {tables, tableMenu} from "wordgard/table"
@@ -17,6 +18,7 @@ import {tables, tableMenu} from "wordgard/table"
 <p>I am Wordgard</p>`,
   config: [
     basicSchema.elements,
+    orderedList(), bulletList(),
     image(),
     figure({captioned: true}),
     imageResizing(),

@@ -61,8 +61,8 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defining: true,
   shape: {
     element: "ol",
-    attributes: order => order == 1 ? {} as Record<string, string> : {order: String(order)},
-    read: elt => Number(elt.getAttribute("order") || "1")
+    attributes: start => start == 1 ? {} as Record<string, string> : {start: String(start)},
+    read: elt => Number(elt.getAttribute("start") || "1")
   },
   autoJoin: (_a, b) => b.param == 1
 })
@@ -89,10 +89,6 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
   shape: {element: "br"}
 })
 
-// FIXME must somehow be possible to reconfigure these (and lists) to
-// have block content. Or have other cell types, and connect them via
-// a Cell group?
-
 export const Cell = Plot.defineBlock("Cell", {
   inlineContent: true,
   group: G.TableCell,
@@ -108,8 +104,6 @@ export const HeaderCell = Plot.defineBlock("HeaderCell", {
   cursorBarrier: false,
   shape: {element: "th"}
 })
-
-// FIXME better name
 
 export const BlockCell = Plot.defineBlock("Cell", {
   blockContent: G.Content,

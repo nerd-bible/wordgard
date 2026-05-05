@@ -1,10 +1,10 @@
 import {Wordgard, showDialog} from "wordgard/view"
-import {Command, toggleMark, setTextblockType, toggleBlock, toggleList, listIsActive,
+import {Command, toggleMark, setTextblockType, toggleBlock,
         canAddMarkInRange, setAlignment} from "wordgard/command"
 import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
 import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
 import {Strong, Emphasis, Code, Link,
-        Paragraph, CodeBlock, Heading, BulletList, OrderedList, Blockquote,
+        Paragraph, CodeBlock, Heading, Blockquote,
         Underline, Superscript, Subscript,
         Alignment} from "wordgard/schema"
 import {icon} from "./icon"
@@ -172,8 +172,6 @@ export const phrases = PhraseSet.define({
   heading_1: "Heading 1",
   heading_2: "Heading 2",
   heading_3: "Heading 3",
-  toggle_bullet_list: "Toggle bullet list",
-  toggle_ordered_list: "Toggle ordered list",
   toggle_quote: "Toggle blockquote",
   alignment: "Alignment",
   align_start: "Align text to block start",
@@ -371,24 +369,6 @@ export const Heading3 = new MenuButton({
   rank: 52
 })
 
-export const BulletListButton = new MenuButton({
-  run: Command.bind(toggleList, BulletList),
-  active: listIsActive(BulletList),
-  label: icon.BulletList,
-  description: phrases.ref("toggle_bullet_list"),
-  parent: BlockMenu,
-  rank: 20
-})
-
-export const OrderedListButton = new MenuButton({
-  run: Command.bind(toggleList, OrderedList.default!),
-  active: listIsActive(OrderedList.default!),
-  label: icon.OrderedList,
-  description: phrases.ref("toggle_ordered_list"),
-  parent: BlockMenu,
-  rank: 30
-})
-
 export const BlockquoteButton = new MenuButton({
   run: Command.bind(toggleBlock, Blockquote),
   active: state => {
@@ -447,7 +427,7 @@ export const staticMenu: GardState.Extension[] = [
   Commands, InlineStyles, BlockMenu, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
   AlignmentMenu, AlignStart, AlignEnd, AlignCenter,
-  BulletListButton, OrderedListButton, BlockquoteButton
+  BlockquoteButton
 ]
 
 export type ResolvedMenuItem = MenuButton | CustomControl | "|" | ResolvedSubmenu
