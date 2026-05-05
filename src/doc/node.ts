@@ -177,6 +177,7 @@ export namespace Node {
     /// top level document, blockquotes, and list items.
     static Content = Group.define()
     static TableCell = Group.define()
+    static ListItem = Group.define()
     // FIXME ListItem?
 
     /// @internal

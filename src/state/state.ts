@@ -747,6 +747,7 @@ export namespace GardState {
     return result.reduce((a, b) => a.concat(b))
   }
 
+  // FIXME require schema elements to be wrapped again?
   /// Extension values can be
   /// [provided](#state.GardStateConfig.extensions) when creating a
   /// state to attach various kinds of configuration and behavior

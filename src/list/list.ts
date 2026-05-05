@@ -1,6 +1,6 @@
 import {PhraseSet} from "wordgard/state"
 import {Command, toggleList, listIsActive} from "wordgard/command"
-import {BulletList, OrderedList, ListItem} from "wordgard/schema"
+import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema"
 import {MenuButton, BlockMenu, icon} from "wordgard/menu"
 import {InputRule} from "wordgard/inputrule"
 
@@ -35,10 +35,10 @@ export const listOnNumber = InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedL
 
 // FIXME support inline list items?
 
-export function bulletList() {
-  return [BulletList, ListItem, menu.toggleBulletList, listOnDash]
+export function bulletList(config: {blockItems?: boolean} = {}) {
+  return [BulletList, config.blockItems == false ? InlineListItem : ListItem, menu.toggleBulletList, listOnDash]
 }
 
-export function orderedList() {
-  return [OrderedList, ListItem, menu.toggleOrderedList, listOnNumber]
+export function orderedList(config: {blockItems?: boolean} = {}) {
+  return [OrderedList, config.blockItems == false ? InlineListItem : ListItem, menu.toggleOrderedList, listOnNumber]
 }

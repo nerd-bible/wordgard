@@ -52,10 +52,16 @@ export const ListItem = Plot.defineBlock("ListItem", {
   defining: true,
 })
 
+export const InlineListItem = Plot.defineBlock("ListItem", {
+  inlineContent: true,
+  shape: {element: "li"},
+  defining: true,
+})
+
 export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
-  blockContent: ListItem,
+  blockContent: [ListItem, InlineListItem],
   group: G.Content,
   role: Node.Role.List,
   defining: true,
@@ -68,7 +74,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
 })
 
 export const BulletList = Plot.defineBlock("BulletList", {
-  blockContent: ListItem,
+  blockContent: [ListItem, InlineListItem],
   group: G.Content,
   role: Node.Role.List,
   defining: true,
@@ -281,6 +287,7 @@ export const Doc = Plot.defineDoc({
   blockContent: G.Content
 })
 
+// FIXME move? Drop?
 export const basicSchema = Schema.define([
   Doc,
   Paragraph,
@@ -294,7 +301,7 @@ export const basicSchema = Schema.define([
   HorizontalRule,
   BulletList,
   OrderedList,
-  ListItem,
+  ListItem, // FIXME conflicts with inline list items
   Emphasis,
   Strong,
   Link,
