@@ -355,6 +355,7 @@ const baseTheme = Wordgard.baseTheme({
     boxSizing: "border-box",
     backgroundColor: "var(--wg-panel-color)",
     border: "1px solid var(--wg-border-color)",
+    font: "var(--wg-dialog-font)",
   },
   ".wg-tooltip-section:not(:first-child)": {
     borderTop: "1px solid var(--wg-border-color)",
@@ -502,7 +503,6 @@ export namespace Tooltip {
     /// false to disable that.
     resize?: boolean
   }
-
 
   /// Facet to which an extension can add a value to show a tooltip.
   export const show = Facet.define<Tooltip | null>({

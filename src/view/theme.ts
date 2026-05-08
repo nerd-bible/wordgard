@@ -24,6 +24,7 @@ export function buildTheme(main: string, spec: {[name: string]: StyleSpec}, scop
 export const baseTheme = buildTheme("." + baseThemeID, {
   "&": {
     "--wg-highlight-color": "#6af",
+    "--wg-dialog-font": "90% sans-serif",
     position: "relative !important",
     boxSizing: "border-box",
     display: "flex !important",
@@ -124,7 +125,8 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     left: 0,
     right: 0,
     zIndex: 300,
-    backgroundColor: "var(--wg-panel-color)"
+    backgroundColor: "var(--wg-panel-color)",
+    font: "var(--wg-dialog-font)",
   },
 
   "wg-dialog": {
@@ -132,7 +134,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     padding: "2px 19px 4px 6px",
     position: "relative",
     "& label, & .wg-label": {
-      fontSize: "80%"
+      fontSize: "90%"
     },
     borderBottom: "1px solid var(--wg-border-color)"
   },

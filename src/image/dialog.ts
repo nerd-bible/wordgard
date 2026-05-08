@@ -212,7 +212,6 @@ const imageDialogTheme = Wordgard.baseTheme({
     borderBottom: "1px solid var(--wg-border-color)"
   },
   ".wg-img-form": {
-    fontFamily: "sans-serif",
     padding: "5px 3px",
     display: "grid",
     gap: "8px",
@@ -224,7 +223,7 @@ const imageDialogTheme = Wordgard.baseTheme({
   },
   ".wg-dialog-title": {
     gridColumn: "span 2",
-    fontSize: "80%",
+    fontSize: "90%",
     fontWeight: "bold",
     textAlign: "center"
   },
@@ -263,7 +262,7 @@ const imageDialogTheme = Wordgard.baseTheme({
   ".wg-img-upload": {
     boxSizing: "border-box",
     padding: "4px",
-    fontSize: "70%"
+    fontSize: "80%"
   }
 })
 

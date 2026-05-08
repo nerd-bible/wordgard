@@ -181,7 +181,9 @@ const linkTooltipField = GardState.Field.define<Tooltip | null>({
 
 function renderLinkTooltip(target: string) {
   let dom = document.createElement("wg-link-tooltip")
-  dom.textContent = target
+  let link = dom.appendChild(document.createElement("a"))
+  link.href = target
+  link.textContent = target
   return {dom}
 }
 
@@ -189,13 +191,15 @@ const linkTooltipTheme = Wordgard.baseTheme({
   "wg-link-tooltip": {
     maxWidth: "30em",
     fontSize: "80%",
-    fontFamily: "sans-serif",
     textOverflow: "ellipsis",
     whiteSpace: "pre",
     overflow: "hidden",
     borderRadius: "3px",
     padding: "2px 5px",
-    marginTop: "2px"
+    marginTop: "2px",
+    "& a": {
+      textDecoration: "none",
+    }
   }
 })
 
