@@ -1,10 +1,10 @@
 import {MenuButton, InlineStyles, MenuGroup, Submenu, MenuLabel, icon} from "wordgard/menu"
 import {Mark, ChangeSet} from "wordgard/doc"
-import {PhraseSet, GardState} from "wordgard/state"
+import {PhraseSet, GardState, Transaction} from "wordgard/state"
 import {Command, toggleMark, canAddMarkInRange} from "wordgard/command"
 import {Strong, Emphasis, Code, Link, Underline, Superscript, Subscript} from "wordgard/schema"
 import {phrases} from "wordgard/phrases"
-import {Wordgard, showDialog, KeyBinding} from "wordgard/view"
+import {Wordgard, showDialog, KeyBinding, Tooltip} from "wordgard/view"
 
 export function strong(): GardState.Extension {
   return [Strong, strong.button, strong.keyBinding]
@@ -149,8 +149,58 @@ function createLink(view: Wordgard) {
   return true
 }
 
+function computeLinkTooltip(state: GardState): Tooltip | null {
+  if (!state.selection.isCursor) return null
+  let {head} = state.sel, before = head.nodeBefore, link = before && Link.isInSet(before.marks)
+  if (!link) return null
+  let start = head.pos - before!.length, end = head.pos, siblings = head.parent.node.content
+  for (let index = head.index - 1; index > 0 && link.isInSet(siblings[index - 1].marks);)
+    start -= siblings[--index].length
+  for (let index = head.index; index < siblings.length && link.isInSet(siblings[index].marks);)
+    end += siblings[index++].length
+  return {
+    pos: start,
+    end,
+    above: false,
+    create: () => renderLinkTooltip(link.value)
+  }
+}
+
+const closeLinkTooltip = Transaction.Effect.define<null>()
+  
+const linkTooltipField = GardState.Field.define<Tooltip | null>({
+  create: computeLinkTooltip,
+  update(value, tr) {
+    if (tr.effects.some(e => e.is(closeLinkTooltip))) return null
+    let sel = tr.selection
+    if (!tr.docChanged && (!sel || value && sel.isCursor && sel.head >= value.pos && sel.head <= value.end!)) return value
+    return computeLinkTooltip(tr.state)
+  },
+  provide: f => Tooltip.show.from(f)
+})
+
+function renderLinkTooltip(target: string) {
+  let dom = document.createElement("wg-link-tooltip")
+  dom.textContent = target
+  return {dom}
+}
+
+const linkTooltipTheme = Wordgard.baseTheme({
+  "wg-link-tooltip": {
+    maxWidth: "30em",
+    fontSize: "80%",
+    fontFamily: "sans-serif",
+    textOverflow: "ellipsis",
+    whiteSpace: "pre",
+    overflow: "hidden",
+    borderRadius: "3px",
+    padding: "2px 5px",
+    marginTop: "2px"
+  }
+})
+
 export function link(): GardState.Extension {
-  return [Link, link.button, link.keyBinding]
+  return [Link, link.button, link.keyBinding, link.tooltip]
 }
 
 export namespace link {
@@ -177,6 +227,19 @@ export namespace link {
     parent: InlineStyles,
     rank: 50,
   })
+
+  export const tooltip: GardState.Extension = [
+    linkTooltipField,
+    GardState.prec.low(KeyBinding.define({
+      key: "Escape",
+      run: view => {
+        if (!view.state.field(linkTooltipField)) return false
+        view.dispatch({effects: closeLinkTooltip.of(null)})
+        return true
+      }
+    })),
+    linkTooltipTheme
+  ]
 }
 
 /// Creates a menu button that toggles an inline mark via {@link

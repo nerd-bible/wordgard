@@ -1,1 +1,1 @@
-export {toggleInlineMarkButton, strong, emphasis, code, superscript, subscript, link} from "./mark"
+export {toggleInlineMarkButton, strong, emphasis, code, underline, superscript, subscript, link} from "./mark"
