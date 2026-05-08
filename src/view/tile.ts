@@ -236,6 +236,8 @@ export class CompositeTile extends Tile {
       } else if (node.isBlock) {
         textblock = null
       }
+    } else if (node && node.isText) {
+      orientation = Orientation.Row
     }
     let result = this.isAtom || !this.children.length ? null
       : orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock)
@@ -423,7 +425,8 @@ export class DocTile extends CompositeTile {
       let isPlace = !(tile.isNode && !tile.isPlotContent)
       for (let i = 0;; i++) {
         let ch = i == tile.children.length ? null : tile.children[i]
-        if (isPlace && !off && (!found || assoc > 0 || !assoc && foundDepth > depth) && !(ch && ch.isNodeInner && !(ch.flags & TileFlag.AfterContent))) {
+        if (isPlace && !off && (!found || assoc > 0 || !assoc && foundDepth > depth) &&
+            !(ch && ch.isNodeInner && !(ch.flags & TileFlag.AfterContent))) {
           found = tile; offset = i; foundDepth = depth
         }
         if (!ch) break
@@ -494,7 +497,7 @@ export class EltTile extends CompositeTile {
   get isSpanning() { return (this.flags & TileFlag.Spanning) > 0 }
   get isNodeOuter() { return !!this.node }
   get isAtom() { return !!this._node && (this.flags & TileFlag.Atom) > 0 }
-  get boundary() { return this._node && !(this.flags & TileFlag.Atom) ? 1 : 0 }
+  get boundary() { return this._node && !(this.flags & TileFlag.Atom) && !this._node.isText ? 1 : 0 }
   get node() { return this._node }
 
   get contentTile(): EltTile | null {
@@ -537,7 +540,10 @@ export class WidgetTile extends Tile {
 
   destroy() { this.widget.type.destroy(this.widget.value) }
 
-  toString() { return this.widget.type == Widget.Text ? JSON.stringify(this.widget.value) : super.toString() }
+  toString() {
+    return this.widget.type == Widget.EditableText || this.widget.type == Widget.Text
+      ? JSON.stringify(this.widget.value) : super.toString()
+  }
 
   posAtCoordsInner(start: number, state: GardState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): CoordPos {
@@ -593,8 +599,8 @@ export class TextTile extends Tile {
     else return CoordPos.create(pos, 1)
   }
 
-  static of(text: string) {
-    return new TextTile(text, document.createTextNode(text))
+  static of(text: string, reuse?: Text, flags?: TileFlag) {
+    return new TextTile(text, reuse || document.createTextNode(text), flags)
   }
 }
 
@@ -835,7 +841,7 @@ class ContentUpdate {
       },
       node: (node, shape, wrappers) => {
         this.openWrappers(wrappers, node.tag, reuse)
-        if (node.is(Leaf.Text)) {
+        if (node.is(Leaf.Text) && shape instanceof Widget && shape.type == Widget.EditableText) {
           let next = (reuse || this.posB == start) && !(this.new.lastChild instanceof TextTile) && this.old.tileAfter()
           if (!(next instanceof TextTile) || this.reused.has(next)) {
             this.addText(node.param)
@@ -874,6 +880,9 @@ class ContentUpdate {
         if (found) return found
       }
       return this.findReusableTile(shape, reuse.children, strict)
+    } else if (reuse instanceof TextTile && shape instanceof Widget && shape.type == Widget.EditableText &&
+               !this.reused.has(reuse)) {
+      return reuse
     } else if (reuse instanceof WidgetTile && shape instanceof Widget &&
                !this.reused.has(reuse) && shape.eq(reuse.widget)) {
       return reuse
@@ -898,7 +907,7 @@ class ContentUpdate {
         else if (!strict)
           updateAttributes(dom, (reusable as EltTile).elt.attrs, shape.attrs)
       }
-      let flags = (node ? (shape.hasContent ? TileFlag.None : TileFlag.Atom)
+      let flags = (node ? (shape.hasContent || node.isText ? TileFlag.None : TileFlag.Atom)
         : TileFlag.NodeInner | (shape.hasContent ? TileFlag.None : TileFlag.Point)) | afterContent
       let tile = EltTile.of(shape, node, flags, node ? node.length : 0, dom)
       let afterContentInner = TileFlag.None
@@ -918,6 +927,8 @@ class ContentUpdate {
         this.reused.set(reusable, Reused.DOM)
         dom = reusable.dom
       }
+      if (shape.type == Widget.EditableText)
+        return TextTile.of(shape.value as string, dom as Text, TileFlag.NodeInner)
       let flags = (node ? TileFlag.Atom : TileFlag.Point | TileFlag.NodeInner) | afterContent
       return new WidgetTile(shape, node, flags, node ? node.length : 0, dom)
     }

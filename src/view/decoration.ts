@@ -50,6 +50,10 @@ export namespace Widget {
   export const Text = Widget.define<string>({
     render: s => document.createTextNode(s)
   })
+
+  export const EditableText = Widget.define<string>({
+    render: s => document.createTextNode(s)
+  })
 }
 
 export type DecoElt = Elt<Widget | string>
@@ -134,7 +138,7 @@ function memo<T, A extends Object>(f: (arg: A) => T) {
 function addMarkAttributes(shape: Shape, tag: Node.Tag) {
   let attrs: readonly string[] | undefined
   for (let mark of tag.marks) {
-    if (mark.type.attribute && (mark.spanning || !(shape instanceof Widget && shape.type == Widget.Text))) {
+    if (mark.type.attribute && (mark.spanning || !tag.isText)) {
       let {get, target} = mark.type.attribute
       let markAttrs = get(mark.value)
       if (markAttrs.length) {
@@ -161,7 +165,8 @@ function applyDeco(shape: Shape, deco: Decoration, tag: Node.Tag) {
 }
 
 const baseTagShape = memo((tag: Node.Tag): Shape => {
-  return addMarkAttributes(tag.is(Leaf.Text) ? Widget.Text.of(tag.param as string) : tag.type.shape.create(tag.param), tag)
+  return addMarkAttributes(tag.is(Leaf.Text) ? Widget.EditableText.of(tag.param as string)
+    : tag.type.shape.create(tag.param), tag)
 })
 
 class TagWidgetSource {
