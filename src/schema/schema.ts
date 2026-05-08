@@ -270,6 +270,7 @@ export const Subscript = Mark.define("Subscript", {
 export const Link = Mark.Type.define<string>("Link", {
   rank: 20,
   validate: "string",
+  inclusive: false,
   shape: {
     element: "a",
     preferTarget: "a[href]",
@@ -281,6 +282,12 @@ export const Link = Mark.Type.define<string>("Link", {
 export const Code = Mark.define("Code", {
   rank: 80,
   shape: {element: "code"}
+})
+
+export const Color = Mark.Type.define<string>("Color", {
+  rank: 30,
+  shape: {attribute: "style/color", value: 0},
+  spanning: true,
 })
 
 export const Doc = Plot.defineDoc({

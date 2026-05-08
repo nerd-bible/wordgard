@@ -1,3 +1,3 @@
 export * from "./item"
 export * from "./menubar"
-export * from "./icon"
+export {icon} from "./icon"

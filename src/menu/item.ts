@@ -149,7 +149,6 @@ export class MenuTemplate {
 
 export const Top = new MenuGroup()
 export const Commands = new MenuGroup({parent: Top, rank: 10})
-export const InlineStyles = new MenuGroup({parent: Top, rank: 30, margin: true})
 export const BlockMenu = new MenuGroup({parent: Top, rank: 50, margin: true})
 
 export const TextblockStyle = new Submenu({
@@ -262,7 +261,7 @@ export const AlignCenter = new MenuButton({
 // FIXME drop
 export const staticMenu: GardState.Extension[] = [
   Strong,
-  Commands, InlineStyles, BlockMenu,
+  Commands, BlockMenu,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
   AlignmentMenu, AlignStart, AlignEnd, AlignCenter,
   BlockquoteButton

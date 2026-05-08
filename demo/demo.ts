@@ -5,11 +5,11 @@ import {orderedList, bulletList} from "wordgard/list"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 import {tables, tableMenu} from "wordgard/table"
-import {strong, emphasis, underline, superscript, subscript, link} from "wordgard/mark"
+import {strong, emphasis, underline, superscript, subscript, link, color} from "wordgard/mark"
 
 ;(window as any).view = new Wordgard({
   parent: document.body,
-  doc: `<h3>Hello</h3>
+  doc: `<h3><span style="color: red">Hell</span>o</h3>
 <figure><img src=flower.jpg alt=Yellowflower><figcaption>A flower</figcaption></figure>
 <table>
   <tr><th>Col 1</th><th>Col 2</th></tr>
@@ -28,6 +28,6 @@ import {strong, emphasis, underline, superscript, subscript, link} from "wordgar
     staticMenu,
     menuBar(),
     tables(), tableMenu(),
-    strong(), emphasis(), underline(), superscript(), subscript(), link()
+    strong(), emphasis(), underline(), superscript(), subscript(), link(), color()
   ]
 })

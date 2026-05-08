@@ -32,7 +32,7 @@ function imageTypeButtons(state: GardState, active: Node.Tag | null) {
   let align = (hasFig || hasCap) && state.doc.schema.markAllowed(Alignment, hasFig ? Figure : CaptionedFigure)
   if (!align && !(hasImg && (hasFig || hasCap))) return null
   let buttons: HTMLElement[] = []
-  function button(type: "inline" | "start" | "center" | "end", label: PhraseSet.Tags<typeof phrases>, active: boolean | null) {
+  function button(type: "inline" | "start" | "center" | "end", label: PhraseSet.Tag<typeof phrases>, active: boolean | null) {
     let labelText = phrases.get(state, label)
     let icon = document.createElementNS(svg, "svg")
     icon.setAttribute("viewbox", "0 0 24 22")

@@ -59,5 +59,5 @@ export class PhraseSet<Tags extends string> {
 export namespace PhraseSet {
   export type Ref = (state: GardState, ...insert: any[]) => string
 
-  export type Tags<Set extends PhraseSet<any>> = Set extends PhraseSet<infer T> ? T : never
+  export type Tag<Set extends PhraseSet<any>> = Set extends PhraseSet<infer T> ? T : never
 }
