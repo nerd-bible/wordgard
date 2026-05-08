@@ -59,12 +59,12 @@ class DummyServer {
   }
 
   undo(client: number) {
-    let tr = undo(this.states[client])
+    let tr = undo({state: this.states[client]}, null)
     if (tr) this.update(client, () => tr)
   }
 
   redo(client: number) {
-    let tr = redo(this.states[client])
+    let tr = redo({state: this.states[client]}, null)
     if (tr) this.update(client, () => tr)
   }
 

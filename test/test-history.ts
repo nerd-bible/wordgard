@@ -2,6 +2,7 @@ import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffec
 import {Plot, Leaf, ChangeSet} from "wordgard/doc"
 import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
+import {Command} from "wordgard/command"
 import ist from "ist"
 
 const {doc, p} = basicBuilders
@@ -31,8 +32,8 @@ function receive(state: GardState, text: string, from: number, to = from) {
   return state.update({changes: {from, to, insert: [Leaf.text(text)]},
                        annotations: Transaction.addToHistory.of(false)}).state
 }
-function command(state: GardState, f: (state: GardState) => Transaction.Spec | false, success: boolean | null = true) {
-  let tr = f(state)
+function command(state: GardState, f: Command.Pure, success: boolean | null = true) {
+  let tr = f({state}, null)
   if (success != null) ist(!!tr, success)
   return tr ? state.update(tr).state : state
 }

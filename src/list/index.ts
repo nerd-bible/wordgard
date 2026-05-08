@@ -1,1 +1,1 @@
-export {phrases, menu, orderedList, bulletList, listOnDash, listOnNumber} from "./list"
+export {menu, orderedList, bulletList, listOnDash, listOnNumber} from "./list"

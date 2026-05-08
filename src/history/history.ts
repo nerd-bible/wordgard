@@ -1,6 +1,8 @@
 import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command, undo as undoCmd, redo as redoCmd} from "wordgard/command"
+import {phrases} from "wordgard/phrases"
+import {MenuButton, icon, Commands} from "wordgard/menu"
 
 const enum BranchName { Done, Undone }
 
@@ -113,8 +115,10 @@ export function history(config: HistoryConfig = {}): GardState.Extension {
   return [
     historyField_,
     historyConfig.of(config),
-    Command.handler(undoCmd, view => undo(view.state)),
-    Command.handler(redoCmd, view => redo(view.state))
+    Command.handler(undoCmd, undo),
+    Command.handler(redoCmd, redo),
+    menu.undo,
+    menu.redo,
   ]
 }
 
@@ -129,7 +133,7 @@ export const historyField = historyField_ as GardState.Field<unknown>
 /// is available. Note that transaction specs produced with this
 /// function should be dispatched as-is, and not combined with further
 /// changes.
-export function undo(state: GardState) {
+export const undo: Command.Pure = ({state}) => {
   let historyState = state.field(historyField_, false)
   if (state.readOnly || !historyState) return false
   return historyState.pop(BranchName.Done, state)
@@ -138,7 +142,7 @@ export function undo(state: GardState) {
 /// Redo a single group of undone history events. Returns false if no
 /// group is available. Transaction specs produced with this
 /// function should be dispatched as-is.
-export function redo(state: GardState) {
+export const redo: Command.Pure = ({state}) => {
   let historyState = state.field(historyField_, false)
   if (state.readOnly || !historyState) return false
   return historyState.pop(BranchName.Undone, state)
@@ -343,3 +347,24 @@ class HistoryState {
     return this
   }
 }
+
+export const menu = {
+  undo: new MenuButton({
+    run: undo,
+    label: icon.Undo,
+    description: phrases.ref("undo"),
+    enable: s => undoDepth(s) > 0,
+    parent: Commands,
+    rank: 10
+  }),
+
+  redo: new MenuButton({
+    run: redo,
+    label: icon.Redo,
+    description: phrases.ref("redo"),
+    enable: s => redoDepth(s) > 0,
+    parent: Commands,
+    rank: 20
+  })
+}
+

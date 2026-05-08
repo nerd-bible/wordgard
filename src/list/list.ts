@@ -1,13 +1,8 @@
-import {PhraseSet} from "wordgard/state"
 import {Command, toggleList, listIsActive} from "wordgard/command"
 import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema"
 import {MenuButton, BlockMenu, icon} from "wordgard/menu"
+import {phrases} from "wordgard/phrases"
 import {InputRule} from "wordgard/inputrule"
-
-export const phrases = PhraseSet.define({
-  toggle_bullet_list: "Toggle bullet list",
-  toggle_ordered_list: "Toggle ordered list",
-})
 
 export const menu = {
   toggleBulletList: new MenuButton({

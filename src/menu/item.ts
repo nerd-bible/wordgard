@@ -1,12 +1,9 @@
-import {Wordgard, showDialog} from "wordgard/view"
-import {Command, toggleMark, setTextblockType, toggleBlock,
-        canAddMarkInRange, setAlignment} from "wordgard/command"
+import {Wordgard} from "wordgard/view"
+import {Command, setTextblockType, toggleBlock, setAlignment} from "wordgard/command"
 import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
-import {Mark, Plot, Pos, ChangeSet} from "wordgard/doc"
-import {Strong, Emphasis, Code, Link,
-        Paragraph, CodeBlock, Heading, Blockquote,
-        Underline, Superscript, Subscript,
-        Alignment} from "wordgard/schema"
+import {Plot, Pos} from "wordgard/doc"
+import {phrases} from "wordgard/phrases"
+import {Strong, Paragraph, CodeBlock, Heading, Blockquote, Alignment} from "wordgard/schema"
 import {icon} from "./icon"
 
 export type MenuLabelWidget = {
@@ -155,165 +152,6 @@ export const Commands = new MenuGroup({parent: Top, rank: 10})
 export const InlineStyles = new MenuGroup({parent: Top, rank: 30, margin: true})
 export const BlockMenu = new MenuGroup({parent: Top, rank: 50, margin: true})
 
-// FIXME split up, move out of here with the items
-export const phrases = PhraseSet.define({
-  block_style: "Block style",
-  toggle_strong: "Toggle strong emphasis",
-  toggle_em: "Toggle emphasis",
-  toggle_code: "Toggle code font",
-  toggle_underline: "Toggle underline",
-  toggle_super: "Toggle superscript",
-  toggle_sub: "Toggle subscript",
-  create_link: "Create a link",
-  undo: "Undo",
-  redo: "Redo",
-  paragraph: "Paragraph",
-  code_block: "Code block",
-  heading_1: "Heading 1",
-  heading_2: "Heading 2",
-  heading_3: "Heading 3",
-  toggle_quote: "Toggle blockquote",
-  alignment: "Alignment",
-  align_start: "Align text to block start",
-  align_end: "Align text to block end",
-  align_center: "Center text",
-})
-
-export function toggleInlineMark(config: {
-  mark: Mark<any>,
-  parent?: MenuGroup | Submenu
-  rank?: number
-  description?: PhraseSet.Ref
-  label: MenuLabel
-}) {
-  let {mark, parent, rank, description, label} = config
-  return new MenuButton({
-    run: Command.bind(toggleMark, mark),
-    active(state) {
-      let {selection} = state
-      if (selection.isCursor)
-        return !!mark.isInSet(state.sel.activeMarks)
-      else
-        return !selection.ranges.some(r => canAddMarkInRange(state.doc, r.from, r.to, mark))
-    },
-    parent,
-    rank,
-    description,
-    label
-  })
-}
-
-export const ToggleStrong = toggleInlineMark({
-  mark: Strong,
-  parent: InlineStyles,
-  rank: 10,
-  description: phrases.ref("toggle_strong"),
-  label: icon.Bold
-})
-
-export const ToggleEmphasis = toggleInlineMark({
-  mark: Emphasis,
-  parent: InlineStyles,
-  rank: 12,
-  description: phrases.ref("toggle_em"),
-  label: icon.Italic
-})
-
-export const ToggleCode = toggleInlineMark({
-  mark: Code,
-  parent: InlineStyles,
-  rank: 30,
-  description: phrases.ref("toggle_code"),
-  label: icon.Code
-})
-
-export const ToggleUnderline = toggleInlineMark({
-  mark: Underline,
-  parent: InlineStyles,
-  rank: 14,
-  description: phrases.ref("toggle_underline"),
-  label: icon.Underline
-})
-
-export const ToggleSuperscript = toggleInlineMark({
-  mark: Superscript,
-  parent: InlineStyles,
-  rank: 16,
-  description: phrases.ref("toggle_super"),
-  label: icon.Superscript
-})
-
-export const ToggleSubscript = toggleInlineMark({
-  mark: Subscript,
-  parent: InlineStyles,
-  rank: 18,
-  description: phrases.ref("toggle_sub"),
-  label: icon.Subscript
-})
-
-export const ToggleLink = new MenuButton({
-  run(view) {
-    let {selection, doc} = view.state
-    if (selection.empty) return false
-    let remove: ChangeSet.Spec[] = []
-    for (let {from, to} of selection.ranges) doc.iterate(from, to, (node, pos) => {
-      let has = Link.isInSet(node.marks)
-      if (has) remove.push({from: pos, to: pos + node.length, remove: has})
-    })
-    if (remove.length) {
-      view.dispatch({changes: remove, userEvent: "mark.remove"})
-    } else {
-      showDialog(view, {
-        label: "Link target",
-        input: {type: "text", name: "url"},
-        submitLabel: "Create link",
-        focus: true
-      }).result.then(form => {
-        view.focus()
-        let url = form && (form.elements.namedItem("url") as HTMLInputElement)?.value
-        if (url) view.dispatch({
-          changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: Link.of(url)})),
-          userEvent: "mark.add"
-        })
-      })
-    }
-    return true
-  },
-  active(state) {
-    let {selection, doc} = state, found = false
-    if (!selection.empty) for (let {from, to} of selection.ranges) doc.iterate(from, to, node => {
-      if (found) return false
-      if (Link.isInSet(node.marks)) found = true
-    })
-    return found
-  },
-  enable(state) {
-    return !state.selection.empty
-  },
-  label: icon.Link,
-  description: phrases.ref("create_link"),
-  parent: InlineStyles,
-  rank: 50,
-})
-
-// FIXME wire up actual undo/redo commands
-
-export const Undo = new MenuButton({
-  run: () => { console.log("undo"); return true },
-  label: icon.Undo,
-  description: phrases.ref("undo"),
-  parent: Commands,
-  rank: 10
-})
-
-export const Redo = new MenuButton({
-  run: () => { console.log("redo"); return true },
-  label: icon.Redo,
-  description: phrases.ref("redo"),
-  parent: Commands,
-  rank: 20
-})
-
 export const TextblockStyle = new Submenu({
   defaultLabel: phrases.ref("block_style"),
   description: phrases.ref("block_style"),
@@ -423,8 +261,8 @@ export const AlignCenter = new MenuButton({
 
 // FIXME drop
 export const staticMenu: GardState.Extension[] = [
-  Undo, Redo, Strong,
-  Commands, InlineStyles, BlockMenu, ToggleStrong, ToggleEmphasis, ToggleCode, ToggleLink,
+  Strong,
+  Commands, InlineStyles, BlockMenu,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
   AlignmentMenu, AlignStart, AlignEnd, AlignCenter,
   BlockquoteButton

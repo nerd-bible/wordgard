@@ -1,7 +1,7 @@
 import {Transaction, GardState} from "wordgard/state"
+import {phrases} from "wordgard/phrases"
 import {Panel} from "./panel"
 import {Wordgard} from "./editorview"
-import {phrases} from "./phrases"
 
 type DialogConfig = {
   /// A function to render the content of the dialog. The result

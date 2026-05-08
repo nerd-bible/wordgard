@@ -1,28 +1,13 @@
 import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
 import {Wordgard} from "wordgard/view"
-import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
+import {GardState, Direction, GardSelection} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command} from "wordgard/command"
+import {phrases} from "wordgard/phrases"
 import {cellTag, headerCellTag,
         addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell, toggleHeaderCell} from "./tablecommands"
 import {CellSelection} from "./cellselection"
-
-export const phrases = PhraseSet.define({
-  dimensions_title: "Table dimensions $1 by $2. Use arrow keys to change.",
-  dimensions_live: "$1 by $2",
-  insert_table: "Insert a table",
-  modify_table: "Modify table",
-  toggle_header: "Toggle header cells",
-  add_row_above: "Add row above",
-  add_row_below: "Add row below",
-  delete_row: "Delete row",
-  add_col_before: "Add column before",
-  add_col_after: "Add column before",
-  delete_col: "Delete column",
-  merge_cells: "Merge cells",
-  split_cell: "Split cell",
-})
 
 const SVG = "http://www.w3.org/2000/svg"
 const enum Grid { Size = 15, Margin = 4, Skip = Size + Margin, MaxW = 15, MaxH = 15 }

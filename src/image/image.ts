@@ -3,7 +3,8 @@ import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema"
 import {MenuButton, icon, Commands} from "wordgard/menu"
-import {imageDialog, insertImage, activeImage, imageUploader, phrases} from "./dialog"
+import {phrases} from "wordgard/phrases"
+import {imageDialog, insertImage, activeImage, imageUploader} from "./dialog"
 
 const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {

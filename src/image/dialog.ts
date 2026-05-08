@@ -3,29 +3,8 @@ import {Wordgard, Panel, showDialog} from "wordgard/view"
 import {GardState, Transaction, GardSelection, Facet, Direction, PhraseSet} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wordgard/schema"
 import {Command} from "wordgard/command"
+import {phrases} from "wordgard/phrases"
 import cr from "crelt"
-
-export const phrases = PhraseSet.define({
-  insert_image: "Insert image",
-  update_image: "Update image",
-  update: "Update",
-  insert: "Insert",
-  cancel: "Cancel",
-  inline: "Inline",
-  figure: "Figure",
-  figure_center: "Centered figure",
-  figure_end: "Figure aligned to end",
-  captioned: "Captioned",
-  image_style: "Image style",
-  uploading: "Uploading...",
-  upload_failed: "Image upload failed",
-  width: "Width in pixels",
-  upload_image: "Upload an image",
-  image_source: "Image source",
-  alt_text: "Alternative text",
-  describe_image: "Describe the image",
-  
-})
 
 export const imageUploader = Facet.define<(file: File, view: Wordgard, progress: (percent: number) => void) => Promise<string>>()
 

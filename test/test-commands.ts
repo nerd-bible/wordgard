@@ -47,7 +47,7 @@ class MultiSel extends GardSelection {
     }))
   }
 }
-const multiSel = GardSelection.define<MultiSel, number>("multi", MultiSel, () => 1, () => 1 as any)
+const multiSel = GardSelection.define<MultiSel, {}>("multi", MultiSel, () => ({}), () => 1 as any)
 
 function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, expect?: Plot.Doc) {
   let state = GardState.create({

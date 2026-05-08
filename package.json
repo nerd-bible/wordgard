@@ -11,12 +11,14 @@
     "./table": "./dist/table.js",
     "./list": "./dist/list.js",
     "./state": "./dist/state.js",
+    "./mark": "./dist/mark.js",
     "./view": "./dist/view.js",
     "./command": "./dist/command.js",
     "./history": "./dist/history.js",
     "./menu": "./dist/menu.js",
     "./collab": "./dist/collab.js",
-    "./inputrule": "./dist/inputrule.js"
+    "./inputrule": "./dist/inputrule.js",
+    "./phrases": "./dist/phrases.js"
   },
   "scripts": {
     "test": "mocha test/test-*.ts",
