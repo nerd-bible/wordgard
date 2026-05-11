@@ -82,8 +82,8 @@ export const phrases = PhraseSet.define({
   col_magenta: "magenta",
   col_dark: "dark",
   col_darker: "darker",
-  col_darkest: "darkest",
+  col_darkest: "very dark",
   col_light: "light",
   col_lighter: "lighter",
-  col_lightest: "lightests",
+  col_lightest: "very light",
 })
