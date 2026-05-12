@@ -2,7 +2,7 @@ import ist from "ist"
 import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
         serialize, serializeSlice, parseDoc, parseSlice, type ParseOptions, RuleSet} from "wordgard/doc"
 import {basicBuilders, builder, basicSchema, tag, Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema"
-const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olOrder, ul, li, pre, h1, h2, br, hr} = basicBuilders
+const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olStart, ul, li, pre, h1, h2, br, hr} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
@@ -138,8 +138,8 @@ describe("parseDoc", () => {
   })
 
   it("can parse nodes with params", () => {
-    ist(parse("<p><img src='x.png'></p><ol order=3><li><p>Three</p></li></ol>"),
-        doc(p(img("x.png")), olOrder(3, li(p("Three")))), eq)
+    ist(parse("<p><img src='x.png'></p><ol start=3><li><p>Three</p></li></ol>"),
+        doc(p(img("x.png")), olStart(3, li(p("Three")))), eq)
   })
 
   it("can parse marks", () => {
