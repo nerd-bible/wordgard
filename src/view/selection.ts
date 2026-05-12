@@ -49,11 +49,11 @@ export function moveVertically(
   for (let scan = start.head;;) {
     let pos = view.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {
-      let elt = view.docTile.resolve(block.start, 0)
-      let rect = (elt.dom as Element).getBoundingClientRect()
+      let blockTile = view.docTile.nodeTile(block.before)!
+      let rect = (blockTile.dom as Element).getBoundingClientRect()
       if (forward ? y < rect.top : y > rect.bottom) y = forward ? rect.top : rect.bottom
       while (forward ? rect.bottom >= y : rect.top <= y) {
-        let found = elt.tile.posAtCoords(view.state, x, y)
+        let found = blockTile.posAtCoords(view.state, x, y)
         if (!found.vertOutside && found.pos != start.head) return GardSelection.cursor(found.pos, found.side, goalColumn)
         y += forward ? Y_STEP : -Y_STEP
       }
@@ -108,7 +108,7 @@ function findTargetVertically(view: Wordgard, from: number, forward: boolean, x:
         let closest = -1, closestPos = -1, closestDist = -1
         for (let chPos = nextPos + 1, i = 0; i < next.content.length; i++) {
           let ch = next.content[i]
-          let {tile} = view.docTile.resolve(chPos + 1, 0)
+          let tile = view.docTile.nodeTile(chPos)!
           let rect = (tile.dom as Element).getBoundingClientRect()
           let dist = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
           if (closestDist < 0 || dist < closestDist) {
@@ -141,7 +141,7 @@ export function moveToLineBoundary(view: Wordgard, start: GardSelection, forward
   let y = (startCoords.top + startCoords.bottom) / 2, left = forward != (dir == Direction.LTR)
   let {pos} = view.posAtCoords({x: left ? -1e7 : 1e7, y})
   if (pos < block.start || pos > block.end) {
-    let blockRect = (view.docTile.resolve(block.start, 0).dom as Element).getBoundingClientRect()
+    let blockRect = (view.docTile.nodeTile(block.before)!.dom as Element).getBoundingClientRect()
     pos = view.posAtCoords({x: left ? blockRect.left : blockRect.right, y}).pos
   }
   return GardSelection.cursor(pos, forward ? -1 : 1)

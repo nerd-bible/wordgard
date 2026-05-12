@@ -430,10 +430,9 @@ export class Wordgard {
 
   nodeDOM(pos: number): Element | null {
     this.checkFlushed()
-    let viewPos = this.docTile.resolve(pos, 1)
-    if (viewPos.dom.nodeType != 1) return null
-    let after = viewPos.dom.childNodes[viewPos.offset]
-    return after && after.nodeType == 1 ? after as Element : null
+    let tile = this.docTile.nodeTile(pos)
+    if (!tile || tile.dom.nodeType != 1) return null
+    return tile.dom as Element
   }
 
   /// Find the document position at the given DOM node. Can be useful

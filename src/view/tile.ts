@@ -416,6 +416,23 @@ export class DocTile extends CompositeTile {
     }
   }
 
+  nodeTile(pos: number) {
+    let off = 0, parent: Tile = this
+    search: for (;;) {
+      for (let ch of parent.children) {
+        let end = off + ch.length
+        if (pos < end) {
+          if (off == pos && ch.node || ch instanceof TextTile) return ch
+          parent = ch
+          off += ch.boundary
+          continue search
+        }
+        off = end
+      }
+      return null
+    }
+  }
+
   resolve(pos: number, assoc: -1 | 0 | 1 = 0) {
     // FIXME the tracking of whether we're in a valid resolveable
     // place is way too obscure. Need a better way to distinguish node
@@ -471,13 +488,10 @@ export class DocTile extends CompositeTile {
   }
 
   coordsForElement(pos: number): DOMRect | null {
-    let r = this.resolve(pos, 1)
-    if (r.tile instanceof TextTile) return textTileRect(r.tile, r.offset)
-    if (r.offset == r.tile.children.length) return null
-    let after = r.tile.children[r.offset]
-    if (after instanceof TextTile) return textTileRect(after, 0)
-    if (after.dom.nodeType != 1) return null
-    return (after.dom as Element).getBoundingClientRect()
+    let tile = this.nodeTile(pos)
+    if (!tile) return null
+    if (tile instanceof TextTile) return textTileRect(tile, pos - tile.posBefore)
+    return (tile.dom as Element).getBoundingClientRect()
   }
 }
 
