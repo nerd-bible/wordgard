@@ -8,20 +8,6 @@ const enum BranchName { Done, Undone }
 
 const fromHistory = Transaction.Annotation.define<{side: BranchName, rest: Branch | null, selection: GardSelection}>()
 
-/// Transaction annotation that will prevent that transaction from
-/// being combined with other transactions in the undo history. Given
-/// `"before"`, it'll prevent merging with previous transactions. With
-/// `"after"`, subsequent transactions won't be combined with this
-/// one. With `"full"`, the transaction is isolated on both sides.
-export const isolateHistory = Transaction.Annotation.define<"before" | "after" | "full">()
-
-/// This facet provides a way to register functions that, given a
-/// transaction, provide a set of effects that the history should
-/// store when inverting the transaction. This can be used to
-/// integrate specific effects in the history, so that they can be
-/// undone (and redone again).
-export const invertedEffects = Facet.define<(tr: Transaction) => readonly Transaction.Effect<any>[]>()
-
 interface HistoryConfig {
   /// The minimum depth (amount of events) to store. Defaults to 100.
   minDepth?: number
@@ -66,7 +52,7 @@ const historyField_ = GardState.Field.define({
                               from == BranchName.Done ? other : fromHist.rest)
     }
 
-    let isolate = tr.annotation(isolateHistory)
+    let isolate = tr.annotation(history.isolate)
     if (isolate == "full" || isolate == "before") state = state.isolate()
 
     if (tr.annotation(Transaction.addToHistory) === false)
@@ -83,8 +69,8 @@ const historyField_ = GardState.Field.define({
     return state.clip(config.minDepth)
   },
 
-  toJSON(value, state) {
-    let mkJSON = (value: Branch | null) => {
+  toJSON(value, state): history.JSON {
+    let mkJSON = (value: Branch | null): history.EventJSON[] => {
       let events: {changes: ChangeSet.JSON, selection: unknown}[] = []
       for (let cur = value; cur; cur = cur.next)
         events.push({changes: cur.changes.toJSON(), selection: cur.startSelection.toJSON(state)})
@@ -96,7 +82,7 @@ const historyField_ = GardState.Field.define({
     }
   },
 
-  fromJSON(json: any, state: GardState) {
+  fromJSON(json: history.JSON, state: GardState) {
     if (!json || !Array.isArray(json.done) || !Array.isArray(json.undone)) throw new RangeError("Invalid history JSON")
     let buildBranch = (json: {changes: ChangeSet.JSON, selection: unknown}[]) => {
       let result: Branch | null = null
@@ -117,17 +103,43 @@ export function history(config: HistoryConfig = {}): GardState.Extension {
     historyConfig.of(config),
     Command.handler(undoCmd, undo),
     Command.handler(redoCmd, redo),
-    menu.undo,
-    menu.redo,
+    undoButton,
+    redoButton,
   ]
 }
 
-/// The state field used to store the history data. Should probably
-/// only be used when you want to
-/// [serialize](#state.GardState.toJSON) or
-/// [deserialize](#state.GardState^fromJSON) state objects in a way
-/// that preserves history.
-export const historyField = historyField_ as GardState.Field<unknown>
+export namespace history {
+  /// The state field used to store the history data. Should probably
+  /// only be used when you want to
+  /// [serialize](#state.GardState.toJSON) or
+  /// [deserialize](#state.GardState^fromJSON) state objects in a way
+  /// that preserves history.
+  export const field = historyField_ as GardState.Field<unknown>
+
+  /// Transaction annotation that will prevent that transaction from
+  /// being combined with other transactions in the undo history. Given
+  /// `"before"`, it'll prevent merging with previous transactions. With
+  /// `"after"`, subsequent transactions won't be combined with this
+  /// one. With `"full"`, the transaction is isolated on both sides.
+  export const isolate = Transaction.Annotation.define<"before" | "after" | "full">()
+
+  /// This facet provides a way to register functions that, given a
+  /// transaction, provide a set of effects that the history should
+  /// store when inverting the transaction. This can be used to
+  /// integrate specific effects in the history, so that they can be
+  /// undone (and redone again).
+  export const invertedEffects = Facet.define<(tr: Transaction) => readonly Transaction.Effect<any>[]>()
+
+  export type EventJSON = {
+    changes: ChangeSet.JSON,
+    selection: unknown
+  }
+
+  export type JSON = {
+    done: readonly EventJSON[],
+    undone: readonly EventJSON[]
+  }
+}
 
 /// Undo a single group of history events. Returns false if no group
 /// is available. Note that transaction specs produced with this
@@ -157,12 +169,6 @@ export const undoDepth = (state: GardState) => depth(state.field(historyField_, 
   
 /// The amount of redoable change events available in a given state.
 export const redoDepth = (state: GardState) => depth(state.field(historyField_, false)?.undone)
-
-export type HistEventJSON = {
-  changes: ChangeSet.JSON,
-  mapped?: ChangeSet.JSON,
-  startSelection: unknown
-}
 
 // History branch events store groups of changes or effects that need
 // to be undone/redone together. They form a linked list.
@@ -255,7 +261,7 @@ function eventFromTransaction(tr: Transaction): {
   effects: readonly Transaction.Effect<any>[]
 } | null {
   let effects: readonly Transaction.Effect<any>[] = none
-  for (let invert of tr.startState.facet(invertedEffects)) {
+  for (let invert of tr.startState.facet(history.invertedEffects)) {
     let result = invert(tr)
     if (result.length) effects = effects.concat(result)
   }
@@ -348,23 +354,20 @@ class HistoryState {
   }
 }
 
-export const menu = {
-  undo: new MenuButton({
-    run: undo,
-    label: icon.Undo,
-    description: phrases.ref("undo"),
-    enable: s => undoDepth(s) > 0,
-    parent: Commands,
-    rank: 10
-  }),
+export const undoButton = new MenuButton({
+  run: undo,
+  label: icon.Undo,
+  description: phrases.ref("undo"),
+  enable: s => undoDepth(s) > 0,
+  parent: Commands,
+  rank: 10
+})
 
-  redo: new MenuButton({
-    run: redo,
-    label: icon.Redo,
-    description: phrases.ref("redo"),
-    enable: s => redoDepth(s) > 0,
-    parent: Commands,
-    rank: 20
-  })
-}
-
+export const redoButton = new MenuButton({
+  run: redo,
+  label: icon.Redo,
+  description: phrases.ref("redo"),
+  enable: s => redoDepth(s) > 0,
+  parent: Commands,
+  rank: 20
+})

@@ -1,4 +1,4 @@
-import {history, undo, redo, redoDepth, undoDepth, isolateHistory, invertedEffects, historyField} from "wordgard/history"
+import {history, undo, redo, undoDepth, redoDepth} from "wordgard/history"
 import {Plot, Leaf, ChangeSet} from "wordgard/doc"
 import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
@@ -26,7 +26,7 @@ function timedType(state: GardState, text: string, atTime: number) {
                        annotations: Transaction.time.of(atTime)}).state
 }
 function isolate(state: GardState) {
-  return state.update({annotations: isolateHistory.of("before")}).state
+  return state.update({annotations: history.isolate.of("before")}).state
 }
 function receive(state: GardState, text: string, from: number, to = from) {
   return state.update({changes: {from, to, insert: [Leaf.text(text)]},
@@ -354,11 +354,11 @@ describe("history", () => {
 
   it("isolates transactions when asked to", () => {
     let state = mkState()
-    state = state.update({changes: {from: 1, insert: [Leaf.text("a")]}, annotations: isolateHistory.of("after")}).state
+    state = state.update({changes: {from: 1, insert: [Leaf.text("a")]}, annotations: history.isolate.of("after")}).state
     state = state.update({changes: {from: 2, insert: [Leaf.text("b")]}}).state
-    state = state.update({changes: {from: 3, insert: [Leaf.text("c")]}, annotations: isolateHistory.of("after")}).state
+    state = state.update({changes: {from: 3, insert: [Leaf.text("c")]}, annotations: history.isolate.of("after")}).state
     state = state.update({changes: {from: 4, insert: [Leaf.text("d")]}}).state
-    state = state.update({changes: {from: 5, insert: [Leaf.text("e")]}, annotations: isolateHistory.of("full")}).state
+    state = state.update({changes: {from: 5, insert: [Leaf.text("e")]}, annotations: history.isolate.of("full")}).state
     state = state.update({changes: {from: 6, insert: [Leaf.text("f")]}}).state
     ist(undoDepth(state), 5)
   })
@@ -414,13 +414,13 @@ describe("history", () => {
           return val
         }
       })
-      let invert = invertedEffects.of(tr => {
+      let invert = history.invertedEffects.of(tr => {
         for (let e of tr.effects) if (e.is(set)) return [set.of(tr.startState.field(field))]
         return []
       })
       let state = GardState.create({doc: doc(p()), config: [history(), field, invert]})
-      state = state.update({effects: set.of(10), annotations: isolateHistory.of("before")}).state
-      state = state.update({effects: set.of(20), annotations: isolateHistory.of("before")}).state
+      state = state.update({effects: set.of(10), annotations: history.isolate.of("before")}).state
+      state = state.update({effects: set.of(20), annotations: history.isolate.of("before")}).state
       ist(state.field(field), 20)
       state = command(state, undo)
       ist(state.field(field), 10)
@@ -465,7 +465,7 @@ describe("history", () => {
         return value.sort((a, b) => a.from - b.from)
       }
     })
-    let invertComments = invertedEffects.of(tr => {
+    let invertComments = history.invertedEffects.of(tr => {
       let effects = []
       for (let effect of tr.effects) {
         if (effect.is(addComment) || effect.is(rmComment)) {
@@ -485,10 +485,10 @@ describe("history", () => {
       let state = GardState.create({config: [history(), comments, invertComments],
                                       doc: doc(p("one two foo"))})
       state = state.update({effects: addComment.of(new Comment(1, 4, "c1")),
-                            annotations: isolateHistory.of("full")}).state
+                            annotations: history.isolate.of("full")}).state
       ist(commentStr(state), "c1@1")
       state = state.update({changes: {from: 4, to: 5, insert: [Leaf.text("---")]},
-                            annotations: isolateHistory.of("full"),
+                            annotations: history.isolate.of("full"),
                             effects: addComment.of(new Comment(7, 10, "c2"))}).state
       ist(commentStr(state), "c1@1,c2@7")
       state = state.update({changes: {from: 1, insert: [Leaf.text("---")]},
@@ -507,7 +507,7 @@ describe("history", () => {
       state = command(state, undo).update({changes: {from: 11, to: 12, insert: [Leaf.text("---")]},
                                            annotations: Transaction.addToHistory.of(false)}).state
       state = state.update({effects: addComment.of(new Comment(14, 17, "c3")),
-                            annotations: isolateHistory.of("full")}).state
+                            annotations: history.isolate.of("full")}).state
       ist(commentStr(state), "c1@4,c3@14")
       state = command(state, undo)
       ist(state.doc, doc(p("---one two---foo")), eq)
@@ -520,7 +520,7 @@ describe("history", () => {
       let state = GardState.create({config: [history(), comments, invertComments],
                                       doc: doc(p("123456"))})
       state = state.update({effects: addComment.of(new Comment(4, 6, "c1")),
-                            annotations: isolateHistory.of("full")}).state
+                            annotations: history.isolate.of("full")}).state
       state = state.update({changes: {from: 3, to: 7}}).state
       ist(commentStr(state), "")
       state = command(state, undo)
@@ -534,7 +534,7 @@ describe("history", () => {
       state = state.update({changes: {from: 4, to: 5}}).state
       state = state.update({changes: {from: 1, insert: [Leaf.text("d")]}}).state
       state = command(state, undo)
-      let jsonConf = {history: historyField}
+      let jsonConf = {history: history.field}
       let json = JSON.stringify(state.toJSON(jsonConf))
       state = GardState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
       ist(state.doc, doc(p("abc")), eq)
@@ -550,7 +550,7 @@ describe("history", () => {
       state = isolate(type(state, "b"))
       state = type(state, "c")
       state = receive(state, "d", 4)
-      let jsonConf = {history: historyField}
+      let jsonConf = {history: history.field}
       let json = JSON.stringify(state.toJSON(jsonConf))
       state = GardState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
       ist(state.doc, doc(p("abcd")), eq)

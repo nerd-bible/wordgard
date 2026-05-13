@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/view"
 import {GardState, Facet} from "wordgard/state"
-import {isolateHistory} from "wordgard/history"
+import {history} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"
 import {findWrappable, wrapBlockRange, autoJoinBlocks} from "wordgard/command"
 
@@ -46,7 +46,7 @@ export class InputRule {
         changes.push(wrapBlockRange(range, wrapper))
         view.dispatch(autoJoinBlocks(view.state, {
           changes,
-          annotations: isolateHistory.of("full")
+          annotations: history.isolate.of("full")
         }))
         return true
       }
@@ -72,7 +72,7 @@ export class InputRule {
         if (!outer || !view.state.doc.schema.canContain(outer.node.type, block.type)) return false
         view.dispatch({
           changes: [{from: from.pos - 1, to: to.pos, insert: [block]}],
-          annotations: isolateHistory.of("full")
+          annotations: history.isolate.of("full")
         })
         return true
       }
@@ -123,7 +123,7 @@ function applyString(text: string) {
   return (view: Wordgard, match: InputRule.MatchArray) => {
     view.dispatch({
       changes: {from: match[0].from.pos, to: match[0].to.pos, insert: [Leaf.text(text)]},
-      annotations: isolateHistory.of("full")
+      annotations: history.isolate.of("full")
     })
     return true
   }

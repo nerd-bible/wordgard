@@ -1,7 +1,7 @@
 import {GardState, Transaction} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
-import {history, isolateHistory, undo, redo} from "wordgard/history"
+import {history, undo, redo} from "wordgard/history"
 import ist from "ist"
 import {collab, receiveUpdates, sendableUpdate, type Update, getSyncedVersion, getClientID} from "wordgard/collab"
 
@@ -156,12 +156,12 @@ describe("collab", () => {
     s.update(1, s => s.update({selection: {anchor: 10}}))
     s.type(0, "!")
     s.type(1, "!")
-    s.update(0, s => s.update({annotations: isolateHistory.of("full")}))
+    s.update(0, s => s.update({annotations: history.isolate.of("full")}))
     s.delay(0, () => {
       s.type(0, " ...")
       s.type(1, " ,,,")
     })
-    s.update(0, s => s.update({annotations: isolateHistory.of("full")}))
+    s.update(0, s => s.update({annotations: history.isolate.of("full")}))
     s.type(0, "*")
     s.type(1, "*")
     s.undo(0)
