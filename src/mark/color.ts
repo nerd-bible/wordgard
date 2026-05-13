@@ -1,7 +1,7 @@
 import {CustomControl, Submenu, icon} from "wordgard/menu"
 import {PhraseSet, GardState, GardSelection, Direction} from "wordgard/state"
-import {ChangeSet} from "wordgard/doc"
-import {Color} from "wordgard/schema"
+import {ChangeSet, Mark} from "wordgard/doc"
+import {Color, BackgroundColor} from "wordgard/schema"
 import {phrases} from "wordgard/phrases"
 import {Wordgard} from "wordgard/view"
 import {inlineStyleMenu} from "./mark"
@@ -10,26 +10,26 @@ export function color(): GardState.Extension {
   return [Color, color.button, color.picker, colorPickerTheme, inlineStyleMenu]
 }
 
-function setColor(view: Wordgard, color: string) {
+function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
   let {state} = view, {selection} = state
   if (selection instanceof GardSelection.Text && selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks()
-    let newMarks = color ? Color.of(color).addToSet(selMarks) : Color.removeFromSet(selMarks)
+    let newMarks = value ? mark.of(value).addToSet(selMarks) : mark.removeFromSet(selMarks)
     view.dispatch({
       selection: GardSelection.Text.create({anchor: selection.anchor, headSide: selection.headSide,
                                             goalColumn: selection.goalColumn, marks: newMarks}),
-      userEvent: color ? "mark.add" : "mark.remove"
+      userEvent: value ? "mark.add" : "mark.remove"
     })
-  } else if (color) {
+  } else if (value) {
     view.dispatch({
-      changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: Color.of(color)})),
+      changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: mark.of(value)})),
       userEvent: "mark.add"
     })
   } else {
     let changes: ChangeSet.Spec[] = []
     for (let {from, to} of selection.ranges) {
       state.doc.iterate(from, to, (node, pos) => {
-        let has = Color.isInSet(node.marks)
+        let has = mark.isInSet(node.marks)
         if (has) changes.push({from: Math.max(from, pos), to: Math.min(to, pos + node.length), remove: has})
       })
     }
@@ -112,8 +112,8 @@ function col(rgb: string, name: PhraseSet.Tag<typeof phrases>, mod?: -3 | -2 | -
     mod == -2 ? phrases.ref("col_darker") : mod ? phrases.ref("col_darkest") : undefined
   return {name: phrases.ref(name), detail, value: rgb}
 }
+
 // FIXME make configurable
-// FIXME prune down?
 const colorOptions: {name: PhraseSet.Ref, detail?: PhraseSet.Ref, value: string}[] = [
   col("", "col_none"),
   col("#000000", "col_black"),
@@ -243,7 +243,34 @@ export namespace color {
         options: colorOptions,
         finish: color => {
           done()
-          setColor(view, color)
+          setColor(view, Color, color)
+          view.focus()
+        }
+      })
+    },
+    parent: button
+  })
+}
+
+export function backgroundColor() {
+  return [BackgroundColor, backgroundColor.button, backgroundColor.picker, colorPickerTheme, inlineStyleMenu]
+}
+
+export namespace backgroundColor {
+  export const button = new Submenu({
+    label: icon.Marker,
+    description: phrases.ref("background_color"),
+    parent: inlineStyleMenu,
+    rank: 65,
+  })
+
+  export const picker = new CustomControl({
+    render(view, done) {
+      return new ColorPicker(view, {
+        options: colorOptions,
+        finish: color => {
+          done()
+          setColor(view, BackgroundColor, color)
           view.focus()
         }
       })

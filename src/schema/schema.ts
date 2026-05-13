@@ -290,6 +290,12 @@ export const Color = Mark.Type.define<string>("Color", {
   spanning: true,
 })
 
+export const BackgroundColor = Mark.Type.define<string>("BackgroundColor", {
+  rank: 35,
+  shape: {attribute: "style/background-color", value: 0},
+  spanning: true,
+})
+
 export const Doc = Plot.defineDoc({
   blockContent: G.Content
 })

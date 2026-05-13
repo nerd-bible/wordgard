@@ -15,6 +15,7 @@ export const phrases = PhraseSet.define({
   toggle_sub: "Toggle subscript",
   create_link: "Create a link",
   text_color: "Text color",
+  background_color: "Background color",
   undo: "Undo",
   redo: "Redo",
   paragraph: "Paragraph",
