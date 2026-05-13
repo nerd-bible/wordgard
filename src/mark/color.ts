@@ -4,7 +4,7 @@ import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema"
 import {phrases} from "wordgard/phrases"
 import {Wordgard} from "wordgard/view"
-import {inlineStyleMenu} from "./mark"
+import {inlineStyleGroup} from "./mark"
 
 function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
   let {state} = view, {selection} = state
@@ -244,7 +244,7 @@ export const colorPicker = new CustomControl({
 })
 
 export function color(): GardState.Extension {
-  return [Color, color.button, colorPickerTheme, inlineStyleMenu]
+  return [Color, color.button, colorPickerTheme, inlineStyleGroup]
 }
 
 export namespace color {
@@ -252,14 +252,14 @@ export namespace color {
     label: icon.Color,
     description: phrases.ref("text_color"),
     arrow: false,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 60,
     content: [colorPicker]
   })
 }
 
 export function backgroundColor() {
-  return [BackgroundColor, backgroundColor.button, colorPickerTheme, inlineStyleMenu]
+  return [BackgroundColor, backgroundColor.button, colorPickerTheme, inlineStyleGroup]
 }
 
 const backgroundPicker = new CustomControl({
@@ -277,7 +277,7 @@ export namespace backgroundColor {
     label: icon.Marker,
     description: phrases.ref("background_color"),
     arrow: false,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 65,
     content: [backgroundPicker]
   })

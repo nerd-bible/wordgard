@@ -5,7 +5,7 @@ import {orderedList, bulletList} from "wordgard/list"
 import {menuBar, staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 import {tables, tableMenu} from "wordgard/table"
-import {strong, emphasis, underline, superscript, subscript, link, color, backgroundColor} from "wordgard/mark"
+import {allMarks} from "wordgard/mark"
 
 ;(window as any).view = new Wordgard({
   parent: document.body,
@@ -22,6 +22,6 @@ import {strong, emphasis, underline, superscript, subscript, link, color, backgr
     staticMenu,
     menuBar(),
     tables(), tableMenu(),
-    strong(), emphasis(), underline(), superscript(), subscript(), link(), color(), backgroundColor()
+    allMarks()
   ]
 })

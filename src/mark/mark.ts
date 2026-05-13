@@ -6,10 +6,10 @@ import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgar
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/view"
 
-export const inlineStyleMenu = new MenuGroup({parent: Top, rank: 30, margin: true})
+export const inlineStyleGroup = new MenuGroup({parent: Top, rank: 30, margin: true})
 
 export function strong(): GardState.Extension {
-  return [Strong, strong.button, inlineStyleMenu, strong.keyBinding]
+  return [Strong, strong.button, inlineStyleGroup, strong.keyBinding]
 }
 
 export namespace strong {
@@ -20,7 +20,7 @@ export namespace strong {
 
   export const button = toggleInlineMarkButton({
     mark: Strong,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 10,
     description: phrases.ref("toggle_strong"),
     label: icon.Bold
@@ -28,7 +28,7 @@ export namespace strong {
 }
 
 export function emphasis(): GardState.Extension {
-  return [Emphasis, emphasis.button, inlineStyleMenu, emphasis.keyBinding]
+  return [Emphasis, emphasis.button, inlineStyleGroup, emphasis.keyBinding]
 }
 
 export namespace emphasis {
@@ -39,7 +39,7 @@ export namespace emphasis {
 
   export const button = toggleInlineMarkButton({
     mark: Emphasis,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 12,
     description: phrases.ref("toggle_em"),
     label: icon.Italic
@@ -47,7 +47,7 @@ export namespace emphasis {
 }
 
 export function code(): GardState.Extension {
-  return [Code, code.button, inlineStyleMenu, code.keyBinding]
+  return [Code, code.button, inlineStyleGroup, code.keyBinding]
 }
 
 export namespace code {
@@ -58,7 +58,7 @@ export namespace code {
 
   export const button = toggleInlineMarkButton({
     mark: Code,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 30,
     description: phrases.ref("toggle_code"),
     label: icon.Code
@@ -66,7 +66,7 @@ export namespace code {
 }
 
 export function underline(): GardState.Extension {
-  return [Underline, underline.button, inlineStyleMenu, underline.keyBinding]
+  return [Underline, underline.button, inlineStyleGroup, underline.keyBinding]
 }
 
 export namespace underline {
@@ -78,7 +78,7 @@ export namespace underline {
 
   export const button = toggleInlineMarkButton({
     mark: Underline,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 14,
     description: phrases.ref("toggle_underline"),
     label: icon.Underline
@@ -86,7 +86,7 @@ export namespace underline {
 }
 
 export function superscript(): GardState.Extension {
-  return [Superscript, superscript.button, inlineStyleMenu, superscript.keyBinding]
+  return [Superscript, superscript.button, inlineStyleGroup, superscript.keyBinding]
 }
 
 export namespace superscript {
@@ -97,7 +97,7 @@ export namespace superscript {
 
   export const button = toggleInlineMarkButton({
     mark: Superscript,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 16,
     description: phrases.ref("toggle_super"),
     label: icon.Superscript
@@ -105,7 +105,7 @@ export namespace superscript {
 }
 
 export function subscript(): GardState.Extension {
-  return [Subscript, subscript.button, inlineStyleMenu, subscript.keyBinding]
+  return [Subscript, subscript.button, inlineStyleGroup, subscript.keyBinding]
 }
 
 export namespace subscript {
@@ -116,7 +116,7 @@ export namespace subscript {
 
   export const button = toggleInlineMarkButton({
     mark: Subscript,
-    parent: inlineStyleMenu,
+    parent: inlineStyleGroup,
     rank: 18,
     description: phrases.ref("toggle_sub"),
     label: icon.Subscript
