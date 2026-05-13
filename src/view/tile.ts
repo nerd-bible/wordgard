@@ -840,7 +840,7 @@ class ContentUpdate {
           this.new.addChild(tile)
         } else if (this.new.lastChild instanceof TextTile && !this.new.lastChild.isComposition) {
           this.addText(tile.text.slice(from, to))
-        } else if (!from && to == tile.text.length && !(tile.flags & TileFlag.Dirty)) {
+        } else if (!from && to == tile.text.length && !(tile.flags & TileFlag.Dirty) && !this.reused.has(tile)) {
           this.reused.set(tile, Reused.Full)
           this.new.addChild(tile)
         } else if (!this.reused.has(tile)) {

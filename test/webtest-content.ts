@@ -232,6 +232,11 @@ describe("DocTile", () => {
     ist(tile.dom.innerHTML, "<blockquote><p>abc</p></blockquote>")
   })
 
+  it("handles insertion of text before a mark", () => {
+    let tile = update(render(doc(p(strong("a"), "b"))), {changes: {from: 1, insert: [Leaf.text("x")]}})
+    ist(tile.dom.innerHTML, "<p>x<strong>a</strong>b</p>")
+  })
+
   // FIXME test nodes with inner structure
 
   describe("decoration", () => {
