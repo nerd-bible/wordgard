@@ -6,10 +6,6 @@ import {phrases} from "wordgard/phrases"
 import {Wordgard} from "wordgard/view"
 import {inlineStyleMenu} from "./mark"
 
-export function color(): GardState.Extension {
-  return [Color, color.button, color.picker, colorPickerTheme, inlineStyleMenu]
-}
-
 function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
   let {state} = view, {selection} = state
   if (selection instanceof GardSelection.Text && selection.empty) {
@@ -236,46 +232,53 @@ const colorPickerTheme = Wordgard.baseTheme({
   },
 })
 
+
+export const colorPicker = new CustomControl({
+  render(view, done) {
+    return new ColorPicker(view, color => {
+      done()
+      setColor(view, Color, color)
+      view.focus()
+    })
+  }
+})
+
+export function color(): GardState.Extension {
+  return [Color, color.button, colorPickerTheme, inlineStyleMenu]
+}
+
 export namespace color {
   export const button = new Submenu({
     label: icon.Color,
     description: phrases.ref("text_color"),
+    arrow: false,
     parent: inlineStyleMenu,
     rank: 60,
-  })
-
-  export const picker = new CustomControl({
-    render(view, done) {
-      return new ColorPicker(view, color => {
-        done()
-        setColor(view, Color, color)
-        view.focus()
-      })
-    },
-    parent: button
+    content: [colorPicker]
   })
 }
 
 export function backgroundColor() {
-  return [BackgroundColor, backgroundColor.button, backgroundColor.picker, colorPickerTheme, inlineStyleMenu]
+  return [BackgroundColor, backgroundColor.button, colorPickerTheme, inlineStyleMenu]
 }
+
+const backgroundPicker = new CustomControl({
+  render(view, done) {
+    return new ColorPicker(view, color => {
+      done()
+      setColor(view, BackgroundColor, color)
+      view.focus()
+    })
+  }
+})
 
 export namespace backgroundColor {
   export const button = new Submenu({
     label: icon.Marker,
     description: phrases.ref("background_color"),
+    arrow: false,
     parent: inlineStyleMenu,
     rank: 65,
-  })
-
-  export const picker = new CustomControl({
-    render(view, done) {
-      return new ColorPicker(view, color => {
-        done()
-        setColor(view, BackgroundColor, color)
-        view.focus()
-      })
-    },
-    parent: button
+    content: [backgroundPicker]
   })
 }

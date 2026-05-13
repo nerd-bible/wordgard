@@ -3,7 +3,7 @@ import {Command, setTextblockType, toggleBlock, setAlignment} from "wordgard/com
 import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
 import {Plot, Pos} from "wordgard/doc"
 import {phrases} from "wordgard/phrases"
-import {Strong, Paragraph, CodeBlock, Heading, Blockquote, Alignment} from "wordgard/schema"
+import {Paragraph, CodeBlock, Heading, Blockquote, Alignment} from "wordgard/schema"
 import {icon} from "./icon"
 
 export type MenuLabelWidget = {
@@ -90,19 +90,22 @@ export class Submenu extends BaseItem {
   defaultLabel: MenuLabel | undefined
   arrow: boolean
   width: number | undefined
+  content: readonly (MenuItem | "...")[] | undefined
   extension: GardState.Extension
 
   constructor(spec: {
     label?: MenuLabel
     defaultLabel?: MenuLabel
     arrow?: boolean
-    width?: number
+    width?: number,
+    content?: readonly (MenuItem | "...")[]
   } & MenuItemSpec) {
     super(spec)
     this.label = spec.label
     this.defaultLabel = spec.defaultLabel
     this.arrow = spec.arrow !== false
     this.width = spec.width
+    this.content = spec.content
     this.extension = menuItem.of(this)
   }
 
@@ -116,16 +119,19 @@ export class MenuGroup {
   extension: GardState.Extension
   parent: MenuGroup | Submenu | undefined
   rank: number
+  content: readonly (MenuItem | "...")[] | undefined
 
   constructor(spec: {
     margin?: boolean
     parent?: MenuGroup | Submenu
-    rank?: number
+    rank?: number,
+    content?: readonly (MenuItem | "...")[]
   } = {}) {
     this.margin = !!spec.margin
     this.extension = menuItem.of(this)
     this.parent = spec.parent
     this.rank = spec.rank ?? 100
+    this.content = spec.content
   }
 
   template(...content: (MenuTemplate | MenuItem | "...")[]) {
@@ -260,7 +266,6 @@ export const AlignCenter = new MenuButton({
 
 // FIXME drop
 export const staticMenu: GardState.Extension[] = [
-  Strong,
   Commands, BlockMenu,
   TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
   AlignmentMenu, AlignStart, AlignEnd, AlignCenter,
@@ -305,7 +310,7 @@ export function resolveMenu(
       if (template instanceof Submenu || template instanceof MenuGroup) {
         if (template instanceof MenuGroup && template.margin) margin(target)
         let innerTarget: ResolvedMenuItem[] = template instanceof Submenu ? [] : target
-        for (let elt of content || ["..."]) {
+        for (let elt of content || template.content || ["..."]) {
           if (elt === "...") {
             let found: MenuItem[] = items.filter(i => i.parent == template)
             for (let item of found.sort((a, b) => (a.rank ?? 100) - (b.rank ?? 100))) resolve(item, null, innerTarget, false)

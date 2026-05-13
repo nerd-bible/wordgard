@@ -109,6 +109,16 @@ function insertTable(view: Wordgard, width: number, height: number) {
   })
 }
 
+const dimensionPicker = new CustomControl({
+  render(view, done) {
+    return new DimensionPicker(view, (width, height) => {
+      done()
+      insertTable(view, width, height)
+      view.focus()
+    })
+  }
+})
+
 const createTable = new Submenu({
   select(state) {
     return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
@@ -116,7 +126,8 @@ const createTable = new Submenu({
   label: icon.Table,
   description: phrases.ref("insert_table"),
   parent: Commands,
-  rank: 90
+  rank: 90,
+  content: [dimensionPicker]
 })
 
 const modifyTable = new Submenu({
@@ -131,17 +142,6 @@ const modifyTable = new Submenu({
 
 export const menu = {
   createTable,
-
-  dimensionPicker: new CustomControl({
-    render(view, done) {
-      return new DimensionPicker(view, (width, height) => {
-        done()
-        insertTable(view, width, height)
-        view.focus()
-      })
-    },
-    parent: createTable
-  }),
 
   modifyTable,
 
@@ -224,7 +224,6 @@ export const menu = {
 export function tableMenu(): GardState.Extension {
   return [
     menu.createTable,
-    menu.dimensionPicker,
     menu.modifyTable,
     menu.toggleHeader,
     menu.addRowAbove, menu.addRowBelow, menu.deleteRow,
