@@ -538,7 +538,7 @@ export function wordAt(state: GardState, pos: number, bias: -1 | 1) {
   let res = state.doc.resolve(pos)
   if (!res.parent.node.inlineContent) return GardSelection.cursor(pos, bias)
   let start = pos, end = pos, text = ""
-  scanBack: for (let i = res.index, cur = res.nodeBefore; cur;) {
+  scanBack: for (let i = res.index - (res.inText ? 0 : 1), cur = res.nodeBefore; cur;) {
     if (!cur.is(Leaf.Text)) break
     for (let j = cur.length; j > 0;) {
       let next = findClusterBreak(cur.param, j, false)
@@ -548,8 +548,8 @@ export function wordAt(state: GardState, pos: number, bias: -1 | 1) {
       start -= (j - next)
       j = next
     }
-    if (--i == 0) break
-    cur = res.parent.node.content[i - 1]
+    if (!i) break
+    cur = res.parent.node.content[--i]
   }
   scanForward: for (let i = res.index + 1, cur = res.nodeAfter; cur;) {
     if (!cur.is(Leaf.Text)) break
