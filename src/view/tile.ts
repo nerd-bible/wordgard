@@ -15,17 +15,18 @@ export const enum TileFlag {
   NodeInner = 1,
   PlotContent = 2,
   Spanning = 4,
-  Point = 8,
-  PointBefore = 16,
-  PointAfter = 32,
+  Wrapper = 8,
+  Point = 16,
+  PointBefore = 32,
+  PointAfter = 64,
   PointSide = PointBefore | PointAfter,
-  Composition = 64,
-  Synced = 128, // Node has been synced. DOM content matches child list / text content, child array becomes read-only
-  Atom = 256, // Composite tile whose length isn't determined by child length
-  HasContent = 512, // EltTile whose elt has a content hole
-  AfterContent = 1024, // Tiles that sit after their parent's content position
-  ContentNotLast = 2048, // EltTile that has children with AfterContent flag
-  Dirty = 4096, // DOM change observed in this node, must not reuse
+  Composition = 128,
+  Synced = 256, // Node has been synced. DOM content matches child list / text content, child array becomes read-only
+  Atom = 512, // Composite tile whose length isn't determined by child length
+  HasContent = 1024, // EltTile whose elt has a content hole
+  AfterContent = 2048, // Tiles that sit after their parent's content position
+  ContentNotLast = 4096, // EltTile that has children with AfterContent flag
+  Dirty = 8192, // DOM change observed in this node, must not reuse
 }
 
 const enum Orientation { Row, Col }
@@ -41,7 +42,7 @@ export class CoordPos {
   }
 }
 
-export class ContentPos {
+export class TilePos {
   constructor(
     readonly tile: Tile,
     readonly offset: number,
@@ -73,6 +74,7 @@ export abstract class Tile {
   get isPlotContent() { return (this.flags & TileFlag.PlotContent) > 0 }
   get isText() { return false }
   get isDoc() { return false }
+  get isWrapper() { return (this.flags & TileFlag.Wrapper) > 0 }
   get isSpanning() { return false }
   get isComposition() { return (this.flags & TileFlag.Composition) > 0 }
   get isPoint() { return (this.flags & TileFlag.Point) > 0 }
@@ -433,40 +435,105 @@ export class DocTile extends CompositeTile {
     }
   }
 
-  resolve(pos: number, assoc: -1 | 0 | 1 = 0) {
-    // FIXME the tracking of whether we're in a valid resolveable
-    // place is way too obscure. Need a better way to distinguish node
-    // content positions.
-    let found: Tile | undefined, foundDepth = 0, offset = 0
-    let scan = (tile: Tile, off: number, depth: number) => {
-      let isPlace = !(tile.isNode && !tile.isPlotContent)
-      for (let i = 0;; i++) {
-        let ch = i == tile.children.length ? null : tile.children[i]
-        if (isPlace && !off && (!found || assoc > 0 || !assoc && foundDepth > depth) &&
-            !(ch && ch.isNodeInner && !(ch.flags & TileFlag.AfterContent))) {
-          found = tile; offset = i; foundDepth = depth
+  resolve(pos: number, side: -1 | 1 = -1) {
+    // First find the parent plot or wrapper that contains this position
+    let parent: Tile = this, i = 0
+    search: for (let scan: Tile = this, off = 0;;) {
+      for (let j = 0; j < scan.children.length && off <= pos; j++) {
+        let ch = scan.children[j], end = off + ch.length
+        if (scan == parent) {
+          if (off == pos) i = j
+          else if (pos == end) i = j + 1
         }
-        if (!ch) break
-        if (isPlace && !ch.isNodeInner && ch.isPoint && !off) {
-          if (ch.flags & TileFlag.PointBefore) found = undefined
-          else if ((ch.flags & TileFlag.PointAfter) || assoc < 0) return true
+        if (ch.isPlotContent && !ch.boundary ? pos >= off && pos <= end : pos > off && pos < end) {
+          if (ch instanceof TextTile) return new TilePos(ch, pos - off, pos)
+          scan = ch
+          off += ch.boundary
+          if (ch.isPlotContent || ch.isWrapper) parent = ch
+          else if (ch.isAtom) pos = end
+          continue search
         }
-        if (ch.boundary ? off && off < ch.length : off <= ch.length) {
-          if (ch.isText && (!off ? assoc > 0 : off == ch.length ? assoc < 0 : true)) {
-            found = ch; offset = off; foundDepth = depth + 1
-          } else if (!ch.isAtom && !(isPlace && ch.isNodeInner) && scan(ch, off - ch.boundary, depth + 1)) {
-            return true
-          }
-        }
-        if (isPlace && ch.flags & TileFlag.AfterContent) isPlace = false
-        off -= ch.length
-        if (off < 0) return true
+        off = end
       }
-      return false
+      break
     }
-    scan(this, pos, 0)
-    if (!found) throw new Error(`Failed to resolve ${pos} in doc of size ${this.length}`)
-    return new ContentPos(found, offset, pos)
+
+
+    // Then make sure we're on the right side of nearby point and
+    // node-inner structure
+    adjust: for (;;) {
+      if (i) {
+        let before = parent.children[i - 1], parentBefore = parent, beforeI = i - 1
+        while (before.isWrapper) {
+          parentBefore = before
+          before = before.children[beforeI = before.children.length - 1]
+        }
+        if (before.isNodeInner && (before.flags & TileFlag.AfterContent) || (before.flags & TileFlag.PointAfter)) {
+          parent = parentBefore
+          i = beforeI
+          continue adjust
+        }
+      }
+      if (i < parent.children.length) {
+        let after = parent.children[i], parentAfter = parent, afterI = i
+        while (after.isWrapper) {
+          parentAfter = after
+          after = after.children[afterI = 0]
+        }
+        if (after.isNodeInner && !(after.flags & TileFlag.AfterContent) || (after.flags & TileFlag.PointBefore)) {
+          parent = parentAfter
+          i = afterI + 1
+          continue adjust
+        }
+      }
+      break
+    }
+
+    // Finally, skip side-less widgets and enter/leave wrappers or
+    // text tiles at the given side
+    if (side < 0) {
+      while (!i && parent.isWrapper) {
+        i = parent.parent!.children.indexOf(parent)
+        parent = parent.parent!
+      }
+      while (i) {
+        let before = parent.children[i - 1]
+        if (before.isPoint && !(before.flags & TileFlag.PointSide) && !before.isNodeInner) {
+          i--
+        } else if (before.isWrapper) {
+          parent = before
+          i = parent.children.length
+        } else {
+          if (before instanceof TextTile) {
+            parent = before
+            i = parent.length
+          }
+          break
+        }
+      }
+    } else {
+      while (parent.isWrapper && i == parent.children.length) {
+        i = parent.parent!.children.indexOf(parent) + 1
+        parent = parent.parent!
+      }
+      while (i < parent.children.length) {
+        let after = parent.children[i]
+        if (after.isPoint && !(after.flags & TileFlag.PointSide) && !after.isNodeInner) {
+          i++
+        } else if (after.isWrapper) {
+          parent = after
+          i = 0
+        } else {
+          if (after instanceof TextTile) {
+            parent = after
+            i = 0
+          }
+          break
+        }
+      }
+    }
+
+    return new TilePos(parent, i, pos)
   }
 
   posFromDOM(dom: DOMNode, offset: number, bias: -1 | 1 = -1) {
@@ -581,7 +648,7 @@ export class TextTile extends Tile {
   get children() { return noChildren }
 
   get isText() { return true }
-  get isNodeOuter() { return true }
+  get isNodeOuter() { return true } // FIXME not accurate
   get isAtom() { return true }
 
   sync() {
@@ -999,7 +1066,7 @@ class ContentUpdate {
       this.new = span
     } else {
       let match = reuse ? this.old.matchingWrapper(elt, spanning, this.reused) : null
-      let tile = EltTile.of(elt, null, spanning ? TileFlag.Spanning : 0, 0, match)
+      let tile = EltTile.of(elt, null, TileFlag.Wrapper | (spanning ? TileFlag.Spanning : 0), 0, match)
       this.new.addChild(tile)
       this.new = tile
     }
