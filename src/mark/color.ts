@@ -1,5 +1,5 @@
 import {CustomControl, Submenu, icon} from "wordgard/menu"
-import {PhraseSet, GardState, GardSelection, Direction} from "wordgard/state"
+import {PhraseSet, GardState, GardSelection, Direction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema"
 import {phrases} from "wordgard/phrases"
@@ -37,24 +37,117 @@ function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
   }
 }
 
-class ColorPicker {
-  dom: HTMLElement
-  width: number
-  selPos = 0
-  options: HTMLElement[]
-  finish: (color: string) => void
+function col(rgb: string, name: PhraseSet.Tag<typeof phrases>, mod?: -3 | -2 | -1 | 1 | 2 | 3) {
+  let detail = mod == 3 ? phrases.ref("col_lightest") : mod == 2 ? phrases.ref("col_lighter") :
+    mod == 1 ? phrases.ref("col_light") : mod == -1 ? phrases.ref("col_dark") :
+    mod == -2 ? phrases.ref("col_darker") : mod ? phrases.ref("col_darkest") : undefined
+  return {name: phrases.ref(name), detail, value: rgb}
+}
 
-  constructor(readonly view: Wordgard, config: {
-    options: readonly {name: PhraseSet.Ref, detail?: PhraseSet.Ref, value: string}[],
-    width?: number
-    finish: (color: string) => void
-  }) {
-    this.finish = config.finish
-    this.width = config.width ?? 10
+function colorOptions(): ColorPicker.Option[] {
+  return [
+    col("", "col_none"),
+    col("#000000", "col_black"),
+    col("#434343", "col_grey", -3),
+    col("#666666", "col_grey", -2),
+    col("#999999", "col_grey", -1),
+    col("#cccccc", "col_grey"),
+    col("#d9d9d9", "col_grey", 1),
+    col("#efefef", "col_grey", 2),
+    col("#f3f3f3", "col_grey", 3),
+    col("#ffffff", "col_white"),
+
+    col("#980000", "col_red_berry"),
+    col("#ff0000", "col_red"),
+    col("#ff9900", "col_orange"),
+    col("#ffff00", "col_yellow"),
+    col("#00ff00", "col_green"),
+    col("#00ffff", "col_cyan"),
+    col("#4a86e8", "col_cornflower"),
+    col("#0000ff", "col_blue"),
+    col("#9900ff", "col_purple"),
+    col("#ff00ff", "col_magenta"),
+
+    col("#e6b8af", "col_red_berry", 3),
+    col("#f4cccc", "col_red", 3),
+    col("#fce5cd", "col_orange", 3),
+    col("#fff2cc", "col_yellow", 3),
+    col("#d9ead3", "col_green", 3),
+    col("#d0e0e3", "col_cyan", 3),
+    col("#c9daf8", "col_cornflower", 3),
+    col("#cfe2f3", "col_blue", 3),
+    col("#d9d2e9", "col_purple", 3),
+    col("#ead1dc", "col_magenta", 3),
+
+    col("#dd7e6b", "col_red_berry", 2),
+    col("#ea9999", "col_red", 2),
+    col("#f9cb9c", "col_orange", 2),
+    col("#ffe599", "col_yellow", 2),
+    col("#b6d7a8", "col_green", 2),
+    col("#a2c4c9", "col_cyan", 2),
+    col("#a4c2f4", "col_cornflower", 2),
+    col("#9fc5e8", "col_blue", 2),
+    col("#b4a7d6", "col_purple", 2),
+    col("#d5a6bd", "col_magenta", 2),
+
+    col("#cc4125", "col_red_berry", 1),
+    col("#e06666", "col_red", 1),
+    col("#f6b26b", "col_orange", 1),
+    col("#ffd966", "col_yellow", 1),
+    col("#93c47d", "col_green", 1),
+    col("#76a5af", "col_cyan", 1),
+    col("#6d9eeb", "col_cornflower", 1),
+    col("#6fa8dc", "col_blue", 1),
+    col("#8e7cc3", "col_purple", 1),
+    col("#c27ba0", "col_magenta", 1),
+
+    col("#a61c00", "col_red_berry", -1),
+    col("#cc0000", "col_red", -1),
+    col("#e69138", "col_orange", -1),
+    col("#f1c232", "col_yellow", -1),
+    col("#6aa84f", "col_green", -1),
+    col("#45818e", "col_cyan", -1),
+    col("#3c78d8", "col_cornflower", -1),
+    col("#3d85c6", "col_blue", -1),
+    col("#674ea7", "col_purple", -1),
+    col("#a64d79", "col_magenta", -1),
+
+    col("#85200c", "col_red_berry", -2),
+    col("#990000", "col_red", -2),
+    col("#b45f06", "col_orange", -2),
+    col("#bf9000", "col_yellow", -2),
+    col("#38761d", "col_green", -2),
+    col("#134f5c", "col_cyan", -2),
+    col("#1155cc", "col_cornflower", -2),
+    col("#0b5394", "col_blue", -2),
+    col("#351c75", "col_purple", -2),
+    col("#741b47", "col_magenta", -2),
+
+    col("#5b0f00", "col_red_berry", -3),
+    col("#660000", "col_red", -3),
+    col("#783f04", "col_orange", -3),
+    col("#7f6000", "col_yellow", -3),
+    col("#274e13", "col_green", -3),
+    col("#0c343d", "col_cyan", -3),
+    col("#1c4587", "col_cornflower", -3),
+    col("#073763", "col_blue", -3),
+    col("#20124d", "col_purple", -3),
+    col("#4c1130", "col_magenta", -3),
+  ]
+}
+
+export class ColorPicker {
+  dom: HTMLElement
+  private width: number
+  private selPos = 0
+  private options: HTMLElement[]
+
+  constructor(readonly view: Wordgard, readonly finish: (color: string) => void) {
+    this.width = view.state.facet(ColorPicker.width)
     this.dom = document.createElement("wg-color-picker")
     this.dom.role = "listbox"
     this.dom.style.gridTemplateColumns = `repeat(${this.width}, max-content)`
-    this.options = config.options.map(({name, detail, value}, i) => {
+    this.options = view.state.facet(ColorPicker.options).map(({name, detail, value}, i) => {
       let option = this.dom.appendChild(document.createElement("wg-color-picker-color"))
       let label = name(view.state)
       if (detail) label += ` (${detail(view.state)})`
@@ -96,7 +189,7 @@ class ColorPicker {
     })
   }
 
-  move(selPos: number) {
+  private move(selPos: number) {
     if (selPos != this.selPos) {
       let prev = this.options[this.selPos]
       let cur = this.options[this.selPos = selPos]
@@ -104,105 +197,19 @@ class ColorPicker {
       cur.setAttribute("aria-selected", "true")
     }
   }
+
+  static width = Facet.define<number, number>({
+    combine: values => values.length ? values[0] : 10
+  })
+
+  static options = Facet.define<readonly ColorPicker.Option[], readonly ColorPicker.Option[]>({
+    combine: values => values.length ? values[0] : colorOptions()
+  })
 }
 
-function col(rgb: string, name: PhraseSet.Tag<typeof phrases>, mod?: -3 | -2 | -1 | 1 | 2 | 3) {
-  let detail = mod == 3 ? phrases.ref("col_lightest") : mod == 2 ? phrases.ref("col_lighter") :
-    mod == 1 ? phrases.ref("col_light") : mod == -1 ? phrases.ref("col_dark") :
-    mod == -2 ? phrases.ref("col_darker") : mod ? phrases.ref("col_darkest") : undefined
-  return {name: phrases.ref(name), detail, value: rgb}
+export namespace ColorPicker {
+  export type Option = {name: PhraseSet.Ref, detail?: PhraseSet.Ref, value: string}
 }
-
-// FIXME make configurable
-const colorOptions: {name: PhraseSet.Ref, detail?: PhraseSet.Ref, value: string}[] = [
-  col("", "col_none"),
-  col("#000000", "col_black"),
-  col("#434343", "col_grey", -3),
-  col("#666666", "col_grey", -2),
-  col("#999999", "col_grey", -1),
-  col("#cccccc", "col_grey"),
-  col("#d9d9d9", "col_grey", 1),
-  col("#efefef", "col_grey", 2),
-  col("#f3f3f3", "col_grey", 3),
-  col("#ffffff", "col_white"),
-
-  col("#980000", "col_red_berry"),
-  col("#ff0000", "col_red"),
-  col("#ff9900", "col_orange"),
-  col("#ffff00", "col_yellow"),
-  col("#00ff00", "col_green"),
-  col("#00ffff", "col_cyan"),
-  col("#4a86e8", "col_cornflower"),
-  col("#0000ff", "col_blue"),
-  col("#9900ff", "col_purple"),
-  col("#ff00ff", "col_magenta"),
-
-  col("#e6b8af", "col_red_berry", 3),
-  col("#f4cccc", "col_red", 3),
-  col("#fce5cd", "col_orange", 3),
-  col("#fff2cc", "col_yellow", 3),
-  col("#d9ead3", "col_green", 3),
-  col("#d0e0e3", "col_cyan", 3),
-  col("#c9daf8", "col_cornflower", 3),
-  col("#cfe2f3", "col_blue", 3),
-  col("#d9d2e9", "col_purple", 3),
-  col("#ead1dc", "col_magenta", 3),
-
-  col("#dd7e6b", "col_red_berry", 2),
-  col("#ea9999", "col_red", 2),
-  col("#f9cb9c", "col_orange", 2),
-  col("#ffe599", "col_yellow", 2),
-  col("#b6d7a8", "col_green", 2),
-  col("#a2c4c9", "col_cyan", 2),
-  col("#a4c2f4", "col_cornflower", 2),
-  col("#9fc5e8", "col_blue", 2),
-  col("#b4a7d6", "col_purple", 2),
-  col("#d5a6bd", "col_magenta", 2),
-
-  col("#cc4125", "col_red_berry", 1),
-  col("#e06666", "col_red", 1),
-  col("#f6b26b", "col_orange", 1),
-  col("#ffd966", "col_yellow", 1),
-  col("#93c47d", "col_green", 1),
-  col("#76a5af", "col_cyan", 1),
-  col("#6d9eeb", "col_cornflower", 1),
-  col("#6fa8dc", "col_blue", 1),
-  col("#8e7cc3", "col_purple", 1),
-  col("#c27ba0", "col_magenta", 1),
-
-  col("#a61c00", "col_red_berry", -1),
-  col("#cc0000", "col_red", -1),
-  col("#e69138", "col_orange", -1),
-  col("#f1c232", "col_yellow", -1),
-  col("#6aa84f", "col_green", -1),
-  col("#45818e", "col_cyan", -1),
-  col("#3c78d8", "col_cornflower", -1),
-  col("#3d85c6", "col_blue", -1),
-  col("#674ea7", "col_purple", -1),
-  col("#a64d79", "col_magenta", -1),
-
-  col("#85200c", "col_red_berry", -2),
-  col("#990000", "col_red", -2),
-  col("#b45f06", "col_orange", -2),
-  col("#bf9000", "col_yellow", -2),
-  col("#38761d", "col_green", -2),
-  col("#134f5c", "col_cyan", -2),
-  col("#1155cc", "col_cornflower", -2),
-  col("#0b5394", "col_blue", -2),
-  col("#351c75", "col_purple", -2),
-  col("#741b47", "col_magenta", -2),
-
-  col("#5b0f00", "col_red_berry", -3),
-  col("#660000", "col_red", -3),
-  col("#783f04", "col_orange", -3),
-  col("#7f6000", "col_yellow", -3),
-  col("#274e13", "col_green", -3),
-  col("#0c343d", "col_cyan", -3),
-  col("#1c4587", "col_cornflower", -3),
-  col("#073763", "col_blue", -3),
-  col("#20124d", "col_purple", -3),
-  col("#4c1130", "col_magenta", -3),
-]
 
 function crossGradient(angle: number) {
   return `linear-gradient(${angle}deg, transparent, transparent 44%, currentColor 44%, currentColor 56%, transparent 56%)`
@@ -239,13 +246,10 @@ export namespace color {
 
   export const picker = new CustomControl({
     render(view, done) {
-      return new ColorPicker(view, {
-        options: colorOptions,
-        finish: color => {
-          done()
-          setColor(view, Color, color)
-          view.focus()
-        }
+      return new ColorPicker(view, color => {
+        done()
+        setColor(view, Color, color)
+        view.focus()
       })
     },
     parent: button
@@ -266,13 +270,10 @@ export namespace backgroundColor {
 
   export const picker = new CustomControl({
     render(view, done) {
-      return new ColorPicker(view, {
-        options: colorOptions,
-        finish: color => {
-          done()
-          setColor(view, BackgroundColor, color)
-          view.focus()
-        }
+      return new ColorPicker(view, color => {
+        done()
+        setColor(view, BackgroundColor, color)
+        view.focus()
       })
     },
     parent: button
