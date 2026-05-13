@@ -578,7 +578,7 @@ export class EltTile extends CompositeTile {
   get isSpanning() { return (this.flags & TileFlag.Spanning) > 0 }
   get isNodeOuter() { return !!this.node }
   get isAtom() { return !!this._node && (this.flags & TileFlag.Atom) > 0 }
-  get boundary() { return this._node && !(this.flags & TileFlag.Atom) && !this._node.isText ? 1 : 0 }
+  get boundary() { return this._node && !(this.flags & TileFlag.Atom) ? 1 : 0 }
   get node() { return this._node }
 
   get contentTile(): EltTile | null {
@@ -648,7 +648,7 @@ export class TextTile extends Tile {
   get children() { return noChildren }
 
   get isText() { return true }
-  get isNodeOuter() { return true } // FIXME not accurate
+  get isNodeOuter() { return true }
   get isAtom() { return true }
 
   sync() {
@@ -680,8 +680,8 @@ export class TextTile extends Tile {
     else return CoordPos.create(pos, 1)
   }
 
-  static of(text: string, reuse?: Text, flags?: TileFlag) {
-    return new TextTile(text, reuse || document.createTextNode(text), flags)
+  static of(text: string) {
+    return new TextTile(text, document.createTextNode(text))
   }
 }
 
@@ -819,7 +819,17 @@ class ContentUpdate {
         }
       },
       leave: tile => {
-        if (tile.isNodeOuter) {
+        if (tile.isWrapper) {
+          for (let scan = this.new, i = 0;;) {
+            if (!scan.isWrapper) break
+            if ((scan as EltTile).elt.eq(tile.elt) && scan.isSpanning == tile.isSpanning) {
+              for (let j = 0; j <= i; j++) this.up()
+              break
+            }
+            if (!scan.parent) break
+            scan = scan.parent
+          }
+        } else if (tile.isNodeOuter) {
           this.leaveNode()
           this.leaveWrappers()
         }
@@ -922,7 +932,13 @@ class ContentUpdate {
       },
       node: (node, shape, wrappers) => {
         this.openWrappers(wrappers, node.tag, reuse)
-        if (node.is(Leaf.Text) && shape instanceof Widget && shape.type == Widget.EditableText) {
+        let wrapCount = wrappers.length
+        if (node.is(Leaf.Text)) {
+          while (shape instanceof Elt) {
+            this.openWrapper(Elt.new(shape.tagName, shape.attrs, Elt.hole), true, reuse)
+            wrapCount++
+            shape = shape.children[0] as Shape
+          }
           let next = (reuse || this.posB == start) && !(this.new.lastChild instanceof TextTile) && this.old.tileAfter()
           if (!(next instanceof TextTile) || this.reused.has(next)) {
             this.addText(node.param)
@@ -936,7 +952,7 @@ class ContentUpdate {
         } else {
           this.new.addChild(this.buildNodeShape(node, shape, reuse ? this.old.tileAfter() : null))
         }
-        for (let _ of wrappers) this.up()
+        for (let i = 0; i < wrapCount; i++) this.up()
         if (reuse) this.old = this.old.walk(node.length, 1)
         this.posB += node.length
       },
@@ -961,9 +977,6 @@ class ContentUpdate {
         if (found) return found
       }
       return this.findReusableTile(shape, reuse.children, strict)
-    } else if (reuse instanceof TextTile && shape instanceof Widget && shape.type == Widget.EditableText &&
-               !this.reused.has(reuse)) {
-      return reuse
     } else if (reuse instanceof WidgetTile && shape instanceof Widget &&
                !this.reused.has(reuse) && shape.eq(reuse.widget)) {
       return reuse
@@ -988,7 +1001,7 @@ class ContentUpdate {
         else if (!strict)
           updateAttributes(dom, (reusable as EltTile).elt.attrs, shape.attrs)
       }
-      let flags = (node ? (shape.hasContent || node.isText ? TileFlag.None : TileFlag.Atom)
+      let flags = (node ? (shape.hasContent ? TileFlag.None : TileFlag.Atom)
         : TileFlag.NodeInner | (shape.hasContent ? TileFlag.None : TileFlag.Point)) | afterContent
       let tile = EltTile.of(shape, node, flags, node ? node.length : 0, dom)
       let afterContentInner = TileFlag.None
@@ -1008,8 +1021,6 @@ class ContentUpdate {
         this.reused.set(reusable, Reused.DOM)
         dom = reusable.dom
       }
-      if (shape.type == Widget.EditableText)
-        return TextTile.of(shape.value as string, dom as Text, TileFlag.NodeInner)
       let flags = (node ? TileFlag.Atom : TileFlag.Point | TileFlag.NodeInner) | afterContent
       return new WidgetTile(shape, node, flags, node ? node.length : 0, dom)
     }

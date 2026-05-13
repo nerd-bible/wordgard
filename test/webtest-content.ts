@@ -1,8 +1,8 @@
 import {Wordgard, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/view"
 import {GardState, Transaction} from "wordgard/state"
-import {Plot, Leaf, Node, elt, Mark} from "wordgard/doc"
-import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, Image, ImageAlt, builder} from "wordgard/schema"
+import {Plot, Leaf, Node, elt, Mark, Token} from "wordgard/doc"
+import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, builder} from "wordgard/schema"
 import ist from "ist"
 
 const {DocTile} = Wordgard
@@ -216,6 +216,20 @@ describe("DocTile", () => {
   it("can handle adding a mark to part of a textblock", () => {
     let tile = update(render(doc(p("one two"))), {changes: {from: 5, to: 8, add: Strong}})
     ist(tile.dom.innerHTML, "<p>one <strong>two</strong></p>")
+  })
+
+  it("can handle a change moving content up", () => {
+    let tile = update(render(doc(blockquote(p("abc")))), {
+      changes: [{from: 0, to: 2, insert: [Paragraph]}, {from: 6, to: 7}]
+    })
+    ist(tile.dom.innerHTML, "<p>abc</p>")
+  })
+
+  it("can handle a change moving content down", () => {
+    let tile = update(render(doc(p("abc"))), {
+      changes: [{from: 0, to: 1, insert: [Blockquote, Paragraph]}, {from: 5, insert: [Token.End]}]
+    })
+    ist(tile.dom.innerHTML, "<blockquote><p>abc</p></blockquote>")
   })
 
   // FIXME test nodes with inner structure

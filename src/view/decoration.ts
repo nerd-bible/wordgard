@@ -1044,7 +1044,7 @@ export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
 
 export const renderMarkWrapper = memo((mark: Mark<any>) => {
   let shape = mark.type.element!
-  return Elt.new<never>(shape.name, shape.attrs(mark.value), Elt.hole)
+  return Elt.new(shape.name, shape.attrs(mark.value), Elt.hole)
 })
 
 export class DecoIterator {
