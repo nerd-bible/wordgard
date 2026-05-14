@@ -33,105 +33,6 @@ function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
   }
 }
 
-function col(rgb: string, name: PhraseSet.Tag<typeof phrases>, mod?: -3 | -2 | -1 | 1 | 2 | 3) {
-  let detail = mod == 3 ? phrases.ref("col_lightest") : mod == 2 ? phrases.ref("col_lighter") :
-    mod == 1 ? phrases.ref("col_light") : mod == -1 ? phrases.ref("col_dark") :
-    mod == -2 ? phrases.ref("col_darker") : mod ? phrases.ref("col_darkest") : undefined
-  return {name: phrases.ref(name), detail, value: rgb}
-}
-
-function colorOptions(): ColorPicker.Option[] {
-  return [
-    col("", "col_none"),
-    col("#000000", "col_black"),
-    col("#434343", "col_grey", -3),
-    col("#666666", "col_grey", -2),
-    col("#999999", "col_grey", -1),
-    col("#cccccc", "col_grey"),
-    col("#d9d9d9", "col_grey", 1),
-    col("#efefef", "col_grey", 2),
-    col("#f3f3f3", "col_grey", 3),
-    col("#ffffff", "col_white"),
-
-    col("#980000", "col_red_berry"),
-    col("#ff0000", "col_red"),
-    col("#ff9900", "col_orange"),
-    col("#ffff00", "col_yellow"),
-    col("#00ff00", "col_green"),
-    col("#00ffff", "col_cyan"),
-    col("#4a86e8", "col_cornflower"),
-    col("#0000ff", "col_blue"),
-    col("#9900ff", "col_purple"),
-    col("#ff00ff", "col_magenta"),
-
-    col("#e6b8af", "col_red_berry", 3),
-    col("#f4cccc", "col_red", 3),
-    col("#fce5cd", "col_orange", 3),
-    col("#fff2cc", "col_yellow", 3),
-    col("#d9ead3", "col_green", 3),
-    col("#d0e0e3", "col_cyan", 3),
-    col("#c9daf8", "col_cornflower", 3),
-    col("#cfe2f3", "col_blue", 3),
-    col("#d9d2e9", "col_purple", 3),
-    col("#ead1dc", "col_magenta", 3),
-
-    col("#dd7e6b", "col_red_berry", 2),
-    col("#ea9999", "col_red", 2),
-    col("#f9cb9c", "col_orange", 2),
-    col("#ffe599", "col_yellow", 2),
-    col("#b6d7a8", "col_green", 2),
-    col("#a2c4c9", "col_cyan", 2),
-    col("#a4c2f4", "col_cornflower", 2),
-    col("#9fc5e8", "col_blue", 2),
-    col("#b4a7d6", "col_purple", 2),
-    col("#d5a6bd", "col_magenta", 2),
-
-    col("#cc4125", "col_red_berry", 1),
-    col("#e06666", "col_red", 1),
-    col("#f6b26b", "col_orange", 1),
-    col("#ffd966", "col_yellow", 1),
-    col("#93c47d", "col_green", 1),
-    col("#76a5af", "col_cyan", 1),
-    col("#6d9eeb", "col_cornflower", 1),
-    col("#6fa8dc", "col_blue", 1),
-    col("#8e7cc3", "col_purple", 1),
-    col("#c27ba0", "col_magenta", 1),
-
-    col("#a61c00", "col_red_berry", -1),
-    col("#cc0000", "col_red", -1),
-    col("#e69138", "col_orange", -1),
-    col("#f1c232", "col_yellow", -1),
-    col("#6aa84f", "col_green", -1),
-    col("#45818e", "col_cyan", -1),
-    col("#3c78d8", "col_cornflower", -1),
-    col("#3d85c6", "col_blue", -1),
-    col("#674ea7", "col_purple", -1),
-    col("#a64d79", "col_magenta", -1),
-
-    col("#85200c", "col_red_berry", -2),
-    col("#990000", "col_red", -2),
-    col("#b45f06", "col_orange", -2),
-    col("#bf9000", "col_yellow", -2),
-    col("#38761d", "col_green", -2),
-    col("#134f5c", "col_cyan", -2),
-    col("#1155cc", "col_cornflower", -2),
-    col("#0b5394", "col_blue", -2),
-    col("#351c75", "col_purple", -2),
-    col("#741b47", "col_magenta", -2),
-
-    col("#5b0f00", "col_red_berry", -3),
-    col("#660000", "col_red", -3),
-    col("#783f04", "col_orange", -3),
-    col("#7f6000", "col_yellow", -3),
-    col("#274e13", "col_green", -3),
-    col("#0c343d", "col_cyan", -3),
-    col("#1c4587", "col_cornflower", -3),
-    col("#073763", "col_blue", -3),
-    col("#20124d", "col_purple", -3),
-    col("#4c1130", "col_magenta", -3),
-  ]
-}
-
 export class ColorPicker {
   dom: HTMLElement
   private width: number
@@ -193,18 +94,140 @@ export class ColorPicker {
       cur.setAttribute("aria-selected", "true")
     }
   }
-
-  static width = Facet.define<number, number>({
-    combine: values => values.length ? values[0] : 10
-  })
-
-  static options = Facet.define<readonly ColorPicker.Option[], readonly ColorPicker.Option[]>({
-    combine: values => values.length ? values[0] : colorOptions()
-  })
 }
 
 export namespace ColorPicker {
   export type Option = {name: PhraseSet.Ref, detail?: PhraseSet.Ref, value: string}
+
+  export const colorNames = PhraseSet.define({
+    none: "none",
+    black: "black",
+    white: "white",
+    grey: "grey",
+    red_berry: "red berry",
+    red: "red",
+    orange: "orange",
+    yellow: "yellow",
+    green: "green",
+    cyan: "cyan",
+    cornflower: "cornflower",
+    blue: "blue",
+    purple: "purple",
+    magenta: "magenta",
+    dark: "dark",
+    darker: "darker",
+    darkest: "very dark",
+    light: "light",
+    lighter: "lighter",
+    lightest: "very light",
+  })
+
+  function col(rgb: string, name: PhraseSet.Tag<typeof colorNames>, mod?: -3 | -2 | -1 | 1 | 2 | 3) {
+    let detail = mod == 3 ? colorNames.ref("lightest") : mod == 2 ? colorNames.ref("lighter") :
+      mod == 1 ? colorNames.ref("light") : mod == -1 ? colorNames.ref("dark") :
+      mod == -2 ? colorNames.ref("darker") : mod ? colorNames.ref("darkest") : undefined
+    return {name: colorNames.ref(name), detail, value: rgb}
+  }
+
+  export function defaultColors(): readonly ColorPicker.Option[] {
+    return [
+      col("", "none"),
+      col("#000000", "black"),
+      col("#434343", "grey", -3),
+      col("#666666", "grey", -2),
+      col("#999999", "grey", -1),
+      col("#cccccc", "grey"),
+      col("#d9d9d9", "grey", 1),
+      col("#efefef", "grey", 2),
+      col("#f3f3f3", "grey", 3),
+      col("#ffffff", "white"),
+
+      col("#980000", "red_berry"),
+      col("#ff0000", "red"),
+      col("#ff9900", "orange"),
+      col("#ffff00", "yellow"),
+      col("#00ff00", "green"),
+      col("#00ffff", "cyan"),
+      col("#4a86e8", "cornflower"),
+      col("#0000ff", "blue"),
+      col("#9900ff", "purple"),
+      col("#ff00ff", "magenta"),
+
+      col("#e6b8af", "red_berry", 3),
+      col("#f4cccc", "red", 3),
+      col("#fce5cd", "orange", 3),
+      col("#fff2cc", "yellow", 3),
+      col("#d9ead3", "green", 3),
+      col("#d0e0e3", "cyan", 3),
+      col("#c9daf8", "cornflower", 3),
+      col("#cfe2f3", "blue", 3),
+      col("#d9d2e9", "purple", 3),
+      col("#ead1dc", "magenta", 3),
+
+      col("#dd7e6b", "red_berry", 2),
+      col("#ea9999", "red", 2),
+      col("#f9cb9c", "orange", 2),
+      col("#ffe599", "yellow", 2),
+      col("#b6d7a8", "green", 2),
+      col("#a2c4c9", "cyan", 2),
+      col("#a4c2f4", "cornflower", 2),
+      col("#9fc5e8", "blue", 2),
+      col("#b4a7d6", "purple", 2),
+      col("#d5a6bd", "magenta", 2),
+
+      col("#cc4125", "red_berry", 1),
+      col("#e06666", "red", 1),
+      col("#f6b26b", "orange", 1),
+      col("#ffd966", "yellow", 1),
+      col("#93c47d", "green", 1),
+      col("#76a5af", "cyan", 1),
+      col("#6d9eeb", "cornflower", 1),
+      col("#6fa8dc", "blue", 1),
+      col("#8e7cc3", "purple", 1),
+      col("#c27ba0", "magenta", 1),
+
+      col("#a61c00", "red_berry", -1),
+      col("#cc0000", "red", -1),
+      col("#e69138", "orange", -1),
+      col("#f1c232", "yellow", -1),
+      col("#6aa84f", "green", -1),
+      col("#45818e", "cyan", -1),
+      col("#3c78d8", "cornflower", -1),
+      col("#3d85c6", "blue", -1),
+      col("#674ea7", "purple", -1),
+      col("#a64d79", "magenta", -1),
+
+      col("#85200c", "red_berry", -2),
+      col("#990000", "red", -2),
+      col("#b45f06", "orange", -2),
+      col("#bf9000", "yellow", -2),
+      col("#38761d", "green", -2),
+      col("#134f5c", "cyan", -2),
+      col("#1155cc", "cornflower", -2),
+      col("#0b5394", "blue", -2),
+      col("#351c75", "purple", -2),
+      col("#741b47", "magenta", -2),
+
+      col("#5b0f00", "red_berry", -3),
+      col("#660000", "red", -3),
+      col("#783f04", "orange", -3),
+      col("#7f6000", "yellow", -3),
+      col("#274e13", "green", -3),
+      col("#0c343d", "cyan", -3),
+      col("#1c4587", "cornflower", -3),
+      col("#073763", "blue", -3),
+      col("#20124d", "purple", -3),
+      col("#4c1130", "magenta", -3),
+    ]
+  }
+
+  export const width = Facet.define<number, number>({
+    combine: values => values.length ? values[0] : 10
+  })
+
+  export const options = Facet.define<readonly ColorPicker.Option[], readonly ColorPicker.Option[]>({
+    combine: values => values.length ? values[0] : ColorPicker.defaultColors()
+  })
 }
 
 function crossGradient(angle: number) {

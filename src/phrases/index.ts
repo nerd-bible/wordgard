@@ -64,27 +64,5 @@ export const phrases = PhraseSet.define({
   add_col_after: "Add column before",
   delete_col: "Delete column",
   merge_cells: "Merge cells",
-  split_cell: "Split cell",
-
-  // Color names FIXME maybe split off after all?
-  col_none: "none",
-  col_black: "black",
-  col_white: "white",
-  col_grey: "grey",
-  col_red_berry: "red berry",
-  col_red: "red",
-  col_orange: "orange",
-  col_yellow: "yellow",
-  col_green: "green",
-  col_cyan: "cyan",
-  col_cornflower: "cornflower",
-  col_blue: "blue",
-  col_purple: "purple",
-  col_magenta: "magenta",
-  col_dark: "dark",
-  col_darker: "darker",
-  col_darkest: "very dark",
-  col_light: "light",
-  col_lighter: "lighter",
-  col_lightest: "very light",
+  split_cell: "Split cell"
 })
