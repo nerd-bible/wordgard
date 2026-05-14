@@ -1,12 +1,12 @@
 import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
 import {Wordgard} from "wordgard/view"
-import {GardState, Direction, GardSelection} from "wordgard/state"
+import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command} from "wordgard/command"
-import {phrases} from "wordgard/phrases"
-import {cellTag, headerCellTag,
-        addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell, toggleHeaderCell} from "./tablecommands"
+import {cellTag, headerCellTag, addRow, deleteRow as _deleteRow, addColumn,
+        deleteColumn as _deleteColumn, mergeCells as _mergeCells,
+        splitCell as _splitCell, toggleHeaderCell} from "./tablecommands"
 import {CellSelection} from "./cellselection"
 
 const SVG = "http://www.w3.org/2000/svg"
@@ -66,8 +66,8 @@ class DimensionPicker {
   }
 
   render() {
-    this.dom.setAttribute("aria-label", phrases.get(this.view.state, "dimensions_title", this.width, this.height))
-    this.announce.textContent = phrases.get(this.view.state, "dimensions_live", this.width, this.height)
+    this.dom.setAttribute("aria-label", phrase.get(this.view.state, "dimensions_title", this.width, this.height))
+    this.announce.textContent = phrase.get(this.view.state, "dimensions_live", this.width, this.height)
     this.svg.textContent = ""
     let width = this.gridWidth * Grid.Skip + Grid.Margin
     this.svg.setAttribute("width", String(width))
@@ -119,115 +119,129 @@ const dimensionPicker = new CustomControl({
   }
 })
 
-const createTable = new Submenu({
-  select(state) {
-    return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
-  },
-  label: icon.Table,
-  description: phrases.ref("insert_table"),
-  parent: Commands,
-  rank: 90,
-  content: [dimensionPicker]
+export function tableMenu(): GardState.Extension {
+  return [
+    tableMenu.createTable,
+    tableMenu.modifyTable,
+    tableMenu.toggleHeader,
+    tableMenu.addRowAbove, tableMenu.addRowBelow, tableMenu.deleteRow,
+    tableMenu.addColumnBefore, tableMenu.addColumnAfter, tableMenu.deleteColumn,
+    tableMenu.mergeCells, tableMenu.splitCell
+  ]
+}
+
+const phrase = PhraseSet.define({
+  dimensions_title: "Table dimensions $1 by $2. Use arrow keys to change.",
+  dimensions_live: "$1 by $2",
+  insert_table: "Insert a table",
+  modify_table: "Modify table",
+  toggle_header: "Toggle header cells",
+  add_row_above: "Add row above",
+  add_row_below: "Add row below",
+  delete_row: "Delete row",
+  add_col_before: "Add column before",
+  add_col_after: "Add column before",
+  delete_col: "Delete column",
+  merge_cells: "Merge cells",
+  split_cell: "Split cell"
 })
 
-const modifyTable = new Submenu({
-  select(state) {
-    return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
-  },
-  label: icon.Table,
-  description: phrases.ref("modify_table"),
-  parent: Commands,
-  rank: 90
-})
+export namespace tableMenu {
+  export const phrases = phrase
 
-export const menu = {
-  createTable,
+  export const createTable = new Submenu({
+    select(state) {
+      return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
+    },
+    label: icon.Table,
+    description: phrase.ref("insert_table"),
+    parent: Commands,
+    rank: 90,
+    content: [dimensionPicker]
+  })
 
-  modifyTable,
+  export const modifyTable = new Submenu({
+    select(state) {
+      return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
+    },
+    label: icon.Table,
+    description: phrase.ref("modify_table"),
+    parent: Commands,
+    rank: 90
+  })
 
-  toggleHeader: new MenuButton({
+  export const toggleHeader = new MenuButton({
     run: toggleHeaderCell,
     select: state => !!headerCellTag(state.doc.schema),
-    label: phrases.ref("toggle_header"),
+    label: phrase.ref("toggle_header"),
     parent: modifyTable,
     rank: 10
-  }),
+  })
 
-  addRowAbove: new MenuButton({
+  export const addRowAbove = new MenuButton({
     run: view => Command.dispatch(view, addRow, "before"),
-    label: phrases.ref("add_row_above"),
+    label: phrase.ref("add_row_above"),
     parent: modifyTable,
     rank: 20,
-  }),
+  })
 
-  addRowBelow: new MenuButton({
+  export const addRowBelow = new MenuButton({
     run: view => Command.dispatch(view, addRow, "after"),
-    label: phrases.ref("add_row_below"),
+    label: phrase.ref("add_row_below"),
     parent: modifyTable,
     rank: 21,
-  }),
+  })
 
-  deleteRow: new MenuButton({
-    run: deleteRow,
-    label: phrases.ref("delete_row"),
+  export const deleteRow = new MenuButton({
+    run: _deleteRow,
+    label: phrase.ref("delete_row"),
     parent: modifyTable,
     rank: 25
-  }),
+  })
 
-  addColumnBefore: new MenuButton({
+  export const addColumnBefore = new MenuButton({
     run: view => Command.dispatch(view, addColumn, "before"),
-    label: phrases.ref("add_col_before"),
+    label: phrase.ref("add_col_before"),
     parent: modifyTable,
     rank: 30,
-  }),
+  })
 
-  addColumnAfter: new MenuButton({
+  export const addColumnAfter = new MenuButton({
     run: view => Command.dispatch(view, addColumn, "after"),
-    label: phrases.ref("add_col_after"),
+    label: phrase.ref("add_col_after"),
     parent: modifyTable,
     rank: 31,
-  }),
+  })
 
-  deleteColumn: new MenuButton({
-    run: deleteColumn,
-    label: phrases.ref("delete_col"),
+  export const deleteColumn = new MenuButton({
+    run: _deleteColumn,
+    label: phrase.ref("delete_col"),
     parent: modifyTable,
     rank: 35,
-  }),
+  })
 
-  mergeCells: new MenuButton({
-    run: mergeCells,
+  export const mergeCells = new MenuButton({
+    run: _mergeCells,
     select: state => {
       let {selection} = state
       return selection instanceof CellSelection && selection.ranges.length > 1 &&
         state.doc.schema.has(ColSpan) && state.doc.schema.has(RowSpan)
     },
-    label: phrases.ref("merge_cells"),
+    label: phrase.ref("merge_cells"),
     parent: modifyTable,
     rank: 40,
-  }),
+  })
 
-  splitCell: new MenuButton({
-    run: splitCell,
+  export const splitCell = new MenuButton({
+    run: _splitCell,
     select: state => {
       let {selection} = state
       if (!(selection instanceof CellSelection) || selection.ranges.length != 1) return false
       let cell = state.sel.from.nodeAfter
       return !!(cell && (cell.mark(ColSpan) || cell.mark(RowSpan)))
     },
-    label: phrases.ref("split_cell"),
+    label: phrase.ref("split_cell"),
     parent: modifyTable,
     rank: 41,
   })
-}
-
-export function tableMenu(): GardState.Extension {
-  return [
-    menu.createTable,
-    menu.modifyTable,
-    menu.toggleHeader,
-    menu.addRowAbove, menu.addRowBelow, menu.deleteRow,
-    menu.addColumnBefore, menu.addColumnAfter, menu.deleteColumn,
-    menu.mergeCells, menu.splitCell
-  ]
 }

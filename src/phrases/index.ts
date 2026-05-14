@@ -50,19 +50,4 @@ export const phrases = PhraseSet.define({
   image_source: "Image source",
   alt_text: "Alternative text",
   describe_image: "Describe the image",
-
-  // Table interface
-  dimensions_title: "Table dimensions $1 by $2. Use arrow keys to change.",
-  dimensions_live: "$1 by $2",
-  insert_table: "Insert a table",
-  modify_table: "Modify table",
-  toggle_header: "Toggle header cells",
-  add_row_above: "Add row above",
-  add_row_below: "Add row below",
-  delete_row: "Delete row",
-  add_col_before: "Add column before",
-  add_col_after: "Add column before",
-  delete_col: "Delete column",
-  merge_cells: "Merge cells",
-  split_cell: "Split cell"
 })
