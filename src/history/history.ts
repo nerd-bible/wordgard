@@ -77,8 +77,8 @@ const historyField_ = GardState.Field.define({
       return events
     }
     return {
-      done: mkJSON(value.done = value.done && value.done.resolveFully()),
-      undone: mkJSON(value.undone = value.undone && value.undone.resolveFully())
+      done: mkJSON(value.done = value.done && value.done.resolveFully(state.config)),
+      undone: mkJSON(value.undone = value.undone && value.undone.resolveFully(state.config))
     }
   },
 
@@ -202,7 +202,7 @@ class Branch {
   }
 
   // Resolve this event's mapping, if any.
-  resolve(): Branch | null {
+  resolve(config: GardState.Configuration): Branch | null {
     if (!this.mapped) return this
     let {mapped: {change, doc}, next} = this
     // Map the event's changes and mapped.change (which both start
@@ -211,19 +211,19 @@ class Branch {
     // If there's more events below this, push the updated mapping down
     if (next) next = next.addMapping(mappedMapping, next.mapped ? null : this.changes.apply(doc))
     // If there's nothing left in this event, return the next one
-    if (mappedChanges.empty && !this.effects.length) return next && next.resolve()
+    if (mappedChanges.empty && !this.effects.length) return next && next.resolve(config)
     // Map the effects over the original mapping, and the selection
     // (referring to the state before this event's changes) over the
     // updated mapping.
     return new Branch(mappedChanges, Transaction.Effect.mapEffects(this.effects, change), null,
-                      this.startSelection.map(mappedMapping, () => mappedChanges.apply(change.apply(doc))), next)
+                      this.startSelection.map(mappedMapping, {doc: mappedChanges.apply(change.apply(doc)), config}), next)
   }
 
   // When serializing to JSON, we first fully resolve the whole history.
-  resolveFully(): Branch | null {
+  resolveFully(config: GardState.Configuration): Branch | null {
     let stack: Branch[] = []
     for (let head: Branch | null = this; head; head = head.next) {
-      head = head.resolve()
+      head = head.resolve(config)
       if (!head) break
       stack.push(head)
     }
@@ -315,7 +315,7 @@ class HistoryState {
              config: Required<HistoryConfig>, tr: Transaction): HistoryState {
     // Make sure the top of the done branch is resolved, so that we
     // can add changes without worrying about its mapping
-    let done = this.done && this.done.resolve()
+    let done = this.done && this.done.resolve(tr.startState.config)
     // If possible, add the changes to the top event, otherwise start
     // a new event
     if (done && !done.changes.empty &&
@@ -333,7 +333,7 @@ class HistoryState {
 
   pop(side: BranchName, state: GardState): Transaction.Spec | false {
     let branch = side == BranchName.Done ? this.done : this.undone
-    if (!branch || !(branch = branch.resolve())) return false
+    if (!branch || !(branch = branch.resolve(state.config))) return false
     return {
       changes: branch.changes,
       selection: branch.startSelection,

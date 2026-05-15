@@ -97,9 +97,9 @@ export function deleteSelection(state: GardState): Transaction.Spec | false {
   })
   return autoJoinBlocks(state, {
     changes,
-    selection: doc => state.selection instanceof GardSelection.Text
-      ? GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.head, -1), 1)
-      : state.selection.map(changes, doc),
+    selection: cx => state.selection instanceof GardSelection.Text
+      ? GardSelection.near(cx, changes.mapPos(state.selection.head, -1), 1)
+      : state.selection.map(changes, cx),
     scrollIntoView: true,
     userEvent: "delete.selection"
   })
@@ -112,7 +112,7 @@ export function deleteEmptyTextblock(state: GardState, dir: -1 | 1 = -1): Transa
   let changes = ChangeSet.create(state.doc, {from: block.before, to: block.after, fit: true})
   return {
     changes,
-    selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.head), dir),
+    selection: cx => GardSelection.near(cx, changes.mapPos(state.selection.head), dir),
     scrollIntoView: true,
     userEvent: dir < 0 ? "delete.backward" : "delete.forward"
   }

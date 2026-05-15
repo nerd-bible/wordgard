@@ -93,7 +93,7 @@ export const deleteColumn: Command.Pure = ({state}) => {
   if (rect.startCol == 0 && rect.endCol == map.width) {
     return {
       changes: {from: map.tablePos, to: map.tablePos + map.table.length, fit: true},
-      selection: doc => GardSelection.near(doc, map.tablePos, -1),
+      selection: cx => GardSelection.near(cx, map.tablePos, -1),
       userevent: "delete.table"
     }
   }
@@ -135,7 +135,7 @@ export const deleteColumn: Command.Pure = ({state}) => {
   }
   return {
     changes,
-    selection: doc => GardSelection.near(doc, delPos, -1),
+    selection: cx => GardSelection.near(cx, delPos, -1),
     userEvent: "delete.column"
   }
 }
@@ -179,7 +179,7 @@ export const deleteRow: Command.Pure = ({state}) => {
   if (rect.startRow == 0 && rect.endRow == map.height) {
     return {
       changes: {from: map.tablePos, to: map.tablePos + map.table.length, fit: true},
-      selection: doc => GardSelection.near(doc, map.tablePos, -1),
+      selection: cx => GardSelection.near(cx, map.tablePos, -1),
       userEvent: "delete.table"
     }
   }
@@ -219,7 +219,7 @@ export const deleteRow: Command.Pure = ({state}) => {
   }
   return {
     changes,
-    selection: doc => GardSelection.near(doc, delPos, -1),
+    selection: cx => GardSelection.near(cx, delPos, -1),
     userEvent: "delete.row"
   }
 }
@@ -244,7 +244,7 @@ export const mergeCells: Command.Pure = ({state}) => {
   if (movedContent.length) changes.push({from: map.cellEnd(pos) - 1, insert: movedContent})
   return {
     changes,
-    selection: doc => CellSelection.between(doc, pos, pos + doc.nodeAt(pos)!.length)!,
+    selection: cx => CellSelection.between(cx.doc, pos, pos + cx.doc.nodeAt(pos)!.length)!,
     userEvent: "join.cell"
   }
 }
@@ -270,7 +270,7 @@ export const splitCell: Command.Pure = ({state}) => {
   let changeSet = ChangeSet.create(state.doc, changes)
   return {
     changes: changeSet,
-    selection: doc => CellSelection.between(doc, pos, changeSet.mapPos(lastInsert, 1))!,
+    selection: cx => CellSelection.between(cx.doc, pos, changeSet.mapPos(lastInsert, 1))!,
     userEvent: "split.cell"
   }
 }

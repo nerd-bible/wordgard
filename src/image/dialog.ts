@@ -290,7 +290,7 @@ export const imageDialog = GardState.Field.define<null | GardSelection>({
   create: () => null,
   update(value, tr) {
     for (let e of tr.effects) if (e.is(setImageDialog)) return e.value ? tr.state.selection : null
-    return value && value.map(tr.changes, tr.newDoc)
+    return value && value.map(tr.changes, tr.state)
   },
   provide: f => [
     GardState.prec.lowest(Panel.show.from(f, val => val && createImagePanel)),

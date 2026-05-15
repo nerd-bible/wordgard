@@ -1,7 +1,6 @@
 import {Plot, Node as wgNode, Leaf, ChangeSet, Mark, Pos, ValidationError, MapMode} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
-import {Direction} from "./bidi"
 import type {GardState, Facet} from "./state"
 
 export class SelectionType {
@@ -87,10 +86,8 @@ export abstract class GardSelection {
   }
 
   /// Map a selection through a change. Used to adjust the selection
-  /// position for changes. `doc` may or may not be used by the
-  /// mapping, depending on the selection type. If it is expensive to
-  /// compute, it is recommended to pass it lazily as a function.
-  abstract map(change: ChangeSet, doc: Plot.Doc | (() => Plot.Doc), assoc?: -1 | 1): GardSelection
+  /// position for changes.
+  abstract map(change: ChangeSet, cx: GardSelection.Context, assoc?: -1 | 1): GardSelection
 
   /// @internal
   check(config: GardState.Configuration, doc: Plot.Doc) {
@@ -117,8 +114,8 @@ export abstract class GardSelection {
   /// Deserialize a selection. The configuration is used to associate
   /// custom selection types with their implementation.
   static fromJSON(cx: GardSelection.Context, json: unknown): GardSelection {
-    let {doc, config} = toContext(cx), tag = (json as any).type as string
-    let types = config ? config.staticFacet(GardSelection.selectionType) : [GardSelection.Text.type, GardSelection.Node.type]
+    let {doc, config} = cx, tag = (json as any).type as string
+    let types = config.staticFacet(GardSelection.selectionType)
     let type = types.find(tp => tp.tag == tag)
     if (!type) throw new Error(`Unknown selection type '${tag}' in GardSelection.fromJSON`)
     return type.fromJSON(doc, json)
@@ -142,27 +139,26 @@ export abstract class GardSelection {
   /// Find the next normal cursor position after or before this selection's
   /// head. FIXME document normal positions
   nextNormalCursor(cx: GardSelection.Context, forward = true): GardSelection.Text | null {
-    let found = scanNormalFrom(toContext(cx), this.head, this.headSide, forward, true)
+    let found = scanNormalFrom(cx, this.head, this.headSide, forward, true)
     return found && GardSelection.cursor(found.pos, found.side)
   }
 
   /// Get a normal cursor at the start or end of this selection.
   normalCursorAtBound(cx: GardSelection.Context, forward = true): GardSelection.Text | null {
-    let found = scanNormalFrom(toContext(cx), forward ? this.to : this.from, forward ? -1 : 1, forward, false)
+    let found = scanNormalFrom(cx, forward ? this.to : this.from, forward ? -1 : 1, forward, false)
     return found && GardSelection.cursor(found.pos, found.side)
   }
 
   /// Move across one word starting from this selection's head.
   skipWord(cx: GardSelection.Context, forward = true): GardSelection.Text | null {
-    let found = skipWord(toContext(cx), this.head, this.headSide, forward)
+    let found = skipWord(cx, this.head, this.headSide, forward)
     return found && GardSelection.cursor(found.pos, found.side)
   }
 
   /// Find a normal selection near the given position.
   static near(cx: GardSelection.Context, pos: number, bias: -1 | 1 = 1): GardSelection.Text {
-    let c = toContext(cx)
-    let norm = scanNormalFrom(c, pos, bias, bias > 0, false) ??
-      scanNormalFrom(c, pos, -bias as -1 | 1, bias < 0, false) ??
+    let norm = scanNormalFrom(cx, pos, bias, bias > 0, false) ??
+      scanNormalFrom(cx, pos, -bias as -1 | 1, bias < 0, false) ??
       {pos: pos, side: -1}
     return GardSelection.cursor(norm.pos, norm.side)
   }
@@ -170,17 +166,16 @@ export abstract class GardSelection {
   /// Find a normal selection at the start of the document or the
   /// given textblock.
   static atStart(cx: GardSelection.Context, block?: Pos.Plot) {
-    return cursorAtStart(toContext(cx), block)
+    return cursorAtStart(cx, block)
   }
 
   /// Find a normal selection at the end of the document or the given
   /// textblock.
   static atEnd(cx: GardSelection.Context, block?: Pos.Plot) {
-    let c = toContext(cx)
     let found = block
-      ? TextblockMap.get(block.start, block.node, textDir(c, block.node.tag)).visualTextblockSide(false)
-      : c.doc.inlineContent ? TextblockMap.get(0, c.doc, textDir(c)).visualTextblockSide(false)
-      : scanNormalFrom(c, c.doc.length, -1, false, false) ?? {pos: c.doc.length, side: -1}
+      ? TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag)).visualTextblockSide(false)
+      : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textDirection()).visualTextblockSide(false)
+      : scanNormalFrom(cx, cx.doc.length, -1, false, false) ?? {pos: cx.doc.length, side: -1}
     return GardSelection.cursor(found.pos, found.side)
   }
 
@@ -241,7 +236,7 @@ export namespace GardSelection {
       return Text.createInner(anchor, head, spec.headSide, spec.goalColumn, spec.marks)
     }
 
-    map(change: ChangeSet, doc: Plot.Doc | (() => Plot.Doc), assoc: -1 | 1 = -1): GardSelection {
+    map(change: ChangeSet, cx: GardSelection.Context, assoc: -1 | 1 = -1): GardSelection {
       let from, to
       if (this.empty) {
         from = to = change.mapPos(this.from, assoc)
@@ -331,12 +326,10 @@ export namespace GardSelection {
       return new Node(pos, pos + node.length, node, goalColumn)
     }
 
-    map(change: ChangeSet, doc: Plot.Doc | (() => Plot.Doc), assoc: -1 | 1 = -1) {
+    map(change: ChangeSet, cx: GardSelection.Context, assoc: -1 | 1 = -1) {
       let newPos = change.mapPos(this.anchor, 1, MapMode.TrackAfter)
-      if (newPos == null)
-        return GardSelection.cursor(change.mapPos(this.anchor, assoc))
-      if (typeof doc == "function") doc = doc()
-      return Node.create(newPos, doc.nodeAt(newPos)!)
+      if (newPos == null) return GardSelection.near(cx, change.mapPos(this.anchor, assoc), assoc)
+      return Node.create(newPos, cx.doc.nodeAt(newPos)!)
     }
 
     eq(other: GardSelection) {
@@ -415,30 +408,14 @@ export namespace GardSelection {
 
   /// Many selection related functions need access to a configuration
   /// (to determine text direction and visual motion behavior) and a
-  /// document. You can pass in only a document if you don't expect
-  /// direction to be relevant to your query. Note that {@link
-  /// EditorState} is a subtype of this.
-  export type Context = Plot.Doc | {doc: Plot.Doc, config: GardState.Configuration}
+  /// document. Note that {@link EditorState} is a subtype of this.
+  export type Context = {doc: Plot.Doc, config: GardState.Configuration}
 }
 
-type Context = {doc: Plot.Doc, config?: GardState.Configuration}
-
-function toContext(cx: GardSelection.Context): Context {
-  return cx instanceof Plot.Doc ? {doc: cx, config: undefined} : cx
-}
-
-function textDir(cx: Context, tag?: Plot.Tag.Any) {
-  return cx.config ? cx.config.textDirection(tag) : Direction.LTR
-}
-
-function visualMotion(cx: Context) {
-  return cx.config ? cx.config.visualCursorMotion : true
-}
-
-export function cursorAtStart(cx: Context, block?: Pos.Plot) {
+export function cursorAtStart(cx: GardSelection.Context, block?: Pos.Plot) {
   let found = block
-    ? TextblockMap.get(block.start, block.node, textDir(cx, block.node.tag)).visualTextblockSide(true)
-    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, textDir(cx, cx.doc.tag)).visualTextblockSide(true)
+    ? TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag)).visualTextblockSide(true)
+    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textDirection(cx.doc.tag)).visualTextblockSide(true)
     : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, side: 1}
   return GardSelection.cursor(found.pos, found.side)
 }
@@ -457,14 +434,14 @@ function isBarrier(node: wgNode) {
 // node that counts as a barrier and another such block node, or the
 // end/start of the document, also count as normal positions.
 function scanNormalFrom(
-  cx: Context, from: number, side: -1 | 1, forward: boolean, mustMove: boolean
+  cx: GardSelection.Context, from: number, side: -1 | 1, forward: boolean, mustMove: boolean
 ): {pos: number, side: -1 | 1} | null {
   let pos = cx.doc.resolve(from), pastBarrier = false
   if (pos.parent.node.inlineContent) {
     if (!mustMove) return {pos: pos.pos, side}
     let block = pos.textblockParent!
-    let map = TextblockMap.get(block.start, block.node, textDir(cx, block.node.tag))
-    let next = visualMotion(cx) ? map.moveVisually(pos.pos, side, forward) : map.moveLogically(pos.pos, forward)
+    let map = TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag))
+    let next = cx.config.visualCursorMotion ? map.moveVisually(pos.pos, side, forward) : map.moveLogically(pos.pos, forward)
     if (next != null) return next
     if (!block.parent) return null
     pos = new Pos(block.parent, forward ? block.after : block.before, block.index + (forward ? 1 : 0), 0)
@@ -488,8 +465,8 @@ function scanNormalFrom(
   for (let {parent, index} = pos, p = pos.pos;;) {
     let {node, parent: next} = parent
     if (node.inlineContent) {
-      if (visualMotion(cx))
-        return TextblockMap.get(parent.start, parent.node, textDir(cx, parent.node.tag)).visualTextblockSide(forward)
+      if (cx.config.visualCursorMotion)
+        return TextblockMap.get(parent.start, parent.node, cx.config.textDirection(parent.node.tag)).visualTextblockSide(forward)
       return {pos: p, side: forward ? 1 : -1}
     }
     if (index == (forward ? node.content.length : 0)) {
@@ -519,16 +496,16 @@ function scanNormalFrom(
   }
 }
 
-function skipWord(cx: Context, start: number, side: -1 | 1, forward: boolean) {
+function skipWord(cx: GardSelection.Context, start: number, side: -1 | 1, forward: boolean) {
   let last: {pos: number, side: -1 | 1} | null = null
-  for (let pos = start, visually = visualMotion(cx);;) {
+  for (let pos = start, visually = cx.config.visualCursorMotion;;) {
     let block = cx.doc.resolve(pos).textblockParent
     if (!block) {
       let next = scanNormalFrom(cx, pos, side, forward, true)
       if (!next) return last
       ;({pos, side} = next)
     } else {
-      let map = TextblockMap.get(block.start, block.node, textDir(cx, block.node.tag))
+      let map = TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag))
       let next = map.skipWord(pos, side, forward, visually)
       if (next) return next
       if (!block.parent) return last

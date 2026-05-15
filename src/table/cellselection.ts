@@ -115,17 +115,16 @@ export class CellSelection extends GardSelection {
     return other instanceof CellSelection && other.anchor == this.anchor && other.head == this.head
   }
 
-  map(changes: ChangeSet, doc: Plot.Doc | (() => Plot.Doc), assoc: -1 | 1 = -1) {
-    if (typeof doc == "function") doc = doc()
+  map(changes: ChangeSet, cx: GardSelection.Context, assoc: -1 | 1 = -1) {
     let fromPos = changes.mapPos(this.from, 1), toPos = changes.mapPos(this.to, -1)
-    let from = doc.resolve(fromPos), to = doc.resolve(toPos)
+    let from = cx.doc.resolve(fromPos), to = cx.doc.resolve(toPos)
     let after = from.nodeAfter, before = to.nodeBefore
     if (after && after.type == Table.type) fromPos += 2
     else if (after && after.type == TableRow.type) fromPos++
     if (before && before.type == Table.type) toPos -= 2
     else if (before && before.type == TableRow.type) toPos--
-    return (this.from == this.anchor ? CellSelection.between(doc, fromPos, toPos) : CellSelection.between(doc, toPos, fromPos))
-      || GardSelection.near(doc, changes.mapPos(this.head), assoc)
+    return (this.from == this.anchor ? CellSelection.between(cx.doc, fromPos, toPos) : CellSelection.between(cx.doc, toPos, fromPos))
+      || GardSelection.near(cx, changes.mapPos(this.head), assoc)
   }
 
   moveHead(doc: Plot.Doc, dir: "up" | "down" | "forward" | "backward"): CellSelection | null {

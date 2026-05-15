@@ -139,7 +139,7 @@ export class InputState {
 
   update(update: Wordgard.Update) {
     if (this.mouseSelection) this.mouseSelection.update(update)
-    if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state.doc)
+    if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state)
     if (update.transactions.length) this.lastKeyCode = this.lastSelectionTime = 0
   }
 
@@ -457,7 +457,7 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
     update(update) {
       if (update.docChanged) {
         start = start.map(update.changes)
-        startSel = startSel.map(update.changes, update.state.doc)
+        startSel = startSel.map(update.changes, update.state)
       }
     },
     get(event, extend) {
@@ -541,7 +541,7 @@ handlers.paste = (view: Wordgard, event: ClipboardEvent) => {
     })
     view.dispatch({
       changes,
-      selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.to, 1), -1),
+      selection: cx => GardSelection.near(cx, changes.mapPos(state.selection.to, 1), -1),
       userEvent: "input.paste",
       scrollIntoView: true
     })

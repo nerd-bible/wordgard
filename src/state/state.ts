@@ -404,7 +404,7 @@ export class GardState {
     else throw new SchemaError(`No document plot provided, unable to create schema`)
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? cursorAtStart({doc, config})
-      : typeof spec.selection == "function" ? spec.selection(doc)
+      : typeof spec.selection == "function" ? spec.selection({doc, config})
       : spec.selection instanceof GardSelection ? spec.selection
       : GardSelection.Text.create(spec.selection)
     return GardState.fromConfig(config, doc, selection)
@@ -518,7 +518,7 @@ export namespace GardState {
     doc: DocSource
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
-    selection?: GardSelection | GardSelection.Text.Spec | ((doc: Plot.Doc) => GardSelection)
+    selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection)
     /// Configuration for this state.
     config?: GardState.Extension | GardState.Configuration
   }

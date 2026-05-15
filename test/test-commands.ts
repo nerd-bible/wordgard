@@ -13,9 +13,9 @@ const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuil
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
-function selectionFrom(doc: Plot.Doc) {
-  let a = maybeTag(doc, 0)
-  if (a == null) return GardSelection.atStart(doc)
+function selectionFrom(cx: GardSelection.Context) {
+  let {doc} = cx, a = maybeTag(doc, 0)
+  if (a == null) return GardSelection.atStart(cx)
   if (maybeTag(doc, 2) == null) return GardSelection.range(a, maybeTag(doc, 1))
   let ranges: {from: number, to: number}[] = []
   for (let i = 0;;) {
@@ -52,7 +52,7 @@ const multiSel = GardSelection.define<MultiSel, {}>("multi", MultiSel, () => ({}
 function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, expect?: Plot.Doc) {
   let state = GardState.create({
     doc,
-    selection: selectionFrom(doc),
+    selection: cx => selectionFrom(cx),
     config: multiSel
   })
   let result = f(state)
@@ -62,7 +62,7 @@ function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, 
     state = tr.state
     ist(state.doc, expect, eq)
     if (maybeTag(expect, 0) != null) {
-      let expectedSel = selectionFrom(expect)
+      let expectedSel = selectionFrom({doc: expect, config: state.config})
       ist(selRange(state.selection), selRange(expectedSel))
     }
   } else {

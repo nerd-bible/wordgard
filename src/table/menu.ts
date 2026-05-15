@@ -104,7 +104,7 @@ function insertTable(view: Wordgard, width: number, height: number) {
   let tablePos = changes.findInserted(tag => tag.type == Table.type)
   view.dispatch({
     changes,
-    selection: doc => GardSelection.near({doc, config: state.config}, tablePos == null ? from : tablePos + 3, 1),
+    selection: cx => GardSelection.near(cx, tablePos == null ? from : tablePos + 3, 1),
     userEvent: "insert.table"
   })
 }

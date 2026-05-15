@@ -32,7 +32,7 @@ export class Transaction {
     if (!annotations.some((a: Transaction.Annotation<any>) => a.type == Transaction.time))
       this.annotations = annotations.concat(Transaction.time.of(Date.now()))
     this.newDoc = this.changes.apply(this.startState.doc)
-    this.newSelection = selection || startState.selection.map(changes, this.newDoc)
+    this.newSelection = selection || startState.selection.map(changes, {doc: this.newDoc, config: this.startState.config})
     this.newSelection.check(startState.config, this.newDoc)
   }
 
@@ -144,9 +144,9 @@ export class Transaction {
   /// will not have it.
   static merge(state: GardState, a: Transaction.Spec, b: Transaction.Spec): Transaction.Spec {
     let seq = !!b.sequential
-    let rA = resolveTransactionInner(state.doc, a)
-    let rB = resolveTransactionInner(!seq || rA.changes.empty ? state.doc : rA.changes.apply(state.doc), b)
-    return mergeTransaction(state.doc, rA, rB, seq)
+    let rA = resolveTransactionInner(state.doc, state.config, a)
+    let rB = resolveTransactionInner(!seq || rA.changes.empty ? state.doc : rA.changes.apply(state.doc), state.config, b)
+    return mergeTransaction(state.doc, state.config, rA, rB, seq)
   }
 }
 
@@ -159,8 +159,7 @@ export namespace Transaction {
     /// When set, this transaction explicitly updates the selection.
     /// Offsets in this selection should refer to the document as it is
     /// _after_ the transaction.
-    // FIXME should this pass a selection context?
-    selection?: GardSelection | GardSelection.Text.Spec | ((doc: Plot.Doc) => GardSelection) | undefined,
+    selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection) | undefined,
     /// Attach [state effects](#state.StateEffect) to this transaction.
     /// Again, when they contain positions and this same spec makes
     /// changes, those positions should refer to positions in the
@@ -169,7 +168,7 @@ export namespace Transaction {
     /// Set [annotations](#state.Annotation) for this transaction.
     annotations?: Transaction.Annotation<any> | readonly Transaction.Annotation<any>[],
     /// Shorthand for `annotations:` [`Transaction.userEvent`](#state.Transaction^userEvent)`.of(...)`.
-    userEvent?: string, // FIXME define a union with some of the common events?
+    userEvent?: string,
     /// When set to `true`, the transaction is marked as needing to
     /// scroll the current selection into view.
     scrollIntoView?: boolean,
@@ -327,7 +326,8 @@ type ResolvedSpec = {
   filter?: boolean
 }
 
-export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
+export function mergeTransaction(doc: Plot.Doc, config: GardState.Configuration,
+                                 a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
   let mapForA, mapForB, changes
   if (sequential) {
     mapForA = b.changes
@@ -340,8 +340,8 @@ export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec
   }
   return {
     changes,
-    selection: b.selection ? b.selection.map(mapForB, () => changes.apply(doc))
-      : a.selection?.map(mapForA, () => changes.apply(doc)),
+    selection: b.selection ? b.selection.map(mapForB, {doc: changes.apply(doc), config})
+      : a.selection?.map(mapForA, {doc: changes.apply(doc), config}),
     effects: Transaction.Effect.mapEffects(a.effects, mapForA).concat(Transaction.Effect.mapEffects(b.effects, mapForB)),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
     scrollIntoView: a.scrollIntoView || b.scrollIntoView,
@@ -349,11 +349,11 @@ export function mergeTransaction(doc: Plot.Doc, a: ResolvedSpec, b: ResolvedSpec
   }
 }
 
-export function resolveTransactionInner(doc: Plot.Doc, spec: Transaction.Spec): ResolvedSpec {
+export function resolveTransactionInner(doc: Plot.Doc, config: GardState.Configuration, spec: Transaction.Spec): ResolvedSpec {
   let changes = spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || [])
   let sel = spec.selection, annotations = asArray(spec.annotations)
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
-  if (typeof sel == "function") sel = sel(changes.apply(doc))
+  if (typeof sel == "function") sel = sel({doc: changes.apply(doc), config})
   return {
     changes,
     selection: sel && (sel instanceof GardSelection ? sel : GardSelection.Text.create(sel)),
@@ -365,14 +365,14 @@ export function resolveTransactionInner(doc: Plot.Doc, spec: Transaction.Spec): 
 }
 
 export function resolveTransaction(state: GardState, specs: readonly Transaction.Spec[], filter: boolean): Transaction {
-  let s = resolveTransactionInner(state.doc, specs.length ? specs[0] : {})
+  let s = resolveTransactionInner(state.doc, state.config, specs.length ? specs[0] : {})
   if (specs.length && specs[0].filter === false) filter = false
   for (let i = 1; i < specs.length; i++) {
     let spec = specs[i]
     if (spec.filter === false) filter = false
     let seq = !!spec.sequential
-    let s2 = resolveTransactionInner(seq && spec.changes ? s.changes.apply(state.doc) : state.doc, spec)
-    s = mergeTransaction(state.doc, s, s2, !!spec.sequential)
+    let s2 = resolveTransactionInner(seq && spec.changes ? s.changes.apply(state.doc) : state.doc, state.config, spec)
+    s = mergeTransaction(state.doc, state.config, s, s2, !!spec.sequential)
   }
   let tr = Transaction.create(state, s.changes, s.selection, s.effects, s.annotations, s.scrollIntoView)
   return extendTransaction(filter ? filterTransaction(tr) : tr)
@@ -397,7 +397,7 @@ function extendTransaction(tr: Transaction) {
   for (let i = extenders.length - 1; i >= 0; i--) {
     let extension = extenders[i](tr)
     if (extension && Object.keys(extension).length)
-      spec = mergeTransaction(state.doc, tr, resolveTransactionInner(state.doc, extension), true)
+      spec = mergeTransaction(state.doc, state.config, tr, resolveTransactionInner(state.doc, state.config, extension), true)
   }
   return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, spec.effects,
                                               spec.annotations, spec.scrollIntoView)
