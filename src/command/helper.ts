@@ -217,8 +217,8 @@ export function joinForward(state: GardState): Transaction.Spec | false {
   }
 }
 
-/// Create a transaction that deletes the text cluster or atomic node
-/// in front of the cursor, if possible.
+/// Create a transaction that deletes the atomic node or text
+/// cluster/word in front of the cursor, if possible.
 export function deleteBackward(state: GardState, word = false): Transaction.Spec | false {
   if (!state.selection.isCursor) return false
 
@@ -241,10 +241,16 @@ export function deleteBackward(state: GardState, word = false): Transaction.Spec
   }
   if (next.is(Leaf.Text)) {
     let size = 0
-    if (word) { // FIXME refine definition, check agains other tools
-      for (let i = next.param.length, sawNonWS = false;;) {
-        if (!/\s/.test(next.param[i - 1])) sawNonWS = true
-        else if (sawNonWS) break
+    if (word) {
+      for (let i = next.param.length, type: "a" | "p" | undefined;;) {
+        let ch = next.param[i - 1]
+        if (/\s/.test(ch)) {
+          if (type) break
+        } else {
+          let next: "a" | "p" = /[\p{Alphabetic}\p{Number}]/u.test(ch) ? "a" : "p"
+          if (!type) type = next
+          else if (type != next) break
+        }
         i--; size++
         if (i == 0) {
           if (!index) break
@@ -300,9 +306,15 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   if (next.is(Leaf.Text)) {
     let size = 0
     if (word) {
-      for (let i = 0, sawNonWS = false;;) {
-        if (!/\s/.test(next.param[i])) sawNonWS = true
-        else if (sawNonWS) break
+      for (let i = 0, type: "a" | "p" | undefined;;) {
+        let ch = next.param[i]
+        if (/\s/.test(ch)) {
+          if (type) break
+        } else {
+          let next: "a" | "p" = /[\p{Alphabetic}\p{Number}]/u.test(ch) ? "a" : "p"
+          if (!type) type = next
+          else if (type != next) break
+        }
         i++; size++
         if (i == next.param.length) {
           if (index == scan.node.content.length - 1) break

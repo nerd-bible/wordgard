@@ -428,6 +428,28 @@ describe("deleteBackward", () => {
   it("will not clear the document", () => {
     test(doc(hr, 0), deleteBackward)
   })
+
+  let delWord = (state: GardState) => deleteBackward(state, true)
+
+  it("can delete a word", () => {
+    test(doc(p("one two", 0)), delWord, doc(p("one ", 0)))
+  })
+
+  it("includes whitespace after a word", () => {
+    test(doc(p("one two  ", 0)), delWord, doc(p("one ", 0)))
+  })
+
+  it("can delete single-character words", () => {
+    test(doc(p("one t", 0)), delWord, doc(p("one ", 0)))
+  })
+
+  it("can delete groups of punctuation", () => {
+    test(doc(p(" /// ", 0)), delWord, doc(p(" ", 0)))
+  })
+
+  it("stops on punctuation in a word", () => {
+    test(doc(p("space-ship", 0, " fuel")), delWord, doc(p("space-", 0, " fuel")))
+  })
 })
 
 describe("deleteForward", () => {
@@ -465,6 +487,28 @@ describe("deleteForward", () => {
 
   it("will not clear the document", () => {
     test(doc(0, hr), deleteForward)
+  })
+
+  let delWord = (state: GardState) => deleteForward(state, true)
+
+  it("can delete a word", () => {
+    test(doc(p("one ", 0, "two")), delWord, doc(p("one ", 0)))
+  })
+
+  it("includes whitespace before a word", () => {
+    test(doc(p("one", 0, " two.")), delWord, doc(p("one", 0, ".")))
+  })
+
+  it("can delete single-character words", () => {
+    test(doc(p(0, "o k")), delWord, doc(p(0, " k")))
+  })
+
+  it("can delete groups of punctuation", () => {
+    test(doc(p(0, " /// ")), delWord, doc(p(0, " ")))
+  })
+
+  it("stops on punctuation in a word", () => {
+    test(doc(p(0, "space-ship")), delWord, doc(p(0, "-ship")))
   })
 })
 
