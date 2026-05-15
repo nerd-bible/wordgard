@@ -50,6 +50,7 @@ class BaseItem {
   }
 }
 
+// FIXME make it easier to modify these
 export class MenuButton extends BaseItem {
   label: MenuLabel
   run: Command.Bound | Command

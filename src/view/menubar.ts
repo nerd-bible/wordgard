@@ -2,7 +2,7 @@ import {Panel, Wordgard} from "wordgard/view"
 import {GardState, Facet, Direction, PhraseSet} from "wordgard/state"
 import {Command} from "wordgard/command"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  CustomControl, Submenu, Top,
-        MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "./item"
+        MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "wordgard/menu"
 
 interface BarElement {
   dom: Element
