@@ -7,11 +7,9 @@
   "exports": {
     "./doc": "./dist/doc.js",
     "./schema-def": "./dist/schema-def.js",
-    "./image": "./dist/image.js",
+    "./schema": "./dist/schema.js",
     "./table": "./dist/table.js",
-    "./list": "./dist/list.js",
     "./state": "./dist/state.js",
-    "./mark": "./dist/mark.js",
     "./editor": "./dist/editor.js",
     "./command": "./dist/command.js",
     "./history": "./dist/history.js",

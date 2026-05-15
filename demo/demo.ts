@@ -1,11 +1,9 @@
 import {Wordgard, defaultKeymap, menuBar} from "wordgard/editor"
 import {Doc, Paragraph, Blockquote, LineBreak} from "wordgard/schema-def"
-import {image, figure, imageResizing} from "wordgard/image"
-import {orderedList, bulletList} from "wordgard/list"
+import {allMarks, orderedList, bulletList, image, figure, imageResizing} from "wordgard/schema"
 import {staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 import {tables, tableMenu} from "wordgard/table"
-import {allMarks} from "wordgard/mark"
 
 ;(window as any).wg = new Wordgard({
   parent: document.body,

@@ -5,6 +5,7 @@ import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wo
 import {Command} from "wordgard/command"
 import cr from "crelt"
 
+// FIXME rename/move
 export const phrases = PhraseSet.define({
   insert_image: "Insert image",
   update_image: "Update image",
