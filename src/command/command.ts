@@ -1,4 +1,4 @@
-import {type Wordgard} from "wordgard/view"
+import {type Wordgard} from "wordgard/editor"
 import {GardState, Transaction, Facet} from "wordgard/state"
 
 const commandHandler = Facet.define<

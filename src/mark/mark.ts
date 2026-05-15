@@ -4,7 +4,7 @@ import {PhraseSet, GardState} from "wordgard/state"
 import {Command, toggleMark, canAddMarkInRange} from "wordgard/command"
 import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgard/schema"
 import {phrases} from "wordgard/phrases"
-import {KeyBinding} from "wordgard/view"
+import {KeyBinding} from "wordgard/editor"
 
 export const inlineStyleGroup = new MenuGroup({parent: Top, rank: 30, margin: true})
 

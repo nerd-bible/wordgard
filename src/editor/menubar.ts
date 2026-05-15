@@ -1,4 +1,4 @@
-import {Panel, Wordgard} from "wordgard/view"
+import {Panel, Wordgard} from "wordgard/editor"
 import {GardState, Facet, Direction, PhraseSet} from "wordgard/state"
 import {Command} from "wordgard/command"
 import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  CustomControl, Submenu, Top,

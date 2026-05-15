@@ -1,6 +1,6 @@
 // Helper library for browser test scripts
 
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {maybeTag} from "wordgard/schema"

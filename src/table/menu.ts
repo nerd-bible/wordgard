@@ -1,5 +1,5 @@
 import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {Plot, ChangeSet} from "wordgard/doc"

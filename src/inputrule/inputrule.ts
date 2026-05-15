@@ -1,4 +1,4 @@
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {GardState, Facet} from "wordgard/state"
 import {history} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"

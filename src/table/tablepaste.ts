@@ -1,7 +1,7 @@
 import {Plot, Node, Slice, Token, Schema, ChangeSet} from "wordgard/doc"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
 import {GardState, Transaction} from "wordgard/state"
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 
 import {TableMap} from "./tablemap"
 import {CellSelection} from "./cellselection"

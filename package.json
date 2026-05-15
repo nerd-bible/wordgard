@@ -3,7 +3,7 @@
   "version": "0.0.2",
   "description": "A rich text editor system",
   "type": "module",
-  "main": "dist/view.js",
+  "main": "dist/editor.js",
   "exports": {
     "./doc": "./dist/doc.js",
     "./schema": "./dist/schema.js",
@@ -12,7 +12,7 @@
     "./list": "./dist/list.js",
     "./state": "./dist/state.js",
     "./mark": "./dist/mark.js",
-    "./view": "./dist/view.js",
+    "./editor": "./dist/editor.js",
     "./command": "./dist/command.js",
     "./history": "./dist/history.js",
     "./menu": "./dist/menu.js",

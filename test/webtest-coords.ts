@@ -1,4 +1,4 @@
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {GardSelection} from "wordgard/state"
 import {basicBuilders, builder, Table, TableRow, Cell, basicSchema} from "wordgard/schema"
 import {Schema} from "wordgard/doc"

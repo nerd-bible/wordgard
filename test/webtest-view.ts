@@ -1,4 +1,4 @@
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {Leaf} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"
 import ist from "ist"

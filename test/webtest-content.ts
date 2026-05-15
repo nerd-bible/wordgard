@@ -1,5 +1,5 @@
 import {Wordgard, tagShape, tagDecoration, Widget, PointSet,
-        RangeSet, RangeDecoration, Decoration} from "wordgard/view"
+        RangeSet, RangeDecoration, Decoration} from "wordgard/editor"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark, Token} from "wordgard/doc"
 import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, builder} from "wordgard/schema"

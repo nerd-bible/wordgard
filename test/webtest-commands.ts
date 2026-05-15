@@ -1,4 +1,4 @@
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {Command, deleteLine} from "wordgard/command"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"

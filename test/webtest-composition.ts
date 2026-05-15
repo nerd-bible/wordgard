@@ -1,4 +1,4 @@
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {basicBuilders, Strong} from "wordgard/schema"
 import {GardSelection} from "wordgard/state"
 import ist from "ist"

@@ -1,4 +1,4 @@
-import {type Wordgard} from "wordgard/view"
+import {type Wordgard} from "wordgard/editor"
 import {Command, setTextblockType, toggleBlock, setAlignment} from "wordgard/command"
 import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
 import {Plot, Pos} from "wordgard/doc"

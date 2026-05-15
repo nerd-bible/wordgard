@@ -1,4 +1,4 @@
-import {Wordgard, Widget, Decoration, PointSet} from "wordgard/view"
+import {Wordgard, Widget, Decoration, PointSet} from "wordgard/editor"
 import {GardState} from "wordgard/state"
 import {Plot, Leaf, elt} from "wordgard/doc"
 import {basicBuilders} from "wordgard/schema"

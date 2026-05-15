@@ -1,4 +1,4 @@
-import {Wordgard, defaultKeymap, menuBar} from "wordgard/view"
+import {Wordgard, defaultKeymap, menuBar} from "wordgard/editor"
 import {basicSchema} from "wordgard/schema"
 import {image, figure, imageResizing} from "wordgard/image"
 import {orderedList, bulletList} from "wordgard/list"

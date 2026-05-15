@@ -3,7 +3,7 @@ import {PhraseSet, GardState, GardSelection, Direction, Facet} from "wordgard/st
 import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema"
 import {phrases} from "wordgard/phrases"
-import {Wordgard} from "wordgard/view"
+import {Wordgard} from "wordgard/editor"
 import {inlineStyleGroup} from "./mark"
 
 function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
