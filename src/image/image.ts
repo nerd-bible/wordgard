@@ -56,45 +56,45 @@ const resizeState = GardState.Field.define<{target: number, resizing: number, de
 
 const MIN_SIZE = 10
 
-function imageNode(view: Wordgard, pos: number) {
-  let dom = view.nodeDOM(pos)!
+function imageNode(wg: Wordgard, pos: number) {
+  let dom = wg.nodeDOM(pos)!
   return dom.nodeName == "IMG" ? dom : dom.querySelector("img[src]")!
 }
 
 const resizeHandlers = Wordgard.domEventHandlers({
-  mousedown: (event, view) => {
-    let resizing = view.state.field(resizeState)
+  mousedown: (event, wg) => {
+    let resizing = wg.state.field(resizeState)
     if (resizing.target < 0) return
     for (let dom = event.target as Element;;) {
       if (dom.classList.contains("wg-resize-handle-active")) break
       let next = dom.parentNode as Element | null
-      if (!next || next == view.contentDOM) return
+      if (!next || next == wg.contentDOM) return
       dom = next
     }
-    let node = view.state.doc.nodeAt(resizing.target)!
-    let width = node.tag.mark(ImageSize) ?? imageNode(view, resizing.target).getBoundingClientRect().width
-    view.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
+    let node = wg.state.doc.nodeAt(resizing.target)!
+    let width = node.tag.mark(ImageSize) ?? imageNode(wg, resizing.target).getBoundingClientRect().width
+    wg.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
     event.preventDefault()
   },
-  mousemove: (event, view) => {
-    let resizing = view.state.field(resizeState)
+  mousemove: (event, wg) => {
+    let resizing = wg.state.field(resizeState)
     if (resizing.resizing > -1) {
-      let dom = imageNode(view, resizing.target)
+      let dom = imageNode(wg, resizing.target)
       let width = event.clientX - dom.getBoundingClientRect().left
       if (width >= MIN_SIZE && Math.abs(width - resizing.resizing) >= 1)
-        view.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
+        wg.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
     } else {
       let elt = (event.target as HTMLElement).closest("img, .wg-resize-handle")
-      let node = elt && view.nodeFromDOM(elt)
-      let target = node && view.state.doc.schema.markAllowed(ImageSize, node.node.type) ? node.pos : -1
+      let node = elt && wg.nodeFromDOM(elt)
+      let target = node && wg.state.doc.schema.markAllowed(ImageSize, node.node.type) ? node.pos : -1
       if (target != resizing.target)
-        view.dispatch({effects: setResizing.of({target, resizing: -1})})
+        wg.dispatch({effects: setResizing.of({target, resizing: -1})})
     }
   },
-  mouseup: (event, view) => {
-    let resizing = view.state.field(resizeState)
+  mouseup: (event, wg) => {
+    let resizing = wg.state.field(resizeState)
     if (resizing.resizing < 0) return
-    view.dispatch({
+    wg.dispatch({
       effects: setResizing.of({target: resizing.target, resizing: -1}),
       changes: {from: resizing.target, add: ImageSize.of(Math.round(resizing.resizing))}
     })
@@ -107,14 +107,14 @@ const dragHandle = [
   Decoration.source.of(s => s.field(resizeState).deco),
 ]
 
-export const resizeImage = (by: number, relative = false) => (view: Wordgard) => {
-  let {selection} = view.state
-  if (selection instanceof GardSelection.Node && view.state.doc.schema.markAllowed(ImageSize, selection.node.type)) {
-    let curWidth = selection.node.mark(ImageSize) ?? imageNode(view, view.state.selection.from).getBoundingClientRect().width
+export const resizeImage = (by: number, relative = false) => (wg: Wordgard) => {
+  let {selection} = wg.state
+  if (selection instanceof GardSelection.Node && wg.state.doc.schema.markAllowed(ImageSize, selection.node.type)) {
+    let curWidth = selection.node.mark(ImageSize) ?? imageNode(wg, wg.state.selection.from).getBoundingClientRect().width
     let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
     if (newWidth != curWidth) {
-      view.dispatch({
-        changes: {from: view.state.selection.from, add: ImageSize.of(newWidth)},
+      wg.dispatch({
+        changes: {from: wg.state.selection.from, add: ImageSize.of(newWidth)},
         userEvent: "image.resize"
       })
       return true
@@ -143,21 +143,21 @@ export const InsertImageButton = new MenuButton({
 })
 
 export const imageDropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({
-  drop: (event, view) => {
-    let {state} = view, upload = state.facet(imageUploader)[0]
+  drop: (event, wg) => {
+    let {state} = wg, upload = state.facet(imageUploader)[0]
     const type = state.doc.schema.has(Image) ? Image : state.doc.schema.has(Figure) ? Figure : null
     if (!type || !upload || !event.dataTransfer) return false
     let files = event.dataTransfer.files, uploads: Promise<string>[] = []
     for (let i = 0; i < files.length; i++) {
       let file = files[i]
       if (/^image\//.test(file.type))
-        uploads.push(upload(file, view, () => {}))
+        uploads.push(upload(file, wg, () => {}))
     }
     if (!uploads.length) return false
     let dropPos = {x: event.clientX, y: event.clientY}
     Promise.all(uploads).then(urls => {
-      view.dispatch({
-        changes: {from: view.posAtCoords(dropPos).pos, insert: urls.map(u => type.of(u)), fit: true},
+      wg.dispatch({
+        changes: {from: wg.posAtCoords(dropPos).pos, insert: urls.map(u => type.of(u)), fit: true},
         userEvent: "drop.image"
       })
     }, err => {

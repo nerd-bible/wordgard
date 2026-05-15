@@ -1,8 +1,8 @@
 import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
 import {getScale, ScrollStrategy} from "./dom"
-import {UpdateFlag} from "./editorview"
-import {Wordgard} from "./editorview"
+import {UpdateFlag} from "./editor"
+import {Wordgard} from "./editor"
 
 export const scrollIntoView = Transaction.Effect.define<ScrollTarget>({map: (t, ch) => t.map(ch)})
 
@@ -83,8 +83,8 @@ export class ViewState {
     this.pending = []
   }
 
-  measure(view: Wordgard) {
-    let dom = view.contentDOM, style = window.getComputedStyle(dom)
+  measure(wg: Wordgard) {
+    let dom = wg.contentDOM, style = window.getComputedStyle(dom)
     this.defaultTextDirection = style.direction == "rtl" ? Direction.RTL : Direction.LTR
 
     let domRect = dom.getBoundingClientRect()
@@ -100,29 +100,29 @@ export class ViewState {
       }
     }
 
-    if (this.editorWidth != view.scrollDOM.clientWidth) {
-      this.editorWidth = view.scrollDOM.clientWidth
+    if (this.editorWidth != wg.scrollDOM.clientWidth) {
+      this.editorWidth = wg.scrollDOM.clientWidth
       result |= UpdateFlag.Geometry
     }
-    let scrollTop = view.scrollDOM.scrollTop * this.scaleY
+    let scrollTop = wg.scrollDOM.scrollTop * this.scaleY
     if (this.scrollTop != scrollTop) this.scrollTop = scrollTop
 
     let contentWidth = domRect.width
-    if (this.contentDOMWidth != contentWidth || this.editorHeight != view.scrollDOM.clientHeight) {
+    if (this.contentDOMWidth != contentWidth || this.editorHeight != wg.scrollDOM.clientHeight) {
       this.contentDOMWidth = domRect.width
-      this.editorHeight = view.scrollDOM.clientHeight
+      this.editorHeight = wg.scrollDOM.clientHeight
       result |= UpdateFlag.Geometry
     }
     return result
   }
 
-  initialMeasure(view: Wordgard) {
+  initialMeasure(wg: Wordgard) {
     this.initialized = true
-    let domRect = view.contentDOM.getBoundingClientRect()
+    let domRect = wg.contentDOM.getBoundingClientRect()
     this.contentDOMWidth = domRect.width
     this.contentDOMHeight = domRect.height
-    this.editorHeight = view.scrollDOM.clientHeight
-    this.editorWidth = view.scrollDOM.clientWidth
-    this.scrollTop = view.scrollDOM.scrollTop
+    this.editorHeight = wg.scrollDOM.clientHeight
+    this.editorWidth = wg.scrollDOM.clientWidth
+    this.scrollTop = wg.scrollDOM.scrollTop
   }
 }

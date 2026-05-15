@@ -14,7 +14,7 @@ export class InputRule {
   inCode: boolean
 
   private constructor(readonly expr: RegExp,
-                      readonly apply: (view: Wordgard, match: InputRule.MatchArray) => boolean,
+                      readonly apply: (wg: Wordgard, match: InputRule.MatchArray) => boolean,
                       spec: InputRule.Spec) {
     this.lookahead = spec.lookahead
     this.inCode = !!spec.inCode
@@ -37,14 +37,14 @@ export class InputRule {
   ) {
     return InputRule.define({
       expr,
-      apply: (view, match) => {
+      apply: (wg, match) => {
         let wrapper = typeof tag == "function" ? tag(match) : tag
         let {from, to} = match[0]
         let changes: ChangeSet.Spec[] = [{from: from.pos, to: to.pos}]
         let range = findWrappable(from, from, wrapper)
         if (!range) return false
         changes.push(wrapBlockRange(range, wrapper))
-        view.dispatch(autoJoinBlocks(view.state, {
+        wg.dispatch(autoJoinBlocks(wg.state, {
           changes,
           annotations: history.isolate.of("full")
         }))
@@ -65,12 +65,12 @@ export class InputRule {
   ) {
     return InputRule.define({
       expr,
-      apply: (view, match) => {
+      apply: (wg, match) => {
         let {from, to} = match[0]
         let block = typeof tag == "function" ? tag(match) : tag
         let outer = from.parent.parent
-        if (!outer || !view.state.doc.schema.canContain(outer.node.type, block.type)) return false
-        view.dispatch({
+        if (!outer || !wg.state.doc.schema.canContain(outer.node.type, block.type)) return false
+        wg.dispatch({
           changes: [{from: from.pos - 1, to: to.pos, insert: [block]}],
           annotations: history.isolate.of("full")
         })
@@ -95,7 +95,7 @@ export namespace InputRule {
     ///
     /// When given as a string, the full match will be replaced by
     /// that string.
-    apply: ((view: Wordgard, match: InputRule.MatchArray) => boolean) | string,
+    apply: ((wg: Wordgard, match: InputRule.MatchArray) => boolean) | string,
     /// Because the regular expression given in `expr` must end at the
     /// cursor, it is matched against a string that stops at the
     /// cursor, and cannot look beyond it. You can provide an
@@ -120,8 +120,8 @@ function ensureAnchor(regexp: RegExp) {
 }
 
 function applyString(text: string) {
-  return (view: Wordgard, match: InputRule.MatchArray) => {
-    view.dispatch({
+  return (wg: Wordgard, match: InputRule.MatchArray) => {
+    wg.dispatch({
       changes: {from: match[0].from.pos, to: match[0].to.pos, insert: [Leaf.text(text)]},
       annotations: history.isolate.of("full")
     })
@@ -175,6 +175,6 @@ function applyInputRules(update: Wordgard.Update) {
         docMatch.push({from, to, text})
       }
     }
-    if (rule.apply(update.view, docMatch as any as InputRule.MatchArray)) break
+    if (rule.apply(update.editor, docMatch as any as InputRule.MatchArray)) break
   }
 }

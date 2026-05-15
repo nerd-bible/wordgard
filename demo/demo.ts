@@ -7,7 +7,7 @@ import {history} from "wordgard/history"
 import {tables, tableMenu} from "wordgard/table"
 import {allMarks} from "wordgard/mark"
 
-;(window as any).view = new Wordgard({
+;(window as any).wg = new Wordgard({
   parent: document.body,
   doc: `<p><span style="color: red">Hell</span>o</p>
 `,

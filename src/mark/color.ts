@@ -6,18 +6,18 @@ import {phrases} from "wordgard/phrases"
 import {Wordgard} from "wordgard/editor"
 import {inlineStyleGroup} from "./mark"
 
-function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
-  let {state} = view, {selection} = state
+function setColor(wg: Wordgard, mark: Mark.Type<string>, value: string) {
+  let {state} = wg, {selection} = state
   if (selection instanceof GardSelection.Text && selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks()
     let newMarks = value ? mark.of(value).addToSet(selMarks) : mark.removeFromSet(selMarks)
-    view.dispatch({
+    wg.dispatch({
       selection: GardSelection.Text.create({anchor: selection.anchor, headSide: selection.headSide,
                                             goalColumn: selection.goalColumn, marks: newMarks}),
       userEvent: value ? "mark.add" : "mark.remove"
     })
   } else if (value) {
-    view.dispatch({
+    wg.dispatch({
       changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: mark.of(value)})),
       userEvent: "mark.add"
     })
@@ -29,7 +29,7 @@ function setColor(view: Wordgard, mark: Mark.Type<string>, value: string) {
         if (has) changes.push({from: Math.max(from, pos), to: Math.min(to, pos + node.length), remove: has})
       })
     }
-    view.dispatch({changes, userEvent: "mark.remove"})
+    wg.dispatch({changes, userEvent: "mark.remove"})
   }
 }
 
@@ -39,15 +39,15 @@ export class ColorPicker {
   private selPos = 0
   private options: HTMLElement[]
 
-  constructor(readonly view: Wordgard, readonly finish: (color: string) => void) {
-    this.width = view.state.facet(ColorPicker.width)
+  constructor(readonly wg: Wordgard, readonly finish: (color: string) => void) {
+    this.width = wg.state.facet(ColorPicker.width)
     this.dom = document.createElement("wg-color-picker")
     this.dom.role = "listbox"
     this.dom.style.gridTemplateColumns = `repeat(${this.width}, max-content)`
-    this.options = view.state.facet(ColorPicker.options).map(({name, detail, value}, i) => {
+    this.options = wg.state.facet(ColorPicker.options).map(({name, detail, value}, i) => {
       let option = this.dom.appendChild(document.createElement("wg-color-picker-color"))
-      let label = name(view.state)
-      if (detail) label += ` (${detail(view.state)})`
+      let label = name(wg.state)
+      if (detail) label += ` (${detail(wg.state)})`
       option.role = "option"
       option.setAttribute("aria-label", label)
       option.title = label
@@ -64,7 +64,7 @@ export class ColorPicker {
       }
     })
     this.dom.addEventListener("keydown", e => {
-      let ltr = this.view.state.textDirection() == Direction.LTR
+      let ltr = this.wg.state.textDirection() == Direction.LTR
       if (e.key == (ltr ? "ArrowLeft" : "ArrowRight") && this.selPos > 0) {
         this.move(this.selPos - 1)
       } else if (e.key == (ltr ? "ArrowRight" : "ArrowLeft") && this.selPos < this.options.length - 1) {
@@ -257,11 +257,11 @@ const colorPickerTheme = Wordgard.baseTheme({
 
 
 export const colorPicker = new CustomControl({
-  render(view, done) {
-    return new ColorPicker(view, color => {
+  render(wg, done) {
+    return new ColorPicker(wg, color => {
       done()
-      setColor(view, Color, color)
-      view.focus()
+      setColor(wg, Color, color)
+      wg.focus()
     })
   }
 })
@@ -286,11 +286,11 @@ export function backgroundColor() {
 }
 
 const backgroundPicker = new CustomControl({
-  render(view, done) {
-    return new ColorPicker(view, color => {
+  render(wg, done) {
+    return new ColorPicker(wg, color => {
       done()
-      setColor(view, BackgroundColor, color)
-      view.focus()
+      setColor(wg, BackgroundColor, color)
+      wg.focus()
     })
   }
 })

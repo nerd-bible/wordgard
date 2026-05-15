@@ -1,6 +1,6 @@
 import {ChangeSet} from "wordgard/doc"
 import browser from "./browser"
-import {Wordgard} from "./editorview"
+import {Wordgard} from "./editor"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
 import {Tile, TileFlag} from "./tile"
 import {readDOMSelection} from "./selection"
@@ -39,11 +39,11 @@ export class DOMObserver {
   resizeScroll: ResizeObserver | null = null
   darkThemeQuery: MediaQueryList | null = null
 
-  constructor(private view: Wordgard) {
-    this.dom = view.contentDOM
+  constructor(private wg: Wordgard) {
+    this.dom = wg.contentDOM
     this.observer = new MutationObserver(mutations => {
       for (let mut of mutations) this.queue.push(mut)
-      this.view.scheduleFlush()
+      this.wg.scheduleFlush()
     })
 
     this.pollSelection = this.pollSelection.bind(this)
@@ -54,8 +54,8 @@ export class DOMObserver {
     if (typeof ResizeObserver == "function") {
       let lastFlushSeen = 0
       this.resizeScroll = new ResizeObserver(() => {
-        if (this.view.lastFlush != lastFlushSeen) {
-          lastFlushSeen = this.view.lastFlush
+        if (this.wg.lastFlush != lastFlushSeen) {
+          lastFlushSeen = this.wg.lastFlush
           this.onResize()
         }
       })
@@ -77,7 +77,7 @@ export class DOMObserver {
         break
       }
     }
-    let win = this.win = this.view.win
+    let win = this.win = this.wg.win
     win.addEventListener("resize", this.onResize)
     win.addEventListener("scroll", this.onScroll)
     win.document.addEventListener("selectionchange", this.pollSelection)
@@ -107,40 +107,40 @@ export class DOMObserver {
   }
 
   onScroll(e: Event) {
-    this.view.inputState.runHandlers("scroll", e)
+    this.wg.inputState.runHandlers("scroll", e)
   }
 
   onResize() {
     if (this.resizeTimeout < 0) this.resizeTimeout = setTimeout(() => {
       this.resizeTimeout = -1
-      this.view.scheduleFlush()
+      this.wg.scheduleFlush()
     }, 50)
   }
 
   onThemeChange() {
-    this.view.configureDarkTheme(this.darkThemeQuery!.matches)
+    this.wg.configureDarkTheme(this.darkThemeQuery!.matches)
   }
 
   pollSelection() {
-    if (!this.view.inputState.currentComposition && this.readSelectionRange() &&
-        this.view.hasFocus && hasSelection(this.view.contentDOM, this.selectionRange)) {
-      let sel = readDOMSelection(this.view, this.selectionRange)
-      if (!sel.eqPos(this.view.state.selection))
-        this.view.dispatch({selection: sel, userEvent: "select"})
+    if (!this.wg.inputState.currentComposition && this.readSelectionRange() &&
+        this.wg.hasFocus && hasSelection(this.wg.contentDOM, this.selectionRange)) {
+      let sel = readDOMSelection(this.wg, this.selectionRange)
+      if (!sel.eqPos(this.wg.state.selection))
+        this.wg.dispatch({selection: sel, userEvent: "select"})
     }
   }
 
   readSelectionRange() {
-    let {view} = this
+    let {wg} = this
     // The Selection object is broken in shadow roots in Safari. See
     // https://github.com/codemirror/dev/issues/414
-    let selection = getSelection(view.root)
+    let selection = getSelection(wg.root)
     if (!selection) return false
     let range: SelectionRange = selection
-    if (browser.safari && (view.root as any).nodeType == 11 && view.root.activeElement == this.dom) {
+    if (browser.safari && (wg.root as any).nodeType == 11 && wg.root.activeElement == this.dom) {
       // Used to work around a Safari Selection/shadow DOM bug (#414)
-      let selRange = (selection as any).getComposedRanges(view.root)[0] as StaticRange
-      if (selRange) range = buildSelectionRangeFromRange(view, selRange)
+      let selRange = (selection as any).getComposedRanges(wg.root)[0] as StaticRange
+      if (selRange) range = buildSelectionRangeFromRange(wg, selRange)
     }
     if (!range || this.selectionRange.eq(range)) return false
     this.selectionRange.setRange(range)
@@ -175,7 +175,7 @@ export class DOMObserver {
   }
 
   addDirtyRange(from: number, to: number) {
-    let sections = from ? [from, -1] : [], len = this.view.flushedState.doc.length
+    let sections = from ? [from, -1] : [], len = this.wg.flushedState.doc.length
     sections.push(to - from, -2)
     if (to < len) sections.push(len - to, -1)
     this.dirty = this.dirty ? ChangeSet.composeSections(this.dirty, sections) : sections
@@ -189,7 +189,7 @@ export class DOMObserver {
   }
 
   findMutation(record: MutationRecord): [number, number] | null {
-    let tile = this.view.docTile.nearest(record.target)
+    let tile = this.wg.docTile.nearest(record.target)
     if (!tile || tile.ignoreMutations) return null
     tile.flags |= TileFlag.Dirty
     if (record.type == "attributes" || record.type == "characterData") {
@@ -231,10 +231,10 @@ function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
   return null
 }
 
-function buildSelectionRangeFromRange(view: Wordgard, range: StaticRange) {
+function buildSelectionRangeFromRange(wg: Wordgard, range: StaticRange) {
   let anchorNode = range.startContainer, anchorOffset = range.startOffset
   let focusNode = range.endContainer, focusOffset = range.endOffset
-  let curAnchor = view.docTile.resolve(view.state.selection.anchor, -1)
+  let curAnchor = wg.docTile.resolve(wg.state.selection.anchor, -1)
   // Since such a range doesn't distinguish between anchor and head,
   // use a heuristic that flips it around if its end matches the
   // current anchor.

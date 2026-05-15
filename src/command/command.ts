@@ -2,13 +2,13 @@ import {type Wordgard} from "wordgard/editor"
 import {GardState, Transaction, Facet} from "wordgard/state"
 
 const commandHandler = Facet.define<
-  [Command<any>, (view: Wordgard, param: any) => boolean],
-  Map<Command<any>, readonly ((view: Wordgard, param: any) => boolean)[]>
+  [Command<any>, (wg: Wordgard, param: any) => boolean],
+  Map<Command<any>, readonly ((wg: Wordgard, param: any) => boolean)[]>
 >({
   combine(handlers) {
-    let map = new Map<Command<any>, readonly ((view: Wordgard, param: any) => boolean)[]>()
+    let map = new Map<Command<any>, readonly ((wg: Wordgard, param: any) => boolean)[]>()
     for (let [cmd, handler] of handlers) {
-      let list = map.get(cmd) as ((view: Wordgard, param: any) => boolean)[] | undefined
+      let list = map.get(cmd) as ((wg: Wordgard, param: any) => boolean)[] | undefined
       if (!list) map.set(cmd, list = [])
       list.push(handler)
     }
@@ -68,20 +68,20 @@ export namespace Command {
   /// be passed directly, with the parameter, if any, passed
   /// separately, or in {@link
   /// Command.bind | bound} form.
-  export function dispatch<Param>(view: Wordgard, command: Command<null> | Command.Bound): boolean
-  export function dispatch<Param>(view: Wordgard, command: Command<Param>, param: Param): boolean
-  export function dispatch<Param>(view: Wordgard, command: Command<any> | Command.Bound, p?: Param): boolean {
+  export function dispatch<Param>(wg: Wordgard, command: Command<null> | Command.Bound): boolean
+  export function dispatch<Param>(wg: Wordgard, command: Command<Param>, param: Param): boolean
+  export function dispatch<Param>(wg: Wordgard, command: Command<any> | Command.Bound, p?: Param): boolean {
     let {command: cmd, param} = typeof command == "object" ? command : {command, param: p ?? null}
-    let handlers = view.state.facet(commandHandler).get(cmd)
+    let handlers = wg.state.facet(commandHandler).get(cmd)
     if (handlers) for (let handler of handlers) {
-      let result = handler(view, param)
+      let result = handler(wg, param)
       if (result) {
-        if (typeof result != "boolean") view.dispatch(result)
+        if (typeof result != "boolean") wg.dispatch(result)
         return true
       }
     }
-    let result = cmd(view, param)
-    if (typeof result != "boolean") view.dispatch(result)
+    let result = cmd(wg, param)
+    if (typeof result != "boolean") wg.dispatch(result)
     return !!result
   }
 }

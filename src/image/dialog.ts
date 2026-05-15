@@ -26,7 +26,7 @@ export const phrases = PhraseSet.define({
   describe_image: "Describe the image",
 })
 
-export const imageUploader = Facet.define<(file: File, view: Wordgard, progress: (percent: number) => void) => Promise<string>>()
+export const imageUploader = Facet.define<(file: File, wg: Wordgard, progress: (percent: number) => void) => Promise<string>>()
 
 const imageTypes = [Image, Figure, CaptionedFigure]
 
@@ -96,8 +96,8 @@ function imageTypeButtons(state: GardState, active: Node.Tag | null) {
 
 const setImageDialog = Transaction.Effect.define<boolean>()
 
-const createImagePanel: Panel.Constructor = view => {
-  let dom = buildImagePanel(view), mustFocus = true
+const createImagePanel: Panel.Constructor = wg => {
+  let dom = buildImagePanel(wg), mustFocus = true
   return {
     top: true,
     dom,
@@ -111,14 +111,14 @@ const createImagePanel: Panel.Constructor = view => {
   }
 }
 
-function startUpload(view: Wordgard, file: HTMLInputElement, set: (url: string) => void) {
-  let imageFile = file.files?.[0], handler = view.state.facet(imageUploader)[0]
+function startUpload(wg: Wordgard, file: HTMLInputElement, set: (url: string) => void) {
+  let imageFile = file.files?.[0], handler = wg.state.facet(imageUploader)[0]
   if (!imageFile || !handler) return
-  let promise = handler(imageFile, view, percent => {
+  let promise = handler(imageFile, wg, percent => {
     progress.lastChild!.textContent = Math.round(percent) + "%"
   })
   let progress = cr("span", {class: "wg-img-upload", style: `width: ${file!.offsetWidth}px`},
-                    phrases.get(view.state, "uploading"), " ", cr("span"))
+                    phrases.get(wg.state, "uploading"), " ", cr("span"))
   file.parentNode!.replaceChild(progress, file)
   function reset() {
     if (progress.parentNode) progress.parentNode.replaceChild(file, progress)
@@ -128,25 +128,25 @@ function startUpload(view: Wordgard, file: HTMLInputElement, set: (url: string) 
     set(url)
   }, err => {
     reset()
-    showDialog(view, {label: phrases.get(view.state, "upload_failed") + ": " + err})
+    showDialog(wg, {label: phrases.get(wg.state, "upload_failed") + ": " + err})
   })
 }
 
 // FIXME add support for custom mark fields. Move size into that.
 
-function buildImagePanel(view: Wordgard) {
-  let {state} = view
+function buildImagePanel(wg: Wordgard) {
+  let {state} = wg
   let sel = (state.field(imageDialog) || state.selection).resolve(state.doc)
   let active = activeImage(sel)
-  let size = !view.state.doc.schema.has(ImageSize) ? null :
+  let size = !wg.state.doc.schema.has(ImageSize) ? null :
     [cr("label", {for: "wg-img-size"}, phrases.get(state, "width"), ":"),
      cr("input", {type: "number", id: "wg-img-size", name: "size", value: active ? active.mark(ImageSize) : ""})]
   let src = cr("input", {type: "text", id: "wg-img-src", name: "src", required: "required",
                          value: active ? active.param : "", placeholder: "https://..."})
   let file: HTMLInputElement | null = null
-  if (view.state.facet(imageUploader).length) {
+  if (wg.state.facet(imageUploader).length) {
     file = cr("input", {type: "file", id: "wg-img-file", name: "file", "aria-label": phrases.get(state, "upload_image"),
-                        onchange: (e: Event) => startUpload(view, e.target as HTMLInputElement, url => src.value = url)})
+                        onchange: (e: Event) => startUpload(wg, e.target as HTMLInputElement, url => src.value = url)})
   }
 
   let form = cr(
@@ -166,7 +166,7 @@ function buildImagePanel(view: Wordgard) {
 
   function onsubmit(e: Event) {
     e.preventDefault()
-    let {state} = view, sel = (state.field(imageDialog) || state.selection).resolve(state.doc)
+    let {state} = wg, sel = (state.field(imageDialog) || state.selection).resolve(state.doc)
 
     let data = new FormData(form)
     let src = data.get("src") as string
@@ -190,9 +190,9 @@ function buildImagePanel(view: Wordgard) {
       change = {from: sel.from.pos, to: sel.to.pos, insert: [tag instanceof Plot.Tag ? tag.create() : tag], fit: true}
     }
 
-    view.focus()
+    wg.focus()
     let changes = ChangeSet.create(state.doc, change), pos = changes.findInserted(t => t == tag) ?? change.from
-    view.dispatch({
+    wg.dispatch({
       changes: change,
       effects: setImageDialog.of(false),
       userEvent: "insert.image",
@@ -201,8 +201,8 @@ function buildImagePanel(view: Wordgard) {
   }
 
   function close() {
-    view.focus()
-    view.dispatch({effects: setImageDialog.of(false)})
+    wg.focus()
+    wg.dispatch({effects: setImageDialog.of(false)})
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -215,14 +215,14 @@ function buildImagePanel(view: Wordgard) {
   return cr("wg-dialog", {class: "wg-img-dialog", onsubmit}, form)
 }
 
-export const insertImage: Command = view => {
-  let val = view.state.field(imageDialog, false)
+export const insertImage: Command = wg => {
+  let val = wg.state.field(imageDialog, false)
   if (val) {
-    view.dispatch({effects: setImageDialog.of(false)})
+    wg.dispatch({effects: setImageDialog.of(false)})
   } else {
     let effects: Transaction.Effect<any>[] = [setImageDialog.of(true)]
     if (val === undefined) effects.push(Transaction.Effect.appendConfig.of(imageDialog))
-    view.dispatch({effects})
+    wg.dispatch({effects})
   }
   return true
 }

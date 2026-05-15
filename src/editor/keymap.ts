@@ -2,16 +2,16 @@ import {Command, enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak
         moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
 import {Facet, GardState} from "wordgard/state"
-import {Wordgard} from "./editorview"
+import {Wordgard} from "./editor"
 import browser from "./browser"
 
 /// Key bindings associate keys with functions that should be run when
 /// a matching keyboard event happens.
 ///
 /// A key binding can either specify a specific
-/// [character](#view.KeyBinding.Spec.char) to match on, which will be
+/// [character](#editor.KeyBinding.Spec.char) to match on, which will be
 /// compared against the actual character produced by a key event, or
-/// describe a [key combination](#view.KeyBinding.Spec.key).
+/// describe a [key combination](#editor.KeyBinding.Spec.key).
 ///
 /// Bindings for a given key event are evaluated in order of
 /// precedence, with each getting a chance to handle the event,
@@ -55,8 +55,8 @@ export class KeyBinding {
 }
 
 const handleKeyEvents = GardState.prec.default(Wordgard.domEventHandlers({
-  keydown(event, view) {
-    return KeyBinding.runScopeHandlers(view, event, "editor")
+  keydown(event, wg) {
+    return KeyBinding.runScopeHandlers(wg, event, "editor")
   }
 }))
 
@@ -85,7 +85,7 @@ export namespace KeyBinding {
     shift?: Command.Bound | Command
     /// When this property is present, the function is called for every
     /// key.
-    any?: (view: Wordgard, event: KeyboardEvent) => boolean
+    any?: (wg: Wordgard, event: KeyboardEvent) => boolean
     /// By default, key bindings apply when focus is on the editor
     /// content (the `"editor"` scope). Some extensions, mostly those
     /// that define their own panels, might want to allow registering
@@ -112,8 +112,8 @@ export namespace KeyBinding {
   /// Run the key handlers registered for a given scope. The event
   /// object should be a `"keydown"` event. Returns true if any of the
   /// handlers handled it.
-  export function runScopeHandlers(view: Wordgard, event: KeyboardEvent, scope: string) {
-    return runHandlers(getKeymap(view.state.facet(KeyBinding.source)), event, view, scope)
+  export function runScopeHandlers(wg: Wordgard, event: KeyboardEvent, scope: string) {
+    return runHandlers(getKeymap(wg.state.facet(KeyBinding.source)), event, wg, scope)
   }
 }
 
@@ -162,7 +162,7 @@ class NormalizedBinding {
   constructor(
     readonly flags: BindingFlag,
     readonly name: string,
-    readonly command: (view: Wordgard, event: KeyboardEvent) => boolean
+    readonly command: (wg: Wordgard, event: KeyboardEvent) => boolean
   ) {}
 }
 
@@ -176,8 +176,8 @@ function getKeymap(bindings: readonly KeyBinding[]) {
   return found
 }
 
-function bind(run: Command.Bound | Command): (view: Wordgard) => boolean {
-  return (view: Wordgard) => Command.dispatch(view, run)
+function bind(run: Command.Bound | Command): (wg: Wordgard) => boolean {
+  return (wg: Wordgard) => Command.dispatch(wg, run)
 }
 
 function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
@@ -204,7 +204,7 @@ function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
   return scopes
 }
 
-function runHandlers(map: Keymap, event: KeyboardEvent, view: Wordgard, scope: string): boolean {
+function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard, scope: string): boolean {
   let handlers = map[scope]
   if (!handlers) return false
   
@@ -227,7 +227,7 @@ function runHandlers(map: Keymap, event: KeyboardEvent, view: Wordgard, scope: s
       (binding.flags & BindingFlag.Any)
     if (matched) {
       didMatch = true
-      if (!handled && binding.command(view, event)) {
+      if (!handled && binding.command(wg, event)) {
         handled = true
       } else if (binding.flags & BindingFlag.AllowDefault) {
         allowDefault = true

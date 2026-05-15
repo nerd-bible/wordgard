@@ -4,20 +4,20 @@ import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import {basicBuilders, maybeTag} from "wordgard/schema"
 import ist from "ist"
-import {tempView} from "./tempview.ts"
+import {tempEditor} from "./tempview.ts"
 
 const {doc, p} = basicBuilders
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function test1<T>(doc: Plot.Doc, cmd: Command<T>, arg: T, expect: Plot.Doc | null, config: GardState.Extension = []) {
-  let view = tempView(doc, config)
-  let result = Command.dispatch(view, cmd, arg)
+  let wg = tempEditor(doc, config)
+  let result = Command.dispatch(wg, cmd, arg)
   ist(result, expect != null)
   if (expect) {
-    ist(view.state.doc, expect, eq)
+    ist(wg.state.doc, expect, eq)
     if (maybeTag(expect, 0) != null)
-      ist(view.state.selection.head, maybeTag(expect, 0))
+      ist(wg.state.selection.head, maybeTag(expect, 0))
   }
 }
 

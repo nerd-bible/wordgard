@@ -1,6 +1,6 @@
 // FIXME use strings?
 
-/// Used to indicate [text direction](#view.Wordgard.textDirection).
+/// Used to indicate [text direction](#editor.Wordgard.textDirection).
 export enum Direction {
   // (These are chosen to match the base levels, in bidi algorithm
   // terms, of spans in that direction.)

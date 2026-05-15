@@ -1,7 +1,7 @@
 // FIXME figure out how to provide easy-to-use default styling for these
 
 import {Facet, GardState} from "wordgard/state"
-import {Wordgard} from "./editorview"
+import {Wordgard} from "./editor"
 import {rmDOM} from "./dom"
 
 type PanelConfig = {
@@ -32,15 +32,15 @@ export interface Panel {
   /// Controls whether the panel should be at the top or bottom of the
   /// editor. Defaults to false.
   top?: boolean
-  /// Update the panel DOM for a given view update.
+  /// Update the panel DOM for a given editor update.
   update?(update: Wordgard.Update): void
   /// Called, when present, when the panel has been added the DOM.
-  connect?(view: Wordgard): void
+  connect?(wg: Wordgard): void
   /// Called when the editor with the panel is disconnected from the
   /// DOM.
-  disconnect?(view: Wordgard): void
+  disconnect?(wg: Wordgard): void
   /// Called when the panel is removed from the editor.
-  destroy?(view: Wordgard): void
+  destroy?(wg: Wordgard): void
 }
 
 const panelPlugin = Wordgard.Plugin.fromClass(class {
@@ -50,27 +50,27 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
   top: PanelGroup
   bottom: PanelGroup
 
-  constructor(view: Wordgard) {
-    this.input = view.state.facet(Panel.show)
+  constructor(wg: Wordgard) {
+    this.input = wg.state.facet(Panel.show)
     this.specs = this.input.filter(s => s) as Panel.Constructor[]
-    this.panels = this.specs.map(spec => spec(view))
+    this.panels = this.specs.map(spec => spec(wg))
     for (let p of this.panels) p.dom.classList.add("wg-panel")
-    let conf = view.state.facet(panelConfig)
-    this.top = new PanelGroup(view, true, conf.topContainer)
-    this.bottom = new PanelGroup(view, false, conf.bottomContainer)
-    this.top.sync(this.panels.filter(p => p.top), view)
-    this.bottom.sync(this.panels.filter(p => !p.top), view)
+    let conf = wg.state.facet(panelConfig)
+    this.top = new PanelGroup(wg, true, conf.topContainer)
+    this.bottom = new PanelGroup(wg, false, conf.bottomContainer)
+    this.top.sync(this.panels.filter(p => p.top), wg)
+    this.bottom.sync(this.panels.filter(p => !p.top), wg)
   }
 
   update(update: Wordgard.Update) {
     let conf = update.state.facet(panelConfig)
     if (this.top.container != conf.topContainer) {
-      this.top.sync([], update.view)
-      this.top = new PanelGroup(update.view, true, conf.topContainer)
+      this.top.sync([], update.editor)
+      this.top = new PanelGroup(update.editor, true, conf.topContainer)
     }
     if (this.bottom.container != conf.bottomContainer) {
-      this.bottom.sync([], update.view)
-      this.bottom = new PanelGroup(update.view, false, conf.bottomContainer)
+      this.bottom.sync([], update.editor)
+      this.bottom = new PanelGroup(update.editor, false, conf.bottomContainer)
     }
     this.top.syncClasses()
     this.bottom.syncClasses()
@@ -81,7 +81,7 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
       for (let spec of specs) {
         let known = this.specs.indexOf(spec), panel
         if (known < 0) {
-          panel = spec(update.view)
+          panel = spec(update.editor)
           mount.push(panel)
         } else {
           panel = this.panels[known]
@@ -92,32 +92,32 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
       }
       this.specs = specs
       this.panels = panels
-      this.top.sync(top, update.view)
-      this.bottom.sync(bottom, update.view)
+      this.top.sync(top, update.editor)
+      this.bottom.sync(bottom, update.editor)
       for (let p of mount) {
         p.dom.classList.add("wg-panel")
-        if (p.connect && update.view.connected) p.connect(update.view)
+        if (p.connect && update.editor.connected) p.connect(update.editor)
       }
     } else {
       for (let p of this.panels) if (p.update) p.update(update)
     }
   }
 
-  connect(view: Wordgard) {
-    for (let p of this.panels) p.connect?.(view)
+  connect(wg: Wordgard) {
+    for (let p of this.panels) p.connect?.(wg)
   }
 
-  disconnect(view: Wordgard) {
-    for (let p of this.panels) p.disconnect?.(view)
+  disconnect(wg: Wordgard) {
+    for (let p of this.panels) p.disconnect?.(wg)
   }
 
-  destroy(view: Wordgard) {
-    this.top.sync([], view)
-    this.bottom.sync([], view)
+  destroy(wg: Wordgard) {
+    this.top.sync([], wg)
+    this.bottom.sync([], wg)
   }
 }, {
-  provide: plugin => Wordgard.scrollMargins.of(view => {
-    let value = view.plugin(plugin)
+  provide: plugin => Wordgard.scrollMargins.of(wg => {
+    let value = wg.plugin(plugin)
     return value && {top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin()}
   })
 })
@@ -126,8 +126,8 @@ export namespace Panel {
   /// Get the active panel created by the given constructor, if any.
   /// This can be useful when you need access to your panels' DOM
   /// structure.
-  export function get(view: Wordgard, panel: Panel.Constructor) {
-    let plugin = view.plugin(panelPlugin)
+  export function get(wg: Wordgard, panel: Panel.Constructor) {
+    let plugin = wg.plugin(panelPlugin)
     let index = plugin ? plugin.specs.indexOf(panel) : -1
     return index > -1 ? plugin!.panels[index] : null
   }
@@ -138,8 +138,8 @@ export namespace Panel {
   }
 
   /// A function that initializes a panel. Used in
-  /// [`showPanel`](#view.showPanel).
-  export type Constructor = (view: Wordgard) => Panel
+  /// [`showPanel`](#editor.showPanel).
+  export type Constructor = (wg: Wordgard) => Panel
 
   /// Opening a panel is done by providing a constructor function for
   /// the panel through this facet. (The panel is closed again when its
@@ -154,14 +154,14 @@ class PanelGroup {
   classes = ""
   panels: Panel[] = []
 
-  constructor(readonly view: Wordgard, readonly top: boolean, readonly container: HTMLElement | undefined) {
+  constructor(readonly wg: Wordgard, readonly top: boolean, readonly container: HTMLElement | undefined) {
     this.syncClasses()
   }
 
-  sync(panels: Panel[], view: Wordgard) {
+  sync(panels: Panel[], wg: Wordgard) {
     for (let p of this.panels) if (!panels.includes(p)) {
-      if (view.connected) p.disconnect?.(view)
-      p.destroy?.(view)
+      if (wg.connected) p.disconnect?.(wg)
+      p.destroy?.(wg)
     }
     this.panels = panels
     this.syncDOM()
@@ -180,7 +180,7 @@ class PanelGroup {
       this.dom = document.createElement("wg-panels")
       this.dom.className = this.top ? "wg-panels-top" : "wg-panels-bottom"
       this.dom.style[this.top ? "top" : "bottom"] = "0"
-      let parent = this.container || this.view.dom
+      let parent = this.container || this.wg.dom
       parent.insertBefore(this.dom, this.top ? parent.firstChild : null)
     }
 
@@ -199,13 +199,13 @@ class PanelGroup {
   scrollMargin() {
     return !this.dom || this.container ? 0
       : Math.max(0, this.top ?
-        this.dom.getBoundingClientRect().bottom - Math.max(0, this.view.scrollDOM.getBoundingClientRect().top) :
-        Math.min(innerHeight, this.view.scrollDOM.getBoundingClientRect().bottom) - this.dom.getBoundingClientRect().top)
+        this.dom.getBoundingClientRect().bottom - Math.max(0, this.wg.scrollDOM.getBoundingClientRect().top) :
+        Math.min(innerHeight, this.wg.scrollDOM.getBoundingClientRect().bottom) - this.dom.getBoundingClientRect().top)
   }
 
   syncClasses() {
-    if (!this.container || this.classes == this.view.themeClasses) return
+    if (!this.container || this.classes == this.wg.themeClasses) return
     for (let cls of this.classes.split(" ")) if (cls) this.container.classList.remove(cls)
-    for (let cls of (this.classes = this.view.themeClasses).split(" ")) if (cls) this.container.classList.add(cls)
+    for (let cls of (this.classes = this.wg.themeClasses).split(" ")) if (cls) this.container.classList.add(cls)
   }
 }

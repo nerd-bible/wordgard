@@ -1,7 +1,7 @@
 import {Transaction, GardState} from "wordgard/state"
 import {phrases} from "wordgard/phrases"
 import {Panel} from "./panel"
-import {Wordgard} from "./editorview"
+import {Wordgard} from "./editor"
 
 type DialogConfig = {
   /// A function to render the content of the dialog. The result
@@ -10,7 +10,7 @@ type DialogConfig = {
   ///
   /// If this is not given, the `label`, `input`, and `submitLabel`
   /// fields will be used to create a simple form for you.
-  content?: (view: Wordgard, close: () => void) => Element
+  content?: (wg: Wordgard, close: () => void) => Element
   /// When `content` isn't given, this provides the text shown in the
   /// dialog.
   label?: string
@@ -43,35 +43,35 @@ type DialogConfig = {
 /// dispatches a transaction, to include the `close` effect in it. If
 /// you don't, this function will automatically dispatch a separate
 /// transaction right after.
-export function showDialog(view: Wordgard, config: DialogConfig): {
+export function showDialog(wg: Wordgard, config: DialogConfig): {
   close: Transaction.Effect<unknown>,
   result: Promise<HTMLFormElement | null>
 } {
   let resolve: (form: HTMLFormElement | null) => void
   let promise = new Promise<HTMLFormElement | null>(r => resolve = r)
-  let panelCtor = (view: Wordgard) => createDialog(view, config, resolve)
-  if (view.state.field(dialogField, false)) {
-    view.dispatch({effects: openDialogEffect.of(panelCtor)})
+  let panelCtor = (wg: Wordgard) => createDialog(wg, config, resolve)
+  if (wg.state.field(dialogField, false)) {
+    wg.dispatch({effects: openDialogEffect.of(panelCtor)})
   } else {
-    view.dispatch({effects: Transaction.Effect.appendConfig.of(dialogField.init(() => [panelCtor]))})
+    wg.dispatch({effects: Transaction.Effect.appendConfig.of(dialogField.init(() => [panelCtor]))})
   }
   let close = closeDialogEffect.of(panelCtor)
   return {close, result: promise.then(form => {
-    let queue = view.win.queueMicrotask || ((f: () => void) => view.win.setTimeout(f, 10))
+    let queue = wg.win.queueMicrotask || ((f: () => void) => wg.win.setTimeout(f, 10))
     queue(() => {
-      if (view.state.field(dialogField).indexOf(panelCtor) > -1)
-        view.dispatch({effects: close})
+      if (wg.state.field(dialogField).indexOf(panelCtor) > -1)
+        wg.dispatch({effects: close})
     })
     return form
   })}
 }
 
-/// Find the [`Panel`](#view.Panel) for an open dialog, using a class
+/// Find the [`Panel`](#editor.Panel) for an open dialog, using a class
 /// name as identifier.
-export function getDialog(view: Wordgard, className: string) {
-  let dialogs = view.state.field(dialogField, false) || []
+export function getDialog(wg: Wordgard, className: string) {
+  let dialogs = wg.state.field(dialogField, false) || []
   for (let open of dialogs) {
-    let panel = Panel.get(view, open)
+    let panel = Panel.get(wg, open)
     if (panel && panel.dom.classList.contains(className)) return panel
   }
   return null
@@ -92,8 +92,8 @@ const dialogField = GardState.Field.define<readonly Panel.Constructor[]>({
 const openDialogEffect = Transaction.Effect.define<Panel.Constructor>()
 const closeDialogEffect = Transaction.Effect.define<Panel.Constructor>()
 
-function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLFormElement | null) => void): Panel {
-  let content = config.content ? config.content(view, () => done(null)) : null
+function createDialog(wg: Wordgard, config: DialogConfig, result: (form: HTMLFormElement | null) => void): Panel {
+  let content = config.content ? config.content(wg, () => done(null)) : null
   if (!content) {
     content = document.createElement("form")
     content.className = "wg-form"
@@ -137,7 +137,7 @@ function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLF
   }
   let close = document.createElement("button")
   close.onclick = () => done(null)
-  close.setAttribute("aria-label", phrases.get(view.state, "dialog_close"))
+  close.setAttribute("aria-label", phrases.get(wg.state, "dialog_close"))
   close.className = "wg-dialog-close"
   close.type = "button"
   close.append("×")
@@ -147,7 +147,7 @@ function createDialog(view: Wordgard, config: DialogConfig, result: (form: HTMLF
 
   function done(form: HTMLFormElement | null) {
     if (panel.contains(panel.ownerDocument.activeElement))
-      view.focus()
+      wg.focus()
     result(form)
   }
   let mustFocus = config.focus

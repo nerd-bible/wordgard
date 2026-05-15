@@ -7,9 +7,9 @@ import {Paragraph, CodeBlock, Heading, Blockquote, Alignment} from "wordgard/sch
 import {icon} from "./icon"
 
 export type MenuLabelWidget = {
-  render: (view: Wordgard) => HTMLElement
+  render: (wg: Wordgard) => HTMLElement
   rerender?: (tr: Transaction) => boolean
-  update?: (elt: HTMLElement, view: Wordgard) => void
+  update?: (elt: HTMLElement, wg: Wordgard) => void
 }
 
 export type MenuLabel = PhraseSet.Ref | {icon: string, directional?: boolean} | MenuLabelWidget
@@ -71,12 +71,12 @@ export class MenuButton extends BaseItem {
 }
 
 export class CustomControl extends BaseItem {
-  render: (view: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
+  render: (wg: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
   setEnabled: ((dom: Element, enabled: boolean) => void) | undefined
   extension: GardState.Extension
 
   constructor(spec: {
-    render: (view: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
+    render: (wg: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
     setEnabled?: (focus: Element, enabled: boolean) => void
   } & MenuItemSpec) {
     super(spec)

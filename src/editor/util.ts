@@ -17,7 +17,7 @@ export const exceptionSink = Facet.define<(exception: any) => void>()
 /// (for example when in an event handler).
 ///
 /// Either calls a handler registered with
-/// [`Wordgard.exceptionSink`](#view.Wordgard^exceptionSink),
+/// [`Wordgard.exceptionSink`](#editor.Wordgard^exceptionSink),
 /// `window.onerror`, if defined, or `console.error` (in which case
 /// it'll pass `context`, when given, as first argument).
 export function logException(state: GardState, exception: any, context?: string) {

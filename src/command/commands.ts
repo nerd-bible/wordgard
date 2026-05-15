@@ -94,11 +94,11 @@ export const deleteWord: Command.Pure<"forward" | "backward"> = ({state}, dir) =
     : joinListItems(state) || joinBackward(state) || deleteBackward(state, true) || deleteEmptyTextblock(state, -1))
 }
 
-export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
-  let tr = deleteSelection(view.state), {selection} = view.state
-  if (tr) return (view.dispatch(tr), true)
+export const deleteToLineEnd: Command<"forward" | "backward"> = (wg, dir) => {
+  let tr = deleteSelection(wg.state), {selection} = wg.state
+  if (tr) return (wg.dispatch(tr), true)
   if (!(selection instanceof GardSelection.Text)) return false
-  let end = view.moveToLineBoundary(selection, dir == "forward")
+  let end = wg.moveToLineBoundary(selection, dir == "forward")
   if (!end || end.head == selection.head) return false
   return {
     changes: {correct: dir == "forward" ? {from: selection.head, to: end.head} : {from: end.head, to: selection.head}},
@@ -107,11 +107,11 @@ export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
   }
 }
 
-export const deleteLine: Command = view => {
-  let tr = deleteSelection(view.state), {selection} = view.state
-  if (tr) return (view.dispatch(tr), true)
+export const deleteLine: Command = wg => {
+  let tr = deleteSelection(wg.state), {selection} = wg.state
+  if (tr) return (wg.dispatch(tr), true)
   if (!(selection instanceof GardSelection.Text)) return false
-  let start = view.moveToLineBoundary(selection, false), end = view.moveToLineBoundary(selection, true)
+  let start = wg.moveToLineBoundary(selection, false), end = wg.moveToLineBoundary(selection, true)
   if (!start || !end || start.head >= end.head) return false
   return {
     changes: {correct: {from: start.head, to: end.head}},
@@ -219,13 +219,13 @@ export const toggleMark: Command.Pure<Mark<any>> = ({state}, mark) => {
 /// Search the schema for a mark with the given label (that has a
 /// default parameter), and run [`toggleMark`](#commands.toggleMark)
 /// with that mark.
-export const toggleMarkByLabel: Command<Mark.Role> = (view, label) => {
+export const toggleMarkByLabel: Command<Mark.Role> = (wg, label) => {
   let mark: Mark | null = null
-  for (let type of view.state.doc.schema.marks) {
+  for (let type of wg.state.doc.schema.marks) {
     if (type.hasRole(label) && type.default) { mark = type.default; break }
   }
   if (!mark) return false
-  return Command.dispatch(view, toggleMark, mark)
+  return Command.dispatch(wg, toggleMark, mark)
 }
 
 export const setAlignment: Command.Pure<null | "end" | "center"> = ({state}, align) => {
@@ -432,18 +432,18 @@ export const moveByWord: Command.Pure<{dir: "left" | "right", extend?: boolean}>
   return moved ? setSelection(extend ? extendSel(selection, moved) : moved) : false
 }
 
-function nextVertical(view: Wordgard, sel: GardSelection, forward: boolean,
+function nextVertical(wg: Wordgard, sel: GardSelection, forward: boolean,
                       distance?: number, allowNode?: boolean) {
-  let next = view.moveVertically(sel, forward, distance, allowNode)
+  let next = wg.moveVertically(sel, forward, distance, allowNode)
   if (next) return next
-  let end = (forward ? GardSelection.atEnd : GardSelection.atStart)(view.state)
-  return end.head == view.state.selection.head ? null : end
+  let end = (forward ? GardSelection.atEnd : GardSelection.atStart)(wg.state)
+  return end.head == wg.state.selection.head ? null : end
 }
 
 /// Move the selection head one line up or down. When `extend` is
 /// true, keep the anchor in place.
-export const moveByLine: Command<{dir: "up" | "down", extend?: boolean}> = (view, {dir, extend}) => {
-  let {state} = view, {selection} = state, forward = dir == "down"
+export const moveByLine: Command<{dir: "up" | "down", extend?: boolean}> = (wg, {dir, extend}) => {
+  let {state} = wg, {selection} = state, forward = dir == "down"
   if (state.selection instanceof GardSelection.Node) {
     let next = !extend && state.selection.normalCursorAtBound(state, forward)
     if (next && !state.doc.resolve(next.head).parent.node.inlineContent)
@@ -452,44 +452,44 @@ export const moveByLine: Command<{dir: "up" | "down", extend?: boolean}> = (view
   } else {
     selection = asTextSel(state.selection, forward)
   }
-  let moved = nextVertical(view, selection, forward, undefined, !extend)
+  let moved = nextVertical(wg, selection, forward, undefined, !extend)
   return moved ? setSelection(extend ? extendSel(selection, moved as GardSelection.Text) : moved) : false
 }
 
-function pageHeight(view: Wordgard) {
+function pageHeight(wg: Wordgard) {
   let marginTop = 0, marginBottom = 0
-  for (let source of view.state.facet((view.constructor as typeof Wordgard).scrollMargins)) {
-    let margins = source(view)
+  for (let source of wg.state.facet((wg.constructor as typeof Wordgard).scrollMargins)) {
+    let margins = source(wg)
     if (margins?.top) marginTop = Math.max(margins?.top, marginTop)
     if (margins?.bottom) marginBottom = Math.max(margins?.bottom, marginBottom)
   }
-  return Math.max(10, Math.min(view.scrollDOM.clientHeight - marginTop - marginBottom,
-                               (view.dom.ownerDocument.defaultView || window).innerHeight) - 10)
+  return Math.max(10, Math.min(wg.scrollDOM.clientHeight - marginTop - marginBottom,
+                               (wg.dom.ownerDocument.defaultView || window).innerHeight) - 10)
 }
 
 /// Move the selection head one page up or down. Extend the selection
 /// when the `extend` flag is true.
-export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (view, {dir, extend}) => {
-  let {state} = view, {selection} = state, forward = dir == "down"
-  let moved = selection.empty || extend ? nextVertical(view, selection, forward, pageHeight(view), !extend)
+export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (wg, {dir, extend}) => {
+  let {state} = wg, {selection} = state, forward = dir == "down"
+  let moved = selection.empty || extend ? nextVertical(wg, selection, forward, pageHeight(wg), !extend)
     : forward ? GardSelection.cursor(selection.to, -1) : GardSelection.cursor(selection.from, 1)
   return moved ? setSelection(extend ? extendSel(selection, moved as GardSelection.Text) : moved) : false
 }
 
 export const moveToLineSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
-}> = (view, {dir, extend}) => {
-  let pos = view.moveToLineBoundary(view.state.selection, isForward(dir, view.state))
-  return pos ? setSelection(extend ? extendSel(view.state.selection, pos) : pos) : false
+}> = (wg, {dir, extend}) => {
+  let pos = wg.moveToLineBoundary(wg.state.selection, isForward(dir, wg.state))
+  return pos ? setSelection(extend ? extendSel(wg.state.selection, pos) : pos) : false
 }
 
 export const moveToTextblockSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
-}> = (view, {dir, extend}) => {
-  let {state} = view, block = state.sel.head.textblockParent
+}> = (wg, {dir, extend}) => {
+  let {state} = wg, block = state.sel.head.textblockParent
   if (!block) return false
-  let pos = isForward(dir, view.state) ? GardSelection.atEnd(state, block) : GardSelection.atStart(state, block)
-  return setSelection(extend ? extendSel(view.state.selection, pos) : pos)
+  let pos = isForward(dir, wg.state) ? GardSelection.atEnd(state, block) : GardSelection.atStart(state, block)
+  return setSelection(extend ? extendSel(wg.state.selection, pos) : pos)
 }
 
 export const moveToDocSide: Command.Pure<{side: "start" | "end", extend?: boolean}> = (target, {side, extend}) => {

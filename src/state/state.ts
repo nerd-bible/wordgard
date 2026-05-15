@@ -14,8 +14,8 @@ const none: readonly any[] = []
 ///
 /// Examples of uses of facets are the [tab
 /// size](#state.GardState^tabSize), [editor
-/// attributes](#view.Wordgard^editorAttributes), and [update
-/// listeners](#view.Wordgard^updateListener).
+/// attributes](#editor.Wordgard^editorAttributes), and [update
+/// listeners](#editor.Wordgard^updateListener).
 ///
 /// Note that `Facet` instances can be used anywhere where
 /// [`FacetReader`](#state.FacetReader) is expected.
@@ -425,7 +425,7 @@ export class GardState {
   /// `true`, such functionality disables itself.
   ///
   /// Not to be confused with
-  /// [`Wordgard.editable`](#view.Wordgard^editable), which
+  /// [`Wordgard.editable`](#editor.Wordgard^editable), which
   /// controls whether the editor's DOM is set to be editable (and
   /// thus focusable).
   static readOnly = Facet.define<boolean, boolean>({

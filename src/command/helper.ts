@@ -393,7 +393,7 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag.Any) {
 
 /// Wrap the given range in the given wrapper tag. The caller is
 /// responsible for verifying that this is actually a valid wrapping.
-/// It is recommended to use [`findWrappable`](#view.findWrappable)
+/// It is recommended to use [`findWrappable`](#editor.findWrappable)
 /// for finding wrap positions in non-trivial situations.
 export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Plot.Tag.Any) {
   let changes: ChangeSet.Spec[] = [], parent = range.from.parent.node

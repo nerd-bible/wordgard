@@ -10,9 +10,9 @@ interface BarElement {
   index: number
   item: Submenu | MenuButton | CustomControl
   flags: F
-  update(flags: F, view: Wordgard, update: Wordgard.Update | null): void
+  update(flags: F, wg: Wordgard, update: Wordgard.Update | null): void
   children: readonly BarElement[] | null
-  run: ((view: Wordgard) => void) | null
+  run: ((wg: Wordgard) => void) | null
 }
 
 let nextID = 0
@@ -23,23 +23,23 @@ function id(prefix: string) {
 
 const SVG = "http://www.w3.org/2000/svg"
 
-function labelButton(view: Wordgard, button: HTMLElement, label?: MenuLabel) {
+function labelButton(wg: Wordgard, button: HTMLElement, label?: MenuLabel) {
   button.textContent = ""
   if (!label) {
   } else if (typeof label == "function") {
     let span = button.appendChild(document.createElement("span"))
     span.className = "wg-button-label"
-    span.textContent = label(view.state)
+    span.textContent = label(wg.state)
   } else if ("icon" in label) {
     let svg = button.appendChild(document.createElementNS(SVG, "svg"))
     svg.classList.add("wg-icon")
     svg.setAttribute("viewBox", "0 0 100 100")
     let path = svg.appendChild(document.createElementNS(SVG, "path"))
     path.setAttribute("d", (label as {icon: string}).icon)
-    if ((label as any).directional && view.state.textDirection() == Direction.RTL)
+    if ((label as any).directional && wg.state.textDirection() == Direction.RTL)
       svg.setAttribute("transform", "scale(-1, 1)")
   } else if (isMenuLabelWidget(label)) {
-    button.appendChild(label.render(view))
+    button.appendChild(label.render(wg))
   }
 }
 
@@ -64,19 +64,19 @@ class BarButton implements BarElement {
   index = 0
   dynamicLabel: boolean
 
-  constructor(readonly item: MenuButton, view: Wordgard) {
+  constructor(readonly item: MenuButton, wg: Wordgard) {
     this.dom = document.createElement("button")
     this.dom.className = "wg-menu-button"
     this.dom.tabIndex = -1
-    labelButton(view, this.dom, item.label)
+    labelButton(wg, this.dom, item.label)
     this.dynamicLabel = isMenuLabelWidget(item.label) && item.label.rerender != null
     if (item.description)
-      this.dom.setAttribute("aria-label", this.dom.title = item.description(view.state))
+      this.dom.setAttribute("aria-label", this.dom.title = item.description(wg.state))
   }
 
   get focusDOM() { return this.dom }
 
-  update(flags: F, view: Wordgard, update: Wordgard.Update | null) {
+  update(flags: F, wg: Wordgard, update: Wordgard.Update | null) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -98,16 +98,16 @@ class BarButton implements BarElement {
     if (this.dynamicLabel && update) {
       let label = this.item.label as MenuLabelWidget
       if (update.transactions.some(tr => label.rerender!(tr))) {
-        if (label.update) label.update(this.dom.firstChild as HTMLElement, view)
-        else labelButton(view, this.dom, label)
+        if (label.update) label.update(this.dom.firstChild as HTMLElement, wg)
+        else labelButton(wg, this.dom, label)
       }
     }
   }
 
   get children() { return null }
 
-  run(view: Wordgard) {
-    Command.dispatch(view, this.item.run)
+  run(wg: Wordgard) {
+    Command.dispatch(wg, this.item.run)
   }
 }
 
@@ -117,14 +117,14 @@ class BarControl implements BarElement {
   flags: F = 0 as F
   index = 0
 
-  constructor(readonly item: CustomControl, view: Wordgard, done: () => void) {
-    let {dom, focus} = item.render(view, done)
+  constructor(readonly item: CustomControl, wg: Wordgard, done: () => void) {
+    let {dom, focus} = item.render(wg, done)
     this.dom = dom
     this.focusDOM = focus || dom
     this.focusDOM.tabIndex = -1
   }
 
-  update(flags: F, view: Wordgard, update: Wordgard.Update | null) {
+  update(flags: F, wg: Wordgard, update: Wordgard.Update | null) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -156,7 +156,7 @@ class BarSubmenu implements BarElement {
   index = 0
   children: readonly BarElement[]
 
-  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], view: Wordgard) {
+  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], wg: Wordgard) {
     this.dom = document.createElement("wg-submenu")
     this.button = this.dom.appendChild(document.createElement("button"))
     this.button.tabIndex = -1
@@ -164,9 +164,9 @@ class BarSubmenu implements BarElement {
     this.button.setAttribute("aria-haspopup", "true")
     this.button.setAttribute("aria-expanded", "false")
     if (item.description)
-      this.button.setAttribute("aria-label", this.button.title = item.description(view.state))
+      this.button.setAttribute("aria-label", this.button.title = item.description(wg.state))
     if (item.label) {
-      labelButton(view, this.button, item.label)
+      labelButton(wg, this.button, item.label)
       this.activeChild = -2
     }
     if (item.width != null) this.dom.style.setProperty("--wg-submenu-width", item.width + "ch")
@@ -187,7 +187,7 @@ class BarSubmenu implements BarElement {
 
   get focusDOM() { return this.button }
 
-  update(flags: F, view: Wordgard) {
+  update(flags: F, wg: Wordgard) {
     if (flags != this.flags) {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
@@ -209,7 +209,7 @@ class BarSubmenu implements BarElement {
       if (this.activeChild != activeChild) {
         this.activeChild = activeChild
         let label = activeChild < 0 ? this.item.defaultLabel : (this.children[activeChild].item as MenuButton).label
-        labelButton(view, this.button, label)
+        labelButton(wg, this.button, label)
       }
     }
   }
@@ -228,20 +228,20 @@ class BarSpacer {
 function instantiate(item: ResolvedMenuItem, bar: MenuBar, flat: BarElement[]): BarElement | BarSpacer {
   let elt: BarElement
   if (item instanceof ResolvedSubmenu)
-    elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, bar, flat)), bar.view)
+    elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, bar, flat)), bar.wg)
   else if (item === "|")
     return new BarSpacer()
   else if (item instanceof MenuButton)
-    elt = new BarButton(item, bar.view)
+    elt = new BarButton(item, bar.wg)
   else
-    elt = new BarControl(item, bar.view, () => bar.up())
+    elt = new BarControl(item, bar.wg, () => bar.up())
   elt.index = flat.length
   flat.push(elt)
   return elt
 }
 
-const menuBarPanel = Panel.show.of(view => {
-  let bar = new MenuBar(view)
+const menuBarPanel = Panel.show.of(wg => {
+  let bar = new MenuBar(wg)
   return {
     dom: bar.dom,
     update: u => bar.update(u),
@@ -257,14 +257,14 @@ class MenuBar {
   focusTimeout = -1
   items: readonly MenuItem[]
 
-  constructor(readonly view: Wordgard) {
+  constructor(readonly wg: Wordgard) {
     this.dom = document.createElement("wg-menubar")
     this.dom.role = "toolbar"
-    this.dom.setAttribute("aria-controls", view.contentDOM.id)
+    this.dom.setAttribute("aria-controls", wg.contentDOM.id)
     this.dom.addEventListener("keydown", this.key.bind(this))
     this.dom.addEventListener("mousedown", this.click.bind(this))
     this.dom.addEventListener("focusout", this.focusout.bind(this))
-    this.items = view.state.facet(menuItem)
+    this.items = wg.state.facet(menuItem)
     this.init()
     this.globalClick = this.globalClick.bind(this)
   }
@@ -272,7 +272,7 @@ class MenuBar {
   init() {
     let elts: BarElement[] = []
     this.elts = elts
-    let children = resolveMenu(this.items, this.view.state.facet(barTemplate)).map(i => instantiate(i, this, elts))
+    let children = resolveMenu(this.items, this.wg.state.facet(barTemplate)).map(i => instantiate(i, this, elts))
     this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
@@ -293,7 +293,7 @@ class MenuBar {
   }
 
   updateElts(update: Wordgard.Update | boolean, selection: readonly BarElement[]) {
-    let {state} = this.view
+    let {state} = this.wg
     let changed = typeof update == "boolean" ? update : update.docChanged || update.selectionSet
     let updateObj = typeof update == "boolean" ? null : update
     for (let i = 0; i < this.elts.length; i++) {
@@ -310,7 +310,7 @@ class MenuBar {
         if (selected == selection.length - 1) flags |= F.Selected
         else if (selected > -1) flags |= F.Open
       }
-      elt.update(flags, this.view, updateObj)
+      elt.update(flags, this.wg, updateObj)
     }
     if (update && selection.some(e => e.flags & F.Hidden)) {
       let reset = selection[0].flags & F.Hidden ? findChild(this.children, true) : selection[0]
@@ -355,7 +355,7 @@ class MenuBar {
           let inner = defaultChild(child.children)
           if (inner) this.setSelection(this.selection.concat(inner))
         } else {
-          if (child.run) child.run(this.view)
+          if (child.run) child.run(this.wg)
           this.setSelection([this.selection[0]])
         }
       }
@@ -391,7 +391,7 @@ class MenuBar {
         }
       }
     } else {
-      if (target.run) target.run(this.view)
+      if (target.run) target.run(this.wg)
       this.setSelection(this.children.includes(target) ? [target] : this.selection.length ? [this.selection[0]] : [], false)
     }
     event.preventDefault()
@@ -408,7 +408,7 @@ class MenuBar {
     clearTimeout(this.focusTimeout)
     if (this.selection.length > 1) {
       this.focusTimeout = setTimeout(() => {
-        let active = this.view.root.activeElement
+        let active = this.wg.root.activeElement
         for (let i = 0; i < this.selection.length - 1; i++) {
           if (!active || !this.selection[i].dom.contains(active)) {
             this.setSelection([this.selection[0]], false)

@@ -2,7 +2,7 @@ import {Wordgard} from "wordgard/editor"
 import {basicBuilders, Strong} from "wordgard/schema"
 import {GardSelection} from "wordgard/state"
 import ist from "ist"
-import {tempView, requireFocus} from "./tempview.ts"
+import {tempEditor, requireFocus} from "./tempview.ts"
 
 const {doc, p, strong, em} = basicBuilders
 
@@ -23,16 +23,16 @@ function selEnd(node: Node) {
   return node as Text
 }
 
-function compose(view: Wordgard, start: CompositionUpdate | (() => Text),
+function compose(wg: Wordgard, start: CompositionUpdate | (() => Text),
                  ...args: (CompositionUpdate | {end?: (node: Text) => void, cancel?: boolean})[]) {
   let last = args[args.length - 1]
   let [updates, options] = Array.isArray(last)
     ? [args as CompositionUpdate[], {}]
     : [args.slice(0, args.length - 1) as CompositionUpdate[], last as any]
 
-  ist(!view.composing)
-  compositionEvent(view, "compositionstart")
-  ist(view.composing)
+  ist(!wg.composing)
+  compositionEvent(wg, "compositionstart")
+  ist(wg.composing)
   let node!: Text, sel = document.getSelection()!
   for (let i = -1; i < updates.length; i++) {
     let update: CompositionUpdate | undefined
@@ -43,12 +43,12 @@ function compose(view: Wordgard, start: CompositionUpdate | (() => Text),
       update = updates[i]
     }
     if (update) {
-      compositionEvent(view, "compositionupdate")
+      compositionEvent(wg, "compositionupdate")
       let [from, to, text] = update
-      let fromDOM = view.domAtPos(from, -1)
-      if (fromDOM.node.nodeType != 3 || node && node != fromDOM.node) fromDOM = view.domAtPos(from, 1)
-      let toDOM = from == to ? fromDOM : view.domAtPos(to, -1)
-      inputEvent(view, "beforeinput", {
+      let fromDOM = wg.domAtPos(from, -1)
+      if (fromDOM.node.nodeType != 3 || node && node != fromDOM.node) fromDOM = wg.domAtPos(from, 1)
+      let toDOM = from == to ? fromDOM : wg.domAtPos(to, -1)
+      inputEvent(wg, "beforeinput", {
         inputType: "insertCompositionText",
         data: text,
         isComposing: true,
@@ -63,119 +63,119 @@ function compose(view: Wordgard, start: CompositionUpdate | (() => Text),
         node.nodeValue = node.nodeValue!.slice(0, fromDOM.offset) + text + node.nodeValue!.slice(fromDOM.offset + (to - from))
         sel.collapse(node, fromDOM.offset + text.length)
       }
-      inputEvent(view, "input", {inputType: "insertCompositionText", data: text, isComposing: true})
+      inputEvent(wg, "input", {inputType: "insertCompositionText", data: text, isComposing: true})
     }
 
     let {focusNode, focusOffset} = sel
     let stack = []
-    for (let p = node.parentNode; p && p != view.contentDOM; p = p.parentNode) stack.push(p)
+    for (let p = node.parentNode; p && p != wg.contentDOM; p = p.parentNode) stack.push(p)
 
-    view.flush()
+    wg.flush()
 
     if (options.cancel && i == updates.length - 1) {
       // FIXME verify a canceled composition
     } else {
-      for (let p = node.parentNode, i = 0; p && p != view.contentDOM && i < stack.length; p = p.parentNode, i++)
+      for (let p = node.parentNode, i = 0; p && p != wg.contentDOM && i < stack.length; p = p.parentNode, i++)
         ist(p, stack[i])
-      ist(node.parentNode && view.contentDOM.contains(node.parentNode))
+      ist(node.parentNode && wg.contentDOM.contains(node.parentNode))
       ist(sel.focusNode, focusNode)
       ist(sel.focusOffset, focusOffset)
-      if (update) ist(view.compositionStarted)
+      if (update) ist(wg.compositionStarted)
     }
   }
-  compositionEvent(view, "compositionend")
+  compositionEvent(wg, "compositionend")
   if (options.end) options.end(node)
-  view.flush()
-  ist(!view.composing)
+  wg.flush()
+  ist(!wg.composing)
 }
 
 describe("composition", () => {
   it("supports composition inside existing text", () => {
-    let view = requireFocus(tempView(doc(p("a", 0, "b"))))
-    compose(view, [2, 2, "-"], [2, 3, "/"], [2, 3, "*"])
-    ist(view.state.doc, doc(p("a*b")), eq)
+    let wg = requireFocus(tempEditor(doc(p("a", 0, "b"))))
+    compose(wg, [2, 2, "-"], [2, 3, "/"], [2, 3, "*"])
+    ist(wg.state.doc, doc(p("a*b")), eq)
   })
 
   it("supports composition on an empty line", () => {
-    let view = requireFocus(tempView(doc(p("."), p(0))))
-    compose(view,
-            [4, 4, "a", () => selEnd(view.domAtPos(4).node.appendChild(document.createTextNode("a")))],
+    let wg = requireFocus(tempEditor(doc(p("."), p(0))))
+    compose(wg,
+            [4, 4, "a", () => selEnd(wg.domAtPos(4).node.appendChild(document.createTextNode("a")))],
             [5, 5, "b"],
             [6, 6, "c"])
-    ist(view.state.doc, doc(p("."), p("abc")), eq)
+    ist(wg.state.doc, doc(p("."), p("abc")), eq)
   })
 
   it("supports composition at end of block in existing node", () => {
-    let view = requireFocus(tempView(doc(p("foo", 0))))
-    compose(view, [4, 4, "!"], [5, 5, "?"])
-    ist(view.state.doc, doc(p("foo!?")), eq)
+    let wg = requireFocus(tempEditor(doc(p("foo", 0))))
+    compose(wg, [4, 4, "!"], [5, 5, "?"])
+    ist(wg.state.doc, doc(p("foo!?")), eq)
   })
 
   it("supports composition at end of block in a new node", () => {
-    let view = requireFocus(tempView(doc(p("foo", 0))))
-    compose(view, [4, 4, "!", () => selEnd(view.contentDOM.firstChild!.appendChild(document.createTextNode("!")))], [5, 5, "?"])
-    ist(view.state.doc, doc(p("foo!?")), eq)
+    let wg = requireFocus(tempEditor(doc(p("foo", 0))))
+    compose(wg, [4, 4, "!", () => selEnd(wg.contentDOM.firstChild!.appendChild(document.createTextNode("!")))], [5, 5, "?"])
+    ist(wg.state.doc, doc(p("foo!?")), eq)
   })
 
   it("supports composition at start of block in a new node", () => {
-    let view = requireFocus(tempView(doc(p("foo"))))
-    compose(view, [1, 1, "!", () => {
-      let p = view.contentDOM.firstChild!
+    let wg = requireFocus(tempEditor(doc(p("foo"))))
+    compose(wg, [1, 1, "!", () => {
+      let p = wg.contentDOM.firstChild!
       return selEnd(p.insertBefore(document.createTextNode("!"), p.firstChild))
     }], [2, 2, "?"])
-    ist(view.state.doc, doc(p("!?foo")), eq)
+    ist(wg.state.doc, doc(p("!?foo")), eq)
   })
 
   it("supports composition at start of line", () => {
-    let view = requireFocus(tempView(doc(p("c"))))
-    compose(view, [1, 1, "b"], [1, 1, "a"])
-    ist(view.state.doc, doc(p("abc")), eq)
+    let wg = requireFocus(tempEditor(doc(p("c"))))
+    compose(wg, [1, 1, "b"], [1, 1, "a"])
+    ist(wg.state.doc, doc(p("abc")), eq)
   })
 
   it("handles replacement of existing words", () => {
-    let view = requireFocus(tempView(doc(p("one two three"))))
-    compose(view, [5, 8, "five"], [5, 9, "seven"], [5, 10, "zero"])
-    ist(view.state.doc, doc(p("one zero three")), eq)
+    let wg = requireFocus(tempEditor(doc(p("one two three"))))
+    compose(wg, [5, 8, "five"], [5, 9, "seven"], [5, 10, "zero"])
+    ist(wg.state.doc, doc(p("one zero three")), eq)
   })
 
   it("can compose inside a wrapping mark", () => {
-    let view = requireFocus(tempView(doc(p("a", strong("b", 0, "c")))))
-    compose(view, [3, 3, "-"], [4, 4, "$"])
-    ist(view.contentDOM.innerHTML, "<p>a<strong>b-$c</strong></p>")
-    ist(view.state.doc, doc(p("a", strong("b-$c"))), eq)
+    let wg = requireFocus(tempEditor(doc(p("a", strong("b", 0, "c")))))
+    compose(wg, [3, 3, "-"], [4, 4, "$"])
+    ist(wg.contentDOM.innerHTML, "<p>a<strong>b-$c</strong></p>")
+    ist(wg.state.doc, doc(p("a", strong("b-$c"))), eq)
   })
 
   it("can compose at the end of a wrapping mark", () => {
-    let view = requireFocus(tempView(doc(p("a", strong("bc"), 0, "d"))))
-    compose(view, () => selEnd(view.domAtPos(3).node), [4, 4, "-"], [5, 5, "$"])
-    ist(view.contentDOM.innerHTML, "<p>a<strong>bc-$</strong>d</p>")
-    ist(view.state.doc, doc(p("a", strong("bc-$"), "d")), eq)
+    let wg = requireFocus(tempEditor(doc(p("a", strong("bc"), 0, "d"))))
+    compose(wg, () => selEnd(wg.domAtPos(3).node), [4, 4, "-"], [5, 5, "$"])
+    ist(wg.contentDOM.innerHTML, "<p>a<strong>bc-$</strong>d</p>")
+    ist(wg.state.doc, doc(p("a", strong("bc-$"), "d")), eq)
   })
 
   it("can compose at the start of a wrapping mark", () => {
-    let view = requireFocus(tempView(doc(p("a", 0, strong("bc"), "d"))))
-    compose(view, () => selEnd(view.domAtPos(3).node), [2, 2, "-"], [3, 3, "$"])
-    ist(view.contentDOM.innerHTML, "<p>a-$<strong>bc</strong>d</p>")
-    ist(view.state.doc, doc(p("a-$", strong("bc"), "d")), eq)
+    let wg = requireFocus(tempEditor(doc(p("a", 0, strong("bc"), "d"))))
+    compose(wg, () => selEnd(wg.domAtPos(3).node), [2, 2, "-"], [3, 3, "$"])
+    ist(wg.contentDOM.innerHTML, "<p>a-$<strong>bc</strong>d</p>")
+    ist(wg.state.doc, doc(p("a-$", strong("bc"), "d")), eq)
   })
 
   it("handles composition in a wrapper that has multiple children", () => {
-    let view = requireFocus(tempView(doc(p("one ", em("two", 0, strong(" three"))))))
-    compose(view, [8, 8, "o"], [9, 9, "o"], [10, 10, "w"])
-    ist(view.state.doc, doc(p("one ", em("twooow", strong(" three")))), eq)
+    let wg = requireFocus(tempEditor(doc(p("one ", em("two", 0, strong(" three"))))))
+    compose(wg, [8, 8, "o"], [9, 9, "o"], [10, 10, "w"])
+    ist(wg.state.doc, doc(p("one ", em("twooow", strong(" three")))), eq)
   })
 
   it("supports composition in a cursor wrapper", () => {
-    let view = requireFocus(tempView(doc(p(0))))
-    view.dispatch({selection: GardSelection.Text.create({anchor: 1, marks: [Strong]})})
-    compose(view, [1, 1, "a", () => {
-      ist(view.contentDOM.innerHTML, "<p><strong><img></strong></p>")
+    let wg = requireFocus(tempEditor(doc(p(0))))
+    wg.dispatch({selection: GardSelection.Text.create({anchor: 1, marks: [Strong]})})
+    compose(wg, [1, 1, "a", () => {
+      ist(wg.contentDOM.innerHTML, "<p><strong><img></strong></p>")
       let sel = window.getSelection()!
-      ist(sel.getRangeAt(0).comparePoint(view.contentDOM.firstChild!.firstChild!, 1), -1)
-      return selEnd(view.contentDOM.firstChild!.appendChild(document.createTextNode("a")))
+      ist(sel.getRangeAt(0).comparePoint(wg.contentDOM.firstChild!.firstChild!, 1), -1)
+      return selEnd(wg.contentDOM.firstChild!.appendChild(document.createTextNode("a")))
     }], [2, 2, "b"], [3, 3, "c"])
-    ist(view.contentDOM.innerHTML, "<p><strong>abc</strong></p>")
-    ist(view.state.doc, doc(p(strong("abc"))), eq)
+    ist(wg.contentDOM.innerHTML, "<p><strong>abc</strong></p>")
+    ist(wg.state.doc, doc(p(strong("abc"))), eq)
   })
 
   // FIXME text composition next to widgets

@@ -6,8 +6,8 @@ import {phrases} from "wordgard/phrases"
 import {Wordgard, showDialog, KeyBinding, Tooltip} from "wordgard/editor"
 import {inlineStyleGroup} from "./mark"
 
-function toggleLink(view: Wordgard) {
-  let {selection, doc} = view.state
+function toggleLink(wg: Wordgard) {
+  let {selection, doc} = wg.state
   if (selection.empty) return false
   let remove: ChangeSet.Spec[] = []
   for (let {from, to} of selection.ranges) doc.iterate(from, to, (node, pos) => {
@@ -15,17 +15,17 @@ function toggleLink(view: Wordgard) {
     if (has) remove.push({from: pos, to: pos + node.length, remove: has})
   })
   if (remove.length) {
-    view.dispatch({changes: remove, userEvent: "mark.remove"})
+    wg.dispatch({changes: remove, userEvent: "mark.remove"})
   } else {
-    showDialog(view, {
+    showDialog(wg, {
       label: "Link target",
       input: {type: "text", name: "url"},
       submitLabel: "Create link",
       focus: true
     }).result.then(form => {
-      view.focus()
+      wg.focus()
       let url = form && (form.elements.namedItem("url") as HTMLInputElement)?.value
-      if (url) view.dispatch({
+      if (url) wg.dispatch({
         changes: selection.ranges.map(r => ({from: r.from, to: r.to, add: Link.of(url)})),
         userEvent: "mark.add"
       })
@@ -124,9 +124,9 @@ export namespace link {
     linkTooltipField,
     GardState.prec.low(KeyBinding.define({
       key: "Escape",
-      run: view => {
-        if (!view.state.field(linkTooltipField)) return false
-        view.dispatch({effects: closeLinkTooltip.of(null)})
+      run: wg => {
+        if (!wg.state.field(linkTooltipField)) return false
+        wg.dispatch({effects: closeLinkTooltip.of(null)})
         return true
       }
     })),

@@ -1,5 +1,5 @@
 import {GardState, Direction} from "wordgard/state"
-import {Wordgard, basePlugins} from "./editorview"
+import {Wordgard, basePlugins} from "./editor"
 
 type CursorPos = {left: number, top: number, size: number, horiz: boolean} | null
 
@@ -7,11 +7,11 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
   readonly layer: HTMLElement
   pos: CursorPos = null
 
-  constructor(view: Wordgard) {
-    this.layer = view.scrollDOM.appendChild(document.createElement("wg-cursor-layer"))
+  constructor(wg: Wordgard) {
+    this.layer = wg.scrollDOM.appendChild(document.createElement("wg-cursor-layer"))
     this.positionCursor = this.positionCursor.bind(this)
-    view.scheduleDOMRead(this.positionCursor)
-    setBlinkRate(view.state, this.layer)
+    wg.scheduleDOMRead(this.positionCursor)
+    setBlinkRate(wg.state, this.layer)
   }
 
   update(update: Wordgard.Update) {
@@ -21,22 +21,22 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
       setBlinkRate(update.state, this.layer)
     if ((update.docChanged || update.selectionSet || update.geometryChanged) &&
         (update.startState.selection.isCursor || update.state.selection.isCursor))
-      update.view.scheduleDOMRead(this.positionCursor)
+      update.editor.scheduleDOMRead(this.positionCursor)
   }
 
-  docViewUpdate(view: Wordgard) {
-    view.scheduleDOMRead(this.positionCursor)
+  docUpdate(wg: Wordgard) {
+    wg.scheduleDOMRead(this.positionCursor)
   }    
 
   destroy() {
     this.layer.remove()
   }
 
-  positionCursor(view: Wordgard) {
-    let pos = cursorPos(view), cur = this.pos
+  positionCursor(wg: Wordgard) {
+    let pos = cursorPos(wg), cur = this.pos
     if (!pos ? cur : !cur || cur.left != pos.left || cur.top != pos.top || cur.size != pos.size) {
       this.pos = pos
-      view.scheduleDOMWrite(() => {
+      wg.scheduleDOMWrite(() => {
         let cursor = this.layer.firstChild as HTMLElement | null
         if (!pos) {
           if (cursor) cursor.remove()
@@ -59,22 +59,22 @@ basePlugins[basePlugins.length] = cursorLayer
 
 const VertWidth = 30, VertGap = 5
 
-export function cursorPos(view: Wordgard): CursorPos {
-  let {state} = view
+export function cursorPos(wg: Wordgard): CursorPos {
+  let {state} = wg
   if (!state.selection.isCursor) return null
   let {head, headSide} = state.selection
-  let {left, right, top, bottom} = view.coordsAtPos(head, headSide)
+  let {left, right, top, bottom} = wg.coordsAtPos(head, headSide)
   let horiz = top == bottom, size = horiz ? right - left : bottom - top
   if (horiz && size > VertWidth) {
     size = VertWidth
-    if (view.state.textDirection() == Direction.RTL) left = right - size
-    let other = view.coordsAtPos(head, headSide > 0 ? -1 : 1)
+    if (wg.state.textDirection() == Direction.RTL) left = right - size
+    let other = wg.coordsAtPos(head, headSide > 0 ? -1 : 1)
     if (other.top == other.bottom && other.top != top) {
       let move = Math.min(VertGap, Math.abs(other.top - top) / 2)
       top = bottom = top + move * (other.top < top ? -1 : 1)
     }
   }
-  let doc = view.contentDOM.getBoundingClientRect()
+  let doc = wg.contentDOM.getBoundingClientRect()
   return {left: left - doc.left, top: top - doc.top, size, horiz}
 }
 

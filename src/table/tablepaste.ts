@@ -238,7 +238,7 @@ export function handleTablePaste(state: GardState, slice: Slice, context: readon
 /// cell selection or, if table cell content is being pasted into a
 /// cell, to expand the pasted region over the shape covered by the
 /// pasted content.
-export const tablePasteHandler = Wordgard.pasteHandler.of((view, _event, slice, context) => {
-  let tr = handleTablePaste(view.state, slice, context)
-  return tr && (view.dispatch(tr), true)
+export const tablePasteHandler = Wordgard.pasteHandler.of((wg, _event, slice, context) => {
+  let tr = handleTablePaste(wg.state, slice, context)
+  return tr && (wg.dispatch(tr), true)
 })

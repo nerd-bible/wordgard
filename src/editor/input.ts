@@ -3,7 +3,7 @@ import {Plot, ChangeSet, Mark, Slice} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
         transposeChars, deleteSelection} from "wordgard/command"
-import {Wordgard, PluginInstance} from "./editorview"
+import {Wordgard, PluginInstance} from "./editor"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -61,16 +61,16 @@ export class InputState {
     this.lastSelectionTime = Date.now()
   }
 
-  constructor(readonly view: Wordgard) {
+  constructor(readonly wg: Wordgard) {
     this.handleEvent = this.handleEvent.bind(this)
-    this.notifiedFocused = view.hasFocus
+    this.notifiedFocused = wg.hasFocus
     // On Safari adding an input event handler somehow prevents an
     // issue where the composition vanishes when you press enter.
-    if (browser.safari) view.contentDOM.addEventListener("input", () => null)
+    if (browser.safari) wg.contentDOM.addEventListener("input", () => null)
   }
 
   handleEvent(event: Event) {
-    if (!eventBelongsToEditor(this.view, event) || this.ignoreDuringComposition(event)) return
+    if (!eventBelongsToEditor(this.wg, event) || this.ignoreDuringComposition(event)) return
     if (event.type == "keydown" && this.keydown(event as KeyboardEvent)) return
     if (event.type == "keyup" && (event as KeyboardEvent).keyCode == 16) this.shiftKey = false
     this.runHandlers(event.type, event)
@@ -79,16 +79,16 @@ export class InputState {
   runHandlers(type: string, event: Event) {
     let handlers = this.handlers[type]
     if (handlers) {
-      for (let observer of handlers.observers) observer(this.view, event)
+      for (let observer of handlers.observers) observer(this.wg, event)
       for (let handler of handlers.handlers) {
         if (event.defaultPrevented) break
-        if (handler(this.view, event)) { event.preventDefault(); break }
+        if (handler(this.wg, event)) { event.preventDefault(); break }
       }
     }
   }
 
   ensureHandlers(plugins: readonly PluginInstance[]) {
-    let handlers = computeHandlers(plugins), prev = this.handlers, dom = this.view.contentDOM
+    let handlers = computeHandlers(plugins), prev = this.handlers, dom = this.wg.contentDOM
     for (let type in handlers) if (type != "scroll") {
       let passive = !handlers[type].handlers.length
       let exists: (typeof prev)["type"] | null = prev[type]
@@ -145,11 +145,11 @@ export class InputState {
 
   compositionTarget() {
     if (!this.composing) return null
-    return this.composing.target = findCompositionTarget(this.view, this.composing.target)
+    return this.composing.target = findCompositionTarget(this.wg, this.composing.target)
   }
 
   connect() {
-    this.ensureHandlers(this.view.plugins)
+    this.ensureHandlers(this.wg.plugins)
   }
 
   disconnect() {
@@ -157,17 +157,17 @@ export class InputState {
   }
 }
 
-type HandlerFunction = (view: Wordgard, event: Event) => boolean | void
+type HandlerFunction = (wg: Wordgard, event: Event) => boolean | void
 
 function bindHandler(
   plugin: Wordgard.Plugin.Value,
-  handler: (this: Wordgard.Plugin.Value, event: Event, view: Wordgard) => boolean | void
+  handler: (this: Wordgard.Plugin.Value, event: Event, wg: Wordgard) => boolean | void
 ): HandlerFunction {
-  return (view, event) => {
+  return (wg, event) => {
     try {
-      return handler.call(plugin, event, view)
+      return handler.call(plugin, event, wg)
     } catch (e) {
-      logException(view.state, e)
+      logException(wg.state, e)
     }
   }
 }
@@ -204,7 +204,7 @@ const dragScrollMargin = 6
 export const mouseSelectionStyle = Facet.define<MakeSelectionStyle>()
 
 /// Interface that objects registered with
-/// [`Wordgard.mouseSelectionStyle`](#view.Wordgard^mouseSelectionStyle)
+/// [`Wordgard.mouseSelectionStyle`](#editor.Wordgard^mouseSelectionStyle)
 /// must conform to.
 export interface MouseSelectionStyle {
   /// Return a new selection for the mouse gesture that starts with
@@ -216,7 +216,7 @@ export interface MouseSelectionStyle {
   /// When `extend` is true, that means the new selection should, if
   /// possible, extend the start selection.
   get: (curEvent: MouseEvent, extend: boolean) => GardSelection
-  /// Called when the view is updated while the gesture is in
+  /// Called when the editor is updated while the gesture is in
   /// progress. When the document changes, it may be necessary to map
   /// some data (like the original selection or start position)
   /// through the changes.
@@ -229,7 +229,7 @@ export interface MouseSelectionStyle {
   update: (update: Wordgard.Update) => boolean | void
 }
 
-export type MakeSelectionStyle = (view: Wordgard, event: MouseEvent) => MouseSelectionStyle | null
+export type MakeSelectionStyle = (wg: Wordgard, event: MouseEvent) => MouseSelectionStyle | null
 
 function dragScrollSpeed(dist: number) {
   return Math.max(0, dist) * 0.7 + 8
@@ -247,18 +247,18 @@ class MouseSelection {
   scrollSpeed = {x: 0, y: 0}
   scrolling = -1
 
-  constructor(private view: Wordgard,
+  constructor(private wg: Wordgard,
               private startEvent: MouseEvent,
               private style: MouseSelectionStyle,
               private mustSelect: boolean) {
     this.lastEvent = startEvent
-    this.scrollParents = scrollableParents(view.contentDOM)
-    let doc = view.contentDOM.ownerDocument!
+    this.scrollParents = scrollableParents(wg.contentDOM)
+    let doc = wg.contentDOM.ownerDocument!
     doc.addEventListener("mousemove", this.move = this.move.bind(this))
     doc.addEventListener("mouseup", this.up = this.up.bind(this))
 
     this.extend = startEvent.shiftKey
-    this.dragging = isInPrimarySelection(view, startEvent) && startEvent.detail == 1 ? null : false
+    this.dragging = isInPrimarySelection(wg, startEvent) && startEvent.detail == 1 ? null : false
   }
 
   start(event: MouseEvent) {
@@ -273,10 +273,10 @@ class MouseSelection {
     this.select(this.lastEvent = event)
 
     let sx = 0, sy = 0
-    let left = 0, top = 0, right = this.view.win.innerWidth, bottom = this.view.win.innerHeight
+    let left = 0, top = 0, right = this.wg.win.innerWidth, bottom = this.wg.win.innerHeight
     if (this.scrollParents.x) ({left, right} = this.scrollParents.x.getBoundingClientRect())
     if (this.scrollParents.y) ({top, bottom} = this.scrollParents.y.getBoundingClientRect())
-    let margins = this.view.getScrollMargins()
+    let margins = this.wg.getScrollMargins()
 
     if (event.clientX - margins.left <= left + dragScrollMargin)
       sx = -dragScrollSpeed(left - event.clientX)
@@ -297,10 +297,10 @@ class MouseSelection {
 
   disconnect() {
     this.setScrollSpeed(0, 0)
-    let doc = this.view.dom.ownerDocument
+    let doc = this.wg.dom.ownerDocument
     doc.removeEventListener("mousemove", this.move)
     doc.removeEventListener("mouseup", this.up)
-    this.view.inputState.mouseSelection = this.view.inputState.draggedContent = null
+    this.wg.inputState.mouseSelection = this.wg.inputState.draggedContent = null
   }
 
   setScrollSpeed(sx: number, sy: number) {
@@ -323,14 +323,14 @@ class MouseSelection {
       this.scrollParents.y.scrollTop += y
       y = 0
     }
-    if (x || y) this.view.win.scrollBy(x, y)
+    if (x || y) this.wg.win.scrollBy(x, y)
     if (this.dragging === false) this.select(this.lastEvent)
   }
 
   select(event: MouseEvent) {
-    let {view} = this, selection = this.style.get(event, this.extend)
-    if (this.mustSelect || !selection.eqPos(view.state.selection))
-      this.view.dispatch({
+    let {wg} = this, selection = this.style.get(event, this.extend)
+    if (this.mustSelect || !selection.eqPos(wg.state.selection))
+      this.wg.dispatch({
         selection,
         userEvent: "select.pointer"
       })
@@ -347,17 +347,17 @@ class MouseSelection {
 
 export const dragBehavior = Facet.define<(event: MouseEvent) => boolean>()
 
-function dragMovesSelection(view: Wordgard, event: MouseEvent) {
-  let facet = view.state.facet(dragBehavior)
+function dragMovesSelection(wg: Wordgard, event: MouseEvent) {
+  let facet = wg.state.facet(dragBehavior)
   return facet.length ? facet[0](event) : browser.mac ? !event.altKey : !event.ctrlKey
 }
 
-function isInPrimarySelection(view: Wordgard, event: MouseEvent) {
-  let {selection} = view.state
+function isInPrimarySelection(wg: Wordgard, event: MouseEvent) {
+  let {selection} = wg.state
   if (selection.empty) return false
   // On boundary clicks, check whether the coordinates are inside the
   // selection's client rectangles
-  let sel = getSelection(view.root)
+  let sel = getSelection(wg.root)
   if (!sel || sel.rangeCount == 0) return true
   let rects = sel.getRangeAt(0).getClientRects()
   for (let i = 0; i < rects.length; i++) {
@@ -368,60 +368,60 @@ function isInPrimarySelection(view: Wordgard, event: MouseEvent) {
   return false
 }
 
-function eventBelongsToEditor(view: Wordgard, event: Event): boolean {
+function eventBelongsToEditor(wg: Wordgard, event: Event): boolean {
   if (!event.bubbles) return true
   if (event.defaultPrevented) return false
-  for (let node = event.target as DOMNode | null, tile; node != view.contentDOM; node = node.parentNode)
-    if (!node || node.nodeType == 11 || (tile = Tile.get(node)) && tile.handleEvent(event, view))
+  for (let node = event.target as DOMNode | null, tile; node != wg.contentDOM; node = node.parentNode)
+    if (!node || node.nodeType == 11 || (tile = Tile.get(node)) && tile.handleEvent(event, wg))
       return false
   return true
 }
 
 // FIXME use something less messy?
-const handlers: {[key: string]: (view: Wordgard, event: any) => boolean} = Object.create(null)
-const observers: {[key: string]: (view: Wordgard, event: any) => undefined} = Object.create(null)
+const handlers: {[key: string]: (wg: Wordgard, event: any) => boolean} = Object.create(null)
+const observers: {[key: string]: (wg: Wordgard, event: any) => undefined} = Object.create(null)
 
-observers.scroll = view => {
-  view.inputState.lastScrollTop = view.scrollDOM.scrollTop
-  view.inputState.lastScrollLeft = view.scrollDOM.scrollLeft
+observers.scroll = wg => {
+  wg.inputState.lastScrollTop = wg.scrollDOM.scrollTop
+  wg.inputState.lastScrollLeft = wg.scrollDOM.scrollLeft
 }
 
-handlers.keydown = (view, event: KeyboardEvent) => {
-  view.inputState.setSelectionOrigin("select")
-  if (event.keyCode == 27 && view.inputState.tabFocusMode != 0) view.inputState.tabFocusMode = Date.now() + 2000
+handlers.keydown = (wg, event: KeyboardEvent) => {
+  wg.inputState.setSelectionOrigin("select")
+  if (event.keyCode == 27 && wg.inputState.tabFocusMode != 0) wg.inputState.tabFocusMode = Date.now() + 2000
   return false
 }
 
 // FIXME proper strategy for touch handling
 
-observers.touchstart = (view, e) => {
-  view.inputState.lastTouchTime = Date.now()
-  view.inputState.setSelectionOrigin("select.pointer")
+observers.touchstart = (wg, e) => {
+  wg.inputState.lastTouchTime = Date.now()
+  wg.inputState.setSelectionOrigin("select.pointer")
 }
 
-observers.touchmove = view => {
-  view.inputState.setSelectionOrigin("select.pointer")
+observers.touchmove = wg => {
+  wg.inputState.setSelectionOrigin("select.pointer")
 }
 
-handlers.mousedown = (view, event: MouseEvent) => {
-  view.inputState.shiftKey = event.shiftKey
-  if (view.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
+handlers.mousedown = (wg, event: MouseEvent) => {
+  wg.inputState.shiftKey = event.shiftKey
+  if (wg.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
   let style: MouseSelectionStyle | null = null
-  for (let makeStyle of view.state.facet(mouseSelectionStyle)) {
-    style = makeStyle(view, event)
+  for (let makeStyle of wg.state.facet(mouseSelectionStyle)) {
+    style = makeStyle(wg, event)
     if (style) break
   }
-  if (!style && event.button == 0) style = basicMouseSelection(view, event)
+  if (!style && event.button == 0) style = basicMouseSelection(wg, event)
   if (style) {
-    let mustFocus = !view.hasFocus
-    view.inputState.startMouseSelection(new MouseSelection(view, event, style, mustFocus))
-    if (mustFocus) view.observer.ignore(() => {
+    let mustFocus = !wg.hasFocus
+    wg.inputState.startMouseSelection(new MouseSelection(wg, event, style, mustFocus))
+    if (mustFocus) wg.observer.ignore(() => {
       // FIXME on Firefox this somehow focuses the cell selection
-      view.contentDOM.focus({preventScroll: true})
-      let active = view.root.activeElement
-      if (active && !active.contains(view.contentDOM)) (active as HTMLElement).blur()
+      wg.contentDOM.focus({preventScroll: true})
+      let active = wg.root.activeElement
+      if (active && !active.contains(wg.contentDOM)) (active as HTMLElement).blur()
     })
-    let mouseSel = view.inputState.mouseSelection
+    let mouseSel = wg.inputState.mouseSelection
     if (mouseSel) {
       mouseSel.start(event)
       return mouseSel.dragging === false
@@ -430,29 +430,29 @@ handlers.mousedown = (view, event: MouseEvent) => {
   return false
 }
 
-function queryPos(view: Wordgard, event: MouseEvent) {
-  return view.posAtCoords({x: event.clientX, y: event.clientY}) as CoordPos
+function queryPos(wg: Wordgard, event: MouseEvent) {
+  return wg.posAtCoords({x: event.clientX, y: event.clientY}) as CoordPos
 }
 
-function rangeForClick(view: Wordgard, pos: CoordPos, type: number): GardSelection {
+function rangeForClick(wg: Wordgard, pos: CoordPos, type: number): GardSelection {
   if (type < 3 && pos.target != null) {
-    let target = view.state.doc.nodeAt(pos.target)
+    let target = wg.state.doc.nodeAt(pos.target)
     if (target && target.isLeaf && target.type.isSelectable) return GardSelection.node(pos.target, target)
   }
   if (type == 1) { // Single click
-    return GardSelection.near(view.state, pos.pos, pos.side || -1)
+    return GardSelection.near(wg.state, pos.pos, pos.side || -1)
   } else if (type == 2) { // Double click
-    return view.state.wordAt(pos.pos, pos.side || 1)
+    return wg.state.wordAt(pos.pos, pos.side || 1)
   } else { // Triple click
-    let cx = view.state.doc.resolve(pos.pos), block = cx.textblockParent
+    let cx = wg.state.doc.resolve(pos.pos), block = cx.textblockParent
     if (block) return GardSelection.range(block.start, block.end)
-    else return GardSelection.near(view.state, pos.pos, pos.side || -1)
+    else return GardSelection.near(wg.state, pos.pos, pos.side || -1)
   }
 }
 
-function basicMouseSelection(view: Wordgard, event: MouseEvent) {
-  let start = queryPos(view, event), type = event.detail
-  let startSel = view.state.selection
+function basicMouseSelection(wg: Wordgard, event: MouseEvent) {
+  let start = queryPos(wg, event), type = event.detail
+  let startSel = wg.state.selection
   return {
     update(update) {
       if (update.docChanged) {
@@ -461,7 +461,7 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
       }
     },
     get(event, extend) {
-      let cur = queryPos(view, event), range = rangeForClick(view, cur, type), {from, to} = range
+      let cur = queryPos(wg, event), range = rangeForClick(wg, cur, type), {from, to} = range
       if (extend) {
         if (from < startSel.anchor)
           return GardSelection.range(startSel.anchor, from, from < to ? 1 : cur.side)
@@ -469,7 +469,7 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
           return GardSelection.range(startSel.anchor, to, from < to ? -1 : cur.side)
       }
       if (start.pos != cur.pos) {
-        let startRange = rangeForClick(view, start, type)
+        let startRange = rangeForClick(wg, start, type)
         from = Math.min(startRange.from, from)
         to = Math.max(startRange.to, to)
       }
@@ -478,68 +478,68 @@ function basicMouseSelection(view: Wordgard, event: MouseEvent) {
   } as MouseSelectionStyle
 }
 
-handlers.dragstart = (view, event: DragEvent) => {
-  let {selection} = view.state
-  let {inputState} = view
+handlers.dragstart = (wg, event: DragEvent) => {
+  let {selection} = wg.state
+  let {inputState} = wg
   if (inputState.mouseSelection) inputState.mouseSelection.dragging = true
   inputState.draggedContent = selection
 
   if (event.dataTransfer) {
-    let {slice, context} = selectionSlice(view.state)
-    writeClipboard(view.state, slice, context, event.dataTransfer)
+    let {slice, context} = selectionSlice(wg.state)
+    writeClipboard(wg.state, slice, context, event.dataTransfer)
     event.dataTransfer.effectAllowed = "copyMove"
   }
   return false
 }
 
-handlers.dragend = view => {
-  view.inputState.draggedContent = null
+handlers.dragend = wg => {
+  wg.inputState.draggedContent = null
   return false
 }
 
-handlers.drop = (view, event: DragEvent) => {
-  if (!event.dataTransfer || view.state.readOnly) return true
-  let content = readClipboard(view.state, event.dataTransfer, view.state.sel.head, false)
+handlers.drop = (wg, event: DragEvent) => {
+  if (!event.dataTransfer || wg.state.readOnly) return true
+  let content = readClipboard(wg.state, event.dataTransfer, wg.state.sel.head, false)
   if (content) {
-    let dropPos = view.posAtCoords({x: event.clientX, y: event.clientY}).pos
-    let {draggedContent} = view.inputState
-    let del = draggedContent && dragMovesSelection(view, event)
+    let dropPos = wg.posAtCoords({x: event.clientX, y: event.clientY}).pos
+    let {draggedContent} = wg.inputState
+    let del = draggedContent && dragMovesSelection(wg, event)
       ? {from: draggedContent.from, to: draggedContent.to} : null
     let ins = {from: dropPos, insert: content.slice, fit: content.context}
-    let changes = ChangeSet.create(view.state.doc, del ? [del, ins] : ins)
-    view.focus()
-    view.dispatch({
+    let changes = ChangeSet.create(wg.state.doc, del ? [del, ins] : ins)
+    wg.focus()
+    wg.dispatch({
       changes,
       selection: GardSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
       userEvent: del ? "move.drop" : "input.drop"
     })
-    view.inputState.draggedContent = null
+    wg.inputState.draggedContent = null
   }
   return false
 }
 
 export const pasteHandler = Facet.define<(
-  view: Wordgard,
+  wg: Wordgard,
   event: ClipboardEvent,
   slice: Slice,
   context: readonly Plot.Tag.Any[]
 ) => boolean>()
 
-handlers.paste = (view: Wordgard, event: ClipboardEvent) => {
-  if (view.state.readOnly || !event.clipboardData) return true
-  let {state} = view
-  let content = readClipboard(state, event.clipboardData, state.sel.head, view.inputState.shiftKey)
-  if (view.state.facet(pasteHandler).some(h => h(view, event, content ? content.slice : Slice.empty,
+handlers.paste = (wg: Wordgard, event: ClipboardEvent) => {
+  if (wg.state.readOnly || !event.clipboardData) return true
+  let {state} = wg
+  let content = readClipboard(state, event.clipboardData, state.sel.head, wg.inputState.shiftKey)
+  if (wg.state.facet(pasteHandler).some(h => h(wg, event, content ? content.slice : Slice.empty,
                                                  content ? content.context : [])))
     return true
   if (content) { // FIXME proper multi-selection pasting
-    let changes = ChangeSet.create(view.state.doc, {
+    let changes = ChangeSet.create(wg.state.doc, {
       from: state.selection.from,
       to: state.selection.to,
       insert: content.slice,
       fit: content.context
     })
-    view.dispatch({
+    wg.dispatch({
       changes,
       selection: cx => GardSelection.near(cx, changes.mapPos(state.selection.to, 1), -1),
       userEvent: "input.paste",
@@ -556,13 +556,13 @@ function selectionSlice(state: GardState) { // FIXME smarter primitive?
   }
 }
 
-handlers.copy = handlers.cut = (view, event: ClipboardEvent) => {
-  let {state} = view
+handlers.copy = handlers.cut = (wg, event: ClipboardEvent) => {
+  let {state} = wg
   if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
     let {slice, context} = selectionSlice(state)
     writeClipboard(state, slice, context, event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
-      view.dispatch({
+      wg.dispatch({
         changes: state.selection.ranges.map(r => ({from: r.from, to: r.to})),
         scrollIntoView: true,
         userEvent: "delete.cut"
@@ -573,62 +573,62 @@ handlers.copy = handlers.cut = (view, event: ClipboardEvent) => {
 
 export const isFocusChange = Transaction.Annotation.define<boolean>()
 
-function updateForFocusChange(view: Wordgard) {
+function updateForFocusChange(wg: Wordgard) {
   setTimeout(() => {
-    let focus = view.hasFocus
-    if (focus != view.inputState.notifiedFocused) {
-      view.inputState.notifiedFocused = focus
-      view.dispatch({annotations: isFocusChange.of(focus)})
+    let focus = wg.hasFocus
+    if (focus != wg.inputState.notifiedFocused) {
+      wg.inputState.notifiedFocused = focus
+      wg.dispatch({annotations: isFocusChange.of(focus)})
     }
   }, 10)
 }
 
-observers.focus = view => {
+observers.focus = wg => {
   // When focusing reset the scroll position, move it back to where it was
-  if (!view.scrollDOM.scrollTop && (view.inputState.lastScrollTop || view.inputState.lastScrollLeft)) {
-    view.scrollDOM.scrollTop = view.inputState.lastScrollTop
-    view.scrollDOM.scrollLeft = view.inputState.lastScrollLeft
+  if (!wg.scrollDOM.scrollTop && (wg.inputState.lastScrollTop || wg.inputState.lastScrollLeft)) {
+    wg.scrollDOM.scrollTop = wg.inputState.lastScrollTop
+    wg.scrollDOM.scrollLeft = wg.inputState.lastScrollLeft
   }
-  updateForFocusChange(view)
+  updateForFocusChange(wg)
 }
 
-observers.blur = view => {
-  view.observer.clearSelectionRange()
-  updateForFocusChange(view)
+observers.blur = wg => {
+  wg.observer.clearSelectionRange()
+  updateForFocusChange(wg)
 }
 
-observers.compositionstart = observers.compositionupdate = (view, event: CompositionEvent) => {
-  if (!view.inputState.composing) {
-    view.inputState.composing = {changes: 0, target: null}
+observers.compositionstart = observers.compositionupdate = (wg, event: CompositionEvent) => {
+  if (!wg.inputState.composing) {
+    wg.inputState.composing = {changes: 0, target: null}
 
     let wrap: readonly Mark<any>[] | null = null
-    if (!view.inputState.composing.changes && !event.data) {
-      let sel = view.state.selection, rSel = view.state.sel
+    if (!wg.inputState.composing.changes && !event.data) {
+      let sel = wg.state.selection, rSel = wg.state.sel
       if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
           !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
         wrap = rSel.activeMarks
     }
 
     if (wrap) try {
-      view.inputState.wrappingComposition = wrap
-      view.flush()
-    } finally { view.inputState.wrappingComposition = null }
+      wg.inputState.wrappingComposition = wrap
+      wg.flush()
+    } finally { wg.inputState.wrappingComposition = null }
   }
 }
 
-observers.compositionend = view => {
-  let target = view.inputState.composing?.target
-  view.inputState.composing = null
-  view.inputState.compositionEndedAt = Date.now()
+observers.compositionend = wg => {
+  let target = wg.inputState.composing?.target
+  wg.inputState.composing = null
+  wg.inputState.compositionEndedAt = Date.now()
   if (target) {
-    let pos = view.docTile.posBeforeDOM(target)
-    if (pos != null) view.observer.addDirtyRange(pos, pos + target.nodeValue!.length)
-    view.flush()
+    let pos = wg.docTile.posBeforeDOM(target)
+    if (pos != null) wg.observer.addDirtyRange(pos, pos + target.nodeValue!.length)
+    wg.flush()
   }
 }
 
-function findCompositionTarget(view: Wordgard, prev: Text | null) {
-  let {focusNode, focusOffset} = view.observer.selectionRange
+function findCompositionTarget(wg: Wordgard, prev: Text | null) {
+  let {focusNode, focusOffset} = wg.observer.selectionRange
   if (!focusNode) return null
   let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
   if (!before || !after || before == after) return before || after
@@ -645,12 +645,12 @@ export type CompositionInfo = {
   wrapCursor?: readonly Mark<any>[] | null
 }
 
-export function getCompositionInfo(view: Wordgard): CompositionInfo | null {
-  let target = view.inputState.compositionTarget()
+export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
+  let target = wg.inputState.compositionTarget()
 
-  let wrap = view.inputState.wrappingComposition
+  let wrap = wg.inputState.wrappingComposition
   if (wrap) {
-    let sel = view.state.selection.head
+    let sel = wg.state.selection.head
     return {
       fromA: sel, toA: sel,
       text: "",
@@ -660,11 +660,11 @@ export function getCompositionInfo(view: Wordgard): CompositionInfo | null {
   }
 
   if (!target) return null
-  let from = view.docTile.posBeforeDOM(target)
+  let from = wg.docTile.posBeforeDOM(target)
   if (from == null) return null
-  for (let tr of view.viewState.pending) from = tr.changes.mapPos(from, -1)
+  for (let tr of wg.viewState.pending) from = tr.changes.mapPos(from, -1)
   let value = target.nodeValue!
-  let oldTile = view.docTile.nearest(target)
+  let oldTile = wg.docTile.nearest(target)
   let oldLen = oldTile && oldTile.dom == target ? oldTile.length : 0
 
   return {
@@ -680,8 +680,8 @@ function findCompositionSelection(node: DOMNode, offset: number, target: Text, t
   return targetPos
 }
 
-observers.contextmenu = view => {
-  view.inputState.lastContextMenu = Date.now()
+observers.contextmenu = wg => {
+  wg.inputState.lastContextMenu = Date.now()
 }
 
 // FIXME formatSetBlockTextDirection, formatSetInlineTextDirection
@@ -698,9 +698,9 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   deleteSoftLineForward: Command.bind(deleteToLineEnd, "forward"),
   deleteHardLineBackward: Command.bind(deleteToLineEnd, "backward"),
   deleteHardLineForward: Command.bind(deleteToLineEnd, "forward"),
-  deleteContent: view => {
-    let tr = deleteSelection(view.state)
-    if (tr) view.dispatch(tr)
+  deleteContent: wg => {
+    let tr = deleteSelection(wg.state)
+    if (tr) wg.dispatch(tr)
     return !!tr
   },
   insertTranspose: transposeChars,
@@ -710,65 +710,65 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   formatUnderline: Command.bind(toggleMarkByLabel, Mark.Role.Underline),
 }
 
-handlers.beforeinput = (view, event: InputEvent) => {
+handlers.beforeinput = (wg, event: InputEvent) => {
   let type = event.inputType
 
   let command = inputTypeCommands[type]
   if (command) {
-    Command.dispatch(view, command)
+    Command.dispatch(wg, command)
     return true
   }
 
   if (type == "insertText") {
     // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
-    if (browser.safari && view.inputState.composing) observers.compositionend(view, event)
+    if (browser.safari && wg.inputState.composing) observers.compositionend(wg, event)
     let insert = event.data!.replace(/\r\n?|\n/g, " ")
-    let {from, to} = inputEventRange(event, view)
-    Command.dispatch(view, insertText, {from, to, insert, userEvent: "input.type"})
+    let {from, to} = inputEventRange(event, wg)
+    Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
     return true
   } else if (type == "insertReplacementText" || type == "insertFromYank") {
-    let slice = readClipboard(view.state, event.dataTransfer!, view.state.sel.head, true)?.slice
+    let slice = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)?.slice
     if (slice) {
-      let {from, to} = inputEventRange(event, view)
-      view.dispatch({changes: {from, to, insert: slice, fit: true}})
+      let {from, to} = inputEventRange(event, wg)
+      wg.dispatch({changes: {from, to, insert: slice, fit: true}})
       return true
     }
   } else if (type == "insertCompositionText") {
-    if (!view.inputState.composing)
-      view.inputState.composing = {changes: 0, target: null}
-    view.inputState.currentComposition = {...inputEventRange(event, view), text: event.data!}
+    if (!wg.inputState.composing)
+      wg.inputState.composing = {changes: 0, target: null}
+    wg.inputState.currentComposition = {...inputEventRange(event, wg), text: event.data!}
   }
 
   return false
 }
 
-handlers.input = (view, event: InputEvent) => {
-  if (event.inputType == "insertCompositionText" && view.inputState.currentComposition) {
-    let {from, to, text} = view.inputState.currentComposition
-    view.inputState.currentComposition = null
-    let start = !view.inputState.composing!.changes
-    view.inputState.composing!.changes++
-    view.observer.readSelectionRange()
-    let sel = view.observer.selectionRange
+handlers.input = (wg, event: InputEvent) => {
+  if (event.inputType == "insertCompositionText" && wg.inputState.currentComposition) {
+    let {from, to, text} = wg.inputState.currentComposition
+    wg.inputState.currentComposition = null
+    let start = !wg.inputState.composing!.changes
+    wg.inputState.composing!.changes++
+    wg.observer.readSelectionRange()
+    let sel = wg.observer.selectionRange
     if (!sel.focusNode) return false
     let anchor = -1, head = -1
-    let target = view.inputState.compositionTarget(), targetPos = target && view.docTile.posBeforeDOM(target)
+    let target = wg.inputState.compositionTarget(), targetPos = target && wg.docTile.posBeforeDOM(target)
     if (targetPos != null && sel.focusNode) {
       anchor = findCompositionSelection(sel.anchorNode!, sel.anchorOffset, target!, targetPos)
       head = sel.empty ? anchor : findCompositionSelection(sel.focusNode, sel.focusOffset, target!, targetPos)
     }
     if (head < 0) anchor = -1
-    for (let tr of view.viewState.pending) {
+    for (let tr of wg.viewState.pending) {
       from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
       if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
     }
-    Command.dispatch(view, insertText, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
+    Command.dispatch(wg, insertText, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
   }
   return false
 }
 
-function inputEventRange(event: InputEvent, view: Wordgard) {
+function inputEventRange(event: InputEvent, wg: Wordgard) {
   let range = event.getTargetRanges()[0]
-  return {from: view.docTile.posFromDOM(range.startContainer, range.startOffset, -1),
-          to: view.docTile.posFromDOM(range.endContainer, range.endOffset, 1)}
+  return {from: wg.docTile.posFromDOM(range.startContainer, range.startOffset, -1),
+          to: wg.docTile.posFromDOM(range.endContainer, range.endOffset, 1)}
 }

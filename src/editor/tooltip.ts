@@ -1,6 +1,6 @@
 import {GardState, Transaction, Facet, Direction} from "wordgard/state"
 import {MapMode} from "wordgard/doc"
-import {Wordgard} from "./editorview"
+import {Wordgard} from "./editor"
 import {logException} from "./util"
 import {windowRect} from "./dom"
 import browser from "./browser"
@@ -25,12 +25,12 @@ class TooltipViewManager {
   tooltipViews: readonly Tooltip.View[]
 
   constructor(
-    view: Wordgard,
+    wg: Wordgard,
     private readonly facet: Facet.Reader<readonly (Tooltip | null)[]>,
     private readonly createTooltipView: (tooltip: Tooltip, after: Tooltip.View | null) => Tooltip.View,
     private readonly removeTooltipView: (tooltipView: Tooltip.View) => void
   ) {
-    this.input = view.state.facet(facet)
+    this.input = wg.state.facet(facet)
     this.tooltips = this.input.filter(t => t) as Tooltip[]
     let prev: Tooltip.View | null = null
     this.tooltipViews = this.tooltips.map(t => prev = createTooltipView(t, prev))
@@ -63,8 +63,8 @@ class TooltipViewManager {
     }
     for (let t of this.tooltipViews) if (tooltipViews.indexOf(t) < 0) {
       this.removeTooltipView(t)
-      if (update.view.connected) t.disconnect?.(update.view)
-      t.destroy?.(update.view)
+      if (update.editor.connected) t.disconnect?.(update.editor)
+      t.destroy?.(update.editor)
     }
     if (above) {
       newAbove!.forEach((val, i) => above[i] = val)
@@ -81,14 +81,14 @@ class TooltipViewManager {
 type TooltipConfig = {
   position: "fixed" | "absolute",
   parent: HTMLElement | null,
-  tooltipSpace: (view: Wordgard) => DOMRect
+  tooltipSpace: (wg: Wordgard) => DOMRect
 }
 
 const tooltipConfig = Facet.define<Partial<TooltipConfig>, TooltipConfig>({
   combine: values => ({
     position: browser.ios ? "absolute" : values.find(conf => conf.position)?.position || "fixed",
     parent: values.find(conf => conf.parent)?.parent || null,
-    tooltipSpace: values.find(conf => conf.tooltipSpace)?.tooltipSpace || (view => windowRect(view.win)),
+    tooltipSpace: values.find(conf => conf.tooltipSpace)?.tooltipSpace || (wg => windowRect(wg.win)),
   })
 })
 
@@ -110,15 +110,15 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
   lastTransaction = 0
   measureTimeout = -1
 
-  constructor(readonly view: Wordgard) {
-    let config = view.state.facet(tooltipConfig)
+  constructor(readonly wg: Wordgard) {
+    let config = wg.state.facet(tooltipConfig)
     this.position = config.position
     this.parent = config.parent
-    this.classes = view.themeClasses
+    this.classes = wg.themeClasses
     this.createContainer()
     this.measure = this.measure.bind(this)
     this.resizeObserver = typeof ResizeObserver == "function" ? new ResizeObserver(() => this.measureSoon()) : null
-    this.manager = new TooltipViewManager(view, Tooltip.show, (t, p) => this.createTooltip(t, p), t => {
+    this.manager = new TooltipViewManager(wg, Tooltip.show, (t, p) => this.createTooltip(t, p), t => {
       if (this.resizeObserver) this.resizeObserver.unobserve(t.dom)
       t.dom.remove()
     })
@@ -129,7 +129,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
         this.measureSoon()
     }, {threshold: [1]}) : null
     this.observeIntersection()
-    view.win.addEventListener("resize", this.measureSoon = this.measureSoon.bind(this))
+    wg.win.addEventListener("resize", this.measureSoon = this.measureSoon.bind(this))
     this.maybeMeasure()
   }
 
@@ -137,10 +137,10 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
     if (this.parent) {
       this.container = document.createElement("wg-tooltip-root")
       this.container.style.position = "relative"
-      this.container.className = this.view.themeClasses
+      this.container.className = this.wg.themeClasses
       this.parent.appendChild(this.container)
     } else {
-      this.container = this.view.dom
+      this.container = this.wg.dom
     }
   }
 
@@ -176,14 +176,14 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
       this.createContainer()
       for (let t of this.manager.tooltipViews) this.container.appendChild(t.dom)
       shouldMeasure = true
-    } else if (this.parent && this.view.themeClasses != this.classes) {
-      this.classes = this.container.className = this.view.themeClasses
+    } else if (this.parent && this.wg.themeClasses != this.classes) {
+      this.classes = this.container.className = this.wg.themeClasses
     }
     if (shouldMeasure) this.maybeMeasure()
   }
 
   createTooltip(tooltip: Tooltip, prev: Tooltip.View | null) {
-    let tooltipView = tooltip.create(this.view)
+    let tooltipView = tooltip.create(this.wg)
     let before = prev ? prev.dom : null
     tooltipView.dom.classList.add("wg-tooltip")
     if (tooltip.arrow && !tooltipView.dom.querySelector(".wg-tooltip > wg-tooltip-arrow")) {
@@ -194,25 +194,25 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
     tooltipView.dom.style.top = Outside
     tooltipView.dom.style.left = "0px"
     this.container.insertBefore(tooltipView.dom, before)
-    if (this.view.connected) tooltipView.connect?.(this.view)
+    if (this.wg.connected) tooltipView.connect?.(this.wg)
     if (this.resizeObserver) this.resizeObserver.observe(tooltipView.dom)
     return tooltipView
   }
 
-  connect(view: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.connect?.(view)
+  connect(wg: Wordgard) {
+    for (let t of this.manager.tooltipViews) t.connect?.(wg)
   }
 
-  disconnect(view: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.disconnect?.(view)
+  disconnect(wg: Wordgard) {
+    for (let t of this.manager.tooltipViews) t.disconnect?.(wg)
   }
 
   destroy() {
-    this.view.win.removeEventListener("resize", this.measureSoon)
+    this.wg.win.removeEventListener("resize", this.measureSoon)
     for (let tooltipView of this.manager.tooltipViews) {
       tooltipView.dom.remove()
-      if (this.view.connected) tooltipView.disconnect?.(this.view)
-      tooltipView.destroy?.(this.view)
+      if (this.wg.connected) tooltipView.disconnect?.(this.wg)
+      tooltipView.destroy?.(this.wg)
     }
     if (this.parent) this.container.remove()
     this.resizeObserver?.disconnect()
@@ -222,7 +222,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
 
   measure() {
     let measure = this.readMeasure()
-    this.view.scheduleDOMWrite(() => this.writeMeasure(measure))
+    this.wg.scheduleDOMWrite(() => this.writeMeasure(measure))
   }
 
   readMeasure(): Measured {
@@ -249,20 +249,20 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
           scaleY = rect.height / this.parent.offsetHeight
         }
       } else {
-        ;({scaleX, scaleY} = this.view.viewState)
+        ;({scaleX, scaleY} = this.wg.viewState)
       }
     }
-    let visible = this.view.scrollDOM.getBoundingClientRect(), margins = this.view.getScrollMargins()
+    let visible = this.wg.scrollDOM.getBoundingClientRect(), margins = this.wg.getScrollMargins()
     let visLeft = visible.left + margins.left, visTop = visible.top + margins.top
     return {
       visible: new DOMRect(visLeft, visTop, visible.right - margins.right - visLeft, visible.bottom - margins.bottom - visTop),
-      parent: this.parent ? this.container.getBoundingClientRect() : this.view.dom.getBoundingClientRect(),
+      parent: this.parent ? this.container.getBoundingClientRect() : this.wg.dom.getBoundingClientRect(),
       pos: this.manager.tooltips.map((t, i) => {
         let tv = this.manager.tooltipViews[i]
-        return tv.getCoords ? tv.getCoords(t.pos) : this.view.coordsAtPos(t.pos)
+        return tv.getCoords ? tv.getCoords(t.pos) : this.wg.coordsAtPos(t.pos)
       }),
       size: this.manager.tooltipViews.map(({dom}) => dom.getBoundingClientRect()),
-      space: this.view.state.facet(tooltipConfig).tooltipSpace(this.view),
+      space: this.wg.state.facet(tooltipConfig).tooltipSpace(this.wg),
       scaleX, scaleY, makeAbsolute
     }
   }
@@ -291,7 +291,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
       let arrow: HTMLElement | null = tooltip.arrow ? tView.dom.querySelector("wg-tooltip-arrow") : null
       let arrowHeight = arrow ? Arrow.Size : 0
       let width = size.right - size.left, height = knownHeight.get(tView) ?? size.bottom - size.top
-      let offset = tView.offset || noOffset, ltr = this.view.textDirection == Direction.LTR
+      let offset = tView.offset || noOffset, ltr = this.wg.textDirection == Direction.LTR
       let left = size.width > space.right - space.left
         ? (ltr ? space.left : space.right - size.width)
         : ltr ? Math.max(space.left, Math.min(pos.left - (arrow ? Arrow.Offset : 0) + offset.x, space.right - width))
@@ -336,7 +336,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
   }
 
   maybeMeasure() {
-    if (this.manager.tooltips.length) this.view.scheduleDOMRead(this.measure)
+    if (this.manager.tooltips.length) this.wg.scheduleDOMRead(this.measure)
   }
 }, {
   eventObservers: {
@@ -399,7 +399,7 @@ const baseTheme = Wordgard.baseTheme({
 })
 
 /// Describes a tooltip. Values of this type, when provided through
-/// the [`showTooltip`](#view.showTooltip) facet, control the
+/// the [`showTooltip`](#editor.showTooltip) facet, control the
 /// individual tooltips on the editor.
 export interface Tooltip {
   /// The document position at which to show the tooltip.
@@ -408,8 +408,8 @@ export interface Tooltip {
   /// from `pos`.
   end?: number
   /// A constructor function that creates the tooltip's [DOM
-  /// representation](#view.TooltipView).
-  create(view: Wordgard): Tooltip.View
+  /// representation](#editor.TooltipView).
+  create(wg: Wordgard): Tooltip.View
   /// Whether the tooltip should be shown above or below the target
   /// position. Not guaranteed to be respected for hover tooltips
   /// since all hover tooltips for the same range are always
@@ -459,7 +459,7 @@ export namespace Tooltip {
     /// `documentElement.clientWidth`/`clientHeight` to be available for
     /// showing tooltips. You can provide a function here that returns
     /// an alternative rectangle.
-    tooltipSpace?: (view: Wordgard) => DOMRect
+    tooltipSpace?: (wg: Wordgard) => DOMRect
   } = {}): GardState.Extension {
     return tooltipConfig.of(config)
   }
@@ -487,15 +487,15 @@ export namespace Tooltip {
     /// Update the DOM element for a change in the view's state.
     update?(update: Wordgard.Update): void
     /// Called when the tooltip is added to a DOM-connected editor.
-    connect?(view: Wordgard): void
+    connect?(wg: Wordgard): void
     /// Called when the editor containing the tooltip is disconnected,
     /// or before the tooltip is removed.
-    disconnect?(view: Wordgard): void
+    disconnect?(wg: Wordgard): void
     /// Called when the tooltip is removed from the editor or the editor
     /// is destroyed.
-    destroy?(view: Wordgard): void
+    destroy?(wg: Wordgard): void
     /// Called when the tooltip has been (re)positioned. The argument is
-    /// the [space](#view.tooltips^config.tooltipSpace) available to the
+    /// the [space](#editor.tooltips^config.tooltipSpace) available to the
     /// tooltip.
     positioned?(space: DOMRect): void,
     /// By default, the library will restrict the size of tooltips so
@@ -510,8 +510,8 @@ export namespace Tooltip {
   })
 
   /// Get the active tooltip view for a given tooltip, if available.
-  export function get(view: Wordgard, tooltip: Tooltip): Tooltip.View | null {
-    let plugin = view.plugin(tooltipPlugin)
+  export function get(wg: Wordgard, tooltip: Tooltip): Tooltip.View | null {
+    let plugin = wg.plugin(tooltipPlugin)
     if (!plugin) return null
     let found = plugin.manager.tooltips.indexOf(tooltip)
     return found < 0 ? null : plugin.manager.tooltipViews[found]
@@ -522,8 +522,8 @@ export namespace Tooltip {
   /// re-positioning or CSS change affecting the editor) that could
   /// invalidate the existing tooltip positions but isn't detected by
   /// the extension.
-  export function reposition(view: Wordgard) {
-    let plugin = view.plugin(tooltipPlugin)
+  export function reposition(wg: Wordgard) {
+    let plugin = wg.plugin(tooltipPlugin)
     if (plugin) plugin.maybeMeasure()
   }
 
@@ -593,7 +593,7 @@ export namespace Tooltip {
       active: hoverState,
       extension: [
         hoverState,
-        Wordgard.Plugin.define(view => new HoverPlugin(view, source, hoverState, setHover, options.hoverTime || Hover.Time)),
+        Wordgard.Plugin.define(wg => new HoverPlugin(wg, source, hoverState, setHover, options.hoverTime || Hover.Time)),
         showHoverTooltipHost
       ]
     }
@@ -620,31 +620,31 @@ class HoverTooltipHost implements Tooltip.View {
   connected: boolean = false
 
   // Needs to be static so that host tooltip instances always match
-  static create(view: Wordgard) {
-    return new HoverTooltipHost(view)
+  static create(wg: Wordgard) {
+    return new HoverTooltipHost(wg)
   }
 
-  private constructor(readonly view: Wordgard) {
+  private constructor(readonly wg: Wordgard) {
     this.dom = document.createElement("wg-tooltip-hover")
-    this.manager = new TooltipViewManager(view, showHoverTooltip, (t, p) => this.createHostedView(t, p), t => t.dom.remove())
+    this.manager = new TooltipViewManager(wg, showHoverTooltip, (t, p) => this.createHostedView(t, p), t => t.dom.remove())
   }
 
   createHostedView(tooltip: Tooltip, prev: Tooltip.View | null) {
-    let hostedView = tooltip.create(this.view)
+    let hostedView = tooltip.create(this.wg)
     hostedView.dom.classList.add("wg-tooltip-section")
     this.dom.insertBefore(hostedView.dom, prev ? prev.dom.nextSibling : this.dom.firstChild)
     if (this.connected && hostedView.connect)
-      hostedView.connect(this.view)
+      hostedView.connect(this.wg)
     return hostedView
   }
 
-  connect(view: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.connect?.(view)
+  connect(wg: Wordgard) {
+    for (let t of this.manager.tooltipViews) t.connect?.(wg)
     this.connected = true
   }
 
-  disconnect(view: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.disconnect?.(view)
+  disconnect(wg: Wordgard) {
+    for (let t of this.manager.tooltipViews) t.disconnect?.(wg)
     this.connected = false
   }
 
@@ -658,8 +658,8 @@ class HoverTooltipHost implements Tooltip.View {
     this.manager.update(update)
   }
 
-  destroy(view: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.destroy?.(view)
+  destroy(wg: Wordgard) {
+    for (let t of this.manager.tooltipViews) t.destroy?.(wg)
   }
 
   passProp<Key extends keyof Tooltip.View>(name: Key): Tooltip.View[Key] | undefined {
@@ -699,8 +699,8 @@ const showHoverTooltipHost = Tooltip.show.compute(state => {
 const enum Hover { Time = 300, MaxDist = 6 }
 
 /// The type of function that can be used as a [hover tooltip
-/// source](#view.hoverTooltip^source).
-export type HoverTooltipSource = (view: Wordgard, pos: number, side: -1 | 1) => Tooltip | readonly Tooltip[] | null | Promise<Tooltip | readonly Tooltip[] | null>
+/// source](#editor.hoverTooltip^source).
+export type HoverTooltipSource = (wg: Wordgard, pos: number, side: -1 | 1) => Tooltip | readonly Tooltip[] | null | Promise<Tooltip | readonly Tooltip[] | null>
 
 class HoverPlugin {
   lastMove: {x: number, y: number, target: HTMLElement, time: number}
@@ -708,15 +708,15 @@ class HoverPlugin {
   restartTimeout = -1
   pending: {pos: number} | null = null
 
-  constructor(readonly view: Wordgard,
+  constructor(readonly wg: Wordgard,
               readonly source: HoverTooltipSource,
               readonly field: GardState.Field<readonly Tooltip[]>,
               readonly setHover: Transaction.Effect.Type<readonly Tooltip[]>,
               readonly hoverTime: number) {
-    this.lastMove = {x: 0, y: 0, target: view.dom, time: 0}
+    this.lastMove = {x: 0, y: 0, target: wg.dom, time: 0}
     this.checkHover = this.checkHover.bind(this)
-    view.dom.addEventListener("mouseleave", this.mouseleave = this.mouseleave.bind(this))
-    view.dom.addEventListener("mousemove", this.mousemove = this.mousemove.bind(this))
+    wg.dom.addEventListener("mouseleave", this.mouseleave = this.mouseleave.bind(this))
+    wg.dom.addEventListener("mousemove", this.mousemove = this.mousemove.bind(this))
   }
 
   update() {
@@ -728,7 +728,7 @@ class HoverPlugin {
   }
 
   get active() {
-    return this.view.state.field(this.field)
+    return this.wg.state.field(this.field)
   }
 
   checkHover() {
@@ -743,9 +743,9 @@ class HoverPlugin {
 
   startHover() {
     clearTimeout(this.restartTimeout)
-    let {view, lastMove} = this
-    let {pos, side} = view.posAtCoords(lastMove)
-    let open = this.source(view, pos, side || -1)
+    let {wg, lastMove} = this
+    let {pos, side} = wg.posAtCoords(lastMove)
+    let open = this.source(wg, pos, side || -1)
 
     if ((open as any)?.then) {
       let pending = this.pending = {pos}
@@ -753,16 +753,16 @@ class HoverPlugin {
         if (this.pending == pending) {
           this.pending = null
           if (result && !(Array.isArray(result) && !result.length))
-            view.dispatch({effects: this.setHover.of(Array.isArray(result) ? result : [result])})
+            wg.dispatch({effects: this.setHover.of(Array.isArray(result) ? result : [result])})
         }
-      }, e => logException(view.state, e, "hover tooltip"))
+      }, e => logException(wg.state, e, "hover tooltip"))
     } else if (open && !(Array.isArray(open) && !open.length)) {
-      view.dispatch({effects: this.setHover.of(Array.isArray(open) ? open : [open])})
+      wg.dispatch({effects: this.setHover.of(Array.isArray(open) ? open : [open])})
     }
   }
 
   get tooltip() {
-    let plugin = this.view.plugin(tooltipPlugin)
+    let plugin = this.wg.plugin(tooltipPlugin)
     let index = plugin ? plugin.manager.tooltips.findIndex(t => t.create == HoverTooltipHost.create) : -1
     return index > -1 ? plugin!.manager.tooltipViews[index] : null
   }
@@ -773,9 +773,9 @@ class HoverPlugin {
     let {active, tooltip} = this
     if (active.length && tooltip && !isInTooltip(tooltip.dom, event) || this.pending) {
       let {pos} = active[0] || this.pending!, end = active[0]?.end ?? pos
-      if ((pos == end ? this.view.posAtCoords(this.lastMove).pos != pos
-           : !isOverRange(this.view, pos, end, event.clientX, event.clientY, Hover.MaxDist))) {
-        this.view.dispatch({effects: this.setHover.of([])})
+      if ((pos == end ? this.wg.posAtCoords(this.lastMove).pos != pos
+           : !isOverRange(this.wg, pos, end, event.clientX, event.clientY, Hover.MaxDist))) {
+        this.wg.dispatch({effects: this.setHover.of([])})
         this.pending = null
       }
     }
@@ -789,7 +789,7 @@ class HoverPlugin {
       let {tooltip} = this
       let inTooltip = tooltip && tooltip.dom.contains(event.relatedTarget as HTMLElement)
       if (!inTooltip)
-        this.view.dispatch({effects: this.setHover.of([])})
+        this.wg.dispatch({effects: this.setHover.of([])})
       else
         this.watchTooltipLeave(tooltip!.dom)
     }
@@ -798,16 +798,16 @@ class HoverPlugin {
   watchTooltipLeave(tooltip: HTMLElement) {
     let watch = (event: MouseEvent) => {
       tooltip.removeEventListener("mouseleave", watch)
-      if (this.active.length && !this.view.dom.contains(event.relatedTarget as HTMLElement))
-        this.view.dispatch({effects: this.setHover.of([])})
+      if (this.active.length && !this.wg.dom.contains(event.relatedTarget as HTMLElement))
+        this.wg.dispatch({effects: this.setHover.of([])})
     }
     tooltip.addEventListener("mouseleave", watch)
   }
 
   destroy() {
     clearTimeout(this.hoverTimeout)
-    this.view.dom.removeEventListener("mouseleave", this.mouseleave)
-    this.view.dom.removeEventListener("mousemove", this.mousemove)
+    this.wg.dom.removeEventListener("mouseleave", this.mouseleave)
+    this.wg.dom.removeEventListener("mousemove", this.mousemove)
   }
 }
 
@@ -824,9 +824,9 @@ function isInTooltip(tooltip: HTMLElement, event: MouseEvent) {
     event.clientY >= top - tooltipMargin && event.clientY <= bottom + tooltipMargin
 }
 
-function isOverRange(view: Wordgard, from: number, to: number, x: number, y: number, margin: number) {
-  let rect = view.contentDOM.getBoundingClientRect()
+function isOverRange(wg: Wordgard, from: number, to: number, x: number, y: number, margin: number) {
+  let rect = wg.contentDOM.getBoundingClientRect()
   if (rect.left > x || rect.right < x || rect.top > y || rect.bottom < y) return false
-  let pos = view.posAtCoords({x, y}).pos
+  let pos = wg.posAtCoords({x, y}).pos
   return pos >= from && pos <= to
 }

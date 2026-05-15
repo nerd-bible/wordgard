@@ -1,4 +1,4 @@
-export {Wordgard, DOMEventHandlers, DOMEventMap} from "./editorview"
+export {Wordgard, DOMEventHandlers, DOMEventMap} from "./editor"
 export {KeyBinding, defaultKeymap} from "./keymap"
 // FIXME narrow
 export * from "./decoration"

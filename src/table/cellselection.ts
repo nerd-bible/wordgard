@@ -34,8 +34,8 @@ function resolveDir(dir: "left" | "right", state: GardState): "forward" | "backw
     ? "forward" : "backward"
 }
 
-function cursorCommand(view: Wordgard, {dir, extend}: {dir: Dir, extend?: boolean}) {
-  let {state} = view, {selection} = state
+function cursorCommand(wg: Wordgard, {dir, extend}: {dir: Dir, extend?: boolean}) {
+  let {state} = wg, {selection} = state
   if (!(selection instanceof CellSelection)) return false
   let newSel
   if (!extend) {
@@ -50,7 +50,7 @@ function cursorCommand(view: Wordgard, {dir, extend}: {dir: Dir, extend?: boolea
       newSel = GardSelection.range(forward ? table.before : table.after, next.head, next.headSide)
     }
   }
-  view.dispatch({
+  wg.dispatch({
     selection: newSel,
     scrollIntoView: true,
     userEvent: "select"
@@ -58,8 +58,8 @@ function cursorCommand(view: Wordgard, {dir, extend}: {dir: Dir, extend?: boolea
   return true
 }
 
-function moveToRowSide(view: Wordgard, {dir, extend}: {dir: "left" | "right" | "forward" | "backward", extend?: boolean}) {
-  let {state} = view, {selection} = state
+function moveToRowSide(wg: Wordgard, {dir, extend}: {dir: "left" | "right" | "forward" | "backward", extend?: boolean}) {
+  let {state} = wg, {selection} = state
   if (!(selection instanceof CellSelection)) return false
   if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
   for (;;) {
@@ -67,7 +67,7 @@ function moveToRowSide(view: Wordgard, {dir, extend}: {dir: "left" | "right" | "
     if (!next) break
     selection = next
   }
-  if (selection != state.selection) view.dispatch({
+  if (selection != state.selection) wg.dispatch({
     selection,
     scrollIntoView: true,
     userEvent: "select"
@@ -75,14 +75,14 @@ function moveToRowSide(view: Wordgard, {dir, extend}: {dir: "left" | "right" | "
   return true
 }
 
-const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((view, event) => {
+const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((wg, event) => {
   if (event.detail == 3) {
-    let pos = view.state.doc.resolve(view.posAtCoords({x: event.clientX, y: event.clientY}).pos)
-    let cell = pos.matchingParent(n => view.state.doc.schema.matchNode(n.type, Node.Group.TableCell))
+    let pos = wg.state.doc.resolve(wg.posAtCoords({x: event.clientX, y: event.clientY}).pos)
+    let cell = pos.matchingParent(n => wg.state.doc.schema.matchNode(n.type, Node.Group.TableCell))
     if (cell) {
       let from = cell.before, to = cell.after
       return {
-        get(event) { return CellSelection.between(view.state.doc, from, to) || GardSelection.near(view.state, from, 1) },
+        get(event) { return CellSelection.between(wg.state.doc, from, to) || GardSelection.near(wg.state, from, 1) },
         update(update) { from = update.changes.mapPos(from, 1); to = Math.max(from, update.changes.mapPos(to, -1)) }
       }
     }

@@ -1,13 +1,13 @@
 import {GardSelection, Direction} from "wordgard/state"
 import {Pos} from "wordgard/doc"
-import {Wordgard} from "./editorview"
+import {Wordgard} from "./editor"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
-export function setDOMSelection(view: Wordgard) {
-  let {anchor, head, anchorSide, headSide} = view.state.selection.domSelection
-  let anchorDOM = view.docTile.resolve(anchor, anchorSide)
-  let headDOM = head == anchor ? anchorDOM : view.docTile.resolve(head, headSide)
-  let domSel = getSelection(view.root)
+export function setDOMSelection(wg: Wordgard) {
+  let {anchor, head, anchorSide, headSide} = wg.state.selection.domSelection
+  let anchorDOM = wg.docTile.resolve(anchor, anchorSide)
+  let headDOM = head == anchor ? anchorDOM : wg.docTile.resolve(head, headSide)
+  let domSel = getSelection(wg.root)
   if (!domSel) return
   if (domSel.focusNode &&
       isEquivalentPosition(anchorDOM.dom, anchorDOM.offset, domSel.anchorNode!, domSel.anchorOffset) &&
@@ -24,36 +24,36 @@ export function setDOMSelection(view: Wordgard) {
     // Safari may raise an exception when the editor is hidden
     failed = true
   }
-  if (!failed) view.observer.setSelectionRange(anchorDOM, headDOM)
+  if (!failed) wg.observer.setSelectionRange(anchorDOM, headDOM)
 }
 
-export function readDOMSelection(view: Wordgard, range: SelectionRange) {
-  let anchor = view.docTile.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
+export function readDOMSelection(wg: Wordgard, range: SelectionRange) {
+  let anchor = wg.docTile.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
-    : view.docTile.posFromDOM(range.focusNode!, range.focusOffset, -1)
+    : wg.docTile.posFromDOM(range.focusNode!, range.focusOffset, -1)
   return GardSelection.range(anchor, head)
 }
 
 const Y_STEP = 5
 
 export function moveVertically(
-  view: Wordgard, start: GardSelection, forward: boolean,
+  wg: Wordgard, start: GardSelection, forward: boolean,
   distance: number = 0, selectNode = false
 ): GardSelection | null {
-  let editorRect = view.contentDOM.getBoundingClientRect()
-  let coords = view.coordsAtPos(start.head, start.headSide)
-  let baseDir = view.state.textDirection()
+  let editorRect = wg.contentDOM.getBoundingClientRect()
+  let coords = wg.coordsAtPos(start.head, start.headSide)
+  let baseDir = wg.state.textDirection()
   let goalColumn = start.goalColumn ?? (baseDir == Direction.LTR ? coords.left - editorRect.left : editorRect.right - coords.left)
   let x = baseDir == Direction.LTR ? editorRect.left + goalColumn : editorRect.right - goalColumn
   let y = forward ? coords.bottom + distance : coords.top - distance
   for (let scan = start.head;;) {
-    let pos = view.state.doc.resolve(scan), block = pos.textblockParent
+    let pos = wg.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {
-      let blockTile = view.docTile.nodeTile(block.before)!
+      let blockTile = wg.docTile.nodeTile(block.before)!
       let rect = (blockTile.dom as Element).getBoundingClientRect()
       if (forward ? y < rect.top : y > rect.bottom) y = forward ? rect.top : rect.bottom
       while (forward ? rect.bottom >= y : rect.top <= y) {
-        let found = blockTile.posAtCoords(view.state, x, y)
+        let found = blockTile.posAtCoords(wg.state, x, y)
         if (!found.vertOutside && found.pos != start.head) return GardSelection.cursor(found.pos, found.side, goalColumn)
         y += forward ? Y_STEP : -Y_STEP
       }
@@ -61,12 +61,12 @@ export function moveVertically(
       scan = forward ? block.after : block.before
     }
 
-    let nextCursor = GardSelection.cursor(scan).nextNormalCursor(view.state, forward)
+    let nextCursor = GardSelection.cursor(scan).nextNormalCursor(wg.state, forward)
     if (!nextCursor) return null
-    let nextNode = findTargetVertically(view, scan, forward, x, selectNode)
+    let nextNode = findTargetVertically(wg, scan, forward, x, selectNode)
     if (!nextNode || ((forward ? nextCursor.head <= nextNode.before : nextCursor.head >= nextNode.after) &&
-                      view.state.doc.resolve(nextCursor.head).depth < nextNode.depth)) {
-      let coords = view.coordsAtPos(nextCursor.head, nextCursor.headSide)
+                      wg.state.doc.resolve(nextCursor.head).depth < nextNode.depth)) {
+      let coords = wg.coordsAtPos(nextCursor.head, nextCursor.headSide)
       if (forward ? coords.bottom > y : coords.top < y)
         return GardSelection.cursor(nextCursor.head, nextCursor.headSide, goalColumn)
       if (!nextNode) return null
@@ -74,7 +74,7 @@ export function moveVertically(
     if (nextNode instanceof Pos.Plot) {
       scan = forward ? nextNode.start : nextNode.end
     } else {
-      let coords = view.coordsForElement(nextNode.before)!
+      let coords = wg.coordsForElement(nextNode.before)!
       if (forward ? coords.bottom > y : coords.top < y)
         return GardSelection.node(nextNode.before, nextNode.node, goalColumn)
       scan = forward ? nextNode.after : nextNode.before
@@ -82,8 +82,8 @@ export function moveVertically(
   }
 }
 
-function findTargetVertically(view: Wordgard, from: number, forward: boolean, x: number, allowNode: boolean) {
-  let {parent, index, pos} = view.state.doc.resolve(from), entering = false
+function findTargetVertically(wg: Wordgard, from: number, forward: boolean, x: number, allowNode: boolean) {
+  let {parent, index, pos} = wg.state.doc.resolve(from), entering = false
   for (;;) {
     if ((forward ? index == parent.node.content.length : !index) ||
         parent.node.type.orientation == "row" && !entering) {
@@ -108,7 +108,7 @@ function findTargetVertically(view: Wordgard, from: number, forward: boolean, x:
         let closest = -1, closestPos = -1, closestDist = -1
         for (let chPos = nextPos + 1, i = 0; i < next.content.length; i++) {
           let ch = next.content[i]
-          let tile = view.docTile.nodeTile(chPos)!
+          let tile = wg.docTile.nodeTile(chPos)!
           let rect = (tile.dom as Element).getBoundingClientRect()
           let dist = x < rect.left ? rect.left - x : x > rect.right ? x - rect.right : 0
           if (closestDist < 0 || dist < closestDist) {
@@ -133,16 +133,16 @@ function findTargetVertically(view: Wordgard, from: number, forward: boolean, x:
   }
 }
 
-export function moveToLineBoundary(view: Wordgard, start: GardSelection, forward: boolean) {
-  let block = view.state.doc.resolve(start.head).textblockParent
+export function moveToLineBoundary(wg: Wordgard, start: GardSelection, forward: boolean) {
+  let block = wg.state.doc.resolve(start.head).textblockParent
   if (!block) return null
-  let startCoords = view.coordsAtPos(start.head, start.headSide)
-  let dir = view.state.textDirection(block.node.tag)
+  let startCoords = wg.coordsAtPos(start.head, start.headSide)
+  let dir = wg.state.textDirection(block.node.tag)
   let y = (startCoords.top + startCoords.bottom) / 2, left = forward != (dir == Direction.LTR)
-  let {pos} = view.posAtCoords({x: left ? -1e7 : 1e7, y})
+  let {pos} = wg.posAtCoords({x: left ? -1e7 : 1e7, y})
   if (pos < block.start || pos > block.end) {
-    let blockRect = (view.docTile.nodeTile(block.before)!.dom as Element).getBoundingClientRect()
-    pos = view.posAtCoords({x: left ? blockRect.left : blockRect.right, y}).pos
+    let blockRect = (wg.docTile.nodeTile(block.before)!.dom as Element).getBoundingClientRect()
+    pos = wg.posAtCoords({x: left ? blockRect.left : blockRect.right, y}).pos
   }
   return GardSelection.cursor(pos, forward ? -1 : 1)
 }

@@ -8,7 +8,7 @@ import {GardSelection} from "./selection"
 /// or have other effects. Create a transaction by calling
 /// [`GardState.update`](#state.GardState.update), or immediately
 /// dispatch one by calling
-/// [`Wordgard.dispatch`](#view.Wordgard.dispatch).
+/// [`Wordgard.dispatch`](#editor.Wordgard.dispatch).
 export class Transaction {
   /// @internal
   _state: GardState | null = null

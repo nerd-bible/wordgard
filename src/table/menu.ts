@@ -24,7 +24,7 @@ class DimensionPicker {
   gridHeight = 4
   ltr: boolean
 
-  constructor(readonly view: Wordgard, readonly finish: (width: number, height: number) => void) {
+  constructor(readonly wg: Wordgard, readonly finish: (width: number, height: number) => void) {
     this.dom = document.createElement("div")
     this.dom.className = "wg-dimension-picker"
     this.announce = this.dom.appendChild(document.createElement("div"))
@@ -32,7 +32,7 @@ class DimensionPicker {
     this.announce.setAttribute("aria-live", "polite")
     this.svg = this.dom.appendChild(document.createElementNS(SVG, "svg"))
     this.svg.setAttribute("aria-hidden", "true")
-    this.ltr = view.state.textDirection() == Direction.LTR
+    this.ltr = wg.state.textDirection() == Direction.LTR
     this.render()
     this.dom.addEventListener("mousemove", e => {
       let rect = this.svg.getBoundingClientRect()
@@ -66,8 +66,8 @@ class DimensionPicker {
   }
 
   render() {
-    this.dom.setAttribute("aria-label", phrase.get(this.view.state, "dimensions_title", this.width, this.height))
-    this.announce.textContent = phrase.get(this.view.state, "dimensions_live", this.width, this.height)
+    this.dom.setAttribute("aria-label", phrase.get(this.wg.state, "dimensions_title", this.width, this.height))
+    this.announce.textContent = phrase.get(this.wg.state, "dimensions_live", this.width, this.height)
     this.svg.textContent = ""
     let width = this.gridWidth * Grid.Skip + Grid.Margin
     this.svg.setAttribute("width", String(width))
@@ -92,8 +92,8 @@ class DimensionPicker {
   }
 }
 
-function insertTable(view: Wordgard, width: number, height: number) {
-  let {state} = view, {schema} = state.doc, cell = cellTag(schema)
+function insertTable(wg: Wordgard, width: number, height: number) {
+  let {state} = wg, {schema} = state.doc, cell = cellTag(schema)
   if (!cell) return
   let cellNode = schema.createAndFill(cell) as Plot, cells: Plot[] = []
   for (let i = 0; i < width; i++) cells.push(cellNode)
@@ -102,7 +102,7 @@ function insertTable(view: Wordgard, width: number, height: number) {
   let table = Table.create(rows), {from, to} = state.selection.replacemenRange
   let changes = ChangeSet.create(state.doc, {from, to, insert: [table], fit: true})
   let tablePos = changes.findInserted(tag => tag.type == Table.type)
-  view.dispatch({
+  wg.dispatch({
     changes,
     selection: cx => GardSelection.near(cx, tablePos == null ? from : tablePos + 3, 1),
     userEvent: "insert.table"
@@ -110,11 +110,11 @@ function insertTable(view: Wordgard, width: number, height: number) {
 }
 
 const dimensionPicker = new CustomControl({
-  render(view, done) {
-    return new DimensionPicker(view, (width, height) => {
+  render(wg, done) {
+    return new DimensionPicker(wg, (width, height) => {
       done()
-      insertTable(view, width, height)
-      view.focus()
+      insertTable(wg, width, height)
+      wg.focus()
     })
   }
 })
@@ -179,14 +179,14 @@ export namespace tableMenu {
   })
 
   export const addRowAbove = new MenuButton({
-    run: view => Command.dispatch(view, addRow, "before"),
+    run: wg => Command.dispatch(wg, addRow, "before"),
     label: phrase.ref("add_row_above"),
     parent: modifyTable,
     rank: 20,
   })
 
   export const addRowBelow = new MenuButton({
-    run: view => Command.dispatch(view, addRow, "after"),
+    run: wg => Command.dispatch(wg, addRow, "after"),
     label: phrase.ref("add_row_below"),
     parent: modifyTable,
     rank: 21,
@@ -200,14 +200,14 @@ export namespace tableMenu {
   })
 
   export const addColumnBefore = new MenuButton({
-    run: view => Command.dispatch(view, addColumn, "before"),
+    run: wg => Command.dispatch(wg, addColumn, "before"),
     label: phrase.ref("add_col_before"),
     parent: modifyTable,
     rank: 30,
   })
 
   export const addColumnAfter = new MenuButton({
-    run: view => Command.dispatch(view, addColumn, "after"),
+    run: wg => Command.dispatch(wg, addColumn, "after"),
     label: phrase.ref("add_col_after"),
     parent: modifyTable,
     rank: 31,
