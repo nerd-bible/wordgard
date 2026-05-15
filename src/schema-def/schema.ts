@@ -1,4 +1,4 @@
-import {elt, ParseRule, Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
+import {elt, ParseRule, Plot, Leaf, Node, Mark} from "wordgard/doc"
 
 const G = Node.Group
 
@@ -299,28 +299,3 @@ export const BackgroundColor = Mark.Type.define<string>("BackgroundColor", {
 export const Doc = Plot.defineDoc({
   blockContent: G.Content
 })
-
-// FIXME move? Drop?
-export const basicSchema = Schema.define([
-  Doc,
-  Paragraph,
-  Heading,
-  CodeBlock,
-  CodeBlockLanguage,
-  Blockquote,
-  Image,
-  ImageAlt,
-  LineBreak,
-  HorizontalRule,
-  BulletList,
-  OrderedList,
-  ListItem, // FIXME conflicts with inline list items
-  Emphasis,
-  Strong,
-  Link,
-  Code,
-  Underline,
-  Superscript,
-  Subscript,
-  Alignment
-])

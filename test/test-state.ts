@@ -1,7 +1,7 @@
 import ist from "ist"
 import {Leaf} from "wordgard/doc"
-import {basicBuilders} from "wordgard/schema-def"
 import {GardState} from "wordgard/state"
+import {basicBuilders} from "./schema.ts"
 const {doc, p} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }

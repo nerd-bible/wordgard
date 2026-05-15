@@ -3,11 +3,11 @@ import {Command, liftEmptyBlock, insertLineBreak, enter,
         deleteBackward, deleteForward, setTextblockType,
         wrapBlock, unwrapBlock, toggleList, toggleMark} from "wordgard/command"
 import {Plot, Mark, Leaf, Node, Schema, ChangeSet} from "wordgard/doc"
-import {basicSchema, basicBuilders, maybeTag, builder,
-        Paragraph, Heading, Blockquote, BulletList, OrderedList,
+import {Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/schema-def"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
+import {basicSchema, basicBuilders, maybeTag, builder} from "./schema.ts"
 
 const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
 

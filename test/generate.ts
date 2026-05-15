@@ -1,6 +1,7 @@
 import {Plot, Node, Mark, Leaf, Slice, type Token, ChangeSet, Schema} from "wordgard/doc"
-import {basicBuilders, Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
-        Emphasis, Strong, Code, Link, basicSchema, builder} from "wordgard/schema-def"
+import {Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
+        Emphasis, Strong, Code, Link} from "wordgard/schema-def"
+import {builder, basicBuilders, basicSchema} from "./schema.ts"
 const {p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 
 export const Comment = Mark.Type.define<readonly number[]>("Comment", {

@@ -2,10 +2,9 @@ import {Wordgard} from "wordgard/editor"
 import {Command, deleteLine} from "wordgard/command"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
-import {basicBuilders, maybeTag} from "wordgard/schema-def"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"
-
+import {basicBuilders, maybeTag} from "./schema.ts"
 const {doc, p} = basicBuilders
 
 function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }

@@ -1,9 +1,10 @@
 import {Wordgard} from "wordgard/editor"
 import {GardSelection} from "wordgard/state"
-import {basicBuilders, builder, Table, TableRow, Cell, basicSchema} from "wordgard/schema-def"
+import {Table, TableRow, Cell} from "wordgard/schema-def"
 import {Schema} from "wordgard/doc"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"
+import {basicSchema,basicBuilders, builder} from "./schema.ts"
 
 const schema = Schema.define(basicSchema.elements.concat(Table, TableRow, Cell))
 const {p, br, hr, blockquote, ul, li, strong, table, tr, td} = basicBuilders

@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/editor"
 import {Leaf} from "wordgard/doc"
-import {basicBuilders} from "wordgard/schema-def"
+import {basicBuilders} from "./schema.ts"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"
 

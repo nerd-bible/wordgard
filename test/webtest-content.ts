@@ -2,9 +2,9 @@ import {Wordgard, tagShape, tagDecoration, Widget, PointSet,
         RangeSet, RangeDecoration, Decoration} from "wordgard/editor"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark, Token} from "wordgard/doc"
-import {basicBuilders, CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, builder} from "wordgard/schema-def"
+import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt} from "wordgard/schema-def"
 import ist from "ist"
-
+import {builder, basicBuilders} from "./schema.ts"
 const {DocTile} = Wordgard
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
 

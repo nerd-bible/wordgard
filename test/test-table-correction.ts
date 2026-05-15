@@ -1,10 +1,9 @@
 import {Plot, Schema} from "wordgard/doc"
-import {basicSchema, basicBuilders, builder, Table, TableRow,
-        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 import {tableCorrection} from "wordgard/table"
 import {GardState} from "wordgard/state"
 import ist from "ist"
-
+import {basicSchema, basicBuilders, builder} from "./schema.ts"
 const {table, tr, td, rowspan, colspan} = basicBuilders
 
 const schema = Schema.define(basicSchema.elements.concat([Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan]))

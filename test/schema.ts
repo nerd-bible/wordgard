@@ -1,10 +1,9 @@
 import {Plot, Leaf, Node, Mark, Schema} from "wordgard/doc"
-import {basicSchema} from "./schema"
-import {Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
+import {Doc, Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Image, ImageAlt, Figure, CaptionedFigure,
-        Emphasis, Strong, Code, Link,
-        Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "./schema"
+        Emphasis, Strong, Code, Link, Underline, Superscript, Subscript, Alignment,
+        Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 
 export type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
@@ -101,6 +100,30 @@ export function tag(node: Plot, id: number): number {
   if (value == null) throw new Error(`Undefined tag ${id}`)
   return value
 }
+
+export const basicSchema = Schema.define([
+  Doc,
+  Paragraph,
+  Heading,
+  CodeBlock,
+  CodeBlockLanguage,
+  Blockquote,
+  Image,
+  ImageAlt,
+  LineBreak,
+  HorizontalRule,
+  BulletList,
+  OrderedList,
+  ListItem,
+  Emphasis,
+  Strong,
+  Link,
+  Code,
+  Underline,
+  Superscript,
+  Subscript,
+  Alignment
+])
 
 export const basicBuilders = {
   doc: builder(basicSchema),

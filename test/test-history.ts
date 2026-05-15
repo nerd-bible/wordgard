@@ -1,10 +1,10 @@
 import {history, undo, redo, undoDepth, redoDepth} from "wordgard/history"
 import {Plot, Leaf, ChangeSet} from "wordgard/doc"
-import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema-def"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {Command} from "wordgard/command"
 import ist from "ist"
 
+import {basicBuilders, maybeTag, basicSchema} from "./schema.ts"
 const {doc, p} = basicBuilders
 
 function mkState(d: Plot.Doc = doc(p(0)), cfg?: Parameters<typeof history>[0]) {

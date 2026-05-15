@@ -1,5 +1,5 @@
 import {Wordgard, defaultKeymap, menuBar} from "wordgard/editor"
-import {basicSchema} from "wordgard/schema-def"
+import {Doc, Paragraph, Blockquote, LineBreak} from "wordgard/schema-def"
 import {image, figure, imageResizing} from "wordgard/image"
 import {orderedList, bulletList} from "wordgard/list"
 import {staticMenu} from "wordgard/menu"
@@ -12,7 +12,7 @@ import {allMarks} from "wordgard/mark"
   doc: `<p><span style="color: red">Hell</span>o</p>
 `,
   config: [
-    basicSchema.elements,
+    Doc, Paragraph, Blockquote, LineBreak,
     orderedList(), bulletList(),
     image(),
     figure({captioned: true}),

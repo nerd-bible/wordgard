@@ -1,6 +1,6 @@
 import {GardState, Transaction} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
-import {basicBuilders} from "wordgard/schema-def"
+import {basicBuilders} from "./schema.ts"
 import {history, undo, redo} from "wordgard/history"
 import ist from "ist"
 import {collab, receiveUpdates, sendableUpdate, type Update, getSyncedVersion, getClientID} from "wordgard/collab"

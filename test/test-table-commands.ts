@@ -1,12 +1,11 @@
 import {Command} from "wordgard/command"
 import {Plot, Schema} from "wordgard/doc"
-import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow,
-        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 import {CellSelection, toggleHeaderCell,
         addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
-
+import {basicSchema, basicBuilders, builder, maybeTag} from "./schema.ts"
 const {p, table, tr, td, th, rowspan, colspan} = basicBuilders
 
 const schema = Schema.define(basicSchema.elements.concat([Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan]))

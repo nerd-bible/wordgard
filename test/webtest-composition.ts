@@ -1,9 +1,9 @@
 import {Wordgard} from "wordgard/editor"
-import {basicBuilders, Strong} from "wordgard/schema-def"
+import {Strong} from "wordgard/schema-def"
 import {GardSelection} from "wordgard/state"
 import ist from "ist"
 import {tempEditor, requireFocus} from "./tempview.ts"
-
+import {basicBuilders} from "./schema.ts"
 const {doc, p, strong, em} = basicBuilders
 
 function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }

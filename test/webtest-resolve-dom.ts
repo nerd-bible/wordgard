@@ -1,8 +1,8 @@
 import {Wordgard, Widget, Decoration, PointSet} from "wordgard/editor"
 import {GardState} from "wordgard/state"
 import {Plot, Leaf, elt} from "wordgard/doc"
-import {basicBuilders} from "wordgard/schema-def"
 import ist from "ist"
+import {basicBuilders} from "./schema.ts"
 
 const {DocTile} = Wordgard
 const {doc, p, $img, hr, capFig, strong, em, code} = basicBuilders
