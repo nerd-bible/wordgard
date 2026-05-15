@@ -167,14 +167,19 @@ export abstract class GardSelection {
     return GardSelection.cursor(norm.pos, norm.side)
   }
 
-  /// Find a normal selection at the start of the document.
-  static atStart(cx: GardSelection.Context) { return cursorAtStart(toContext(cx)) }
+  /// Find a normal selection at the start of the document or the
+  /// given textblock.
+  static atStart(cx: GardSelection.Context, block?: Pos.Plot) {
+    return cursorAtStart(toContext(cx), block)
+  }
 
-  /// Find a normal selection at the end of the document.
-  static atEnd(cx: GardSelection.Context) {
+  /// Find a normal selection at the end of the document or the given
+  /// textblock.
+  static atEnd(cx: GardSelection.Context, block?: Pos.Plot) {
     let c = toContext(cx)
-    let found = c.doc.inlineContent
-      ? TextblockMap.get(0, c.doc, textDir(c)).visualTextblockSide(false)
+    let found = block
+      ? TextblockMap.get(block.start, block.node, textDir(c, block.node.tag)).visualTextblockSide(false)
+      : c.doc.inlineContent ? TextblockMap.get(0, c.doc, textDir(c)).visualTextblockSide(false)
       : scanNormalFrom(c, c.doc.length, -1, false, false) ?? {pos: c.doc.length, side: -1}
     return GardSelection.cursor(found.pos, found.side)
   }
@@ -430,9 +435,10 @@ function visualMotion(cx: Context) {
   return cx.config ? cx.config.visualCursorMotion : true
 }
 
-export function cursorAtStart(cx: Context) {
-  let found = cx.doc.inlineContent
-    ? TextblockMap.get(0, cx.doc, textDir(cx, cx.doc.tag)).visualTextblockSide(true)
+export function cursorAtStart(cx: Context, block?: Pos.Plot) {
+  let found = block
+    ? TextblockMap.get(block.start, block.node, textDir(cx, block.node.tag)).visualTextblockSide(true)
+    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, textDir(cx, cx.doc.tag)).visualTextblockSide(true)
     : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, side: 1}
   return GardSelection.cursor(found.pos, found.side)
 }

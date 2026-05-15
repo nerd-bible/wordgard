@@ -159,6 +159,7 @@ export namespace Transaction {
     /// When set, this transaction explicitly updates the selection.
     /// Offsets in this selection should refer to the document as it is
     /// _after_ the transaction.
+    // FIXME should this pass a selection context?
     selection?: GardSelection | GardSelection.Text.Spec | ((doc: Plot.Doc) => GardSelection) | undefined,
     /// Attach [state effects](#state.StateEffect) to this transaction.
     /// Again, when they contain positions and this same spec makes

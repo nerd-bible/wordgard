@@ -3,7 +3,7 @@ import {GardSelection, GardState, Direction, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/view"
 import {Command} from "./command"
 import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBlocks,
-        deleteSelection, deleteForward, deleteBackward,
+        deleteSelection, deleteEmptyTextblock, deleteForward, deleteBackward,
         splitTextblock, joinListItems, findUnwrappable, doUnwrapBlock,
         findWrappable, wrapBlockRange,
         canAddMarkInRange, selectedTextblocks} from "./helper"
@@ -21,15 +21,13 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 export const insertText: Command.Pure<{from: number, to: number, insert: string, userEvent: string}> = (
   {state}, {from, to, insert, userEvent}
 ) => {
-  // FIXME support getting the default transaction spec somehow?
-  // FIXME separate selection replacement from range replacement
   let {selection} = state
-  let marks = from == selection.from && to == selection.to ? state.sel.activeMarks : state.doc.resolve(to).marks()
+  let marks = (from == selection.from && to == selection.to && state.sel.activeMarks) ||
+    state.doc.resolve(from).marks(state.doc.resolve(to))
   let changes = ChangeSet.create(state.doc, {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true})
   return {
     changes,
-    // FIXME this will not move into the new paragraph when inserting from a block cursor
-    selection: GardSelection.cursor(changes.mapPos(to, 1), -1),
+    selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(to, 1), -1),
     normalizeSelection: true,
     userEvent
   }
@@ -84,18 +82,16 @@ export const enter: Command.Pure = ({state}) => {
   return liftEmptyBlock(state) || splitTextblock(state)
 }
 
-// FIXME clear empty textblock at cursor, if possible
-
 export const deleteUnit: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
   return deleteSelection(state) || (dir == "forward"
-    ? joinForward(state) || deleteForward(state)
-    : joinListItems(state) || joinBackward(state) || deleteBackward(state))
+    ? joinForward(state) || deleteForward(state) || deleteEmptyTextblock(state, 1)
+    : joinListItems(state) || joinBackward(state) || deleteBackward(state) || deleteEmptyTextblock(state, -1))
 }
 
 export const deleteWord: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
   return deleteSelection(state) || (dir == "forward"
-    ? joinForward(state) || deleteForward(state, true)
-    : joinListItems(state) || joinBackward(state) || deleteBackward(state, true))
+    ? joinForward(state) || deleteForward(state, true) || deleteEmptyTextblock(state, 1)
+    : joinListItems(state) || joinBackward(state) || deleteBackward(state, true) || deleteEmptyTextblock(state, -1))
 }
 
 export const deleteToLineEnd: Command<"forward" | "backward"> = (view, dir) => {
@@ -480,12 +476,20 @@ export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (view
   return moved ? setSelection(extend ? extendSel(selection, moved as GardSelection.Text) : moved) : false
 }
 
-// FIXME do we need a motion to texblock start/end variant?
 export const moveToLineSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
 }> = (view, {dir, extend}) => {
   let pos = view.moveToLineBoundary(view.state.selection, isForward(dir, view.state))
   return pos ? setSelection(extend ? extendSel(view.state.selection, pos) : pos) : false
+}
+
+export const moveToTextblockSide: Command<{
+  dir: "left" | "right" | "forward" | "backward", extend?: boolean,
+}> = (view, {dir, extend}) => {
+  let {state} = view, block = state.sel.head.textblockParent
+  if (!block) return false
+  let pos = isForward(dir, view.state) ? GardSelection.atEnd(state, block) : GardSelection.atStart(state, block)
+  return setSelection(extend ? extendSel(view.state.selection, pos) : pos)
 }
 
 export const moveToDocSide: Command.Pure<{side: "start" | "end", extend?: boolean}> = (target, {side, extend}) => {

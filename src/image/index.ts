@@ -1,2 +1,2 @@
 export {resizeImage, InsertImageButton, image, figure, imageResizing} from "./image"
-export {insertImage} from "./dialog"
+export {insertImage, phrases} from "./dialog"

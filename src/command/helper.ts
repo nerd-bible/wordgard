@@ -2,7 +2,7 @@ import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet, Schema} from "wordgard/do
 import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
-// FIXME should these get their own module?
+// FIXME should these get their own module? or move them to Transaction?
 
 /// If the cursor is in an empty textblock that can be lifted out of a
 /// parent, return a transaction that does this.
@@ -103,6 +103,19 @@ export function deleteSelection(state: GardState): Transaction.Spec | false {
     scrollIntoView: true,
     userEvent: "delete.selection"
   })
+}
+
+export function deleteEmptyTextblock(state: GardState, dir: -1 | 1 = -1): Transaction.Spec | false {
+  if (!state.selection.isCursor) return false
+  let block = state.sel.head.textblockParent
+  if (!block || block.start < block.end || block.before == 0 && block.after == state.doc.length) return false
+  let changes = ChangeSet.create(state.doc, {from: block.before, to: block.after, fit: true})
+  return {
+    changes,
+    selection: doc => GardSelection.near({doc, config: state.config}, changes.mapPos(state.selection.head), dir),
+    scrollIntoView: true,
+    userEvent: dir < 0 ? "delete.backward" : "delete.forward"
+  }
 }
 
 /// If the cursor is at the start of a textblock that can be joined to
