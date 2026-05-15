@@ -240,17 +240,14 @@ function instantiate(item: ResolvedMenuItem, bar: MenuBar, flat: BarElement[]): 
   return elt
 }
 
-const menuPlugin = Panel.show.of(view => {
-  let bar = new MenuBar(view, view.state.facet(barTemplate))
+const menuBarPanel = Panel.show.of(view => {
+  let bar = new MenuBar(view)
   return {
     dom: bar.dom,
     update: u => bar.update(u),
     top: true
   }
 })
-
-// FIXME use some kind of getter system to build up the menu, for
-// finer control
 
 class MenuBar {
   dom: HTMLElement
@@ -260,7 +257,7 @@ class MenuBar {
   focusTimeout = -1
   items: readonly MenuItem[]
 
-  constructor(readonly view: Wordgard, readonly template: MenuTemplate | readonly MenuTemplate[]) {
+  constructor(readonly view: Wordgard) {
     this.dom = document.createElement("wg-menubar")
     this.dom.role = "toolbar"
     this.dom.setAttribute("aria-controls", view.contentDOM.id)
@@ -275,7 +272,7 @@ class MenuBar {
   init() {
     let elts: BarElement[] = []
     this.elts = elts
-    let children = resolveMenu(this.items, this.template).map(i => instantiate(i, this, elts))
+    let children = resolveMenu(this.items, this.view.state.facet(barTemplate)).map(i => instantiate(i, this, elts))
     this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
@@ -284,7 +281,9 @@ class MenuBar {
 
   update(update: Wordgard.Update) {
     let items = update.state.facet(menuItem)
-    if (items != this.items || PhraseSet.didChange(update.startState, update.state)) {
+    if (items != this.items ||
+        update.startState.facet(barTemplate) != update.state.facet(barTemplate) ||
+        PhraseSet.didChange(update.startState, update.state)) {
       this.items = items
       this.dom.textContent = ""
       this.init()
@@ -355,7 +354,7 @@ class MenuBar {
         } else if (child.children) {
           let inner = defaultChild(child.children)
           if (inner) this.setSelection(this.selection.concat(inner))
-        } else { // FIXME exclude custom
+        } else {
           if (child.run) child.run(this.view)
           this.setSelection([this.selection[0]])
         }
@@ -555,7 +554,7 @@ const barTemplate = Facet.define<readonly MenuTemplate[], readonly MenuTemplate[
 export function menuBar(config: {
   template?: MenuTemplate | readonly MenuTemplate[]
 } = {}): GardState.Extension {
-  let extensions = [menuPlugin, theme]
+  let extensions = [menuBarPanel, theme]
   if (config.template) extensions.push(barTemplate.of(Array.isArray(config.template) ? config.template : [config.template]))
   return extensions
 }
