@@ -3,7 +3,7 @@
 import {Wordgard} from "wordgard/editor"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
-import {maybeTag} from "wordgard/schema"
+import {maybeTag} from "wordgard/schema-def"
 
 const workspace: HTMLElement = document.querySelector("#workspace")! as HTMLElement
 

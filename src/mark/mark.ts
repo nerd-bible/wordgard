@@ -2,7 +2,7 @@ import {MenuButton, Top, MenuGroup, Submenu, MenuLabel, icon} from "wordgard/men
 import {Mark} from "wordgard/doc"
 import {PhraseSet, GardState} from "wordgard/state"
 import {Command, toggleMark, canAddMarkInRange} from "wordgard/command"
-import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgard/schema"
+import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 

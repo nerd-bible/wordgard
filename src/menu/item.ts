@@ -3,7 +3,7 @@ import {Command, setTextblockType, toggleBlock, setAlignment} from "wordgard/com
 import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
 import {Plot, Pos} from "wordgard/doc"
 import {phrases} from "wordgard/phrases"
-import {Paragraph, CodeBlock, Heading, Blockquote, Alignment} from "wordgard/schema"
+import {Paragraph, CodeBlock, Heading, Blockquote, Alignment} from "wordgard/schema-def"
 import {icon} from "./icon"
 
 export type MenuLabelWidget = {

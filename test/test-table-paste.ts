@@ -1,6 +1,6 @@
 import {Plot, Schema, Slice, Leaf, Token} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow,
-        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema"
+        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 import {CellSelection, handleTablePaste} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"

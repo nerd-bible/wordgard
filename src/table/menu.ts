@@ -1,7 +1,7 @@
 import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
 import {Wordgard} from "wordgard/editor"
 import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
-import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema"
+import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command} from "wordgard/command"
 import {cellTag, headerCellTag, addRow, deleteRow as _deleteRow, addColumn,

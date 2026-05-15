@@ -1,7 +1,7 @@
 import {CustomControl, Submenu, icon} from "wordgard/menu"
 import {PhraseSet, GardState, GardSelection, Direction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
-import {Color, BackgroundColor} from "wordgard/schema"
+import {Color, BackgroundColor} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {Wordgard} from "wordgard/editor"
 import {inlineStyleGroup} from "./mark"

@@ -1,5 +1,5 @@
 import {Command, toggleList, listIsActive} from "wordgard/command"
-import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema"
+import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema-def"
 import {MenuButton, BlockMenu, icon} from "wordgard/menu"
 import {phrases} from "wordgard/phrases"
 import {InputRule} from "wordgard/inputrule"

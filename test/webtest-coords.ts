@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/editor"
 import {GardSelection} from "wordgard/state"
-import {basicBuilders, builder, Table, TableRow, Cell, basicSchema} from "wordgard/schema"
+import {basicBuilders, builder, Table, TableRow, Cell, basicSchema} from "wordgard/schema-def"
 import {Schema} from "wordgard/doc"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"

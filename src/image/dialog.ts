@@ -1,7 +1,7 @@
 import {Node, Mark, ChangeSet, Plot} from "wordgard/doc"
 import {Wordgard, Panel, showDialog} from "wordgard/editor"
 import {GardState, Transaction, GardSelection, Facet, Direction, PhraseSet} from "wordgard/state"
-import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wordgard/schema"
+import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wordgard/schema-def"
 import {Command} from "wordgard/command"
 import cr from "crelt"
 

@@ -1,7 +1,7 @@
 import {MenuButton, icon} from "wordgard/menu"
 import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
-import {Link} from "wordgard/schema"
+import {Link} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {Wordgard, showDialog, KeyBinding, Tooltip} from "wordgard/editor"
 import {inlineStyleGroup} from "./mark"

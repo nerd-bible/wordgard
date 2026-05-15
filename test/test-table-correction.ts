@@ -1,6 +1,6 @@
 import {Plot, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, Table, TableRow,
-        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema"
+        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 import {tableCorrection} from "wordgard/table"
 import {GardState} from "wordgard/state"
 import ist from "ist"

@@ -1,6 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Pos, Node, ChangeSet, Schema} from "wordgard/doc"
-import {TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema"
+import {TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 import {Command} from "wordgard/command"
 
 import {TableMap} from "./tablemap"

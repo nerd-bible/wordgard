@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Plot, Leaf, Node} from "wordgard/doc"
-import {basicBuilders, tag, Paragraph, Image, basicSchema as schema} from "wordgard/schema"
+import {basicBuilders, tag, Paragraph, Image, basicSchema as schema} from "wordgard/schema-def"
 const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilders
 
 describe("Node", () => {

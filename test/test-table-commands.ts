@@ -1,7 +1,7 @@
 import {Command} from "wordgard/command"
 import {Plot, Schema} from "wordgard/doc"
 import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow,
-        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema"
+        Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 import {CellSelection, toggleHeaderCell,
         addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"

@@ -1,6 +1,6 @@
 import {history, undo, redo, undoDepth, redoDepth} from "wordgard/history"
 import {Plot, Leaf, ChangeSet} from "wordgard/doc"
-import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema"
+import {basicBuilders, maybeTag, basicSchema} from "wordgard/schema-def"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {Command} from "wordgard/command"
 import ist from "ist"

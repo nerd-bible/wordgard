@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Schema, Plot, Node} from "wordgard/doc"
-import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow, Cell, HeaderCell} from "wordgard/schema"
+import {basicSchema, basicBuilders, builder, maybeTag, Table, TableRow, Cell, HeaderCell} from "wordgard/schema-def"
 import {GardSelection, GardState, Direction} from "wordgard/state"
 const {p, hr, blockquote, pre, $img, table, tr, td, th} = basicBuilders
 

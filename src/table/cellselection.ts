@@ -1,7 +1,7 @@
 import {GardState, GardSelection, Direction} from "wordgard/state"
 import {Decoration, PointSet, Wordgard} from "wordgard/editor"
 import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
-import {Table, TableRow} from "wordgard/schema"
+import {Table, TableRow} from "wordgard/schema-def"
 import {Command, moveByUnit, moveByLine, moveByWord, moveToLineSide} from "wordgard/command"
 
 import {TableMap} from "./tablemap"

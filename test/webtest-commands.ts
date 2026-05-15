@@ -2,7 +2,7 @@ import {Wordgard} from "wordgard/editor"
 import {Command, deleteLine} from "wordgard/command"
 import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
-import {basicBuilders, maybeTag} from "wordgard/schema"
+import {basicBuilders, maybeTag} from "wordgard/schema-def"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"
 
