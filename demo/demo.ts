@@ -1,6 +1,5 @@
 import {Wordgard, defaultKeymap, menuBar} from "wordgard/editor"
 import {fullSchema} from "wordgard/schema"
-import {staticMenu} from "wordgard/menu"
 import {history} from "wordgard/history"
 import {tables, tableMenu} from "wordgard/table"
 
@@ -12,7 +11,6 @@ import {tables, tableMenu} from "wordgard/table"
     fullSchema(),
     defaultKeymap,
     history(),
-    staticMenu,
     menuBar(),
     tables(), tableMenu(),
   ]

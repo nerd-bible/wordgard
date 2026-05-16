@@ -64,6 +64,7 @@ export class MenuButton extends BaseItem {
     this.active = spec.active
     this.label = spec.label
     this.extension = menuItem.of(this)
+    if (this.parent) this.extension = [this.parent.extension, this.extension]
   }
 }
 
@@ -162,12 +163,6 @@ export const TextblockStyle = new Submenu({
   rank: 5,
   width: 10,
 })
-
-// FIXME drop
-export const staticMenu: GardState.Extension[] = [
-  Commands, BlockMenu,
-  TextblockStyle,
-]
 
 export type ResolvedMenuItem = MenuButton | CustomControl | "|" | ResolvedSubmenu
 

@@ -28,7 +28,7 @@ export namespace strong {
 }
 
 export function emphasis(): GardState.Extension {
-  return [Emphasis, emphasis.button, inlineStyleGroup, emphasis.keyBinding]
+  return [Emphasis, emphasis.button, emphasis.keyBinding]
 }
 
 export namespace emphasis {
@@ -47,7 +47,7 @@ export namespace emphasis {
 }
 
 export function code(): GardState.Extension {
-  return [Code, code.button, inlineStyleGroup, code.keyBinding]
+  return [Code, code.button, code.keyBinding]
 }
 
 export namespace code {
@@ -66,7 +66,7 @@ export namespace code {
 }
 
 export function underline(): GardState.Extension {
-  return [Underline, underline.button, inlineStyleGroup, underline.keyBinding]
+  return [Underline, underline.button, underline.keyBinding]
 }
 
 export namespace underline {
@@ -86,7 +86,7 @@ export namespace underline {
 }
 
 export function superscript(): GardState.Extension {
-  return [Superscript, superscript.button, inlineStyleGroup, superscript.keyBinding]
+  return [Superscript, superscript.button, superscript.keyBinding]
 }
 
 export namespace superscript {
@@ -105,7 +105,7 @@ export namespace superscript {
 }
 
 export function subscript(): GardState.Extension {
-  return [Subscript, subscript.button, inlineStyleGroup, subscript.keyBinding]
+  return [Subscript, subscript.button, subscript.keyBinding]
 }
 
 export namespace subscript {
