@@ -1,7 +1,7 @@
 import {Command, Menu, toggleList, listIsActive} from "wordgard/command"
 import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
-import {InputRule} from "wordgard/inputrule"
+import {InputRule} from "wordgard/editor"
 
 export function bulletList(config: {blockItems?: boolean} = {}) {
   return [BulletList, config.blockItems == false ? InlineListItem : ListItem, bulletList.toggleButton, bulletList.createOnDash]

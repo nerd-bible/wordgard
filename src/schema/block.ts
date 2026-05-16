@@ -4,8 +4,7 @@ import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, HorizontalRul
 import {phrases} from "wordgard/phrases"
 import {Command, Menu, setTextblockType, setAlignment, toggleBlock} from "wordgard/command"
 import {history} from "wordgard/history"
-import {KeyBinding, Wordgard} from "wordgard/editor"
-import {InputRule} from "wordgard/inputrule"
+import {Wordgard, KeyBinding, InputRule} from "wordgard/editor"
 
 export function blockDoc(): GardState.Extension {
   return Doc
