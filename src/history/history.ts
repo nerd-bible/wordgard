@@ -215,8 +215,12 @@ class Branch {
     // Map the effects over the original mapping, and the selection
     // (referring to the state before this event's changes) over the
     // updated mapping.
+    let selDoc: Plot.Doc | undefined, selCx = {
+      get doc() { return selDoc || (selDoc = mappedChanges.apply(change.apply(doc))) },
+      config
+    }
     return new Branch(mappedChanges, Transaction.Effect.mapEffects(this.effects, change), null,
-                      this.startSelection.map(mappedMapping, {doc: mappedChanges.apply(change.apply(doc)), config}), next)
+                      this.startSelection.map(mappedMapping, selCx), next)
   }
 
   // When serializing to JSON, we first fully resolve the whole history.

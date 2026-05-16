@@ -146,7 +146,7 @@ export class Transaction {
     let seq = !!b.sequential
     let rA = resolveTransactionInner(state.doc, state.config, a)
     let rB = resolveTransactionInner(!seq || rA.changes.empty ? state.doc : rA.changes.apply(state.doc), state.config, b)
-    return mergeTransaction(state.doc, state.config, rA, rB, seq)
+    return mergeTransaction(state, rA, rB, seq)
   }
 }
 
@@ -326,22 +326,24 @@ type ResolvedSpec = {
   filter?: boolean
 }
 
-export function mergeTransaction(doc: Plot.Doc, config: GardState.Configuration,
-                                 a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
+export function mergeTransaction(state: GardState, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
   let mapForA, mapForB, changes
   if (sequential) {
     mapForA = b.changes
     mapForB = ChangeSet.empty(b.changes.length)
     changes = a.changes.compose(b.changes)
   } else {
-    mapForA = b.changes.map(a.changes, doc)
-    mapForB = a.changes.map(b.changes, doc, true)
+    mapForA = b.changes.map(a.changes, state.doc)
+    mapForB = a.changes.map(b.changes, state.doc, true)
     changes = a.changes.compose(mapForA)
+  }
+  let newDoc: Plot.Doc | undefined, selCx = {
+    get doc() { return newDoc || (newDoc = changes.apply(state.doc)) },
+    config: state.config
   }
   return {
     changes,
-    selection: b.selection ? b.selection.map(mapForB, {doc: changes.apply(doc), config})
-      : a.selection?.map(mapForA, {doc: changes.apply(doc), config}),
+    selection: b.selection ? b.selection.map(mapForB, selCx) : a.selection?.map(mapForA, selCx),
     effects: Transaction.Effect.mapEffects(a.effects, mapForA).concat(Transaction.Effect.mapEffects(b.effects, mapForB)),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
     scrollIntoView: a.scrollIntoView || b.scrollIntoView,
@@ -372,7 +374,7 @@ export function resolveTransaction(state: GardState, specs: readonly Transaction
     if (spec.filter === false) filter = false
     let seq = !!spec.sequential
     let s2 = resolveTransactionInner(seq && spec.changes ? s.changes.apply(state.doc) : state.doc, state.config, spec)
-    s = mergeTransaction(state.doc, state.config, s, s2, !!spec.sequential)
+    s = mergeTransaction(state, s, s2, !!spec.sequential)
   }
   let tr = Transaction.create(state, s.changes, s.selection, s.effects, s.annotations, s.scrollIntoView)
   return extendTransaction(filter ? filterTransaction(tr) : tr)
@@ -397,7 +399,7 @@ function extendTransaction(tr: Transaction) {
   for (let i = extenders.length - 1; i >= 0; i--) {
     let extension = extenders[i](tr)
     if (extension && Object.keys(extension).length)
-      spec = mergeTransaction(state.doc, state.config, tr, resolveTransactionInner(state.doc, state.config, extension), true)
+      spec = mergeTransaction(state, tr, resolveTransactionInner(state.doc, state.config, extension), true)
   }
   return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, spec.effects,
                                               spec.annotations, spec.scrollIntoView)
