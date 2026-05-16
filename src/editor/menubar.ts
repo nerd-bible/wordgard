@@ -546,7 +546,7 @@ const theme = Wordgard.baseTheme({
 })
 
 const barTemplate = Facet.define<readonly Menu.Template[], readonly Menu.Template[]>({
-  combine: inputs => inputs.length ? inputs[0] : [Menu.Top.template()]
+  combine: inputs => inputs.length ? inputs[0] : [Menu.Group.top.template()]
 })
 
 export function menuBar(config: {

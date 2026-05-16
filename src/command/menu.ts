@@ -2,6 +2,10 @@ import {type Wordgard} from "wordgard/editor"
 import {Command} from "wordgard/command"
 import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
 import {phrases} from "wordgard/phrases"
+import {Mark} from "wordgard/doc"
+
+import {canAddMarkInRange} from "./helper"
+import {toggleMark as _toggleMark} from "./commands"
 
 export namespace Menu {
   export type Label = PhraseSet.Ref | {icon: string, directional?: boolean} | LabelWidget
@@ -75,6 +79,34 @@ export namespace Menu {
       active?: (state: GardState) => boolean
       label: Label
     }
+
+    /// Creates a menu button that toggles an inline mark via {@link
+    /// toggleMark}, and is shown as active when either that mark is part
+    /// of the marks associated with the current cursor, or the selection
+    /// covers only content with that mark.
+    export function toggleMark(config: {
+      mark: Mark<any>,
+      parent?: Menu.Group | Menu.Submenu
+      rank?: number
+      description?: PhraseSet.Ref
+      label: Menu.Label
+    }) {
+      let {mark, parent, rank, description, label} = config
+      return Menu.Button.define({
+        run: Command.bind(_toggleMark, mark),
+        active(state) {
+          let {selection} = state
+          if (selection.isCursor)
+            return !!mark.isInSet(state.sel.activeMarks)
+          else
+            return !selection.ranges.some(r => canAddMarkInRange(state.doc, r.from, r.to, mark))
+        },
+        parent,
+        rank,
+        description,
+        label
+      })
+    }
   }
 
   export class CustomControl extends Item.Base {
@@ -99,6 +131,42 @@ export namespace Menu {
       render: (wg: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
       setEnabled?: (focus: Element, enabled: boolean) => void
     }
+  }
+
+  export class Group {
+    margin: boolean
+    extension: GardState.Extension
+    parent: Group | Submenu | undefined
+    rank: number
+    content: readonly (Item | "...")[] | undefined
+
+    private constructor(readonly spec: Group.Spec) {
+      this.margin = !!spec.margin
+      this.extension = Item.source.of(this)
+      this.parent = spec.parent
+      this.rank = spec.rank ?? 100
+      this.content = spec.content
+    }
+
+    template(...content: (Template | Item | "...")[]) {
+      return new Template(this, content.length ? content : ["..."])
+    }
+
+    static define(spec: Group.Spec = {}) { return new Group(spec) }
+  }
+
+  export namespace Group {
+    export interface Spec {
+      margin?: boolean
+      parent?: Group | Submenu
+      rank?: number,
+      content?: readonly (Item | "...")[]
+    }
+
+    export const top = Group.define()
+    export const commands = Group.define({parent: Group.top, rank: 10})
+    export const blockMenu = Group.define({parent: Group.top, rank: 50, margin: true})
+    export const inlineStyle = Group.define({parent: Menu.Group.top, rank: 30, margin: true})
   }
 
   export class Submenu extends Item.Base {
@@ -138,37 +206,14 @@ export namespace Menu {
     export class Resolved {
       constructor(readonly item: Submenu, readonly content: readonly ResolvedItem[]) {}
     }
-  }
 
-  export class Group {
-    margin: boolean
-    extension: GardState.Extension
-    parent: Group | Submenu | undefined
-    rank: number
-    content: readonly (Item | "...")[] | undefined
-
-    private constructor(readonly spec: Group.Spec) {
-      this.margin = !!spec.margin
-      this.extension = Item.source.of(this)
-      this.parent = spec.parent
-      this.rank = spec.rank ?? 100
-      this.content = spec.content
-    }
-
-    template(...content: (Template | Item | "...")[]) {
-      return new Template(this, content.length ? content : ["..."])
-    }
-
-    static define(spec: Group.Spec = {}) { return new Group(spec) }
-  }
-
-  export namespace Group {
-    export interface Spec {
-      margin?: boolean
-      parent?: Group | Submenu
-      rank?: number,
-      content?: readonly (Item | "...")[]
-    }
+    export const textblockStyle = Menu.Submenu.define({
+      defaultLabel: phrases.ref("block_style"),
+      description: phrases.ref("block_style"),
+      parent: Group.top,
+      rank: 5,
+      width: 10,
+    })
   }
 
   export class Template {
@@ -181,24 +226,11 @@ export namespace Menu {
     }
   }
 
-  // FIXME lowercase, move inline mark menu back here
-  export const Top = Group.define()
-  export const Commands = Group.define({parent: Top, rank: 10})
-  export const BlockMenu = Group.define({parent: Top, rank: 50, margin: true})
-
-  export const TextblockStyle = Menu.Submenu.define({
-    defaultLabel: phrases.ref("block_style"),
-    description: phrases.ref("block_style"),
-    parent: Top,
-    rank: 5,
-    width: 10,
-  })
-
   export type ResolvedItem = Button | CustomControl | "|" | Submenu.Resolved
 
   export function resolve(
     items: readonly Item[],
-    template: Template | readonly Template[] = Top.template(),
+    template: Template | readonly Template[] = Group.top.template(),
     suppress?: readonly Item[]
   ): readonly ResolvedItem[] {
     // 1 means not used yet, but will be used in template, so ignore

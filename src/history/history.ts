@@ -363,7 +363,7 @@ export const undoButton = Menu.Button.define({
   label: icon.Undo,
   description: phrases.ref("undo"),
   enable: s => undoDepth(s) > 0,
-  parent: Menu.Commands,
+  parent: Menu.Group.commands,
   rank: 10
 })
 
@@ -372,6 +372,6 @@ export const redoButton = Menu.Button.define({
   label: icon.Redo,
   description: phrases.ref("redo"),
   enable: s => redoDepth(s) > 0,
-  parent: Menu.Commands,
+  parent: Menu.Group.commands,
   rank: 20
 })

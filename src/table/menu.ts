@@ -155,7 +155,7 @@ export namespace tableMenu {
     },
     label: icon.Table,
     description: phrase.ref("insert_table"),
-    parent: Menu.Commands,
+    parent: Menu.Group.commands,
     rank: 90,
     content: [dimensionPicker]
   })
@@ -166,7 +166,7 @@ export namespace tableMenu {
     },
     label: icon.Table,
     description: phrase.ref("modify_table"),
-    parent: Menu.Commands,
+    parent: Menu.Group.commands,
     rank: 90
   })
 

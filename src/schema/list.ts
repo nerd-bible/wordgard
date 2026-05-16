@@ -16,7 +16,7 @@ export namespace bulletList {
     active: listIsActive(BulletList),
     label: icon.BulletList,
     description: phrases.ref("toggle_bullet_list"),
-    parent: Menu.BlockMenu,
+    parent: Menu.Group.blockMenu,
     rank: 20
   })
 }
@@ -33,7 +33,7 @@ export namespace orderedList {
     active: listIsActive(OrderedList.default!),
     label: icon.OrderedList,
     description: phrases.ref("toggle_ordered_list"),
-    parent: Menu.BlockMenu,
+    parent: Menu.Group.blockMenu,
     rank: 30
   })
 }

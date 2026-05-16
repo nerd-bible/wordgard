@@ -5,7 +5,6 @@ import {GardState, Transaction} from "wordgard/state"
 import {Link} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {Wordgard, showDialog, KeyBinding, Tooltip} from "wordgard/editor"
-import {inlineStyleGroup} from "./mark"
 
 function toggleLink(wg: Wordgard) {
   let {selection, doc} = wg.state
@@ -93,7 +92,7 @@ const linkTooltipTheme = Wordgard.baseTheme({
 // FIXME move link stuff into own file
 
 export function link(): GardState.Extension {
-  return [Link, link.button, inlineStyleGroup, link.keyBinding, link.tooltip]
+  return [Link, link.button, Menu.Group.inlineStyle, link.keyBinding, link.tooltip]
 }
 
 export namespace link {
@@ -117,7 +116,7 @@ export namespace link {
     },
     label: icon.Link,
     description: phrases.ref("create_link"),
-    parent: inlineStyleGroup,
+    parent: Menu.Group.inlineStyle,
     rank: 50,
   })
 

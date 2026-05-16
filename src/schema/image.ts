@@ -139,7 +139,7 @@ export const InsertImageButton = Menu.Button.define({
   active: state => !!activeImage(state.sel),
   label: icon.Image,
   description: phrases.ref("insert_image"),
-  parent: Menu.Commands, // FIXME better group
+  parent: Menu.Group.commands, // FIXME better group
   rank: 80,
 })
 

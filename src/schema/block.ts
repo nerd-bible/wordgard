@@ -33,7 +33,7 @@ export namespace paragraph {
     run: Command.bind(setTextblockType, Paragraph),
     active: selectionInType(Paragraph),
     label: phrases.ref("paragraph"),
-    parent: Menu.TextblockStyle,
+    parent: Menu.Submenu.textblockStyle,
     rank: 10
   })
 }
@@ -56,7 +56,7 @@ export namespace heading {
     run: Command.bind(setTextblockType, Heading.of(1)),
     active: selectionInType(Heading.of(1)),
     label: phrases.ref("heading_1"),
-    parent: Menu.TextblockStyle,
+    parent: Menu.Submenu.textblockStyle,
     rank: 50
   })
 
@@ -64,7 +64,7 @@ export namespace heading {
     run: Command.bind(setTextblockType, Heading.of(2)),
     active: selectionInType(Heading.of(2)),
     label: phrases.ref("heading_2"),
-    parent: Menu.TextblockStyle,
+    parent: Menu.Submenu.textblockStyle,
     rank: 51
   })
 
@@ -72,7 +72,7 @@ export namespace heading {
     run: Command.bind(setTextblockType, Heading.of(3)),
     active: selectionInType(Heading.of(3)),
     label: phrases.ref("heading_3"),
-    parent: Menu.TextblockStyle,
+    parent: Menu.Submenu.textblockStyle,
     rank: 52
   })
 
@@ -93,7 +93,7 @@ export namespace codeBlock {
     run: Command.bind(setTextblockType, CodeBlock),
     active: selectionInType(CodeBlock),
     label: phrases.ref("code_block"),
-    parent: Menu.TextblockStyle,
+    parent: Menu.Submenu.textblockStyle,
     rank: 30
   })
 
@@ -122,7 +122,7 @@ export namespace alignment {
 
   export const button = Menu.Submenu.define({
     description: phrases.ref("alignment"),
-    parent: Menu.BlockMenu,
+    parent: Menu.Group.blockMenu,
     arrow: false,
     rank: 10
   })
@@ -169,7 +169,7 @@ export namespace blockquote {
     },
     label: icon.Quote,
     description: phrases.ref("toggle_quote"),
-    parent: Menu.BlockMenu,
+    parent: Menu.Group.blockMenu,
     rank: 40
   })
 

@@ -1,15 +1,12 @@
 import {icon} from "wordgard/menu"
-import {Mark} from "wordgard/doc"
-import {PhraseSet, GardState} from "wordgard/state"
-import {Command, Menu, toggleMark, canAddMarkInRange} from "wordgard/command"
+import {GardState} from "wordgard/state"
+import {Command, Menu, toggleMark} from "wordgard/command"
 import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
-export const inlineStyleGroup = Menu.Group.define({parent: Menu.Top, rank: 30, margin: true})
-
 export function strong(): GardState.Extension {
-  return [Strong, strong.button, inlineStyleGroup, strong.keyBinding]
+  return [Strong, strong.button, Menu.Group.inlineStyle, strong.keyBinding]
 }
 
 export namespace strong {
@@ -18,9 +15,9 @@ export namespace strong {
     run: Command.bind(toggleMark, Strong),
   })
 
-  export const button = toggleInlineMarkButton({
+  export const button = Menu.Button.toggleMark({
     mark: Strong,
-    parent: inlineStyleGroup,
+    parent: Menu.Group.inlineStyle,
     rank: 10,
     description: phrases.ref("toggle_strong"),
     label: icon.Bold
@@ -37,9 +34,9 @@ export namespace emphasis {
     run: Command.bind(toggleMark, Emphasis),
   })
 
-  export const button = toggleInlineMarkButton({
+  export const button = Menu.Button.toggleMark({
     mark: Emphasis,
-    parent: inlineStyleGroup,
+    parent: Menu.Group.inlineStyle,
     rank: 12,
     description: phrases.ref("toggle_em"),
     label: icon.Italic
@@ -56,9 +53,9 @@ export namespace code {
     run: Command.bind(toggleMark, Code),
   })
 
-  export const button = toggleInlineMarkButton({
+  export const button = Menu.Button.toggleMark({
     mark: Code,
-    parent: inlineStyleGroup,
+    parent: Menu.Group.inlineStyle,
     rank: 30,
     description: phrases.ref("toggle_code"),
     label: icon.Code
@@ -76,9 +73,9 @@ export namespace underline {
     allowDefault: false
   })
 
-  export const button = toggleInlineMarkButton({
+  export const button = Menu.Button.toggleMark({
     mark: Underline,
-    parent: inlineStyleGroup,
+    parent: Menu.Group.inlineStyle,
     rank: 14,
     description: phrases.ref("toggle_underline"),
     label: icon.Underline
@@ -95,9 +92,9 @@ export namespace superscript {
     run: Command.bind(toggleMark, Superscript),
   })
 
-  export const button = toggleInlineMarkButton({
+  export const button = Menu.Button.toggleMark({
     mark: Superscript,
-    parent: inlineStyleGroup,
+    parent: Menu.Group.inlineStyle,
     rank: 16,
     description: phrases.ref("toggle_super"),
     label: icon.Superscript
@@ -114,39 +111,11 @@ export namespace subscript {
     run: Command.bind(toggleMark, Subscript),
   })
 
-  export const button = toggleInlineMarkButton({
+  export const button = Menu.Button.toggleMark({
     mark: Subscript,
-    parent: inlineStyleGroup,
+    parent: Menu.Group.inlineStyle,
     rank: 18,
     description: phrases.ref("toggle_sub"),
     label: icon.Subscript
-  })
-}
-
-/// Creates a menu button that toggles an inline mark via {@link
-/// toggleMark}, and is shown as active when either that mark is part
-/// of the marks associated with the current cursor, or the selection
-/// covers only content with that mark.
-export function toggleInlineMarkButton(config: {
-  mark: Mark<any>,
-  parent?: Menu.Group | Menu.Submenu
-  rank?: number
-  description?: PhraseSet.Ref
-  label: Menu.Label
-}) {
-  let {mark, parent, rank, description, label} = config
-  return Menu.Button.define({
-    run: Command.bind(toggleMark, mark),
-    active(state) {
-      let {selection} = state
-      if (selection.isCursor)
-        return !!mark.isInSet(state.sel.activeMarks)
-      else
-        return !selection.ranges.some(r => canAddMarkInRange(state.doc, r.from, r.to, mark))
-    },
-    parent,
-    rank,
-    description,
-    label
   })
 }
