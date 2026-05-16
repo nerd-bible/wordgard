@@ -1,14 +1,13 @@
 import {Panel, Wordgard} from "wordgard/editor"
 import {GardState, Facet, Direction, PhraseSet} from "wordgard/state"
 import {Command} from "wordgard/command"
-import {MenuLabel, isMenuLabelWidget, MenuLabelWidget, MenuButton,  CustomControl, Submenu, Top,
-        MenuTemplate, resolveMenu, ResolvedSubmenu, ResolvedMenuItem, menuItem, MenuItem} from "wordgard/menu"
+import {Menu} from "wordgard/menu"
 
 interface BarElement {
   dom: Element
   focusDOM: HTMLElement
   index: number
-  item: Submenu | MenuButton | CustomControl
+  item: Menu.Submenu | Menu.Button | Menu.CustomControl
   flags: F
   update(flags: F, wg: Wordgard, update: Wordgard.Update | null): void
   children: readonly BarElement[] | null
@@ -23,7 +22,7 @@ function id(prefix: string) {
 
 const SVG = "http://www.w3.org/2000/svg"
 
-function labelButton(wg: Wordgard, button: HTMLElement, label?: MenuLabel) {
+function labelButton(wg: Wordgard, button: HTMLElement, label?: Menu.Label) {
   button.textContent = ""
   if (!label) {
   } else if (typeof label == "function") {
@@ -38,7 +37,7 @@ function labelButton(wg: Wordgard, button: HTMLElement, label?: MenuLabel) {
     path.setAttribute("d", (label as {icon: string}).icon)
     if ((label as any).directional && wg.state.textDirection() == Direction.RTL)
       svg.setAttribute("transform", "scale(-1, 1)")
-  } else if (isMenuLabelWidget(label)) {
+  } else if ("render" in label) {
     button.appendChild(label.render(wg))
   }
 }
@@ -64,12 +63,12 @@ class BarButton implements BarElement {
   index = 0
   dynamicLabel: boolean
 
-  constructor(readonly item: MenuButton, wg: Wordgard) {
+  constructor(readonly item: Menu.Button, wg: Wordgard) {
     this.dom = document.createElement("button")
     this.dom.className = "wg-menu-button"
     this.dom.tabIndex = -1
     labelButton(wg, this.dom, item.label)
-    this.dynamicLabel = isMenuLabelWidget(item.label) && item.label.rerender != null
+    this.dynamicLabel = ("render" in item.label) && item.label.rerender != null
     if (item.description)
       this.dom.setAttribute("aria-label", this.dom.title = item.description(wg.state))
   }
@@ -96,7 +95,7 @@ class BarButton implements BarElement {
       this.flags = flags
     }
     if (this.dynamicLabel && update) {
-      let label = this.item.label as MenuLabelWidget
+      let label = this.item.label as Menu.LabelWidget
       if (update.transactions.some(tr => label.rerender!(tr))) {
         if (label.update) label.update(this.dom.firstChild as HTMLElement, wg)
         else labelButton(wg, this.dom, label)
@@ -117,7 +116,7 @@ class BarControl implements BarElement {
   flags: F = 0 as F
   index = 0
 
-  constructor(readonly item: CustomControl, wg: Wordgard, done: () => void) {
+  constructor(readonly item: Menu.CustomControl, wg: Wordgard, done: () => void) {
     let {dom, focus} = item.render(wg, done)
     this.dom = dom
     this.focusDOM = focus || dom
@@ -156,7 +155,7 @@ class BarSubmenu implements BarElement {
   index = 0
   children: readonly BarElement[]
 
-  constructor(readonly item: Submenu, children: readonly (BarElement | BarSpacer)[], wg: Wordgard) {
+  constructor(readonly item: Menu.Submenu, children: readonly (BarElement | BarSpacer)[], wg: Wordgard) {
     this.dom = document.createElement("wg-submenu")
     this.button = this.dom.appendChild(document.createElement("button"))
     this.button.tabIndex = -1
@@ -208,7 +207,7 @@ class BarSubmenu implements BarElement {
       let activeChild = this.children.findIndex(ch => ch.flags & F.Active)
       if (this.activeChild != activeChild) {
         this.activeChild = activeChild
-        let label = activeChild < 0 ? this.item.defaultLabel : (this.children[activeChild].item as MenuButton).label
+        let label = activeChild < 0 ? this.item.defaultLabel : (this.children[activeChild].item as Menu.Button).label
         labelButton(wg, this.button, label)
       }
     }
@@ -225,13 +224,13 @@ class BarSpacer {
   }
 }
 
-function instantiate(item: ResolvedMenuItem, bar: MenuBar, flat: BarElement[]): BarElement | BarSpacer {
+function instantiate(item: Menu.ResolvedItem, bar: MenuBar, flat: BarElement[]): BarElement | BarSpacer {
   let elt: BarElement
-  if (item instanceof ResolvedSubmenu)
+  if (item instanceof Menu.Submenu.Resolved)
     elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, bar, flat)), bar.wg)
   else if (item === "|")
     return new BarSpacer()
-  else if (item instanceof MenuButton)
+  else if (item instanceof Menu.Button)
     elt = new BarButton(item, bar.wg)
   else
     elt = new BarControl(item, bar.wg, () => bar.up())
@@ -255,7 +254,7 @@ class MenuBar {
   declare children: readonly BarElement[]
   declare selection: readonly BarElement[]
   focusTimeout = -1
-  items: readonly MenuItem[]
+  items: readonly Menu.Item[]
 
   constructor(readonly wg: Wordgard) {
     this.dom = document.createElement("wg-menubar")
@@ -264,7 +263,7 @@ class MenuBar {
     this.dom.addEventListener("keydown", this.key.bind(this))
     this.dom.addEventListener("mousedown", this.click.bind(this))
     this.dom.addEventListener("focusout", this.focusout.bind(this))
-    this.items = wg.state.facet(menuItem)
+    this.items = wg.state.facet(Menu.Item.source)
     this.init()
     this.globalClick = this.globalClick.bind(this)
   }
@@ -272,7 +271,7 @@ class MenuBar {
   init() {
     let elts: BarElement[] = []
     this.elts = elts
-    let children = resolveMenu(this.items, this.wg.state.facet(barTemplate)).map(i => instantiate(i, this, elts))
+    let children = Menu.resolve(this.items, this.wg.state.facet(barTemplate)).map(i => instantiate(i, this, elts))
     this.children = children.filter((ch): ch is BarElement => !(ch instanceof BarSpacer))
     for (let elt of children) this.dom.appendChild(elt.dom)
     this.selection = this.children.length ? [this.children[0]] : []
@@ -280,7 +279,7 @@ class MenuBar {
   }
 
   update(update: Wordgard.Update) {
-    let items = update.state.facet(menuItem)
+    let items = update.state.facet(Menu.Item.source)
     if (items != this.items ||
         update.startState.facet(barTemplate) != update.state.facet(barTemplate) ||
         PhraseSet.didChange(update.startState, update.state)) {
@@ -301,7 +300,7 @@ class MenuBar {
       if (update && (update === true || (elt.item.updateFor ? update.transactions.some(tr => elt.item.updateFor!(tr)) : changed))) {
         flags = ((elt.item.select ? elt.item.select(state) : true) ? 0 : F.Hidden) |
           ((elt.item.enable ? elt.item.enable(state) : true) ? 0 : F.Disabled) |
-          ((elt.item instanceof MenuButton && elt.item.active ? elt.item.active(state) : false) ? F.Active : 0)
+          ((elt.item instanceof Menu.Button && elt.item.active ? elt.item.active(state) : false) ? F.Active : 0)
       } else {
         flags = elt.flags & (F.Hidden | F.Disabled | F.Active)
       }
@@ -547,12 +546,12 @@ const theme = Wordgard.baseTheme({
   },
 })
 
-const barTemplate = Facet.define<readonly MenuTemplate[], readonly MenuTemplate[]>({
-  combine: inputs => inputs.length ? inputs[0] : [Top.template()]
+const barTemplate = Facet.define<readonly Menu.Template[], readonly Menu.Template[]>({
+  combine: inputs => inputs.length ? inputs[0] : [Menu.Top.template()]
 })
 
 export function menuBar(config: {
-  template?: MenuTemplate | readonly MenuTemplate[]
+  template?: Menu.Template | readonly Menu.Template[]
 } = {}): GardState.Extension {
   let extensions = [menuBarPanel, theme]
   if (config.template) extensions.push(barTemplate.of(Array.isArray(config.template) ? config.template : [config.template]))

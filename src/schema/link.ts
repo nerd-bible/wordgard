@@ -1,4 +1,4 @@
-import {MenuButton, icon} from "wordgard/menu"
+import {Menu, icon} from "wordgard/menu"
 import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
 import {Link} from "wordgard/schema-def"
@@ -101,7 +101,7 @@ export namespace link {
     run: toggleLink,
   })
 
-  export const button = new MenuButton({
+  export const button = new Menu.Button({
     run: toggleLink,
     active(state) {
       let {selection, doc} = state, found = false

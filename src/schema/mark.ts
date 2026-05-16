@@ -1,4 +1,4 @@
-import {MenuButton, Top, MenuGroup, Submenu, MenuLabel, icon} from "wordgard/menu"
+import {Menu, icon} from "wordgard/menu"
 import {Mark} from "wordgard/doc"
 import {PhraseSet, GardState} from "wordgard/state"
 import {Command, toggleMark, canAddMarkInRange} from "wordgard/command"
@@ -6,7 +6,7 @@ import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgar
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
-export const inlineStyleGroup = new MenuGroup({parent: Top, rank: 30, margin: true})
+export const inlineStyleGroup = new Menu.Group({parent: Menu.Top, rank: 30, margin: true})
 
 export function strong(): GardState.Extension {
   return [Strong, strong.button, inlineStyleGroup, strong.keyBinding]
@@ -129,13 +129,13 @@ export namespace subscript {
 /// covers only content with that mark.
 export function toggleInlineMarkButton(config: {
   mark: Mark<any>,
-  parent?: MenuGroup | Submenu
+  parent?: Menu.Group | Menu.Submenu
   rank?: number
   description?: PhraseSet.Ref
-  label: MenuLabel
+  label: Menu.Label
 }) {
   let {mark, parent, rank, description, label} = config
-  return new MenuButton({
+  return new Menu.Button({
     run: Command.bind(toggleMark, mark),
     active(state) {
       let {selection} = state

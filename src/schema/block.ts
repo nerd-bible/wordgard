@@ -2,7 +2,7 @@ import {Plot, Pos, ChangeSet} from "wordgard/doc"
 import {GardState, GardSelection} from "wordgard/state"
 import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, HorizontalRule} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
-import {MenuButton, Submenu, TextblockStyle, BlockMenu, icon} from "wordgard/menu"
+import {Menu, icon} from "wordgard/menu"
 import {Command, setTextblockType, setAlignment, toggleBlock} from "wordgard/command"
 import {history} from "wordgard/history"
 import {KeyBinding, Wordgard} from "wordgard/editor"
@@ -29,11 +29,11 @@ export namespace paragraph {
     run: Command.bind(setTextblockType, Paragraph)
   })
 
-  export const button = new MenuButton({
+  export const button = new Menu.Button({
     run: Command.bind(setTextblockType, Paragraph),
     active: selectionInType(Paragraph),
     label: phrases.ref("paragraph"),
-    parent: TextblockStyle,
+    parent: Menu.TextblockStyle,
     rank: 10
   })
 }
@@ -52,27 +52,27 @@ export namespace heading {
     KeyBinding.define({key: "Ctrl-Shift-6", run: Command.bind(setTextblockType, Heading.of(6))})
   ]
 
-  export const button1 = new MenuButton({
+  export const button1 = new Menu.Button({
     run: Command.bind(setTextblockType, Heading.of(1)),
     active: selectionInType(Heading.of(1)),
     label: phrases.ref("heading_1"),
-    parent: TextblockStyle,
+    parent: Menu.TextblockStyle,
     rank: 50
   })
 
-  export const button2 = new MenuButton({
+  export const button2 = new Menu.Button({
     run: Command.bind(setTextblockType, Heading.of(2)),
     active: selectionInType(Heading.of(2)),
     label: phrases.ref("heading_2"),
-    parent: TextblockStyle,
+    parent: Menu.TextblockStyle,
     rank: 51
   })
 
-  export const button3 = new MenuButton({
+  export const button3 = new Menu.Button({
     run: Command.bind(setTextblockType, Heading.of(3)),
     active: selectionInType(Heading.of(3)),
     label: phrases.ref("heading_3"),
-    parent: TextblockStyle,
+    parent: Menu.TextblockStyle,
     rank: 52
   })
 
@@ -89,11 +89,11 @@ export namespace codeBlock {
     run: Command.bind(setTextblockType, CodeBlock)
   })
 
-  export const button = new MenuButton({
+  export const button = new Menu.Button({
     run: Command.bind(setTextblockType, CodeBlock),
     active: selectionInType(CodeBlock),
     label: phrases.ref("code_block"),
-    parent: TextblockStyle,
+    parent: Menu.TextblockStyle,
     rank: 30
   })
 
@@ -120,14 +120,14 @@ export namespace alignment {
     KeyBinding.define({key: "Mod-Shift-e", run: Command.bind(setAlignment, "center")})
   ]
 
-  export const button = new Submenu({
+  export const button = new Menu.Submenu({
     description: phrases.ref("alignment"),
-    parent: BlockMenu,
+    parent: Menu.BlockMenu,
     arrow: false,
     rank: 10
   })
 
-  export const buttonStart = new MenuButton({
+  export const buttonStart = new Menu.Button({
     run: Command.bind(setAlignment, null),
     active: state => alignmentAtCursor(state) == null,
     label: icon.AlignLeft,
@@ -136,7 +136,7 @@ export namespace alignment {
     rank: 10
   })
 
-  export const buttonEnd = new MenuButton({
+  export const buttonEnd = new Menu.Button({
     run: Command.bind(setAlignment, "end"),
     active: state => alignmentAtCursor(state) == "end",
     label: icon.AlignRight,
@@ -145,7 +145,7 @@ export namespace alignment {
     rank: 20
   })
 
-  export const buttonCenter = new MenuButton({
+  export const buttonCenter = new Menu.Button({
     run: Command.bind(setAlignment, "center"),
     active: state => alignmentAtCursor(state) == "center",
     label: icon.AlignCenter,
@@ -160,7 +160,7 @@ export function blockquote(): GardState.Extension {
 }
 
 export namespace blockquote {
-  export const button = new MenuButton({
+  export const button = new Menu.Button({
     run: Command.bind(toggleBlock, Blockquote),
     active: state => {
       for (let cur: Pos.Node | null = state.sel.head.parent; cur; cur = cur.parent)
@@ -169,7 +169,7 @@ export namespace blockquote {
     },
     label: icon.Quote,
     description: phrases.ref("toggle_quote"),
-    parent: BlockMenu,
+    parent: Menu.BlockMenu,
     rank: 40
   })
 

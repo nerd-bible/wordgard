@@ -1,4 +1,4 @@
-import {CustomControl, Submenu, MenuButton, icon, Commands} from "wordgard/menu"
+import {Menu, icon} from "wordgard/menu"
 import {Wordgard} from "wordgard/editor"
 import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
@@ -109,7 +109,7 @@ function insertTable(wg: Wordgard, width: number, height: number) {
   })
 }
 
-const dimensionPicker = new CustomControl({
+const dimensionPicker = new Menu.CustomControl({
   render(wg, done) {
     return new DimensionPicker(wg, (width, height) => {
       done()
@@ -149,28 +149,28 @@ const phrase = PhraseSet.define({
 export namespace tableMenu {
   export const phrases = phrase
 
-  export const createTable = new Submenu({
+  export const createTable = new Menu.Submenu({
     select(state) {
       return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
     label: icon.Table,
     description: phrase.ref("insert_table"),
-    parent: Commands,
+    parent: Menu.Commands,
     rank: 90,
     content: [dimensionPicker]
   })
 
-  export const modifyTable = new Submenu({
+  export const modifyTable = new Menu.Submenu({
     select(state) {
       return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
     label: icon.Table,
     description: phrase.ref("modify_table"),
-    parent: Commands,
+    parent: Menu.Commands,
     rank: 90
   })
 
-  export const toggleHeader = new MenuButton({
+  export const toggleHeader = new Menu.Button({
     run: toggleHeaderCell,
     select: state => !!headerCellTag(state.doc.schema),
     label: phrase.ref("toggle_header"),
@@ -178,49 +178,49 @@ export namespace tableMenu {
     rank: 10
   })
 
-  export const addRowAbove = new MenuButton({
+  export const addRowAbove = new Menu.Button({
     run: wg => Command.dispatch(wg, addRow, "before"),
     label: phrase.ref("add_row_above"),
     parent: modifyTable,
     rank: 20,
   })
 
-  export const addRowBelow = new MenuButton({
+  export const addRowBelow = new Menu.Button({
     run: wg => Command.dispatch(wg, addRow, "after"),
     label: phrase.ref("add_row_below"),
     parent: modifyTable,
     rank: 21,
   })
 
-  export const deleteRow = new MenuButton({
+  export const deleteRow = new Menu.Button({
     run: _deleteRow,
     label: phrase.ref("delete_row"),
     parent: modifyTable,
     rank: 25
   })
 
-  export const addColumnBefore = new MenuButton({
+  export const addColumnBefore = new Menu.Button({
     run: wg => Command.dispatch(wg, addColumn, "before"),
     label: phrase.ref("add_col_before"),
     parent: modifyTable,
     rank: 30,
   })
 
-  export const addColumnAfter = new MenuButton({
+  export const addColumnAfter = new Menu.Button({
     run: wg => Command.dispatch(wg, addColumn, "after"),
     label: phrase.ref("add_col_after"),
     parent: modifyTable,
     rank: 31,
   })
 
-  export const deleteColumn = new MenuButton({
+  export const deleteColumn = new Menu.Button({
     run: _deleteColumn,
     label: phrase.ref("delete_col"),
     parent: modifyTable,
     rank: 35,
   })
 
-  export const mergeCells = new MenuButton({
+  export const mergeCells = new Menu.Button({
     run: _mergeCells,
     select: state => {
       let {selection} = state
@@ -232,7 +232,7 @@ export namespace tableMenu {
     rank: 40,
   })
 
-  export const splitCell = new MenuButton({
+  export const splitCell = new Menu.Button({
     run: _splitCell,
     select: state => {
       let {selection} = state

@@ -1,6 +1,6 @@
 import {Command, toggleList, listIsActive} from "wordgard/command"
 import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema-def"
-import {MenuButton, BlockMenu, icon} from "wordgard/menu"
+import {Menu, icon} from "wordgard/menu"
 import {phrases} from "wordgard/phrases"
 import {InputRule} from "wordgard/inputrule"
 
@@ -11,12 +11,12 @@ export function bulletList(config: {blockItems?: boolean} = {}) {
 export namespace bulletList {
   export const createOnDash = InputRule.wrapping(/^ ?- $/, BulletList)
 
-  export const toggleButton = new MenuButton({
+  export const toggleButton = new Menu.Button({
     run: Command.bind(toggleList, BulletList),
     active: listIsActive(BulletList),
     label: icon.BulletList,
     description: phrases.ref("toggle_bullet_list"),
-    parent: BlockMenu,
+    parent: Menu.BlockMenu,
     rank: 20
   })
 }
@@ -28,12 +28,12 @@ export function orderedList(config: {blockItems?: boolean} = {}) {
 export namespace orderedList {
   export const createOnNumber = InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1]!.text))
 
-  export const toggleButton = new MenuButton({
+  export const toggleButton = new Menu.Button({
     run: Command.bind(toggleList, OrderedList.default!),
     active: listIsActive(OrderedList.default!),
     label: icon.OrderedList,
     description: phrases.ref("toggle_ordered_list"),
-    parent: BlockMenu,
+    parent: Menu.BlockMenu,
     rank: 30
   })
 }

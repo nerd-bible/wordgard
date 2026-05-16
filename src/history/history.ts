@@ -2,7 +2,7 @@ import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command, undo as undoCmd, redo as redoCmd} from "wordgard/command"
 import {phrases} from "wordgard/phrases"
-import {MenuButton, icon, Commands} from "wordgard/menu"
+import {Menu, icon} from "wordgard/menu"
 
 const enum BranchName { Done, Undone }
 
@@ -358,20 +358,20 @@ class HistoryState {
   }
 }
 
-export const undoButton = new MenuButton({
+export const undoButton = new Menu.Button({
   run: undo,
   label: icon.Undo,
   description: phrases.ref("undo"),
   enable: s => undoDepth(s) > 0,
-  parent: Commands,
+  parent: Menu.Commands,
   rank: 10
 })
 
-export const redoButton = new MenuButton({
+export const redoButton = new Menu.Button({
   run: redo,
   label: icon.Redo,
   description: phrases.ref("redo"),
   enable: s => redoDepth(s) > 0,
-  parent: Commands,
+  parent: Menu.Commands,
   rank: 20
 })

@@ -1,4 +1,4 @@
-import {CustomControl, Submenu, icon} from "wordgard/menu"
+import {Menu, icon} from "wordgard/menu"
 import {PhraseSet, GardState, GardSelection, Direction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema-def"
@@ -256,7 +256,7 @@ const colorPickerTheme = Wordgard.baseTheme({
 })
 
 
-export const colorPicker = new CustomControl({
+export const colorPicker = new Menu.CustomControl({
   render(wg, done) {
     return new ColorPicker(wg, color => {
       done()
@@ -271,7 +271,7 @@ export function color(): GardState.Extension {
 }
 
 export namespace color {
-  export const button = new Submenu({
+  export const button = new Menu.Submenu({
     label: icon.Color,
     description: phrases.ref("text_color"),
     arrow: false,
@@ -285,7 +285,7 @@ export function backgroundColor() {
   return [BackgroundColor, backgroundColor.button, colorPickerTheme, inlineStyleGroup]
 }
 
-const backgroundPicker = new CustomControl({
+const backgroundPicker = new Menu.CustomControl({
   render(wg, done) {
     return new ColorPicker(wg, color => {
       done()
@@ -296,7 +296,7 @@ const backgroundPicker = new CustomControl({
 })
 
 export namespace backgroundColor {
-  export const button = new Submenu({
+  export const button = new Menu.Submenu({
     label: icon.Marker,
     description: phrases.ref("background_color"),
     arrow: false,
