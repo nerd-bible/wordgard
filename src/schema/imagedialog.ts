@@ -1,31 +1,10 @@
 import {Node, Mark, ChangeSet, Plot} from "wordgard/doc"
 import {Wordgard, Panel, showDialog} from "wordgard/editor"
-import {GardState, Transaction, GardSelection, Facet, Direction, PhraseSet} from "wordgard/state"
+import {GardState, Transaction, GardSelection, Facet, Direction} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wordgard/schema-def"
 import {Command} from "wordgard/command"
+import {PhraseSet, imagePhrases} from "wordgard/phrases"
 import cr from "crelt"
-
-// FIXME rename/move
-export const phrases = PhraseSet.define({
-  insert_image: "Insert image",
-  update_image: "Update image",
-  update: "Update",
-  insert: "Insert",
-  cancel: "Cancel",
-  inline: "Inline",
-  figure: "Figure",
-  figure_center: "Centered figure",
-  figure_end: "Figure aligned to end",
-  captioned: "Captioned",
-  image_style: "Image style",
-  uploading: "Uploading...",
-  upload_failed: "Image upload failed",
-  width: "Width in pixels",
-  upload_image: "Upload an image",
-  image_source: "Image source",
-  alt_text: "Alternative text",
-  describe_image: "Describe the image",
-})
 
 export const imageUploader = Facet.define<(file: File, wg: Wordgard, progress: (percent: number) => void) => Promise<string>>()
 
@@ -53,8 +32,8 @@ function imageTypeButtons(state: GardState, active: Node.Tag | null) {
   let align = (hasFig || hasCap) && state.doc.schema.markAllowed(Alignment, hasFig ? Figure : CaptionedFigure)
   if (!align && !(hasImg && (hasFig || hasCap))) return null
   let buttons: HTMLElement[] = []
-  function button(type: "inline" | "start" | "center" | "end", label: PhraseSet.Tag<typeof phrases>, active: boolean | null) {
-    let labelText = phrases.get(state, label)
+  function button(type: "inline" | "start" | "center" | "end", label: PhraseSet.Tag<typeof imagePhrases>, active: boolean | null) {
+    let labelText = imagePhrases.get(state, label)
     let icon = document.createElementNS(svg, "svg")
     icon.setAttribute("viewbox", "0 0 24 22")
     icon.setAttribute("width", "24"); icon.setAttribute("height", "22")
@@ -82,7 +61,7 @@ function imageTypeButtons(state: GardState, active: Node.Tag | null) {
       "label", " ",
       cr("input", {type: "checkbox", name: "caption",
                    checked: active && active.type == CaptionedFigure ? "checked" : null}),
-      " ", phrases.get(state, "captioned"))
+      " ", imagePhrases.get(state, "captioned"))
     if (hasImg) {
       let imageRadio = buttons[0].querySelector("input") as HTMLInputElement
       for (let b of buttons) b.querySelector("input")!.addEventListener("change", () => {
@@ -92,7 +71,7 @@ function imageTypeButtons(state: GardState, active: Node.Tag | null) {
     }
     buttons.push(caption)
   }
-  return [cr("span", {class: "wg-label"}, phrases.get(state, "image_style"), ":"), cr("span", buttons)]
+  return [cr("span", {class: "wg-label"}, imagePhrases.get(state, "image_style"), ":"), cr("span", buttons)]
 }
 
 const setImageDialog = Transaction.Effect.define<boolean>()
@@ -119,7 +98,7 @@ function startUpload(wg: Wordgard, file: HTMLInputElement, set: (url: string) =>
     progress.lastChild!.textContent = Math.round(percent) + "%"
   })
   let progress = cr("span", {class: "wg-img-upload", style: `width: ${file!.offsetWidth}px`},
-                    phrases.get(wg.state, "uploading"), " ", cr("span"))
+                    imagePhrases.get(wg.state, "uploading"), " ", cr("span"))
   file.parentNode!.replaceChild(progress, file)
   function reset() {
     if (progress.parentNode) progress.parentNode.replaceChild(file, progress)
@@ -129,7 +108,7 @@ function startUpload(wg: Wordgard, file: HTMLInputElement, set: (url: string) =>
     set(url)
   }, err => {
     reset()
-    showDialog(wg, {label: phrases.get(wg.state, "upload_failed") + ": " + err})
+    showDialog(wg, {label: imagePhrases.get(wg.state, "upload_failed") + ": " + err})
   })
 }
 
@@ -140,30 +119,30 @@ function buildImagePanel(wg: Wordgard) {
   let sel = (state.field(imageDialog) || state.selection).resolve(state.doc)
   let active = activeImage(sel)
   let size = !wg.state.doc.schema.has(ImageSize) ? null :
-    [cr("label", {for: "wg-img-size"}, phrases.get(state, "width"), ":"),
+    [cr("label", {for: "wg-img-size"}, imagePhrases.get(state, "width"), ":"),
      cr("input", {type: "number", id: "wg-img-size", name: "size", value: active ? active.mark(ImageSize) : ""})]
   let src = cr("input", {type: "text", id: "wg-img-src", name: "src", required: "required",
                          value: active ? active.param : "", placeholder: "https://..."})
   let file: HTMLInputElement | null = null
   if (wg.state.facet(imageUploader).length) {
-    file = cr("input", {type: "file", id: "wg-img-file", name: "file", "aria-label": phrases.get(state, "upload_image"),
+    file = cr("input", {type: "file", id: "wg-img-file", name: "file", "aria-label": imagePhrases.get(state, "upload_image"),
                         onchange: (e: Event) => startUpload(wg, e.target as HTMLInputElement, url => src.value = url)})
   }
 
   let form = cr(
     "form", {class: "wg-img-form", onkeydown},
-    cr("div", {class: "wg-dialog-title"}, phrases.get(state, active ? "update_image" : "insert_image")),
-    cr("label", {for: "wg-img-src"}, phrases.get(state, "image_source"), ":"),
+    cr("div", {class: "wg-dialog-title"}, imagePhrases.get(state, active ? "update_image" : "insert_image")),
+    cr("label", {for: "wg-img-src"}, imagePhrases.get(state, "image_source"), ":"),
     cr("span", {class: "wg-img-src-line"}, src, file),
-    cr("label", {for: "wg-img-alt"}, phrases.get(state, "alt_text"), ":"),
+    cr("label", {for: "wg-img-alt"}, imagePhrases.get(state, "alt_text"), ":"),
     cr("input", {type: "text", id: "wg-img-alt", name: "alt",
                  value: active && active.mark(ImageAlt) || "",
-                 placeholder: phrases.get(state, "describe_image")}),
+                 placeholder: imagePhrases.get(state, "describe_image")}),
     imageTypeButtons(state, active),
     size,
     cr("div", {class: "wg-img-buttons"},
-       cr("button", {type: "submit", class: "wg-dialog-button"}, phrases.get(state, active ? "update" : "insert")), " ",
-       cr("button", {type: "button", class: "wg-dialog-button", onclick: close}, phrases.get(state, "cancel"))))
+       cr("button", {type: "submit", class: "wg-dialog-button"}, imagePhrases.get(state, active ? "update" : "insert")), " ",
+       cr("button", {type: "button", class: "wg-dialog-button", onclick: close}, imagePhrases.get(state, "cancel"))))
 
   function onsubmit(e: Event) {
     e.preventDefault()

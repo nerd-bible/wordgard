@@ -1,7 +1,7 @@
 import {type Wordgard} from "wordgard/editor"
 import {Command} from "wordgard/command"
-import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
-import {phrases} from "wordgard/phrases"
+import {GardState, Transaction, Facet} from "wordgard/state"
+import {PhraseSet, phrases} from "wordgard/phrases"
 import {Mark} from "wordgard/doc"
 
 import {canAddMarkInRange} from "./helper"

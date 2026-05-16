@@ -17,9 +17,9 @@ function toggleLink(wg: Wordgard) {
     wg.dispatch({changes: remove, userEvent: "mark.remove"})
   } else {
     showDialog(wg, {
-      label: "Link target",
+      label: phrases.get(wg.state, "link_target"),
       input: {type: "text", name: "url"},
-      submitLabel: "Create link",
+      submitLabel: phrases.get(wg.state, "create_link"),
       focus: true
     }).result.then(form => {
       wg.focus()

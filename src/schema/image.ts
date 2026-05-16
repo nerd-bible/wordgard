@@ -3,7 +3,8 @@ import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
 import {Menu} from "wordgard/command"
-import {imageDialog, insertImage, activeImage, imageUploader, phrases} from "./imagedialog"
+import {imagePhrases} from "wordgard/phrases"
+import {imageDialog, insertImage, activeImage, imageUploader} from "./imagedialog"
 
 const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {
@@ -139,7 +140,7 @@ export const InsertImageButton = Menu.Button.define({
   label: {
     icon: "M38 34a9 9 0 1 1-19 0 9 9 0 0 1 19 0M9 13A9 9 0 0 0 0 22v56A9 9 0 0 0 9 88h81a9 9 0 0 0 9-9v-56A9 9 0 0 0 91 13zm81 6a3 3 0 0 1 3 3v38l-24-12a3 3 0 0 0-4 1l-23 23-17-11a3 3 0 0 0-4 0L6 75v3L6 78v-56a3 3 0 0 1 3-3z"
   },
-  description: phrases.ref("insert_image"),
+  description: imagePhrases.ref("insert_image"),
   parent: Menu.Group.commands, // FIXME better group
   rank: 80,
 })

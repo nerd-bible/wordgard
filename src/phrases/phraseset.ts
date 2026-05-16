@@ -1,4 +1,4 @@
-import {Facet, GardState} from "./state"
+import {Facet, GardState} from "wordgard/state"
 
 const phraseOverride = Facet.define<
   {set: PhraseSet<any>, phrases: Record<string, string>},

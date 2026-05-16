@@ -1,8 +1,8 @@
 import {Menu} from "wordgard/command"
-import {PhraseSet, GardState, GardSelection, Direction, Facet} from "wordgard/state"
+import {GardState, GardSelection, Direction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema-def"
-import {phrases} from "wordgard/phrases"
+import {PhraseSet, phrases, colorNames} from "wordgard/phrases"
 import {Wordgard} from "wordgard/editor"
 
 function setColor(wg: Wordgard, mark: Mark.Type<string>, value: string) {
@@ -97,29 +97,6 @@ export class ColorPicker {
 
 export namespace ColorPicker {
   export type Option = {name: PhraseSet.Ref, detail?: PhraseSet.Ref, value: string}
-
-  export const colorNames = PhraseSet.define({
-    none: "none",
-    black: "black",
-    white: "white",
-    grey: "grey",
-    red_berry: "red berry",
-    red: "red",
-    orange: "orange",
-    yellow: "yellow",
-    green: "green",
-    cyan: "cyan",
-    cornflower: "cornflower",
-    blue: "blue",
-    purple: "purple",
-    magenta: "magenta",
-    dark: "dark",
-    darker: "darker",
-    darkest: "very dark",
-    light: "light",
-    lighter: "lighter",
-    lightest: "very light",
-  })
 
   function col(rgb: string, name: PhraseSet.Tag<typeof colorNames>, mod?: -3 | -2 | -1 | 1 | 2 | 3) {
     let detail = mod == 3 ? colorNames.ref("lightest") : mod == 2 ? colorNames.ref("lighter") :

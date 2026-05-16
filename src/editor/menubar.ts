@@ -1,5 +1,6 @@
 import {Panel, Wordgard} from "wordgard/editor"
-import {GardState, Facet, Direction, PhraseSet} from "wordgard/state"
+import {GardState, Facet, Direction} from "wordgard/state"
+import {PhraseSet} from "wordgard/phrases"
 import {Command, Menu} from "wordgard/command"
 
 interface BarElement {

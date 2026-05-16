@@ -1,8 +1,9 @@
 import {Wordgard} from "wordgard/editor"
-import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
+import {GardState, Direction, GardSelection} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command, Menu} from "wordgard/command"
+import {tablePhrases} from "wordgard/phrases"
 import {cellTag, headerCellTag, addRow, deleteRow as _deleteRow, addColumn,
         deleteColumn as _deleteColumn, mergeCells as _mergeCells,
         splitCell as _splitCell, toggleHeaderCell} from "./tablecommands"
@@ -65,8 +66,8 @@ class DimensionPicker {
   }
 
   render() {
-    this.dom.setAttribute("aria-label", phrase.get(this.wg.state, "dimensions_title", this.width, this.height))
-    this.announce.textContent = phrase.get(this.wg.state, "dimensions_live", this.width, this.height)
+    this.dom.setAttribute("aria-label", tablePhrases.get(this.wg.state, "dimensions_title", this.width, this.height))
+    this.announce.textContent = tablePhrases.get(this.wg.state, "dimensions_live", this.width, this.height)
     this.svg.textContent = ""
     let width = this.gridWidth * Grid.Skip + Grid.Margin
     this.svg.setAttribute("width", String(width))
@@ -129,35 +130,17 @@ export function tableMenu(): GardState.Extension {
   ]
 }
 
-const phrase = PhraseSet.define({
-  dimensions_title: "Table dimensions $1 by $2. Use arrow keys to change.",
-  dimensions_live: "$1 by $2",
-  insert_table: "Insert a table",
-  modify_table: "Modify table",
-  toggle_header: "Toggle header cells",
-  add_row_above: "Add row above",
-  add_row_below: "Add row below",
-  delete_row: "Delete row",
-  add_col_before: "Add column before",
-  add_col_after: "Add column before",
-  delete_col: "Delete column",
-  merge_cells: "Merge cells",
-  split_cell: "Split cell"
-})
-
 const tableIcon = {
   icon: "M0 23a23 13 0 0 1 13-13h74a13 13 0 0 1 13 13v54a 13 13 0 0 1 -13 13h-74a13 13 0 0 1 -13 -13v-54M7 31v14h25v-14h-25M37 31v14h26v-14h-26M68 31v14h25v-14h-26M7 50v14h25v-14h-25M37 50v14h26v-14h-26M68 50v14h25v-14h-26M7 69v8a6 6 0 0 0 6 6h19v-14h-25M37 69v14h26v-14h-26M68 69v14h19a6 6 0 0 0 6 -6v-8h-26"
 }
 
 export namespace tableMenu {
-  export const phrases = phrase
-
   export const createTable = Menu.Submenu.define({
     select(state) {
       return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
     label: tableIcon,
-    description: phrase.ref("insert_table"),
+    description: tablePhrases.ref("insert_table"),
     parent: Menu.Group.commands,
     rank: 90,
     content: [dimensionPicker]
@@ -168,7 +151,7 @@ export namespace tableMenu {
       return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
     label: tableIcon,
-    description: phrase.ref("modify_table"),
+    description: tablePhrases.ref("modify_table"),
     parent: Menu.Group.commands,
     rank: 90
   })
@@ -176,49 +159,49 @@ export namespace tableMenu {
   export const toggleHeader = Menu.Button.define({
     run: toggleHeaderCell,
     select: state => !!headerCellTag(state.doc.schema),
-    label: phrase.ref("toggle_header"),
+    label: tablePhrases.ref("toggle_header"),
     parent: modifyTable,
     rank: 10
   })
 
   export const addRowAbove = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "before"),
-    label: phrase.ref("add_row_above"),
+    label: tablePhrases.ref("add_row_above"),
     parent: modifyTable,
     rank: 20,
   })
 
   export const addRowBelow = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "after"),
-    label: phrase.ref("add_row_below"),
+    label: tablePhrases.ref("add_row_below"),
     parent: modifyTable,
     rank: 21,
   })
 
   export const deleteRow = Menu.Button.define({
     run: _deleteRow,
-    label: phrase.ref("delete_row"),
+    label: tablePhrases.ref("delete_row"),
     parent: modifyTable,
     rank: 25
   })
 
   export const addColumnBefore = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "before"),
-    label: phrase.ref("add_col_before"),
+    label: tablePhrases.ref("add_col_before"),
     parent: modifyTable,
     rank: 30,
   })
 
   export const addColumnAfter = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "after"),
-    label: phrase.ref("add_col_after"),
+    label: tablePhrases.ref("add_col_after"),
     parent: modifyTable,
     rank: 31,
   })
 
   export const deleteColumn = Menu.Button.define({
     run: _deleteColumn,
-    label: phrase.ref("delete_col"),
+    label: tablePhrases.ref("delete_col"),
     parent: modifyTable,
     rank: 35,
   })
@@ -230,7 +213,7 @@ export namespace tableMenu {
       return selection instanceof CellSelection && selection.ranges.length > 1 &&
         state.doc.schema.has(ColSpan) && state.doc.schema.has(RowSpan)
     },
-    label: phrase.ref("merge_cells"),
+    label: tablePhrases.ref("merge_cells"),
     parent: modifyTable,
     rank: 40,
   })
@@ -243,7 +226,7 @@ export namespace tableMenu {
       let cell = state.sel.from.nodeAfter
       return !!(cell && (cell.mark(ColSpan) || cell.mark(RowSpan)))
     },
-    label: phrase.ref("split_cell"),
+    label: tablePhrases.ref("split_cell"),
     parent: modifyTable,
     rank: 41,
   })
