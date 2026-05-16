@@ -1,4 +1,5 @@
-import {Menu, icon} from "wordgard/menu"
+import {icon} from "wordgard/menu"
+import {Menu} from "wordgard/command"
 import {PhraseSet, GardState, GardSelection, Direction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema-def"

@@ -1,4 +1,4 @@
-import {Menu} from "./item"
+import {Menu} from "wordgard/command"
 
 export const icon = {
   AlignLeft: {

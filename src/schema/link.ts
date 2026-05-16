@@ -1,4 +1,5 @@
-import {Menu, icon} from "wordgard/menu"
+import {icon} from "wordgard/menu"
+import {Menu} from "wordgard/command"
 import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
 import {Link} from "wordgard/schema-def"

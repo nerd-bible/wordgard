@@ -2,7 +2,8 @@ import {elt, MapMode} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
-import {Menu, icon} from "wordgard/menu"
+import {icon} from "wordgard/menu"
+import {Menu} from "wordgard/command"
 import {imageDialog, insertImage, activeImage, imageUploader, phrases} from "./imagedialog"
 
 const imageTheme = Wordgard.theme({

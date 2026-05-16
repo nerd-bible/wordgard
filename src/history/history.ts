@@ -1,8 +1,8 @@
 import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
-import {Command, undo as undoCmd, redo as redoCmd} from "wordgard/command"
+import {icon} from "wordgard/menu"
+import {Command, Menu, undo as undoCmd, redo as redoCmd} from "wordgard/command"
 import {phrases} from "wordgard/phrases"
-import {Menu, icon} from "wordgard/menu"
 
 const enum BranchName { Done, Undone }
 

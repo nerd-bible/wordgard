@@ -1,9 +1,9 @@
-import {Menu, icon} from "wordgard/menu"
+import {icon} from "wordgard/menu"
 import {Wordgard} from "wordgard/editor"
 import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
 import {Plot, ChangeSet} from "wordgard/doc"
-import {Command} from "wordgard/command"
+import {Command, Menu} from "wordgard/command"
 import {cellTag, headerCellTag, addRow, deleteRow as _deleteRow, addColumn,
         deleteColumn as _deleteColumn, mergeCells as _mergeCells,
         splitCell as _splitCell, toggleHeaderCell} from "./tablecommands"
