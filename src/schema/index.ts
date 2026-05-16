@@ -1,11 +1,15 @@
 import {GardState} from "wordgard/state"
 
 import {strong, emphasis, code, underline, superscript, subscript} from "./mark"
+import {blockDoc, paragraph, heading, codeBlock, alignment, blockquote} from "./block"
+import {bulletList, orderedList} from "./list"
+import {image, figure, imageResizing} from "./image"
 import {color, backgroundColor} from "./color"
 import {link} from "./link"
 
 export {toggleInlineMarkButton, inlineStyleGroup, strong, emphasis, code,
         underline, superscript, subscript} from "./mark"
+export {blockDoc, paragraph, heading, codeBlock, alignment, blockquote} from "./block"
 export {color, backgroundColor, ColorPicker} from "./color"
 export {link} from "./link"
 export {bulletList, orderedList} from "./list"
@@ -18,4 +22,15 @@ export function basicMarks(): GardState.Extension {
 
 export function allMarks(): GardState.Extension {
   return [basicMarks(), underline(), superscript(), subscript(), color(), backgroundColor()]
+}
+
+export function basicSchema(): GardState.Extension {
+  return [blockDoc(), basicMarks(), paragraph(), heading()] // FIXME lineBreak
+}
+
+export function fullSchema(): GardState.Extension {
+  return [basicSchema(), codeBlock(), alignment(), blockquote(),
+          image(), figure(), imageResizing(),
+          bulletList(), orderedList(),
+          underline(), superscript(), subscript(), color(), backgroundColor()]
 }

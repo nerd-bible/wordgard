@@ -296,6 +296,7 @@ export const BackgroundColor = Mark.Type.define<string>("BackgroundColor", {
   spanning: true,
 })
 
+// FIXME rename BlockDoc? Provide InlineDoc?
 export const Doc = Plot.defineDoc({
   blockContent: G.Content
 })

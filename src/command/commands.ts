@@ -228,8 +228,10 @@ export const toggleMarkByLabel: Command<Mark.Role> = (wg, label) => {
   return Command.dispatch(wg, toggleMark, mark)
 }
 
-export const setAlignment: Command.Pure<null | "end" | "center"> = ({state}, align) => {
+export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "left" | "right"> = ({state}, align) => {
   let {schema} = state.doc
+  if (align == "start") align = null
+  if (align == "left" || align == "right") align = ltrAtCursor(state) == (align == "left") ? null : "end"
   let mark = schema.marks.find(m => m.hasRole(Mark.Role.Alignment))
   if (!mark) return false
   let changes: ChangeSet.Spec[] = []

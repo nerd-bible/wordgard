@@ -1,10 +1,7 @@
 import {type Wordgard} from "wordgard/editor"
-import {Command, setTextblockType, toggleBlock, setAlignment} from "wordgard/command"
+import {Command} from "wordgard/command"
 import {GardState, Transaction, Facet, PhraseSet} from "wordgard/state"
-import {Plot, Pos} from "wordgard/doc"
 import {phrases} from "wordgard/phrases"
-import {Paragraph, CodeBlock, Heading, Blockquote, Alignment} from "wordgard/schema-def"
-import {icon} from "./icon"
 
 export type MenuLabelWidget = {
   render: (wg: Wordgard) => HTMLElement
@@ -166,111 +163,10 @@ export const TextblockStyle = new Submenu({
   width: 10,
 })
 
-function selectionInType(tag: Plot.Tag.Any) {
-  return (state: GardState) => {
-    let {sel} = state, block = sel.head.textblockParent
-    return !!block && block.start == sel.anchor.textblockParent?.start && block.node.tag.eq(tag)
-  }
-}
-
-export const ParagraphButton = new MenuButton({
-  run: Command.bind(setTextblockType, Paragraph),
-  active: selectionInType(Paragraph),
-  label: phrases.ref("paragraph"),
-  parent: TextblockStyle,
-  rank: 10
-})
-
-export const CodeBlockButton = new MenuButton({
-  run: Command.bind(setTextblockType, CodeBlock),
-  active: selectionInType(CodeBlock),
-  label: phrases.ref("code_block"),
-  parent: TextblockStyle,
-  rank: 30
-})
-
-export const Heading1 = new MenuButton({
-  run: Command.bind(setTextblockType, Heading.of(1)),
-  active: selectionInType(Heading.of(1)),
-  label: phrases.ref("heading_1"),
-  parent: TextblockStyle,
-  rank: 50
-})
-
-export const Heading2 = new MenuButton({
-  run: Command.bind(setTextblockType, Heading.of(2)),
-  active: selectionInType(Heading.of(2)),
-  label: phrases.ref("heading_2"),
-  parent: TextblockStyle,
-  rank: 51
-})
-
-export const Heading3 = new MenuButton({
-  run: Command.bind(setTextblockType, Heading.of(3)),
-  active: selectionInType(Heading.of(3)),
-  label: phrases.ref("heading_3"),
-  parent: TextblockStyle,
-  rank: 52
-})
-
-export const BlockquoteButton = new MenuButton({
-  run: Command.bind(toggleBlock, Blockquote),
-  active: state => {
-    for (let cur: Pos.Node | null = state.sel.head.parent; cur; cur = cur.parent)
-      if (cur.node.type == Blockquote.type) return true
-    return false
-  },
-  label: icon.Quote,
-  description: phrases.ref("toggle_quote"),
-  parent: BlockMenu,
-  rank: 40
-})
-
-export const AlignmentMenu = new Submenu({
-  description: phrases.ref("alignment"),
-  parent: BlockMenu,
-  arrow: false,
-  rank: 10
-})
-
-function alignmentAtCursor(state: GardState): null | "end" | "center" {
-  let block = state.sel.head.textblockParent
-  return (block && block.node.tag.mark(Alignment)) || null
-}
-
-export const AlignStart = new MenuButton({
-  run: Command.bind(setAlignment, null),
-  active: state => alignmentAtCursor(state) == null,
-  label: icon.AlignLeft,
-  description: phrases.ref("align_start"),
-  parent: AlignmentMenu,
-  rank: 10
-})
-
-export const AlignEnd = new MenuButton({
-  run: Command.bind(setAlignment, "end"),
-  active: state => alignmentAtCursor(state) == "end",
-  label: icon.AlignRight,
-  description: phrases.ref("align_end"),
-  parent: AlignmentMenu,
-  rank: 20
-})
-
-export const AlignCenter = new MenuButton({
-  run: Command.bind(setAlignment, "center"),
-  active: state => alignmentAtCursor(state) == "center",
-  label: icon.AlignCenter,
-  description: phrases.ref("align_center"),
-  parent: AlignmentMenu,
-  rank: 30
-})
-
 // FIXME drop
 export const staticMenu: GardState.Extension[] = [
   Commands, BlockMenu,
-  TextblockStyle, ParagraphButton, CodeBlockButton, Heading1, Heading2, Heading3,
-  AlignmentMenu, AlignStart, AlignEnd, AlignCenter,
-  BlockquoteButton
+  TextblockStyle,
 ]
 
 export type ResolvedMenuItem = MenuButton | CustomControl | "|" | ResolvedSubmenu
