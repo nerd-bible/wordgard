@@ -1,4 +1,3 @@
-import {icon} from "wordgard/menu"
 import {Menu} from "wordgard/command"
 import {PhraseSet, GardState, GardSelection, Direction, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
@@ -272,7 +271,9 @@ export function color(): GardState.Extension {
 
 export namespace color {
   export const button = Menu.Submenu.define({
-    label: icon.Color,
+    label: {
+      icon: "M5 8A3 3 0 0 1 8 5h28a3 3 0 0 1 3 3v30l23-23a3 3 0 0 1 4 0l20 20a3 3 0 0 1 0 4L63 61H92a3 3 0 0 1 3 3v28a3 3 0 0 1-3 3H22a17 17 0 0 1-12-5A17 17 0 0 1 5 78m34-1 41-41-16-16L39 45zM30 78a8 8 0 1 0-17 0 8 8 0 0 0 17 0M89 89v-22H57l-23 23zM5 8v70zm0 70V78z",
+    },
     description: phrases.ref("text_color"),
     arrow: false,
     parent: Menu.Group.inlineStyle,
@@ -297,7 +298,9 @@ const backgroundPicker = Menu.CustomControl.define({
 
 export namespace backgroundColor {
   export const button = Menu.Submenu.define({
-    label: icon.Marker,
+    label: {
+      icon: "M67 9a11 11 0 0 1 16 0l8 8a11 11 0 0 1 0 16l-2 2-45 51a3 3 0 0 1-2 1h-17a3 3 0 0 1-1 0l-2 2A3 3 0 0 1 19 89h-11a3 3 0 0 1-2-5l8-8A3 3 0 0 1 13 75v-17a3 3 0 0 1 1-2l51-45zm-1 8L20 59l21 21 42-46zm20 12 0 0a6 6 0 0 0 0-8L79 13a6 6 0 0 0-8 0l0 0zM35 81 19 65v9L26 81z"
+    },
     description: phrases.ref("background_color"),
     arrow: false,
     parent: Menu.Group.inlineStyle,

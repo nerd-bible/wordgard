@@ -1,4 +1,3 @@
-import {icon} from "wordgard/menu"
 import {Menu} from "wordgard/command"
 import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
@@ -114,7 +113,9 @@ export namespace link {
     enable(state) {
       return !state.selection.empty
     },
-    label: icon.Link,
+    label: {
+      icon: "M29 41 21 49a19 19 0 1 0 27 27l11-11A19 19 0 0 0 54 34L50 38a6 6 0 0 0-1 1 13 13 0 0 1 5 22L43 72a12 12 0 1 1-18-18l5-5a25 25 0 0 1-1-8zM41 29A19 19 0 0 0 46 59l5-5a13 13 0 0 1-6-21L57 22a12 12 0 1 1 18 18l-5 5c1 3 1 5 1 8l9-9a19 19 0 1 0-27-27z"
+    },
     description: phrases.ref("create_link"),
     parent: Menu.Group.inlineStyle,
     rank: 50,

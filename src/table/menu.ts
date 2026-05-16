@@ -1,4 +1,3 @@
-import {icon} from "wordgard/menu"
 import {Wordgard} from "wordgard/editor"
 import {GardState, Direction, GardSelection, PhraseSet} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
@@ -146,6 +145,10 @@ const phrase = PhraseSet.define({
   split_cell: "Split cell"
 })
 
+const tableIcon = {
+  icon: "M0 23a23 13 0 0 1 13-13h74a13 13 0 0 1 13 13v54a 13 13 0 0 1 -13 13h-74a13 13 0 0 1 -13 -13v-54M7 31v14h25v-14h-25M37 31v14h26v-14h-26M68 31v14h25v-14h-26M7 50v14h25v-14h-25M37 50v14h26v-14h-26M68 50v14h25v-14h-26M7 69v8a6 6 0 0 0 6 6h19v-14h-25M37 69v14h26v-14h-26M68 69v14h19a6 6 0 0 0 6 -6v-8h-26"
+}
+
 export namespace tableMenu {
   export const phrases = phrase
 
@@ -153,7 +156,7 @@ export namespace tableMenu {
     select(state) {
       return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
-    label: icon.Table,
+    label: tableIcon,
     description: phrase.ref("insert_table"),
     parent: Menu.Group.commands,
     rank: 90,
@@ -164,7 +167,7 @@ export namespace tableMenu {
     select(state) {
       return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
-    label: icon.Table,
+    label: tableIcon,
     description: phrase.ref("modify_table"),
     parent: Menu.Group.commands,
     rank: 90

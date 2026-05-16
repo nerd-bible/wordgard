@@ -13,7 +13,6 @@
     "./editor": "./dist/editor.js",
     "./command": "./dist/command.js",
     "./history": "./dist/history.js",
-    "./menu": "./dist/menu.js",
     "./collab": "./dist/collab.js",
     "./inputrule": "./dist/inputrule.js",
     "./phrases": "./dist/phrases.js"

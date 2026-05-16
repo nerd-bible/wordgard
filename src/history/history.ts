@@ -1,6 +1,5 @@
 import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
-import {icon} from "wordgard/menu"
 import {Command, Menu, undo as undoCmd, redo as redoCmd} from "wordgard/command"
 import {phrases} from "wordgard/phrases"
 
@@ -360,7 +359,9 @@ class HistoryState {
 
 export const undoButton = Menu.Button.define({
   run: undo,
-  label: icon.Undo,
+  label: {
+    icon: "M69 90c9-16 10-41-24-40v20l-30-30 30-30v19c42-1 46 37 24 61z"
+  },
   description: phrases.ref("undo"),
   enable: s => undoDepth(s) > 0,
   parent: Menu.Group.commands,
@@ -369,7 +370,9 @@ export const undoButton = Menu.Button.define({
 
 export const redoButton = Menu.Button.define({
   run: redo,
-  label: icon.Redo,
+  label: {
+    icon: "M55 29v-19l30 30-30 30v-20c-35-1-33 24-24 40-22-24-17-62 24-61z"
+  },
   description: phrases.ref("redo"),
   enable: s => redoDepth(s) > 0,
   parent: Menu.Group.commands,

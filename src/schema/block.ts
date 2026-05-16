@@ -2,7 +2,6 @@ import {Plot, Pos, ChangeSet} from "wordgard/doc"
 import {GardState, GardSelection} from "wordgard/state"
 import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, HorizontalRule} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
-import {icon} from "wordgard/menu"
 import {Command, Menu, setTextblockType, setAlignment, toggleBlock} from "wordgard/command"
 import {history} from "wordgard/history"
 import {KeyBinding, Wordgard} from "wordgard/editor"
@@ -130,7 +129,10 @@ export namespace alignment {
   export const buttonStart = Menu.Button.define({
     run: Command.bind(setAlignment, null),
     active: state => alignmentAtCursor(state) == null,
-    label: icon.AlignLeft,
+    label: {
+      icon: "M16 81a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m0-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69m0-19a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m0-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69",
+      directional: true
+    },
     description: phrases.ref("align_start"),
     parent: button,
     rank: 10
@@ -139,7 +141,10 @@ export namespace alignment {
   export const buttonEnd = Menu.Button.define({
     run: Command.bind(setAlignment, "end"),
     active: state => alignmentAtCursor(state) == "end",
-    label: icon.AlignRight,
+    label: {
+      icon: "M41 81a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m-25-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69m25-19a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m-25-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69",
+      directional: true
+    },
     description: phrases.ref("align_end"),
     parent: button,
     rank: 20
@@ -148,7 +153,9 @@ export namespace alignment {
   export const buttonCenter = Menu.Button.define({
     run: Command.bind(setAlignment, "center"),
     active: state => alignmentAtCursor(state) == "center",
-    label: icon.AlignCenter,
+    label: {
+      icon: "M29 81a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m-13-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69m13-19a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m-13-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69"
+    },
     description: phrases.ref("align_center"),
     parent: button,
     rank: 30
@@ -167,7 +174,9 @@ export namespace blockquote {
         if (cur.node.type == Blockquote.type) return true
       return false
     },
-    label: icon.Quote,
+    label: {
+      icon: "M75 75a6 6 0 0 0 6-6V53a6 6 0 0 0-6-6h-9q0-3 0-7 1-3 2-6t3-4q2-2 5-2V19q-5 0-9 2a21 21 0 0 0-7 6 31 31 0 0 0-4 9A48 48 0 0 0 56 47V69a5 5 0 0 0 6 6zm-37 0a6 6 0 0 0 6-6V53a6 6 0 0 0-6-6H29q0-3 0-7 1-3 2-6 1-3 3-4 2-2 5-2V19q-5 0-9 2a21 21 0 0 0-7 6 31 31 0 0 0-4 9A48 48 0 0 0 19 47V69a6 6 0 0 0 6 6z"
+    },
     description: phrases.ref("toggle_quote"),
     parent: Menu.Group.blockMenu,
     rank: 40
