@@ -29,7 +29,7 @@ export namespace paragraph {
     run: Command.bind(setTextblockType, Paragraph)
   })
 
-  export const button = new Menu.Button({
+  export const button = Menu.Button.define({
     run: Command.bind(setTextblockType, Paragraph),
     active: selectionInType(Paragraph),
     label: phrases.ref("paragraph"),
@@ -52,7 +52,7 @@ export namespace heading {
     KeyBinding.define({key: "Ctrl-Shift-6", run: Command.bind(setTextblockType, Heading.of(6))})
   ]
 
-  export const button1 = new Menu.Button({
+  export const button1 = Menu.Button.define({
     run: Command.bind(setTextblockType, Heading.of(1)),
     active: selectionInType(Heading.of(1)),
     label: phrases.ref("heading_1"),
@@ -60,7 +60,7 @@ export namespace heading {
     rank: 50
   })
 
-  export const button2 = new Menu.Button({
+  export const button2 = Menu.Button.define({
     run: Command.bind(setTextblockType, Heading.of(2)),
     active: selectionInType(Heading.of(2)),
     label: phrases.ref("heading_2"),
@@ -68,7 +68,7 @@ export namespace heading {
     rank: 51
   })
 
-  export const button3 = new Menu.Button({
+  export const button3 = Menu.Button.define({
     run: Command.bind(setTextblockType, Heading.of(3)),
     active: selectionInType(Heading.of(3)),
     label: phrases.ref("heading_3"),
@@ -89,7 +89,7 @@ export namespace codeBlock {
     run: Command.bind(setTextblockType, CodeBlock)
   })
 
-  export const button = new Menu.Button({
+  export const button = Menu.Button.define({
     run: Command.bind(setTextblockType, CodeBlock),
     active: selectionInType(CodeBlock),
     label: phrases.ref("code_block"),
@@ -120,14 +120,14 @@ export namespace alignment {
     KeyBinding.define({key: "Mod-Shift-e", run: Command.bind(setAlignment, "center")})
   ]
 
-  export const button = new Menu.Submenu({
+  export const button = Menu.Submenu.define({
     description: phrases.ref("alignment"),
     parent: Menu.BlockMenu,
     arrow: false,
     rank: 10
   })
 
-  export const buttonStart = new Menu.Button({
+  export const buttonStart = Menu.Button.define({
     run: Command.bind(setAlignment, null),
     active: state => alignmentAtCursor(state) == null,
     label: icon.AlignLeft,
@@ -136,7 +136,7 @@ export namespace alignment {
     rank: 10
   })
 
-  export const buttonEnd = new Menu.Button({
+  export const buttonEnd = Menu.Button.define({
     run: Command.bind(setAlignment, "end"),
     active: state => alignmentAtCursor(state) == "end",
     label: icon.AlignRight,
@@ -145,7 +145,7 @@ export namespace alignment {
     rank: 20
   })
 
-  export const buttonCenter = new Menu.Button({
+  export const buttonCenter = Menu.Button.define({
     run: Command.bind(setAlignment, "center"),
     active: state => alignmentAtCursor(state) == "center",
     label: icon.AlignCenter,
@@ -160,7 +160,7 @@ export function blockquote(): GardState.Extension {
 }
 
 export namespace blockquote {
-  export const button = new Menu.Button({
+  export const button = Menu.Button.define({
     run: Command.bind(toggleBlock, Blockquote),
     active: state => {
       for (let cur: Pos.Node | null = state.sel.head.parent; cur; cur = cur.parent)

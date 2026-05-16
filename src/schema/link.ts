@@ -102,7 +102,7 @@ export namespace link {
     run: toggleLink,
   })
 
-  export const button = new Menu.Button({
+  export const button = Menu.Button.define({
     run: toggleLink,
     active(state) {
       let {selection, doc} = state, found = false

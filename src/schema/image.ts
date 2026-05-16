@@ -134,7 +134,7 @@ export const imageKeymap = [
 ]
 
 // FIXME name
-export const InsertImageButton = new Menu.Button({
+export const InsertImageButton = Menu.Button.define({
   run: insertImage,
   active: state => !!activeImage(state.sel),
   label: icon.Image,

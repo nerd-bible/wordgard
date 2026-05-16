@@ -257,7 +257,7 @@ const colorPickerTheme = Wordgard.baseTheme({
 })
 
 
-export const colorPicker = new Menu.CustomControl({
+export const colorPicker = Menu.CustomControl.define({
   render(wg, done) {
     return new ColorPicker(wg, color => {
       done()
@@ -272,7 +272,7 @@ export function color(): GardState.Extension {
 }
 
 export namespace color {
-  export const button = new Menu.Submenu({
+  export const button = Menu.Submenu.define({
     label: icon.Color,
     description: phrases.ref("text_color"),
     arrow: false,
@@ -286,7 +286,7 @@ export function backgroundColor() {
   return [BackgroundColor, backgroundColor.button, colorPickerTheme, inlineStyleGroup]
 }
 
-const backgroundPicker = new Menu.CustomControl({
+const backgroundPicker = Menu.CustomControl.define({
   render(wg, done) {
     return new ColorPicker(wg, color => {
       done()
@@ -297,7 +297,7 @@ const backgroundPicker = new Menu.CustomControl({
 })
 
 export namespace backgroundColor {
-  export const button = new Menu.Submenu({
+  export const button = Menu.Submenu.define({
     label: icon.Marker,
     description: phrases.ref("background_color"),
     arrow: false,

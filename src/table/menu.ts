@@ -109,7 +109,7 @@ function insertTable(wg: Wordgard, width: number, height: number) {
   })
 }
 
-const dimensionPicker = new Menu.CustomControl({
+const dimensionPicker = Menu.CustomControl.define({
   render(wg, done) {
     return new DimensionPicker(wg, (width, height) => {
       done()
@@ -149,7 +149,7 @@ const phrase = PhraseSet.define({
 export namespace tableMenu {
   export const phrases = phrase
 
-  export const createTable = new Menu.Submenu({
+  export const createTable = Menu.Submenu.define({
     select(state) {
       return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
@@ -160,7 +160,7 @@ export namespace tableMenu {
     content: [dimensionPicker]
   })
 
-  export const modifyTable = new Menu.Submenu({
+  export const modifyTable = Menu.Submenu.define({
     select(state) {
       return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
@@ -170,7 +170,7 @@ export namespace tableMenu {
     rank: 90
   })
 
-  export const toggleHeader = new Menu.Button({
+  export const toggleHeader = Menu.Button.define({
     run: toggleHeaderCell,
     select: state => !!headerCellTag(state.doc.schema),
     label: phrase.ref("toggle_header"),
@@ -178,49 +178,49 @@ export namespace tableMenu {
     rank: 10
   })
 
-  export const addRowAbove = new Menu.Button({
+  export const addRowAbove = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "before"),
     label: phrase.ref("add_row_above"),
     parent: modifyTable,
     rank: 20,
   })
 
-  export const addRowBelow = new Menu.Button({
+  export const addRowBelow = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "after"),
     label: phrase.ref("add_row_below"),
     parent: modifyTable,
     rank: 21,
   })
 
-  export const deleteRow = new Menu.Button({
+  export const deleteRow = Menu.Button.define({
     run: _deleteRow,
     label: phrase.ref("delete_row"),
     parent: modifyTable,
     rank: 25
   })
 
-  export const addColumnBefore = new Menu.Button({
+  export const addColumnBefore = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "before"),
     label: phrase.ref("add_col_before"),
     parent: modifyTable,
     rank: 30,
   })
 
-  export const addColumnAfter = new Menu.Button({
+  export const addColumnAfter = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "after"),
     label: phrase.ref("add_col_after"),
     parent: modifyTable,
     rank: 31,
   })
 
-  export const deleteColumn = new Menu.Button({
+  export const deleteColumn = Menu.Button.define({
     run: _deleteColumn,
     label: phrase.ref("delete_col"),
     parent: modifyTable,
     rank: 35,
   })
 
-  export const mergeCells = new Menu.Button({
+  export const mergeCells = Menu.Button.define({
     run: _mergeCells,
     select: state => {
       let {selection} = state
@@ -232,7 +232,7 @@ export namespace tableMenu {
     rank: 40,
   })
 
-  export const splitCell = new Menu.Button({
+  export const splitCell = Menu.Button.define({
     run: _splitCell,
     select: state => {
       let {selection} = state

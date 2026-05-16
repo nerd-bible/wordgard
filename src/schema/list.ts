@@ -11,7 +11,7 @@ export function bulletList(config: {blockItems?: boolean} = {}) {
 export namespace bulletList {
   export const createOnDash = InputRule.wrapping(/^ ?- $/, BulletList)
 
-  export const toggleButton = new Menu.Button({
+  export const toggleButton = Menu.Button.define({
     run: Command.bind(toggleList, BulletList),
     active: listIsActive(BulletList),
     label: icon.BulletList,
@@ -28,7 +28,7 @@ export function orderedList(config: {blockItems?: boolean} = {}) {
 export namespace orderedList {
   export const createOnNumber = InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1]!.text))
 
-  export const toggleButton = new Menu.Button({
+  export const toggleButton = Menu.Button.define({
     run: Command.bind(toggleList, OrderedList.default!),
     active: listIsActive(OrderedList.default!),
     label: icon.OrderedList,

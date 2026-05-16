@@ -358,7 +358,7 @@ class HistoryState {
   }
 }
 
-export const undoButton = new Menu.Button({
+export const undoButton = Menu.Button.define({
   run: undo,
   label: icon.Undo,
   description: phrases.ref("undo"),
@@ -367,7 +367,7 @@ export const undoButton = new Menu.Button({
   rank: 10
 })
 
-export const redoButton = new Menu.Button({
+export const redoButton = Menu.Button.define({
   run: redo,
   label: icon.Redo,
   description: phrases.ref("redo"),

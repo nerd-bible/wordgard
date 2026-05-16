@@ -6,7 +6,7 @@ import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgar
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
-export const inlineStyleGroup = new Menu.Group({parent: Menu.Top, rank: 30, margin: true})
+export const inlineStyleGroup = Menu.Group.define({parent: Menu.Top, rank: 30, margin: true})
 
 export function strong(): GardState.Extension {
   return [Strong, strong.button, inlineStyleGroup, strong.keyBinding]
@@ -135,7 +135,7 @@ export function toggleInlineMarkButton(config: {
   label: Menu.Label
 }) {
   let {mark, parent, rank, description, label} = config
-  return new Menu.Button({
+  return Menu.Button.define({
     run: Command.bind(toggleMark, mark),
     active(state) {
       let {selection} = state
