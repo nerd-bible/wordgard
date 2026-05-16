@@ -5,7 +5,7 @@ import {phrases} from "wordgard/phrases"
 import {MenuButton, Submenu, TextblockStyle, BlockMenu, icon} from "wordgard/menu"
 import {Command, setTextblockType, setAlignment, toggleBlock} from "wordgard/command"
 import {history} from "wordgard/history"
-import {KeyBinding} from "wordgard/editor"
+import {KeyBinding, Wordgard} from "wordgard/editor"
 import {InputRule} from "wordgard/inputrule"
 
 export function blockDoc(): GardState.Extension {
@@ -156,7 +156,7 @@ export namespace alignment {
 }
 
 export function blockquote(): GardState.Extension {
-  return [Blockquote, blockquote.button, blockquote.createOnGT]
+  return [Blockquote, blockquote.button, blockquote.createOnGT, blockquote.theme]
 }
 
 export namespace blockquote {
@@ -174,6 +174,14 @@ export namespace blockquote {
   })
 
   export const createOnGT = InputRule.wrapping(/^> $/, Blockquote)
+
+  export const theme = Wordgard.theme({
+    blockquote: {
+      marginInline: "3px",
+      paddingInlineStart: "12px",
+      borderInlineStart: "4px solid silver"
+    }
+  })
 }
 
 export function horizontalRule(): GardState.Extension {
