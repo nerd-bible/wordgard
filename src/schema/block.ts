@@ -1,9 +1,10 @@
-import {Plot, Pos} from "wordgard/doc"
-import {GardState} from "wordgard/state"
-import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment} from "wordgard/schema-def"
+import {Plot, Pos, ChangeSet} from "wordgard/doc"
+import {GardState, GardSelection} from "wordgard/state"
+import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, HorizontalRule} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {MenuButton, Submenu, TextblockStyle, BlockMenu, icon} from "wordgard/menu"
 import {Command, setTextblockType, setAlignment, toggleBlock} from "wordgard/command"
+import {history} from "wordgard/history"
 import {KeyBinding} from "wordgard/editor"
 import {InputRule} from "wordgard/inputrule"
 
@@ -173,4 +174,31 @@ export namespace blockquote {
   })
 
   export const createOnGT = InputRule.wrapping(/^> $/, Blockquote)
+}
+
+export function horizontalRule(): GardState.Extension {
+  return [HorizontalRule, horizontalRule.createOnDashes]
+}
+
+export namespace horizontalRule {
+  export const createOnDashes = InputRule.define({
+    expr: /^---$/,
+    lookahead: /^$/,
+    apply: (wg, m) => {
+      let changes = ChangeSet.create(wg.state.doc, {
+        from: m[0].from.pos, to: m[0].to.pos,
+        insert: [HorizontalRule],
+        fit: true
+      })
+      let hr = changes.findInserted(t => t == HorizontalRule)
+      if (hr == null) return false
+      wg.dispatch({
+        changes,
+        selection: cx => GardSelection.near(cx, hr + 1, 1),
+        annotations: history.isolate.of("full"),
+        userEvent: "insert.horizontalrule"
+      })
+      return true
+    }
+  })
 }

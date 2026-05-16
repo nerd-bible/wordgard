@@ -306,7 +306,7 @@ export class ChangeSet {
     return posB
   }
 
-  findInserted(pred: (tag: Node.Tag) => boolean) {
+  findInserted(pred: (tag: Node.Tag) => boolean): number | null {
     let found: number | null = null
     this.iterChanges((_f, _t, pos, _to, inserted) => {
       if (found != null) return
