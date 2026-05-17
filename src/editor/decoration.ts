@@ -1,5 +1,5 @@
 import {GardState, Facet, GardSelection} from "wordgard/state"
-import {Mark, Pos, Plot, Leaf, Node, ChangeSet, MapMode, Schema, Elt, Attributes} from "wordgard/doc"
+import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type Wordgard} from "./editor"
 
@@ -321,10 +321,10 @@ class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
 export abstract class Decoration implements PointSet.Value {
   abstract eq(other: PointSet.Value): boolean
   abstract side: number
-  abstract mapMode: MapMode
+  abstract trackMode: ChangeSet.TrackMode | undefined
 
-  static widget(widget: Widget, spec?: {side?: number, mapMode?: MapMode}) {
-    return new WidgetDecoration(widget, spec?.side || 0, spec?.mapMode ?? MapMode.TrackDel)
+  static widget(widget: Widget, spec?: {side?: number, trackMode?: ChangeSet.TrackMode}) {
+    return new WidgetDecoration(widget, spec?.side || 0, spec && "trackMode" in spec ? spec.trackMode : "around")
   }
 
   static attribute(attribute: string, value: string, spec?: {target?: string}) {
@@ -352,19 +352,19 @@ class ShapeDecoration extends Decoration {
     return this == other || other instanceof ShapeDecoration && other.shape.eq(this.shape)
   }
 
-  get mapMode() { return MapMode.TrackAfter }
+  get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
 
 class WidgetDecoration extends Decoration {
-  constructor(readonly widget: Widget, readonly side: number, readonly mapMode: MapMode) {
+  constructor(readonly widget: Widget, readonly side: number, readonly trackMode: ChangeSet.TrackMode | undefined) {
     super()
     if (side >= 1e9) throw new Error("Invalid widget side")
   }
 
   eq(other: PointSet.Value): boolean {
     return this == other || other instanceof WidgetDecoration && other.widget.eq(this.widget) &&
-      other.side == this.side && other.mapMode == this.mapMode
+      other.side == this.side && other.trackMode == this.trackMode
   }
 }
 
@@ -376,7 +376,7 @@ class AttributeDecoration extends Decoration {
       other.value == this.value && other.selector == this.selector
   }
 
-  get mapMode() { return MapMode.TrackAfter }
+  get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
 
@@ -387,7 +387,7 @@ class WrapperDecoration extends Decoration {
     return this == other || other instanceof WrapperDecoration && other.elt.eq(this.elt) && other.selector == this.selector
   }
 
-  get mapMode() { return MapMode.TrackAfter }
+  get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
 
@@ -435,7 +435,7 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     }, (_fromA, toA) => {
       let nextI = findAbove(positions, i, toA + 1)
       for (; i < nextI; i++) {
-        let mapped = changes.mapPos(positions[i], this.values[i].side < 0 ? -1 : 1, this.values[i].mapMode)
+        let mapped = changes.mapPos(positions[i], this.values[i].side < 0 ? -1 : 1, this.values[i].trackMode)
         if (mapped == null) { addDel(deleted, i); deletions++ }
         else positions[i] = mapped
       }
@@ -536,7 +536,7 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
 export namespace PointSet {
   export interface Value {
     side: number
-    mapMode: MapMode
+    trackMode: ChangeSet.TrackMode | undefined
     eq(other: PointSet.Value): boolean
   }
 }

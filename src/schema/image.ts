@@ -1,4 +1,4 @@
-import {elt, MapMode} from "wordgard/doc"
+import {elt} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
@@ -41,8 +41,8 @@ const imageTheme = Wordgard.theme({
 
 const setResizing = Transaction.Effect.define<{target: number, resizing: number}>({
   map: (value, mapping) => {
-    let newPos = mapping.mapPos(value.target, MapMode.TrackAfter)
-    return value == null ? undefined : {target: newPos, resizing: value.resizing}
+    let newPos = mapping.mapPos(value.target, 1, "after")
+    return newPos == null ? undefined : {target: newPos, resizing: value.resizing}
   }
 })
 

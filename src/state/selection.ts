@@ -1,4 +1,4 @@
-import {Plot, Node as wgNode, Leaf, ChangeSet, Mark, Pos, ValidationError, MapMode} from "wordgard/doc"
+import {Plot, Node as wgNode, Leaf, ChangeSet, Mark, Pos, ValidationError} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import type {GardState, Facet} from "./state"
@@ -327,7 +327,7 @@ export namespace GardSelection {
     }
 
     map(change: ChangeSet, cx: GardSelection.Context, assoc: -1 | 1 = -1) {
-      let newPos = change.mapPos(this.anchor, 1, MapMode.TrackAfter)
+      let newPos = change.mapPos(this.anchor, 1, "after")
       if (newPos == null) return GardSelection.near(cx, change.mapPos(this.anchor, assoc), assoc)
       return Node.create(newPos, cx.doc.nodeAt(newPos)!)
     }

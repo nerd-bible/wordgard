@@ -1,5 +1,5 @@
 import {Plot, Node} from "./node"
-import { Mark, subtractSet } from "./mark"
+import {Mark, subtractSet} from "./mark"
 import {Schema} from "./schema"
 import {Slice, Token} from "./slice"
 import {Pos} from "./pos"
@@ -283,8 +283,8 @@ export class ChangeSet {
   }
 
   mapPos(pos: number, assoc?: number): number
-  mapPos(pos: number, assoc: number, mode: MapMode): number | null
-  mapPos(pos: number, assoc = -1, mode: MapMode = MapMode.Simple) {
+  mapPos(pos: number, assoc: number, track: ChangeSet.TrackMode | undefined): number | null
+  mapPos(pos: number, assoc = -1, track?: ChangeSet.TrackMode) {
     let posA = 0, posB = 0
     for (let i = 0; i < this.sections.length;) {
       let len = this.sections[i++], type = this.sections[i++], endA = posA + len
@@ -292,10 +292,10 @@ export class ChangeSet {
         if (endA > pos) return posB + (pos - posA)
         posB += len
       } else {
-        if (mode != MapMode.Simple && endA >= pos &&
-            (mode == MapMode.TrackDel && posA < pos && endA > pos ||
-             mode == MapMode.TrackBefore && posA < pos ||
-             mode == MapMode.TrackAfter && endA > pos)) return null
+        if (track && endA >= pos &&
+            (track == "around" && posA < pos && endA > pos ||
+             track == "before" && posA < pos ||
+             track == "after" && endA > pos)) return null
         if (endA > pos || endA == pos && assoc < 0 && !len)
           return pos == posA || assoc < 0 ? posB : posB + type
         posB += type
@@ -440,6 +440,8 @@ export namespace ChangeSet {
     modifications?: readonly ModificationJSON[]
     replacement?: Slice.JSON
   }[]
+
+  export type TrackMode = "before" | "after" | "around"
 }
 
 type ModificationJSON = {add: string, value: any} | {remove: string, value: any}
@@ -977,19 +979,6 @@ function markableSections(doc: Plot.Doc, from: number, to: number, spanning: boo
         return false
     }
   })
-}
-
-// FIXME use string literals?
-export enum MapMode {
-  /// Map a position to a valid new position, even when its context
-  /// was deleted.
-  Simple,
-  /// Return null if deletion happens across the position.
-  TrackDel,
-  /// Return null if the token _before_ the position is deleted.
-  TrackBefore,
-  /// Return null if the token _after_ the position is deleted.
-  TrackAfter
 }
 
 class SectionIter {

@@ -1,4 +1,4 @@
-import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes, MapMode} from "wordgard/doc"
+import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes} from "wordgard/doc"
 import {GardState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
@@ -34,7 +34,7 @@ const enum Orientation { Row, Col }
 export class CoordPos {
   constructor(readonly pos: number, readonly target: number | null, readonly side: -1 | 1, readonly vertOutside: boolean) {}
   map(mapping: ChangeSet) {
-    let target = this.target == null ? null : mapping.mapPos(this.target, MapMode.TrackAfter)
+    let target = this.target == null ? null : mapping.mapPos(this.target, 1, "after")
     return new CoordPos(mapping.mapPos(this.pos), target, this.side, this.vertOutside)
   }
   static create(pos: number, side: -1 | 1, target: number | null = null, vertOutside = false) {

@@ -176,9 +176,10 @@ export namespace Node {
     /// lists. The basic schema uses this as the content type for the
     /// top level document, blockquotes, and list items.
     static Content = Group.define()
+    /// Group for the innermost cell nodes in tables.
     static TableCell = Group.define()
+    /// Generic list item group.
     static ListItem = Group.define()
-    // FIXME ListItem?
 
     /// @internal
     static builtin = [Group.All, Group.Inline, Group.Block, Group.Leaf, Group.Plot, Group.Textblock]

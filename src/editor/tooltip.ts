@@ -1,5 +1,4 @@
 import {GardState, Transaction, Facet, Direction} from "wordgard/state"
-import {MapMode} from "wordgard/doc"
 import {Wordgard} from "./editor"
 import {logException} from "./util"
 import {windowRect} from "./dom"
@@ -568,7 +567,7 @@ export namespace Tooltip {
           if (tr.docChanged) {
             let mapped = []
             for (let tooltip of value) {
-              let newPos = tr.changes.mapPos(tooltip.pos, -1, MapMode.TrackDel)
+              let newPos = tr.changes.mapPos(tooltip.pos, -1, "around")
               if (newPos != null) {
                 let copy: Tooltip = Object.assign(Object.create(null), tooltip)
                 copy.pos = newPos
