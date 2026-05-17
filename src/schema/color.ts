@@ -1,5 +1,5 @@
 import {Menu} from "wordgard/command"
-import {GardState, GardSelection, Direction, Facet} from "wordgard/state"
+import {GardState, GardSelection, Facet} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema-def"
 import {PhraseSet, phrases, colorNames} from "wordgard/phrases"
@@ -63,7 +63,7 @@ export class ColorPicker {
       }
     })
     this.dom.addEventListener("keydown", e => {
-      let ltr = this.wg.state.textDirection() == Direction.LTR
+      let ltr = this.wg.state.textLTR()
       if (e.key == (ltr ? "ArrowLeft" : "ArrowRight") && this.selPos > 0) {
         this.move(this.selPos - 1)
       } else if (e.key == (ltr ? "ArrowRight" : "ArrowLeft") && this.selPos < this.options.length - 1) {

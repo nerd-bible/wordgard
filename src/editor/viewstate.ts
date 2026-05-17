@@ -39,8 +39,6 @@ export class ScrollTarget {
   }
 }
 
-export enum Direction { LTR, RTL }
-
 export class ViewState {
   initialized = false
   contentDOMWidth = 0 // contentDOM.getBoundingClientRect().width
@@ -56,7 +54,7 @@ export class ViewState {
   scrollTarget: ScrollTarget | null = null
 
   // FIXME propagate this to state somehow
-  defaultTextDirection: Direction = Direction.LTR
+  defaultTextLTR: boolean = true
 
   flushedState: GardState
   pending: Transaction[] = []
@@ -85,7 +83,7 @@ export class ViewState {
 
   measure(wg: Wordgard) {
     let dom = wg.contentDOM, style = window.getComputedStyle(dom)
-    this.defaultTextDirection = style.direction == "rtl" ? Direction.RTL : Direction.LTR
+    this.defaultTextLTR = style.direction == "ltr"
 
     let domRect = dom.getBoundingClientRect()
     this.contentDOMHeight = domRect.height

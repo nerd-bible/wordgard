@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes} from "wordgard/doc"
-import {GardState, Direction, TextblockMap, BidiSpan} from "wordgard/state"
+import {GardState, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderMarkWrapper, DecoSet, getDecoSet} from "./decoration"
@@ -234,7 +234,7 @@ export class CompositeTile extends Tile {
     if (node && node.isPlot) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) {
-        textblock = TextblockMap.get(start, state.doc.nodeAt(start - 1) as Plot, state.textDirection(node.tag))
+        textblock = TextblockMap.get(start, state.doc.nodeAt(start - 1) as Plot, state.textLTR(node.tag))
       } else if (node.isBlock) {
         textblock = null
       }
@@ -325,14 +325,14 @@ function rowScan<T>(
   return rowScan(x, (side.top + side.bottom) / 2, scan)
 }
 
-export function dirAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
+export function ltrAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
   if (textblock === undefined) {
     let {textblockParent: block} = state.doc.resolve(pos)
-    textblock = block ? TextblockMap.get(block.start, block.node, state.textDirection()) : null
+    textblock = block ? TextblockMap.get(block.start, block.node, state.textLTR()) : null
   }
-  if (!textblock) return state.textDirection()
+  if (!textblock) return state.textLTR()
   let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)
-  return textblock.order[found].dir
+  return textblock.order[found].ltr
 }
 
 export class DocTile extends CompositeTile {
@@ -632,7 +632,7 @@ export class WidgetTile extends Tile {
     let rect = this.dom.nodeType == 1 ? (this.dom as Element).getBoundingClientRect()
       : textRange(this.dom as Text, 0, this.length).getBoundingClientRect()
     let after = orientation == Orientation.Col ? y > (rect.top + rect.bottom) / 2
-      : (x < (rect.left + rect.right) / 2) == (dirAt(state, start, 1, textblock) == Direction.LTR)
+      : (x < (rect.left + rect.right) / 2) == ltrAt(state, start, 1, textblock)
     return after ? CoordPos.create(start + this.length - 2 * this.boundary, -1, start) : CoordPos.create(start, 1, start)
   }
 }
@@ -674,8 +674,8 @@ export class TextTile extends Tile {
         i = end
       }
     })!
-    let pos = start + closest, dir = dirAt(state, pos, 1, textblock)
-    let after = (x > (rect.left + rect.right) / 2) == (dir == Direction.LTR)
+    let pos = start + closest
+    let after = (x > (rect.left + rect.right) / 2) == ltrAt(state, pos, 1, textblock)
     if (after) return CoordPos.create(start + findClusterBreak(this.text, closest), -1)
     else return CoordPos.create(pos, 1)
   }

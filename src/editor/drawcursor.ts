@@ -1,4 +1,4 @@
-import {GardState, Direction} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {Wordgard, basePlugins} from "./editor"
 
 type CursorPos = {left: number, top: number, size: number, horiz: boolean} | null
@@ -67,7 +67,7 @@ export function cursorPos(wg: Wordgard): CursorPos {
   let horiz = top == bottom, size = horiz ? right - left : bottom - top
   if (horiz && size > VertWidth) {
     size = VertWidth
-    if (wg.state.textDirection() == Direction.RTL) left = right - size
+    if (!wg.state.textLTR()) left = right - size
     let other = wg.coordsAtPos(head, headSide > 0 ? -1 : 1)
     if (other.top == other.bottom && other.top != top) {
       let move = Math.min(VertGap, Math.abs(other.top - top) / 2)

@@ -1,5 +1,5 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
-import {GardSelection, GardState, Direction, Transaction} from "wordgard/state"
+import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/editor"
 import {Command} from "./command"
 import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBlocks,
@@ -383,7 +383,7 @@ function setSelection(selection: GardSelection): Transaction.Spec {
 
 function ltrAtCursor(state: GardState) {
   let block = state.sel.head.textblockParent
-  return state.textDirection(block ? block.node.tag : undefined) == Direction.LTR
+  return state.textLTR(block ? block.node.tag : undefined)
 }
 
 function isForward(dir: "left" | "right" | "forward" | "backward", state: GardState) {

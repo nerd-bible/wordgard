@@ -11,7 +11,7 @@ import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, ligh
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle, dragBehavior, pasteHandler} from "./input"
-import {ViewState, Direction, scrollIntoView, ScrollTarget} from "./viewstate"
+import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
 import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
@@ -257,7 +257,7 @@ export class Wordgard {
     scrollRectIntoView(this.scrollDOM, targetRect, assoc, target.x, target.y,
                        Math.max(Math.min(target.xMargin, offsetWidth), -offsetWidth),
                        Math.max(Math.min(target.yMargin, offsetHeight), -offsetHeight),
-                       this.state.textDirection() == Direction.LTR)
+                       this.state.textLTR())
   }
 
   private runUpdate(update: Wordgard.Update, domChanges: ChangeSet.Sections | null) {
@@ -480,7 +480,7 @@ export class Wordgard {
   /// The text direction
   /// ([`direction`](https://developer.mozilla.org/en-US/docs/Web/CSS/direction)
   /// CSS property) of the editor's content element.
-  get textDirection(): Direction { return this.viewState.defaultTextDirection }
+  get textLTR(): boolean { return this.viewState.defaultTextLTR }
 
   /// Check whether the editor has focus.
   get hasFocus(): boolean {

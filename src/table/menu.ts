@@ -1,5 +1,5 @@
 import {Wordgard} from "wordgard/editor"
-import {GardState, Direction, GardSelection} from "wordgard/state"
+import {GardState, GardSelection} from "wordgard/state"
 import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command, Menu} from "wordgard/command"
@@ -32,7 +32,7 @@ class DimensionPicker {
     this.announce.setAttribute("aria-live", "polite")
     this.svg = this.dom.appendChild(document.createElementNS(SVG, "svg"))
     this.svg.setAttribute("aria-hidden", "true")
-    this.ltr = wg.state.textDirection() == Direction.LTR
+    this.ltr = wg.state.textLTR()
     this.render()
     this.dom.addEventListener("mousemove", e => {
       let rect = this.svg.getBoundingClientRect()

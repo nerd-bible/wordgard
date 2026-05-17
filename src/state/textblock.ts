@@ -1,5 +1,5 @@
 import {Plot, Leaf, Node} from "wordgard/doc"
-import {Direction, BidiSpan, computeOrder} from "./bidi"
+import {BidiSpan, computeOrder} from "./bidi"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
 const cache: WeakMap<Plot, TextblockMap> = new WeakMap
@@ -18,7 +18,7 @@ export class TextblockMap {
   private constructor(
     readonly start: number,
     readonly node: Plot,
-    readonly dir: Direction,
+    readonly ltr: boolean,
     readonly text: string,
     private _order: readonly BidiSpan[] | null,
     // Describe the correspondence between the indices and document
@@ -28,21 +28,21 @@ export class TextblockMap {
   ) {}
 
   get order() {
-    return this._order || (this._order = computeOrder(this.text, this.dir, []))
+    return this._order || (this._order = computeOrder(this.text, this.ltr, []))
   }
 
   // FIXME handle isolates
-  static get(start: number, node: Plot, dir: Direction) {
+  static get(start: number, node: Plot, ltr: boolean) {
     let cached = cache.get(node)
-    if (cached && cached.start == start && cached.dir == dir) return cached
-    let result = cached && cached.dir == dir
-      ? new TextblockMap(start, node, dir, cached.text, cached._order, cached.sections)
-      : TextblockMap.create(start, node, dir)
+    if (cached && cached.start == start && cached.ltr == ltr) return cached
+    let result = cached && cached.ltr == ltr
+      ? new TextblockMap(start, node, ltr, cached.text, cached._order, cached.sections)
+      : TextblockMap.create(start, node, ltr)
     cache.set(node, result)
     return result
   }
 
-  static create(start: number, node: Plot, dir: Direction) {
+  static create(start: number, node: Plot, ltr: boolean) {
     let text = "", sections: number[] = [], sectionPos = 0
     let flush = (upto: number) => {
       if (upto > sectionPos) sections.push((upto - sectionPos) << Section.Shift)
@@ -75,7 +75,7 @@ export class TextblockMap {
     }
     scan(node, 0)
     flush(node.contentLength)
-    return new TextblockMap(start, node, dir, text, null, sections)
+    return new TextblockMap(start, node, ltr, text, null, sections)
   }
 
   toIndex(pos: number) {
@@ -130,26 +130,26 @@ export class TextblockMap {
   // positions with a given visual position, which is likely to confuse
   // people. (And would generally be a lot more complicated.)
   moveVisually(start: number, side: number, forward: boolean, skipped?: string[]): {pos: number, side: -1 | 1} | null {
-    let startIndex = this.toIndex(start), {order, dir} = this
+    let startIndex = this.toIndex(start), {order, ltr} = this
     let spanI = BidiSpan.find(order, startIndex, side)
-    let span = order[spanI], spanEnd = span.side(forward, dir)
+    let span = order[spanI], spanEnd = span.side(forward, ltr)
     // End of span
     if (startIndex == spanEnd) {
       let nextI = spanI += forward ? 1 : -1
       if (nextI < 0 || nextI >= order.length) return null
       span = order[spanI = nextI]
-      startIndex = span.side(!forward, dir)
-      spanEnd = span.side(forward, dir)
+      startIndex = span.side(!forward, ltr)
+      spanEnd = span.side(forward, ltr)
     }
-    let nextIndex = findClusterBreak(this.text, startIndex, span.forward(forward, dir))
+    let nextIndex = findClusterBreak(this.text, startIndex, span.forward(forward, ltr))
     if (nextIndex == startIndex) return null
     if (nextIndex < span.from || nextIndex > span.to) nextIndex = spanEnd
     if (skipped) skipped[0] = this.text.slice(Math.min(startIndex, nextIndex), Math.max(startIndex, nextIndex))
 
     let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)]
     if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level)
-      return {pos: this.fromIndex(nextSpan.side(!forward, dir)), side: nextSpan.forward(forward, dir) ? 1 : -1}
-    return {pos: this.fromIndex(nextIndex), side: span.forward(forward, dir) ? -1 : 1}
+      return {pos: this.fromIndex(nextSpan.side(!forward, ltr)), side: nextSpan.forward(forward, ltr) ? 1 : -1}
+    return {pos: this.fromIndex(nextIndex), side: span.forward(forward, ltr) ? -1 : 1}
   }
 
   skipWord(start: number, side: number, forward: boolean, visually: boolean): {pos: number, side: -1 | 1} | null {
@@ -184,10 +184,10 @@ export class TextblockMap {
     let pos, side: -1 | 1
     if (start) {
       let span = this.order[0]
-      ;[pos, side] = span.dir == this.dir ? [span.from, 1] : [span.to, -1]
+      ;[pos, side] = span.ltr == this.ltr ? [span.from, 1] : [span.to, -1]
     } else {
       let span = this.order[this.order.length - 1]
-      ;[pos, side] = span.dir == this.dir ? [span.to, -1] : [span.from, 1]
+      ;[pos, side] = span.ltr == this.ltr ? [span.to, -1] : [span.from, 1]
     }
     return {pos: this.fromIndex(pos), side}
   }

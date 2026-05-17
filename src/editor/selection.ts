@@ -1,4 +1,4 @@
-import {GardSelection, Direction} from "wordgard/state"
+import {GardSelection} from "wordgard/state"
 import {Pos} from "wordgard/doc"
 import {Wordgard} from "./editor"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
@@ -42,9 +42,9 @@ export function moveVertically(
 ): GardSelection | null {
   let editorRect = wg.contentDOM.getBoundingClientRect()
   let coords = wg.coordsAtPos(start.head, start.headSide)
-  let baseDir = wg.state.textDirection()
-  let goalColumn = start.goalColumn ?? (baseDir == Direction.LTR ? coords.left - editorRect.left : editorRect.right - coords.left)
-  let x = baseDir == Direction.LTR ? editorRect.left + goalColumn : editorRect.right - goalColumn
+  let baseLTR = wg.state.textLTR()
+  let goalColumn = start.goalColumn ?? (baseLTR ? coords.left - editorRect.left : editorRect.right - coords.left)
+  let x = baseLTR ? editorRect.left + goalColumn : editorRect.right - goalColumn
   let y = forward ? coords.bottom + distance : coords.top - distance
   for (let scan = start.head;;) {
     let pos = wg.state.doc.resolve(scan), block = pos.textblockParent
@@ -137,8 +137,8 @@ export function moveToLineBoundary(wg: Wordgard, start: GardSelection, forward: 
   let block = wg.state.doc.resolve(start.head).textblockParent
   if (!block) return null
   let startCoords = wg.coordsAtPos(start.head, start.headSide)
-  let dir = wg.state.textDirection(block.node.tag)
-  let y = (startCoords.top + startCoords.bottom) / 2, left = forward != (dir == Direction.LTR)
+  let ltr = wg.state.textLTR(block.node.tag)
+  let y = (startCoords.top + startCoords.bottom) / 2, left = forward != ltr
   let {pos} = wg.posAtCoords({x: left ? -1e7 : 1e7, y})
   if (pos < block.start || pos > block.end) {
     let blockRect = (wg.docTile.nodeTile(block.before)!.dom as Element).getBoundingClientRect()

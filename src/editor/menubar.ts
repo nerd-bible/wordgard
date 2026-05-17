@@ -1,5 +1,5 @@
 import {Panel, Wordgard} from "wordgard/editor"
-import {GardState, Facet, Direction} from "wordgard/state"
+import {GardState, Facet} from "wordgard/state"
 import {PhraseSet} from "wordgard/phrases"
 import {Command, Menu} from "wordgard/command"
 
@@ -35,7 +35,7 @@ function labelButton(wg: Wordgard, button: HTMLElement, label?: Menu.Label) {
     svg.setAttribute("viewBox", "0 0 100 100")
     let path = svg.appendChild(document.createElementNS(SVG, "path"))
     path.setAttribute("d", (label as {icon: string}).icon)
-    if ((label as any).directional && wg.state.textDirection() == Direction.RTL)
+    if ((label as any).directional && !wg.state.textLTR())
       svg.setAttribute("transform", "scale(-1, 1)")
   } else if ("render" in label) {
     button.appendChild(label.render(wg))

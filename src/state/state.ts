@@ -2,7 +2,6 @@ import {Schema, Plot, Node, Pos, parseDoc, SchemaError, ValidationError} from "w
 import {SelectionType, GardSelection, wordAt, cursorAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray} from "./transaction"
 import {TextblockMap} from "./textblock"
-import {Direction} from "./bidi"
 
 let nextID = 0
 
@@ -349,7 +348,7 @@ export class GardState {
   }
 
   textblockMap(node: Pos.Plot) {
-    return TextblockMap.get(node.start, node.node, this.textDirection(node.node.tag))
+    return TextblockMap.get(node.start, node.node, this.textLTR(node.node.tag))
   }
 
   /// Convert this state to a JSON-serializable object. When custom
@@ -445,7 +444,7 @@ export class GardState {
   /// in that block, or given `null` to query the direction outside of
   /// textblocks. When multiple values are given, they are consulted
   /// in order of precedence.
-  static textDirection = Facet.define<Direction | ((tag?: Plot.Tag.Any) => Direction | null), (tag?: Plot.Tag.Any) => Direction>({
+  static textLTR = Facet.define<boolean | ((tag?: Plot.Tag.Any) => boolean | null), (tag?: Plot.Tag.Any) => boolean>({
     combine(values) {
       return (tag?: Plot.Tag.Any) => {
         for (let elt of values) {
@@ -453,7 +452,7 @@ export class GardState {
           let result = elt(tag)
           if (result != null) return result
         }
-        return Direction.LTR
+        return true
       }
     },
     static: true
@@ -461,8 +460,8 @@ export class GardState {
 
   /// Return the text direction in a given textblock (by tag) or the
   /// global default direction (when no tag is given).
-  get textDirection() {
-    return this.facet(GardState.textDirection)
+  get textLTR() {
+    return this.facet(GardState.textLTR)
   }
 
   static visualCursorMotion = Facet.define<boolean, boolean>({
@@ -703,7 +702,7 @@ export namespace GardState {
 
     // Kludge to avoid cyclic dep with ./selection
     /// @internal
-    get textDirection() { return this.staticFacet(GardState.textDirection) }
+    get textLTR() { return this.staticFacet(GardState.textLTR) }
     /// @internal
     get visualCursorMotion() { return this.staticFacet(GardState.visualCursorMotion) }
   }

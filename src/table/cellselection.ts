@@ -1,4 +1,4 @@
-import {GardState, GardSelection, Direction} from "wordgard/state"
+import {GardState, GardSelection} from "wordgard/state"
 import {Decoration, PointSet, Wordgard} from "wordgard/editor"
 import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
 import {Table, TableRow} from "wordgard/schema-def"
@@ -30,7 +30,7 @@ type Dir = "left" | "right" | "forward" | "backward" | "up" | "down"
 
 function resolveDir(dir: "left" | "right", state: GardState): "forward" | "backward" {
   let block = state.sel.head.textblockParent
-  return (dir == "right") == (state.textDirection(block ? block.node.tag : undefined) == Direction.LTR)
+  return (dir == "right") == (state.textLTR(block ? block.node.tag : undefined))
     ? "forward" : "backward"
 }
 

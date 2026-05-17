@@ -1,4 +1,4 @@
-import {GardState, Transaction, Facet, Direction} from "wordgard/state"
+import {GardState, Transaction, Facet} from "wordgard/state"
 import {Wordgard} from "./editor"
 import {logException} from "./util"
 import {windowRect} from "./dom"
@@ -290,7 +290,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
       let arrow: HTMLElement | null = tooltip.arrow ? tView.dom.querySelector("wg-tooltip-arrow") : null
       let arrowHeight = arrow ? Arrow.Size : 0
       let width = size.right - size.left, height = knownHeight.get(tView) ?? size.bottom - size.top
-      let offset = tView.offset || noOffset, ltr = this.wg.textDirection == Direction.LTR
+      let offset = tView.offset || noOffset, ltr = this.wg.textLTR
       let left = size.width > space.right - space.left
         ? (ltr ? space.left : space.right - size.width)
         : ltr ? Math.max(space.left, Math.min(pos.left - (arrow ? Arrow.Offset : 0) + offset.x, space.right - width))

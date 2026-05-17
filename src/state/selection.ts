@@ -173,8 +173,8 @@ export abstract class GardSelection {
   /// textblock.
   static atEnd(cx: GardSelection.Context, block?: Pos.Plot) {
     let found = block
-      ? TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag)).visualTextblockSide(false)
-      : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textDirection()).visualTextblockSide(false)
+      ? TextblockMap.get(block.start, block.node, cx.config.textLTR(block.node.tag)).visualTextblockSide(false)
+      : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textLTR()).visualTextblockSide(false)
       : scanNormalFrom(cx, cx.doc.length, -1, false, false) ?? {pos: cx.doc.length, side: -1}
     return GardSelection.cursor(found.pos, found.side)
   }
@@ -414,8 +414,8 @@ export namespace GardSelection {
 
 export function cursorAtStart(cx: GardSelection.Context, block?: Pos.Plot) {
   let found = block
-    ? TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag)).visualTextblockSide(true)
-    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textDirection(cx.doc.tag)).visualTextblockSide(true)
+    ? TextblockMap.get(block.start, block.node, cx.config.textLTR(block.node.tag)).visualTextblockSide(true)
+    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textLTR(cx.doc.tag)).visualTextblockSide(true)
     : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, side: 1}
   return GardSelection.cursor(found.pos, found.side)
 }
@@ -440,7 +440,7 @@ function scanNormalFrom(
   if (pos.parent.node.inlineContent) {
     if (!mustMove) return {pos: pos.pos, side}
     let block = pos.textblockParent!
-    let map = TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag))
+    let map = TextblockMap.get(block.start, block.node, cx.config.textLTR(block.node.tag))
     let next = cx.config.visualCursorMotion ? map.moveVisually(pos.pos, side, forward) : map.moveLogically(pos.pos, forward)
     if (next != null) return next
     if (!block.parent) return null
@@ -466,7 +466,7 @@ function scanNormalFrom(
     let {node, parent: next} = parent
     if (node.inlineContent) {
       if (cx.config.visualCursorMotion)
-        return TextblockMap.get(parent.start, parent.node, cx.config.textDirection(parent.node.tag)).visualTextblockSide(forward)
+        return TextblockMap.get(parent.start, parent.node, cx.config.textLTR(parent.node.tag)).visualTextblockSide(forward)
       return {pos: p, side: forward ? 1 : -1}
     }
     if (index == (forward ? node.content.length : 0)) {
@@ -505,7 +505,7 @@ function skipWord(cx: GardSelection.Context, start: number, side: -1 | 1, forwar
       if (!next) return last
       ;({pos, side} = next)
     } else {
-      let map = TextblockMap.get(block.start, block.node, cx.config.textDirection(block.node.tag))
+      let map = TextblockMap.get(block.start, block.node, cx.config.textLTR(block.node.tag))
       let next = map.skipWord(pos, side, forward, visually)
       if (next) return next
       if (!block.parent) return last

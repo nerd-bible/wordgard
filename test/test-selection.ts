@@ -1,7 +1,7 @@
 import ist from "ist"
 import {Schema, Plot, Node} from "wordgard/doc"
 import {Table, TableRow, Cell, HeaderCell} from "wordgard/schema-def"
-import {GardSelection, GardState, Direction} from "wordgard/state"
+import {GardSelection, GardState} from "wordgard/state"
 import {basicSchema, basicBuilders, builder, maybeTag} from "./schema.ts"
 const {p, hr, blockquote, pre, $img, table, tr, td, th} = basicBuilders
 
@@ -103,7 +103,7 @@ describe("nextNormalCursor", () => {
         ist(JSON.stringify(normalPositions(GardState.create({doc: doc(p(text))})).map(n => n - 1)), JSON.stringify(ltr))
       })
       it("moves RTL through " + JSON.stringify(text), () => {
-        let state = GardState.create({doc: doc(p(text)), config: GardState.textDirection.of(Direction.RTL)})
+        let state = GardState.create({doc: doc(p(text)), config: GardState.textLTR.of(false)})
         ist(JSON.stringify(normalPositions(state).map(n => n - 1)), JSON.stringify(rtl))
       })
     }

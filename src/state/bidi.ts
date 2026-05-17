@@ -1,17 +1,3 @@
-// FIXME use strings?
-
-/// Used to indicate [text direction](#editor.Wordgard.textDirection).
-export enum Direction {
-  // (These are chosen to match the base levels, in bidi algorithm
-  // terms, of spans in that direction.)
-  /// Left-to-right.
-  LTR = 0,
-  /// Right-to-left.
-  RTL = 1
-}
-
-const LTR = Direction.LTR, RTL = Direction.RTL
-
 // Codes used for character types:
 const enum T {
   L = 1, // Left-to-Right
@@ -73,7 +59,9 @@ const BidiRE = /[\u0590-\u05f4\u0600-\u06ff\u0700-\u08ac\ufb50-\ufdff]/
 /// (as in left-to-right or right-to-left).
 export class BidiSpan {
   /// The direction of this span.
-  get dir(): Direction { return this.level % 2 ? RTL : LTR }
+  get ltr(): boolean { return (this.level % 2) == 0 }
+
+  get dir() { return 1 }
 
   /// @internal
   constructor(
@@ -90,10 +78,10 @@ export class BidiSpan {
   ) {}
 
   /// @internal
-  side(end: boolean, dir: Direction) { return (this.dir == dir) == end ? this.to : this.from }
+  side(end: boolean, ltr: boolean) { return (this.ltr == ltr) == end ? this.to : this.from }
 
   /// @internal
-  forward(forward: boolean, dir: Direction) { return forward == (this.dir == dir) }
+  forward(forward: boolean, ltr: boolean) { return forward == (this.ltr == ltr) }
 
   /// @internal
   static find(order: readonly BidiSpan[], index: number, assoc: number) {
@@ -114,13 +102,13 @@ export class BidiSpan {
 
 // Arrays of isolates are always sorted by position. Isolates are
 // never empty. Nested isolates don't stick out of their parent.
-export type Isolate = {from: number, to: number, direction: Direction, inner: readonly Isolate[]}
+export type Isolate = {from: number, to: number, ltr: boolean, inner: readonly Isolate[]}
 
 export function isolatesEq(a: readonly Isolate[], b: readonly Isolate[]) {
   if (a.length != b.length) return false
   for (let i = 0; i < a.length; i++) {
     let iA = a[i], iB = b[i]
-    if (iA.from != iB.from || iA.to != iB.to || iA.direction != iB.direction || !isolatesEq(iA.inner, iB.inner))
+    if (iA.from != iB.from || iA.to != iB.to || iA.ltr != iB.ltr || !isolatesEq(iA.inner, iB.inner))
       return false
   }
   return true
@@ -316,7 +304,7 @@ function emitSpans(line: string, from: number, to: number, level: number, baseLe
             recurse.push(iso)
           } else {
             if (iso.from > iCh) order.push(new BidiSpan(iCh, iso.from, localLevel))
-            let dirSwap = (iso.direction == LTR) != !(localLevel % 2)
+            let dirSwap = iso.ltr != !(localLevel % 2)
             computeSectionOrder(line, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order)
             iCh = iso.to
           }
@@ -360,7 +348,7 @@ function emitSpans(line: string, from: number, to: number, level: number, baseLe
             recurse.push(iso)
           } else {
             if (iso.to < iCh) order.push(new BidiSpan(iso.to, iCh, localLevel))
-            let dirSwap = (iso.direction == LTR) != !(localLevel % 2)
+            let dirSwap = iso.ltr != !(localLevel % 2)
             computeSectionOrder(line, dirSwap ? level + 1 : level, baseLevel, iso.inner, iso.from, iso.to, order)
             iCh = iso.from
           }
@@ -392,12 +380,12 @@ function computeSectionOrder(line: string, level: number, baseLevel: number,
   emitSpans(line, from, to, level, baseLevel, isolates, order)
 }
 
-export function computeOrder(line: string, direction: Direction, isolates: readonly Isolate[]) {
-  if (!line) return [new BidiSpan(0, 0, direction == RTL ? 1 : 0)]
-  if (direction == LTR && !isolates.length && !BidiRE.test(line)) return trivialOrder(line.length)
+export function computeOrder(line: string, ltr: boolean, isolates: readonly Isolate[]) {
+  if (!line) return [new BidiSpan(0, 0, ltr ? 0 : 1)]
+  if (ltr && !isolates.length && !BidiRE.test(line)) return trivialOrder(line.length)
 
   if (isolates.length) while (line.length > types.length) types[types.length] = T.NI // Make sure types array has no gaps
-  let order: BidiSpan[] = [], level = direction == LTR ? 0 : 1
+  let order: BidiSpan[] = [], level = ltr ? 0 : 1
   computeSectionOrder(line, level, level, isolates, 0, line.length, order)
   return order
 }

@@ -1,6 +1,5 @@
-import {Direction} from "wordgard/state"
 import {textRange, maxOffset, singleRect} from "./dom"
-import {dirAt} from "./tile"
+import {ltrAt} from "./tile"
 import {Wordgard} from "./editor"
 
 // Given a position in the document model, get a bounding box of the
@@ -16,7 +15,7 @@ export function coordsAtPos(wg: Wordgard, pos: number, assoc: -1 | 1): DOMRect {
     if (side < 0) to++
     else from--
     return flattenV(singleRect(textRange(node as Text, from, to), side),
-                    (side < 0) == (dirAt(wg.state, pos, assoc) == Direction.LTR))
+                    (side < 0) == ltrAt(wg.state, pos, assoc))
   }
 
   let tagTile = tile.tile
@@ -41,13 +40,13 @@ export function coordsAtPos(wg: Wordgard, pos: number, assoc: -1 | 1): DOMRect {
         // BR nodes tend to only return the rectangle before them.
         // Only use them if they are the last element in their parent
         : before.nodeType == 1 && (before.nodeName != "BR" || !before.nextSibling) ? before : null
-    if (target) return flattenV(singleRect(target as Range | Element, 1), dirAt(wg.state, pos, assoc) == Direction.RTL)
+    if (target) return flattenV(singleRect(target as Range | Element, 1), !ltrAt(wg.state, pos, assoc))
   }
   if (offset < maxOffset(node)) {
     let after = node.childNodes[offset]
     let target = !after ? null : after.nodeType == 3 ? textRange(after as Text, 0, 0)
         : after.nodeType == 1 ? after : null
-    if (target) return flattenV(singleRect(target as Range | Element, -1), dirAt(wg.state, pos, assoc) == Direction.LTR)
+    if (target) return flattenV(singleRect(target as Range | Element, -1), ltrAt(wg.state, pos, assoc))
   }
   // All else failed, just try to get a rectangle for the target node
   return flattenV(singleRect(node.nodeType == 3 ? textRange(node as Text, 0, node.nodeValue!.length) : node as Element, -assoc),
