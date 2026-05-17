@@ -2,9 +2,25 @@ import {elt, MapMode} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
-import {Menu} from "wordgard/command"
+import {Command, Menu} from "wordgard/command"
 import {imagePhrases} from "wordgard/phrases"
 import {imageDialog, insertImage, activeImage, imageUploader} from "./imagedialog"
+
+function baseSupport(): GardState.Extension {
+  return [GardState.schemaElement.of(ImageAlt), image.button, imageDialog, image.keymap, image.dropHandler]
+}
+
+export function image(): GardState.Extension {
+  return [GardState.schemaElement.of(Image), baseSupport()]
+}
+
+export function figure(conf: {captioned?: boolean} = {}): GardState.Extension {
+  return [GardState.schemaElement.of(Figure), conf?.captioned ? [GardState.schemaElement.of(CaptionedFigure)] : [], baseSupport()]
+}
+
+export function imageResizing(): GardState.Extension {
+  return [GardState.schemaElement.of(ImageSize), resizeImage.keymap, resizeImage.dragHandle, imageTheme]
+}
 
 const imageTheme = Wordgard.theme({
   ".wg-resize-hover": {
@@ -102,84 +118,77 @@ const resizeHandlers = Wordgard.domEventHandlers({
   }
 })
 
-const dragHandle = [
-  GardState.prec.high(resizeHandlers),
-  resizeState,
-  Decoration.source.of(s => s.field(resizeState).deco),
-]
+export namespace resizeImage {
+  export const resizeCommand = (by: number, relative = false): Command => wg => {
+    let {selection} = wg.state
+    if (selection instanceof GardSelection.Node && wg.state.doc.schema.markAllowed(ImageSize, selection.node.type)) {
+      let curWidth = selection.node.mark(ImageSize) ?? imageNode(wg, wg.state.selection.from).getBoundingClientRect().width
+      let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
+      if (newWidth != curWidth) {
+        wg.dispatch({
+          changes: {from: wg.state.selection.from, add: ImageSize.of(newWidth)},
+          userEvent: "image.resize"
+        })
+        return true
+      }
+    }
+    return false
+  }
 
-export const resizeImage = (by: number, relative = false) => (wg: Wordgard) => {
-  let {selection} = wg.state
-  if (selection instanceof GardSelection.Node && wg.state.doc.schema.markAllowed(ImageSize, selection.node.type)) {
-    let curWidth = selection.node.mark(ImageSize) ?? imageNode(wg, wg.state.selection.from).getBoundingClientRect().width
-    let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
-    if (newWidth != curWidth) {
-      wg.dispatch({
-        changes: {from: wg.state.selection.from, add: ImageSize.of(newWidth)},
-        userEvent: "image.resize"
+  export const keymap = [
+    KeyBinding.define({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeCommand(1.1, true)}),
+    KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeCommand(0.9, true)}),
+  ]
+
+  export const dragHandle: GardState.Extension = [
+    GardState.prec.high(resizeHandlers),
+    resizeState,
+    Decoration.source.of(s => s.field(resizeState).deco),
+  ]
+}
+
+export namespace image {
+  export const keymap = [
+    KeyBinding.define({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
+  ]
+
+  export const button = Menu.Button.define({
+    run: insertImage,
+    active: state => !!activeImage(state.sel),
+    label: {
+      icon: "M38 34a9 9 0 1 1-19 0 9 9 0 0 1 19 0M9 13A9 9 0 0 0 0 22v56A9 9 0 0 0 9 88h81a9 9 0 0 0 9-9v-56A9 9 0 0 0 91 13zm81 6a3 3 0 0 1 3 3v38l-24-12a3 3 0 0 0-4 1l-23 23-17-11a3 3 0 0 0-4 0L6 75v3L6 78v-56a3 3 0 0 1 3-3z"
+    },
+    description: imagePhrases.ref("insert_image"),
+    parent: Menu.Group.commands, // FIXME better group
+    rank: 80,
+  })
+
+  export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({
+    drop: (event, wg) => {
+      let {state} = wg, upload = state.facet(imageUploader)[0]
+      const type = state.doc.schema.has(Image) ? Image : state.doc.schema.has(Figure) ? Figure : null
+      if (!type || !upload || !event.dataTransfer) return false
+      let files = event.dataTransfer.files, uploads: Promise<string>[] = []
+      for (let i = 0; i < files.length; i++) {
+        let file = files[i]
+        if (/^image\//.test(file.type))
+          uploads.push(upload(file, wg, () => {}))
+      }
+      if (!uploads.length) return false
+      let dropPos = {x: event.clientX, y: event.clientY}
+      Promise.all(uploads).then(urls => {
+        wg.dispatch({
+          changes: {from: wg.posAtCoords(dropPos).pos, insert: urls.map(u => type.of(u)), fit: true},
+          userEvent: "drop.image"
+        })
+      }, err => {
+        logException(state, err, "Dropped image upload")
       })
       return true
     }
-  }
-  return false
-}
+  }))
 
-export const resizeImageKeymap = [
-  KeyBinding.define({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeImage(1.1, true)}),
-  KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeImage(0.9, true)}),
-]
+  export const insert = insertImage
 
-export const imageKeymap = [
-  KeyBinding.define({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
-]
-
-// FIXME name
-export const InsertImageButton = Menu.Button.define({
-  run: insertImage,
-  active: state => !!activeImage(state.sel),
-  label: {
-    icon: "M38 34a9 9 0 1 1-19 0 9 9 0 0 1 19 0M9 13A9 9 0 0 0 0 22v56A9 9 0 0 0 9 88h81a9 9 0 0 0 9-9v-56A9 9 0 0 0 91 13zm81 6a3 3 0 0 1 3 3v38l-24-12a3 3 0 0 0-4 1l-23 23-17-11a3 3 0 0 0-4 0L6 75v3L6 78v-56a3 3 0 0 1 3-3z"
-  },
-  description: imagePhrases.ref("insert_image"),
-  parent: Menu.Group.commands, // FIXME better group
-  rank: 80,
-})
-
-export const imageDropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({
-  drop: (event, wg) => {
-    let {state} = wg, upload = state.facet(imageUploader)[0]
-    const type = state.doc.schema.has(Image) ? Image : state.doc.schema.has(Figure) ? Figure : null
-    if (!type || !upload || !event.dataTransfer) return false
-    let files = event.dataTransfer.files, uploads: Promise<string>[] = []
-    for (let i = 0; i < files.length; i++) {
-      let file = files[i]
-      if (/^image\//.test(file.type))
-        uploads.push(upload(file, wg, () => {}))
-    }
-    if (!uploads.length) return false
-    let dropPos = {x: event.clientX, y: event.clientY}
-    Promise.all(uploads).then(urls => {
-      wg.dispatch({
-        changes: {from: wg.posAtCoords(dropPos).pos, insert: urls.map(u => type.of(u)), fit: true},
-        userEvent: "drop.image"
-      })
-    }, err => {
-      logException(state, err, "Dropped image upload")
-    })
-    return true
-  }
-}))
-
-const baseSupport = [GardState.schemaElement.of(ImageAlt), InsertImageButton, imageDialog, imageKeymap, imageDropHandler]
-
-export function image(): GardState.Extension {
-  return [GardState.schemaElement.of(Image), baseSupport]
-}
-
-export function figure(conf: {captioned?: boolean} = {}): GardState.Extension {
-  return [GardState.schemaElement.of(Figure), conf?.captioned ? [GardState.schemaElement.of(CaptionedFigure)] : [], baseSupport]
-}
-
-export function imageResizing(): GardState.Extension {
-  return [GardState.schemaElement.of(ImageSize), resizeImageKeymap, dragHandle, imageTheme]
+  export const uploader = imageUploader
 }

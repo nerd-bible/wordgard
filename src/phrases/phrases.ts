@@ -51,6 +51,7 @@ export const imagePhrases = PhraseSet.define({
   image_source: "Image source",
   alt_text: "Alternative text",
   describe_image: "Describe the image",
+  auto: "automatic"
 })
 
 export const colorNames = PhraseSet.define({

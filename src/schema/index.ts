@@ -3,6 +3,5 @@ export {blockDoc, paragraph, heading, codeBlock, alignment, blockquote, horizont
 export {color, backgroundColor, ColorPicker} from "./color"
 export {link} from "./link"
 export {bulletList, orderedList} from "./list"
-export {resizeImage, InsertImageButton, image, figure, imageResizing} from "./image"
-export {insertImage, imageUploader} from "./imagedialog"
+export {imageResizing, image, figure} from "./image"
 export {basicMarks, allMarks, basicSchema, fullSchema} from "./bundle"

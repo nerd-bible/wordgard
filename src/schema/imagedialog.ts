@@ -120,7 +120,8 @@ function buildImagePanel(wg: Wordgard) {
   let active = activeImage(sel)
   let size = !wg.state.doc.schema.has(ImageSize) ? null :
     [cr("label", {for: "wg-img-size"}, imagePhrases.get(state, "width"), ":"),
-     cr("input", {type: "number", id: "wg-img-size", name: "size", value: active ? active.mark(ImageSize) : ""})]
+     cr("input", {type: "number", id: "wg-img-size", name: "size", value: active && active.mark(ImageSize) || "",
+                  placeholder: imagePhrases.get(state, "auto")})]
   let src = cr("input", {type: "text", id: "wg-img-src", name: "src", required: "required",
                          value: active ? active.param : "", placeholder: "https://..."})
   let file: HTMLInputElement | null = null
@@ -277,4 +278,3 @@ export const imageDialog = GardState.Field.define<null | GardSelection>({
     imageDialogTheme
   ]
 })
-
