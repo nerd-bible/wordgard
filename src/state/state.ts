@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, Leaf, Mark, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
+import {Schema, Plot, Node, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
 import {SelectionType, GardSelection, wordAt, cursorAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray} from "./transaction"
 import {TextblockMap} from "./textblock"
@@ -417,6 +417,9 @@ export class GardState {
                          (state, slot) => slot.create(state), null)
   }
 
+  /// Facet used to register schema elements. FIXME describe use
+  static schemaElement = schemaElement
+
   /// This facet controls the value of the
   /// [`readOnly`](#state.GardState.readOnly) getter, which is
   /// consulted by commands and extensions that implement editing
@@ -733,10 +736,6 @@ export namespace GardState {
       } else if (ext instanceof FacetProvider) {
         result[prec].push(ext)
         if (ext.facet.extensions) inner(ext.facet.extensions, Prec.Default)
-      } else if (ext instanceof Plot.Tag || ext instanceof Plot.Type ||
-        ext instanceof Leaf || ext instanceof Leaf.Type ||
-        ext instanceof Mark || ext instanceof Mark.Type) {
-        result[prec].push(schemaElement.of(ext) as FacetProvider<any>)
       } else {
         let content = (ext as any).extension
         if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`)
@@ -747,7 +746,6 @@ export namespace GardState {
     return result.reduce((a, b) => a.concat(b))
   }
 
-  // FIXME require schema elements to be wrapped again?
   /// Extension values can be
   /// [provided](#state.GardStateConfig.extensions) when creating a
   /// state to attach various kinds of configuration and behavior
@@ -756,7 +754,7 @@ export namespace GardState {
   /// providers](#state.Facet.of), or objects with an extension in its
   /// `extension` property. Extensions can be nested in arrays
   /// arbitrarily deep—they will be flattened when processed.
-  export type Extension = Schema.Element | {extension: GardState.Extension} | readonly GardState.Extension[]
+  export type Extension = {extension: GardState.Extension} | readonly GardState.Extension[]
 
   /// By default extensions are registered in the order they are found
   /// in the flattened form of nested array that was provided.

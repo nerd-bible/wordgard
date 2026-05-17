@@ -91,7 +91,7 @@ const linkTooltipTheme = Wordgard.baseTheme({
 // FIXME move link stuff into own file
 
 export function link(): GardState.Extension {
-  return [Link, link.button, Menu.Group.inlineStyle, link.keyBinding, link.tooltip]
+  return [GardState.schemaElement.of(Link), link.button, Menu.Group.inlineStyle, link.keyBinding, link.tooltip]
 }
 
 export namespace link {

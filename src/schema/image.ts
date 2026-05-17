@@ -170,16 +170,16 @@ export const imageDropHandler = GardState.prec.lowest(Wordgard.domEventHandlers(
   }
 }))
 
-const baseSupport = [ImageAlt, InsertImageButton, imageDialog, imageKeymap, imageDropHandler]
+const baseSupport = [GardState.schemaElement.of(ImageAlt), InsertImageButton, imageDialog, imageKeymap, imageDropHandler]
 
 export function image(): GardState.Extension {
-  return [Image, baseSupport]
+  return [GardState.schemaElement.of(Image), baseSupport]
 }
 
 export function figure(conf: {captioned?: boolean} = {}): GardState.Extension {
-  return [Figure, conf?.captioned ? [CaptionedFigure] : [], baseSupport]
+  return [GardState.schemaElement.of(Figure), conf?.captioned ? [GardState.schemaElement.of(CaptionedFigure)] : [], baseSupport]
 }
 
 export function imageResizing(): GardState.Extension {
-  return [ImageSize, resizeImageKeymap, dragHandle, imageTheme]
+  return [GardState.schemaElement.of(ImageSize), resizeImageKeymap, dragHandle, imageTheme]
 }

@@ -5,7 +5,7 @@ import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
 export function strong(): GardState.Extension {
-  return [Strong, strong.button, Menu.Group.inlineStyle, strong.keyBinding]
+  return [GardState.schemaElement.of(Strong), strong.button, Menu.Group.inlineStyle, strong.keyBinding]
 }
 
 export namespace strong {
@@ -26,7 +26,7 @@ export namespace strong {
 }
 
 export function emphasis(): GardState.Extension {
-  return [Emphasis, emphasis.button, emphasis.keyBinding]
+  return [GardState.schemaElement.of(Emphasis), emphasis.button, emphasis.keyBinding]
 }
 
 export namespace emphasis {
@@ -47,7 +47,7 @@ export namespace emphasis {
 }
 
 export function code(): GardState.Extension {
-  return [Code, code.button, code.keyBinding]
+  return [GardState.schemaElement.of(Code), code.button, code.keyBinding]
 }
 
 export namespace code {
@@ -68,7 +68,7 @@ export namespace code {
 }
 
 export function underline(): GardState.Extension {
-  return [Underline, underline.button, underline.keyBinding]
+  return [GardState.schemaElement.of(Underline), underline.button, underline.keyBinding]
 }
 
 export namespace underline {
@@ -90,7 +90,7 @@ export namespace underline {
 }
 
 export function superscript(): GardState.Extension {
-  return [Superscript, superscript.button, superscript.keyBinding]
+  return [GardState.schemaElement.of(Superscript), superscript.button, superscript.keyBinding]
 }
 
 export namespace superscript {
@@ -111,7 +111,7 @@ export namespace superscript {
 }
 
 export function subscript(): GardState.Extension {
-  return [Subscript, subscript.button, subscript.keyBinding]
+  return [GardState.schemaElement.of(Subscript), subscript.button, subscript.keyBinding]
 }
 
 export namespace subscript {

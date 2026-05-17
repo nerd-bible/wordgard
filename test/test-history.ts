@@ -536,7 +536,9 @@ describe("history", () => {
       state = command(state, undo)
       let jsonConf = {history: history.field}
       let json = JSON.stringify(state.toJSON(jsonConf))
-      state = GardState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
+      state = GardState.fromJSON(JSON.parse(json),
+                                 [history(), basicSchema.elements.map(e => GardState.schemaElement.of(e))],
+                                 jsonConf)
       ist(state.doc, doc(p("abc")), eq)
       state = command(state, redo)
       ist(state.doc, doc(p("dabc")), eq)
@@ -552,7 +554,9 @@ describe("history", () => {
       state = receive(state, "d", 4)
       let jsonConf = {history: history.field}
       let json = JSON.stringify(state.toJSON(jsonConf))
-      state = GardState.fromJSON(JSON.parse(json), [history(), basicSchema.elements], jsonConf)
+      state = GardState.fromJSON(JSON.parse(json),
+                                 [history(), basicSchema.elements.map(e => GardState.schemaElement.of(e))],
+                                 jsonConf)
       ist(state.doc, doc(p("abcd")), eq)
       state = command(command(state, undo), undo)
       ist(state.doc, doc(p("ad")), eq)

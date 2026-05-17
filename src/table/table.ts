@@ -47,19 +47,19 @@ export function tables(config: {
   cellContent?: "inline" | "block"
 } = {}): GardState.Extension {
   let result: GardState.Extension[] = [
-    Table, TableRow,
+    GardState.schemaElement.of(Table), GardState.schemaElement.of(TableRow),
     tableTheme,
     CellSelection,
     tableCorrection,
     tablePasteHandler
   ]
   if (config.cellContent == "block") {
-    result.push(BlockCell)
-    if (config.headerCells != false) result.push(BlockHeaderCell)
+    result.push(GardState.schemaElement.of(BlockCell))
+    if (config.headerCells != false) result.push(GardState.schemaElement.of(BlockHeaderCell))
   } else {
-    result.push(Cell)
-    if (config.headerCells != false) result.push(HeaderCell)
+    result.push(GardState.schemaElement.of(Cell))
+    if (config.headerCells != false) result.push(GardState.schemaElement.of(HeaderCell))
   }
-  if (config.cellSpanning != false) result.push(RowSpan, ColSpan)
+  if (config.cellSpanning != false) result.push(GardState.schemaElement.of(RowSpan), GardState.schemaElement.of(ColSpan))
   return result
 }

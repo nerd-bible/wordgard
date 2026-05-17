@@ -7,7 +7,7 @@ import {history} from "wordgard/history"
 import {Wordgard, KeyBinding, InputRule} from "wordgard/editor"
 
 export function blockDoc(): GardState.Extension {
-  return Doc
+  return GardState.schemaElement.of(Doc)
 }
 
 function selectionInType(tag: Plot.Tag.Any) {
@@ -18,7 +18,7 @@ function selectionInType(tag: Plot.Tag.Any) {
 }
 
 export function paragraph(): GardState.Extension {
-  return [Paragraph, paragraph.button, paragraph.keyBinding]
+  return [GardState.schemaElement.of(Paragraph), paragraph.button, paragraph.keyBinding]
 }
 
 export namespace paragraph {
@@ -37,7 +37,9 @@ export namespace paragraph {
 }
 
 export function heading(): GardState.Extension {
-  return [Heading, heading.button1, heading.button2, heading.button3, heading.keyBindings, heading.createOnHash]
+  return [GardState.schemaElement.of(Heading),
+          heading.button1, heading.button2, heading.button3,
+          heading.keyBindings, heading.createOnHash]
 }
 
 export namespace heading {
@@ -78,7 +80,8 @@ export namespace heading {
 }
 
 export function codeBlock(): GardState.Extension {
-  return [CodeBlock, codeBlock.button, codeBlock.keyBinding, codeBlock.createOnBackticks]
+  return [GardState.schemaElement.of(CodeBlock),
+          codeBlock.button, codeBlock.keyBinding, codeBlock.createOnBackticks]
 }
 
 export namespace codeBlock {
@@ -100,7 +103,7 @@ export namespace codeBlock {
 
 export function alignment(): GardState.Extension {
   return [
-    Alignment,
+    GardState.schemaElement.of(Alignment),
     alignment.button, alignment.buttonStart, alignment.buttonEnd, alignment.buttonCenter,
     alignment.keyBindings
   ]
@@ -162,7 +165,7 @@ export namespace alignment {
 }
 
 export function blockquote(): GardState.Extension {
-  return [Blockquote, blockquote.button, blockquote.createOnGT, blockquote.theme]
+  return [GardState.schemaElement.of(Blockquote), blockquote.button, blockquote.createOnGT, blockquote.theme]
 }
 
 export namespace blockquote {
@@ -193,7 +196,7 @@ export namespace blockquote {
 }
 
 export function horizontalRule(): GardState.Extension {
-  return [HorizontalRule, horizontalRule.createOnDashes]
+  return [GardState.schemaElement.of(HorizontalRule), horizontalRule.createOnDashes]
 }
 
 export namespace horizontalRule {

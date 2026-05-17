@@ -17,7 +17,7 @@ export function allMarks(): GardState.Extension {
 }
 
 export function basicSchema(): GardState.Extension {
-  return [blockDoc(), basicMarks(), paragraph(), heading(), LineBreak]
+  return [blockDoc(), basicMarks(), paragraph(), heading(), GardState.schemaElement.of(LineBreak)]
 }
 
 export function fullSchema(): GardState.Extension {

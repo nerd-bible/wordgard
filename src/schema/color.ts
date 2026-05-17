@@ -243,7 +243,7 @@ export const colorPicker = Menu.CustomControl.define({
 })
 
 export function color(): GardState.Extension {
-  return [Color, color.button, colorPickerTheme, Menu.Group.inlineStyle]
+  return [GardState.schemaElement.of(Color), color.button, colorPickerTheme, Menu.Group.inlineStyle]
 }
 
 export namespace color {
@@ -259,8 +259,8 @@ export namespace color {
   })
 }
 
-export function backgroundColor() {
-  return [BackgroundColor, backgroundColor.button, colorPickerTheme, Menu.Group.inlineStyle]
+export function backgroundColor(): GardState.Extension {
+  return [GardState.schemaElement.of(BackgroundColor), backgroundColor.button, colorPickerTheme, Menu.Group.inlineStyle]
 }
 
 const backgroundPicker = Menu.CustomControl.define({

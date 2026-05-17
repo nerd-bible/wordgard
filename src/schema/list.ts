@@ -1,10 +1,13 @@
+import {GardState} from "wordgard/state"
 import {Command, Menu, toggleList, listIsActive} from "wordgard/command"
 import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {InputRule} from "wordgard/editor"
 
 export function bulletList(config: {blockItems?: boolean} = {}) {
-  return [BulletList, config.blockItems == false ? InlineListItem : ListItem, bulletList.toggleButton, bulletList.createOnDash]
+  return [GardState.schemaElement.of(BulletList),
+          GardState.schemaElement.of(config.blockItems == false ? InlineListItem : ListItem),
+          bulletList.toggleButton, bulletList.createOnDash]
 }
 
 export namespace bulletList {
@@ -24,7 +27,9 @@ export namespace bulletList {
 }
 
 export function orderedList(config: {blockItems?: boolean} = {}) {
-  return [OrderedList, config.blockItems == false ? InlineListItem : ListItem, orderedList.toggleButton, orderedList.createOnNumber]
+  return [GardState.schemaElement.of(OrderedList),
+          GardState.schemaElement.of(config.blockItems == false ? InlineListItem : ListItem),
+          orderedList.toggleButton, orderedList.createOnNumber]
 }
 
 export namespace orderedList {
