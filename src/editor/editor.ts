@@ -257,7 +257,7 @@ export class Wordgard {
     scrollRectIntoView(this.scrollDOM, targetRect, assoc, target.x, target.y,
                        Math.max(Math.min(target.xMargin, offsetWidth), -offsetWidth),
                        Math.max(Math.min(target.yMargin, offsetHeight), -offsetHeight),
-                       this.state.textLTR())
+                       this.state.textLTR)
   }
 
   private runUpdate(update: Wordgard.Update, domChanges: ChangeSet.Sections | null) {

@@ -63,7 +63,7 @@ export class ColorPicker {
       }
     })
     this.dom.addEventListener("keydown", e => {
-      let ltr = this.wg.state.textLTR()
+      let ltr = this.wg.state.textLTR
       if (e.key == (ltr ? "ArrowLeft" : "ArrowRight") && this.selPos > 0) {
         this.move(this.selPos - 1)
       } else if (e.key == (ltr ? "ArrowRight" : "ArrowLeft") && this.selPos < this.options.length - 1) {

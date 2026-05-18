@@ -67,7 +67,7 @@ export function cursorPos(wg: Wordgard): CursorPos {
   let horiz = top == bottom, size = horiz ? right - left : bottom - top
   if (horiz && size > VertWidth) {
     size = VertWidth
-    if (!wg.state.textLTR()) left = right - size
+    if (!wg.state.textLTR) left = right - size
     let other = wg.coordsAtPos(head, headSide > 0 ? -1 : 1)
     if (other.top == other.bottom && other.top != top) {
       let move = Math.min(VertGap, Math.abs(other.top - top) / 2)

@@ -38,7 +38,7 @@ function imageTypeButtons(state: GardState, active: Node.Tag | null) {
     icon.setAttribute("viewbox", "0 0 24 22")
     icon.setAttribute("width", "24"); icon.setAttribute("height", "22")
     icon.appendChild(rect(1, 1, 22, 3, "wg-img-icon-text"))
-    let flip = !state.textLTR()
+    let flip = !state.textLTR
     icon.appendChild(rect(type == "start" ? (flip ? 12 : 2) : type == "end" ? (flip ? 2 : 12) : 7, 6, 10, 10, "wg-img-icon-image"))
     if (type == "inline") {
       icon.appendChild(rect(1, 12, 5, 3, "wg-img-icon-text"))

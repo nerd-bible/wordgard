@@ -234,7 +234,7 @@ export class CompositeTile extends Tile {
     if (node && node.isPlot) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) {
-        textblock = TextblockMap.get(start, state.doc.nodeAt(start - 1) as Plot, state.textLTR(node.tag))
+        textblock = TextblockMap.get(start, state.doc.nodeAt(start - 1) as Plot, state.textblockLTR(node.tag))
       } else if (node.isBlock) {
         textblock = null
       }
@@ -328,9 +328,9 @@ function rowScan<T>(
 export function ltrAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
   if (textblock === undefined) {
     let {textblockParent: block} = state.doc.resolve(pos)
-    textblock = block ? TextblockMap.get(block.start, block.node, state.textLTR()) : null
+    textblock = block ? TextblockMap.get(block.start, block.node, state.textblockLTR(block.node.tag)) : null
   }
-  if (!textblock) return state.textLTR()
+  if (!textblock) return state.textLTR
   let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)
   return textblock.order[found].ltr
 }

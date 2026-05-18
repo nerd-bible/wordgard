@@ -383,7 +383,7 @@ function setSelection(selection: GardSelection): Transaction.Spec {
 
 function ltrAtCursor(state: GardState) {
   let block = state.sel.head.textblockParent
-  return state.textLTR(block ? block.node.tag : undefined)
+  return block ? state.textblockLTR(block.node.tag) : state.textLTR
 }
 
 function isForward(dir: "left" | "right" | "forward" | "backward", state: GardState) {

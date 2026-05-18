@@ -2,6 +2,8 @@ import {Node, Pos, ChangeSet} from "wordgard/doc"
 import {Transaction} from "./transaction"
 import {Facet, GardState} from "./state"
 
+// FIXME add a workaround for filtered transactions that break invariants?
+
 const enum CorrectionEvent {
   ChildList = 0,
   Content = 1,

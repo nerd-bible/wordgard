@@ -7,6 +7,8 @@ let nextID = 0
 
 const none: readonly any[] = []
 
+// FIXME can this be moved under GardState?
+
 /// A facet is a labeled value that is associated with an editor
 /// state. It takes inputs from any number of extensions, and combines
 /// those into a single output value.
@@ -348,7 +350,7 @@ export class GardState {
   }
 
   textblockMap(node: Pos.Plot) {
-    return TextblockMap.get(node.start, node.node, this.textLTR(node.node.tag))
+    return TextblockMap.get(node.start, node.node, this.textblockLTR(node.node.tag))
   }
 
   /// Convert this state to a JSON-serializable object. When custom
@@ -444,25 +446,18 @@ export class GardState {
   /// in that block, or given `null` to query the direction outside of
   /// textblocks. When multiple values are given, they are consulted
   /// in order of precedence.
-  static textLTR = Facet.define<boolean | ((tag?: Plot.Tag.Any) => boolean | null), (tag?: Plot.Tag.Any) => boolean>({
-    combine(values) {
-      return (tag?: Plot.Tag.Any) => {
-        for (let elt of values) {
-          if (typeof elt != "function") return elt
-          let result = elt(tag)
-          if (result != null) return result
-        }
-        return true
-      }
-    },
+  static textblockLTR = Facet.define<((tag: Plot.Tag.Any) => boolean | null)>({
     static: true
   })
 
-  /// Return the text direction in a given textblock (by tag) or the
-  /// global default direction (when no tag is given).
-  get textLTR() {
-    return this.facet(GardState.textLTR)
-  }
+  /// Get the global text direction (true when left-to-right, false
+  /// when right-to-left) for the document. Note that the direction of
+  /// individual blocks can be overridden with {@link
+  /// GardState.textblockLTR}.
+  get textLTR() { return this.config.textLTR }
+
+  /// Return the text direction in a given textblock (by tag).
+  textblockLTR(tag: Plot.Tag.Any) { return this.config.textblockLTR(tag) }
 
   static visualCursorMotion = Facet.define<boolean, boolean>({
     combine(values) { return !values.length ? true : values[0] },
@@ -704,6 +699,14 @@ export namespace GardState {
     /// @internal
     get textLTR() { return this.staticFacet(GardState.textLTR) }
     /// @internal
+    textblockLTR(tag: Plot.Tag.Any) {
+      for (let f of this.staticFacet(GardState.textblockLTR)) {
+        let result = f(tag)
+        if (result) return result
+      }
+      return this.textLTR
+    }
+    /// @internal
     get visualCursorMotion() { return this.staticFacet(GardState.visualCursorMotion) }
   }
 
@@ -805,6 +808,11 @@ export namespace GardState {
     /// @internal
     static reconfigureCompartment = Transaction.Effect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
+
+  export const textLTR = Facet.define<boolean, boolean>({
+    combine: values => values.length ? values[0] : true,
+    static: true
+  })
 }
 
 function addValue<T>(set: T[], value: T) {

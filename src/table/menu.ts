@@ -32,7 +32,7 @@ class DimensionPicker {
     this.announce.setAttribute("aria-live", "polite")
     this.svg = this.dom.appendChild(document.createElementNS(SVG, "svg"))
     this.svg.setAttribute("aria-hidden", "true")
-    this.ltr = wg.state.textLTR()
+    this.ltr = wg.state.textLTR
     this.render()
     this.dom.addEventListener("mousemove", e => {
       let rect = this.svg.getBoundingClientRect()

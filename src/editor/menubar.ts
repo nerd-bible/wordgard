@@ -35,7 +35,7 @@ function labelButton(wg: Wordgard, button: HTMLElement, label?: Menu.Label) {
     svg.setAttribute("viewBox", "0 0 100 100")
     let path = svg.appendChild(document.createElementNS(SVG, "path"))
     path.setAttribute("d", (label as {icon: string}).icon)
-    if ((label as any).directional && !wg.state.textLTR())
+    if ((label as any).directional && !wg.state.textLTR)
       svg.setAttribute("transform", "scale(-1, 1)")
   } else if ("render" in label) {
     button.appendChild(label.render(wg))

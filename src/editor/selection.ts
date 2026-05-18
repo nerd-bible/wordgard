@@ -42,7 +42,7 @@ export function moveVertically(
 ): GardSelection | null {
   let editorRect = wg.contentDOM.getBoundingClientRect()
   let coords = wg.coordsAtPos(start.head, start.headSide)
-  let baseLTR = wg.state.textLTR()
+  let baseLTR = wg.state.textLTR
   let goalColumn = start.goalColumn ?? (baseLTR ? coords.left - editorRect.left : editorRect.right - coords.left)
   let x = baseLTR ? editorRect.left + goalColumn : editorRect.right - goalColumn
   let y = forward ? coords.bottom + distance : coords.top - distance
@@ -137,7 +137,7 @@ export function moveToLineBoundary(wg: Wordgard, start: GardSelection, forward: 
   let block = wg.state.doc.resolve(start.head).textblockParent
   if (!block) return null
   let startCoords = wg.coordsAtPos(start.head, start.headSide)
-  let ltr = wg.state.textLTR(block.node.tag)
+  let ltr = wg.state.textblockLTR(block.node.tag)
   let y = (startCoords.top + startCoords.bottom) / 2, left = forward != ltr
   let {pos} = wg.posAtCoords({x: left ? -1e7 : 1e7, y})
   if (pos < block.start || pos > block.end) {
