@@ -161,15 +161,8 @@ export class Wordgard {
   /// or transaction spec and updates the editor to show the new state
   /// produced by that transaction. This function is bound to the editor
   /// instance, so it does not have to be called as a method.
-  ///
-  /// Note that when multiple `TransactionSpec` values are provided,
-  /// these define a single transaction (the specs will be merged),
-  /// not a sequence of transactions.
-  dispatch(tr: Transaction): void
-  dispatch(...specs: Transaction.Spec[]): void
-  dispatch(...input: (Transaction | Transaction.Spec)[]) {
-    if (input.length == 1 && input[0] instanceof Transaction) this.update(input[0])
-    else this.update(this.state.update(...input as Transaction.Spec[]))
+  dispatch(tr: Transaction | Transaction.Spec): void {
+    this.update(tr instanceof Transaction ? tr : this.state.update(tr))
   }
 
   /// Update the editor for the given transaction. Updates
