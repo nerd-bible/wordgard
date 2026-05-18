@@ -122,7 +122,7 @@ export class DOMObserver {
   }
 
   pollSelection() {
-    if (!this.wg.inputState.currentComposition && this.readSelectionRange() &&
+    if (!this.wg.inputState.pendingComposition && this.readSelectionRange() &&
         this.wg.hasFocus && hasSelection(this.wg.contentDOM, this.selectionRange)) {
       let sel = readDOMSelection(this.wg, this.selectionRange)
       if (!sel.eqPos(this.wg.state.selection))

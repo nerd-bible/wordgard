@@ -46,7 +46,7 @@ export class InputState {
   // in the wrong order
   compositionPendingKey = false
   // Used to smuggle information from beforeinput to input
-  currentComposition: {from: number, to: number, text: string} | null = null
+  pendingComposition: {from: number, to: number, text: string} | null = null
   wrappingComposition: readonly Mark<any>[] | null = null
 
   mouseSelection: MouseSelection | null = null
@@ -736,16 +736,16 @@ handlers.beforeinput = (wg, event: InputEvent) => {
   } else if (type == "insertCompositionText") {
     if (!wg.inputState.composing)
       wg.inputState.composing = {changes: 0, target: null}
-    wg.inputState.currentComposition = {...inputEventRange(event, wg), text: event.data!}
+    wg.inputState.pendingComposition = {...inputEventRange(event, wg), text: event.data!}
   }
 
   return false
 }
 
 handlers.input = (wg, event: InputEvent) => {
-  if (event.inputType == "insertCompositionText" && wg.inputState.currentComposition) {
-    let {from, to, text} = wg.inputState.currentComposition
-    wg.inputState.currentComposition = null
+  if (event.inputType == "insertCompositionText" && wg.inputState.pendingComposition) {
+    let {from, to, text} = wg.inputState.pendingComposition
+    wg.inputState.pendingComposition = null
     let start = !wg.inputState.composing!.changes
     wg.inputState.composing!.changes++
     wg.observer.readSelectionRange()

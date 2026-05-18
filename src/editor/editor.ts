@@ -17,6 +17,8 @@ import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView}
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {exceptionSink, logException} from "./util"
 
+const dirCompartment = new GardState.Compartment
+
 /// This class implements the editor's user interface. It holds
 /// the editable DOM surface, and possibly other elements such as
 /// panels. It handles events and dispatches state transactions for
@@ -191,7 +193,7 @@ export class Wordgard {
   }
 
   flush(force = false) {
-    if ((!this.connected && !force) || this.inputState.currentComposition) return
+    if ((!this.connected && !force) || this.inputState.pendingComposition) return
     this.observer.pollSelection()
     let {flushedState, state} = this.viewState
     let mainUpdate = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
@@ -234,6 +236,7 @@ export class Wordgard {
       try { listener(mainUpdate) }
       catch (e) { logException(this.state, e, "update listener") }
     }
+    this.checkDir()
   }
 
   private scrollTo(target: ScrollTarget) {
@@ -332,6 +335,17 @@ export class Wordgard {
     this.editorAttrs = editorAttrs
     this.contentAttrs = contentAttrs
     return changedContent || changedEditor
+  }
+
+  private checkDir() {
+    if (this.viewState.styleLTR != this.state.textLTR) {
+      let value = GardState.textLTR.of(this.viewState.styleLTR)
+      this.dispatch({
+        effects: dirCompartment.get(this.state) == null
+          ? Transaction.Effect.appendConfig.of(GardState.prec.highest(dirCompartment.of(value)))
+          : dirCompartment.reconfigure(value)
+      })
+    }
   }
 
   private showAnnouncements(trs: readonly Transaction[]) {
@@ -480,7 +494,7 @@ export class Wordgard {
   /// The text direction
   /// ([`direction`](https://developer.mozilla.org/en-US/docs/Web/CSS/direction)
   /// CSS property) of the editor's content element.
-  get textLTR(): boolean { return this.viewState.defaultTextLTR }
+  get textLTR(): boolean { return this.viewState.styleLTR }
 
   /// Check whether the editor has focus.
   get hasFocus(): boolean {

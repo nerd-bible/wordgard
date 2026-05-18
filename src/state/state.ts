@@ -440,6 +440,19 @@ export class GardState {
   /// [configured](#state.GardState^readOnly) to be read-only.
   get readOnly() { return this.facet(GardState.readOnly) }
 
+  /// Facet that indicates the document's default text direction. Note
+  /// that this will not affect the editor CSS, and when the state's
+  /// value disagrees with the direction set in the editor, the editor
+  /// component will automatically inject an instance of this with a
+  /// high precedence to align the state to the DOM. Still, if you
+  /// know the direction in advance, it can be useful to set this, so
+  /// that the direction is already accurate during initialization.
+  /// Defaults to true.
+  static textLTR = Facet.define<boolean, boolean>({
+    combine: values => values.length ? values[0] : true,
+    static: true
+  })
+
   /// Configure the text direction in the editor. A `Direction` value
   /// sets the direction for the entire editor. A function is
   /// consulted for a given textblock tag to determine the direction
@@ -539,7 +552,7 @@ export namespace GardState {
     /// Define a state field.
     static define<Value>(config: GardState.Field.Spec<Value>): GardState.Field<Value> {
       let field = new GardState.Field<Value>(nextID++, config.create, config.update,
-                                               config.compare || ((a, b) => a === b), config)
+                                             config.compare || ((a, b) => a === b), config)
       if (config.provide) field.provides = config.provide(field)
       return field
     }
@@ -808,11 +821,6 @@ export namespace GardState {
     /// @internal
     static reconfigureCompartment = Transaction.Effect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
-
-  export const textLTR = Facet.define<boolean, boolean>({
-    combine: values => values.length ? values[0] : true,
-    static: true
-  })
 }
 
 function addValue<T>(set: T[], value: T) {
@@ -1013,6 +1021,7 @@ interface DynamicSlot {
   reconfigure(state: GardState, oldState: GardState): SlotStatus
 }
 
+// Kludge to avoid cyclic dependency with ./selection
 GardSelection.selectionType = Facet.define<SelectionType>({
   combine(values) {
     let types = [GardSelection.Text.type, GardSelection.Node.type, ...values]

@@ -282,6 +282,7 @@ class MenuBar {
     let items = update.state.facet(Menu.Item.source)
     if (items != this.items ||
         update.startState.facet(barTemplate) != update.state.facet(barTemplate) ||
+        update.startState.textLTR != update.state.textLTR ||
         PhraseSet.didChange(update.startState, update.state)) {
       this.items = items
       this.dom.textContent = ""

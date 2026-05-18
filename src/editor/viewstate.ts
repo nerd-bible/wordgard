@@ -53,8 +53,7 @@ export class ViewState {
   // A scroll target that hasn't been scrolled to yet
   scrollTarget: ScrollTarget | null = null
 
-  // FIXME propagate this to state somehow
-  defaultTextLTR: boolean = true
+  styleLTR: boolean = true
 
   flushedState: GardState
   pending: Transaction[] = []
@@ -83,7 +82,7 @@ export class ViewState {
 
   measure(wg: Wordgard) {
     let dom = wg.contentDOM, style = window.getComputedStyle(dom)
-    this.defaultTextLTR = style.direction == "ltr"
+    this.styleLTR = style.direction == "ltr"
 
     let domRect = dom.getBoundingClientRect()
     this.contentDOMHeight = domRect.height
