@@ -1,4 +1,4 @@
-import {Facet, GardState, Transaction} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 import {ChangeSet, Plot} from "wordgard/doc"
 
 /// An update is a set of changes and effects.
@@ -50,9 +50,9 @@ type CollabConfig = {
   sharedEffects?: (tr: Transaction) => readonly Transaction.Effect<any>[]
 }
 
-const collabConfig = Facet.define<CollabConfig & {generatedID: string}, Required<CollabConfig>>({
+const collabConfig = GardState.Facet.define<CollabConfig & {generatedID: string}, Required<CollabConfig>>({
   combine(configs) {
-    let combined = Facet.combineConfig(configs, {startVersion: 0, clientID: null as any, sharedEffects: () => []}, {
+    let combined = GardState.Facet.combineConfig(configs, {startVersion: 0, clientID: null as any, sharedEffects: () => []}, {
       generatedID: a => a
     })
     if (combined.clientID == null) combined.clientID = (configs.length && configs[0].generatedID) || ""

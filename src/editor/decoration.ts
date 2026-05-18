@@ -1,4 +1,4 @@
-import {GardState, Facet, GardSelection} from "wordgard/state"
+import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
 import {Attrs, attrsEq} from "./attributes"
 import {type Wordgard} from "./editor"
@@ -96,7 +96,7 @@ class TagShape {
   }
 }
 
-const tagShapes = Facet.define<TagShape>()
+const tagShapes = GardState.Facet.define<TagShape>()
 
 export type WrapperSpec = {
   element: string
@@ -182,7 +182,7 @@ class TagWidgetSource {
   }
 }
 
-export const tagWidgets = Facet.define<TagWidgetSource>()
+export const tagWidgets = GardState.Facet.define<TagWidgetSource>()
 
 export class TagWrapperSource {
   wrapper: (tag: Node.Tag) => DecoElt
@@ -204,7 +204,7 @@ export class TagWrapperSource {
   }
 }
 
-export const tagWrappers = Facet.define<TagWrapperSource>()
+export const tagWrappers = GardState.Facet.define<TagWrapperSource>()
 
 export class TagAttributeSource {
   attribute: string
@@ -218,7 +218,7 @@ export class TagAttributeSource {
   }
 }
 
-export const tagAttributes = Facet.define<TagAttributeSource>()
+export const tagAttributes = GardState.Facet.define<TagAttributeSource>()
 
 export enum DecorationScope {
   Atom = 1,
@@ -266,7 +266,7 @@ export namespace RangeDecoration {
     query?: Node.Query
   }
 
-  export const source = Facet.define<(state: GardState) => RangeSet<RangeDecoration>>()
+  export const source = GardState.Facet.define<(state: GardState) => RangeSet<RangeDecoration>>()
 }
 
 class AttributeRangeDecoration<Data> extends RangeDecoration<Data> {
@@ -340,7 +340,7 @@ export abstract class Decoration implements PointSet.Value {
     return new WrapperDecoration(wrapper, spec?.target ? Elt.Selector.parse(spec.target) : null)
   }
 
-  static source = Facet.define<(state: GardState) => PointSet<Decoration>>({
+  static source = GardState.Facet.define<(state: GardState) => PointSet<Decoration>>({
     combine: sources => sources.concat(nodeSelection)
   })
 }
@@ -767,7 +767,7 @@ function compareDecoSet<T>(setA: Map<(state: GardState) => T, T>, setB: Map<(sta
   for (let [srcB, valB] of setB) if (!setA.has(srcB)) cmp(null, valB)
 }
 
-function compareGlobal(stateA: GardState, stateB: GardState, facet: Facet<any>) {
+function compareGlobal(stateA: GardState, stateB: GardState, facet: GardState.Facet<any>) {
   return stateA.facet(facet) != stateB.facet(facet)
 }
 

@@ -7,166 +7,6 @@ let nextID = 0
 
 const none: readonly any[] = []
 
-// FIXME can this be moved under GardState?
-
-/// A facet is a labeled value that is associated with an editor
-/// state. It takes inputs from any number of extensions, and combines
-/// those into a single output value.
-///
-/// Examples of uses of facets are the [tab
-/// size](#state.GardState^tabSize), [editor
-/// attributes](#editor.Wordgard^editorAttributes), and [update
-/// listeners](#editor.Wordgard^updateListener).
-///
-/// Note that `Facet` instances can be used anywhere where
-/// [`FacetReader`](#state.FacetReader) is expected.
-export class Facet<Input, Output = readonly Input[]> implements Facet.Reader<Output> {
-  /// @internal
-  readonly id = nextID++
-  /// @internal
-  readonly default: Output
-  /// @internal
-  readonly extensions: GardState.Extension | undefined
-
-  private constructor(
-    /// @internal
-    readonly combine: (values: readonly Input[]) => Output,
-    /// @internal
-    readonly compareInput: (a: Input, b: Input) => boolean,
-    /// @internal
-    readonly compare: (a: Output, b: Output) => boolean,
-    private isStatic: boolean,
-    enables: GardState.Extension | undefined | ((self: Facet<Input, Output>) => GardState.Extension)
-  ) {
-    this.default = combine(none)
-    this.extensions = typeof enables == "function" ? enables(this) : enables
-  }
-
-  /// Returns a facet reader for this facet, which can be used to
-  /// [read](#state.GardState.facet) it but not to define values for it.
-  get reader(): Facet.Reader<Output> { return this }
-
-  /// Define a new facet.
-  static define<Input, Output = readonly Input[]>(config: Facet.Spec<Input, Output> = {}) {
-    return new Facet<Input, Output>(config.combine || ((a: any) => a) as any,
-                                    config.compareInput || ((a, b) => a === b),
-                                    config.compare || (!config.combine ? sameArray as any : (a, b) => a === b),
-                                    !!config.static,
-                                    config.enables)
-  }
-
-  /// Returns an extension that adds the given value to this facet.
-  of(value: Input): GardState.Extension {
-    return new FacetProvider<Input>(none, this, ProviderFlag.Static, value)
-  }
-
-  /// Create an extension that computes a value for the facet from a
-  /// state. The given function should only depend on the state, not
-  /// any external non-constant inputs. Its return value will be kept
-  /// on state update, unless any of the fields or facets (including
-  /// document and selection) that it read are changed by the update,
-  /// in which case it is called again.
-  ///
-  /// In cases where your value depends only on a single field, you
-  /// can use the [`from`](#state.Facet.from) method instead.
-  compute(get: (state: GardState) => Input): GardState.Extension {
-    if (this.isStatic) throw new Error("Can't compute a static facet")
-    return new FacetProvider<Input>([], this, ProviderFlag.Auto, get)
-  }
-
-  /// Create an extension that computes zero or more values for this
-  /// facet from a state.
-  computeN(get: (state: GardState) => readonly Input[]): GardState.Extension {
-    if (this.isStatic) throw new Error("Can't compute a static facet")
-    return new FacetProvider<Input>([], this, ProviderFlag.Multi | ProviderFlag.Auto, get)
-  }
-
-  /// Shorthand method for registering a facet source with a state
-  /// field as input. If the field's type corresponds to this facet's
-  /// input type, the getter function can be omitted. If given, it
-  /// will be used to retrieve the input from the field value.
-  from<T extends Input>(field: GardState.Field<T>): GardState.Extension
-  from<T>(field: GardState.Field<T>, get: (value: T) => Input): GardState.Extension
-  from<T>(field: GardState.Field<T>, get?: (value: T) => Input): GardState.Extension {
-    if (this.isStatic) throw new Error("Can't compute a static facet")
-    if (!get) get = x => x as any
-    return new FacetProvider<Input>([field], this, 0 as ProviderFlag, state => get!(state.field(field)))
-  }
-
-  /// Utility function for combining behaviors to fill in a config
-  /// object from an array of provided configs. `defaults` should hold
-  /// default values for all optional fields in `Config`.
-  ///
-  /// The function will, by default, error
-  /// when a field gets two values that aren't `===`-equal, but you can
-  /// provide combine functions per field to do something else.
-  static combineConfig<Config extends object>(
-    configs: readonly Partial<Config>[],
-    defaults: Partial<Config>, // Should hold only the optional properties of Config, but I haven't managed to express that
-    combine: {[P in keyof Config]?: (first: Config[P], second: Config[P]) => Config[P]} = {}
-  ): Config {
-    let result: any = {}
-    for (let config of configs) for (let key of Object.keys(config) as (keyof Config)[]) {
-      let value = config[key], current = result[key]
-      if (current === undefined) result[key] = value
-      else if (current === value || value === undefined) {} // No conflict
-      else if (Object.hasOwnProperty.call(combine, key)) result[key] = combine[key]!(current as any, value as any)
-      else throw new Error("Config merge conflict for field " + (key as string))
-    }
-    for (let key in defaults) if (result[key] === undefined) result[key] = defaults[key]
-    return result
-  }
-
-  tag!: Output
-}
-
-export namespace Facet {
-  export type Spec<Input, Output> = {
-    /// How to combine the input values into a single output value. When
-    /// not given, the array of input values becomes the output. This
-    /// function will immediately be called on creating the facet, with
-    /// an empty array, to compute the facet's default value when no
-    /// inputs are present.
-    combine?: (value: readonly Input[]) => Output,
-    /// How to compare output values to determine whether the value of
-    /// the facet changed. Defaults to comparing by `===` or, if no
-    /// `combine` function was given, comparing each element of the
-    /// array with `===`.
-    compare?: (a: Output, b: Output) => boolean,
-    /// How to compare input values to avoid recomputing the output
-    /// value when no inputs changed. Defaults to comparing with `===`.
-    compareInput?: (a: Input, b: Input) => boolean,
-    /// Forbids dynamic inputs to this facet.
-    static?: boolean,
-    /// If given, these extension(s) (or the result of calling the given
-    /// function with the facet) will be added to any state where this
-    /// facet is provided. (Note that, while a facet's default value can
-    /// be read from a state even if the facet wasn't present in the
-    /// state at all, these extensions won't be added in that
-    /// situation.)
-    enables?: GardState.Extension | ((self: Facet<Input, Output>) => GardState.Extension)
-  }
-
-  /// A facet reader can be used to fetch the value of a facet, through
-  /// [`GardState.facet`](#state.GardState.facet) or as a dependency
-  /// in [`Facet.compute`](#state.Facet.compute), but not to define new
-  /// values for the facet.
-  export type Reader<Output> = {
-    /// @internal
-    id: number
-    /// @internal
-    default: Output
-    /// Dummy tag that makes sure TypeScript doesn't consider all object
-    /// types as conforming to this type. Not actually present on the
-    /// object.
-    tag: Output
-  }
-}
-
-const schemaElement = Facet.define<Schema.Element | readonly Schema.Element[], readonly Schema.Element[]>({
-  combine: values => values.reduce((set: readonly Schema.Element[], elt) => set.concat(elt), none)
-})
-
 function readHTML(html: string): HTMLElement {
   let detachedDoc = document.implementation.createHTMLDocument("title")
   let trustedTypes = (window as any).trustedTypes
@@ -271,7 +111,7 @@ export class GardState {
   }
 
   /// Get the value of a state [facet](#state.Facet).
-  facet<Output>(facet: Facet.Reader<Output>): Output {
+  facet<Output>(facet: GardState.Facet.Reader<Output>): Output {
     let track = this.track(facet)
     let addr = this.config.address[facet.id]
     if (addr == null) return facet.default
@@ -322,7 +162,7 @@ export class GardState {
       let intermediateState = new GardState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
                                             (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values
-      let schemaElts = conf.staticFacet(schemaElement)
+      let schemaElts = conf.staticFacet(GardState.schemaElement)
       if (schemaElts.some(elt => elt instanceof Plot.Type && elt.isDoc)) {
         let schema = Schema.define(schemaElts)
         doc = schema.doc(doc.content)
@@ -385,7 +225,7 @@ export class GardState {
       }
     }
     let config = GardState.Configuration.create([extensions, fieldInit])
-    let schema = Schema.define(config.staticFacet(schemaElement))
+    let schema = Schema.define(config.staticFacet(GardState.schemaElement))
     let doc = schema.docFromJSON(json.doc)
     return GardState.fromConfig(config, doc, GardSelection.fromJSON({config, doc}, json.selection))
   }
@@ -398,7 +238,7 @@ export class GardState {
   static create(spec: GardState.Spec): GardState {
     let config = spec.config instanceof GardState.Configuration ? spec.config
       : GardState.Configuration.resolve(spec.config || [], new Map)
-    let configSchema = config.staticFacet(schemaElement)
+    let configSchema = config.staticFacet(GardState.schemaElement)
     let configHasDoc = configSchema.some(elt => elt instanceof Plot.Type && elt.isDoc), schema
     if (configHasDoc) schema = Schema.define(configSchema)
     else if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
@@ -418,50 +258,9 @@ export class GardState {
                          (state, slot) => slot.create(state), null)
   }
 
-  /// Facet used to register schema elements. FIXME describe use
-  static schemaElement = schemaElement
-
-  /// This facet controls the value of the
-  /// [`readOnly`](#state.GardState.readOnly) getter, which is
-  /// consulted by commands and extensions that implement editing
-  /// functionality to determine whether they should apply. It
-  /// defaults to false, but when its highest-precedence value is
-  /// `true`, such functionality disables itself.
-  ///
-  /// Not to be confused with
-  /// [`Wordgard.editable`](#editor.Wordgard^editable), which
-  /// controls whether the editor's DOM is set to be editable (and
-  /// thus focusable).
-  static readOnly = Facet.define<boolean, boolean>({
-    combine: values => values.length ? values[0] : false
-  })
-
   /// Returns true when the editor is
   /// [configured](#state.GardState^readOnly) to be read-only.
   get readOnly() { return this.facet(GardState.readOnly) }
-
-  /// Facet that indicates the document's default text direction. Note
-  /// that this will not affect the editor CSS, and when the state's
-  /// value disagrees with the direction set in the editor, the editor
-  /// component will automatically inject an instance of this with a
-  /// high precedence to align the state to the DOM. Still, if you
-  /// know the direction in advance, it can be useful to set this, so
-  /// that the direction is already accurate during initialization.
-  /// Defaults to true.
-  static textLTR = Facet.define<boolean, boolean>({
-    combine: values => values.length ? values[0] : true,
-    static: true
-  })
-
-  /// Configure the text direction in the editor. A `Direction` value
-  /// sets the direction for the entire editor. A function is
-  /// consulted for a given textblock tag to determine the direction
-  /// in that block, or given `null` to query the direction outside of
-  /// textblocks. When multiple values are given, they are consulted
-  /// in order of precedence.
-  static textblockLTR = Facet.define<((tag: Plot.Tag.Any) => boolean | null)>({
-    static: true
-  })
 
   /// Get the global text direction (true when left-to-right, false
   /// when right-to-left) for the document. Note that the direction of
@@ -472,11 +271,6 @@ export class GardState {
   /// Return the text direction in a given textblock (by tag).
   textblockLTR(tag: Plot.Tag.Any) { return this.config.textblockLTR(tag) }
 
-  static visualCursorMotion = Facet.define<boolean, boolean>({
-    combine(values) { return !values.length ? true : values[0] },
-    static: true
-  })
-
   get visualCursorMotion() {
     return this.facet(GardState.visualCursorMotion)
   }
@@ -484,41 +278,7 @@ export class GardState {
   wordAt(pos: number, bias: -1 | 1 = 1) {
     return wordAt(this, pos, bias)
   }
-
-  /// Facet used to register a hook that gets a chance to update or
-  /// replace transactions before they are applied. This will only be
-  /// applied for transactions that don't have
-  /// [`filter`](#state.TransactionSpec.filter) set to `false`. You
-  /// can either return a single transaction spec (possibly the input
-  /// transaction), or an array of specs (which will be combined in
-  /// the same way as the arguments to
-  /// [`GardState.update`](#state.GardState.update)).
-  ///
-  /// When possible, it is recommended to avoid accessing
-  /// [`Transaction.state`](#state.Transaction.state) in a filter,
-  /// since it will force creation of a state that will then be
-  /// discarded again, if the transaction is actually filtered.
-  ///
-  /// (This functionality should be used with care. Indiscriminately
-  /// modifying transaction is likely to break something or degrade
-  /// the user experience.)
-  static transactionFilter = Facet.define<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>()
-
-  /// This is a more limited form of
-  /// [`transactionFilter`](#state.GardState^transactionFilter),
-  /// which can only add
-  /// [annotations](#state.TransactionSpec.annotations) and
-  /// [effects](#state.TransactionSpec.effects). _But_, this type
-  /// of filter runs even if the transaction has disabled regular
-  /// [filtering](#state.TransactionSpec.filter), making it suitable
-  /// for effects that don't need to touch the changes or selection,
-  /// but do want to process every transaction.
-  ///
-  /// Extenders run _after_ filters, when both are present.
-  static transactionExtender = Facet.define<(tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null>()
 }
-
-const initField = Facet.define<{field: GardState.Field<unknown>, create: (state: GardState) => unknown}>({static: true})
 
 export namespace GardState {
   /// Options passed when [creating](#state.GardState^create) an
@@ -635,6 +395,160 @@ export namespace GardState {
     }
   }
 
+  /// A facet is a labeled value that is associated with an editor
+  /// state. It takes inputs from any number of extensions, and combines
+  /// those into a single output value.
+  ///
+  /// Examples of uses of facets are the [tab
+  /// size](#state.GardState^tabSize), [editor
+  /// attributes](#editor.Wordgard^editorAttributes), and [update
+  /// listeners](#editor.Wordgard^updateListener).
+  ///
+  /// Note that `Facet` instances can be used anywhere where
+  /// [`FacetReader`](#state.FacetReader) is expected.
+  export class Facet<Input, Output = readonly Input[]> implements GardState.Facet.Reader<Output> {
+    /// @internal
+    readonly id = nextID++
+    /// @internal
+    readonly default: Output
+    /// @internal
+    readonly extensions: GardState.Extension | undefined
+
+    private constructor(
+      /// @internal
+      readonly combine: (values: readonly Input[]) => Output,
+      /// @internal
+      readonly compareInput: (a: Input, b: Input) => boolean,
+      /// @internal
+      readonly compare: (a: Output, b: Output) => boolean,
+      private isStatic: boolean,
+      enables: GardState.Extension | undefined | ((self: GardState.Facet<Input, Output>) => GardState.Extension)
+    ) {
+      this.default = combine(none)
+      this.extensions = typeof enables == "function" ? enables(this) : enables
+    }
+
+    /// Returns a facet reader for this facet, which can be used to
+    /// [read](#state.GardState.facet) it but not to define values for it.
+    get reader(): GardState.Facet.Reader<Output> { return this }
+
+    /// Define a new facet.
+    static define<Input, Output = readonly Input[]>(config: GardState.Facet.Spec<Input, Output> = {}) {
+      return new GardState.Facet<Input, Output>(config.combine || ((a: any) => a) as any,
+                                                config.compareInput || ((a, b) => a === b),
+                                                config.compare || (!config.combine ? sameArray as any : (a, b) => a === b),
+                                                !!config.static,
+                                                config.enables)
+    }
+
+    /// Returns an extension that adds the given value to this facet.
+    of(value: Input): GardState.Extension {
+      return new FacetProvider<Input>(none, this, ProviderFlag.Static, value)
+    }
+
+    /// Create an extension that computes a value for the facet from a
+    /// state. The given function should only depend on the state, not
+    /// any external non-constant inputs. Its return value will be kept
+    /// on state update, unless any of the fields or facets (including
+    /// document and selection) that it read are changed by the update,
+    /// in which case it is called again.
+    ///
+    /// In cases where your value depends only on a single field, you
+    /// can use the [`from`](#state.Facet.from) method instead.
+    compute(get: (state: GardState) => Input): GardState.Extension {
+      if (this.isStatic) throw new Error("Can't compute a static facet")
+      return new FacetProvider<Input>([], this, ProviderFlag.Auto, get)
+    }
+
+    /// Create an extension that computes zero or more values for this
+    /// facet from a state.
+    computeN(get: (state: GardState) => readonly Input[]): GardState.Extension {
+      if (this.isStatic) throw new Error("Can't compute a static facet")
+      return new FacetProvider<Input>([], this, ProviderFlag.Multi | ProviderFlag.Auto, get)
+    }
+
+    /// Shorthand method for registering a facet source with a state
+    /// field as input. If the field's type corresponds to this facet's
+    /// input type, the getter function can be omitted. If given, it
+    /// will be used to retrieve the input from the field value.
+    from<T extends Input>(field: GardState.Field<T>): GardState.Extension
+    from<T>(field: GardState.Field<T>, get: (value: T) => Input): GardState.Extension
+    from<T>(field: GardState.Field<T>, get?: (value: T) => Input): GardState.Extension {
+      if (this.isStatic) throw new Error("Can't compute a static facet")
+      if (!get) get = x => x as any
+      return new FacetProvider<Input>([field], this, 0 as ProviderFlag, state => get!(state.field(field)))
+    }
+
+    /// Utility function for combining behaviors to fill in a config
+    /// object from an array of provided configs. `defaults` should hold
+    /// default values for all optional fields in `Config`.
+    ///
+    /// The function will, by default, error
+    /// when a field gets two values that aren't `===`-equal, but you can
+    /// provide combine functions per field to do something else.
+    static combineConfig<Config extends object>(
+      configs: readonly Partial<Config>[],
+      defaults: Partial<Config>, // Should hold only the optional properties of Config, but I haven't managed to express that
+      combine: {[P in keyof Config]?: (first: Config[P], second: Config[P]) => Config[P]} = {}
+    ): Config {
+      let result: any = {}
+      for (let config of configs) for (let key of Object.keys(config) as (keyof Config)[]) {
+        let value = config[key], current = result[key]
+        if (current === undefined) result[key] = value
+        else if (current === value || value === undefined) {} // No conflict
+        else if (Object.hasOwnProperty.call(combine, key)) result[key] = combine[key]!(current as any, value as any)
+        else throw new Error("Config merge conflict for field " + (key as string))
+      }
+      for (let key in defaults) if (result[key] === undefined) result[key] = defaults[key]
+      return result
+    }
+
+    tag!: Output
+  }
+
+  export namespace Facet {
+    export type Spec<Input, Output> = {
+      /// How to combine the input values into a single output value. When
+      /// not given, the array of input values becomes the output. This
+      /// function will immediately be called on creating the facet, with
+      /// an empty array, to compute the facet's default value when no
+      /// inputs are present.
+      combine?: (value: readonly Input[]) => Output,
+      /// How to compare output values to determine whether the value of
+      /// the facet changed. Defaults to comparing by `===` or, if no
+      /// `combine` function was given, comparing each element of the
+      /// array with `===`.
+      compare?: (a: Output, b: Output) => boolean,
+      /// How to compare input values to avoid recomputing the output
+      /// value when no inputs changed. Defaults to comparing with `===`.
+      compareInput?: (a: Input, b: Input) => boolean,
+      /// Forbids dynamic inputs to this facet.
+      static?: boolean,
+      /// If given, these extension(s) (or the result of calling the given
+      /// function with the facet) will be added to any state where this
+      /// facet is provided. (Note that, while a facet's default value can
+      /// be read from a state even if the facet wasn't present in the
+      /// state at all, these extensions won't be added in that
+      /// situation.)
+      enables?: GardState.Extension | ((self: GardState.Facet<Input, Output>) => GardState.Extension)
+    }
+
+    /// A facet reader can be used to fetch the value of a facet, through
+    /// [`GardState.facet`](#state.GardState.facet) or as a dependency
+    /// in [`Facet.compute`](#state.Facet.compute), but not to define new
+    /// values for the facet.
+    export type Reader<Output> = {
+      /// @internal
+      id: number
+      /// @internal
+      default: Output
+      /// Dummy tag that makes sure TypeScript doesn't consider all object
+      /// types as conforming to this type. Not actually present on the
+      /// object.
+      tag: Output
+    }
+  }
+
   export class Configuration {
     readonly statusTemplate: SlotStatus[] = []
 
@@ -648,7 +562,7 @@ export namespace GardState {
         this.statusTemplate.push(SlotStatus.Unresolved)
     }
 
-    staticFacet<Output>(facet: Facet<any, Output>): Output {
+    staticFacet<Output>(facet: GardState.Facet<any, Output>): Output {
       let addr = this.address[facet.id]
       return addr == null ? facet.default : this.staticValues[addr >> 1]
     }
@@ -821,7 +735,91 @@ export namespace GardState {
     /// @internal
     static reconfigureCompartment = Transaction.Effect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
+
+  /// Facet used to register schema elements. FIXME describe use
+  export const schemaElement = GardState.Facet.define<Schema.Element | readonly Schema.Element[], readonly Schema.Element[]>({
+    combine: values => values.reduce((set: readonly Schema.Element[], elt) => set.concat(elt), none)
+  })
+
+  /// This facet controls the value of the
+  /// [`readOnly`](#state.GardState.readOnly) getter, which is
+  /// consulted by commands and extensions that implement editing
+  /// functionality to determine whether they should apply. It
+  /// defaults to false, but when its highest-precedence value is
+  /// `true`, such functionality disables itself.
+  ///
+  /// Not to be confused with
+  /// [`Wordgard.editable`](#editor.Wordgard^editable), which
+  /// controls whether the editor's DOM is set to be editable (and
+  /// thus focusable).
+  export const readOnly = GardState.Facet.define<boolean, boolean>({
+    combine: values => values.length ? values[0] : false
+  })
+
+  /// Facet that indicates the document's default text direction. Note
+  /// that this will not affect the editor CSS, and when the state's
+  /// value disagrees with the direction set in the editor, the editor
+  /// component will automatically inject an instance of this with a
+  /// high precedence to align the state to the DOM. Still, if you
+  /// know the direction in advance, it can be useful to set this, so
+  /// that the direction is already accurate during initialization.
+  /// Defaults to true.
+  export const textLTR = GardState.Facet.define<boolean, boolean>({
+    combine: values => values.length ? values[0] : true,
+    static: true
+  })
+
+  /// Configure the text direction in the editor. A `Direction` value
+  /// sets the direction for the entire editor. A function is
+  /// consulted for a given textblock tag to determine the direction
+  /// in that block, or given `null` to query the direction outside of
+  /// textblocks. When multiple values are given, they are consulted
+  /// in order of precedence.
+  export const textblockLTR = GardState.Facet.define<((tag: Plot.Tag.Any) => boolean | null)>({
+    static: true
+  })
+
+  export const visualCursorMotion = GardState.Facet.define<boolean, boolean>({
+    combine(values) { return !values.length ? true : values[0] },
+    static: true
+  })
+
+  /// Facet used to register a hook that gets a chance to update or
+  /// replace transactions before they are applied. This will only be
+  /// applied for transactions that don't have
+  /// [`filter`](#state.TransactionSpec.filter) set to `false`. You
+  /// can either return a single transaction spec (possibly the input
+  /// transaction), or an array of specs (which will be combined in
+  /// the same way as the arguments to
+  /// [`GardState.update`](#state.GardState.update)).
+  ///
+  /// When possible, it is recommended to avoid accessing
+  /// [`Transaction.state`](#state.Transaction.state) in a filter,
+  /// since it will force creation of a state that will then be
+  /// discarded again, if the transaction is actually filtered.
+  ///
+  /// (This functionality should be used with care. Indiscriminately
+  /// modifying transaction is likely to break something or degrade
+  /// the user experience.)
+  export const transactionFilter = GardState.Facet.define<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>()
+
+  /// This is a more limited form of
+  /// [`transactionFilter`](#state.GardState^transactionFilter),
+  /// which can only add
+  /// [annotations](#state.TransactionSpec.annotations) and
+  /// [effects](#state.TransactionSpec.effects). _But_, this type
+  /// of filter runs even if the transaction has disabled regular
+  /// [filtering](#state.TransactionSpec.filter), making it suitable
+  /// for effects that don't need to touch the changes or selection,
+  /// but do want to process every transaction.
+  ///
+  /// Extenders run _after_ filters, when both are present.
+  export const transactionExtender = GardState.Facet.define<
+    (tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null
+  >()
 }
+
+const initField = GardState.Facet.define<{field: GardState.Field<unknown>, create: (state: GardState) => unknown}>({static: true})
 
 function addValue<T>(set: T[], value: T) {
   if (set.indexOf(value) < 0) set.push(value)
@@ -842,7 +840,7 @@ function sameArray<T>(a: readonly T[], b: readonly T[]) {
   return a == b || a.length == b.length && a.every((e, i) => e === b[i])
 }
 
-type Slot = Facet.Reader<any> | GardState.Field<any> | "doc" | "selection"
+type Slot = GardState.Facet.Reader<any> | GardState.Field<any> | "doc" | "selection"
 
 const enum ProviderFlag {
   Static = 1,
@@ -879,7 +877,7 @@ class FacetProvider<Input> {
   dependencies: Slot[]
 
   constructor(dependencies: readonly Slot[],
-              readonly facet: Facet<Input, any>,
+              readonly facet: GardState.Facet<Input, any>,
               readonly flags: ProviderFlag,
               readonly value: ((state: GardState) => Input) | ((state: GardState) => readonly Input[]) | Input) {
     this.dependencies = dependencies as Slot[] // Only mutated for auto providers
@@ -915,7 +913,7 @@ class FacetProvider<Input> {
         if (oldAddr != null) {
           let oldVal = getAddr(oldState, oldAddr)
           if (dependencies.every(dep => {
-            return dep instanceof Facet ? oldState.facet(dep) === state.facet(dep)
+            return dep instanceof GardState.Facet ? oldState.facet(dep) === state.facet(dep)
               : dep instanceof GardState.Field ? oldState.field(dep, false) == state.field(dep, false)
               : true
           }) || (multi ? compareArray(newVal = getter(state), oldVal, compare) : compare(newVal = getter(state), oldVal))) {
@@ -947,7 +945,7 @@ function ensureAll(state: GardState, addrs: readonly number[]) {
 
 function dynamicFacetSlot<Input, Output>(
   addresses: {[id: number]: number},
-  facet: Facet<Input, Output>,
+  facet: GardState.Facet<Input, Output>,
   providers: readonly FacetProvider<Input>[]
 ): DynamicSlot {
   let providerAddrs = providers.map(p => addresses[p.id])
@@ -1022,7 +1020,7 @@ interface DynamicSlot {
 }
 
 // Kludge to avoid cyclic dependency with ./selection
-GardSelection.selectionType = Facet.define<SelectionType>({
+GardSelection.selectionType = GardState.Facet.define<SelectionType>({
   combine(values) {
     let types = [GardSelection.Text.type, GardSelection.Node.type, ...values]
     for (let i = 0; i < types.length; i++) for (let j = i + 1; j < types.length; j++) {

@@ -1,6 +1,6 @@
 import {Node, Pos, ChangeSet} from "wordgard/doc"
 import {Transaction} from "./transaction"
-import {Facet, GardState} from "./state"
+import {GardState} from "./state"
 
 // FIXME add a workaround for filtered transactions that break invariants?
 
@@ -88,7 +88,7 @@ function scanTransaction(tr: Transaction) {
   return plan
 }
 
-const corrections = Facet.define<Correction<Pos.Node>, readonly (readonly Correction<Pos.Node>[])[]>({
+const corrections = GardState.Facet.define<Correction<Pos.Node>, readonly (readonly Correction<Pos.Node>[])[]>({
   combine(corrections) {
     let buckets: Correction<Pos.Node>[][] = [[], [], []]
     for (let c of corrections) buckets[c.event].push(c)

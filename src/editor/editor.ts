@@ -1,4 +1,4 @@
-import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
+import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ChangeSet, Node} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
@@ -608,7 +608,7 @@ export class Wordgard {
   /// an editor. The editor will ensure that the module is
   /// mounted in its [document
   /// root](#editor.Wordgard.constructor^config.root).
-  static styleModule = Facet.define<StyleModule>()
+  static styleModule = GardState.Facet.define<StyleModule>()
 
   /// Returns an extension that can be used to add DOM event handlers.
   /// The value should be an object mapping event names to handler
@@ -638,7 +638,7 @@ export class Wordgard {
   /// If they return `true`, no further handling happens for the
   /// scrolling. If they return false, the default scroll behavior is
   /// applied. Scroll handlers should never initiate editor updates.
-  static scrollHandler = Facet.define<(
+  static scrollHandler = GardState.Facet.define<(
     wg: Wordgard,
     target: {from: number, to: number, x: ScrollStrategy, y: ScrollStrategy, xMargin: number, yMargin: number}
   ) => boolean>()
@@ -656,13 +656,13 @@ export class Wordgard {
   /// A facet that can be used to register a function to be called
   /// right before the editor updates. Any transactions dispatched by
   /// such functions will be included in the update.
-  static beforeUpdate = Facet.define<(update: Wordgard.Update) => void>()
+  static beforeUpdate = GardState.Facet.define<(update: Wordgard.Update) => void>()
 
   /// A facet that can be used to register a function to be called
   /// after the editor updates. Dispatching transactions from such a
   /// function is allowed, but will cause another, separate update to
   /// happen.
-  static afterUpdate = Facet.define<(update: Wordgard.Update) => void>()
+  static afterUpdate = GardState.Facet.define<(update: Wordgard.Update) => void>()
 
   /// Facet that controls whether the editor content DOM is editable.
   /// When its highest-precedence value is `false`, the element will
@@ -670,11 +670,11 @@ export class Wordgard {
   /// doesn't affect API calls that change the editor content, even
   /// when those are bound to keys or buttons. See the
   /// [`readOnly`](#state.GardState.readOnly) facet for that.)
-  static editable = Facet.define<boolean, boolean>({combine: values => values.length ? values[0] : true })
+  static editable = GardState.Facet.define<boolean, boolean>({combine: values => values.length ? values[0] : true })
 
   /// Controls the length of a full cursor blink cycle, in milliseconds.
   /// Defaults to 1200. Can be set to 0 to disable blinking.
-  static cursorBlinkRate = Facet.define<number, number>({
+  static cursorBlinkRate = GardState.Facet.define<number, number>({
     combine: inputs => inputs.length ? Math.min(...inputs) : 1200
   })
 
@@ -695,7 +695,7 @@ export class Wordgard {
   /// should be considered invisible). This can be useful when the
   /// plugin introduces elements that cover part of that element (for
   /// example a horizontally fixed gutter).
-  static scrollMargins = Facet.define<(wg: Wordgard) => Partial<DOMRect> | null>()
+  static scrollMargins = GardState.Facet.define<(wg: Wordgard) => Partial<DOMRect> | null>()
 
   /// @internal
   getScrollMargins() {
@@ -760,15 +760,15 @@ export class Wordgard {
   /// Provides a Content Security Policy nonce to use when creating
   /// the style sheets for the editor. Holds the empty string when no
   /// nonce has been provided.
-  static cspNonce = Facet.define<string, string>({combine: values => values.length ? values[0] : ""})
+  static cspNonce = GardState.Facet.define<string, string>({combine: values => values.length ? values[0] : ""})
 
   /// Facet that provides additional DOM attributes for the editor's
   /// editable DOM element.
-  static contentAttributes = Facet.define<AttrSource>()
+  static contentAttributes = GardState.Facet.define<AttrSource>()
 
   /// Facet that provides DOM attributes for the editor's outer
   /// element.
-  static editorAttributes = Facet.define<AttrSource>()
+  static editorAttributes = GardState.Facet.define<AttrSource>()
 
   /// State effect used to include screen reader announcements in a
   /// transaction. These will be added to the DOM in a visually hidden
@@ -844,7 +844,7 @@ export type DOMEventHandlers<This> = {
   [event in keyof DOMEventMap]?: (this: This, event: DOMEventMap[event], wg: Wordgard) => boolean | void
 }
 
-function attrsFromFacet(wg: Wordgard, facet: Facet<AttrSource>, base: Attrs) {
+function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: Attrs) {
   for (let sources = wg.state.facet(facet), i = sources.length - 1; i >= 0; i--) {
     let source = sources[i], value = typeof source == "function" ? source(wg) : source
     if (value) combineAttrs(value, base)
@@ -854,7 +854,7 @@ function attrsFromFacet(wg: Wordgard, facet: Facet<AttrSource>, base: Attrs) {
 
 export const basePlugins: Wordgard.Plugin<any>[] = []
 
-export const editorPlugin = Facet.define<Wordgard.Plugin<any>>({
+export const editorPlugin = GardState.Facet.define<Wordgard.Plugin<any>>({
   combine: plugins => basePlugins.concat(plugins)
 })
 

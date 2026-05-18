@@ -1,4 +1,4 @@
-import {GardState, Facet} from "wordgard/state"
+import {GardState} from "wordgard/state"
 
 export function eqArray<T extends {eq(b: T): boolean}>(a?: readonly T[] | null, b?: readonly T[] | null) {
   if (!a || !b) return a == b
@@ -8,7 +8,7 @@ export function eqArray<T extends {eq(b: T): boolean}>(a?: readonly T[] | null, 
   return true
 }
 
-export const exceptionSink = Facet.define<(exception: any) => void>()
+export const exceptionSink = GardState.Facet.define<(exception: any) => void>()
 
 /// Log or report an unhandled exception in client code. Should
 /// probably only be used by extension code that allows client code to

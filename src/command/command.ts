@@ -1,7 +1,7 @@
 import {type Wordgard} from "wordgard/editor"
-import {GardState, Transaction, Facet} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 
-const commandHandler = Facet.define<
+const commandHandler = GardState.Facet.define<
   [Command<any>, (wg: Wordgard, param: any) => boolean],
   Map<Command<any>, readonly ((wg: Wordgard, param: any) => boolean)[]>
 >({

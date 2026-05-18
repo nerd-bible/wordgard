@@ -1,12 +1,12 @@
 import {Node, Mark, ChangeSet, Plot} from "wordgard/doc"
 import {Wordgard, Panel, showDialog} from "wordgard/editor"
-import {GardState, Transaction, GardSelection, Facet} from "wordgard/state"
+import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wordgard/schema-def"
 import {Command} from "wordgard/command"
 import {PhraseSet, imagePhrases} from "wordgard/phrases"
 import cr from "crelt"
 
-export const imageUploader = Facet.define<(file: File, wg: Wordgard, progress: (percent: number) => void) => Promise<string>>()
+export const imageUploader = GardState.Facet.define<(file: File, wg: Wordgard, progress: (percent: number) => void) => Promise<string>>()
 
 const imageTypes = [Image, Figure, CaptionedFigure]
 

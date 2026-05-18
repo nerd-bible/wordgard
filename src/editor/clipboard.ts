@@ -1,18 +1,18 @@
 import {Slice, Leaf, Plot, Node, Mark, Pos, serializeSlice, parseSlice, Token, Elt} from "wordgard/doc"
-import {Facet, GardState} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import browser from "./browser"
 
-export const clipboardOutputFilter = Facet.define<(content: Slice, state: GardState) => Slice>()
-export const clipboardOutputHTMLFilter = Facet.define<(html: string, state: GardState) => string>()
-export const clipboardTextSerializer = Facet.define<
+export const clipboardOutputFilter = GardState.Facet.define<(content: Slice, state: GardState) => Slice>()
+export const clipboardOutputHTMLFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
+export const clipboardTextSerializer = GardState.Facet.define<
   (slice: Slice, context: readonly Plot.Tag.Any[], state: GardState) => string | null
 >()
-export const clipboardOutputTextFilter = Facet.define<(html: string, state: GardState) => string>()
+export const clipboardOutputTextFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
 
-export const clipboardInputFilter = Facet.define<(content: Slice, state: GardState) => Slice>()
-export const clipboardInputHTMLFilter = Facet.define<(html: string, state: GardState) => string>()
-export const clipboardTextParser = Facet.define<(text: string, state: GardState) => Slice | null>()
-export const clipboardInputTextFilter = Facet.define<(html: string, state: GardState) => string>()
+export const clipboardInputFilter = GardState.Facet.define<(content: Slice, state: GardState) => Slice>()
+export const clipboardInputHTMLFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
+export const clipboardTextParser = GardState.Facet.define<(text: string, state: GardState) => Slice | null>()
+export const clipboardInputTextFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
 
 const openMark = Mark.Type.define<string>("Open", {
   shape: {attribute: "wg-open", value: 0},

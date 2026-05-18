@@ -1,6 +1,6 @@
 // FIXME figure out how to provide easy-to-use default styling for these
 
-import {Facet, GardState} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {Wordgard} from "./editor"
 import {rmDOM} from "./dom"
 
@@ -13,7 +13,7 @@ type PanelConfig = {
   bottomContainer?: HTMLElement
 }
 
-const panelConfig = Facet.define<PanelConfig, PanelConfig>({
+const panelConfig = GardState.Facet.define<PanelConfig, PanelConfig>({
   combine(configs: readonly PanelConfig[]) {
     let topContainer, bottomContainer
     for (let c of configs) {
@@ -144,7 +144,7 @@ export namespace Panel {
   /// Opening a panel is done by providing a constructor function for
   /// the panel through this facet. (The panel is closed again when its
   /// constructor is no longer provided.) Values of `null` are ignored.
-  export const show = Facet.define<Panel.Constructor | null>({
+  export const show = GardState.Facet.define<Panel.Constructor | null>({
     enables: panelPlugin
   })
 }

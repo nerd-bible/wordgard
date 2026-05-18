@@ -1,9 +1,9 @@
-import {Facet} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {StyleModule, StyleSpec} from "style-mod"
 
-export const theme = Facet.define<string, string>({combine: strs => strs.join(" ")})
+export const theme = GardState.Facet.define<string, string>({combine: strs => strs.join(" ")})
 
-export const darkTheme = Facet.define<boolean, boolean | null>({combine: values => values.length ? values[0] : null})
+export const darkTheme = GardState.Facet.define<boolean, boolean | null>({combine: values => values.length ? values[0] : null})
 
 export const baseThemeID = StyleModule.newName(), baseLightID = StyleModule.newName(), baseDarkID = StyleModule.newName()
 

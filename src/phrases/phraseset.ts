@@ -1,6 +1,6 @@
-import {Facet, GardState} from "wordgard/state"
+import {GardState} from "wordgard/state"
 
-const phraseOverride = Facet.define<
+const phraseOverride = GardState.Facet.define<
   {set: PhraseSet<any>, phrases: Record<string, string>},
   Map<PhraseSet<any>, Record<string, string>>
 >({

@@ -1,5 +1,5 @@
 import ist from "ist"
-import {GardState, Facet, Transaction} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
 import {basicBuilders} from "./schema.ts"
 
@@ -9,7 +9,7 @@ function mk(...extensions: GardState.Extension[]) {
   return GardState.create({doc: doc(p()), config: extensions})
 }
 
-let num = Facet.define<number>(), str = Facet.define<string>(), bool = Facet.define<boolean>()
+let num = GardState.Facet.define<number>(), str = GardState.Facet.define<string>(), bool = GardState.Facet.define<boolean>()
 
 describe("EditorState facets", () => {
   it("allows querying of facets", () => {
@@ -110,13 +110,13 @@ describe("EditorState facets", () => {
   })
 
   it("works with a static combined facet", () => {
-    let f = Facet.define<number, number>({combine: ns => ns.reduce((a, b) => a + b, 0)})
+    let f = GardState.Facet.define<number, number>({combine: ns => ns.reduce((a, b) => a + b, 0)})
     let st = mk(f.of(1), f.of(2), f.of(3))
     ist(st.facet(f), 6)
   })
 
   it("works with a dynamic combined facet", () => {
-    let f = Facet.define<number, number>({combine: ns => ns.reduce((a, b) => a + b, 0)})
+    let f = GardState.Facet.define<number, number>({combine: ns => ns.reduce((a, b) => a + b, 0)})
     let st = mk(f.of(1), f.compute(s => s.doc.length), f.of(3))
     ist(st.facet(f), 6)
     st = st.update({changes: {insert: [Leaf.text("hello")], from: 1}}).state
@@ -131,7 +131,7 @@ describe("EditorState facets", () => {
   })
 
   it("survives unrelated reconfiguration even without deep-compare", () => {
-    let f = Facet.define<number, {count: number}>({
+    let f = GardState.Facet.define<number, {count: number}>({
       combine: v => ({count: v.length})
     })
     let st = mk(f.compute(s => s.doc.length), f.of(2))
@@ -194,7 +194,7 @@ describe("EditorState facets", () => {
   })
 
   it("preserves dynamic facet values when dependencies stay the same", () => {
-    let f = Facet.define<{a: number}>()
+    let f = GardState.Facet.define<{a: number}>()
     let st1 = mk(f.compute(state => ({a: 1})), str.of("A"))
     let st2 = st1.update({effects: Transaction.Effect.appendConfig.of(bool.of(true))}).state
     ist(st1.facet(f), st2.facet(f))

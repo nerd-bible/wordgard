@@ -1,6 +1,6 @@
 import {type Wordgard} from "wordgard/editor"
 import {Command} from "wordgard/command"
-import {GardState, Transaction, Facet} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 import {PhraseSet, phrases} from "wordgard/phrases"
 import {Mark} from "wordgard/doc"
 
@@ -52,7 +52,7 @@ export namespace Menu {
       }
     }
 
-    export const source = Facet.define<Item>()
+    export const source = GardState.Facet.define<Item>()
   }
 
   export class Button extends Item.Base {

@@ -1,4 +1,4 @@
-export {Facet, GardState} from "./state"
+export {GardState} from "./state"
 export {GardSelection} from "./selection"
 export {Transaction} from "./transaction"
 // FIXME

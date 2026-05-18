@@ -1,5 +1,5 @@
 import {Menu} from "wordgard/command"
-import {GardState, GardSelection, Facet} from "wordgard/state"
+import {GardState, GardSelection} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
 import {Color, BackgroundColor} from "wordgard/schema-def"
 import {PhraseSet, phrases, colorNames} from "wordgard/phrases"
@@ -197,11 +197,11 @@ export namespace ColorPicker {
     ]
   }
 
-  export const width = Facet.define<number, number>({
+  export const width = GardState.Facet.define<number, number>({
     combine: values => values.length ? values[0] : 10
   })
 
-  export const options = Facet.define<readonly ColorPicker.Option[], readonly ColorPicker.Option[]>({
+  export const options = GardState.Facet.define<readonly ColorPicker.Option[], readonly ColorPicker.Option[]>({
     combine: values => values.length ? values[0] : ColorPicker.defaultColors()
   })
 }

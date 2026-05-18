@@ -1,4 +1,4 @@
-import {GardState, Transaction, Facet} from "wordgard/state"
+import {GardState, Transaction} from "wordgard/state"
 import {Wordgard} from "./editor"
 import {logException} from "./util"
 import {windowRect} from "./dom"
@@ -25,7 +25,7 @@ class TooltipViewManager {
 
   constructor(
     wg: Wordgard,
-    private readonly facet: Facet.Reader<readonly (Tooltip | null)[]>,
+    private readonly facet: GardState.Facet.Reader<readonly (Tooltip | null)[]>,
     private readonly createTooltipView: (tooltip: Tooltip, after: Tooltip.View | null) => Tooltip.View,
     private readonly removeTooltipView: (tooltipView: Tooltip.View) => void
   ) {
@@ -83,7 +83,7 @@ type TooltipConfig = {
   tooltipSpace: (wg: Wordgard) => DOMRect
 }
 
-const tooltipConfig = Facet.define<Partial<TooltipConfig>, TooltipConfig>({
+const tooltipConfig = GardState.Facet.define<Partial<TooltipConfig>, TooltipConfig>({
   combine: values => ({
     position: browser.ios ? "absolute" : values.find(conf => conf.position)?.position || "fixed",
     parent: values.find(conf => conf.parent)?.parent || null,
@@ -504,7 +504,7 @@ export namespace Tooltip {
   }
 
   /// Facet to which an extension can add a value to show a tooltip.
-  export const show = Facet.define<Tooltip | null>({
+  export const show = GardState.Facet.define<Tooltip | null>({
     enables: [tooltipPlugin, baseTheme]
   })
 
@@ -609,7 +609,7 @@ export namespace Tooltip {
 
 const noOffset = {x: 0, y: 0}
 
-const showHoverTooltip = Facet.define<readonly Tooltip[], readonly Tooltip[]>({
+const showHoverTooltip = GardState.Facet.define<readonly Tooltip[], readonly Tooltip[]>({
   combine: inputs => inputs.reduce((a, i) => a.concat(i), [])
 })
 

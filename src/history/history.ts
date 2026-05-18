@@ -1,4 +1,4 @@
-import {GardState, Transaction, Facet, GardSelection} from "wordgard/state"
+import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command, Menu, undo as undoCmd, redo as redoCmd} from "wordgard/command"
 import {phrases} from "wordgard/phrases"
@@ -20,9 +20,9 @@ interface HistoryConfig {
   joinToEvent?: (tr: Transaction, isAdjacent: boolean) => boolean
 }
 
-const historyConfig = Facet.define<HistoryConfig, Required<HistoryConfig>>({
+const historyConfig = GardState.Facet.define<HistoryConfig, Required<HistoryConfig>>({
   combine(configs) {
-    return Facet.combineConfig(configs, {
+    return GardState.Facet.combineConfig(configs, {
       minDepth: 100,
       newGroupDelay: 500,
       joinToEvent: (_t, isAdjacent) => isAdjacent,
@@ -127,7 +127,7 @@ export namespace history {
   /// store when inverting the transaction. This can be used to
   /// integrate specific effects in the history, so that they can be
   /// undone (and redone again).
-  export const invertedEffects = Facet.define<(tr: Transaction) => readonly Transaction.Effect<any>[]>()
+  export const invertedEffects = GardState.Facet.define<(tr: Transaction) => readonly Transaction.Effect<any>[]>()
 
   export type EventJSON = {
     changes: ChangeSet.JSON,

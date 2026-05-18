@@ -1,7 +1,7 @@
 import {Plot, Node as wgNode, Leaf, ChangeSet, Mark, Pos, ValidationError} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
-import type {GardState, Facet} from "./state"
+import type {GardState} from "./state"
 
 export class SelectionType {
   constructor(
@@ -180,7 +180,7 @@ export abstract class GardSelection {
   }
 
   /// @internal
-  declare static selectionType: Facet<SelectionType>
+  declare static selectionType: GardState.Facet<SelectionType>
 
   /// Create an extension that registers a custom selection type. Such
   /// a selection is only valid in a state that has the extension

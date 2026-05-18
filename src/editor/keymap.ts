@@ -1,7 +1,7 @@
 import {Command, enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transposeChars,
         moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
-import {Facet, GardState} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {Wordgard} from "./editor"
 import browser from "./browser"
 
@@ -105,7 +105,7 @@ export namespace KeyBinding {
   /// determine their precedence (the ones specified early or with high
   /// priority get checked first). When a handler has returned `true`
   /// for a given key, no further handlers are called.
-  export const source = Facet.define<KeyBinding, readonly KeyBinding[]>({
+  export const source = GardState.Facet.define<KeyBinding, readonly KeyBinding[]>({
     enables: handleKeyEvents
   })
 

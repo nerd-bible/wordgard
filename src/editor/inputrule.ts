@@ -1,10 +1,10 @@
 import {Wordgard} from "wordgard/editor"
-import {GardState, Facet} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {history} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"
 import {findWrappable, wrapBlockRange, autoJoinBlocks} from "wordgard/command"
 
-const inputRule = Facet.define<InputRule>()
+const inputRule = GardState.Facet.define<InputRule>()
 
 const beforeUpdate = Wordgard.beforeUpdate.of(applyInputRules)
 

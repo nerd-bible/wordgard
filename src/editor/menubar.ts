@@ -1,5 +1,5 @@
 import {Panel, Wordgard} from "wordgard/editor"
-import {GardState, Facet} from "wordgard/state"
+import {GardState} from "wordgard/state"
 import {PhraseSet} from "wordgard/phrases"
 import {Command, Menu} from "wordgard/command"
 
@@ -547,7 +547,7 @@ const theme = Wordgard.baseTheme({
   },
 })
 
-const barTemplate = Facet.define<readonly Menu.Template[], readonly Menu.Template[]>({
+const barTemplate = GardState.Facet.define<readonly Menu.Template[], readonly Menu.Template[]>({
   combine: inputs => inputs.length ? inputs[0] : [Menu.Group.top.template()]
 })
 

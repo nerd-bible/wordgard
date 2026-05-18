@@ -1,4 +1,4 @@
-import {GardSelection, GardState, Transaction, Facet} from "wordgard/state"
+import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {Plot, ChangeSet, Mark, Slice} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
@@ -201,7 +201,7 @@ export const modifierCodes = [16, 17, 18, 20, 91, 92, 224, 225]
 
 const dragScrollMargin = 6
 
-export const mouseSelectionStyle = Facet.define<MakeSelectionStyle>()
+export const mouseSelectionStyle = GardState.Facet.define<MakeSelectionStyle>()
 
 /// Interface that objects registered with
 /// [`Wordgard.mouseSelectionStyle`](#editor.Wordgard^mouseSelectionStyle)
@@ -345,7 +345,7 @@ class MouseSelection {
   }
 }
 
-export const dragBehavior = Facet.define<(event: MouseEvent) => boolean>()
+export const dragBehavior = GardState.Facet.define<(event: MouseEvent) => boolean>()
 
 function dragMovesSelection(wg: Wordgard, event: MouseEvent) {
   let facet = wg.state.facet(dragBehavior)
@@ -518,7 +518,7 @@ handlers.drop = (wg, event: DragEvent) => {
   return false
 }
 
-export const pasteHandler = Facet.define<(
+export const pasteHandler = GardState.Facet.define<(
   wg: Wordgard,
   event: ClipboardEvent,
   slice: Slice,
