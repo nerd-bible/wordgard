@@ -1,4 +1,4 @@
-import {GardState, GardSelection} from "wordgard/state"
+import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {Decoration, PointSet, Wordgard} from "wordgard/editor"
 import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
 import {Table, TableRow} from "wordgard/schema-def"
@@ -21,7 +21,7 @@ function getCellDeco(state: GardState): PointSet<Decoration> {
   return PointSet.create(state.selection.ranges.map(({from}) => [from - 1, selectedCell]))
 }
 
-const tableSelectionFilter = GardState.prec.low(GardState.transactionFilter.of(tr => {
+const tableSelectionFilter = GardState.prec.low(Transaction.filter.of(tr => {
   let normalized = CellSelection.normalize(tr.newSelection, tr.newDoc)
   return normalized ? [tr, {selection: normalized}] : tr
 }))

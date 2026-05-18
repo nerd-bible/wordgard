@@ -134,7 +134,7 @@ export class GardState {
   /// specs. For [selection](#state.TransactionSpec.selection), later
   /// specs take precedence over earlier ones.
   update(...specs: readonly Transaction.Spec[]): Transaction {
-    return resolveTransaction(this, specs, true)
+    return specs.length == 1 && specs[0] instanceof Transaction ? specs[0] : resolveTransaction(this, specs, true)
   }
 
   /// @internal
@@ -783,40 +783,6 @@ export namespace GardState {
     combine(values) { return !values.length ? true : values[0] },
     static: true
   })
-
-  /// Facet used to register a hook that gets a chance to update or
-  /// replace transactions before they are applied. This will only be
-  /// applied for transactions that don't have
-  /// [`filter`](#state.TransactionSpec.filter) set to `false`. You
-  /// can either return a single transaction spec (possibly the input
-  /// transaction), or an array of specs (which will be combined in
-  /// the same way as the arguments to
-  /// [`GardState.update`](#state.GardState.update)).
-  ///
-  /// When possible, it is recommended to avoid accessing
-  /// [`Transaction.state`](#state.Transaction.state) in a filter,
-  /// since it will force creation of a state that will then be
-  /// discarded again, if the transaction is actually filtered.
-  ///
-  /// (This functionality should be used with care. Indiscriminately
-  /// modifying transaction is likely to break something or degrade
-  /// the user experience.)
-  export const transactionFilter = GardState.Facet.define<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>()
-
-  /// This is a more limited form of
-  /// [`transactionFilter`](#state.GardState^transactionFilter),
-  /// which can only add
-  /// [annotations](#state.TransactionSpec.annotations) and
-  /// [effects](#state.TransactionSpec.effects). _But_, this type
-  /// of filter runs even if the transaction has disabled regular
-  /// [filtering](#state.TransactionSpec.filter), making it suitable
-  /// for effects that don't need to touch the changes or selection,
-  /// but do want to process every transaction.
-  ///
-  /// Extenders run _after_ filters, when both are present.
-  export const transactionExtender = GardState.Facet.define<
-    (tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null
-  >()
 }
 
 const initField = GardState.Facet.define<{field: GardState.Field<unknown>, create: (state: GardState) => unknown}>({static: true})
@@ -1030,3 +996,6 @@ GardSelection.selectionType = GardState.Facet.define<SelectionType>({
   },
   static: true
 })
+
+Transaction.filter = GardState.Facet.define()
+Transaction.extender = GardState.Facet.define()

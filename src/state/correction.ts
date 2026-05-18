@@ -132,7 +132,7 @@ export class Correction<PosType extends Pos.Node> {
   ) {
     this.extension = [
       corrections.of(this as any),
-      GardState.transactionFilter.of(tr => this.filter(tr))
+      Transaction.filter.of(tr => this.filter(tr))
     ]
   }
 

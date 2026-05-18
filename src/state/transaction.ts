@@ -148,6 +148,38 @@ export class Transaction {
     let rB = resolveTransactionInner(!seq || rA.changes.empty ? state.doc : rA.changes.apply(state.doc), state.config, b)
     return mergeTransaction(state, rA, rB, seq)
   }
+
+  /// Facet used to register a hook that gets a chance to update or
+  /// replace transactions before they are applied. This will only be
+  /// applied for transactions that don't have
+  /// [`filter`](#state.TransactionSpec.filter) set to `false`. You
+  /// can either return a single transaction spec (possibly the input
+  /// transaction), or an array of specs (which will be combined in
+  /// the same way as the arguments to
+  /// [`GardState.update`](#state.GardState.update)).
+  ///
+  /// When possible, it is recommended to avoid accessing
+  /// [`Transaction.state`](#state.Transaction.state) in a filter,
+  /// since it will force creation of a state that will then be
+  /// discarded again, if the transaction is actually filtered.
+  ///
+  /// (This functionality should be used with care. Indiscriminately
+  /// modifying transaction is likely to break something or degrade
+  /// the user experience.)
+  declare static filter: GardState.Facet<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>
+
+  /// This is a more limited form of
+  /// [`transactionFilter`](#state.GardState^transactionFilter),
+  /// which can only add
+  /// [annotations](#state.TransactionSpec.annotations) and
+  /// [effects](#state.TransactionSpec.effects). _But_, this type
+  /// of filter runs even if the transaction has disabled regular
+  /// [filtering](#state.TransactionSpec.filter), making it suitable
+  /// for effects that don't need to touch the changes or selection,
+  /// but do want to process every transaction.
+  ///
+  /// Extenders run _after_ filters, when both are present.
+  declare static extender: GardState.Facet<(tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null>
 }
 
 export namespace Transaction {
@@ -383,7 +415,7 @@ export function resolveTransaction(state: GardState, specs: readonly Transaction
 // Finish a transaction by applying filters if necessary.
 function filterTransaction(tr: Transaction) {
   // Transaction filters
-  let filters = tr.startState.facet((tr.startState.constructor as typeof GardState).transactionFilter)
+  let filters = tr.startState.facet(Transaction.filter)
   for (let i = filters.length - 1; i >= 0; i--) {
     let filtered = filters[i](tr)
     if (filtered instanceof Transaction) tr = filtered
@@ -395,7 +427,7 @@ function filterTransaction(tr: Transaction) {
 
 function extendTransaction(tr: Transaction) {
   let state = tr.startState, spec: ResolvedSpec = tr
-  let extenders = state.facet((tr.startState.constructor as typeof GardState).transactionExtender)
+  let extenders = state.facet(Transaction.extender)
   for (let i = extenders.length - 1; i >= 0; i--) {
     let extension = extenders[i](tr)
     if (extension && Object.keys(extension).length)

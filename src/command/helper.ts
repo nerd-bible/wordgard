@@ -326,11 +326,11 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
     } else {
       size = findClusterBreak(next.param, 0)
     }
-    return state.update({
+    return {
       changes: {from: pos, to: pos + size},
       scrollIntoView: true,
       userEvent: "delete.forward"
-    })
+    }
   }
   let from = pos, to = pos + next.length
   let parent: Pos.Plot | null = state.doc.resolve(pos).parent
