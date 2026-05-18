@@ -100,7 +100,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 
 /// Corrections are extensions that listen for some kinds of document
 /// changes on specific types of nodes and, when they occur, run a
-/// function to verify that some condition holds, and optionally
+/// function to verify that some condition holds and optionally
 /// adjust the node.
 ///
 /// The correcting function will be passed a [`NodePos`](#doc.NodePos)
@@ -116,8 +116,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 /// because a transaction with
 /// [`filter`](#state.TransactionSpec.filter)`: false` may violate it
 /// and not be checked. Such a transaction may for example be created
-/// by concurrent collaborative changes or undone changes that
-/// interact with non-undoable changes.
+/// by concurrent collaborative changes.
 export class Correction<PosType extends Pos.Node> {
   /// To take effect, corrections must be included in an editor
   /// configuration as extensions.

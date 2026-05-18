@@ -5,7 +5,7 @@ import {phrases} from "wordgard/phrases"
 
 const enum BranchName { Done, Undone }
 
-const fromHistory = Transaction.Annotation.define<{side: BranchName, rest: Branch | null, selection: GardSelection}>()
+const fromHistory = Transaction.Annotation.define<{side: BranchName, rest: Branch | null}>()
 
 interface HistoryConfig {
   /// The minimum depth (amount of events) to store. Defaults to 100.
@@ -46,7 +46,7 @@ const historyField_ = GardState.Field.define({
     if (fromHist) {
       let from = fromHist.side, event = eventFromTransaction(tr)
       let other = from == BranchName.Done ? state.undone : state.done
-      if (event) other = new Branch(event.changes, event.effects, null, fromHist.selection, other)
+      if (event) other = new Branch(event.changes, event.effects, null, tr.startState.selection, other)
       return new HistoryState(from == BranchName.Done ? fromHist.rest : other,
                               from == BranchName.Done ? other : fromHist.rest)
     }
@@ -341,8 +341,7 @@ class HistoryState {
       changes: branch.changes,
       selection: branch.startSelection,
       effects: branch.effects,
-      annotations: fromHistory.of({side, rest: branch.next, selection: state.selection}),
-      filter: false,
+      annotations: fromHistory.of({side, rest: branch.next}),
       userEvent: side == BranchName.Done ? "undo" : "redo",
       scrollIntoView: true
     }
