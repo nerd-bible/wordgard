@@ -715,7 +715,7 @@ export namespace GardState {
     textblockLTR(tag: Plot.Tag.Any) {
       for (let f of this.staticFacet(GardState.textblockLTR)) {
         let result = f(tag)
-        if (result) return result
+        if (result != null) return result
       }
       return this.textLTR
     }

@@ -2,7 +2,7 @@ import {GardState} from "wordgard/state"
 import {LineBreak} from "wordgard/schema-def"
 
 import {strong, emphasis, code, underline, superscript, subscript} from "./mark"
-import {blockDoc, paragraph, heading, codeBlock, alignment, blockquote, horizontalRule} from "./block"
+import {blockDoc, paragraph, heading, codeBlock, alignment, direction, blockquote, horizontalRule} from "./block"
 import {bulletList, orderedList} from "./list"
 import {image, figure, imageResizing} from "./image"
 import {color, backgroundColor} from "./color"
@@ -22,7 +22,7 @@ export function basicSchema(): GardState.Extension {
 
 export function fullSchema(): GardState.Extension {
   return [
-    basicSchema(), codeBlock(), alignment(), blockquote(), horizontalRule(),
+    basicSchema(), codeBlock(), alignment(), direction(), blockquote(), horizontalRule(),
     bulletList(), orderedList(),
     image(), figure(), imageResizing(),
     underline(), superscript(), subscript(), color(), backgroundColor()

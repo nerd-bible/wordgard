@@ -1,8 +1,8 @@
 import {Plot, Pos, ChangeSet} from "wordgard/doc"
 import {GardState, GardSelection} from "wordgard/state"
-import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, HorizontalRule} from "wordgard/schema-def"
+import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, Direction, HorizontalRule} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
-import {Command, Menu, setTextblockType, setAlignment, toggleBlock} from "wordgard/command"
+import {Command, Menu, setTextblockType, setAlignment, setDirection, toggleBlock} from "wordgard/command"
 import {history} from "wordgard/history"
 import {Wordgard, KeyBinding, InputRule} from "wordgard/editor"
 
@@ -161,6 +161,52 @@ export namespace alignment {
     description: phrases.ref("align_center"),
     parent: button,
     rank: 30
+  })
+}
+
+export function direction(): GardState.Extension {
+  return [GardState.schemaElement.of(Direction),
+          direction.textblockDir, direction.buttonLTR, direction.buttonRTL]
+}
+
+export namespace direction {
+  export const textblockDir = GardState.textblockLTR.of(tag => {
+    let dir = tag.mark(Direction)
+    return dir ? dir == "ltr" : null
+  })
+
+  export const buttonLTR = Menu.Button.define({
+    run: Command.bind(setDirection, "ltr"),
+    select: state => {
+      let block = state.sel.head.textblockParent
+      return !!block && !state.textblockLTR(block.node.tag)
+    },
+    enable: state => {
+      return !!state.sel.head.textblockParent
+    },
+    label: {
+      icon: "M85 35l-20 15l20 15l0-30M42 83V20H37v63a3 3 0 0 1-6 0V55H27a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6H48v62a3 3 0 0 1-6 0"
+    },
+    description: phrases.ref("dir_ltr"),
+    parent: Menu.Group.blockMenu,
+    rank: 20
+  })
+
+  export const buttonRTL = Menu.Button.define({
+    run: Command.bind(setDirection, "rtl"),
+    select: state => {
+      let block = state.sel.head.textblockParent
+      return block ? state.textblockLTR(block.node.tag) : true
+    },
+    enable: state => {
+      return !!state.sel.head.textblockParent
+    },
+    label: {
+      icon: "M15 35l20 15l-20 15l0-30M80 83V20H75v63a3 3 0 0 1-6 0V55H65a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6H86v62a3 3 0 0 1-6 0"
+    },
+    description: phrases.ref("dir_rtl"),
+    parent: Menu.Group.blockMenu,
+    rank: 20
   })
 }
 

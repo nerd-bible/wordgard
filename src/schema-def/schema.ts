@@ -225,6 +225,14 @@ export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
   ]
 })
 
+export const Direction = Mark.Type.define<"ltr" | "rtl">("Direction", {
+  role: Mark.Role.Direction,
+  target: G.Textblock,
+  keepOnSplit: true,
+  keepOnTypeChange: true,
+  shape: {attribute: "style/direction", value: 0}
+})
+
 export const Emphasis = Mark.define("Emphasis", {
   rank: 50,
   role: Mark.Role.Emphasis,

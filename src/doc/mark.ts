@@ -257,5 +257,6 @@ export namespace Mark {
     static Emphasis = new Role
     static Underline = new Role
     static Alignment = new Role
+    static Direction = new Role
   }
 }

@@ -247,6 +247,23 @@ export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "lef
   }
 }
 
+export const setDirection: Command.Pure<null | "ltr" | "rtl"> = ({state}, dir) => {
+  let {schema} = state.doc
+  let mark = schema.marks.find(m => m.hasRole(Mark.Role.Direction))
+  if (!mark) return false
+  let changes: ChangeSet.Spec[] = []
+  for (let block of selectedTextblocks(state)) {
+    let cur = block.node.tag.mark(mark)
+    if (cur != dir && schema.markAllowed(mark, block.node.type))
+      changes.push(dir ? {from: block.before, add: mark.of(dir)} : {from: block.before, remove: mark.of(cur)})
+  }
+  if (!changes.length) return false
+  return {
+    changes,
+    userEvent: "mark.set.direction",
+  }
+}
+
 export const toggleList: Command.Pure<Plot.Tag.Any> = ({state}, listTag) => {
   let blocks = selectedTextblocks(state)
   if (!blocks.length) return false
