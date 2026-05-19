@@ -230,7 +230,7 @@ export const Direction = Mark.Type.define<"ltr" | "rtl">("Direction", {
   target: G.Textblock,
   keepOnSplit: true,
   keepOnTypeChange: true,
-  shape: {attribute: "style/direction", value: 0}
+  shape: {attribute: "dir", value: 0}
 })
 
 export const Emphasis = Mark.define("Emphasis", {
