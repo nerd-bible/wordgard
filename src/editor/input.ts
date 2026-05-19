@@ -2,7 +2,7 @@ import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {Plot, ChangeSet, Mark, Slice} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
-        transposeChars, deleteSelection} from "wordgard/command"
+        transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
 import {Wordgard, PluginInstance} from "./editor"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
@@ -684,7 +684,6 @@ observers.contextmenu = wg => {
   wg.inputState.lastContextMenu = Date.now()
 }
 
-// FIXME formatSetBlockTextDirection, formatSetInlineTextDirection
 const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   historyUndo: undo,
   historyRedo: redo,
@@ -708,6 +707,9 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   formatBold: Command.bind(toggleMarkByLabel, Mark.Role.Strong),
   formatItalic: Command.bind(toggleMarkByLabel, Mark.Role.Emphasis),
   formatUnderline: Command.bind(toggleMarkByLabel, Mark.Role.Underline),
+  formatJustifyCenter: Command.bind(setAlignment, "center"),
+  formatJustifyLeft: Command.bind(setAlignment, "left"),
+  formatJustifyRight: Command.bind(setAlignment, "right")
 }
 
 handlers.beforeinput = (wg, event: InputEvent) => {
@@ -737,8 +739,10 @@ handlers.beforeinput = (wg, event: InputEvent) => {
     if (!wg.inputState.composing)
       wg.inputState.composing = {changes: 0, target: null}
     wg.inputState.pendingComposition = {...inputEventRange(event, wg), text: event.data!}
+  } else if (type == "formatSetBlockTextDirection") {
+    if (event.data == "ltr" || event.data == "rtl")
+      Command.dispatch(wg, setDirection, event.data)
   }
-
   return false
 }
 

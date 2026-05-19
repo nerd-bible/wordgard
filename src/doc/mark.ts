@@ -256,6 +256,7 @@ export namespace Mark {
     static Strong = new Role
     static Emphasis = new Role
     static Underline = new Role
+    // FIXME Alignment and Direction commands assume a param type that's not enforced
     static Alignment = new Role
     static Direction = new Role
   }
