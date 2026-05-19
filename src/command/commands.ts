@@ -247,7 +247,7 @@ export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "lef
   }
 }
 
-export const setDirection: Command.Pure<null | "ltr" | "rtl"> = ({state}, dir) => {
+export const setDirection: Command.Pure<null | "ltr" | "rtl" | "auto"> = ({state}, dir) => {
   let {schema} = state.doc
   let mark = schema.marks.find(m => m.hasRole(Mark.Role.Direction))
   if (!mark) return false

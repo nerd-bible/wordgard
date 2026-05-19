@@ -30,8 +30,10 @@ export const phrases = PhraseSet.define({
   align_start: "Align text to block start",
   align_end: "Align text to block end",
   align_center: "Center text",
-  dir_ltr: "Set text direction left-to-right",
-  dir_rtl: "Set text direction right-to-left"
+  text_dir: "Text direction",
+  text_dir_ltr: "Left-to-right text",
+  text_dir_rtl: "Right-to-left text",
+  text_dir_auto: "Automatic text direction",
 })
 
 export const imagePhrases = PhraseSet.define({

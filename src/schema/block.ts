@@ -1,5 +1,5 @@
-import {Plot, Pos, ChangeSet} from "wordgard/doc"
-import {GardState, GardSelection} from "wordgard/state"
+import {Plot, Leaf, Pos, ChangeSet} from "wordgard/doc"
+import {GardState, GardSelection, BidiSpan} from "wordgard/state"
 import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, Direction, HorizontalRule} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {Command, Menu, setTextblockType, setAlignment, setDirection, toggleBlock} from "wordgard/command"
@@ -166,47 +166,68 @@ export namespace alignment {
 
 export function direction(): GardState.Extension {
   return [GardState.schemaElement.of(Direction),
-          direction.textblockDir, direction.buttonLTR, direction.buttonRTL]
+          direction.textblockDir, direction.button, direction.buttonLTR, direction.buttonRTL, direction.buttonAuto]
+}
+
+function autoDir(plot: Plot) {
+  for (let ch of plot.content) if (ch.is(Leaf.Text)) {
+    for (let i = 0; i < ch.param.length; i++) {
+      let dir = BidiSpan.strongDir(ch.param.charCodeAt(i))
+      if (dir != null) return dir
+    }
+  }
+  return null
+}
+
+function directionAtCursor(state: GardState): "ltr" | "rtl" | "auto" {
+  let block = state.sel.head.textblockParent
+  return (block && block.node.mark(Direction)) || (state.textLTR ? "ltr" : "rtl")
 }
 
 export namespace direction {
   export const textblockDir = GardState.textblockLTR.of(plot => {
     let dir = plot.mark(Direction)
-    return dir ? dir == "ltr" : null
+    return !dir ? null : dir == "auto" ? autoDir(plot) : dir == "ltr"
+  })
+
+  export const button = Menu.Submenu.define({
+    description: phrases.ref("text_dir"),
+    parent: Menu.Group.blockMenu,
+    arrow: false,
+    rank: 20
   })
 
   export const buttonLTR = Menu.Button.define({
     run: Command.bind(setDirection, "ltr"),
-    select: state => {
-      let block = state.sel.head.textblockParent
-      return !!block && !state.textblockLTR(block.node)
-    },
-    enable: state => {
-      return !!state.sel.head.textblockParent
-    },
+    active: state => directionAtCursor(state) == "ltr",
     label: {
-      icon: "M85 35l-20 15l20 15l0-30M42 83V20H37v63a3 3 0 0 1-6 0V55H27a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6H48v62a3 3 0 0 1-6 0"
+      icon: "M70 35l20 15l-20 15l0-30M45 83v-63h-5v63a3 3 0 0 1-6 0v-28h-4a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6h-7v62a3 3 0 0 1-6 0"
     },
-    description: phrases.ref("dir_ltr"),
-    parent: Menu.Group.blockMenu,
-    rank: 20
+    description: phrases.ref("text_dir_ltr"),
+    parent: button,
+    rank: 10
   })
 
   export const buttonRTL = Menu.Button.define({
     run: Command.bind(setDirection, "rtl"),
-    select: state => {
-      let block = state.sel.head.textblockParent
-      return block ? state.textblockLTR(block.node) : true
-    },
-    enable: state => {
-      return !!state.sel.head.textblockParent
-    },
+    active: state => directionAtCursor(state) == "rtl",
     label: {
-      icon: "M15 35l20 15l-20 15l0-30M80 83V20H75v63a3 3 0 0 1-6 0V55H65a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6H86v62a3 3 0 0 1-6 0"
+      icon: "M30 35l-20 15l20 15l0-30M75 83v-63h-5v63a3 3 0 0 1-6 0v-28h-4a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6h-7v62a3 3 0 0 1-6 0"
     },
-    description: phrases.ref("dir_rtl"),
-    parent: Menu.Group.blockMenu,
+    description: phrases.ref("text_dir_rtl"),
+    parent: button,
     rank: 20
+  })
+
+  export const buttonAuto = Menu.Button.define({
+    run: Command.bind(setDirection, "auto"),
+    active: state => directionAtCursor(state) == "auto",
+    label: {
+      icon: "M35 30l-23 20l23 20l0-40M60 30l23 20l-23 20l0-40"
+    },
+    description: phrases.ref("text_dir_auto"),
+    parent: button,
+    rank: 30
   })
 }
 

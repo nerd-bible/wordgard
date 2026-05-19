@@ -98,6 +98,14 @@ export class BidiSpan {
     if (maybe < 0) throw new RangeError("Index out of range")
     return maybe
   }
+
+  // FIXME find better place
+  static strongDir(ch: number) {
+    let type = charType(ch)
+    if (type == T.L) return true
+    if (type == T.R || type == T.AL) return false
+    return null
+  }
 }
 
 // Arrays of isolates are always sorted by position. Isolates are

@@ -1,4 +1,4 @@
-import {elt, ParseRule, Plot, Leaf, Node, Mark} from "wordgard/doc"
+import {elt, ParseRule, Plot, Leaf, Node, Mark, ValidationError} from "wordgard/doc"
 
 const G = Node.Group
 
@@ -225,11 +225,14 @@ export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
   ]
 })
 
-export const Direction = Mark.Type.define<"ltr" | "rtl">("Direction", {
+export const Direction = Mark.Type.define<"ltr" | "rtl" | "auto">("Direction", {
   role: Mark.Role.Direction,
   target: G.Textblock,
   keepOnSplit: true,
   keepOnTypeChange: true,
+  validate: val => {
+    if (val != "ltr" && val != "rtl" && val != "auto") throw new ValidationError(`Invalid direction value: ${val}`)
+  },
   shape: {attribute: "dir", value: 0}
 })
 
