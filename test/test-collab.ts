@@ -1,5 +1,6 @@
-import {GardState, Transaction} from "wordgard/state"
+import {GardState, Transaction, Correction} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
+import {Paragraph} from "wordgard/schema-def"
 import {basicBuilders} from "./schema.ts"
 import {history, undo, redo} from "wordgard/history"
 import ist from "ist"
@@ -306,5 +307,17 @@ describe("collab", () => {
       }
       for (let c = 1; c < n; c++) s.conv(s.states[0].doc.textContent())
     }
+  })
+
+  it("can handle corrections kicking in for merged steps", () => {
+    let shortPara = Correction.onChildList(Paragraph, plot => {
+      return plot.node.contentLength <= 5 ? null : {from: plot.start + 5, to: plot.end}
+    })
+    let s = new DummyServer("abcd", {extensions: [shortPara]})
+    s.delay(0, () => {
+      s.type(0, "x", 5)
+      s.type(1, "y", 5)
+    })
+    s.conv("abcdy")
   })
 })

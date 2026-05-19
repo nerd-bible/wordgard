@@ -21,9 +21,9 @@ function getCellDeco(state: GardState): PointSet<Decoration> {
   return PointSet.create(state.selection.ranges.map(({from}) => [from - 1, selectedCell]))
 }
 
-const tableSelectionFilter = GardState.prec.low(Transaction.filter.of(tr => {
+const tableSelectionFilter = GardState.prec.low(Transaction.extender.of(tr => {
   let normalized = CellSelection.normalize(tr.newSelection, tr.newDoc)
-  return normalized ? [tr, {selection: normalized}] : tr
+  return normalized ? {selection: normalized} : null
 }))
 
 type Dir = "left" | "right" | "forward" | "backward" | "up" | "down"

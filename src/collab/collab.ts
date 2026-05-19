@@ -60,7 +60,12 @@ const collabConfig = GardState.Facet.define<CollabConfig & {generatedID: string}
   }
 })
 
-const collabReceive = Transaction.Annotation.define<CollabState>()
+const collabReceive = Transaction.Effect.define<CollabState>({
+  map(state, changes) {
+    return changes.empty ? state : new CollabState(state.version, state.syncedDoc,
+                                                   state.unconfirmed.concat(new LocalUpdate(changes, [])))
+  }
+})
 
 const collabField = GardState.Field.define({
   create(state) {
@@ -68,8 +73,7 @@ const collabField = GardState.Field.define({
   },
 
   update(collab: CollabState, tr: Transaction) {
-    let isSync = tr.annotation(collabReceive)
-    if (isSync) return isSync
+    for (let e of tr.effects) if (e.is(collabReceive)) return e.value
     let {sharedEffects} = tr.startState.facet(collabConfig)
     let effects = sharedEffects(tr)
     if (effects.length || !tr.changes.empty)
@@ -117,11 +121,8 @@ export function receiveUpdates(state: GardState, updates: readonly Update[]) {
   }
 
   if (!updates.length) return state.update({
-    annotations: [
-      Transaction.remote.of(true),
-      collabReceive.of(new CollabState(version, syncedDoc, unconfirmed))
-    ],
-    filter: false
+    annotations: Transaction.remote.of(true),
+    effects: collabReceive.of(new CollabState(version, syncedDoc, unconfirmed))
   })
 
   let {changes, effects} = collapseUpdates(updates)
@@ -138,13 +139,8 @@ export function receiveUpdates(state: GardState, updates: readonly Update[]) {
 
   return state.update({
     changes,
-    effects,
-    annotations: [
-      Transaction.addToHistory.of(false),
-      Transaction.remote.of(true),
-      collabReceive.of(new CollabState(version, syncedDoc, unconfirmed))
-    ],
-    filter: false
+    effects: effects.concat(collabReceive.of(new CollabState(version, syncedDoc, unconfirmed))),
+    annotations: [Transaction.addToHistory.of(false), Transaction.remote.of(true)],
   })
 }
 

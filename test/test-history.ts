@@ -404,12 +404,12 @@ describe("history", () => {
     ist(state.selection.to, 11)
   })
 
-  it("can handle filters adding changes", () => {
+  it("can handle extenders adding changes", () => {
     let state = GardState.create({doc: doc(p("abc")), config: [
       history(),
-      Transaction.filter.of(tr => {
-        if (tr.newDoc.length != 5) return tr
-        return [tr, {changes: {from: 4, insert: [Leaf.text(".")]}}]
+      Transaction.extender.of(tr => {
+        if (tr.newDoc.length != 5) return null
+        return {changes: {from: 4, insert: [Leaf.text(".")]}}
       })
     ]})
     state = state.update({changes: {from: 4, insert: [Leaf.text("d")]}}).state
@@ -417,17 +417,6 @@ describe("history", () => {
     ist(state.doc, doc(p("abc.")), eq)
     state = command(state, redo)
     ist(state.doc, doc(p("abcd")), eq)
-  })
-
-  it("can handle filters blocking changes", () => {
-    let state = GardState.create({doc: doc(p("abc")), config: [
-      history(),
-      Transaction.filter.of(tr => tr.newDoc.length == 5 ? [] : tr)
-    ]})
-    state = state.update({changes: {from: 4, insert: [Leaf.text("d")]}}).state
-    state = command(state, undo)
-    ist(state.doc, doc(p("abcd")), eq)
-    ist(redoDepth(state), 0)
   })
 
   describe("effects", () => {

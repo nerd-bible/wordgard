@@ -39,9 +39,9 @@ export class Transaction {
   /// The new document produced by the transaction. Contrary to
   /// [`.state`](#state.Transaction.state)`.doc`, accessing this won't
   /// force the entire new state to be computed right away, so it is
-  /// recommended that [transaction
-  /// filters](#state.GardState^transactionFilter) use this property
-  /// when they need to look at the new document.
+  /// recommended that {@link Transaction.extender | transaction
+  /// extenders} use this property when they need to look at the new
+  /// document.
   newDoc: Plot.Doc
 
   /// The new selection produced by the transaction. If
@@ -51,11 +51,8 @@ export class Transaction {
   newSelection: GardSelection
 
   /// @internal
-  static create(startState: GardState, changes: ChangeSet,
-                selection: GardSelection | undefined,
-                effects: readonly Transaction.Effect<any>[], annotations: readonly Transaction.Annotation<any>[],
-                scrollIntoView: boolean) {
-    return new Transaction(startState, changes, selection, effects, annotations, scrollIntoView)
+  static create(startState: GardState, spec: ResolvedSpec) {
+    return new Transaction(startState, spec.changes, spec.selection, spec.effects, spec.annotations, spec.scrollIntoView)
   }
 
   /// The new state created by the transaction.
@@ -143,43 +140,25 @@ export class Transaction {
   /// interpreted *within* these transactions, and the resulting spec
   /// will not have it.
   static merge(state: GardState, a: Transaction.Spec, b: Transaction.Spec): Transaction.Spec {
-    let seq = !!b.sequential
-    let rA = resolveTransactionInner(state.doc, state.config, a)
-    let rB = resolveTransactionInner(!seq || rA.changes.empty ? state.doc : rA.changes.apply(state.doc), state.config, b)
-    return mergeTransaction(state, rA, rB, seq)
+    let rA = resolveTransactionInner(state, null, a)
+    return mergeTransaction(state, rA, resolveTransactionInner(state, rA.changes, b))
   }
 
-  /// Facet used to register a hook that gets a chance to update or
-  /// replace transactions before they are applied. This will only be
-  /// applied for transactions that don't have
-  /// [`filter`](#state.TransactionSpec.filter) set to `false`. You
-  /// can either return a single transaction spec (possibly the input
-  /// transaction), or an array of specs (which will be combined in
-  /// the same way as the arguments to
+  /// Facet used to register a hook that gets a chance to add to
+  /// transactions before they are applied. If such a function returns
+  /// a transaction spec, it will be combined with the original
+  /// transaction (in the same way as the arguments to
   /// [`GardState.update`](#state.GardState.update)).
   ///
   /// When possible, it is recommended to avoid accessing
-  /// [`Transaction.state`](#state.Transaction.state) in a filter,
+  /// [`Transaction.state`](#state.Transaction.state) in an extender,
   /// since it will force creation of a state that will then be
-  /// discarded again, if the transaction is actually filtered.
+  /// discarded again, if the transaction is actually extended.
   ///
   /// (This functionality should be used with care. Indiscriminately
   /// modifying transaction is likely to break something or degrade
   /// the user experience.)
-  declare static filter: GardState.Facet<(tr: Transaction) => Transaction.Spec | readonly Transaction.Spec[]>
-
-  /// This is a more limited form of
-  /// [`transactionFilter`](#state.GardState^transactionFilter),
-  /// which can only add
-  /// [annotations](#state.TransactionSpec.annotations) and
-  /// [effects](#state.TransactionSpec.effects). _But_, this type
-  /// of filter runs even if the transaction has disabled regular
-  /// [filtering](#state.TransactionSpec.filter), making it suitable
-  /// for effects that don't need to touch the changes or selection,
-  /// but do want to process every transaction.
-  ///
-  /// Extenders run _after_ filters, when both are present.
-  declare static extender: GardState.Facet<(tr: Transaction) => Pick<Transaction.Spec, "effects" | "annotations"> | null>
+  declare static extender: GardState.Facet<(tr: Transaction) => Transaction.Spec | null>
 }
 
 export namespace Transaction {
@@ -204,12 +183,6 @@ export namespace Transaction {
     /// When set to `true`, the transaction is marked as needing to
     /// scroll the current selection into view.
     scrollIntoView?: boolean,
-    /// By default, transactions can be modified by [transaction
-    /// filters](#state.GardState^transactionFilter). You can set this
-    /// to `false` to disable that. This can be necessary for
-    /// transactions that, for example, include annotations that must be
-    /// kept consistent with their changes.
-    filter?: boolean,
     /// Normally, when multiple specs are combined (for example by
     /// [`GardState.update`](#state.GardState.update)), the
     /// positions in `changes` are taken to refer to the document
@@ -355,86 +328,57 @@ type ResolvedSpec = {
   effects: readonly Transaction.Effect<any>[],
   annotations: readonly Transaction.Annotation<any>[],
   scrollIntoView: boolean
-  filter?: boolean
 }
 
-export function mergeTransaction(state: GardState, a: ResolvedSpec, b: ResolvedSpec, sequential: boolean): ResolvedSpec {
-  let mapForA, mapForB, changes
-  if (sequential) {
-    mapForA = b.changes
-    mapForB = ChangeSet.empty(b.changes.length)
-    changes = a.changes.compose(b.changes)
-  } else {
-    mapForA = b.changes.map(a.changes, state.doc)
-    mapForB = a.changes.map(b.changes, state.doc, true)
-    changes = a.changes.compose(mapForA)
-  }
-  let newDoc: Plot.Doc | undefined, selCx = {
-    get doc() { return newDoc || (newDoc = changes.apply(state.doc)) },
-    config: state.config
-  }
+function selCx(config: GardState.Configuration, doc: Plot.Doc, changes: ChangeSet) {
+  let newDoc: Plot.Doc | undefined
+  return {get doc() { return newDoc || (newDoc = changes.apply(doc)) }, config}
+}
+
+export function mergeTransaction(state: GardState, a: ResolvedSpec, b: ResolvedSpec): ResolvedSpec {
+  let changes = a.changes.compose(b.changes)
   return {
     changes,
-    selection: b.selection ? b.selection.map(mapForB, selCx) : a.selection?.map(mapForA, selCx),
-    effects: Transaction.Effect.mapEffects(a.effects, mapForA).concat(Transaction.Effect.mapEffects(b.effects, mapForB)),
+    selection: b.selection || (a.selection && a.selection.map(b.changes, selCx(state.config, state.doc, changes))),
+    effects: Transaction.Effect.mapEffects(a.effects, b.changes).concat(b.effects),
     annotations: a.annotations.length ? a.annotations.concat(b.annotations) : b.annotations,
-    scrollIntoView: a.scrollIntoView || b.scrollIntoView,
-    filter: a.filter || b.filter
+    scrollIntoView: a.scrollIntoView || b.scrollIntoView
   }
 }
 
-export function resolveTransactionInner(doc: Plot.Doc, config: GardState.Configuration, spec: Transaction.Spec): ResolvedSpec {
-  let changes = spec.changes instanceof ChangeSet ? spec.changes : ChangeSet.create(doc, spec.changes || [])
-  let sel = spec.selection, annotations = asArray(spec.annotations)
+export function resolveTransactionInner(state: GardState, after: ChangeSet | null, spec: Transaction.Spec): ResolvedSpec {
+  let {changes, sequential} = spec
+  if (after && after.empty) after = null
+  let doc = after && sequential ? after.apply(state.doc) : state.doc
+  if (!(changes instanceof ChangeSet)) changes = ChangeSet.create(doc, changes || [])
+  let effects = asArray(spec.effects), annotations = asArray(spec.annotations)
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
-  if (typeof sel == "function") sel = sel({doc: changes.apply(doc), config})
-  return {
-    changes,
-    selection: sel && (sel instanceof GardSelection ? sel : GardSelection.Text.create(sel)),
-    effects: asArray(spec.effects),
-    annotations,
-    scrollIntoView: !!spec.scrollIntoView,
-    filter: !!spec.filter
+  let selection = !spec.selection ? undefined
+    : spec.selection instanceof GardSelection ? spec.selection
+    : typeof spec.selection == "function" ? spec.selection({doc: changes.apply(doc), config: state.config})
+    : GardSelection.Text.create(spec.selection)
+  if (after && !sequential) {
+    changes = changes.map(after, state.doc)
+    effects = Transaction.Effect.mapEffects(effects, after)
+    if (selection) selection = selection.map(after.map(changes, state.doc, true), selCx(state.config, doc, changes))
   }
+  return {changes, selection, effects, annotations, scrollIntoView: !!spec.scrollIntoView}
 }
 
-export function resolveTransaction(state: GardState, specs: readonly Transaction.Spec[], filter: boolean): Transaction {
-  let s = resolveTransactionInner(state.doc, state.config, specs.length ? specs[0] : {})
-  if (specs.length && specs[0].filter === false) filter = false
+export function resolveTransaction(state: GardState, specs: readonly Transaction.Spec[]): Transaction {
+  let s = resolveTransactionInner(state, null, specs.length ? specs[0] : {})
   for (let i = 1; i < specs.length; i++) {
-    let spec = specs[i]
-    if (spec.filter === false) filter = false
-    let seq = !!spec.sequential
-    let s2 = resolveTransactionInner(seq && spec.changes ? s.changes.apply(state.doc) : state.doc, state.config, spec)
-    s = mergeTransaction(state, s, s2, !!spec.sequential)
+    s = mergeTransaction(state, s, resolveTransactionInner(state, s.changes, specs[i]))
   }
-  let tr = Transaction.create(state, s.changes, s.selection, s.effects, s.annotations, s.scrollIntoView)
-  return extendTransaction(filter ? filterTransaction(tr) : tr)
-}
-
-// Finish a transaction by applying filters if necessary.
-function filterTransaction(tr: Transaction) {
-  // Transaction filters
-  let filters = tr.startState.facet(Transaction.filter)
-  for (let i = filters.length - 1; i >= 0; i--) {
-    let filtered = filters[i](tr)
-    if (filtered instanceof Transaction) tr = filtered
-    else if (Array.isArray(filtered) && filtered.length == 1 && filtered[0] instanceof Transaction) tr = filtered[0]
-    else tr = resolveTransaction(tr.startState, asArray(filtered as any), false)
-  }
-  return tr
-}
-
-function extendTransaction(tr: Transaction) {
-  let state = tr.startState, spec: ResolvedSpec = tr
-  let extenders = state.facet(Transaction.extender)
+  let extenders = state.facet(Transaction.extender), tr = Transaction.create(state, s)
   for (let i = extenders.length - 1; i >= 0; i--) {
     let extension = extenders[i](tr)
-    if (extension && Object.keys(extension).length)
-      spec = mergeTransaction(state, tr, resolveTransactionInner(state.doc, state.config, extension), true)
+    if (extension) {
+      s = mergeTransaction(state, s, resolveTransactionInner(state, tr.changes, extension))
+      tr = Transaction.create(state, s)
+    }
   }
-  return spec == tr ? tr : Transaction.create(state, tr.changes, tr.selection, spec.effects,
-                                              spec.annotations, spec.scrollIntoView)
+  return tr
 }
 
 const none: readonly any[] = []

@@ -22,4 +22,7 @@ describe("EditorState", () => {
     }).update({changes: {from: 1, insert: [Leaf.text("-")]}})
     ist(state.doc, doc(p("-!")), eq)
   })
+
+  // FIXME transaction creation and combining tests
 })
+

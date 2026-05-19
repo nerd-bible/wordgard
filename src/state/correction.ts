@@ -2,8 +2,6 @@ import {Node, Pos, ChangeSet} from "wordgard/doc"
 import {Transaction} from "./transaction"
 import {GardState} from "./state"
 
-// FIXME add a workaround for filtered transactions that break invariants?
-
 const enum CorrectionEvent {
   ChildList = 0,
   Content = 1,
@@ -132,13 +130,13 @@ export class Correction<PosType extends Pos.Node> {
   ) {
     this.extension = [
       corrections.of(this as any),
-      Transaction.filter.of(tr => this.filter(tr))
+      Transaction.extender.of(tr => this.extend(tr))
     ]
   }
 
   /// @internal
-  filter(tr: Transaction) {
-    if (!tr.docChanged) return tr
+  extend(tr: Transaction) {
+    if (!tr.docChanged) return null
     let plan = planCache.get(tr)
     if (!plan) planCache.set(tr, plan = scanTransaction(tr))
     let changes: ChangeSet.Spec[] = []
@@ -146,8 +144,7 @@ export class Correction<PosType extends Pos.Node> {
       let change = this.correct(elt.node, tr.startState)
       if (change) changes.push(change)
     }
-    if (!changes.length) return tr
-    return [tr, {changes, sequential: true}]
+    return changes.length ? {changes, sequential: true} : null
   }
 
   /// This method can be used to run a correction agains all matching

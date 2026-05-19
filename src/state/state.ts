@@ -134,7 +134,7 @@ export class GardState {
   /// specs. For [selection](#state.TransactionSpec.selection), later
   /// specs take precedence over earlier ones.
   update(...specs: readonly Transaction.Spec[]): Transaction {
-    return specs.length == 1 && specs[0] instanceof Transaction ? specs[0] : resolveTransaction(this, specs, true)
+    return specs.length == 1 && specs[0] instanceof Transaction ? specs[0] : resolveTransaction(this, specs)
   }
 
   /// @internal
@@ -997,5 +997,4 @@ GardSelection.selectionType = GardState.Facet.define<SelectionType>({
   static: true
 })
 
-Transaction.filter = GardState.Facet.define()
 Transaction.extender = GardState.Facet.define()
