@@ -30,7 +30,7 @@ type Dir = "left" | "right" | "forward" | "backward" | "up" | "down"
 
 function resolveDir(dir: "left" | "right", state: GardState): "forward" | "backward" {
   let block = state.sel.head.textblockParent
-  return (dir == "right") == (block ? state.textblockLTR(block.node.tag) : state.textLTR)
+  return (dir == "right") == (block ? state.textblockLTR(block.node) : state.textLTR)
     ? "forward" : "backward"
 }
 

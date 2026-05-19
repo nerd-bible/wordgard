@@ -170,8 +170,8 @@ export function direction(): GardState.Extension {
 }
 
 export namespace direction {
-  export const textblockDir = GardState.textblockLTR.of(tag => {
-    let dir = tag.mark(Direction)
+  export const textblockDir = GardState.textblockLTR.of(plot => {
+    let dir = plot.mark(Direction)
     return dir ? dir == "ltr" : null
   })
 
@@ -179,7 +179,7 @@ export namespace direction {
     run: Command.bind(setDirection, "ltr"),
     select: state => {
       let block = state.sel.head.textblockParent
-      return !!block && !state.textblockLTR(block.node.tag)
+      return !!block && !state.textblockLTR(block.node)
     },
     enable: state => {
       return !!state.sel.head.textblockParent
@@ -196,7 +196,7 @@ export namespace direction {
     run: Command.bind(setDirection, "rtl"),
     select: state => {
       let block = state.sel.head.textblockParent
-      return block ? state.textblockLTR(block.node.tag) : true
+      return block ? state.textblockLTR(block.node) : true
     },
     enable: state => {
       return !!state.sel.head.textblockParent

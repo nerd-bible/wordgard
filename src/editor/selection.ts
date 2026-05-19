@@ -137,7 +137,7 @@ export function moveToLineBoundary(wg: Wordgard, start: GardSelection, forward: 
   let block = wg.state.doc.resolve(start.head).textblockParent
   if (!block) return null
   let startCoords = wg.coordsAtPos(start.head, start.headSide)
-  let ltr = wg.state.textblockLTR(block.node.tag)
+  let ltr = wg.state.textblockLTR(block.node)
   let y = (startCoords.top + startCoords.bottom) / 2, left = forward != ltr
   let {pos} = wg.posAtCoords({x: left ? -1e7 : 1e7, y})
   if (pos < block.start || pos > block.end) {

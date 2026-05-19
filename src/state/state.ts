@@ -190,7 +190,7 @@ export class GardState {
   }
 
   textblockMap(node: Pos.Plot) {
-    return TextblockMap.get(node.start, node.node, this.textblockLTR(node.node.tag))
+    return TextblockMap.get(node.start, node.node, this.textblockLTR(node.node))
   }
 
   /// Convert this state to a JSON-serializable object. When custom
@@ -269,7 +269,7 @@ export class GardState {
   get textLTR() { return this.config.textLTR }
 
   /// Return the text direction in a given textblock (by tag).
-  textblockLTR(tag: Plot.Tag.Any) { return this.config.textblockLTR(tag) }
+  textblockLTR(plot: Plot) { return this.config.textblockLTR(plot) }
 
   get visualCursorMotion() {
     return this.facet(GardState.visualCursorMotion)
@@ -626,9 +626,9 @@ export namespace GardState {
     /// @internal
     get textLTR() { return this.staticFacet(GardState.textLTR) }
     /// @internal
-    textblockLTR(tag: Plot.Tag.Any) {
+    textblockLTR(plot: Plot) {
       for (let f of this.staticFacet(GardState.textblockLTR)) {
-        let result = f(tag)
+        let result = f(plot)
         if (result != null) return result
       }
       return this.textLTR
@@ -775,7 +775,7 @@ export namespace GardState {
   /// in that block, or given `null` to query the direction outside of
   /// textblocks. When multiple values are given, they are consulted
   /// in order of precedence.
-  export const textblockLTR = GardState.Facet.define<((tag: Plot.Tag.Any) => boolean | null)>({
+  export const textblockLTR = GardState.Facet.define<((plot: Plot) => boolean | null)>({
     static: true
   })
 

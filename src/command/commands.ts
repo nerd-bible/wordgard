@@ -400,7 +400,7 @@ function setSelection(selection: GardSelection): Transaction.Spec {
 
 function ltrAtCursor(state: GardState) {
   let block = state.sel.head.textblockParent
-  return block ? state.textblockLTR(block.node.tag) : state.textLTR
+  return block ? state.textblockLTR(block.node) : state.textLTR
 }
 
 function isForward(dir: "left" | "right" | "forward" | "backward", state: GardState) {
