@@ -1,7 +1,8 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {Plot, ChangeSet, Mark, Slice} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
-        deleteWord, deleteUnit, deleteToLineEnd, deleteLine, toggleMarkByLabel,
+        deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
+        toggleEmphasis, toggleStrong, toggleUnderline,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
 import {Wordgard, PluginInstance} from "./editor"
 import browser from "./browser"
@@ -704,9 +705,9 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   },
   insertTranspose: transposeChars,
   deleteEntireSoftLine: deleteLine,
-  formatBold: Command.bind(toggleMarkByLabel, Mark.Role.Strong),
-  formatItalic: Command.bind(toggleMarkByLabel, Mark.Role.Emphasis),
-  formatUnderline: Command.bind(toggleMarkByLabel, Mark.Role.Underline),
+  formatBold: toggleStrong,
+  formatItalic: toggleEmphasis,
+  formatUnderline: toggleUnderline,
   formatJustifyCenter: Command.bind(setAlignment, "center"),
   formatJustifyLeft: Command.bind(setAlignment, "left"),
   formatJustifyRight: Command.bind(setAlignment, "right")

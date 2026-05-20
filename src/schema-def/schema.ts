@@ -236,7 +236,6 @@ export const Direction = Mark.Type.define<"ltr" | "rtl" | "auto">("Direction", {
 
 export const Emphasis = Mark.define("Emphasis", {
   rank: 50,
-  role: Mark.Role.Emphasis,
   shape: {element: "em"},
   parseRules: [
     {attribute: "style/font-style", value: "italic"},
@@ -246,7 +245,6 @@ export const Emphasis = Mark.define("Emphasis", {
 
 export const Strong = Mark.define("Strong", {
   rank: 60,
-  role: Mark.Role.Strong,
   shape: {element: "strong"},
   parseRules: [
     {attribute: "style/font-weight",
@@ -259,7 +257,6 @@ export const Strong = Mark.define("Strong", {
 
 export const Underline = Mark.define("Underline", {
   rank: 40,
-  role: Mark.Role.Underline,
   shape: {element: "u"},
   parseRules: [
     {attribute: "style/text-decoration", value: "underline"}

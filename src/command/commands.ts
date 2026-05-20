@@ -1,7 +1,7 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
 import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/editor"
-import {Alignment, Direction} from "wordgard/schema-def"
+import {Alignment, Direction, Emphasis, Strong, Underline} from "wordgard/schema-def"
 import {Command} from "./command"
 import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBlocks,
         deleteSelection, deleteEmptyTextblock, deleteForward, deleteBackward,
@@ -216,17 +216,17 @@ export const toggleMark: Command.Pure<Mark<any>> = ({state}, mark) => {
   }
 }
 
-/// Search the schema for a mark with the given label (that has a
-/// default parameter), and run [`toggleMark`](#commands.toggleMark)
-/// with that mark.
-export const toggleMarkByLabel: Command<Mark.Role> = (wg, label) => {
-  let mark: Mark | null = null
-  for (let type of wg.state.doc.schema.marks) {
-    if (type.hasRole(label) && type.default) { mark = type.default; break }
-  }
-  if (!mark) return false
-  return Command.dispatch(wg, toggleMark, mark)
-}
+/// Toggle emphasis. The default implementation uses the {@link
+/// Emphasis} mark.
+export const toggleEmphasis: Command.Pure = target => toggleMark(target, Emphasis)
+
+/// Toggle strong emphasis. The default implementation uses the {@link
+/// Strong} mark.
+export const toggleStrong: Command.Pure = target => toggleMark(target, Strong)
+
+/// Toggle underlining. The default implementation uses the {@link
+/// Underline} mark.
+export const toggleUnderline: Command.Pure = target => toggleMark(target, Underline)
 
 /// Set the selected textblocks to the given alignment. `"left"` and
 /// `"right"` will be normalized to `"start"` or `"end"` depending on

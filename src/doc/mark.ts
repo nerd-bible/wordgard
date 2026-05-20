@@ -110,7 +110,6 @@ export class Mark<Value = unknown> {
 
 export namespace Mark {
   export class Type<Value> {
-    readonly roles: Set<Mark.Role> = new Set
     readonly rank: number
     readonly set: null | ((a: any, b: any) => number)
     readonly default: Mark<Value> | null
@@ -124,8 +123,6 @@ export namespace Mark {
       readonly spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
-      if (spec.role instanceof Mark.Role) this.roles.add(spec.role)
-      else if (spec.role) for (let r of spec.role) this.roles.add(r)
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
       this.default = isFlag ? new Mark(this, null as any) : null
@@ -136,8 +133,6 @@ export namespace Mark {
     }
 
     of(value: Value) { return new Mark(this, value) }
-
-    hasRole(role: Mark.Role) { return this.roles.has(role) }
 
     compareRank(other: Mark.Type<any>) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
@@ -163,8 +158,6 @@ export namespace Mark {
     /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.
     target?: Node.Query
-    /// Assign this tag to one or more roles.
-    role?: Mark.Role | readonly Mark.Role[]
     /// Determines the position of this mark relative to other marks.
     /// Marks with lower rank appear first in mark set arrays, and are
     /// rendered around higher rank marks in DOM representation. Ties
@@ -248,13 +241,5 @@ export namespace Mark {
       }
       this.target = spec.preferTarget ? Elt.Selector.parse(spec.preferTarget) : null
     }
-  }
-
-  export class Role {
-    declare private tag: "Mark.Role"
-
-    static Strong = new Role
-    static Emphasis = new Role
-    static Underline = new Role
   }
 }
