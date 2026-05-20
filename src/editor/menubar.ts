@@ -37,8 +37,6 @@ function labelButton(wg: Wordgard, button: HTMLElement, label?: Menu.Label) {
     path.setAttribute("d", (label as {icon: string}).icon)
     if ((label as any).directional && !wg.state.textLTR)
       svg.setAttribute("transform", "scale(-1, 1)")
-  } else if ("render" in label) {
-    button.appendChild(label.render(wg))
   }
 }
 
@@ -61,14 +59,12 @@ class BarButton implements BarElement {
   dom: HTMLElement
   flags: F = 0 as F
   index = 0
-  dynamicLabel: boolean
 
   constructor(readonly item: Menu.Button, wg: Wordgard) {
     this.dom = document.createElement("button")
     this.dom.className = "wg-menu-button"
     this.dom.tabIndex = -1
     labelButton(wg, this.dom, item.label)
-    this.dynamicLabel = ("render" in item.label) && item.label.rerender != null
     if (item.description)
       this.dom.setAttribute("aria-label", this.dom.title = item.description(wg.state))
   }
@@ -93,13 +89,6 @@ class BarButton implements BarElement {
         else this.dom.removeAttribute("aria-pressed")
       }
       this.flags = flags
-    }
-    if (this.dynamicLabel && update) {
-      let label = this.item.label as Menu.LabelWidget
-      if (update.transactions.some(tr => label.rerender!(tr))) {
-        if (label.update) label.update(this.dom.firstChild as HTMLElement, wg)
-        else labelButton(wg, this.dom, label)
-      }
     }
   }
 
@@ -224,7 +213,7 @@ class BarSpacer {
   }
 }
 
-function instantiate(item: Menu.ResolvedItem, bar: MenuBar, flat: BarElement[]): BarElement | BarSpacer {
+function instantiate(item: Menu.Item.Resolved, bar: MenuBar, flat: BarElement[]): BarElement | BarSpacer {
   let elt: BarElement
   if (item instanceof Menu.Submenu.Resolved)
     elt = new BarSubmenu(item.item, item.content.map(i => instantiate(i, bar, flat)), bar.wg)
