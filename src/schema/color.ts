@@ -254,7 +254,7 @@ export namespace color {
     description: phrases.ref("text_color"),
     arrow: false,
     parent: Menu.Group.inlineStyle,
-    rank: 60,
+    rank: 70,
     content: [colorPicker]
   })
 }
@@ -281,7 +281,7 @@ export namespace backgroundColor {
     description: phrases.ref("background_color"),
     arrow: false,
     parent: Menu.Group.inlineStyle,
-    rank: 65,
+    rank: 75,
     content: [backgroundPicker]
   })
 }

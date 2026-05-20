@@ -268,6 +268,14 @@ export const Underline = Mark.define("Underline", {
   ]
 })
 
+export const Strikethrough = Mark.define("Strikethrough", {
+  rank: 42,
+  shape: {element: "s"},
+  parseRules: [
+    {attribute: "style/text-decoration", value: "line-through"}
+  ]
+})
+
 export const Superscript = Mark.define("Superscript", {
   rank: 45,
   shape: {element: "sup"}

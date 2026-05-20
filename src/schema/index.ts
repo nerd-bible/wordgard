@@ -1,4 +1,4 @@
-export {strong, emphasis, code, underline, superscript, subscript} from "./mark"
+export {strong, emphasis, code, underline, strikethrough, superscript, subscript} from "./mark"
 export {blockDoc, paragraph, heading, codeBlock, alignment, blockquote, horizontalRule} from "./block"
 export {color, backgroundColor, ColorPicker} from "./color"
 export {link} from "./link"

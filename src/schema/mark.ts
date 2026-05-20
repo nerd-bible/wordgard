@@ -1,6 +1,6 @@
 import {GardState} from "wordgard/state"
 import {Command, Menu, toggleMark} from "wordgard/command"
-import {Strong, Emphasis, Code, Underline, Superscript, Subscript} from "wordgard/schema-def"
+import {Strong, Emphasis, Code, Underline, Strikethrough, Superscript, Subscript} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
@@ -38,7 +38,7 @@ export namespace emphasis {
   export const button = Menu.Button.toggleMark({
     mark: Emphasis,
     parent: Menu.Group.inlineStyle,
-    rank: 12,
+    rank: 15,
     description: phrases.ref("toggle_em"),
     label: {
       icon: "M50 73 60 28c1-4 2-4 8-5l1-3H45l-1 3c7 1 7 1 6 5L41 73c-1 4-2 4-8 5l-1 3h24l1-3c-7-1-7-1-7-5z"
@@ -74,17 +74,37 @@ export function underline(): GardState.Extension {
 export namespace underline {
   export const keyBinding = KeyBinding.define({
     key: "Mod-u",
-    run: Command.bind(toggleMark, Underline),
-    allowDefault: false
+    run: Command.bind(toggleMark, Underline)
   })
 
   export const button = Menu.Button.toggleMark({
     mark: Underline,
     parent: Menu.Group.inlineStyle,
-    rank: 14,
+    rank: 60,
     description: phrases.ref("toggle_underline"),
     label: {
       icon: "M33 20h-8V60c0 13 9 23 24 23s24-9 24-23V20h-8v40c0 9-6 16-17 16s-15-7-15-16M78 94h-56v-6h56z"
+    }
+  })
+}
+
+export function strikethrough(): GardState.Extension {
+  return [GardState.schemaElement.of(Strikethrough), strikethrough.button, strikethrough.keyBinding]
+}
+
+export namespace strikethrough {
+  export const keyBinding = KeyBinding.define({
+    key: "Mod-/",
+    run: Command.bind(toggleMark, Strikethrough),
+  })
+
+  export const button = Menu.Button.toggleMark({
+    mark: Strikethrough,
+    parent: Menu.Group.inlineStyle,
+    rank: 65,
+    description: phrases.ref("toggle_strikethrough"),
+    label: {
+      icon: "M38 37c0 2 0 3 2 5H31a17 17 0 0 1-1-5c0-10 9-16 21-16 12 0 20 7 20 17h-7c-1-6-6-10-13-10-7 0-13 4-13 10zm13 44c-13 0-21-7-22-17h7c1 6 7 10 15 10c8 0 14-4 14-10c0-5-3-8-11-10L48 53h20c3 3 4 6 4 10 0 11-9 18-22 18M11 50v-6h75v6H11"
     }
   })
 }
@@ -102,7 +122,7 @@ export namespace superscript {
   export const button = Menu.Button.toggleMark({
     mark: Superscript,
     parent: Menu.Group.inlineStyle,
-    rank: 16,
+    rank: 80,
     description: phrases.ref("toggle_super"),
     label: {
       icon: "m27 78 6-18H55l6 18H69L48 19H40L19 78zm17-50 9 26h-18l9-26zm32-11v0c4 -10 12 0 5 6l-11 11V38h22v-6h-12v0l6-6c3-3 5-5 5-10 0-5-4-9-11-9C72 6 69 11 69 16v0z"
@@ -123,7 +143,7 @@ export namespace subscript {
   export const button = Menu.Button.toggleMark({
     mark: Subscript,
     parent: Menu.Group.inlineStyle,
-    rank: 18,
+    rank: 85,
     description: phrases.ref("toggle_sub"),
     label: {
       icon: "m21 78 6-18H49l6 18H63L41 19H34L13 78zm17-50 9 26h-18l9-26zm38 45v0c4 -10 12 0 5 6l-11 11V94h22v-6h-12v0l6-6c3-3 5-5 5-10 0-5-4-9-11-9-8 0-11 5-11 10v0z"

@@ -10,6 +10,7 @@ export const phrases = PhraseSet.define({
   toggle_em: "Toggle emphasis",
   toggle_code: "Toggle code font",
   toggle_underline: "Toggle underline",
+  toggle_strikethrough: "Toggle strikethrough",
   toggle_super: "Toggle superscript",
   toggle_sub: "Toggle subscript",
   link_target: "Link target",
