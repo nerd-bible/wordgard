@@ -68,7 +68,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
   shape: {
     element: "ol",
     attributes: start => start == 1 ? {} as Record<string, string> : {start: String(start)},
-    read: elt => Number(elt.getAttribute("start") || "1")
+    readElement: elt => Number(elt.getAttribute("start") || "1")
   },
   autoJoin: (_a, b) => b.param == 1
 })
@@ -191,7 +191,7 @@ export const Figure = Leaf.Type.defineBlock<string>("Figure", {
 export const CaptionedFigure = Plot.Type.defineBlock<string>("CaptionedFigure", {
   inlineContent: true,
   validateParam: "string",
-  shape: {structure: src => elt("figure", elt({_: "img", src}), elt("figcaption", 0))},
+  shape: {structure: src => elt("figure", elt({_: "img", src}), elt("figcaption", 0)), atom: false},
   group: G.Content,
   parseRules: [{
     selector: "figure:has(img[src]):has(figcaption)",
@@ -289,7 +289,7 @@ export const Link = Mark.Type.define<string>("Link", {
     element: "a",
     preferTarget: "a[href]",
     attributes: href => ({href}),
-    read: dom => (dom as HTMLLinkElement).href
+    readElement: dom => (dom as HTMLLinkElement).href
   },
 })
 

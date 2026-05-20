@@ -140,8 +140,8 @@ export abstract class GardSelection {
   /// head. Normal cursor positions are:
   ///
   /// - Any inline position, except one directly inside of an inline
-  ///   plot that has {@link Plot.Spec.cursorInsideBounds |
-  ///   `cursorInsideBounds`} set to false.
+  ///   plot that doesn't have {@link Plot.Spec.cursorInsideBounds |
+  ///   `cursorInsideBounds`} set.
   ///
   /// - Positions between two cursor barriers, if not already an
   ///   inline position. Cursor barriers are the sides of the

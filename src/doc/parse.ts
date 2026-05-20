@@ -36,9 +36,9 @@ export class RuleSet {
     let rules: ParseRule[] = []
     for (let tag of schema.tags) {
       let {spec: {shape, parseRules}} = tag
-      if ("element" in shape && shape.element && (shape.read || tag.default)) rules.push({
+      if ("element" in shape && shape.element && (shape.readElement || tag.default)) rules.push({
         selector: shape.selector || shape.element,
-        readElement: shape.read,
+        readElement: shape.readElement,
         leaf: tag.isLeaf ? tag : undefined,
         plot: tag.isLeaf ? undefined : tag
       })
@@ -51,10 +51,10 @@ export class RuleSet {
     for (let mark of schema.marks) {
       let {shape, parseRules} = mark.spec
       if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
-      if ("element" in shape && (shape.read || mark.default)) {
+      if ("element" in shape && (shape.readElement || mark.default)) {
         rules.push({
           selector: shape.selector || shape.element,
-          readElement: shape.read,
+          readElement: shape.readElement,
           mark
         })
       } else if ("attribute" in shape) {
