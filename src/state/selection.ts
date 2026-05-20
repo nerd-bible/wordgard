@@ -137,7 +137,19 @@ export abstract class GardSelection {
   }
 
   /// Find the next normal cursor position after or before this selection's
-  /// head. FIXME document normal positions
+  /// head. Normal cursor positions are:
+  ///
+  /// - Any inline position, except one directly inside of an inline
+  ///   plot that has {@link Plot.Spec.cursorInsideBounds |
+  ///   `cursorInsideBounds`} set to false.
+  ///
+  /// - Positions between two cursor barriers, if not already an
+  ///   inline position. Cursor barriers are the sides of the
+  ///   document, any block leaves, or plots that are {@link
+  ///   Plot.Spec.isolating | isolating}, {@link
+  ///   Plot.spec.preserveWhitespace | whitespace-preserving}, or
+  ///   explicitly defined as a {@link Plot.Spec.cursorBarrier |
+  ///   cursor barrier}.
   nextNormalCursor(cx: GardSelection.Context, forward = true): GardSelection.Text | null {
     let found = scanNormalFrom(cx, this.head, this.headSide, forward, true)
     return found && GardSelection.cursor(found.pos, found.side)

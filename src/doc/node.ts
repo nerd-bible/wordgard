@@ -43,33 +43,33 @@ export namespace Node {
 
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
-  export namespace Type {
-    export abstract class Base<Param> {
-      readonly roles: Set<Node.Role> = new Set
-      readonly shape: NodeShape<Param>
-      abstract default: Node.Tag | null
+    export namespace Type {
+      export abstract class Base<Param> {
+        readonly roles: Set<Node.Role> = new Set
+        readonly shape: NodeShape<Param>
+        abstract default: Node.Tag | null
 
-      constructor(
-        readonly name: string,
-        readonly flags: NodeFlag,
-        readonly spec: Node.Spec<Param>
-      ) {
-        if (spec.role instanceof Node.Role) this.roles.add(spec.role)
-        else if (spec.role) for (let role of spec.role) this.roles.add(role)
-        this.shape = NodeShape.from(this, spec.shape)
-        if (this.shape.atom) this.flags |= NodeFlag.Atom
+        constructor(
+          readonly name: string,
+          readonly flags: NodeFlag,
+          readonly spec: Node.Spec<Param>
+        ) {
+          if (spec.role instanceof Node.Role) this.roles.add(spec.role)
+          else if (spec.role) for (let role of spec.role) this.roles.add(role)
+          this.shape = NodeShape.from(this, spec.shape)
+          if (this.shape.atom) this.flags |= NodeFlag.Atom
+        }
+
+        /// Test whether this node has the given role.
+        hasRole(role: Node.Role) { return this.roles.has(role) }
+
+        get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
+        get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
+        get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
+        abstract isLeaf: boolean
+        abstract isPlot: boolean
       }
-
-      /// Test whether this node has the given role.
-      hasRole(role: Node.Role) { return this.roles.has(role) }
-
-      get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
-      get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
-      get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
-      abstract isLeaf: boolean
-      abstract isPlot: boolean
     }
-  }
 
   export type Tag = Leaf.Any | Plot.Tag.Any
 
@@ -600,11 +600,10 @@ export namespace Plot {
     /// Whether the sides of this plot act as a 'barrier' when
     /// [normalizing](#state.EditorSelection.normalize) a cursor
     /// position, which means that a separate cursor position exists
-    /// at its boundary. By default, nodes that are
-    /// [isolating](#state.Tag.Spec.isolating), whitespace-preserving,
-    /// or both [atomic](#state.GardState.isAtom) and a block, count as
-    /// barriers.
-    // FIXME improve this description, either here or in selection
+    /// at its boundary. By default, nodes that are {@link
+    /// Plot.Spec.isolating | isolating}, {@link
+    /// Plot.Spec.preserveWhitespace | whitespace-preserving}, or both
+    /// a {@link Leaf | leaf} and a block count as barriers.
     cursorBarrier?: boolean
     /// Indicates that this type of block is the default generic block
     /// type in parent nodes where it may occur (which is appropriate
