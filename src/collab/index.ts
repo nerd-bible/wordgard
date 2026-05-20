@@ -1,1 +1,1 @@
-export * from "./collab"
+export {collab} from "./collab"

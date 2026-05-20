@@ -4,7 +4,7 @@ import {Paragraph} from "wordgard/schema-def"
 import {basicBuilders} from "./schema.ts"
 import {history, undo, redo} from "wordgard/history"
 import ist from "ist"
-import {collab, receiveUpdates, sendableUpdate, type Update, getSyncedVersion, getClientID} from "wordgard/collab"
+import {collab} from "wordgard/collab"
 
 let {doc, p} = basicBuilders
 
@@ -12,7 +12,7 @@ function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 class DummyServer {
   states: GardState[] = []
-  updates: Update[] = []
+  updates: collab.Update[] = []
   version = 0
   delayed: number[] = []
 
@@ -23,16 +23,16 @@ class DummyServer {
   }
 
   sync(client: number) {
-    let state = this.states[client], version = getSyncedVersion(state)
+    let state = this.states[client], version = collab.getSyncedVersion(state)
     if (version != this.version) {
       let i = this.updates.length
       while (i && this.updates[i - 1].versionBefore >= version) i--
-      this.states[client] = receiveUpdates(state, this.updates.slice(i)).state
+      this.states[client] = collab.receive(state, this.updates.slice(i)).state
     }
   }
 
   send(client: number) {
-    let state = this.states[client], sendable = sendableUpdate(state)
+    let state = this.states[client], sendable = collab.sendableUpdate(state)
     if (sendable && sendable.versionBefore != this.version) return false
     if (sendable) {
       this.updates = this.updates.concat(sendable)
@@ -225,14 +225,14 @@ describe("collab", () => {
   })
 
   it("allows you to set the initial version", () => {
-    ist(getSyncedVersion(GardState.create({doc: doc(p()), config: [collab({startVersion: 20})]})), 20)
+    ist(collab.getSyncedVersion(GardState.create({doc: doc(p()), config: [collab({startVersion: 20})]})), 20)
   })
 
   it("client ids survive reconfiguration", () => {
     let ext = collab()
     let state = GardState.create({doc: doc(p()), config: [ext]})
     let state2 = state.update({effects: Transaction.Effect.reconfigure.of(ext)}).state
-    ist(getClientID(state), getClientID(state2))
+    ist(collab.getClientID(state), collab.getClientID(state2))
   })
 
   it("supports shared effects", () => {
