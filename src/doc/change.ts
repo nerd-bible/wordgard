@@ -859,7 +859,6 @@ class ChangeFitter implements Pos.Walker {
   }
 
   syncToContext(context: Pos) {
-    // FIXME make this elegant/efficient somehow
     let cur = [], sync = []
     for (let l = this.stack as FitLevel | null; l; l = l.next) cur.push(l)
     cur.reverse()

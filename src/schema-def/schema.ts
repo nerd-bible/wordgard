@@ -215,7 +215,6 @@ export const ImageSize = Mark.Type.define<number>("ImageSize", {
 })
 
 export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
-  role: Mark.Role.Alignment,
   target: [G.Textblock, Figure, CaptionedFigure],
   keepOnSplit: true,
   keepOnTypeChange: true,
@@ -226,7 +225,6 @@ export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
 })
 
 export const Direction = Mark.Type.define<"ltr" | "rtl" | "auto">("Direction", {
-  role: Mark.Role.Direction,
   target: G.Textblock,
   keepOnSplit: true,
   keepOnTypeChange: true,

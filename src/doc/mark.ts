@@ -158,12 +158,12 @@ export namespace Mark {
     }
   }
 
-  // FIXME add support for defining marks
-  export type Spec<Value> = {
+  /// Configuration for marks.
+  export interface Spec<Value> {
     /// Which node tags this mark may apply to, as a space separated
     /// string of tag or group names. The default is `"Inline:Leaf"`.
     target?: Node.Query
-    /// Assign this tag to one or more groups.
+    /// Assign this tag to one or more roles.
     role?: Mark.Role | readonly Mark.Role[]
     /// Determines the position of this mark relative to other marks.
     /// Marks with lower rank appear first in mark set arrays, and are
@@ -256,8 +256,5 @@ export namespace Mark {
     static Strong = new Role
     static Emphasis = new Role
     static Underline = new Role
-    // FIXME Alignment and Direction commands assume a param type that's not enforced
-    static Alignment = new Role
-    static Direction = new Role
   }
 }

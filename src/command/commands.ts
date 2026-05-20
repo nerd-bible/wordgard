@@ -1,6 +1,7 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
 import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/editor"
+import {Alignment, Direction} from "wordgard/schema-def"
 import {Command} from "./command"
 import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBlocks,
         deleteSelection, deleteEmptyTextblock, deleteForward, deleteBackward,
@@ -229,18 +230,18 @@ export const toggleMarkByLabel: Command<Mark.Role> = (wg, label) => {
 
 /// Set the selected textblocks to the given alignment. `"left"` and
 /// `"right"` will be normalized to `"start"` or `"end"` depending on
-/// the editor's text direction.
+/// the editor's text direction. The default implementation uses the
+/// {@link Alignment} mark.
 export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "left" | "right"> = ({state}, align) => {
   let {schema} = state.doc
+  if (!schema.has(Alignment)) return false
   if (align == "start") align = null
   if (align == "left" || align == "right") align = ltrAtCursor(state) == (align == "left") ? null : "end"
-  let mark = schema.marks.find(m => m.hasRole(Mark.Role.Alignment))
-  if (!mark) return false
   let changes: ChangeSet.Spec[] = []
   for (let block of selectedTextblocks(state)) {
-    let cur = block.node.tag.mark(mark)
-    if (cur != align && schema.markAllowed(mark, block.node.type))
-      changes.push(align ? {from: block.before, add: mark.of(align)} : {from: block.before, remove: mark.of(cur)})
+    let cur = block.node.tag.mark(Alignment)
+    if (cur != align && schema.markAllowed(Alignment, block.node.type))
+      changes.push(align ? {from: block.before, add: Alignment.of(align)} : {from: block.before, remove: Alignment.of(cur!)})
   }
   if (!changes.length) return false
   return {
@@ -251,16 +252,16 @@ export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "lef
 
 /// Set the text direction for the selected textblocks. `null` will
 /// remove an explicit direction mark, defaulting the blocks back to
-/// the editor's base direction.
+/// the editor's base direction. The default implementation uses the
+/// {@link Direction} mark.
 export const setDirection: Command.Pure<null | "ltr" | "rtl" | "auto"> = ({state}, dir) => {
   let {schema} = state.doc
-  let mark = schema.marks.find(m => m.hasRole(Mark.Role.Direction))
-  if (!mark) return false
+  if (!schema.has(Direction)) return false
   let changes: ChangeSet.Spec[] = []
   for (let block of selectedTextblocks(state)) {
-    let cur = block.node.tag.mark(mark)
-    if (cur != dir && schema.markAllowed(mark, block.node.type))
-      changes.push(dir ? {from: block.before, add: mark.of(dir)} : {from: block.before, remove: mark.of(cur)})
+    let cur = block.node.tag.mark(Direction)
+    if (cur != dir && schema.markAllowed(Direction, block.node.type))
+      changes.push(dir ? {from: block.before, add: Direction.of(dir)} : {from: block.before, remove: Direction.of(cur!)})
   }
   if (!changes.length) return false
   return {
