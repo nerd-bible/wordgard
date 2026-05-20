@@ -491,8 +491,8 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     }
   }
 
-  iter<Source>(): PointIterator<Value> {
-    return new PointIterator<Value>(this)
+  iter<Source>(): PointSet.Iterator<Value> {
+    return new PointSet.Iterator<Value>(this)
   }
 
   at(pos: number): Value | undefined {
@@ -539,41 +539,41 @@ export namespace PointSet {
     trackMode: ChangeSet.TrackMode | undefined
     eq(other: PointSet.Value): boolean
   }
-}
 
-export class PointIterator<Value extends PointSet.Value> {
-  declare value: Value | null
-  done = false
-  declare pos: number
-  declare i: number
+  export class Iterator<Value extends PointSet.Value> {
+    declare value: Value | null
+    done = false
+    declare pos: number
+    declare i: number
 
-  constructor(readonly set: PointSet<Value>) {
-    this.fill(0)
-  }
-
-  fill(i: number) {
-    this.i = i
-    if (i < this.set.positions.length) {
-      this.pos = this.set.positions[i]
-      this.value = this.set.values[i]
-    } else {
-      this.pos = 1e8
-      this.value = null
-      this.done = true
+    constructor(readonly set: PointSet<Value>) {
+      this.fill(0)
     }
-  }
 
-  next() {
-    if (!this.done) this.fill(this.i + 1)
-  }
+    fill(i: number) {
+      this.i = i
+      if (i < this.set.positions.length) {
+        this.pos = this.set.positions[i]
+        this.value = this.set.values[i]
+      } else {
+        this.pos = 1e8
+        this.value = null
+        this.done = true
+      }
+    }
 
-  get side() {
-    return this.done ? 1 : this.value!.side
-  }
+    next() {
+      if (!this.done) this.fill(this.i + 1)
+    }
 
-  goto(pos: number) {
-    this.done = false
-    this.fill(findAbove(this.set.positions, 0, pos - 1))
+    get side() {
+      return this.done ? 1 : this.value!.side
+    }
+
+    goto(pos: number) {
+      this.done = false
+      this.fill(findAbove(this.set.positions, 0, pos - 1))
+    }
   }
 }
 
@@ -642,8 +642,8 @@ export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
                                applyDel(deleted, deletions, this.values))
   }
 
-  iter(): RangeIterator<Value> {
-    return new RangeIterator<Value>(this)
+  iter(): RangeSet.Iterator<Value> {
+    return new RangeSet.Iterator<Value>(this)
   }
 
   compareRange(fromA: number, b: RangeSet<Value>, fromB: number, len: number, change: (from: number, to: number) => void) {
@@ -700,39 +700,39 @@ export namespace RangeSet {
     inclusiveEnd: boolean
     eq(other: Value): boolean
   }
-}
 
-export class RangeIterator<Value extends RangeSet.Value> {
-  declare value: Value | null
-  declare from: number
-  declare to: number
-  done = false
-  declare i: number
+  export class Iterator<Value extends RangeSet.Value> {
+    declare value: Value | null
+    declare from: number
+    declare to: number
+    done = false
+    declare i: number
 
-  constructor(readonly set: RangeSet<Value>) {
-    this.fill(0)
-  }
-
-  fill(i: number) {
-    this.i = i
-    if (i < this.set.from.length) {
-      this.from = this.set.from[i]
-      this.to = this.set.to[i]
-      this.value = this.set.values[i]
-    } else {
-      this.from = this.to = 1e8
-      this.value = null
-      this.done = true
+    constructor(readonly set: RangeSet<Value>) {
+      this.fill(0)
     }
-  }
 
-  next() {
-    if (!this.done) this.fill(this.i + 1)
-  }
+    fill(i: number) {
+      this.i = i
+      if (i < this.set.from.length) {
+        this.from = this.set.from[i]
+        this.to = this.set.to[i]
+        this.value = this.set.values[i]
+      } else {
+        this.from = this.to = 1e8
+        this.value = null
+        this.done = true
+      }
+    }
 
-  goto(pos: number) {
-    this.done = false
-    this.fill(findAbove(this.set.to, 0, pos))
+    next() {
+      if (!this.done) this.fill(this.i + 1)
+    }
+
+    goto(pos: number) {
+      this.done = false
+      this.fill(findAbove(this.set.to, 0, pos))
+    }
   }
 }
 
@@ -889,14 +889,14 @@ export interface DecoWalker {
 }
 
 class HeapIterator<R extends RangeSet.Value, P extends PointSet.Value> {
-  active: RangeIterator<R>[] = []
+  active: RangeSet.Iterator<R>[] = []
   from: number
   to: number
-  point: PointIterator<P> | null = null
+  point: PointSet.Iterator<P> | null = null
   done = false
 
-  constructor(readonly rangeHeap: RangeIterator<R>[],
-              readonly pointHeap: PointIterator<P>[],
+  constructor(readonly rangeHeap: RangeSet.Iterator<R>[],
+              readonly pointHeap: PointSet.Iterator<P>[],
               start: number,
               readonly end: number) {
     for (let i = rangeHeap.length >> 1; i >= 0; i--) bubble(rangeHeap, i, cmpRangeFrom)
@@ -986,15 +986,15 @@ function cmpBool(a: boolean, b: boolean) {
   return a ? (b ? 0 : 1) : (b ? -1 : 0)
 }
 
-function cmpRangeFrom(a: RangeIterator<RangeSet.Value>, b: RangeIterator<RangeSet.Value>) {
+function cmpRangeFrom(a: RangeSet.Iterator<RangeSet.Value>, b: RangeSet.Iterator<RangeSet.Value>) {
   return a.from - b.from || cmpBool(b.value!.inclusiveStart, a.value!.inclusiveStart)
 }
 
-function cmpRangeTo(a: RangeIterator<RangeSet.Value>, b: RangeIterator<RangeSet.Value>) {
+function cmpRangeTo(a: RangeSet.Iterator<RangeSet.Value>, b: RangeSet.Iterator<RangeSet.Value>) {
   return a.to - b.to || cmpBool(a.value!.inclusiveEnd, b.value!.inclusiveEnd)
 }
 
-function cmpPoint(a: PointIterator<PointSet.Value>, b: PointIterator<PointSet.Value>) {
+function cmpPoint(a: PointSet.Iterator<PointSet.Value>, b: PointSet.Iterator<PointSet.Value>) {
   return a.pos - b.pos || a.side - b.side
 }
 
@@ -1009,7 +1009,7 @@ export type WrapperSource = Mark<any> | TagWrapperSource | WrapperRangeDecoratio
 function nodeWrappers(
   schema: Schema,
   tag: Node.Tag,
-  active: readonly RangeIterator<RangeDecoration<any>>[],
+  active: readonly RangeSet.Iterator<RangeDecoration<any>>[],
   global: readonly TagWrapperSource[],
   atom: boolean
 ): readonly WrapperSource[] {
@@ -1054,8 +1054,8 @@ export class DecoIterator {
   schema: Schema
   tagShapes: readonly TagShape[]
   pos: Pos
-  rangeIter: RangeIterator<RangeDecoration>[] = []
-  pointIter: PointIterator<Decoration>[] = []
+  rangeIter: RangeSet.Iterator<RangeDecoration>[] = []
+  pointIter: PointSet.Iterator<Decoration>[] = []
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
     this.globalWidgets = state.facet(tagWidgets)
@@ -1162,7 +1162,7 @@ export class DecoIterator {
     this.pos = pos
   }
 
-  tagShape(tag: Node.Tag, active: RangeIterator<RangeDecoration<any>>[]) {
+  tagShape(tag: Node.Tag, active: RangeSet.Iterator<RangeDecoration<any>>[]) {
     let shape
     if (!tag.is(Leaf.Text)) for (let src of this.tagShapes) if (src.type == tag.type) {
       shape = src.shape(tag)
@@ -1189,7 +1189,7 @@ export class DecoIterator {
   }
 }
 
-function compareSetPrec(setA: PointSet, setB: PointSet, array: readonly PointIterator<PointSet.Value>[]) {
+function compareSetPrec(setA: PointSet, setB: PointSet, array: readonly PointSet.Iterator<PointSet.Value>[]) {
    if (setA != setB) for (let i of array) {
      if (i.set == setA) return -1
      if (i.set == setB) return 1
