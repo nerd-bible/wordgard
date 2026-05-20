@@ -9,8 +9,6 @@ import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBloc
         canAddMarkInRange, selectedTextblocks} from "./helper"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
-// FIXME check behavior around inline nodes with content for all of these
-
 /// This command handles text input. To selectively override the
 /// behavior of text input, provide a handler that, when the
 /// conditions that it requires apply, handles the input and returns
@@ -184,7 +182,8 @@ export const wrapBlock: Command.Pure<Plot.Tag.Any> = ({state}, wrapper) => {
   return autoJoinBlocks(state, {changes, scrollIntoView: true, userEvent: "wrap"})
 }
 
-
+/// If the selection is in a block of the given type, unwap it.
+/// Otherwise, try to wrap the selected blocks in such a tag.
 export const toggleBlock: Command.Pure<Plot.Tag.Any> = (target, tag) => {
   return unwrapBlock(target, tag) || wrapBlock(target, tag)
 }
@@ -228,6 +227,9 @@ export const toggleMarkByLabel: Command<Mark.Role> = (wg, label) => {
   return Command.dispatch(wg, toggleMark, mark)
 }
 
+/// Set the selected textblocks to the given alignment. `"left"` and
+/// `"right"` will be normalized to `"start"` or `"end"` depending on
+/// the editor's text direction.
 export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "left" | "right"> = ({state}, align) => {
   let {schema} = state.doc
   if (align == "start") align = null
@@ -247,6 +249,9 @@ export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "lef
   }
 }
 
+/// Set the text direction for the selected textblocks. `null` will
+/// remove an explicit direction mark, defaulting the blocks back to
+/// the editor's base direction.
 export const setDirection: Command.Pure<null | "ltr" | "rtl" | "auto"> = ({state}, dir) => {
   let {schema} = state.doc
   let mark = schema.marks.find(m => m.hasRole(Mark.Role.Direction))
@@ -264,12 +269,16 @@ export const setDirection: Command.Pure<null | "ltr" | "rtl" | "auto"> = ({state
   }
 }
 
+/// Toggle list wrapping with the given list tag for the selected
+/// blocks.
 export const toggleList: Command.Pure<Plot.Tag.Any> = ({state}, listTag) => {
   let blocks = selectedTextblocks(state)
   if (!blocks.length) return false
   return addList(state, blocks, listTag) || removeList(state, blocks, listTag)
 }
 
+/// Returns true when all selected textblocks are wrapped in a list of
+/// the given type.
 export const listIsActive = (listTag: Plot.Tag.Any): (state: GardState) => boolean => state => {
   return selectedTextblocks(state).every(b => {
     let item = isListItem(b)
@@ -495,6 +504,9 @@ export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (wg, 
   return moved ? setSelection(extend ? extendSel(selection, moved as GardSelection.Text) : moved) : false
 }
 
+/// Move to the indicated side of the current line. Will stop at line
+/// wrap points. `"left"` and `"right"` will be interpreted based on
+/// the editor's text direction.
 export const moveToLineSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
 }> = (wg, {dir, extend}) => {
@@ -502,6 +514,8 @@ export const moveToLineSide: Command<{
   return pos ? setSelection(extend ? extendSel(wg.state.selection, pos) : pos) : false
 }
 
+/// Move to the start or end of the textblock that has the selection
+/// head.
 export const moveToTextblockSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
 }> = (wg, {dir, extend}) => {
@@ -511,6 +525,7 @@ export const moveToTextblockSide: Command<{
   return setSelection(extend ? extendSel(wg.state.selection, pos) : pos)
 }
 
+/// Move to the start or end of the document.
 export const moveToDocSide: Command.Pure<{side: "start" | "end", extend?: boolean}> = (target, {side, extend}) => {
   let {state} = target
   let pos = side == "start" ? GardSelection.atStart(state) : GardSelection.atEnd(state)
@@ -518,6 +533,7 @@ export const moveToDocSide: Command.Pure<{side: "start" | "end", extend?: boolea
   return setSelection(extend ? extendSel(state.selection, pos) : pos)
 }
 
+/// Select the entire document.
 export const selectAll: Command.Pure = ({state}) => {
   return {
     selection: GardSelection.range(0, state.doc.length),
