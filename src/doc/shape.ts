@@ -293,82 +293,84 @@ export namespace Attributes {
   }
 }
 
-/// Declares the shape of a node or mark to be a simple element. A
-/// parse rule can automatically be derived for it if the node or mark
-/// has a default parameter or a `read` function is defined to
-/// determine the parameter.
-export type ElementShape<Param> = {
-  /// The element name to use.
-  element: string
-  /// A selector to use in the parse rule. Defaults to the element
-  /// name.
-  selector?: string
-  /// Attributes to add to the element.
-  attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
-  /// A helper to read a parameter value from the element. If this
-  /// returns {@link ParseRule.Reject}, the parse rule will not apply.
-  readElement?: (element: DOMElement) => Param | ParseRule.Reject
-  /// When specifying the shape of a plot, this indicates whether this
-  /// node is an atom, meaning its content isn't editable through the
-  /// editor.
-  atom?: boolean
-}
+export namespace Shape {
+  /// Declares the shape of a node or mark to be a simple element. A
+  /// parse rule can automatically be derived for it if the node or mark
+  /// has a default parameter or a `read` function is defined to
+  /// determine the parameter.
+  export type Element<Param> = {
+    /// The element name to use.
+    element: string
+    /// A selector to use in the parse rule. Defaults to the element
+    /// name.
+    selector?: string
+    /// Attributes to add to the element.
+    attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
+    /// A helper to read a parameter value from the element. If this
+    /// returns {@link ParseRule.Reject}, the parse rule will not apply.
+    readElement?: (element: DOMElement) => Param | ParseRule.Reject
+    /// When specifying the shape of a plot, this indicates whether this
+    /// node is an atom, meaning its content isn't editable through the
+    /// editor.
+    atom?: boolean
+  }
 
-/// Declares the shape of a node in a potentially more complicated way
-/// than {@link ElementShape}. This will not automatically create a
-/// parse rule, so you'll want to define those yourself.
-export type StructureShape<Param> = {
-  /// The structure as a tree of {@link Elt}s. If this is for a plot
-  /// that is not to be rendered as an atom, the structure should
-  /// contain a hole for the content.
-  structure: Elt<string> | ((param: Param) => Elt<string>),
-  /// If `structure` is a function, and the target node is a plot, use
-  /// this to specify whether the plot should be rendered as an atom
-  /// or with content.
-  atom?: boolean
-}
+  /// Declares the shape of a node in a potentially more complicated way
+  /// than {@link ElementShape}. This will not automatically create a
+  /// parse rule, so you'll want to define those yourself.
+  export type Structure<Param> = {
+    /// The structure as a tree of {@link Elt}s. If this is for a plot
+    /// that is not to be rendered as an atom, the structure should
+    /// contain a hole for the content.
+    structure: Elt<string> | ((param: Param) => Elt<string>),
+    /// If `structure` is a function, and the target node is a plot, use
+    /// this to specify whether the plot should be rendered as an atom
+    /// or with content.
+    atom?: boolean
+  }
 
-/// Declares that a mark is represented with a specific DOM attribute.
-/// This allows a matching parse rule to be derived automatically in
-/// most situations.
-export type AttributeShape<Param> = {
-  /// The name of the attribute.
-  attribute: string
-  /// Its value. When given as 0, which is ony valid when the `Param`
-  /// type is `string`, the value of the mark's parameter is used.
-  value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
-  /// An optional function that converts the value of the attribute
-  /// back into a parameter value. Used in the parse rule.
-  readAttribute?: (value: string) => Param | ParseRule.Reject
-  /// If the target node may be a composite shape (rather than a
-  /// single DOM element), you can provide a limited form of selector
-  /// here to target a specific element in that shape. Node names and
-  /// class names are selected, as in `"img"`, `"img.my-class"`, or
-  /// `".class1.class2"`. If no matching element is found, the
-  /// attributes will be added to the node's outer element, as normal.
-  preferTarget?: string
-}
+  /// Declares that a mark is represented with a specific DOM attribute.
+  /// This allows a matching parse rule to be derived automatically in
+  /// most situations.
+  export type Attribute<Param> = {
+    /// The name of the attribute.
+    attribute: string
+    /// Its value. When given as 0, which is ony valid when the `Param`
+    /// type is `string`, the value of the mark's parameter is used.
+    value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
+    /// An optional function that converts the value of the attribute
+    /// back into a parameter value. Used in the parse rule.
+    readAttribute?: (value: string) => Param | ParseRule.Reject
+    /// If the target node may be a composite shape (rather than a
+    /// single DOM element), you can provide a limited form of selector
+    /// here to target a specific element in that shape. Node names and
+    /// class names are selected, as in `"img"`, `"img.my-class"`, or
+    /// `".class1.class2"`. If no matching element is found, the
+    /// attributes will be added to the node's outer element, as normal.
+    preferTarget?: string
+  }
 
-/// Declares that a dynamic attribute or set of attributes should be
-/// added to nodes with this mark. Will not produce an implicit parse
-/// rule.
-export type AttributesShape<Param> = {
-  /// The attributes to add, either directly or as a function of the
-  /// mark's parameter.
-  attributes: Record<string, string> | ((param: Param) => Record<string, string>)
-  /// A selector for the [preferred
-  /// target](#doc.AttributeShape.preferTarget) element.
-  preferTarget?: string
+  /// Declares that a dynamic attribute or set of attributes should be
+  /// added to nodes with this mark. Will not produce an implicit parse
+  /// rule.
+  export type Attributes<Param> = {
+    /// The attributes to add, either directly or as a function of the
+    /// mark's parameter.
+    attributes: Record<string, string> | ((param: Param) => Record<string, string>)
+    /// A selector for the [preferred
+    /// target](#doc.AttributeShape.preferTarget) element.
+    preferTarget?: string
+  }
 }
 
 export class NodeShape<Param> {
   constructor(
     readonly atom: boolean,
     readonly create: (param: Param) => Elt<string>,
-    readonly spec: ElementShape<Param> | StructureShape<Param>
+    readonly spec: Shape.Element<Param> | Shape.Structure<Param>
   ) {}
 
-  static from<Param>(type: Node.Type.Base<Param>, spec: ElementShape<Param> | StructureShape<Param>) {
+  static from<Param>(type: Node.Type.Base<Param>, spec: Shape.Element<Param> | Shape.Structure<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
     if ("element" in spec) {
       if (atom == null) atom = type.isLeaf

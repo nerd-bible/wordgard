@@ -1,4 +1,4 @@
-import {AttributeShape, ElementShape, AttributesShape, ParseRule, Elt, Attributes} from "./shape"
+import {Shape, ParseRule, Elt, Attributes} from "./shape"
 import {compareDeep, eqArray, none} from "./helper"
 import {Node, Plot} from "./node"
 import {SchemaError} from "./error"
@@ -188,7 +188,7 @@ export namespace Mark {
     set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
     /// A mark can be either represented with a wrapping element, or
     /// with one or more attributes added to the affected nodes.
-    shape: ElementShape<Value> | AttributeShape<Value> | AttributesShape<Value>
+    shape: Shape.Element<Value> | Shape.Attribute<Value> | Shape.Attributes<Value>
     /// A set of parse rules for this mark. The `mark` field for these
     /// will automatically be defaulted to the mark type itself.
     parseRules?: readonly (ParseRule.Element<Value> | ParseRule.Attribute<Value>)[]
@@ -198,7 +198,7 @@ export namespace Mark {
     readonly name: string
     readonly attrs: (value: Value) => Attributes
 
-    constructor(readonly spec: ElementShape<Value>) {
+    constructor(readonly spec: Shape.Element<Value>) {
       this.name = spec.element
       const {attributes} = spec
       if (typeof attributes == "function") {
@@ -214,7 +214,7 @@ export namespace Mark {
     readonly get: (param: Value) => Attributes
     readonly target: Elt.Selector | null
 
-    constructor(readonly spec: AttributeShape<Value> | AttributesShape<Value>, type: Mark.Type<Value>) {
+    constructor(readonly spec: Shape.Attribute<Value> | Shape.Attributes<Value>, type: Mark.Type<Value>) {
       if ("attribute" in spec) {
         const {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
         if (value === 0) {

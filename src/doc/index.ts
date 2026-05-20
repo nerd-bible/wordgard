@@ -1,7 +1,7 @@
 export {Node, Leaf, Plot} from "./node"
 export {Mark} from "./mark"
 export {Schema} from "./schema"
-export {Elt, elt, Attributes, ElementShape, StructureShape, AttributeShape, AttributesShape, ParseRule} from "./shape"
+export {Elt, elt, Attributes, Shape, ParseRule} from "./shape"
 export {Change, ChangeSet} from "./change"
 export {Pos} from "./pos"
 export {Token, Slice} from "./slice"
