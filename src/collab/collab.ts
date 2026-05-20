@@ -1,6 +1,8 @@
 import {GardState, Transaction} from "wordgard/state"
 import {ChangeSet, Plot} from "wordgard/doc"
 
+// FIXME look into server-side merging again
+
 class LocalUpdate {
   constructor(
     readonly changes: ChangeSet,

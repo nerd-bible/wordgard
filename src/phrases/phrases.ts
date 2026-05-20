@@ -5,6 +5,7 @@ export const phrases = PhraseSet.define({
   dialog_close: "close",
 
   // Menu labels
+  overflow_more: "More",
   block_style: "Block style",
   toggle_strong: "Toggle strong emphasis",
   toggle_em: "Toggle emphasis",

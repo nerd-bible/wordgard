@@ -463,7 +463,7 @@ const theme = Wordgard.baseTheme({
   "wg-menubar": {
     display: "flex",
     flexWrap: "wrap",
-    gap: "4px",
+    gap: "5px",
     padding: "2px",
     color: "var(--wg-menu-color)",
     borderBottom: "1px solid var(--wg-border-color)",

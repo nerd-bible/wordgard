@@ -139,6 +139,7 @@ export namespace Menu {
     parent: Group | Submenu | undefined
     rank: number
     content: readonly (Item | "...")[] | undefined
+    overflow: {at: number, wrap?: Submenu} | undefined
 
     private constructor(readonly spec: Group.Spec) {
       this.margin = !!spec.margin
@@ -146,6 +147,7 @@ export namespace Menu {
       this.parent = spec.parent
       this.rank = spec.rank ?? 100
       this.content = spec.content
+      this.overflow = spec.overflow
     }
 
     template(...content: (Template | Item | "...")[]) {
@@ -161,12 +163,13 @@ export namespace Menu {
       parent?: Group | Submenu
       rank?: number,
       content?: readonly (Item | "...")[]
+      overflow?: {at: number, wrap?: Submenu}
     }
 
     export const top = Group.define()
     export const commands = Group.define({parent: Group.top, rank: 10})
     export const blockMenu = Group.define({parent: Group.top, rank: 50, margin: true})
-    export const inlineStyle = Group.define({parent: Menu.Group.top, rank: 30, margin: true})
+    export const inlineStyle = Group.define({parent: Menu.Group.top, rank: 30, margin: true, overflow: {at: 5}})
   }
 
   export class Submenu extends Item.Base {
@@ -228,6 +231,14 @@ export namespace Menu {
 
   export type ResolvedItem = Button | CustomControl | "|" | Submenu.Resolved
 
+  const defaultOverflow = Submenu.define({
+    label: {
+      icon: "M57 77a8 8 0 1 1-16 0 8 8 0 0 1 16 0m0-26a8 8 0 1 1-16 0 8 8 0 0 1 16 0m0-26a8 8 0 1 1-16 0 8 8 0 0 1 16 0"
+    },
+    description: phrases.ref("overflow_more"),
+    arrow: false
+  })
+
   export function resolve(
     items: readonly Item[],
     template: Template | readonly Template[] = Group.top.template(),
@@ -259,21 +270,30 @@ export namespace Menu {
         used.set(template, 2)
         if (template instanceof Submenu || template instanceof Group) {
           if (template instanceof Group && template.margin) margin(target)
-          let innerTarget: ResolvedItem[] = template instanceof Submenu ? [] : target
+          let inner: ResolvedItem[] = []
           for (let elt of content || template.content || ["..."]) {
             if (elt === "...") {
               let found: Item[] = items.filter(i => i.parent == template)
-              for (let item of found.sort((a, b) => (a.rank ?? 100) - (b.rank ?? 100))) resolve(item, null, innerTarget, false)
+              for (let item of found.sort((a, b) => (a.rank ?? 100) - (b.rank ?? 100))) resolve(item, null, inner, false)
             } else {
-              resolve(elt, null, innerTarget, fromTemplate)
+              resolve(elt, null, inner, fromTemplate)
             }
           }
-          if (innerTarget != target && innerTarget.length) {
-            if (innerTarget[innerTarget.length - 1] === "|") innerTarget.pop()
-            if (innerTarget.length) target.push(new Submenu.Resolved(template as Submenu, innerTarget))
-          } else if (template instanceof Group && template.margin) {
-            margin(target)
+          if (inner.length) {
+            if (template instanceof Submenu) {
+              if (inner[inner.length - 1] === "|") inner.pop()
+              if (inner.length) target.push(new Submenu.Resolved(template, inner))
+            } else { // Group
+              if (template.overflow && inner.length > template.overflow.at) {
+                let overflow = new Submenu.Resolved(template.overflow.wrap || defaultOverflow,
+                                                    inner.slice(template.overflow.at - 1).filter(e => e != "|"))
+                inner.length = template.overflow.at - 1
+                inner.push(overflow)
+              }
+              for (let elt of inner) target.push(elt)
+            }
           }
+          if (template instanceof Group && template.margin) margin(target)
         } else {
           target.push(template)
         }
