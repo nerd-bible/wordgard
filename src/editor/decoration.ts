@@ -115,11 +115,8 @@ export type WidgetSpec = {
   place: keyof typeof WidgetPlace | WidgetPlace
 }
 
-export function tagDecoration(spec: {query: Node.Query} &
-  (WrapperSpec | AttributeSpec | WidgetSpec)): GardState.Extension {
-  if ("element" in spec) {
-    return new TagWrapperSource(spec.query, spec)
-  } else if ("widget" in spec) {
+export function tagDecoration(spec: {query: Node.Query} & (AttributeSpec | WidgetSpec)): GardState.Extension {
+  if ("widget" in spec) {
     return new TagWidgetSource(spec.query, spec)
   } else {
     return new TagAttributeSource(spec.query, spec)
@@ -183,28 +180,6 @@ class TagWidgetSource {
 }
 
 export const tagWidgets = GardState.Facet.define<TagWidgetSource>()
-
-export class TagWrapperSource {
-  wrapper: (tag: Node.Tag) => DecoElt
-  rank: number
-  spanning: boolean
-  extension: GardState.Extension
-
-  constructor(readonly query: Node.Query, deco: WrapperSpec) {
-    const {element, attributes, rank, spanning} = deco
-    if (typeof attributes != "function") {
-      let elt = Elt.new(element, Attributes.read(attributes), Elt.hole)
-      this.wrapper = () => elt
-    } else {
-      this.wrapper = memo(tag => Elt.new(deco.element, Attributes.read(attributes(tag)), Elt.hole))
-    }
-    this.rank = rank ?? 50
-    this.spanning = !!spanning
-    this.extension = tagWrappers.of(this)
-  }
-}
-
-export const tagWrappers = GardState.Facet.define<TagWrapperSource>()
 
 export class TagAttributeSource {
   attribute: string
@@ -323,6 +298,8 @@ export abstract class Decoration implements PointSet.Value {
   abstract side: number
   abstract trackMode: ChangeSet.TrackMode | undefined
 
+  abstract for(query: Node.Query): GardState.Extension
+
   static widget(widget: Widget, spec?: {side?: number, trackMode?: ChangeSet.TrackMode}) {
     return new WidgetDecoration(widget, spec?.side || 0, spec && "trackMode" in spec ? spec.trackMode : "around")
   }
@@ -352,6 +329,10 @@ class ShapeDecoration extends Decoration {
     return this == other || other instanceof ShapeDecoration && other.shape.eq(this.shape)
   }
 
+  for(query: Node.Query): never {
+    throw new Error("FIXME")
+  }
+
   get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
@@ -360,6 +341,10 @@ class WidgetDecoration extends Decoration {
   constructor(readonly widget: Widget, readonly side: number, readonly trackMode: ChangeSet.TrackMode | undefined) {
     super()
     if (side >= 1e9) throw new Error("Invalid widget side")
+  }
+
+  for(query: Node.Query): never {
+    throw new Error("FIXME")
   }
 
   eq(other: PointSet.Value): boolean {
@@ -376,15 +361,25 @@ class AttributeDecoration extends Decoration {
       other.value == this.value && other.selector == this.selector
   }
 
+  for(query: Node.Query): never {
+    throw new Error("FIXME")
+  }
+
   get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
+
+export const tagWrappers = GardState.Facet.define<{query: Node.Query, deco: WrapperDecoration}>()
 
 class WrapperDecoration extends Decoration {
   constructor(readonly elt: DecoElt, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
     return this == other || other instanceof WrapperDecoration && other.elt.eq(this.elt) && other.selector == this.selector
+  }
+
+  for(query: Node.Query) {
+    return tagWrappers.of({query, deco: this})
   }
 
   get trackMode() { return "after" as const }
@@ -998,7 +993,7 @@ function cmpPoint(a: PointSet.Iterator<PointSet.Value>, b: PointSet.Iterator<Poi
   return a.pos - b.pos || a.side - b.side
 }
 
-export type WrapperSource = Mark<any> | TagWrapperSource | WrapperRangeDecoration<any>
+export type WrapperSource = Mark<any> | WrapperRangeDecoration<any>
 
 // Enumerate all wrapper elements for a given node. Spanning wrappers
 // are always moved to the front of the result. Within the
@@ -1010,13 +1005,11 @@ function nodeWrappers(
   schema: Schema,
   tag: Node.Tag,
   active: readonly RangeSet.Iterator<RangeDecoration<any>>[],
-  global: readonly TagWrapperSource[],
   atom: boolean
 ): readonly WrapperSource[] {
   let wrappers: WrapperSource[] | undefined
 
   for (let mark of tag.marks) if (mark.type.element) (wrappers || (wrappers = [])).push(mark)
-  for (let src of global) if (schema.matchNode(tag.type, src.query)) (wrappers || (wrappers = [])).push(src)
   if (active.length) {
     for (let cur of active) {
       let val = cur.value!
@@ -1037,7 +1030,6 @@ function tagScope(tag: Node.Tag, atom: boolean): DecorationScope {
 }
 
 export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
-  if (src instanceof TagWrapperSource) return src.wrapper(tag)
   if (src instanceof WrapperRangeDecoration) return src.elt(tag)
   return renderMarkWrapper(src)
 }
@@ -1049,7 +1041,7 @@ export const renderMarkWrapper = memo((mark: Mark<any>) => {
 
 export class DecoIterator {
   globalWidgets: readonly TagWidgetSource[]
-  globalWrappers: readonly TagWrapperSource[]
+  globalWrappers: readonly {query: Node.Query, deco: WrapperDecoration}[]
   globalAttrs: readonly TagAttributeSource[]
   schema: Schema
   tagShapes: readonly TagShape[]
@@ -1102,15 +1094,16 @@ export class DecoIterator {
         let shape = hasPending && pendingShape ? pendingShape.shape : this.tagShape(node.tag, iter.active)
         if (hasPending) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
-        walker.node(node, shape, nodeWrappers(this.schema, node.tag, iter.active, this.globalWrappers, true))
+        walker.node(node, shape, nodeWrappers(this.schema, node.tag, iter.active, true))
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enterPlot: (node, pos) => {
         if (started) this.widgets(node.tag, WidgetPlace.Before, walker)
         else started = true
-        let shape = pendingShape && pendingPos == pos ? pendingShape.shape : this.tagShape(node.tag, iter.active)
+        let shape = pendingShape && pendingPos == pos ? pendingShape.shape
+          : this.tagShape(node.tag, iter.active)
         if (pendingPos == pos) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
-        let wrappers = nodeWrappers(this.schema, node.tag, iter.active, this.globalWrappers, !shape.hasContent)
+        let wrappers = nodeWrappers(this.schema, node.tag, iter.active, !shape.hasContent)
         let atom = !shape.hasContent
         if (atom) walker.node(node!, shape, wrappers)
         else walker.enter(node!, shape as DecoElt, wrappers)
@@ -1175,6 +1168,9 @@ export class DecoIterator {
         Attributes.push(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
     }
     let scope = tagScope(tag, !shape.hasContent)
+    for (let {query, deco} of this.globalWrappers) if (this.schema.matchNode(tag.type, query)) {
+      shape = applyDeco(shape, deco, tag)
+    }
     for (let iter of active) {
       let deco = iter.value!
       if (deco instanceof AttributeRangeDecoration && (scope & deco.scope) &&

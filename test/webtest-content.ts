@@ -349,22 +349,10 @@ describe("DocTile", () => {
     })
 
     it("can decorate tags", () => {
-      ist(render(doc(p("a", $img)), tagDecoration({
-        query: Paragraph,
-        element: "div",
-        attributes: {class: "pwrap"}
-      }), tagDecoration({
-        query: Image,
-        element: "image"
-      })).dom.innerHTML, "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
-    })
-
-    it("can make tag decorations spanning", () => {
-      ist(render(doc(p($img, $img)), tagDecoration({
-        query: Image,
-        element: "image",
-        spanning: true
-      })).dom.innerHTML, "<p><image><img src=\"test.png\"><img src=\"test.png\"></image></p>")
+      let pWrap = Decoration.wrapper(elt({_: "div", class: "pwrap"}, 0)).for(Paragraph)
+      let iWrap = Decoration.wrapper(elt("image", 0)).for(Image)
+      ist(render(doc(p("a", $img)), [pWrap, iWrap]).dom.innerHTML,
+          "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
     })
 
     it("can add attributes to tags", () => {
