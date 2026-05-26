@@ -30,7 +30,7 @@ export const tableCorrection = Correction.onContent(Table, (pos, state) => {
           } else if (map.cellAt(col, row) == pos) {
             let from = pos
             for (let scan = 0; from == pos; scan++) from = map.cellInsertionPos(col + scan, row)
-            changes.push({from, insert: [state.doc.schema.createAndFill(cell.type.default!)]})
+            changes.push({from, insert: [state.schema.createAndFill(cell.type.default!)]})
           }
         }
       }
@@ -55,10 +55,10 @@ export const tableCorrection = Correction.onContent(Table, (pos, state) => {
     let row = pos.node.content[i] as Plot, end = curPos + row.length
     let add = mustAdd[i]
     if (add > 0) {
-      let cell = state.doc.schema.defaultContentPlot(row.tag.type)!
+      let cell = state.schema.defaultContentPlot(row.tag.type)!
       let nodes = []
       for (let j = 0; j < add; j++)
-        nodes.push(state.doc.schema.createAndFill(cell))
+        nodes.push(state.schema.createAndFill(cell))
       let side = (i == 0 || first == i - 1) && last == i ? curPos + 1 : end - 1
       changes.push({from: side, insert: nodes})
     }

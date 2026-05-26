@@ -78,7 +78,7 @@ function moveToRowSide(wg: Wordgard, {dir, extend}: {dir: "left" | "right" | "fo
 const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((wg, event) => {
   if (event.detail == 3) {
     let pos = wg.state.doc.resolve(wg.posAtCoords({x: event.clientX, y: event.clientY}).pos)
-    let cell = pos.matchingParent(n => wg.state.doc.schema.matchNode(n.type, Node.Group.TableCell))
+    let cell = pos.matchingParent(n => wg.state.schema.matchNode(n.type, Node.Group.TableCell))
     if (cell) {
       let from = cell.before, to = cell.after
       return {

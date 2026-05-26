@@ -103,7 +103,7 @@ const resizeHandlers = Wordgard.domEventHandlers({
     } else {
       let elt = (event.target as HTMLElement).closest("img, .wg-resize-handle")
       let node = elt && wg.nodeFromDOM(elt)
-      let target = node && wg.state.doc.schema.markAllowed(ImageSize, node.node.type) ? node.pos : -1
+      let target = node && wg.state.schema.markAllowed(ImageSize, node.node.type) ? node.pos : -1
       if (target != resizing.target)
         wg.dispatch({effects: setResizing.of({target, resizing: -1})})
     }
@@ -121,7 +121,7 @@ const resizeHandlers = Wordgard.domEventHandlers({
 export namespace resizeImage {
   export const resizeCommand = (by: number, relative = false): Command => wg => {
     let {selection} = wg.state
-    if (selection instanceof GardSelection.Node && wg.state.doc.schema.markAllowed(ImageSize, selection.node.type)) {
+    if (selection instanceof GardSelection.Node && wg.state.schema.markAllowed(ImageSize, selection.node.type)) {
       let curWidth = selection.node.mark(ImageSize) ?? imageNode(wg, wg.state.selection.from).getBoundingClientRect().width
       let newWidth = Math.max(MIN_SIZE, relative ? curWidth * by : curWidth + by)
       if (newWidth != curWidth) {
@@ -166,7 +166,7 @@ export namespace image {
   export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({
     drop: (event, wg) => {
       let {state} = wg, upload = state.facet(imageUploader)[0]
-      const type = state.doc.schema.has(Image) ? Image : state.doc.schema.has(Figure) ? Figure : null
+      const type = state.schema.has(Image) ? Image : state.schema.has(Figure) ? Figure : null
       if (!type || !upload || !event.dataTransfer) return false
       let files = event.dataTransfer.files, uploads: Promise<string>[] = []
       for (let i = 0; i < files.length; i++) {

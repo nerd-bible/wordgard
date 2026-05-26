@@ -29,7 +29,7 @@ export function writeClipboard(state: GardState, slice: Slice, context: readonly
     else if (next.type.defining || !next.isTextblock) break
   }
   let doc = detachedDoc(), dom = Elt.dom(serializeSlice(slice, {
-    schema: state.doc.schema,
+    schema: state.schema,
     context,
     includeContext,
     openMark
@@ -84,7 +84,7 @@ export function readClipboard(state: GardState, data: DataTransfer, targetContex
     if (browser.webkit) restoreReplacedSpaces(dom)
 
     let fromWordgard = dom.querySelector("[wg-content=true]")
-    ;({slice, context} = parseSlice(state.doc.schema, dom, {
+    ;({slice, context} = parseSlice(state.schema, dom, {
       collapseWhiteSpace: !fromWordgard,
       isOpen: fromWordgard ? isOpen : undefined
     }))
@@ -105,7 +105,7 @@ function readClipboardText(state: GardState, text: string, context: Pos, plain: 
   let content: Token[] = lines[0] ? [Leaf.text(lines[0], marks)] : []
   if (lines.length == 1) return new Slice(content)
   let parent = (context.parent.node.inlineContent ? context.parent.parent || context.parent : context.parent).node.tag
-  let wrapping = state.doc.schema.findWrapping(parent.type, Leaf.Text)
+  let wrapping = state.schema.findWrapping(parent.type, Leaf.Text)
   if (!wrapping || !wrapping.length) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, " "), marks)])
   let wrapper = wrapping[wrapping.length - 1]
   content.push(Plot.End)

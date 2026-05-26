@@ -154,7 +154,7 @@ export const unwrapBlock: Command.Pure<Node.Query | null> = ({state}, query) => 
   let targets: Pos.Node[] = [], changes: ChangeSet.Spec[] = []
   for (let {from, to} of state.selection.ranges) {
     if (!targets.some(t => t.after > from && t.before < to)) {
-      let result = findUnwrappable(state.doc.schema, state.doc.resolve(from), state.doc.resolve(to), query ?? undefined)
+      let result = findUnwrappable(state.schema, state.doc.resolve(from), state.doc.resolve(to), query ?? undefined)
       if (result) for (let node of result) {
         targets.push(node)
         changes.push(doUnwrapBlock(node, from, to))

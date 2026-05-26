@@ -28,8 +28,8 @@ function rect(x: number, y: number, w: number, h: number, cls: string) {
 }
 
 function imageTypeButtons(state: GardState, active: Node.Tag | null) {
-  let hasImg = state.doc.schema.has(Image), hasFig = state.doc.schema.has(Figure), hasCap = state.doc.schema.has(CaptionedFigure)
-  let align = (hasFig || hasCap) && state.doc.schema.markAllowed(Alignment, hasFig ? Figure : CaptionedFigure)
+  let hasImg = state.schema.has(Image), hasFig = state.schema.has(Figure), hasCap = state.schema.has(CaptionedFigure)
+  let align = (hasFig || hasCap) && state.schema.markAllowed(Alignment, hasFig ? Figure : CaptionedFigure)
   if (!align && !(hasImg && (hasFig || hasCap))) return null
   let buttons: HTMLElement[] = []
   function button(type: "inline" | "start" | "center" | "end", label: PhraseSet.Tag<typeof imagePhrases>, active: boolean | null) {
@@ -118,7 +118,7 @@ function buildImagePanel(wg: Wordgard) {
   let {state} = wg
   let sel = (state.field(imageDialog) || state.selection).resolve(state.doc)
   let active = activeImage(sel)
-  let size = !wg.state.doc.schema.has(ImageSize) ? null :
+  let size = !wg.state.schema.has(ImageSize) ? null :
     [cr("label", {for: "wg-img-size"}, imagePhrases.get(state, "width"), ":"),
      cr("input", {type: "number", id: "wg-img-size", name: "size", value: active && active.mark(ImageSize) || "",
                   placeholder: imagePhrases.get(state, "auto")})]
@@ -152,7 +152,7 @@ function buildImagePanel(wg: Wordgard) {
     let data = new FormData(form)
     let src = data.get("src") as string
     if (!src) return
-    let type = data.get("type") as string | null, cap = !!data.get("caption") || !state.doc.schema.has(Figure)
+    let type = data.get("type") as string | null, cap = !!data.get("caption") || !state.schema.has(Figure)
     let marks: readonly Mark<any>[] = []
     if (type == "center" || type == "end") marks = Alignment.of(type).addToSet(marks)
     if (data.get("alt")) marks = ImageAlt.of(data.get("alt") as string).addToSet(marks)

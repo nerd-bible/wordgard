@@ -63,8 +63,6 @@ export namespace Widget {
 
 export type DecoElt = Elt<Widget | string>
 
-// FIXME use string literal in public interface
-
 export namespace Decoration {
   export type Shape = Widget | DecoElt
 
@@ -1056,7 +1054,7 @@ export class DecoIterator {
     this.globalWrappers = state.facet(tagWrapper)
     this.globalAttrs = state.facet(tagAttribute)
     this.pos = state.doc.resolve(0)
-    this.schema = state.doc.schema
+    this.schema = state.schema
     for (let s of state.facet(Decoration.Range.source)) {
       let set = decoSet.ranges.get(s)
       if (set?.length) this.rangeIter.push(set.iter())

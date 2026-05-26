@@ -86,7 +86,7 @@ const historyField_ = GardState.Field.define({
     let buildBranch = (json: {changes: ChangeSet.JSON, selection: unknown}[]) => {
       let result: Branch | null = null
       for (let i = json.length - 1; i >= 0; i--)
-        result = new Branch(ChangeSet.fromJSON(state.doc.schema, json[i].changes),
+        result = new Branch(ChangeSet.fromJSON(state.schema, json[i].changes),
                             none, null, GardSelection.fromJSON(state, json[i].selection), result)
                                 
       return result

@@ -13,7 +13,7 @@ export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
   let start = block.before, end = block.after, before: Token[] = [], after: Token[] = []
   for (let level = block.parent, index = block.index, atStart = true, atEnd = true, first = true;
        level; first = false, index = level.index, level = level.parent) {
-    if (!first && state.doc.schema.canContain(level.node.type, block.node.type)) return {
+    if (!first && state.schema.canContain(level.node.type, block.node.type)) return {
       changes: [
         {from: start, to: block.before, insert: before},
         {from: block.after, to: end, insert: after}
@@ -167,7 +167,7 @@ export function joinListItems(state: GardState): Transaction.Spec | false {
     if (!next) return false
     if (scan.node.isBlock && next.node.type.hasRole(Node.Role.List)) {
       const prev = scan.previousSibling
-      if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.doc.schema.canContain(prev.type, ch.type))) return false
+      if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.schema.canContain(prev.type, ch.type))) return false
       return {
         changes: {from: scan.before - 1, to: scan.before + 1},
         userEvent: "join.backward.list",

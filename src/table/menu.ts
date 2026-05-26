@@ -137,7 +137,7 @@ const tableIcon = {
 export namespace tableMenu {
   export const createTable = Menu.Submenu.define({
     select(state) {
-      return state.doc.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
+      return state.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
     },
     label: tableIcon,
     description: tablePhrases.ref("insert_table"),
@@ -158,7 +158,7 @@ export namespace tableMenu {
 
   export const toggleHeader = Menu.Button.define({
     run: toggleHeaderCell,
-    select: state => !!headerCellTag(state.doc.schema),
+    select: state => !!headerCellTag(state.schema),
     label: tablePhrases.ref("toggle_header"),
     parent: modifyTable,
     rank: 10
@@ -211,7 +211,7 @@ export namespace tableMenu {
     select: state => {
       let {selection} = state
       return selection instanceof CellSelection && selection.ranges.length > 1 &&
-        state.doc.schema.has(ColSpan) && state.doc.schema.has(RowSpan)
+        state.schema.has(ColSpan) && state.schema.has(RowSpan)
     },
     label: tablePhrases.ref("merge_cells"),
     parent: modifyTable,

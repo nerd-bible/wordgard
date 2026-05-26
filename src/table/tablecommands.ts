@@ -12,7 +12,7 @@ export function tableContext(state: GardState) {
     table = state.sel.anchor.parent!.parent!
     cells = state.selection.ranges.map(r => r.from - 1)
   } else {
-    let cellPos = state.sel.head.matchingParent(node => state.doc.schema.matchNode(node.type, Node.Group.TableCell))
+    let cellPos = state.sel.head.matchingParent(node => state.schema.matchNode(node.type, Node.Group.TableCell))
     if (cellPos && cellPos.parent?.parent) {
       table = cellPos.parent.parent
       cells = [cellPos.before]
@@ -34,7 +34,7 @@ export function headerCellTag(schema: Schema) {
 }
 
 export const toggleHeaderCell: Command.Pure = ({state}) => {
-  let cx = tableContext(state), header = headerCellTag(state.doc.schema)
+  let cx = tableContext(state), header = headerCellTag(state.schema)
   if (!cx || !header) return false
   let cells = cx.cells.map(c => cx.map.getCell(c))
   let changes: ChangeSet.Spec[] = []
@@ -42,14 +42,14 @@ export const toggleHeaderCell: Command.Pure = ({state}) => {
     for (let i = 0; i < cells.length; i++) {
       let cell = cells[i], pos = cx.cells[i]
       if (cell.type != header.type)
-        changes.push({from: pos, to: pos + 1, insert: [state.doc.schema.withMarksFrom(cell.tag, header)]})
+        changes.push({from: pos, to: pos + 1, insert: [state.schema.withMarksFrom(cell.tag, header)]})
     }
   } else {
-    let tag = cellTag(state.doc.schema)
+    let tag = cellTag(state.schema)
     for (let i = 0; i < cells.length; i++) {
       let cell = cells[i], pos = cx.cells[i]
       if (cell.type == header.type)
-        changes.push({from: pos, to: pos + 1, insert: [state.doc.schema.withMarksFrom(cell.tag, tag)]})
+        changes.push({from: pos, to: pos + 1, insert: [state.schema.withMarksFrom(cell.tag, tag)]})
     }
   }
   return {changes}
@@ -77,7 +77,7 @@ export const addColumn: Command.Pure<"before" | "after"> = ({state}, side) => {
         adjusted.add(pos)
       }
     } else {
-      changes.push({from: map.cellInsertionPos(col, row), insert: [state.doc.schema.createAndFill(cellTag(state.doc.schema))]})
+      changes.push({from: map.cellInsertionPos(col, row), insert: [state.schema.createAndFill(cellTag(state.schema))]})
     }
   }
   return {
@@ -162,7 +162,7 @@ export const addRow: Command.Pure<"before" | "after"> = ({state}, side) => {
       }
     }
   }
-  let cell = state.doc.schema.createAndFill(cellTag(state.doc.schema)), content: Node[] = []
+  let cell = state.schema.createAndFill(cellTag(state.schema)), content: Node[] = []
   for (let i = 0; i < cellCount; i++) content.push(cell)
   changes.push({from: map.rowPos(row), insert: [TableRow.create(content)]})
 
@@ -259,7 +259,7 @@ export const splitCell: Command.Pure = ({state}) => {
   let changes: ChangeSet.Spec[] = [], rect = map.cellRect(pos), lastInsert = -1
   for (let row = rect.startRow, first = true; row < rect.endRow; row++) {
     let insertPos = lastInsert = map.cellInsertionPos(rect.endCol, row)
-    let cell = state.doc.schema.createAndFill(node.type.default!)
+    let cell = state.schema.createAndFill(node.type.default!)
     for (let col = rect.startCol; col < rect.endCol; col++) {
       if (first) { first = false; continue }
       changes.push({from: insertPos, insert: [cell]})

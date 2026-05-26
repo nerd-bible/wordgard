@@ -153,7 +153,7 @@ export class Correction<PosType extends Pos.Node> {
   scan(state: GardState) {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
-      if (state.doc.schema.matchNode(node.type, this.query) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
+      if (state.schema.matchNode(node.type, this.query) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
         let change = this.correct(state.doc.resolveNode(pos) as PosType, state)
         if (change) changes.push(change)
       }

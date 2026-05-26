@@ -78,6 +78,11 @@ export class GardState {
     return this._doc
   }
 
+  get schema() {
+    if (this.trackAccess) addValue(this.trackAccess, "schema")
+    return this._doc.schema
+  }
+
   /// The current selection.
   get selection() {
     if (this.trackAccess) addValue(this.trackAccess, "selection")
@@ -806,7 +811,7 @@ function sameArray<T>(a: readonly T[], b: readonly T[]) {
   return a == b || a.length == b.length && a.every((e, i) => e === b[i])
 }
 
-type Slot = GardState.Facet.Reader<any> | GardState.Field<any> | "doc" | "selection"
+type Slot = GardState.Facet.Reader<any> | GardState.Field<any> | "doc" | "selection" | "schema"
 
 const enum ProviderFlag {
   Static = 1,
@@ -824,6 +829,7 @@ const enum SlotStatus {
 class DependencySet {
   doc: boolean = false
   sel: boolean = false
+  schema: boolean = false
   addrs: number[] = []
   count: number = 0
 
@@ -832,6 +838,7 @@ class DependencySet {
       let dep = deps[this.count++]
       if (dep === "doc") this.doc = true
       else if (dep === "selection") this.sel = true
+      else if (dep === "schema") this.schema = true
       else if (((addresses[dep.id] ?? 1) & 1) == 0) this.addrs.push(addresses[dep.id])
     }
   }
@@ -865,7 +872,8 @@ class FacetProvider<Input> {
       },
       update(state, tr) {
         depSet.update(dependencies, addresses)
-        if ((depSet.doc && tr.docChanged) || (depSet.sel && (tr.docChanged || tr.selection)) || ensureAll(state, depSet.addrs)) {
+        if ((depSet.doc && tr.docChanged) || (depSet.sel && (tr.docChanged || tr.selection)) ||
+            (depSet.schema && tr.startState.schema != tr.newDoc.schema) || ensureAll(state, depSet.addrs)) {
           let newVal = auto ? state.recordAccess(auto, getter) : getter(state)
           if (multi ? !compareArray(newVal, state.values[idx], compare) : !compare(newVal, state.values[idx])) {
             state.values[idx] = newVal
