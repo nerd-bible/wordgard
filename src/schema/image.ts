@@ -1,5 +1,5 @@
 import {elt} from "wordgard/doc"
-import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/editor"
+import {Wordgard, PointSet, PointDecoration, KeyBinding, logException} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
 import {Command, Menu} from "wordgard/command"
@@ -50,9 +50,9 @@ const handleElt = elt({_: "svg:svg", class: "wg-resize-handle", viewBox: "0 0 20
                       elt({_: "svg:path", d: "M20 0L0 20M20 5L5 20M20 10L10 20", stroke: "#000000aa", "stroke-width": "1.5"}),
                       elt({_: "svg:polygon", points: "0,20 20,20 20,0", fill: "transparent", class: "wg-resize-handle-active"}))
 
-const resizeWrapper = Decoration.wrapper(elt({_: "span", class: "wg-resize-hover"}, handleElt, 0), {target: "img"})
+const resizeWrapper = PointDecoration.wrapper(elt({_: "span", class: "wg-resize-hover"}, handleElt, 0), {target: "img"})
 
-const resizeState = GardState.Field.define<{target: number, resizing: number, deco: PointSet<Decoration>}>({
+const resizeState = GardState.Field.define<{target: number, resizing: number, deco: PointSet<PointDecoration>}>({
   create: () => ({target: -1, resizing: -1, deco: PointSet.empty}),
   update: (value, tr) => {
     for (let e of tr.effects) {
@@ -60,9 +60,9 @@ const resizeState = GardState.Field.define<{target: number, resizing: number, de
         let {target, resizing} = e.value
         if (target < 0)
           return {target: -1, resizing: -1, deco: PointSet.empty}
-        let deco: [number, Decoration][] = [[target, resizeWrapper]]
+        let deco: [number, PointDecoration][] = [[target, resizeWrapper]]
         if (resizing > -1)
-          deco.push([target, Decoration.attribute("style", `width: ${resizing}px`, {target: "img"})])
+          deco.push([target, PointDecoration.attribute("style", `width: ${resizing}px`, {target: "img"})])
         return {target, resizing, deco: PointSet.create(deco)}
       }
     }
@@ -143,7 +143,7 @@ export namespace resizeImage {
   export const dragHandle: GardState.Extension = [
     GardState.prec.high(resizeHandlers),
     resizeState,
-    Decoration.source.of(s => s.field(resizeState).deco),
+    PointDecoration.source.of(s => s.field(resizeState).deco),
   ]
 }
 

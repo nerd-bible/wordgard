@@ -43,33 +43,33 @@ export namespace Node {
 
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
-    export namespace Type {
-      export abstract class Base<Param> {
-        readonly roles: Set<Node.Role> = new Set
-        readonly shape: NodeShape<Param>
-        abstract default: Node.Tag | null
+  export namespace Type {
+    export abstract class Base<Param> {
+      readonly roles: Set<Node.Role> = new Set
+      readonly shape: NodeShape<Param>
+      abstract default: Node.Tag | null
 
-        constructor(
-          readonly name: string,
-          readonly flags: NodeFlag,
-          readonly spec: Node.Spec<Param>
-        ) {
-          if (spec.role instanceof Node.Role) this.roles.add(spec.role)
-          else if (spec.role) for (let role of spec.role) this.roles.add(role)
-          this.shape = NodeShape.from(this, spec.shape)
-          if (this.shape.atom) this.flags |= NodeFlag.Atom
-        }
-
-        /// Test whether this node has the given role.
-        hasRole(role: Node.Role) { return this.roles.has(role) }
-
-        get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
-        get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
-        get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
-        abstract isLeaf: boolean
-        abstract isPlot: boolean
+      constructor(
+        readonly name: string,
+        readonly flags: NodeFlag,
+        readonly spec: Node.Spec<Param>
+      ) {
+        if (spec.role instanceof Node.Role) this.roles.add(spec.role)
+        else if (spec.role) for (let role of spec.role) this.roles.add(role)
+        this.shape = NodeShape.from(this, spec.shape)
+        if (this.shape.atom) this.flags |= NodeFlag.Atom
       }
+
+      /// Test whether this node has the given role.
+      hasRole(role: Node.Role) { return this.roles.has(role) }
+
+      get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
+      get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
+      get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
+      abstract isLeaf: boolean
+      abstract isPlot: boolean
     }
+  }
 
   export type Tag = Leaf.Any | Plot.Tag.Any
 
@@ -111,6 +111,10 @@ export namespace Node {
         return result
       }
     }
+
+    /// Deduce a tag type for a given node type.
+    export type For<Type extends Node.Type<any>> =
+      Type extends Leaf.Type<infer T> ? Leaf<T> : Type extends Plot.Type<infer T> ? Plot.Tag<T> : never
   }
 
   export interface Spec<Param> {

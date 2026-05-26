@@ -1,7 +1,7 @@
 import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes} from "wordgard/doc"
 import {GardState, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
-import {Widget, DecoElt, Shape, DecoIterator, findChangedRanges, WrapperSource,
+import {Widget, DecoElt, Decoration, DecoIterator, findChangedRanges, WrapperSource,
         renderWrapper, renderMarkWrapper, DecoSet, getDecoSet} from "./decoration"
 import {eqArray} from "./util"
 import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
@@ -937,7 +937,7 @@ class ContentUpdate {
           while (shape instanceof Elt) {
             this.openWrapper(Elt.new(shape.tagName, shape.attrs, Elt.hole), true, reuse)
             wrapCount++
-            shape = shape.children[0] as Shape
+            shape = shape.children[0] as Decoration.Shape
           }
           let next = (reuse || this.posB == start) && !(this.new.lastChild instanceof TextTile) && this.old.tileAfter()
           if (!(next instanceof TextTile) || this.reused.has(next)) {
@@ -967,7 +967,7 @@ class ContentUpdate {
     })
   }
 
-  findReusableTile(shape: Shape, reuse: Tile | readonly Tile[] | null, strict: boolean): Tile | null {
+  findReusableTile(shape: Decoration.Shape, reuse: Tile | readonly Tile[] | null, strict: boolean): Tile | null {
     if (reuse instanceof EltTile) {
       if (shape instanceof Elt && reuse.elt.tagName == shape.tagName && !this.reused.has(reuse) &&
           (!strict || Attributes.eq(reuse.elt.attrs, shape.attrs)))
@@ -990,7 +990,7 @@ class ContentUpdate {
   }
 
   // node will be null when building inner structure
-  buildNodeShape(node: Node | null, shape: Shape, reuse: Tile | readonly Tile[] | null, afterContent = TileFlag.None) {
+  buildNodeShape(node: Node | null, shape: Decoration.Shape, reuse: Tile | readonly Tile[] | null, afterContent = TileFlag.None) {
     if (shape instanceof Elt) {
       let reusable, dom: Element | undefined, strict = true
       if (reusable = this.findReusableTile(shape, reuse, strict) || this.findReusableTile(shape, reuse, strict = false)) {
