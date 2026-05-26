@@ -64,7 +64,6 @@ export namespace Widget {
 export type DecoElt = Elt<Widget | string>
 
 // FIXME use string literal in public interface
-enum WidgetPlace { Before, After, Start, End }
 
 export namespace Decoration {
   export type Shape = Widget | DecoElt
@@ -83,12 +82,87 @@ export namespace Decoration {
       let shapeFunc: (tag: Node.Tag) => Decoration.Shape = typeof shape == "function"
         ? tag => addMarkAttributes(shape(tag), tag)
         : tag => addMarkAttributes(shape, tag)
-      return tagShapes.of({type, shape: memo(shapeFunc)})
+      return tagShape.of({type, shape: memo(shapeFunc)})
+    }
+
+    export function wrapper(tag: Node.Tag | Node.Type<any>, wrapper: DecoElt, options?: {target?: string}) {
+      return tagWrapper.of({
+        type: tag instanceof Node.Type.Base ? tag : tag.type,
+        elt: wrapper,
+        target: options && options.target ? Elt.Selector.parse(options.target) : null
+      })
+    }
+
+    export function widget(
+      tag: Node.Tag,
+      place: "before" | "after" | "start" | "end",
+      widget: Widget
+    ): GardState.Extension
+    export function widget<T extends Node.Type<any>>(
+      tag: T,
+      place: "before" | "after" | "start" | "end",
+      widget: Widget | ((tag: Node.Tag.For<T>) => Widget)
+    ): GardState.Extension
+    export function widget(
+      tag: Node.Tag | Node.Type<any>,
+      place: "before" | "after" | "start" | "end",
+      widget: Widget | ((tag: Node.Tag) => Widget)
+    ) {
+      return tagWidget.of({
+        type: tag instanceof Node.Type.Base ? tag : tag.type,
+        place: place == "before" ? WidgetPlace.Before : place == "after" ? WidgetPlace.After
+          : place == "end" ? WidgetPlace.End : WidgetPlace.Start,
+        widget: typeof widget == "function" ? memo(widget) : (() => widget)
+      })
+    }
+
+    export function attribute<T extends Node.Type<any>>(
+      tag: T,
+      attribute: string,
+      value: string | ((tag: Node.Tag.For<T>) => string),
+      options?: {target?: string}
+    ): GardState.Extension
+    export function attribute(
+      tag: Node.Tag,
+      attribute: string,
+      value: string,
+      options?: {target?: string}
+    ): GardState.Extension
+    export function attribute(
+      tag: Node.Tag | Node.Type<any>,
+      attr: string,
+      value: string | ((tag: Node.Tag) => string),
+      options?: {target?: string}
+    ) {
+      let type = tag instanceof Node.Type.Base ? tag : tag.type
+      return tagAttribute.of({type, attr, value: typeof value == "string" ? () => value : value,
+                               target: options?.target ? Elt.Selector.parse(options.target) : null})
     }
   }
 }
 
-const tagShapes = GardState.Facet.define<{type: Node.Type<any>, shape: (tag: Node.Tag) => Decoration.Shape}>()
+type TagShape = {type: Node.Type<any>, shape: (tag: Node.Tag) => Decoration.Shape}
+
+const tagShape = GardState.Facet.define<TagShape>()
+
+type TagWrapper = {type: Node.Type<any>, elt: DecoElt, target: Elt.Selector | null}
+
+const tagWrapper = GardState.Facet.define<TagWrapper>()
+
+const enum WidgetPlace { Before, After, Start, End }
+
+type TagWidget = {type: Node.Type<any>, place: WidgetPlace, widget: (tag: Node.Tag) => Widget}
+
+const tagWidget = GardState.Facet.define<TagWidget>()
+
+type TagAttribute = {
+  type: Node.Type<any>,
+  attr: string,
+  value: (tag: Node.Tag) => string,
+  target: Elt.Selector | null
+}
+
+const tagAttribute = GardState.Facet.define<TagAttribute>()
 
 export type WrapperSpec = {
   element: string
@@ -105,14 +179,6 @@ export type AttributeSpec = {
 export type WidgetSpec = {
   widget: Widget | ((param: Node.Tag) => Widget)
   place: keyof typeof WidgetPlace | WidgetPlace
-}
-
-export function tagDecoration(spec: {query: Node.Query} & (AttributeSpec | WidgetSpec)): GardState.Extension {
-  if ("widget" in spec) {
-    return new TagWidgetSource(spec.query, spec)
-  } else {
-    return new TagAttributeSource(spec.query, spec)
-  }
 }
 
 function memo<T, A extends Object>(f: (arg: A) => T) {
@@ -157,35 +223,6 @@ const baseTagShape = memo((tag: Node.Tag): Decoration.Shape => {
   return addMarkAttributes(tag.is(Leaf.Text) ? Widget.EditableText.of(tag.param as string)
     : tag.type.shape.create(tag.param), tag)
 })
-
-class TagWidgetSource {
-  place: WidgetPlace
-  widget: (tag: Node.Tag) => Widget
-  extension: GardState.Extension
-
-  constructor(readonly query: Node.Query, deco: WidgetSpec) {
-    let {place, widget} = deco
-    this.place = typeof place == "string" ? WidgetPlace[place] : place
-    this.widget = typeof widget == "function" ? memo(widget) : () => widget
-    this.extension = tagWidgets.of(this)
-  }
-}
-
-export const tagWidgets = GardState.Facet.define<TagWidgetSource>()
-
-export class TagAttributeSource {
-  attribute: string
-  value: string | ((tag: Node.Tag) => string)
-  extension: GardState.Extension
-
-  constructor(readonly query: Node.Query, deco: AttributeSpec) {
-    this.attribute = deco.attribute
-    this.value = deco.value
-    this.extension = tagAttributes.of(this)
-  }
-}
-
-export const tagAttributes = GardState.Facet.define<TagAttributeSource>()
 
 export enum DecorationScope {
   Atom = 1,
@@ -290,8 +327,6 @@ export abstract class PointDecoration implements PointSet.Value {
   abstract side: number
   abstract trackMode: ChangeSet.TrackMode | undefined
 
-  abstract for(query: Node.Query): GardState.Extension
-
   // FIXME allow elt shapes?
   static widget(widget: Widget, spec?: {side?: number, trackMode?: ChangeSet.TrackMode}) {
     return new WidgetDecoration(widget, spec?.side || 0, spec && "trackMode" in spec ? spec.trackMode : "around")
@@ -322,10 +357,6 @@ class ShapeDecoration extends PointDecoration {
     return this == other || other instanceof ShapeDecoration && other.shape.eq(this.shape)
   }
 
-  for(query: Node.Query): never {
-    throw new Error("FIXME")
-  }
-
   get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
@@ -334,10 +365,6 @@ class WidgetDecoration extends PointDecoration {
   constructor(readonly widget: Widget, readonly side: number, readonly trackMode: ChangeSet.TrackMode | undefined) {
     super()
     if (side >= 1e9) throw new Error("Invalid widget side")
-  }
-
-  for(query: Node.Query): never {
-    throw new Error("FIXME")
   }
 
   eq(other: PointSet.Value): boolean {
@@ -354,25 +381,15 @@ class AttributeDecoration extends PointDecoration {
       other.value == this.value && other.selector == this.selector
   }
 
-  for(query: Node.Query): never {
-    throw new Error("FIXME")
-  }
-
   get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
-
-export const tagWrappers = GardState.Facet.define<{query: Node.Query, deco: WrapperDecoration}>()
 
 class WrapperDecoration extends PointDecoration {
   constructor(readonly elt: DecoElt, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
     return this == other || other instanceof WrapperDecoration && other.elt.eq(this.elt) && other.selector == this.selector
-  }
-
-  for(query: Node.Query) {
-    return tagWrappers.of({query, deco: this})
   }
 
   get trackMode() { return "after" as const }
@@ -766,8 +783,8 @@ export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
                                   state: GardState, deco: DecoSet,
                                   sections: ChangeSet.Sections) {
   let result: number[] = []
-  let globalChange = compareGlobal(prevState, state, tagShapes) || compareGlobal(prevState, state, tagWidgets) ||
-    compareGlobal(prevState, state, tagWrappers) || compareGlobal(prevState, state, tagAttributes)
+  let globalChange = compareGlobal(prevState, state, tagShape) || compareGlobal(prevState, state, tagWidget) ||
+    compareGlobal(prevState, state, tagWrapper) || compareGlobal(prevState, state, tagAttribute)
   // When node shapes change, we need a separate pass to see whether
   // their atomicity changed, and mark a replace for the whole node if
   // it did.
@@ -1033,20 +1050,20 @@ export const renderMarkWrapper = memo((mark: Mark<any>) => {
 })
 
 export class DecoIterator {
-  globalWidgets: readonly TagWidgetSource[]
-  globalWrappers: readonly {query: Node.Query, deco: WrapperDecoration}[]
-  globalAttrs: readonly TagAttributeSource[]
+  tagShapes: readonly TagShape[]
+  globalWidgets: readonly TagWidget[]
+  globalWrappers: readonly TagWrapper[]
+  globalAttrs: readonly TagAttribute[]
   schema: Schema
-  tagShapes: readonly {type: Node.Type<any>, shape: (tag: Node.Tag) => Decoration.Shape}[]
   pos: Pos
   rangeIter: RangeSet.Iterator<RangeDecoration>[] = []
   pointIter: PointSet.Iterator<PointDecoration>[] = []
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
-    this.globalWidgets = state.facet(tagWidgets)
-    this.globalWrappers = state.facet(tagWrappers)
-    this.globalAttrs = state.facet(tagAttributes)
-    this.tagShapes = state.facet(tagShapes)
+    this.tagShapes = state.facet(tagShape)
+    this.globalWidgets = state.facet(tagWidget)
+    this.globalWrappers = state.facet(tagWrapper)
+    this.globalAttrs = state.facet(tagAttribute)
     this.pos = state.doc.resolve(0)
     this.schema = state.doc.schema
     for (let s of state.facet(RangeDecoration.source)) {
@@ -1061,7 +1078,7 @@ export class DecoIterator {
 
   widgets(tag: Node.Tag, place: WidgetPlace, walker: DecoWalker) {
     for (let src of this.globalWidgets) {
-      if (src.place == place && this.schema.matchNode(tag.type, src.query)) {
+      if (src.place == place && tag.type == src.type) {
         let widget = src.widget(tag)
         if (widget) walker.widget(widget, place == WidgetPlace.Before || place == WidgetPlace.End ? 1 : -1)
       }
@@ -1156,13 +1173,13 @@ export class DecoIterator {
     }
     if (!shape) shape = baseTagShape(tag)
     let add: string[] | undefined
-    for (let src of this.globalAttrs) {
-      if (this.schema.matchNode(tag.type, src.query))
-        Attributes.push(add || (add = []), src.attribute, typeof src.value == "function" ? src.value(tag) : src.value)
+    for (let src of this.globalAttrs) if (tag.type == src.type) {
+      if (src.target && shape instanceof Elt) shape = shape.addAttrs([src.attr, src.value(tag)], src.target)
+      else Attributes.push(add || (add = []), src.attr, src.value(tag))
     }
     let scope = tagScope(tag, !shape.hasContent)
-    for (let {query, deco} of this.globalWrappers) if (this.schema.matchNode(tag.type, query)) {
-      shape = applyDeco(shape, deco, tag)
+    for (let {type, elt, target} of this.globalWrappers) if (tag.type == type) {
+      shape = target && shape instanceof Elt ? shape.wrap(elt, target) : elt.fill([shape])
     }
     for (let iter of active) {
       let deco = iter.value!

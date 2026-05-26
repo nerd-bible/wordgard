@@ -1,4 +1,4 @@
-import {Wordgard, Decoration, tagDecoration, Widget, PointSet,
+import {Wordgard, Decoration, Widget, PointSet,
         RangeSet, RangeDecoration, PointDecoration} from "wordgard/editor"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark, Token} from "wordgard/doc"
@@ -238,22 +238,14 @@ describe("DocTile", () => {
 
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {
-      let src = (side: string) => tagDecoration({
-        query: Paragraph,
-        widget: inlineWidget.of(side),
-        place: side as any
-      })
-      let node = render(doc(p("xyz"), hr), src("Before"), src("Start"), src("End"), src("After"))
-      ist(node.dom.innerHTML, "<span>Before</span><p><span>Start</span>xyz<span>End</span></p><span>After</span><hr>")
+      let src = (side: "before" | "after" | "start" | "end") => Decoration.Tag.widget(Paragraph, side, inlineWidget.of(side))
+      let node = render(doc(p("xyz"), hr), src("before"), src("start"), src("end"), src("after"))
+      ist(node.dom.innerHTML, "<span>before</span><p><span>start</span>xyz<span>end</span></p><span>after</span><hr>")
     })
 
     it("can reuse widgets when replacing next to them", () => {
-      let src = (side: string) => tagDecoration({
-        query: Image,
-        widget: inlineWidget.of(side),
-        place: side as any
-      })
-      let node = render(doc(p("x", $img, "y")), src("Before"), src("After"))
+      let src = (side: "before" | "after" | "start" | "end") => Decoration.Tag.widget(Image, side, inlineWidget.of(side))
+      let node = render(doc(p("x", $img, "y")), src("before"), src("after"))
       let widgets = node.dom.querySelectorAll("span")
       node = update(node, {changes: {from: 2, to: 3, insert: [img("/x.webp")]}})
       let newWidgets = node.dom.querySelectorAll("span")
@@ -262,12 +254,8 @@ describe("DocTile", () => {
     })
 
     it("can reuse widgets when updating across them", () => {
-      let src = (side: string) => tagDecoration({
-        query: Image,
-        widget: inlineWidget.of(side),
-        place: side as any
-      })
-      let node = render(doc(p(strong("x", $img, "y"), em("z", $img))), src("Before"), src("After"))
+      let src = (side: "before" | "after" | "start" | "end") => Decoration.Tag.widget(Image, side, inlineWidget.of(side))
+      let node = render(doc(p(strong("x", $img, "y"), em("z", $img))), src("before"), src("after"))
       let widgets = node.dom.querySelectorAll("span")
       node = update(node, {changes: [
         {from: 1, to: 4, remove: Strong, add: Emphasis},
@@ -279,12 +267,8 @@ describe("DocTile", () => {
     })
 
     it("doesn't break spanning wrappers on widgets", () => {
-      let src = (side: string) => tagDecoration({
-        query: Image,
-        widget: inlineWidget.of(side),
-        place: side as any
-      })
-      let node = render(doc(p(strong("x", $img, "y"))), src("Before"), src("After"))
+      let src = (side: "before" | "after" | "start" | "end") => Decoration.Tag.widget(Image, side, inlineWidget.of(side))
+      let node = render(doc(p(strong("x", $img, "y"))), src("before"), src("after"))
       ist(node.dom.querySelectorAll("strong").length, 1)
     })
 
@@ -336,7 +320,7 @@ describe("DocTile", () => {
 
     it("doesn't duplicate widgets on section boundaries", () => {
       let node = render(doc(p(strong("a"), $img)),
-                        tagDecoration({query: Image, widget: inlineWidget.of("!"), place: "Before"}))
+                        Decoration.Tag.widget(Image, "before", inlineWidget.of("!")))
       ist(node.dom.innerHTML, "<p><strong>a</strong><span>!</span><img src=\"test.png\"></p>")
       node = update(node, {changes: [
         {from: 1, to: 2, remove: Strong},
@@ -346,38 +330,26 @@ describe("DocTile", () => {
     })
 
     it("can decorate tags", () => {
-      let pWrap = PointDecoration.wrapper(elt({_: "div", class: "pwrap"}, 0)).for(Paragraph)
-      let iWrap = PointDecoration.wrapper(elt("image", 0)).for(Image)
+      let pWrap = Decoration.Tag.wrapper(Paragraph, elt({_: "div", class: "pwrap"}, 0))
+      let iWrap = Decoration.Tag.wrapper(Image, elt("image", 0))
       ist(render(doc(p("a", $img)), [pWrap, iWrap]).dom.innerHTML,
           "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
     })
 
     it("can add attributes to tags", () => {
-      ist(render(doc(p("?")), tagDecoration({
-        query: Paragraph,
-        attribute: "lang",
-        value: "nl"
-      })).dom.innerHTML, "<p lang=\"nl\">?</p>")
+      ist(render(doc(p("?")), Decoration.Tag.attribute(Paragraph, "lang", "nl")).dom.innerHTML, "<p lang=\"nl\">?</p>")
     })
 
     it("can remove attributes from tags", () => {
       let comp = new GardState.Compartment()
-      let node = render(doc(p("?")), comp.of(tagDecoration({
-        query: Paragraph,
-        attribute: "lang",
-        value: "nl"
-      })))
+      let node = render(doc(p("?")), comp.of(Decoration.Tag.attribute(Paragraph, "lang", "nl")))
       node = update(node, {effects: comp.reconfigure([])})
       ist(node.dom.innerHTML, "<p>?</p>")
     })
 
     it("preserves DOM nodes when adding attributes", () => {
       let node = render(doc(p("a"))), para = node.dom.firstChild
-      node = update(node, {effects: Transaction.Effect.reconfigure.of(tagDecoration({
-        query: Paragraph,
-        attribute: "lang",
-        value: "nl"
-      }))})
+      node = update(node, {effects: Transaction.Effect.reconfigure.of(Decoration.Tag.attribute(Paragraph, "lang", "nl"))})
       ist(node.dom.innerHTML, "<p lang=\"nl\">a</p>")
       ist(node.dom.firstChild, para)
     })
