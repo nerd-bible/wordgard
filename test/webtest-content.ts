@@ -1,4 +1,4 @@
-import {Wordgard, Decoration, Widget, PointSet, RangeSet, RangeDecoration} from "wordgard/editor"
+import {Wordgard, Decoration, Widget, PointSet, RangeSet} from "wordgard/editor"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark, Token} from "wordgard/doc"
 import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt} from "wordgard/schema-def"
@@ -354,14 +354,14 @@ describe("DocTile", () => {
     })
 
     it("can take wrappers from spans", () => {
-      ist(render(doc(p("ab", $img, "cd")), RangeDecoration.source.of(s => {
-        return RangeSet.create([[2, 5, RangeDecoration.wrapper({element: "span", attributes: {class: "a"}})]])
+      ist(render(doc(p("ab", $img, "cd")), Decoration.Range.source.of(s => {
+        return RangeSet.create([[2, 5, Decoration.Range.wrapper({element: "span", attributes: {class: "a"}})]])
       })).dom.innerHTML, "<p>a<span class=\"a\">b<img src=\"test.png\">c</span>d</p>")
     })
 
     it("can take attributes from spans", () => {
-      ist(render(doc(p("ab", $img, "cd")), RangeDecoration.source.of(s => {
-        return RangeSet.create([[2, 5, RangeDecoration.attribute({attribute: "alt", value: "a test", query: Image})]])
+      ist(render(doc(p("ab", $img, "cd")), Decoration.Range.source.of(s => {
+        return RangeSet.create([[2, 5, Decoration.Range.attribute({attribute: "alt", value: "a test", query: Image})]])
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
 

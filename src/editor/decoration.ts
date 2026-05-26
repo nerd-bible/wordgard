@@ -140,7 +140,6 @@ export namespace Decoration {
     }
   }
 
-  // FIXME support value parameter?
   export abstract class Point implements PointSet.Value {
     abstract eq(other: PointSet.Value): boolean
     abstract side: number
@@ -167,6 +166,57 @@ export namespace Decoration {
       combine: sources => sources.concat(nodeSelection)
     })
   }
+
+  export abstract class Range implements RangeSet.Value {
+    readonly query: Node.Query | null
+    readonly scope: DecorationScope
+    readonly inc: Inc
+
+    constructor(spec: Decoration.Range.Spec) {
+      let {query, inclusive} = spec
+      this.query = query || null
+      this.scope = spec.scope == "inlineatom" ? DecorationScope.InlineAtom
+        : spec.scope == "all" ? DecorationScope.All : DecorationScope.Atom
+      this.inc = inclusive === "start" ? Inc.Start : inclusive === "end" ? Inc.End : inclusive ? Inc.Start | Inc.End : Inc.None
+    }
+
+    get inclusiveStart() { return (this.inc & Inc.Start) > 0 }
+    get inclusiveEnd() { return (this.inc & Inc.End) > 0 }
+
+    abstract eq(other: RangeSet.Value): boolean
+
+    static wrapper(spec: Decoration.Range.Spec.Wrapper): Decoration.Range {
+      return new WrapperRangeDecoration(spec)
+    }
+
+    static attribute(spec: Decoration.Range.Spec.Attribute): Decoration.Range {
+      return new AttributeRangeDecoration(spec)
+    }
+  }
+
+  export namespace Range {
+    export interface Spec {
+      inclusive?: boolean | "start" | "end"
+      scope?: "atom" | "inlineatom" | "all"
+      query?: Node.Query
+    }
+
+    export namespace Spec {
+      export interface Wrapper extends Spec {
+        element: string
+        attributes?: Attrs | ((param: Node.Tag) => Attrs)
+        rank?: number
+        spanning?: boolean
+      }
+
+      export interface Attribute extends Spec {
+        attribute: string
+        value: string | ((param: Node.Tag) => string)
+      }
+    }
+
+    export const source = GardState.Facet.define<(state: GardState) => RangeSet<Decoration.Range>>()
+  }
 }
 
 type TagShape = {type: Node.Type<any>, shape: (tag: Node.Tag) => Decoration.Shape}
@@ -191,23 +241,6 @@ type TagAttribute = {
 }
 
 const tagAttribute = GardState.Facet.define<TagAttribute>()
-
-export type WrapperSpec = {
-  element: string
-  attributes?: Attrs | ((param: Node.Tag) => Attrs)
-  rank?: number
-  spanning?: boolean
-}
-
-export type AttributeSpec = {
-  attribute: string
-  value: string | ((param: Node.Tag) => string)
-}
-
-export type WidgetSpec = {
-  widget: Widget | ((param: Node.Tag) => Widget)
-  place: keyof typeof WidgetPlace | WidgetPlace
-}
 
 function memo<T, A extends Object>(f: (arg: A) => T) {
   let map = new WeakMap<A, T>()
@@ -252,7 +285,7 @@ const baseTagShape = memo((tag: Node.Tag): Decoration.Shape => {
     : tag.type.shape.create(tag.param), tag)
 })
 
-export enum DecorationScope {
+const enum DecorationScope {
   Atom = 1,
   InlineAtom = 2,
   All = 4,
@@ -260,53 +293,12 @@ export enum DecorationScope {
 
 const enum Inc { None = 0, Start = 1, End = 2 }
 
-// FIXME Data parameter worth it?
-export abstract class RangeDecoration<Data = unknown> implements RangeSet.Value {
-  readonly query: Node.Query | null
-  readonly scope: DecorationScope
-  readonly inc: Inc
-
-  constructor(spec: RangeDecoration.Spec, readonly data: Data) {
-    let {query, inclusive} = spec
-    this.query = query || null
-    this.scope = spec.scope ?? DecorationScope.Atom
-    this.inc = inclusive === "start" ? Inc.Start : inclusive === "end" ? Inc.End : inclusive ? Inc.Start | Inc.End : Inc.None
-  }
-
-  get inclusiveStart() { return (this.inc & Inc.Start) > 0 }
-  get inclusiveEnd() { return (this.inc & Inc.End) > 0 }
-
-  abstract eq(other: RangeSet.Value): boolean
-
-  static wrapper(spec: RangeDecoration.Spec & WrapperSpec): RangeDecoration<undefined>
-  static wrapper<Data>(spec: RangeDecoration.Spec & WrapperSpec & {data: Data}): RangeDecoration<Data>
-  static wrapper<Data>(spec: RangeDecoration.Spec & WrapperSpec & {data?: Data}): RangeDecoration<Data> {
-    return new WrapperRangeDecoration<Data>(spec, spec.data!)
-  }
-
-  static attribute(spec: RangeDecoration.Spec & AttributeSpec): RangeDecoration<undefined>
-  static attribute<Data>(spec: RangeDecoration.Spec & AttributeSpec & {data: Data}): RangeDecoration<Data>
-  static attribute<Data>(spec: RangeDecoration.Spec & AttributeSpec & {data?: Data}): RangeDecoration<Data> {
-    return new AttributeRangeDecoration<Data>(spec, spec.data!)
-  }
-}
-
-export namespace RangeDecoration {
-  export type Spec = {
-    inclusive?: boolean | "start" | "end"
-    scope?: DecorationScope
-    query?: Node.Query
-  }
-
-  export const source = GardState.Facet.define<(state: GardState) => RangeSet<RangeDecoration>>()
-}
-
-class AttributeRangeDecoration<Data> extends RangeDecoration<Data> {
+class AttributeRangeDecoration extends Decoration.Range {
   readonly attribute: string
   readonly value: string | ((tag: Node.Tag) => string)
 
-  constructor(readonly spec: RangeDecoration.Spec & AttributeSpec, data: Data) {
-    super(spec, data)
+  constructor(readonly spec: Decoration.Range.Spec.Attribute) {
+    super(spec)
     this.attribute = spec.attribute
     this.value = spec.value
   }
@@ -314,19 +306,19 @@ class AttributeRangeDecoration<Data> extends RangeDecoration<Data> {
   eq(other: RangeSet.Value): boolean {
     return this == other ||
       other instanceof AttributeRangeDecoration && other.attribute == this.attribute && other.value == this.value &&
-      other.inc == this.inc && other.data === this.data
+      other.inc == this.inc
   }
 }
 
-class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
+class WrapperRangeDecoration extends Decoration.Range {
   readonly elt: (tag: Node.Tag) => Elt
   readonly element: string
   readonly attrs: Attrs | ((tag: Node.Tag) => Attrs) | null
   readonly rank: number
   readonly spanning: boolean
 
-  constructor(spec: RangeDecoration.Spec & WrapperSpec, data: Data) {
-    super(spec, data)
+  constructor(spec: Decoration.Range.Spec.Wrapper) {
+    super(spec)
     let {element, attributes} = spec
     this.element = element
     this.attrs = attributes || null
@@ -345,7 +337,7 @@ class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
       other instanceof WrapperRangeDecoration && other.element == this.element &&
       (typeof this.attrs == "function" || typeof other.attrs == "function" ? this.attrs == other.attrs :
         attrsEq(other.attrs, this.attrs)) &&
-      other.rank == this.rank && other.spanning == this.spanning && other.inc == this.inc && other.data == this.data
+      other.rank == this.rank && other.spanning == this.spanning && other.inc == this.inc
   }
 }
 
@@ -599,12 +591,12 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
 }
 
 export type DecoSet = {points: Map<(state: GardState) => PointSet<Decoration.Point>, PointSet<Decoration.Point>>,
-                       ranges: Map<(state: GardState) => RangeSet<RangeDecoration>, RangeSet<RangeDecoration>>}
+                       ranges: Map<(state: GardState) => RangeSet<Decoration.Range>, RangeSet<Decoration.Range>>}
 
 export function getDecoSet(state: GardState) {
   let set: DecoSet = {points: new Map, ranges: new Map}
   for (let src of state.facet(Decoration.Point.source)) set.points.set(src, src(state))
-  for (let src of state.facet(RangeDecoration.source)) set.ranges.set(src, src(state))
+  for (let src of state.facet(Decoration.Range.source)) set.ranges.set(src, src(state))
   return set
 }
 
@@ -1002,7 +994,7 @@ function cmpPoint(a: PointSet.Iterator<PointSet.Value>, b: PointSet.Iterator<Poi
   return a.pos - b.pos || a.side - b.side
 }
 
-export type WrapperSource = Mark<any> | WrapperRangeDecoration<any>
+export type WrapperSource = Mark<any> | WrapperRangeDecoration
 
 // Enumerate all wrapper elements for a given node. Spanning wrappers
 // are always moved to the front of the result. Within the
@@ -1013,7 +1005,7 @@ export type WrapperSource = Mark<any> | WrapperRangeDecoration<any>
 function nodeWrappers(
   schema: Schema,
   tag: Node.Tag,
-  active: readonly RangeSet.Iterator<RangeDecoration<any>>[],
+  active: readonly RangeSet.Iterator<Decoration.Range>[],
   atom: boolean
 ): readonly WrapperSource[] {
   let wrappers: WrapperSource[] | undefined
@@ -1055,7 +1047,7 @@ export class DecoIterator {
   globalAttrs: readonly TagAttribute[]
   schema: Schema
   pos: Pos
-  rangeIter: RangeSet.Iterator<RangeDecoration>[] = []
+  rangeIter: RangeSet.Iterator<Decoration.Range>[] = []
   pointIter: PointSet.Iterator<Decoration.Point>[] = []
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
@@ -1065,7 +1057,7 @@ export class DecoIterator {
     this.globalAttrs = state.facet(tagAttribute)
     this.pos = state.doc.resolve(0)
     this.schema = state.doc.schema
-    for (let s of state.facet(RangeDecoration.source)) {
+    for (let s of state.facet(Decoration.Range.source)) {
       let set = decoSet.ranges.get(s)
       if (set?.length) this.rangeIter.push(set.iter())
     }
@@ -1087,7 +1079,7 @@ export class DecoIterator {
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
-    let iter = new HeapIterator<RangeDecoration, Decoration.Point>(
+    let iter = new HeapIterator<Decoration.Range, Decoration.Point>(
       this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
@@ -1164,7 +1156,7 @@ export class DecoIterator {
     this.pos = pos
   }
 
-  tagShape(tag: Node.Tag, active: RangeSet.Iterator<RangeDecoration<any>>[]) {
+  tagShape(tag: Node.Tag, active: RangeSet.Iterator<Decoration.Range>[]) {
     let shape
     if (!tag.is(Leaf.Text)) for (let src of this.tagShapes) if (src.type == tag.type) {
       shape = src.shape(tag)
