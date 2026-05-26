@@ -917,7 +917,7 @@ class ContentUpdate {
     let start = this.posB, end = this.posB + len
     this.deco.walk(start, includeStart, end, {
       enter: (node, elt, wrappers) => {
-        this.openWrappers(wrappers, node.tag, reuse)
+        this.openWrappers(wrappers, reuse)
         let tile = this.buildNodeShape(node, elt, reuse ? this.old.tileAfter() : null) as EltTile
         this.new.addChild(tile)
         this.new = tile.contentTile!
@@ -931,7 +931,7 @@ class ContentUpdate {
         this.posB++
       },
       node: (node, shape, wrappers) => {
-        this.openWrappers(wrappers, node.tag, reuse)
+        this.openWrappers(wrappers, reuse)
         let wrapCount = wrappers.length
         if (node.is(Leaf.Text)) {
           while (shape instanceof Elt) {
@@ -1054,9 +1054,9 @@ class ContentUpdate {
     while (!(this.new.isNode || this.new.isDoc)) this.up()
   }
 
-  openWrappers(wrappers: readonly WrapperSource[], tag: Node.Tag, reuse: boolean) {
+  openWrappers(wrappers: readonly WrapperSource[], reuse: boolean) {
     for (let src of wrappers) {
-      this.openWrapper(renderWrapper(src, tag), src.spanning, reuse)
+      this.openWrapper(renderWrapper(src), src.spanning, reuse)
     }
   }
 

@@ -1,6 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
-import {Attrs, attrsEq} from "./attributes"
+import {Attrs} from "./attributes"
 import {type Wordgard} from "./editor"
 
 export class Widget<T = unknown> {
@@ -170,7 +170,7 @@ export namespace Decoration {
     readonly scope: DecorationScope
     readonly inc: Inc
 
-    constructor(spec: Decoration.Range.Spec) {
+    constructor(spec: RangeSpec) {
       let {query, inclusive} = spec
       this.query = query || null
       this.scope = spec.scope == "inlineatom" ? DecorationScope.InlineAtom
@@ -183,36 +183,16 @@ export namespace Decoration {
 
     abstract eq(other: RangeSet.Value): boolean
 
-    static wrapper(spec: Decoration.Range.Spec.Wrapper): Decoration.Range {
-      return new WrapperRangeDecoration(spec)
+    static wrapper(element: string, spec: RangeWrapperSpec): Decoration.Range {
+      return new WrapperRangeDecoration(element, spec)
     }
 
-    static attribute(spec: Decoration.Range.Spec.Attribute): Decoration.Range {
-      return new AttributeRangeDecoration(spec)
+    static attribute(attr: string, value: string, options: RangeSpec = {}): Decoration.Range {
+      return new AttributeRangeDecoration(attr, value, options)
     }
   }
 
   export namespace Range {
-    export interface Spec {
-      inclusive?: boolean | "start" | "end"
-      scope?: "atom" | "inlineatom" | "all"
-      query?: Node.Query
-    }
-
-    export namespace Spec {
-      export interface Wrapper extends Spec {
-        element: string
-        attributes?: Attrs | ((param: Node.Tag) => Attrs)
-        rank?: number
-        spanning?: boolean
-      }
-
-      export interface Attribute extends Spec {
-        attribute: string
-        value: string | ((param: Node.Tag) => string)
-      }
-    }
-
     export const source = GardState.Facet.define<(state: GardState) => RangeSet<Decoration.Range>>()
   }
 }
@@ -239,6 +219,18 @@ type TagAttribute = {
 }
 
 const tagAttribute = GardState.Facet.define<TagAttribute>()
+
+interface RangeSpec {
+  inclusive?: boolean | "start" | "end"
+  scope?: "atom" | "inlineatom" | "all"
+  query?: Node.Query
+}
+
+interface RangeWrapperSpec extends RangeSpec {
+  attributes?: Attrs
+  rank?: number
+  spanning?: boolean
+}
 
 function memo<T, A extends Object>(f: (arg: A) => T) {
   let map = new WeakMap<A, T>()
@@ -292,13 +284,12 @@ const enum DecorationScope {
 const enum Inc { None = 0, Start = 1, End = 2 }
 
 class AttributeRangeDecoration extends Decoration.Range {
-  readonly attribute: string
-  readonly value: string | ((tag: Node.Tag) => string)
-
-  constructor(readonly spec: Decoration.Range.Spec.Attribute) {
-    super(spec)
-    this.attribute = spec.attribute
-    this.value = spec.value
+  constructor(
+    readonly attribute: string,
+    readonly value: string,
+    options: RangeSpec
+  ) {
+    super(options)
   }
 
   eq(other: RangeSet.Value): boolean {
@@ -309,32 +300,21 @@ class AttributeRangeDecoration extends Decoration.Range {
 }
 
 class WrapperRangeDecoration extends Decoration.Range {
-  readonly elt: (tag: Node.Tag) => Elt
-  readonly element: string
-  readonly attrs: Attrs | ((tag: Node.Tag) => Attrs) | null
+  readonly elt: Elt
   readonly rank: number
   readonly spanning: boolean
 
-  constructor(spec: Decoration.Range.Spec.Wrapper) {
+  constructor(element: string, spec: RangeWrapperSpec) {
     super(spec)
-    let {element, attributes} = spec
-    this.element = element
-    this.attrs = attributes || null
+    let {attributes} = spec
     this.rank = spec.rank || 0
     this.spanning = spec.spanning !== false
-    if (typeof attributes == "function") {
-      this.elt = tag => Elt.new(element, Attributes.read(attributes(tag)), Elt.hole)
-    } else {
-      let elt = Elt.new(element, Attributes.read(attributes), Elt.hole)
-      this.elt = () => elt
-    }
+    this.elt = Elt.new(element, attributes ? Attributes.read(attributes) : Attributes.none, Elt.hole)
   }
 
   eq(other: RangeSet.Value): boolean {
     return this == other ||
-      other instanceof WrapperRangeDecoration && other.element == this.element &&
-      (typeof this.attrs == "function" || typeof other.attrs == "function" ? this.attrs == other.attrs :
-        attrsEq(other.attrs, this.attrs)) &&
+      other instanceof WrapperRangeDecoration && other.elt.eq(other.elt) &&
       other.rank == this.rank && other.spanning == this.spanning && other.inc == this.inc
   }
 }
@@ -1028,8 +1008,8 @@ function tagScope(tag: Node.Tag, atom: boolean): DecorationScope {
     (atom ? DecorationScope.Atom | (tag.isInline ? DecorationScope.InlineAtom : 0) : 0)
 }
 
-export function renderWrapper(src: WrapperSource, tag: Node.Tag): DecoElt {
-  if (src instanceof WrapperRangeDecoration) return src.elt(tag)
+export function renderWrapper(src: WrapperSource): DecoElt {
+  if (src instanceof WrapperRangeDecoration) return src.elt
   return renderMarkWrapper(src)
 }
 
@@ -1174,7 +1154,7 @@ export class DecoIterator {
       let deco = iter.value!
       if (deco instanceof AttributeRangeDecoration && (scope & deco.scope) &&
           (!deco.query || this.schema.matchNode(tag.type, deco.query)))
-        Attributes.push(add || (add = []), deco.attribute, typeof deco.value == "function" ? deco.value(tag) : deco.value)
+        Attributes.push(add || (add = []), deco.attribute, deco.value)
     }
     if (add) {
       if (shape instanceof Elt) shape = Elt.new(shape.tagName, Attributes.merge(shape.attrs, add), shape.children)
