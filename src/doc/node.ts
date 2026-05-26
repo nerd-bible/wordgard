@@ -69,6 +69,11 @@ export namespace Node {
       abstract isLeaf: boolean
       abstract isPlot: boolean
     }
+
+    /// Used as input type by some functions acting on node types, so
+    /// that you can pass either a bare type or a singleton leaf or
+    /// plot tag.
+    export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
   }
 
   export type Tag = Leaf.Any | Plot.Tag.Any
@@ -112,9 +117,9 @@ export namespace Node {
       }
     }
 
-    /// Deduce a tag type for a given node type.
-    export type For<Type extends Node.Type<any>> =
-      Type extends Leaf.Type<infer T> ? Leaf<T> : Type extends Plot.Type<infer T> ? Plot.Tag<T> : never
+    /// Deduce a tag type for a given node or tag type.
+    export type For<Type extends Node.Type.Ref<any>> =
+      Type extends Leaf.Type<infer T> ? Leaf<T> : Type extends Plot.Type<infer T> ? Plot.Tag<T> : Type
   }
 
   export interface Spec<Param> {

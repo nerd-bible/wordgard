@@ -1,7 +1,7 @@
 import {Wordgard, Decoration, Widget, PointSet, RangeSet} from "wordgard/editor"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark, Token} from "wordgard/doc"
-import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt} from "wordgard/schema-def"
+import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, HorizontalRule} from "wordgard/schema-def"
 import ist from "ist"
 import {builder, basicBuilders} from "./schema.ts"
 const {DocTile} = Wordgard
@@ -454,6 +454,22 @@ describe("DocTile", () => {
         }))
       })
       ist(tile.dom.innerHTML, "<para></para>")
+    })
+
+    it("supports dynamic shapes", () => {
+      let cls = GardState.Facet.define<string>(), called = 0
+      let tile = render(doc(hr), [
+        Decoration.Tag.computedShape(HorizontalRule.type, state => {
+          called++
+          return elt({_: "hr", class: state.facet(cls)[0]})
+        }),
+        cls.of("a")
+      ])
+      tile = update(tile, {selection: {anchor: 1}})
+      ist(tile.dom.innerHTML, `<hr class="a">`)
+      ist(called, 1)
+      tile = update(tile, {effects: Transaction.Effect.appendConfig.of(GardState.prec.high(cls.of("b")))})
+      ist(tile.dom.innerHTML, `<hr class="b">`)
     })
   })
 })

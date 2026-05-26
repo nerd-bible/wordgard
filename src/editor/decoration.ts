@@ -58,82 +58,86 @@ export namespace Widget {
   })
 }
 
-// FIXME support some kind of dependency tracking on decoration
-// sources
-
 export type DecoElt = Elt<Widget | string>
 
 export namespace Decoration {
   export type Shape = Widget | DecoElt
 
   export namespace Tag {
-    export function shape(tag: Node.Tag, shape: Decoration.Shape): GardState.Extension
-    export function shape<T extends Node.Type<any>>(
+    export function shape<T extends Node.Type.Ref<any>>(
       tag: T,
-      shape: Decoration.Shape | ((tag: Node.Tag.For<T>) => Decoration.Shape)
-    ): GardState.Extension
-    export function shape(
-      tag: Node.Tag | Node.Type<any>,
-      shape: Decoration.Shape | ((tag: Node.Tag) => Decoration.Shape)
+      shape: Shape | ((tag: Node.Tag.For<T>) => Shape)
     ) {
-      let type = tag instanceof Node.Type.Base ? tag : tag.type
-      let shapeFunc: (tag: Node.Tag) => Decoration.Shape = typeof shape == "function"
-        ? tag => addMarkAttributes(shape(tag), tag)
+      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
+      let shapeFunc: (tag: Node.Tag) => Shape = typeof shape == "function"
+        ? tag => addMarkAttributes(shape(tag as any), tag)
         : tag => addMarkAttributes(shape, tag)
       return tagShape.of({type, shape: memo(shapeFunc)})
     }
 
-    export function wrapper(tag: Node.Tag | Node.Type<any>, wrapper: DecoElt, options?: {target?: string}) {
+    // FIXME warn about late use of state
+    // FIXME better name?
+    export function computedShape<T extends Node.Type.Ref<any>>(
+      tag: T,
+      shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape)
+    ) {
+      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
+      return tagShape.compute(state => {
+        let s = shape(state)
+        return {type, shape: typeof s == "function" ? memo(s as any) : () => s}
+      })
+    }
+
+    export function wrapper(tag: Node.Type.Ref<any>, wrapper: DecoElt, options?: {target?: string}) {
       return tagWrapper.of({
-        type: tag instanceof Node.Type.Base ? tag : tag.type,
+        type: tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type,
         elt: wrapper,
         target: options && options.target ? Elt.Selector.parse(options.target) : null
       })
     }
 
-    export function widget(
-      tag: Node.Tag,
-      place: "before" | "after" | "start" | "end",
-      widget: Widget
-    ): GardState.Extension
-    export function widget<T extends Node.Type<any>>(
+    function getPlace(place: "before" | "after" | "start" | "end") {
+      return place == "before" ? WidgetPlace.Before : place == "after" ? WidgetPlace.After
+        : place == "end" ? WidgetPlace.End : WidgetPlace.Start
+    }
+
+    export function widget<T extends Node.Type.Ref<any>>(
       tag: T,
       place: "before" | "after" | "start" | "end",
       widget: Widget | ((tag: Node.Tag.For<T>) => Widget)
-    ): GardState.Extension
-    export function widget(
-      tag: Node.Tag | Node.Type<any>,
-      place: "before" | "after" | "start" | "end",
-      widget: Widget | ((tag: Node.Tag) => Widget)
     ) {
       return tagWidget.of({
-        type: tag instanceof Node.Type.Base ? tag : tag.type,
-        place: place == "before" ? WidgetPlace.Before : place == "after" ? WidgetPlace.After
-          : place == "end" ? WidgetPlace.End : WidgetPlace.Start,
-        widget: typeof widget == "function" ? memo(widget) : (() => widget)
+        type: tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type,
+        place: getPlace(place),
+        widget: typeof widget == "function" ? memo(widget as any) : (() => widget)
       })
     }
 
-    export function attribute<T extends Node.Type<any>>(
+    export function computedWidget<T extends Node.Type.Ref<any>>(
       tag: T,
-      attribute: string,
+      place: "before" | "after" | "start" | "end",
+      widget: (state: GardState) => Widget | ((tag: Node.Tag.For<T>) => Widget)
+    ) {
+      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
+      let p = getPlace(place)
+      return tagWidget.compute(state => {
+        let w = widget(state)
+        return {
+          type,
+          place: p,
+          widget: typeof w == "function" ? memo(w as any) : (() => w)
+        }
+      })
+    }
+
+    export function attribute<T extends Node.Type.Ref<any>>(
+      tag: T,
+      attr: string,
       value: string | ((tag: Node.Tag.For<T>) => string),
       options?: {target?: string}
-    ): GardState.Extension
-    export function attribute(
-      tag: Node.Tag,
-      attribute: string,
-      value: string,
-      options?: {target?: string}
-    ): GardState.Extension
-    export function attribute(
-      tag: Node.Tag | Node.Type<any>,
-      attr: string,
-      value: string | ((tag: Node.Tag) => string),
-      options?: {target?: string}
     ) {
-      let type = tag instanceof Node.Type.Base ? tag : tag.type
-      return tagAttribute.of({type, attr, value: typeof value == "string" ? () => value : value,
+      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
+      return tagAttribute.of({type, attr, value: typeof value == "string" ? () => value : value as any,
                                target: options?.target ? Elt.Selector.parse(options.target) : null})
     }
   }
@@ -151,7 +155,7 @@ export namespace Decoration {
       return new AttributeDecoration(attribute, value, spec?.target ? Elt.Selector.parse(spec.target) : null)
     }
 
-    static shape(shape: Decoration.Shape) {
+    static shape(shape: Shape) {
       return new ShapeDecoration(shape)
     }
 
@@ -160,7 +164,7 @@ export namespace Decoration {
       return new WrapperDecoration(wrapper, spec?.target ? Elt.Selector.parse(spec.target) : null)
     }
 
-    static source = GardState.Facet.define<(state: GardState) => PointSet<Decoration.Point>>({
+    static source = GardState.Facet.define<(state: GardState) => PointSet<Point>>({
       combine: sources => sources.concat(nodeSelection)
     })
   }
@@ -183,17 +187,17 @@ export namespace Decoration {
 
     abstract eq(other: RangeSet.Value): boolean
 
-    static wrapper(element: string, spec: RangeWrapperSpec): Decoration.Range {
+    static wrapper(element: string, spec: RangeWrapperSpec): Range {
       return new WrapperRangeDecoration(element, spec)
     }
 
-    static attribute(attr: string, value: string, options: RangeSpec = {}): Decoration.Range {
+    static attribute(attr: string, value: string, options: RangeSpec = {}): Range {
       return new AttributeRangeDecoration(attr, value, options)
     }
   }
 
   export namespace Range {
-    export const source = GardState.Facet.define<(state: GardState) => RangeSet<Decoration.Range>>()
+    export const source = GardState.Facet.define<(state: GardState) => RangeSet<Range>>()
   }
 }
 
