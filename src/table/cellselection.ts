@@ -1,22 +1,22 @@
 import {GardState, GardSelection, Transaction} from "wordgard/state"
-import {PointDecoration, PointSet, Wordgard} from "wordgard/editor"
+import {Decoration, PointSet, Wordgard} from "wordgard/editor"
 import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
 import {Table, TableRow} from "wordgard/schema-def"
 import {Command, moveByUnit, moveByLine, moveByWord, moveToLineSide} from "wordgard/command"
 
 import {TableMap} from "./tablemap"
 
-const cellSelectionDeco = GardState.Field.define<PointSet<PointDecoration>>({
+const cellSelectionDeco = GardState.Field.define<PointSet<Decoration.Point>>({
   create: getCellDeco,
   update: (deco, tr) => {
     return tr.docChanged || tr.selection ? getCellDeco(tr.state) : deco
   },
-  provide: f => PointDecoration.source.of(s => s.field(f))
+  provide: f => Decoration.Point.source.of(s => s.field(f))
 })
 
-const selectedCell = PointDecoration.attribute("class", "wg-selected-cell")
+const selectedCell = Decoration.Point.attribute("class", "wg-selected-cell")
 
-function getCellDeco(state: GardState): PointSet<PointDecoration> {
+function getCellDeco(state: GardState): PointSet<Decoration.Point> {
   if (!(state.selection instanceof CellSelection)) return PointSet.empty
   return PointSet.create(state.selection.ranges.map(({from}) => [from - 1, selectedCell]))
 }

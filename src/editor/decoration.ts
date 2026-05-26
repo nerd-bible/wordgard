@@ -139,6 +139,34 @@ export namespace Decoration {
                                target: options?.target ? Elt.Selector.parse(options.target) : null})
     }
   }
+
+  // FIXME support value parameter?
+  export abstract class Point implements PointSet.Value {
+    abstract eq(other: PointSet.Value): boolean
+    abstract side: number
+    abstract trackMode: ChangeSet.TrackMode | undefined
+
+    static widget(widget: Widget, spec?: {side?: number, trackMode?: ChangeSet.TrackMode}) {
+      return new WidgetDecoration(widget, spec?.side || 0, spec && "trackMode" in spec ? spec.trackMode : "around")
+    }
+
+    static attribute(attribute: string, value: string, spec?: {target?: string}) {
+      return new AttributeDecoration(attribute, value, spec?.target ? Elt.Selector.parse(spec.target) : null)
+    }
+
+    static shape(shape: Decoration.Shape) {
+      return new ShapeDecoration(shape)
+    }
+
+    static wrapper(wrapper: DecoElt, spec?: {target?: string}) {
+      if (!wrapper.hasContent) throw new Error("Wrapper decoration elements must have a content hole")
+      return new WrapperDecoration(wrapper, spec?.target ? Elt.Selector.parse(spec.target) : null)
+    }
+
+    static source = GardState.Facet.define<(state: GardState) => PointSet<Decoration.Point>>({
+      combine: sources => sources.concat(nodeSelection)
+    })
+  }
 }
 
 type TagShape = {type: Node.Type<any>, shape: (tag: Node.Tag) => Decoration.Shape}
@@ -209,7 +237,7 @@ function addAttrs(shape: Decoration.Shape, attrs: Attributes, inline: boolean) {
   return shape instanceof Elt ? shape.addAttrs(attrs) : Elt.new(inline ? "span" : "div", attrs, [shape])
 }
 
-function applyDeco(shape: Decoration.Shape, deco: PointDecoration, tag: Node.Tag) {
+function applyDeco(shape: Decoration.Shape, deco: Decoration.Point, tag: Node.Tag) {
   if (deco instanceof AttributeDecoration) {
     let attrs: Attributes = [deco.attribute, deco.value]
     return deco.selector && shape instanceof Elt ? shape.addAttrs(attrs, deco.selector) : addAttrs(shape, attrs, tag.isInline)
@@ -321,36 +349,7 @@ class WrapperRangeDecoration<Data> extends RangeDecoration<Data> {
   }
 }
 
-// FIXME support value parameter?
-export abstract class PointDecoration implements PointSet.Value {
-  abstract eq(other: PointSet.Value): boolean
-  abstract side: number
-  abstract trackMode: ChangeSet.TrackMode | undefined
-
-  // FIXME allow elt shapes?
-  static widget(widget: Widget, spec?: {side?: number, trackMode?: ChangeSet.TrackMode}) {
-    return new WidgetDecoration(widget, spec?.side || 0, spec && "trackMode" in spec ? spec.trackMode : "around")
-  }
-
-  static attribute(attribute: string, value: string, spec?: {target?: string}) {
-    return new AttributeDecoration(attribute, value, spec?.target ? Elt.Selector.parse(spec.target) : null)
-  }
-
-  static shape(shape: Decoration.Shape) {
-    return new ShapeDecoration(shape)
-  }
-
-  static wrapper(wrapper: DecoElt, spec?: {target?: string}) {
-    if (!wrapper.hasContent) throw new Error("Wrapper decoration elements must have a content hole")
-    return new WrapperDecoration(wrapper, spec?.target ? Elt.Selector.parse(spec.target) : null)
-  }
-
-  static source = GardState.Facet.define<(state: GardState) => PointSet<PointDecoration>>({
-    combine: sources => sources.concat(nodeSelection)
-  })
-}
-
-class ShapeDecoration extends PointDecoration {
+class ShapeDecoration extends Decoration.Point {
   constructor(readonly shape: Decoration.Shape) { super() }
 
   eq(other: PointSet.Value): boolean {
@@ -361,7 +360,7 @@ class ShapeDecoration extends PointDecoration {
   get side() { return 1e9 }
 }
 
-class WidgetDecoration extends PointDecoration {
+class WidgetDecoration extends Decoration.Point {
   constructor(readonly widget: Widget, readonly side: number, readonly trackMode: ChangeSet.TrackMode | undefined) {
     super()
     if (side >= 1e9) throw new Error("Invalid widget side")
@@ -373,7 +372,7 @@ class WidgetDecoration extends PointDecoration {
   }
 }
 
-class AttributeDecoration extends PointDecoration {
+class AttributeDecoration extends Decoration.Point {
   constructor(readonly attribute: string, readonly value: string, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
@@ -385,7 +384,7 @@ class AttributeDecoration extends PointDecoration {
   get side() { return 1e9 }
 }
 
-class WrapperDecoration extends PointDecoration {
+class WrapperDecoration extends Decoration.Point {
   constructor(readonly elt: DecoElt, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
@@ -396,7 +395,7 @@ class WrapperDecoration extends PointDecoration {
   get side() { return 1e9 }
 }
 
-const nodeSelectionDeco = PointDecoration.attribute("class", "wg-selected-node")
+const nodeSelectionDeco = Decoration.Point.attribute("class", "wg-selected-node")
 
 function nodeSelection(state: GardState) {
   if (state.selection instanceof GardSelection.Node) {
@@ -599,12 +598,12 @@ function applyDel<T>(deleted: number[], deletions: number, array: readonly T[]):
   }
 }
 
-export type DecoSet = {points: Map<(state: GardState) => PointSet<PointDecoration>, PointSet<PointDecoration>>,
+export type DecoSet = {points: Map<(state: GardState) => PointSet<Decoration.Point>, PointSet<Decoration.Point>>,
                        ranges: Map<(state: GardState) => RangeSet<RangeDecoration>, RangeSet<RangeDecoration>>}
 
 export function getDecoSet(state: GardState) {
   let set: DecoSet = {points: new Map, ranges: new Map}
-  for (let src of state.facet(PointDecoration.source)) set.points.set(src, src(state))
+  for (let src of state.facet(Decoration.Point.source)) set.points.set(src, src(state))
   for (let src of state.facet(RangeDecoration.source)) set.ranges.set(src, src(state))
   return set
 }
@@ -1057,7 +1056,7 @@ export class DecoIterator {
   schema: Schema
   pos: Pos
   rangeIter: RangeSet.Iterator<RangeDecoration>[] = []
-  pointIter: PointSet.Iterator<PointDecoration>[] = []
+  pointIter: PointSet.Iterator<Decoration.Point>[] = []
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
     this.tagShapes = state.facet(tagShape)
@@ -1070,7 +1069,7 @@ export class DecoIterator {
       let set = decoSet.ranges.get(s)
       if (set?.length) this.rangeIter.push(set.iter())
     }
-    for (let s of state.facet(PointDecoration.source)) {
+    for (let s of state.facet(Decoration.Point.source)) {
       let set = decoSet.points.get(s)
       if (set?.length) this.pointIter.push(set.iter())
     }
@@ -1088,12 +1087,12 @@ export class DecoIterator {
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
-    let iter = new HeapIterator<RangeDecoration, PointDecoration>(
+    let iter = new HeapIterator<RangeDecoration, Decoration.Point>(
       this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
 
     // Track points that may apply to the node at the start of the next range
-    let pendingDeco: PointDecoration[] = [], pendingPos = -1
+    let pendingDeco: Decoration.Point[] = [], pendingPos = -1
     let pendingShape: ShapeDecoration | null = null, pendingShapeSet: PointSet | null = null
 
     let wrap: Pos.Walker = {
