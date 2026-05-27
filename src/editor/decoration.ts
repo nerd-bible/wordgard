@@ -61,36 +61,70 @@ export namespace Widget {
 export type DecoElt = Elt<Widget | string>
 
 export namespace Decoration {
+  /// Node shapes can be either a widget or an element which may
+  /// contain widgets.
   export type Shape = Widget | DecoElt
 
   export namespace Tag {
+    /// Override the way a given node type is drawn in the editor. By
+    /// default, the `shape` field in the type's definition will be
+    /// used, but extensions returned by this function can provide an
+    /// alternative shape for a given type.
+    ///
+    /// When providing a function here, keep in mind that the result
+    /// will be cached by tag, and you should make sure your function
+    /// is pure.
     export function shape<T extends Node.Type.Ref<any>>(
-      tag: T,
+      type: T,
       shape: Shape | ((tag: Node.Tag.For<T>) => Shape)
     ) {
-      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
+      let tp = type instanceof Node.Type.Base ? type as Node.Type<any> : type.type
       let shapeFunc: (tag: Node.Tag) => Shape = typeof shape == "function"
         ? tag => addMarkAttributes(shape(tag as any), tag)
         : tag => addMarkAttributes(shape, tag)
-      return tagShape.of({type, shape: memo(shapeFunc)})
+      return tagShape.of({type: tp, shape: memo(shapeFunc)})
     }
 
-    // FIXME warn about late use of state
-    // FIXME better name?
-    export function computedShape<T extends Node.Type.Ref<any>>(
-      tag: T,
-      shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape)
-    ) {
-      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
-      return tagShape.compute(state => {
-        let s = shape(state)
-        return {type, shape: typeof s == "function" ? memo(s as any) : () => s}
-      })
+    export namespace shape {
+      /// This function allows you to define a {@link shape | custom
+      /// node shape} that depends on the editor state. It will
+      /// automatically track what slots (see {@link
+      /// GardState.Facet.compute}) you use, and make sure the nodes
+      /// are redrawn when those change.
+      ///
+      /// If your shape function returns a function from a tag, you
+      /// must be careful do any state access you need in the _outer_
+      /// function, not the returned function, or they won't be
+      /// tracked.
+      ///
+      /// You generally don't want to make your shapes depend on
+      /// constantly-changing slots like the document or selection,
+      /// because when the document is big, there's a non-trivial
+      /// amount of work involved when a node shape changes (or may
+      /// have changed).
+      export function dynamic<T extends Node.Type.Ref<any>>(
+        type: T,
+        shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape)
+      ) {
+        let tp = type instanceof Node.Type.Base ? type as Node.Type<any> : type.type
+        return tagShape.compute(state => {
+          let s = shape(state)
+          return {type: tp, shape: typeof s == "function" ? memo(s as any) : () => s}
+        })
+      }
     }
 
-    export function wrapper(tag: Node.Type.Ref<any>, wrapper: DecoElt, options?: {target?: string}) {
+    /// Define a wrapper to be added around a given node type, or some
+    /// part of it. The given elt should include a hole (`0`) to
+    /// indicate where the original shape goes.
+    export function wrapper(type: Node.Type.Ref<any>, wrapper: DecoElt, options?: {
+      /// If given, and matching some element in the node's existing
+      /// shape, only that element will be wrapped.
+      target?: string
+    }) {
+      if (!wrapper.hasContent) throw new Error("Wrapper elements should have a content hole")
       return tagWrapper.of({
-        type: tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type,
+        type: type instanceof Node.Type.Base ? type as Node.Type<any> : type.type,
         elt: wrapper,
         target: options && options.target ? Elt.Selector.parse(options.target) : null
       })
@@ -101,40 +135,59 @@ export namespace Decoration {
         : place == "end" ? WidgetPlace.End : WidgetPlace.Start
     }
 
+    /// Add a widget to every instance of the given node type. Such
+    /// widgets can appear before or after the node, and for plots
+    /// that aren't rendered as atoms, at its start or end.
+    ///
+    /// When a function, `widget` will be cached by tag, and should be
+    /// pure.
     export function widget<T extends Node.Type.Ref<any>>(
-      tag: T,
+      type: T,
       place: "before" | "after" | "start" | "end",
       widget: Widget | ((tag: Node.Tag.For<T>) => Widget)
     ) {
       return tagWidget.of({
-        type: tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type,
+        type: type instanceof Node.Type.Base ? type as Node.Type<any> : type.type,
         place: getPlace(place),
         widget: typeof widget == "function" ? memo(widget as any) : (() => widget)
       })
     }
 
-    export function computedWidget<T extends Node.Type.Ref<any>>(
-      tag: T,
-      place: "before" | "after" | "start" | "end",
-      widget: (state: GardState) => Widget | ((tag: Node.Tag.For<T>) => Widget)
-    ) {
-      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
-      let p = getPlace(place)
-      return tagWidget.compute(state => {
-        let w = widget(state)
-        return {
-          type,
-          place: p,
-          widget: typeof w == "function" ? memo(w as any) : (() => w)
-        }
-      })
+    export namespace widget {
+      /// Define a node widget decoration that depends on some aspect
+      /// of the editor state. See the notes for {@link
+      /// Decoration.Tag.shape.dynamic}.
+      export function dynamic<T extends Node.Type.Ref<any>>(
+        type: T,
+        place: "before" | "after" | "start" | "end",
+        widget: (state: GardState) => Widget | ((tag: Node.Tag.For<T>) => Widget)
+      ) {
+        let tp = type instanceof Node.Type.Base ? type as Node.Type<any> : type.type
+        let p = getPlace(place)
+        return tagWidget.compute(state => {
+          let w = widget(state)
+          return {
+            type: tp,
+            place: p,
+            widget: typeof w == "function" ? memo(w as any) : (() => w)
+          }
+        })
+      }
     }
 
+    /// Add an attribute to the representation of a given node type.
     export function attribute<T extends Node.Type.Ref<any>>(
       tag: T,
       attr: string,
       value: string | ((tag: Node.Tag.For<T>) => string),
-      options?: {target?: string}
+      options?: {
+        /// By default, the attribute is added to the outer element
+        /// (or a wrapper element if the node is rendered as a
+        /// widget). If this option is given, and matches an element
+        /// in the representation, it will be added to that element
+        /// instead.
+        target?: string
+      }
     ) {
       let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
       return tagAttribute.of({type, attr, value: typeof value == "string" ? () => value : value as any,
@@ -142,12 +195,29 @@ export namespace Decoration {
     }
   }
 
+  /// A point decoration is a decoration that targets a given position
+  /// in the document, or the node after a given position. Sets of
+  /// point decorations can be provided as point sets through {@link
+  /// Decoration.Point.source}.
   export abstract class Point implements PointSet.Value {
     abstract eq(other: PointSet.Value): boolean
     abstract side: number
     abstract trackMode: ChangeSet.TrackMode | undefined
 
-    static widget(widget: Widget, spec?: {side?: number, trackMode?: ChangeSet.TrackMode}) {
+    /// Display a widget at this point.
+    static widget(widget: Widget, spec?: {
+      /// Determines where this widget appears relative to the cursor
+      /// (negative means before, positive after, zero means to make
+      /// it depend on the cursor's own side) and other widgets in the
+      /// same position.
+      side?: number,
+      /// What side to track when changes happen around the widget.
+      /// The default is to keep the widget around unless the content
+      /// on both sides is deleted. You can pass undefined to indicate
+      /// the widget should not be deleted by changes, or
+      /// `"before"`/`"after"` to use one specific side.
+      trackMode?: ChangeSet.TrackMode | undefined
+    }) {
       return new WidgetDecoration(widget, spec?.side || 0, spec && "trackMode" in spec ? spec.trackMode : "around")
     }
 
