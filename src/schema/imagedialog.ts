@@ -150,7 +150,8 @@ function buildImagePanel(wg: Wordgard) {
     let data = new FormData(form)
     let src = data.get("src") as string
     if (!src) return
-    let type = data.get("type") as string | null, cap = !!data.get("caption") || !state.schema.has(Figure)
+    let type = (data.get("type") as string | null) ?? (state.schema.has(Image) ? "inline" : "start")
+    let cap = !!data.get("caption") || !state.schema.has(Figure)
     let marks: readonly Mark<any>[] = []
     if (type == "center" || type == "end") marks = Alignment.of(type).addToSet(marks)
     if (data.get("alt")) marks = ImageAlt.of(data.get("alt") as string).addToSet(marks)
