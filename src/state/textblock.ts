@@ -1,4 +1,4 @@
-import {Plot, Leaf, Node} from "wordgard/doc"
+import {Plot, Leaf} from "wordgard/doc"
 import {BidiSpan, computeOrder} from "./bidi"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
@@ -13,26 +13,39 @@ const enum Section {
   Shift = 2,
 }
 
-// FIXME export?
+/// A textblock map contains the text in a textblock as a string, and
+/// can helps between string offsets and document positions.
+///
+/// Note that this is not the way to convert a piece of document to a
+/// string. Use {@link doc.Plot.textContent} for that.
 export class TextblockMap {
   private constructor(
+    /// The start position of the textblock content.
     readonly start: number,
+    /// The textblock's document node.
     readonly node: Plot,
+    /// Whether the base direction of this block is left-to-right.
     readonly ltr: boolean,
+    /// The text in the block. Non-text leaf nodes and nodes with
+    /// block content will be replaced by a single 0xfffc character in
+    /// this string.
     readonly text: string,
     private _order: readonly BidiSpan[] | null,
     // Describe the correspondence between the indices and document
     // positions. Each number starts with 2 bits holding a Section
     // flag, followed by the length of the section.
-    readonly sections: number[]
+    private sections: number[]
   ) {}
 
+  /// The order of the text in this block.
   get order() {
     return this._order || (this._order = computeOrder(this.text, this.ltr, []))
   }
 
-  // FIXME handle isolates
+  /// Get the map for the given textblock. Will cache for unchanged
+  /// blocks.
   static get(start: number, node: Plot, ltr: boolean) {
+    // FIXME handle isolates
     let cached = cache.get(node)
     if (cached && cached.start == start && cached.ltr == ltr) return cached
     let result = cached && cached.ltr == ltr
@@ -42,16 +55,16 @@ export class TextblockMap {
     return result
   }
 
-  static create(start: number, node: Plot, ltr: boolean) {
+  private static create(start: number, node: Plot, ltr: boolean) {
     let text = "", sections: number[] = [], sectionPos = 0
     let flush = (upto: number) => {
       if (upto > sectionPos) sections.push((upto - sectionPos) << Section.Shift)
     }
-    let scan = (node: Node, pos: number) => {
-      if (!node.isLeaf) for (let ch of node.content) {
+    let scan = (node: Plot, pos: number) => {
+      for (let ch of node.content) {
         if (ch.is(Leaf.Text)) {
           text += ch.param
-        } else if (ch.type.isLeaf) {
+        } else if (ch.isLeaf || !ch.inlineContent) {
           text += "\ufffc"
           if (ch.length > 1) {
             flush(pos)
@@ -78,6 +91,8 @@ export class TextblockMap {
     return new TextblockMap(start, node, ltr, text, null, sections)
   }
 
+  /// Get the string index for a document position. Positions outside
+  /// of the textblock will be clipped to its start or end.
   toIndex(pos: number) {
     if (pos < this.start) return 0
     let off = pos - this.start, idx = 0
@@ -98,6 +113,7 @@ export class TextblockMap {
     return idx
   }
 
+  /// Get the document position for a given string index.
   fromIndex(index: number) {
     let off = this.start
     for (let n of this.sections) {
@@ -116,20 +132,21 @@ export class TextblockMap {
     return off
   }
 
-  // This implementation moves strictly visually, without concern for a
-  // traversal visiting every logical position in the string. It will
-  // still do so for simple input, but situations like multiple isolates
-  // with the same level next to each other, or text going against the
-  // main dir at the end of the line, will make some positions
-  // unreachable with this motion. Each visible cursor position will
-  // correspond to the lower-level bidi span that touches it.
-  //
-  // The alternative would be to solve an order globally for a given
-  // line, making sure that it includes every position, but that would
-  // require associating non-canonical (higher bidi span level)
-  // positions with a given visual position, which is likely to confuse
-  // people. (And would generally be a lot more complicated.)
+  /// @internal
   moveVisually(start: number, side: number, forward: boolean, skipped?: string[]): {pos: number, side: -1 | 1} | null {
+    // This implementation moves strictly visually, without concern for a
+    // traversal visiting every logical position in the string. It will
+    // still do so for simple input, but situations like multiple isolates
+    // with the same level next to each other, or text going against the
+    // main dir at the end of the line, will make some positions
+    // unreachable with this motion. Each visible cursor position will
+    // correspond to the lower-level bidi span that touches it.
+    //
+    // The alternative would be to solve an order globally for a given
+    // line, making sure that it includes every position, but that would
+    // require associating non-canonical (higher bidi span level)
+    // positions with a given visual position, which is likely to confuse
+    // people. (And would generally be a lot more complicated.)
     let startIndex = this.toIndex(start), {order, ltr} = this
     let spanI = BidiSpan.find(order, startIndex, side)
     let span = order[spanI], spanEnd = span.side(forward, ltr)
@@ -152,6 +169,7 @@ export class TextblockMap {
     return {pos: this.fromIndex(nextIndex), side: span.forward(forward, ltr) ? -1 : 1}
   }
 
+  /// @internal
   skipWord(start: number, side: number, forward: boolean, visually: boolean): {pos: number, side: -1 | 1} | null {
     let word = "", skipped = [""], cur: {pos: number, side: -1 | 1} | null = null
     let history = new Map<number, {pos: number, side: -1 | 1}>()
@@ -180,7 +198,10 @@ export class TextblockMap {
     return history.get(segments[forward ? 0 : segments.length - 1].segment.length) || cur
   }
 
-  visualTextblockSide(start: boolean): {pos: number, side: -1 | 1} {
+  /// Get the position at the start or end of the textblock. Note that
+  /// in bidirectional text this may not be the actual start or end
+  /// position of the node.
+  visualSide(start: boolean): {pos: number, side: -1 | 1} {
     let pos, side: -1 | 1
     if (start) {
       let span = this.order[0]
@@ -192,6 +213,7 @@ export class TextblockMap {
     return {pos: this.fromIndex(pos), side}
   }
 
+  /// @internal
   moveLogically(start: number, forward: boolean): {pos: number, side: -1 | 1} | null {
     let index = this.toIndex(start)
     let next = findClusterBreak(this.text, index, forward)

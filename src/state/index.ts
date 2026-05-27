@@ -1,7 +1,6 @@
 export {GardState} from "./state"
 export {GardSelection} from "./selection"
 export {Transaction} from "./transaction"
-// FIXME
-export * from "./textblock"
+export {TextblockMap} from "./textblock"
 export {BidiSpan} from "./bidi"
 export {Correction} from "./correction"

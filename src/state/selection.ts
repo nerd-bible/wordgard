@@ -185,8 +185,8 @@ export abstract class GardSelection {
   /// textblock.
   static atEnd(cx: GardSelection.Context, block?: Pos.Plot) {
     let found = block
-      ? TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node)).visualTextblockSide(false)
-      : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textLTR).visualTextblockSide(false)
+      ? TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node)).visualSide(false)
+      : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textLTR).visualSide(false)
       : scanNormalFrom(cx, cx.doc.length, -1, false, false) ?? {pos: cx.doc.length, side: -1}
     return GardSelection.cursor(found.pos, found.side)
   }
@@ -426,8 +426,8 @@ export namespace GardSelection {
 
 export function cursorAtStart(cx: GardSelection.Context, block?: Pos.Plot) {
   let found = block
-    ? TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node)).visualTextblockSide(true)
-    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textblockLTR(cx.doc)).visualTextblockSide(true)
+    ? TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node)).visualSide(true)
+    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textblockLTR(cx.doc)).visualSide(true)
     : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, side: 1}
   return GardSelection.cursor(found.pos, found.side)
 }
@@ -478,7 +478,7 @@ function scanNormalFrom(
     let {node, parent: next} = parent
     if (node.inlineContent) {
       if (cx.config.visualCursorMotion)
-        return TextblockMap.get(parent.start, parent.node, cx.config.textblockLTR(parent.node)).visualTextblockSide(forward)
+        return TextblockMap.get(parent.start, parent.node, cx.config.textblockLTR(parent.node)).visualSide(forward)
       return {pos: p, side: forward ? 1 : -1}
     }
     if (index == (forward ? node.content.length : 0)) {
@@ -521,7 +521,7 @@ function skipWord(cx: GardSelection.Context, start: number, side: -1 | 1, forwar
       let next = map.skipWord(pos, side, forward, visually)
       if (next) return next
       if (!block.parent) return last
-      let end: {pos: number, side: -1 | 1} = visually ? map.visualTextblockSide(!forward)
+      let end: {pos: number, side: -1 | 1} = visually ? map.visualSide(!forward)
         : forward ? {pos: block.end, side: -1} : {pos: block.start, side: 1}
       if (end.pos != start) last = end
       pos = forward ? block.after : block.before

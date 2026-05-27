@@ -181,6 +181,8 @@ export class GardState {
     return result
   }
 
+  /// Compute the textblock map for the given plot (which should be a
+  /// textblock).
   textblockMap(node: Pos.Plot) {
     return TextblockMap.get(node.start, node.node, this.textblockLTR(node.node))
   }
@@ -267,10 +269,8 @@ export class GardState {
   /// Return the text direction in a given textblock (by tag).
   textblockLTR(plot: Plot) { return this.config.textblockLTR(plot) }
 
-  get visualCursorMotion() {
-    return this.facet(GardState.visualCursorMotion)
-  }
-
+  /// Return the extent of the word around the given position, as a
+  /// text selection.
   wordAt(pos: number, bias: -1 | 1 = 1) {
     return wordAt(this, pos, bias)
   }
