@@ -22,14 +22,8 @@ function readHTML(html: string): HTMLElement {
 }
 
 function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
-  if (doc instanceof Plot.Doc) {
-    if (doc.schema != schema) {
-      if (doc.schema.elements.some(e => !schema.elements.includes(e)))
-        throw new SchemaError("Schema mismatch between document and editor configuration")
-      return schema.doc(doc.content)
-    }
-    return doc
-  }
+  if (doc instanceof Plot.Doc)
+    return doc.schema == schema ? doc : schema.doc(doc.content)
   if (typeof doc == "function") return doc(schema)
   if (typeof doc == "string") doc = readHTML(doc)
   let {nodeType} = doc as any
@@ -168,10 +162,9 @@ export class GardState {
                                             (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values
       let schemaElts = conf.staticFacet(GardState.schemaElement)
-      if (schemaElts.some(elt => elt instanceof Plot.Type && elt.isDoc)) {
-        let schema = Schema.define(schemaElts)
-        doc = schema.doc(doc.content)
-      }
+      if (schemaElts != this.facet(GardState.schemaElement) &&
+          schemaElts.some(elt => elt instanceof Plot.Type && elt.isDoc))
+        doc = Schema.define(schemaElts).doc(doc.content)
     } else {
       startValues = tr.startState.values.slice()
     }
@@ -186,7 +179,7 @@ export class GardState {
   }
 
   /// @internal
-  recordAccess<T>(slots: Slot[], f: (state: GardState) => T): T {
+  recordAccess<T>(slots: Slot[] | null, f: (state: GardState) => T): T {
     let prev = this.trackAccess
     this.trackAccess = slots
     let result = f(this)
@@ -236,10 +229,14 @@ export class GardState {
   }
 
   /// Create a new state. You'll usually only need this when
-  /// initializing an editor—updated states are created by applying
-  /// transactions.
+  /// initializing an editor or loading a new document—updated states
+  /// are created by applying transactions.
   ///
-  /// The schema of the 
+  /// The schema of the state can be provided either via the {@link
+  /// GardState.schemaElement | configuration} or by passing in an
+  /// initialized document (which will have its own schema). If the
+  /// configuration contains a document plot type, the schema from the
+  /// configuration will be used, even if a document was provided.
   static create(spec: GardState.Spec): GardState {
     let config = spec.config instanceof GardState.Configuration ? spec.config
       : GardState.Configuration.resolve(spec.config || [], new Map)
@@ -294,7 +291,7 @@ export namespace GardState {
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
     selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection)
-    /// Configuration for this state.
+    /// The configuration for this state.
     config?: GardState.Extension | GardState.Configuration
   }
 
@@ -426,7 +423,8 @@ export namespace GardState {
       readonly compareInput: (a: Input, b: Input) => boolean,
       /// @internal
       readonly compare: (a: Output, b: Output) => boolean,
-      private isStatic: boolean,
+      /// True when this is a static facet.
+      readonly isStatic: boolean,
       enables: GardState.Extension | undefined | ((self: GardState.Facet<Input, Output>) => GardState.Extension)
     ) {
       this.default = combine(none)
@@ -568,6 +566,7 @@ export namespace GardState {
     }
 
     staticFacet<Output>(facet: GardState.Facet<any, Output>): Output {
+      if (!facet.isStatic) throw new Error("Only static facets can be accessed from a configuration")
       let addr = this.address[facet.id]
       return addr == null ? facet.default : this.staticValues[addr >> 1]
     }
@@ -741,9 +740,15 @@ export namespace GardState {
     static reconfigureCompartment = Transaction.Effect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
 
-  /// Facet used to register schema elements. FIXME describe use
+  /// Facet used to register {@link Schema | schema} elements. **If**
+  /// a configuration contains a {@link Plot.defineDoc | document}
+  /// type, the editor's document schema will be derived from the
+  /// content of this facet. (Otherwise, the state will try to use the
+  /// schema provided via the {@link GardState.Spec.doc} option, or
+  /// error is none is provided.)
   export const schemaElement = GardState.Facet.define<Schema.Element | readonly Schema.Element[], readonly Schema.Element[]>({
-    combine: values => values.reduce((set: readonly Schema.Element[], elt) => set.concat(elt), none)
+    combine: values => values.reduce((set: readonly Schema.Element[], elt) => set.concat(elt), none),
+    static: true
   })
 
   /// This facet controls the value of the
@@ -873,7 +878,7 @@ class FacetProvider<Input> {
       update(state, tr) {
         depSet.update(dependencies, addresses)
         if ((depSet.doc && tr.docChanged) || (depSet.sel && (tr.docChanged || tr.selection)) ||
-            (depSet.schema && tr.startState.schema != tr.newDoc.schema) || ensureAll(state, depSet.addrs)) {
+            (depSet.schema && tr.startState.schema != state.schema) || ensureAll(state, depSet.addrs)) {
           let newVal = auto ? state.recordAccess(auto, getter) : getter(state)
           if (multi ? !compareArray(newVal, state.values[idx], compare) : !compare(newVal, state.values[idx])) {
             state.values[idx] = newVal

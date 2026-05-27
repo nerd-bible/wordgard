@@ -1,7 +1,8 @@
 import ist from "ist"
 import {GardState, Transaction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
-import {basicBuilders} from "./schema.ts"
+import {Cell} from "wordgard/schema-def"
+import {basicBuilders, basicSchema} from "./schema.ts"
 
 const {doc, p} = basicBuilders
 
@@ -49,7 +50,7 @@ describe("EditorState facets", () => {
     ist(st.facet(num).join(), "2,1,4")
   })
 
-  it("supports dynamic facet", () => {
+  it("supports dynamic facet inputs", () => {
     let st = mk(num.of(1), num.compute(() => 88))
     ist(st.facet(num).join(), "1,88")
   })
@@ -87,6 +88,16 @@ describe("EditorState facets", () => {
     ist(st.facet(num).join(), "2")
     st = st.update({}).state
     ist(st.facet(num).join(), "2")
+  })
+
+  it("can specify a dependency on the schema", () => {
+    let count = 0
+    let st = mk(num.compute(state => (state.schema, count++)), basicSchema.elements.map(e => GardState.schemaElement.of(e)))
+    ist(st.facet(num).join(), "0")
+    st = st.update({changes: {insert: [Leaf.text("hello")], from: 1}}).state
+    ist(st.facet(num).join(), "0")
+    st = st.update({effects: Transaction.Effect.appendConfig.of(GardState.schemaElement.of(Cell))}).state
+    ist(st.facet(num).join(), "1")
   })
 
   it("derives dependencies of computed facets", () => {
