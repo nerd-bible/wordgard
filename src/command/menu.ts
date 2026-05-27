@@ -256,11 +256,15 @@ export namespace Menu {
 
     /// Inline style items. Will, by default, contain buttons to
     /// create emphasized text, links, and so on.
-    export const inlineStyle = Group.define({parent: top, rank: 50, margin: true, overflow: {at: 5}})
+    export const inline = Group.define({parent: top, rank: 50, margin: true, overflow: {at: 5}})
 
     /// Group for block-related items. Holds things like list toggles
     /// and text alignment.
-    export const blockMenu = Group.define({parent: top, rank: 70, margin: true})
+    export const block = Group.define({parent: top, rank: 70, margin: true})
+
+    /// Group for inserting elements, such as images or tables, into
+    /// the document.
+    export const insert = Group.define({parent: top, rank: 90, margin: true})
   }
 
   /// A submenu is a menu item that, when activated, shows the menu

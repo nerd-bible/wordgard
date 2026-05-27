@@ -99,7 +99,9 @@ export class BidiSpan {
     return maybe
   }
 
-  // FIXME find better place
+  /// Query whether the given character has a strong direction.
+  /// Returns null when not, true when left-to-right, and false when
+  /// right-to-left.
   static strongDir(ch: number) {
     let type = charType(ch)
     if (type == T.L) return true
@@ -398,6 +400,6 @@ export function computeOrder(line: string, ltr: boolean, isolates: readonly Isol
   return order
 }
 
-export function trivialOrder(length: number) {
+function trivialOrder(length: number) {
   return [new BidiSpan(0, length, 0)]
 }

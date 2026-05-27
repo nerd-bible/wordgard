@@ -112,8 +112,6 @@ function startUpload(wg: Wordgard, file: HTMLInputElement, set: (url: string) =>
   })
 }
 
-// FIXME add support for custom mark fields. Move size into that.
-
 function buildImagePanel(wg: Wordgard) {
   let {state} = wg
   let sel = (state.field(imageDialog) || state.selection).resolve(state.doc)

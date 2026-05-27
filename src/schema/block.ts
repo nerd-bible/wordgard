@@ -123,7 +123,7 @@ export namespace alignment {
 
   export const button = Menu.Submenu.define({
     description: phrases.ref("alignment"),
-    parent: Menu.Group.blockMenu,
+    parent: Menu.Group.block,
     arrow: false,
     rank: 10
   })
@@ -192,7 +192,7 @@ export namespace direction {
 
   export const button = Menu.Submenu.define({
     description: phrases.ref("text_dir"),
-    parent: Menu.Group.blockMenu,
+    parent: Menu.Group.block,
     arrow: false,
     rank: 20
   })
@@ -247,7 +247,7 @@ export namespace blockquote {
       icon: "M75 75a6 6 0 0 0 6-6V53a6 6 0 0 0-6-6h-9q0-3 0-7 1-3 2-6t3-4q2-2 5-2V19q-5 0-9 2a21 21 0 0 0-7 6 31 31 0 0 0-4 9A48 48 0 0 0 56 47V69a5 5 0 0 0 6 6zm-37 0a6 6 0 0 0 6-6V53a6 6 0 0 0-6-6H29q0-3 0-7 1-3 2-6 1-3 3-4 2-2 5-2V19q-5 0-9 2a21 21 0 0 0-7 6 31 31 0 0 0-4 9A48 48 0 0 0 19 47V69a6 6 0 0 0 6 6z"
     },
     description: phrases.ref("toggle_quote"),
-    parent: Menu.Group.blockMenu,
+    parent: Menu.Group.block,
     rank: 40
   })
 

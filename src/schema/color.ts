@@ -243,7 +243,7 @@ export const colorPicker = Menu.CustomControl.define({
 })
 
 export function color(): GardState.Extension {
-  return [GardState.schemaElement.of(Color), color.button, colorPickerTheme, Menu.Group.inlineStyle]
+  return [GardState.schemaElement.of(Color), color.button, colorPickerTheme, Menu.Group.inline]
 }
 
 export namespace color {
@@ -253,14 +253,14 @@ export namespace color {
     },
     description: phrases.ref("text_color"),
     arrow: false,
-    parent: Menu.Group.inlineStyle,
-    rank: 70,
+    parent: Menu.Group.inline,
+    rank: 80,
     content: [colorPicker]
   })
 }
 
 export function backgroundColor(): GardState.Extension {
-  return [GardState.schemaElement.of(BackgroundColor), backgroundColor.button, colorPickerTheme, Menu.Group.inlineStyle]
+  return [GardState.schemaElement.of(BackgroundColor), backgroundColor.button, colorPickerTheme, Menu.Group.inline]
 }
 
 const backgroundPicker = Menu.CustomControl.define({
@@ -280,8 +280,8 @@ export namespace backgroundColor {
     },
     description: phrases.ref("background_color"),
     arrow: false,
-    parent: Menu.Group.inlineStyle,
-    rank: 75,
+    parent: Menu.Group.inline,
+    rank: 85,
     content: [backgroundPicker]
   })
 }

@@ -21,7 +21,7 @@ export namespace bulletList {
       directional: true
     },
     description: phrases.ref("toggle_bullet_list"),
-    parent: Menu.Group.blockMenu,
+    parent: Menu.Group.block,
     rank: 20
   })
 }
@@ -43,7 +43,7 @@ export namespace orderedList {
       directional: true
     },
     description: phrases.ref("toggle_ordered_list"),
-    parent: Menu.Group.blockMenu,
+    parent: Menu.Group.block,
     rank: 30
   })
 }

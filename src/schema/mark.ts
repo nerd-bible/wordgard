@@ -5,7 +5,7 @@ import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
 export function strong(): GardState.Extension {
-  return [GardState.schemaElement.of(Strong), strong.button, Menu.Group.inlineStyle, strong.keyBinding]
+  return [GardState.schemaElement.of(Strong), strong.button, Menu.Group.inline, strong.keyBinding]
 }
 
 export namespace strong {
@@ -16,7 +16,7 @@ export namespace strong {
 
   export const button = Menu.Button.toggleMark({
     mark: Strong,
-    parent: Menu.Group.inlineStyle,
+    parent: Menu.Group.inline,
     rank: 10,
     description: phrases.ref("toggle_strong"),
     label: {
@@ -37,7 +37,7 @@ export namespace emphasis {
 
   export const button = Menu.Button.toggleMark({
     mark: Emphasis,
-    parent: Menu.Group.inlineStyle,
+    parent: Menu.Group.inline,
     rank: 15,
     description: phrases.ref("toggle_em"),
     label: {
@@ -58,7 +58,7 @@ export namespace code {
 
   export const button = Menu.Button.toggleMark({
     mark: Code,
-    parent: Menu.Group.inlineStyle,
+    parent: Menu.Group.inline,
     rank: 30,
     description: phrases.ref("toggle_code"),
     label: {
@@ -79,7 +79,7 @@ export namespace underline {
 
   export const button = Menu.Button.toggleMark({
     mark: Underline,
-    parent: Menu.Group.inlineStyle,
+    parent: Menu.Group.inline,
     rank: 60,
     description: phrases.ref("toggle_underline"),
     label: {
@@ -100,7 +100,7 @@ export namespace strikethrough {
 
   export const button = Menu.Button.toggleMark({
     mark: Strikethrough,
-    parent: Menu.Group.inlineStyle,
+    parent: Menu.Group.inline,
     rank: 65,
     description: phrases.ref("toggle_strikethrough"),
     label: {
@@ -121,8 +121,8 @@ export namespace superscript {
 
   export const button = Menu.Button.toggleMark({
     mark: Superscript,
-    parent: Menu.Group.inlineStyle,
-    rank: 80,
+    parent: Menu.Group.inline,
+    rank: 70,
     description: phrases.ref("toggle_super"),
     label: {
       icon: "m27 78 6-18H55l6 18H69L48 19H40L19 78zm17-50 9 26h-18l9-26zm32-11v0c4 -10 12 0 5 6l-11 11V38h22v-6h-12v0l6-6c3-3 5-5 5-10 0-5-4-9-11-9C72 6 69 11 69 16v0z"
@@ -142,8 +142,8 @@ export namespace subscript {
 
   export const button = Menu.Button.toggleMark({
     mark: Subscript,
-    parent: Menu.Group.inlineStyle,
-    rank: 85,
+    parent: Menu.Group.inline,
+    rank: 75,
     description: phrases.ref("toggle_sub"),
     label: {
       icon: "m21 78 6-18H49l6 18H63L41 19H34L13 78zm17-50 9 26h-18l9-26zm38 45v0c4 -10 12 0 5 6l-11 11V94h22v-6h-12v0l6-6c3-3 5-5 5-10 0-5-4-9-11-9-8 0-11 5-11 10v0z"
