@@ -1,17 +1,17 @@
 import {Wordgard, defaultKeymap, menuBar} from "wordgard/editor"
-import {fullSchema} from "wordgard/schema"
+import {inlineSchema} from "wordgard/schema"
 import {history} from "wordgard/history"
-import {tables, tableMenu} from "wordgard/table"
+//import {tables, tableMenu} from "wordgard/table"
 
 ;(window as any).wg = new Wordgard({
   parent: document.body,
   doc: `<p><span style="color: red">Hell</span>o</p>
 `,
   config: [
-    fullSchema(),
+    inlineSchema(),
     defaultKeymap,
     history(),
     menuBar(),
-    tables(), tableMenu(),
+//    tables(), tableMenu(),
   ]
 })

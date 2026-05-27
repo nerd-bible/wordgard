@@ -1,6 +1,7 @@
 import {Plot, Leaf, Pos, ChangeSet} from "wordgard/doc"
 import {GardState, GardSelection, BidiSpan} from "wordgard/state"
-import {Doc, Paragraph, Heading, CodeBlock, Blockquote, Alignment, Direction, HorizontalRule} from "wordgard/schema-def"
+import {Doc, InlineDoc, Paragraph, Heading, CodeBlock,
+        Blockquote, Alignment, Direction, HorizontalRule} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
 import {Command, Menu, setTextblockType, setAlignment, setDirection, toggleBlock} from "wordgard/command"
 import {history} from "wordgard/history"
@@ -8,6 +9,10 @@ import {Wordgard, KeyBinding, InputRule} from "wordgard/editor"
 
 export function blockDoc(): GardState.Extension {
   return GardState.schemaElement.of(Doc)
+}
+
+export function inlineDoc(): GardState.Extension {
+  return GardState.schemaElement.of(InlineDoc)
 }
 
 function selectionInType(tag: Plot.Tag.Any) {
