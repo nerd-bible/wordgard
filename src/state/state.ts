@@ -83,15 +83,6 @@ export class GardState {
     return this._selection
   }
 
-  /// @internal
-  track(slot: Slot) {
-    let track = this.trackAccess
-    if (!track) return null
-    addValue(track, slot)
-    this.trackAccess = null
-    return track
-  }
-
   /// Retrieve the value of a [state field](#state.StateField). Throws
   /// an error when the state doesn't have that field, unless you pass
   /// `false` as second parameter.
@@ -103,19 +94,22 @@ export class GardState {
       if (require) throw new RangeError("Field is not present in this state")
       return undefined
     }
-    let track = this.track(field)
+    let track = this.trackAccess
+    if (track) {
+      addValue(track, field)
+      track = null
+    }
     ensureAddr(this, addr)
-    this.trackAccess = track
+    if (track) this.trackAccess = track
     return getAddr(this, addr)
   }
 
   /// Get the value of a state [facet](#state.Facet).
   facet<Output>(facet: GardState.Facet.Reader<Output>): Output {
-    let track = this.track(facet)
+    if (this.trackAccess) addValue(this.trackAccess, facet)
     let addr = this.config.address[facet.id]
     if (addr == null) return facet.default
     ensureAddr(this, addr)
-    this.trackAccess = track
     return getAddr(this, addr)
   }
 
@@ -872,14 +866,14 @@ class FacetProvider<Input> {
 
     return {
       create(state) {
-        state.values[idx] = auto ? state.recordAccess(auto, getter) : getter(state)
+        state.values[idx] = state.recordAccess(auto, getter)
         return SlotStatus.Changed
       },
       update(state, tr) {
         depSet.update(dependencies, addresses)
         if ((depSet.doc && tr.docChanged) || (depSet.sel && (tr.docChanged || tr.selection)) ||
             (depSet.schema && tr.startState.schema != state.schema) || ensureAll(state, depSet.addrs)) {
-          let newVal = auto ? state.recordAccess(auto, getter) : getter(state)
+          let newVal = state.recordAccess(auto, getter)
           if (multi ? !compareArray(newVal, state.values[idx], compare) : !compare(newVal, state.values[idx])) {
             state.values[idx] = newVal
             return SlotStatus.Changed
@@ -900,7 +894,7 @@ class FacetProvider<Input> {
             return 0
           }
         } else {
-          newVal = auto ? state.recordAccess(auto, getter) : getter(state)
+          newVal = state.recordAccess(auto, getter)
         }
         state.values[idx] = newVal
         return SlotStatus.Changed

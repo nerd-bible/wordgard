@@ -113,6 +113,20 @@ describe("EditorState facets", () => {
     ist(ran, 3)
   })
 
+  it("only tracks direct, not transitive dependencies", () => {
+    let ran = 0
+    let st = mk(bool.compute(st => st.doc.length > 2),
+                str.compute(st => st.facet(bool)[0] ? "ok" : "o"),
+                num.compute(st => { ran++; return st.facet(str)[0].length }))
+    ist(ran, 1)
+    ist(st.facet(num)[0], 1)
+    st = st.update({changes: {from: 1, insert: [Leaf.text("a")]}}).state
+    ist(ran, 2)
+    ist(st.facet(num)[0], 2)
+    st = st.update({changes: {from: 2, insert: [Leaf.text("b")]}}).state
+    ist(ran, 2)
+  })
+
   it("can provide multiple values at once", () => {
     let st = mk(num.computeN(s => s.doc.length % 2 ? [100, 10] : []), num.of(1))
     ist(st.facet(num).join(), "1")
