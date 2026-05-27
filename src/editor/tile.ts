@@ -619,7 +619,7 @@ export class WidgetTile extends Tile {
 
   handleEvent(event: Event, wg: Wordgard) { return this.widget.type.handleEvent(event, wg) }
 
-  destroy() { this.widget.type.destroy(this.widget.value) }
+  destroy() { this.widget.type.destroy(this.widget.value, this.dom) }
 
   toString() {
     return this.widget.type == Widget.EditableText || this.widget.type == Widget.Text

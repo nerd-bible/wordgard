@@ -3,48 +3,76 @@ import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "w
 import {Attrs} from "./attributes"
 import {type Wordgard} from "./editor"
 
+/// A widget describes a piece of DOM content that can be used to
+/// render a node, a part of a node, or added via a decoration. Each
+/// widget has a type and a parameter value.
 export class Widget<T = unknown> {
+  /// This widget's type. The type mangling is a kludge to make sure
+  /// `Widget<T>` is a subtype of `Widget<unknown>`.
   readonly type: Widget.Type<unknown extends T ? any : Widget.Type<T>>
 
-  constructor(type: Widget.Type<T>, readonly value: T) { this.type = type as any }
+  private constructor(type: Widget.Type<T>, readonly value: T) { this.type = type as any }
 
+  /// @internal
+  static new<T>(type: Widget.Type<T>, value: T) { return new Widget(type, value) }
+
+  /// Compare this widget to another widget object.
   eq(other: any) {
     return other instanceof Widget && other.type == this.type && this.type.eq(this.value as any, other.value)
   }
 
+  /// Define a widget type.
   static define<T>(spec: Widget.Spec<T>) {
-    return new Widget.Type(spec)
+    return Widget.Type.new(spec)
   }
 
+  /// Create a singleton widget.
   static create(spec: Widget.Spec<null>) {
-    return new Widget.Type<null>(spec).of(null)
+    return Widget.Type.new<null>(spec).of(null)
   }
 
+  /// @internal
   get hasContent() { return false }
 }
 
 export namespace Widget {
+  /// Specifies a widget type.
   export type Spec<T> = {
+    /// Render the widget as DOM content.
     render: (value: T) => Element | Text
+    /// Compare the widget value for equality. Will default to `===`.
     eq?: (a: T, b: T) => boolean
-    destroy?: (value: T) => void
+    /// Called when the widget is removed from the document.
+    destroy?: (value: T, dom: Element | Text) => void
+    /// Called before the editor handles a DOM event that comes from
+    /// inside the widget. May return true to indicate that no further
+    /// handling of the event should happen.
     handleEvent?: (event: Event, wg: Wordgard) => boolean
   }
 
+  /// Each widget has an associated type that describes how it
+  /// behaves.
   export class Type<T> {
-    render: (value: T) => Element | Text
-    eq: (a: T, b: T) => boolean
-    handleEvent: (event: Event, wg: Wordgard) => boolean
-    destroy: (value: T) => void
+    private constructor(
+      /// @internal
+      readonly render: (value: T) => Element | Text,
+      /// @internal
+      readonly eq: (a: T, b: T) => boolean,
+      /// @internal
+      readonly handleEvent: (event: Event, wg: Wordgard) => boolean,
+      /// @internal
+      readonly destroy: (value: T, dom: Element | Text) => void
+    ) {}
 
-    constructor(spec: Widget.Spec<T>) {
-      this.render = spec.render
-      this.eq = spec.eq || ((a, b) => a === b)
-      this.handleEvent = spec.handleEvent || (() => false)
-      this.destroy = spec.destroy || (() => {})
+    /// @internal
+    static new<T>(spec: Widget.Spec<T>) {
+      return new Type(spec.render, spec.eq || ((a, b) => a === b),
+                      spec.handleEvent || (() => false),
+                      spec.destroy || (() => {})) 
     }
 
-    of(value: T) { return new Widget(this, value) }
+    /// Create an instance of this widget type.
+    of(value: T) { return Widget.new(this, value) }
   }
 
   /// @internal
@@ -118,8 +146,9 @@ export namespace Decoration {
     /// part of it. The given elt should include a hole (`0`) to
     /// indicate where the original shape goes.
     export function wrapper(type: Node.Type.Ref<any>, wrapper: DecoElt, options?: {
-      /// If given, and matching some element in the node's existing
-      /// shape, only that element will be wrapped.
+      /// If given, and {@link Elt.Selector | matching} some element
+      /// in the node's existing shape, only that element will be
+      /// wrapped.
       target?: string
     }) {
       if (!wrapper.hasContent) throw new Error("Wrapper elements should have a content hole")
@@ -183,9 +212,9 @@ export namespace Decoration {
       options?: {
         /// By default, the attribute is added to the outer element
         /// (or a wrapper element if the node is rendered as a
-        /// widget). If this option is given, and matches an element
-        /// in the representation, it will be added to that element
-        /// instead.
+        /// widget). If this option is given, and {@link Elt.Selector
+        /// | matches} an element in the representation, it will be
+        /// added to that element instead.
         target?: string
       }
     ) {
@@ -205,7 +234,7 @@ export namespace Decoration {
     abstract trackMode: ChangeSet.TrackMode | undefined
 
     /// Display a widget at this point.
-    static widget(widget: Widget, spec?: {
+    static widget(widget: Widget, options?: {
       /// Determines where this widget appears relative to the cursor
       /// (negative means before, positive after, zero means to make
       /// it depend on the cursor's own side) and other widgets in the
@@ -218,33 +247,59 @@ export namespace Decoration {
       /// `"before"`/`"after"` to use one specific side.
       trackMode?: ChangeSet.TrackMode | undefined
     }) {
-      return new WidgetDecoration(widget, spec?.side || 0, spec && "trackMode" in spec ? spec.trackMode : "around")
+      return new WidgetDecoration(widget, options?.side || 0, options && "trackMode" in options ? options.trackMode : "around")
     }
 
-    static attribute(attribute: string, value: string, spec?: {target?: string}) {
-      return new AttributeDecoration(attribute, value, spec?.target ? Elt.Selector.parse(spec.target) : null)
+    /// Add an attribute to the node after this decoration's position.
+    static attribute(attribute: string, value: string, options?: {
+      /// Target a specific element in the node's representation,
+      /// using an {@link Elt.Selector | element selector}.
+      target?: string
+    }) {
+      return new AttributeDecoration(attribute, value, options?.target ? Elt.Selector.parse(options.target) : null)
     }
 
+    /// Override the shape of the node after the decoration's point
+    /// with the given one.
     static shape(shape: Shape) {
       return new ShapeDecoration(shape)
     }
 
-    static wrapper(wrapper: DecoElt, spec?: {target?: string}) {
+    /// Wrap the node at the given position with a wrapper.
+    static wrapper(wrapper: DecoElt, spec?: {
+      /// Provide a {@link Elt.Selector | selector} here to target
+      /// only a specific element in the node's representation.
+      target?: string
+    }) {
       if (!wrapper.hasContent) throw new Error("Wrapper decoration elements must have a content hole")
       return new WrapperDecoration(wrapper, spec?.target ? Elt.Selector.parse(spec.target) : null)
     }
 
+    /// The facet used to register a point decoration source.
+    /// Functions provided in this way will be called on every editor
+    /// update, so computing the set on the fly will only perform well
+    /// for _very_ simple decoration
+    /// sets.
     static source = GardState.Facet.define<(state: GardState) => PointSet<Point>>({
       combine: sources => sources.concat(nodeSelection)
     })
   }
 
+  /// Range decorations apply to a document range. They are stored in
+  /// {@link RangeSet}s and registered in an editor configuration with
+  /// {@link Decoration.Range.source}.
+  ///
+  /// You can often create decoration objects once, and then use them
+  /// many ranges.
   export abstract class Range implements RangeSet.Value {
+    /// @internal
     readonly query: Node.Query | null
+    /// @internal
     readonly scope: DecorationScope
+    /// @internal
     readonly inc: Inc
 
-    constructor(spec: RangeSpec) {
+    protected constructor(spec: RangeSpec) {
       let {query, inclusive} = spec
       this.query = query || null
       this.scope = spec.scope == "inlineatom" ? DecorationScope.InlineAtom
@@ -257,17 +312,21 @@ export namespace Decoration {
 
     abstract eq(other: RangeSet.Value): boolean
 
+    /// Create a wrapper range decoration.
     static wrapper(element: string, spec: RangeWrapperSpec): Range {
       return new WrapperRangeDecoration(element, spec)
     }
 
+    /// Create a range decoration that adds an attribute.
     static attribute(attr: string, value: string, options: RangeSpec = {}): Range {
       return new AttributeRangeDecoration(attr, value, options)
     }
-  }
 
-  export namespace Range {
-    export const source = GardState.Facet.define<(state: GardState) => RangeSet<Range>>()
+    /// The facet used to register range decoration sources. The
+    /// source function will be called on every update. Generating big
+    /// range sets on the fly will not perform well, so you'll often
+    /// want to store these in a state field.
+    static source = GardState.Facet.define<(state: GardState) => RangeSet<Range>>()
   }
 }
 
@@ -295,14 +354,25 @@ type TagAttribute = {
 const tagAttribute = GardState.Facet.define<TagAttribute>()
 
 interface RangeSpec {
+  /// Determines whether content insert at the edges of the range is
+  /// included or not. Defaults to false.
   inclusive?: boolean | "start" | "end"
-  scope?: "atom" | "inlineatom" | "all"
+  /// If given, apply this decoration only to matching nodes.
   query?: Node.Query
+  /// The type of nodes in the range to apply this to. Defaults to
+  /// `"atom"`.
+  scope?: "atom" | "inlineatom" | "all"
 }
 
 interface RangeWrapperSpec extends RangeSpec {
+  /// The attributes to add to the wrapper element.
   attributes?: Attrs
+  /// A wrapper's rank determines the nesting order between it and
+  /// other wrappers created by range decorations or marks. Should be
+  /// a number between 0 and 100, if given.
   rank?: number
+  /// Whether this wrapper may span multiple sibling nodes.
+  /// Non-spanning wrappers will be created separately for each node.
   spanning?: boolean
 }
 
@@ -381,7 +451,7 @@ class WrapperRangeDecoration extends Decoration.Range {
   constructor(element: string, spec: RangeWrapperSpec) {
     super(spec)
     let {attributes} = spec
-    this.rank = spec.rank || 0
+    this.rank = Math.max(0, Math.min(spec.rank ?? 100))
     this.spanning = spec.spanning !== false
     this.elt = Elt.new(element, attributes ? Attributes.read(attributes) : Attributes.none, Elt.hole)
   }
@@ -461,12 +531,24 @@ function findAbove(array: readonly number[], start: number, n: number) {
 
 const none: readonly any[] = []
 
+/// Data structure used to store sets of points and then track them
+/// across document changes. Mostly used for {@link Decoration.Point |
+/// point decorations}, but can also track your own types, if you make
+/// sure they implement the {@link PointSet.Value} interface.
 export class PointSet<Value extends PointSet.Value = PointSet.Value> {
-  constructor(readonly positions: readonly number[],
-              readonly values: readonly Value[]) {}
+  private constructor(
+    /// The positions of the values in this set.
+    readonly positions: readonly number[],
+    /// The values in this set.
+    readonly values: readonly Value[]
+  ) {}
 
+  /// The number of points in this set.
   get length() { return this.positions.length }
 
+  /// Adjust the points for a set of document changes. Returns a new
+  /// set with the adjusted points. May delete points when the content
+  /// around them was deleted.
   map(changes: ChangeSet) {
     if (changes.empty) return this
     let positions = this.positions.slice()
@@ -493,6 +575,7 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     return new PointSet<Value>(applyDel(deleted, deletions, positions), applyDel(deleted, deletions, this.values))
   }
 
+  /// Returns the union of this set and the given set.
   merge(other: PointSet<Value>) {
     if (!this.length) return other
     if (!other.length) return this
@@ -514,6 +597,7 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     }
   }
 
+  /// @internal
   compareRange(fromA: number, b: PointSet<Value>, fromB: number, len: number, change: (pos: number, val: Value) => void) {
     let a = this, endB = fromB + len
     if (a != b || fromA != fromB) {
@@ -539,15 +623,22 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     }
   }
 
-  iter<Source>(): PointSet.Iterator<Value> {
-    return new PointSet.Iterator<Value>(this)
+  /// @internal
+  iter(): PointIterator<Value> {
+    return new PointIterator<Value>(this)
   }
 
+  /// Get the value at the given position, if any. If there's multiple
+  /// values at that position, the one with the lowest side is
+  /// returned.
   at(pos: number): Value | undefined {
     let index = findAbove(this.positions, 0, pos - 1)
     return index < this.positions.length && this.positions[index] == pos ? this.values[index] : undefined
   }
 
+  /// Create a point set from an iterable of `[position, value]`
+  /// tuples, or a function that calls its argument for every point to
+  /// add.
   static create<Value extends PointSet.Value>(
     source: Iterable<[number, Value]> | ((add: (pos: number, value: Value) => void) => void)
   ): PointSet<Value> {
@@ -578,50 +669,57 @@ export class PointSet<Value extends PointSet.Value = PointSet.Value> {
     return new PointSet(positions, values)
   }
 
+  /// The empty point set.
   static empty: PointSet<any> = new PointSet(none, none)
 }
 
 export namespace PointSet {
+  /// Objects stored in a point set must conform to this interface.
   export interface Value {
+    /// The side of the point. Used to provide a sorting of points at
+    /// the same position
     side: number
+    /// Specifies whether the point should be deleted when content
+    /// next to it is deleted. See {@ChangeSet.mapPos}.
     trackMode: ChangeSet.TrackMode | undefined
+    /// Method to compare this value to another.
     eq(other: PointSet.Value): boolean
   }
+}
 
-  export class Iterator<Value extends PointSet.Value> {
-    declare value: Value | null
-    done = false
-    declare pos: number
-    declare i: number
+class PointIterator<Value extends PointSet.Value> {
+  declare value: Value | null
+  done = false
+  declare pos: number
+  declare i: number
 
-    constructor(readonly set: PointSet<Value>) {
-      this.fill(0)
+  constructor(readonly set: PointSet<Value>) {
+    this.fill(0)
+  }
+
+  private fill(i: number) {
+    this.i = i
+    if (i < this.set.positions.length) {
+      this.pos = this.set.positions[i]
+      this.value = this.set.values[i]
+    } else {
+      this.pos = 1e8
+      this.value = null
+      this.done = true
     }
+  }
 
-    fill(i: number) {
-      this.i = i
-      if (i < this.set.positions.length) {
-        this.pos = this.set.positions[i]
-        this.value = this.set.values[i]
-      } else {
-        this.pos = 1e8
-        this.value = null
-        this.done = true
-      }
-    }
+  next() {
+    if (!this.done) this.fill(this.i + 1)
+  }
 
-    next() {
-      if (!this.done) this.fill(this.i + 1)
-    }
+  get side() {
+    return this.done ? 1 : this.value!.side
+  }
 
-    get side() {
-      return this.done ? 1 : this.value!.side
-    }
-
-    goto(pos: number) {
-      this.done = false
-      this.fill(findAbove(this.set.positions, 0, pos - 1))
-    }
+  goto(pos: number) {
+    this.done = false
+    this.fill(findAbove(this.set.positions, 0, pos - 1))
   }
 }
 
@@ -653,14 +751,20 @@ export function getDecoSet(state: GardState) {
 }
 
 export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
-  constructor(
+  private constructor(
+    /// The start positions of the ranges in this set.
     readonly from: readonly number[],
+    /// The end positions of the ranges.
     readonly to: readonly number[],
+    /// The value associated with the ranges in the set.
     readonly values: readonly Value[],
   ) {}
 
+  /// The number of ranges stored in this set.
   get length() { return this.from.length }
 
+  /// Adjust the positions of the ranges for the given change set.
+  /// Returns a set with the updated ranges.
   map(changes: ChangeSet) {
     if (changes.empty || !this.length) return this
     let from = this.from.slice(), to = this.to.slice()
@@ -690,10 +794,12 @@ export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
                                applyDel(deleted, deletions, this.values))
   }
 
-  iter(): RangeSet.Iterator<Value> {
-    return new RangeSet.Iterator<Value>(this)
+  /// @internal
+  iter(): RangeIterator<Value> {
+    return new RangeIterator<Value>(this)
   }
 
+  /// @internal
   compareRange(fromA: number, b: RangeSet<Value>, fromB: number, len: number, change: (from: number, to: number) => void) {
     let a = this, toB = fromB + len
     if (a != b || fromA != fromB) {
@@ -721,6 +827,9 @@ export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
     }
   }
 
+  /// Create a range set from an iterable of `[from, to, value]`
+  /// tuples, or a function that calls its argument for every range to
+  /// add.
   static create<Value extends RangeSet.Value>(
     source: Iterable<[number, number, Value]> | ((add: (from: number, to: number, value: Value) => void) => void)
   ): RangeSet<Value> {
@@ -739,48 +848,54 @@ export class RangeSet<Value extends RangeSet.Value = RangeSet.Value> {
     return new RangeSet<Value>(from, to, values)
   }
 
+  /// The empty range set.
   static empty: RangeSet<any> = new RangeSet(none, none, none)
 }
 
 export namespace RangeSet {
+  /// Values stored in a range set must conform to this interface.
   export interface Value {
+    /// Whether content inserted at the start of this value's range is
+    /// included in the range.
     inclusiveStart: boolean
+    /// Whether content inserted at the end is included.
     inclusiveEnd: boolean
+    /// Compare this value to another.
     eq(other: Value): boolean
   }
+}
 
-  export class Iterator<Value extends RangeSet.Value> {
-    declare value: Value | null
-    declare from: number
-    declare to: number
-    done = false
-    declare i: number
+class RangeIterator<Value extends RangeSet.Value> {
+  declare value: Value | null
+  declare from: number
+  declare to: number
+  done = false
+  declare i: number
 
-    constructor(readonly set: RangeSet<Value>) {
-      this.fill(0)
+  constructor(readonly set: RangeSet<Value>) {
+    this.fill(0)
+  }
+
+  fill(i: number) {
+    this.i = i
+    if (i < this.set.from.length) {
+      this.from = this.set.from[i]
+      this.to = this.set.to[i]
+      this.value = this.set.values[i]
+    } else {
+      this.from = this.to = 1e8
+      this.value = null
+      this.done = true
     }
+  }
 
-    fill(i: number) {
-      this.i = i
-      if (i < this.set.from.length) {
-        this.from = this.set.from[i]
-        this.to = this.set.to[i]
-        this.value = this.set.values[i]
-      } else {
-        this.from = this.to = 1e8
-        this.value = null
-        this.done = true
-      }
-    }
+  next() {
+    if (!this.done) this.fill(this.i + 1)
+  }
 
-    next() {
-      if (!this.done) this.fill(this.i + 1)
-    }
-
-    goto(pos: number) {
-      this.done = false
-      this.fill(findAbove(this.set.to, 0, pos))
-    }
+  goto(pos: number) {
+    this.done = false
+    this.fill(findAbove(this.set.to, 0, pos))
   }
 }
 
@@ -937,14 +1052,14 @@ export interface DecoWalker {
 }
 
 class HeapIterator<R extends RangeSet.Value, P extends PointSet.Value> {
-  active: RangeSet.Iterator<R>[] = []
+  active: RangeIterator<R>[] = []
   from: number
   to: number
-  point: PointSet.Iterator<P> | null = null
+  point: PointIterator<P> | null = null
   done = false
 
-  constructor(readonly rangeHeap: RangeSet.Iterator<R>[],
-              readonly pointHeap: PointSet.Iterator<P>[],
+  constructor(readonly rangeHeap: RangeIterator<R>[],
+              readonly pointHeap: PointIterator<P>[],
               start: number,
               readonly end: number) {
     for (let i = rangeHeap.length >> 1; i >= 0; i--) bubble(rangeHeap, i, cmpRangeFrom)
@@ -1034,15 +1149,15 @@ function cmpBool(a: boolean, b: boolean) {
   return a ? (b ? 0 : 1) : (b ? -1 : 0)
 }
 
-function cmpRangeFrom(a: RangeSet.Iterator<RangeSet.Value>, b: RangeSet.Iterator<RangeSet.Value>) {
+function cmpRangeFrom(a: RangeIterator<RangeSet.Value>, b: RangeIterator<RangeSet.Value>) {
   return a.from - b.from || cmpBool(b.value!.inclusiveStart, a.value!.inclusiveStart)
 }
 
-function cmpRangeTo(a: RangeSet.Iterator<RangeSet.Value>, b: RangeSet.Iterator<RangeSet.Value>) {
+function cmpRangeTo(a: RangeIterator<RangeSet.Value>, b: RangeIterator<RangeSet.Value>) {
   return a.to - b.to || cmpBool(a.value!.inclusiveEnd, b.value!.inclusiveEnd)
 }
 
-function cmpPoint(a: PointSet.Iterator<PointSet.Value>, b: PointSet.Iterator<PointSet.Value>) {
+function cmpPoint(a: PointIterator<PointSet.Value>, b: PointIterator<PointSet.Value>) {
   return a.pos - b.pos || a.side - b.side
 }
 
@@ -1057,7 +1172,7 @@ export type WrapperSource = Mark<any> | WrapperRangeDecoration
 function nodeWrappers(
   schema: Schema,
   tag: Node.Tag,
-  active: readonly RangeSet.Iterator<Decoration.Range>[],
+  active: readonly RangeIterator<Decoration.Range>[],
   atom: boolean
 ): readonly WrapperSource[] {
   let wrappers: WrapperSource[] | undefined
@@ -1099,8 +1214,8 @@ export class DecoIterator {
   globalAttrs: readonly TagAttribute[]
   schema: Schema
   pos: Pos
-  rangeIter: RangeSet.Iterator<Decoration.Range>[] = []
-  pointIter: PointSet.Iterator<Decoration.Point>[] = []
+  rangeIter: RangeIterator<Decoration.Range>[] = []
+  pointIter: PointIterator<Decoration.Point>[] = []
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
     this.tagShapes = state.facet(tagShape)
@@ -1208,7 +1323,7 @@ export class DecoIterator {
     this.pos = pos
   }
 
-  tagShape(tag: Node.Tag, active: RangeSet.Iterator<Decoration.Range>[]) {
+  tagShape(tag: Node.Tag, active: RangeIterator<Decoration.Range>[]) {
     let shape
     if (!tag.is(Leaf.Text)) for (let src of this.tagShapes) if (src.type == tag.type) {
       shape = src.shape(tag)
@@ -1238,7 +1353,7 @@ export class DecoIterator {
   }
 }
 
-function compareSetPrec(setA: PointSet, setB: PointSet, array: readonly PointSet.Iterator<PointSet.Value>[]) {
+function compareSetPrec(setA: PointSet, setB: PointSet, array: readonly PointIterator<PointSet.Value>[]) {
    if (setA != setB) for (let i of array) {
      if (i.set == setA) return -1
      if (i.set == setB) return 1
