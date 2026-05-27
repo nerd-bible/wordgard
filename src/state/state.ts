@@ -141,10 +141,10 @@ export class GardState {
           conf = null
         }
         compartments.set(effect.value.compartment, effect.value.extension)
-      } else if (effect.is(Transaction.Effect.reconfigure)) {
+      } else if (effect.is(GardState.reconfigure)) {
         conf = null
         base = effect.value
-      } else if (effect.is(Transaction.Effect.appendConfig)) {
+      } else if (effect.is(GardState.appendConfig)) {
         conf = null
         base = asArray(base).concat(effect.value)
       }
@@ -274,6 +274,16 @@ export class GardState {
   wordAt(pos: number, bias: -1 | 1 = 1) {
     return wordAt(this, pos, bias)
   }
+
+  /// This effect can be used to reconfigure the root extensions of
+  /// the editor. Doing this will discard any extensions
+  /// [appended](#state.StateEffect^appendConfig), but does not reset
+  /// the content of [reconfigured](#state.Compartment.reconfigure)
+  /// compartments.
+  static reconfigure = Transaction.Effect.define<GardState.Extension>()
+
+  /// Append extensions to the top-level configuration of the editor.
+  static appendConfig = Transaction.Effect.define<GardState.Extension>()
 }
 
 export namespace GardState {

@@ -231,7 +231,7 @@ describe("collab", () => {
   it("client ids survive reconfiguration", () => {
     let ext = collab()
     let state = GardState.create({doc: doc(p()), config: [ext]})
-    let state2 = state.update({effects: Transaction.Effect.reconfigure.of(ext)}).state
+    let state2 = state.update({effects: GardState.reconfigure.of(ext)}).state
     ist(collab.getClientID(state), collab.getClientID(state2))
   })
 

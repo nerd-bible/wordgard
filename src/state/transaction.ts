@@ -267,18 +267,6 @@ export namespace Transaction {
       }
       return result
     }
-
-    // FIXME move these?
-
-    /// This effect can be used to reconfigure the root extensions of
-    /// the editor. Doing this will discard any extensions
-    /// [appended](#state.StateEffect^appendConfig), but does not reset
-    /// the content of [reconfigured](#state.Compartment.reconfigure)
-    /// compartments.
-    declare static reconfigure: Transaction.Effect.Type<GardState.Extension>
-
-    /// Append extensions to the top-level configuration of the editor.
-    declare static appendConfig: Transaction.Effect.Type<GardState.Extension>
   }
 
   export namespace Effect {
@@ -309,10 +297,6 @@ export namespace Transaction {
     }
   }
 }
-
-Transaction.Effect.reconfigure = Transaction.Effect.define<GardState.Extension>()
-
-Transaction.Effect.appendConfig = Transaction.Effect.define<GardState.Extension>()
 
 Transaction.time = Transaction.Annotation.define<number>()
 

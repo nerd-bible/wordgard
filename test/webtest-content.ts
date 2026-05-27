@@ -348,7 +348,7 @@ describe("DocTile", () => {
 
     it("preserves DOM nodes when adding attributes", () => {
       let node = render(doc(p("a"))), para = node.dom.firstChild
-      node = update(node, {effects: Transaction.Effect.reconfigure.of(Decoration.Tag.attribute(Paragraph, "lang", "nl"))})
+      node = update(node, {effects: GardState.reconfigure.of(Decoration.Tag.attribute(Paragraph, "lang", "nl"))})
       ist(node.dom.innerHTML, "<p lang=\"nl\">a</p>")
       ist(node.dom.firstChild, para)
     })
@@ -403,7 +403,7 @@ describe("DocTile", () => {
     it("can handle a change modifying the depth of a plot's wrapper", () => {
       let deco = PointSet.create([[0, Decoration.Point.wrapper(elt("div", elt("hr"), 0))]])
       let node = update(render(doc(p("x"), p("y"))), {
-        effects: Transaction.Effect.appendConfig.of(Decoration.Point.source.of(() => deco))
+        effects: GardState.appendConfig.of(Decoration.Point.source.of(() => deco))
       })
       ist(node.dom.innerHTML, "<div><hr><p>x</p></div><p>y</p>")
     })
@@ -418,7 +418,7 @@ describe("DocTile", () => {
     it("can reuse DOM structure when adding a shape wrapper", () => {
       let node = render(doc(p($img)))
       let img = node.dom.querySelector("img")
-      node = update(node, {effects: Transaction.Effect.appendConfig.of(Decoration.Point.source.of(state => {
+      node = update(node, {effects: GardState.appendConfig.of(Decoration.Point.source.of(state => {
         return PointSet.create([[1, Decoration.Point.wrapper(elt({_: "span", class: "u"}, 0))]])
       }))})
       ist(node.dom.querySelector("img"), img)
@@ -441,7 +441,7 @@ describe("DocTile", () => {
     it("properly updates when tag shapes change", () => {
       let tile = render(doc(p("a")))
       tile = update(tile, {
-        effects: Transaction.Effect.appendConfig.of(Decoration.Tag.shape(Paragraph, elt("para", 0)))
+        effects: GardState.appendConfig.of(Decoration.Tag.shape(Paragraph, elt("para", 0)))
       })
       ist(tile.dom.innerHTML, "<para>a</para>")
     })
@@ -449,7 +449,7 @@ describe("DocTile", () => {
     it("properly updates when positional shapes change", () => {
       let tile = render(doc(p("a")))
       tile = update(tile, {
-        effects: Transaction.Effect.appendConfig.of(Decoration.Point.source.of(state => {
+        effects: GardState.appendConfig.of(Decoration.Point.source.of(state => {
           return PointSet.create([[0, Decoration.Point.shape(elt("para"))]])
         }))
       })
@@ -468,7 +468,7 @@ describe("DocTile", () => {
       tile = update(tile, {selection: {anchor: 1}})
       ist(tile.dom.innerHTML, `<hr class="a">`)
       ist(called, 1)
-      tile = update(tile, {effects: Transaction.Effect.appendConfig.of(GardState.prec.high(cls.of("b")))})
+      tile = update(tile, {effects: GardState.appendConfig.of(GardState.prec.high(cls.of("b")))})
       ist(tile.dom.innerHTML, `<hr class="b">`)
     })
   })

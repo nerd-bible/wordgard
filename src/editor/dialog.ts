@@ -53,7 +53,7 @@ export function showDialog(wg: Wordgard, config: DialogConfig): {
   if (wg.state.field(dialogField, false)) {
     wg.dispatch({effects: openDialogEffect.of(panelCtor)})
   } else {
-    wg.dispatch({effects: Transaction.Effect.appendConfig.of(dialogField.init(() => [panelCtor]))})
+    wg.dispatch({effects: GardState.appendConfig.of(dialogField.init(() => [panelCtor]))})
   }
   let close = closeDialogEffect.of(panelCtor)
   return {close, result: promise.then(form => {

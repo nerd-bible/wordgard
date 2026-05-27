@@ -202,7 +202,7 @@ export const insertImage: Command = wg => {
     wg.dispatch({effects: setImageDialog.of(false)})
   } else {
     let effects: Transaction.Effect<any>[] = [setImageDialog.of(true)]
-    if (val === undefined) effects.push(Transaction.Effect.appendConfig.of(imageDialog))
+    if (val === undefined) effects.push(GardState.appendConfig.of(imageDialog))
     wg.dispatch({effects})
   }
   return true

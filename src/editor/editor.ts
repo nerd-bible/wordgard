@@ -335,7 +335,7 @@ export class Wordgard {
       let value = GardState.textLTR.of(this.viewState.styleLTR)
       this.dispatch({
         effects: dirCompartment.get(this.state) == null
-          ? Transaction.Effect.appendConfig.of(GardState.prec.highest(dirCompartment.of(value)))
+          ? GardState.appendConfig.of(GardState.prec.highest(dirCompartment.of(value)))
           : dirCompartment.reconfigure(value)
       })
     }
