@@ -1,6 +1,5 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
-import {Attrs} from "./attributes"
 import {type Wordgard} from "./editor"
 
 /// A widget describes a piece of DOM content that can be used to
@@ -252,7 +251,7 @@ export namespace Decoration {
 
     /// Add a set of attributes to the node after this decoration's
     /// position.
-    static attributes(attrs: Attrs, options?: {
+    static attributes(attrs: Record<string, string>, options?: {
       /// Target a specific element in the node's representation,
       /// using an {@link Elt.Selector | element selector}.
       target?: string
@@ -367,7 +366,7 @@ interface RangeSpec {
 
 interface RangeWrapperSpec extends RangeSpec {
   /// The attributes to add to the wrapper element.
-  attributes?: Attrs
+  attributes?: Record<string, string>
   /// A wrapper's rank determines the nesting order between it and
   /// other wrappers created by range decorations or marks. Should be
   /// a number between 0 and 100, if given.

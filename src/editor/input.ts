@@ -260,7 +260,6 @@ class MouseSelection {
 
     this.extend = startEvent.shiftKey
     this.dragging = isInPrimarySelection(wg, startEvent) && startEvent.detail == 1 ? null : false
-    console.log("start sel", this.dragging)
   }
 
   start(event: MouseEvent) {

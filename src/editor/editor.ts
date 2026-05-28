@@ -1,15 +1,14 @@
 import {GardState, Transaction, GardSelection} from "wordgard/state"
-import {ChangeSet, Node} from "wordgard/doc"
+import {ChangeSet, Node, Attributes} from "wordgard/doc"
 import {StyleModule, StyleSpec} from "style-mod"
 
-import {DocTile} from "./tile"
+import {DocTile, updateAttributes} from "./tile"
 import {coordsAtPos} from "./coords"
 import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
         clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter,
         clipboardTextParser, clipboardTextSerializer} from "./clipboard"
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
-import {Attrs, updateAttrs, combineAttrs} from "./attributes"
 import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
         dragBehavior, pasteHandler, dropHandler} from "./input"
 import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
@@ -77,8 +76,8 @@ export class Wordgard {
   /// @internal
   plugins: PluginInstance[] = []
   private pluginMap: Map<Wordgard.Plugin<any>, PluginInstance | null> = new Map
-  private editorAttrs: Attrs = {}
-  private contentAttrs: Attrs = {}
+  private editorAttrs: Attributes = Attributes.none
+  private contentAttrs: Attributes = Attributes.none
   private styleModules!: readonly StyleModule[]
 
   /// @internal
@@ -311,23 +310,22 @@ export class Wordgard {
   }
 
   private updateAttrs() {
-    let editorAttrs = attrsFromFacet(this, Wordgard.editorAttributes, {
-      class: this.themeClasses,
-      id: this.id
-    })
-    let contentAttrs: Attrs = {
-      translate: "no",
-      contenteditable: !this.state.facet(Wordgard.editable) ? "false" : "true",
-      role: "textbox",
-      "aria-multiline": "true"
-    }
-    if (this.state.readOnly) contentAttrs["aria-readonly"] = "true"
-    attrsFromFacet(this, Wordgard.contentAttributes, contentAttrs)
+    let editorAttrs = attrsFromFacet(this, Wordgard.editorAttributes, [
+      "class", this.themeClasses,
+      "id", this.id
+    ])
+    let contentAttrs = attrsFromFacet(this, Wordgard.contentAttributes, [
+      "aria-multiline", "true",
+      ...this.state.readOnly ? ["aria-readonly", "true"] : [],
+      "contenteditable", String(this.state.facet(Wordgard.editable)),
+      "role", "textbox",
+      "translate", "no",
+    ])
 
-    let changedContent = updateAttrs(this.contentDOM, this.contentAttrs, contentAttrs)
-    let changedEditor = updateAttrs(this.dom, this.editorAttrs, editorAttrs)
-    this.editorAttrs = editorAttrs
+    let changedContent = updateAttributes(this.contentDOM, this.contentAttrs, contentAttrs)
     this.contentAttrs = contentAttrs
+    let changedEditor = updateAttributes(this.dom, this.editorAttrs, editorAttrs)
+    this.editorAttrs = editorAttrs
     return changedContent || changedEditor
   }
 
@@ -843,10 +841,13 @@ export type DOMEventHandlers<This> = {
   [event in keyof DOMEventMap]?: (this: This, event: DOMEventMap[event], wg: Wordgard) => boolean | void
 }
 
-function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: Attrs) {
+function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: string[]): Attributes {
   for (let sources = wg.state.facet(facet), i = sources.length - 1; i >= 0; i--) {
     let source = sources[i], value = typeof source == "function" ? source(wg) : source
-    if (value) combineAttrs(value, base)
+    if (value) for (let attr in value) {
+      let attrVal = value[attr]
+      if (attrVal != null) Attributes.push(base, attr, attrVal)
+    }
   }
   return base
 }
@@ -1088,6 +1089,6 @@ export class PluginInstance {
   }
 }
 
-export type AttrSource = Attrs | ((wg: Wordgard) => Attrs | null)
+export type AttrSource = Record<string, string | null> | ((wg: Wordgard) => Record<string, string | null> | null)
 
 export const enum UpdateFlag { Focus = 1, Geometry = 2 }

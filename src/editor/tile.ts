@@ -1132,10 +1132,13 @@ function takeAttributes(elt: Element): Attributes {
   return attrs.length ? attrs : Attributes.none
 }
 
-function updateAttributes(dom: Element, a: Attributes, b: Attributes) {
+export function updateAttributes(dom: Element, a: Attributes, b: Attributes) {
+  let changed = false
   for (let iA = 0, iB = 0;;) {
+    let match = false
     if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
       if (a[iA + 1] != b[iB + 1]) dom.setAttribute(b[iB], b[iB + 1])
+      else match = true
       iA += 2; iB += 2
     } else if (iA < a.length && (iB == b.length || a[iA] < b[iB])) {
       dom.removeAttribute(a[iA])
@@ -1146,7 +1149,9 @@ function updateAttributes(dom: Element, a: Attributes, b: Attributes) {
     } else {
       break
     }
+    if (!match) changed = true
   }
+  return changed
 }
 
 const brHack = Widget.create({
