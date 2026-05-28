@@ -4,10 +4,8 @@ import {GardState} from "wordgard/state"
 import {Plot} from "wordgard/doc"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"
-import {basicBuilders, maybeTag} from "./schema.ts"
+import {basicBuilders, maybeTag, eq} from "./schema.ts"
 const {doc, p} = basicBuilders
-
-function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function test1<T>(doc: Plot.Doc, cmd: Command<T>, arg: T, expect: Plot.Doc | null, config: GardState.Extension = []) {
   let wg = tempEditor(doc, config)

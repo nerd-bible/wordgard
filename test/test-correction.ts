@@ -3,10 +3,8 @@ import {GardState, Correction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
 import {Strong, Emphasis, Doc, Paragraph, Blockquote} from "wordgard/schema-def"
 
-import {basicBuilders} from "./schema.ts"
+import {basicBuilders, eq} from "./schema.ts"
 const {doc, p, blockquote, h1, $img, em} = basicBuilders
-
-function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 describe("Correction", () => {
   it("is notified of child list changes", () => {

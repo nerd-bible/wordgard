@@ -2,7 +2,7 @@ import ist from "ist"
 import {Plot, Mark, Leaf, Node, ChangeSet, type Token, Schema} from "wordgard/doc"
 import {CodeBlockLanguage, Emphasis, Strong, Link, ImageAlt} from "wordgard/schema-def"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
-import {basicBuilders, basicSchema, tag, maybeTag} from "./schema.ts"
+import {basicBuilders, basicSchema, tag, maybeTag, eq} from "./schema.ts"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, hr, img, imgAlt, $img, a, em, strong} = basicBuilders
 
 type ChangeData = (Token | string)[] | {add: Mark<any>} | {remove: Mark<any>}
@@ -19,8 +19,6 @@ function mk(doc: Plot.Doc, changes: readonly ChangeData[]) {
     return add ? {from, to, add: add} : {from, to, remove: remove}
   }))
 }
-
-function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }
 
 describe("ChangeSet", () => {
   describe("apply", () => {

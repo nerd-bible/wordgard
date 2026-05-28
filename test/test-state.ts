@@ -1,10 +1,8 @@
 import ist from "ist"
 import {Leaf} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
-import {basicBuilders} from "./schema.ts"
+import {basicBuilders, eq} from "./schema.ts"
 const {doc, p} = basicBuilders
-
-function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 describe("EditorState", () => {
   it("can be initialized", () => {

@@ -2,10 +2,8 @@ import ist from "ist"
 import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
         serialize, serializeSlice, parseDoc, parseSlice, type ParseOptions, RuleSet} from "wordgard/doc"
 import {Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema-def"
-import {basicBuilders, builder, basicSchema, tag} from "./schema.ts"
+import {basicBuilders, builder, basicSchema, tag, eq} from "./schema.ts"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olStart, ul, li, pre, h1, h2, br, hr} = basicBuilders
-
-function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function html(doc: Plot.Doc) {
   let wrap = document.createElement("div")

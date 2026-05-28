@@ -1,14 +1,12 @@
 import {GardState, Transaction, Correction} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
 import {Paragraph} from "wordgard/schema-def"
-import {basicBuilders} from "./schema.ts"
+import {basicBuilders, eq} from "./schema.ts"
 import {history, undo, redo} from "wordgard/history"
 import ist from "ist"
 import {collab} from "wordgard/collab"
 
 let {doc, p} = basicBuilders
-
-function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 class DummyServer {
   states: GardState[] = []

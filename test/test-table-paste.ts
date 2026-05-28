@@ -1,15 +1,12 @@
-import {Plot, Schema, Slice, Leaf, Token} from "wordgard/doc"
-import {Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Plot, Slice, Leaf, Token} from "wordgard/doc"
+import {TableRow, Cell} from "wordgard/schema-def"
 import {CellSelection, handleTablePaste} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
-import {basicSchema, basicBuilders, builder, maybeTag} from "./schema.ts"
+import {tableSchema as schema, basicBuilders, builder, maybeTag, eq} from "./schema.ts"
 const {table, tr, td, rowspan, colspan} = basicBuilders
 
-const schema = Schema.define(basicSchema.elements.concat([Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan]))
 const doc = builder(schema)
-
-function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function selFor(doc: Plot.Doc): GardSelection | undefined {
   let from = maybeTag(doc, 0)

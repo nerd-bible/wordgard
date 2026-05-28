@@ -7,11 +7,9 @@ import {Paragraph, Heading, Blockquote, BulletList, OrderedList,
         Emphasis, Strong, Link} from "wordgard/schema-def"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
-import {basicSchema, basicBuilders, maybeTag, builder} from "./schema.ts"
+import {basicSchema, basicBuilders, maybeTag, builder, eq} from "./schema.ts"
 
 const {p, blockquote, ul, ol, li, pre, br, h1, $img, hr, em, strong} = basicBuilders
-
-function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function selectionFrom(cx: GardSelection.Context) {
   let {doc} = cx, a = maybeTag(doc, 0)

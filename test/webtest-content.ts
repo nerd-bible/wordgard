@@ -3,9 +3,9 @@ import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, elt, Mark, Token} from "wordgard/doc"
 import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, HorizontalRule} from "wordgard/schema-def"
 import ist from "ist"
-import {builder, basicBuilders} from "./schema.ts"
+import {builder, basicBuilders, tableSchema} from "./schema.ts"
 const {DocTile} = Wordgard
-const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em} = basicBuilders
+const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
 
 function render(doc: Plot.Doc, ...config: GardState.Extension[]): InstanceType<typeof DocTile> {
   return DocTile.create(GardState.create({doc, config}), document.createElement("div"))
@@ -392,6 +392,20 @@ describe("DocTile", () => {
     it("won't try to add attributes to a text node", () => {
       let deco = PointSet.create([[1, Decoration.Point.attribute("class", "u")]])
       ist(render(doc(p("a")), Decoration.Point.source.of(() => deco)).dom.innerHTML, "<p>a</p>")
+    })
+
+    it("doesn't leave stale decorations on complex changes", () => {
+      let doc = builder(tableSchema)
+      let attr = Decoration.Point.attribute("class", "x")
+      let tile = render(doc(p("-"), table(tr(td("A"), td("B")), tr(td("C"), td("D")))),
+                        Decoration.Point.source.of(state => state.doc.length == 21
+                          ? PointSet.create([[5, attr], [8, attr]]) : PointSet.empty))
+      tile = update(tile, {changes: [
+        {from: 6, to: 7}, {from: 9, to: 10},
+        {from: 14, to: 15, insert: [Leaf.text("A")]},
+        {from: 17, to: 18, insert: [Leaf.text("B")]}
+      ]})
+      ist(tile.dom.querySelector(".x"), null)
     })
 
     it("can add wrapping structure to a specific node", () => {

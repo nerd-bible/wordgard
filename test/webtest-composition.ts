@@ -3,10 +3,8 @@ import {Strong} from "wordgard/schema-def"
 import {GardSelection} from "wordgard/state"
 import ist from "ist"
 import {tempEditor, requireFocus} from "./tempview.ts"
-import {basicBuilders} from "./schema.ts"
+import {basicBuilders, eq} from "./schema.ts"
 const {doc, p, strong, em} = basicBuilders
-
-function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function compositionEvent(cm: Wordgard, type: string) {
   cm.contentDOM.dispatchEvent(new CompositionEvent(type))

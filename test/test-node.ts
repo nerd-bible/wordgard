@@ -1,7 +1,7 @@
 import ist from "ist"
 import {Plot, Leaf, Node} from "wordgard/doc"
 import {Paragraph, Image} from "wordgard/schema-def"
-import {basicSchema as schema, basicBuilders, tag} from "./schema.ts"
+import {basicSchema as schema, basicBuilders, tag, eq} from "./schema.ts"
 const {doc, blockquote, p, h1, li, ul, hr, em, strong, code, $img, $a} = basicBuilders
 
 describe("Node", () => {
@@ -124,7 +124,7 @@ describe("Node", () => {
     it("complains about incorrect param types", () => {
       let json = doc(h1()).toJSON()
       json.content![0].param = "huh"
-      ist.throws(() => schema.nodeFromJSON(json), /Expected value of type number/)
+      ist.throws(() => schema.nodeFromJSON(json), /Invalid heading level/)
     })
 
     it("complains about incorrect mark types", () => {
@@ -134,5 +134,3 @@ describe("Node", () => {
     })
   })
 })
-
-function eq<T extends {eq(b: T): boolean}>(a: T, b: T) { return a.eq(b) }

@@ -1,15 +1,11 @@
-import {Plot, Schema} from "wordgard/doc"
-import {Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Plot} from "wordgard/doc"
 import {tableCorrection} from "wordgard/table"
 import {GardState} from "wordgard/state"
 import ist from "ist"
-import {basicSchema, basicBuilders, builder} from "./schema.ts"
+import {tableSchema as schema, basicBuilders, builder, eq} from "./schema.ts"
 const {table, tr, td, rowspan, colspan} = basicBuilders
 
-const schema = Schema.define(basicSchema.elements.concat([Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan]))
 const doc = builder(schema)
-
-function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function test(doc: Plot.Doc, expect: Plot.Doc | null) {
   let state = GardState.create({doc})

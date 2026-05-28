@@ -4,7 +4,7 @@ import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {Command} from "wordgard/command"
 import ist from "ist"
 
-import {basicBuilders, maybeTag, basicSchema} from "./schema.ts"
+import {basicBuilders, maybeTag, basicSchema, eq} from "./schema.ts"
 const {doc, p} = basicBuilders
 
 function mkState(d: Plot.Doc = doc(p(0)), cfg?: Parameters<typeof history>[0]) {
@@ -37,7 +37,6 @@ function command(state: GardState, f: Command.Pure, success: boolean | null = tr
   if (success != null) ist(!!tr, success)
   return tr ? state.update(tr).state : state
 }
-function eq<T extends {eq: (other: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 describe("history", () => {
   it("allows to undo a change", () => {

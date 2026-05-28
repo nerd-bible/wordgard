@@ -1,17 +1,13 @@
 import {Command} from "wordgard/command"
-import {Plot, Schema} from "wordgard/doc"
-import {Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Plot} from "wordgard/doc"
 import {CellSelection, toggleHeaderCell,
         addRow, deleteRow, addColumn, deleteColumn, mergeCells, splitCell} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
-import {basicSchema, basicBuilders, builder, maybeTag} from "./schema.ts"
+import {tableSchema as schema, eq, basicBuilders, builder, maybeTag} from "./schema.ts"
 const {p, table, tr, td, th, rowspan, colspan} = basicBuilders
 
-const schema = Schema.define(basicSchema.elements.concat([Table, TableRow, Cell, HeaderCell, ColSpan, RowSpan]))
 const doc = builder(schema)
-
-function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
 
 function test(doc: Plot.Doc, f: (state: GardState) => Transaction.Spec | false, expect: Plot.Doc | null) {
   let selFrom = maybeTag(doc, 0), sel = selFrom != null && GardSelection.range(selFrom, maybeTag(doc, 1) ?? selFrom)

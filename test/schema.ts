@@ -125,6 +125,15 @@ export const basicSchema = Schema.define([
   Alignment
 ])
 
+export const tableSchema = Schema.define(basicSchema.elements.concat([
+  Table,
+  TableRow,
+  Cell,
+  HeaderCell,
+  ColSpan,
+  RowSpan
+]))
+
 export const basicBuilders = {
   doc: builder(basicSchema),
   p: builder(Paragraph),
@@ -160,3 +169,5 @@ export const basicBuilders = {
   a: builder(Link),
   $a: builder(Link.of("/")),
 }
+
+export function eq<T extends {eq: (b: T) => boolean}>(a: T, b: T) { return a.eq(b) }
