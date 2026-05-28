@@ -978,7 +978,7 @@ export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
         pos = to
       }
       if (pos < end) addSection(result, end - pos, -1)
-      posA + len; posB += len
+      posA += len; posB += len
     } else {
       posA += len
       posB += ins < 0 ? len : ins
