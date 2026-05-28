@@ -6,17 +6,18 @@ import {Command} from "wordgard/command"
 import {TableMap} from "./tablemap"
 import {CellSelection} from "./cellselection"
 
-export function tableContext(state: GardState) {
+export function tableContext(state: GardState, pos?: number) {
   let table: Pos.Plot | undefined, cells: number[] | undefined
-  if (state.selection instanceof CellSelection) {
-    table = state.sel.anchor.parent!.parent!
-    cells = state.selection.ranges.map(r => r.from - 1)
-  } else {
-    let cellPos = state.sel.head.matchingParent(node => state.schema.matchNode(node.type, Node.Group.TableCell))
+  if (pos != null || !(state.selection instanceof CellSelection)) {
+    let ref = pos != null ? state.doc.resolve(pos) : state.sel.head
+    let cellPos = ref.matchingParent(node => state.schema.matchNode(node.type, Node.Group.TableCell))
     if (cellPos && cellPos.parent?.parent) {
       table = cellPos.parent.parent
       cells = [cellPos.before]
     }
+  } else {
+    table = state.sel.anchor.parent!.parent!
+    cells = state.selection.ranges.map(r => r.from - 1)
   }
   return cells ? {cells, map: TableMap.get(table!.node, table!.start)} : null
 }

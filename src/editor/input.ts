@@ -260,6 +260,7 @@ class MouseSelection {
 
     this.extend = startEvent.shiftKey
     this.dragging = isInPrimarySelection(wg, startEvent) && startEvent.detail == 1 ? null : false
+    console.log("start sel", this.dragging)
   }
 
   start(event: MouseEvent) {
@@ -498,25 +499,36 @@ handlers.dragend = wg => {
   return false
 }
 
+export const dropHandler = GardState.Facet.define<(
+  wg: Wordgard,
+  event: DragEvent,
+  pos: number,
+  move: {from: number, to: number} | null,
+  slice: Slice,
+  context: readonly Plot.Tag.Any[]
+) => boolean>()
+
 handlers.drop = (wg, event: DragEvent) => {
   if (!event.dataTransfer || wg.state.readOnly) return true
   let content = readClipboard(wg.state, event.dataTransfer, wg.state.sel.head, false)
-  if (content) {
-    let dropPos = wg.posAtCoords({x: event.clientX, y: event.clientY}).pos
-    let {draggedContent} = wg.inputState
-    let del = draggedContent && dragMovesSelection(wg, event)
-      ? {from: draggedContent.from, to: draggedContent.to} : null
-    let ins = {from: dropPos, insert: content.slice, fit: content.context}
-    let changes = ChangeSet.create(wg.state.doc, del ? [del, ins] : ins)
-    wg.focus()
-    wg.dispatch({
-      changes,
-      selection: GardSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
-      userEvent: del ? "move.drop" : "input.drop"
-    })
-    wg.inputState.draggedContent = null
-  }
-  return false
+  if (!content) return false
+
+  let dropPos = wg.posAtCoords({x: event.clientX, y: event.clientY}).pos
+  let {draggedContent} = wg.inputState
+  let del = draggedContent && dragMovesSelection(wg, event)
+    ? {from: draggedContent.from, to: draggedContent.to} : null
+  if (wg.state.facet(dropHandler).some(f => f(wg, event, dropPos, del, content.slice, content.context)))
+    return true
+  let ins = {from: dropPos, insert: content.slice, fit: content.context}
+  let changes = ChangeSet.create(wg.state.doc, del ? [del, ins] : ins)
+  wg.focus()
+  wg.dispatch({
+    changes,
+    selection: GardSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
+    userEvent: del ? "move.drop" : "input.drop"
+  })
+  wg.inputState.draggedContent = null
+  return true
 }
 
 export const pasteHandler = GardState.Facet.define<(
@@ -531,7 +543,7 @@ handlers.paste = (wg: Wordgard, event: ClipboardEvent) => {
   let {state} = wg
   let content = readClipboard(state, event.clipboardData, state.sel.head, wg.inputState.shiftKey)
   if (wg.state.facet(pasteHandler).some(h => h(wg, event, content ? content.slice : Slice.empty,
-                                                 content ? content.context : [])))
+                                               content ? content.context : [])))
     return true
   if (content) { // FIXME proper multi-selection pasting
     let changes = ChangeSet.create(wg.state.doc, {

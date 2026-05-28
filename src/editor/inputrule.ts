@@ -105,7 +105,6 @@ export namespace InputRule {
     /// By default, input rules don't apply inside nodes with the
     /// [`Code` role](#doc.Node.Role^Code). Set this to `true` to
     /// allow matches in code.
-    // FIXME should this also check marks?
     inCode?: boolean
   }
 

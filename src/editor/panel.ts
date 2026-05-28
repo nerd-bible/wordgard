@@ -1,5 +1,3 @@
-// FIXME figure out how to provide easy-to-use default styling for these
-
 import {GardState} from "wordgard/state"
 import {Wordgard} from "./editor"
 import {rmDOM} from "./dom"

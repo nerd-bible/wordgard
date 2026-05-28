@@ -10,7 +10,8 @@ import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFil
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {Attrs, updateAttrs, combineAttrs} from "./attributes"
-import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle, dragBehavior, pasteHandler} from "./input"
+import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
+        dragBehavior, pasteHandler, dropHandler} from "./input"
 import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
 import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
@@ -572,6 +573,11 @@ export class Wordgard {
   /// Facet that allows you to register handlers to override paste
   /// behavior.
   static pasteHandler = pasteHandler
+
+  /// Facet for custom drop handlers. When the drop is done inside the
+  /// editor and should move an existing range, the `move` parameter
+  /// will hold the origin range.
+  static dropHandler = dropHandler
 
   /// This annotation is added to transactions created because the
   /// editor's focused status changed. It holds `true` when the editor

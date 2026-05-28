@@ -3,7 +3,7 @@ import {GardState} from "wordgard/state"
 import {Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
 import {CellSelection} from "./cellselection"
 import {tableCorrection} from "./correct"
-import {tablePasteHandler} from "./tablepaste"
+import {tablePasteHandler, tableDropHandler} from "./tablepaste"
 
 const tableTheme = Wordgard.baseTheme({
   table: {
@@ -51,7 +51,8 @@ export function tables(config: {
     tableTheme,
     CellSelection,
     tableCorrection,
-    tablePasteHandler
+    tablePasteHandler,
+    tableDropHandler
   ]
   if (config.cellContent == "block") {
     result.push(GardState.schemaElement.of(BlockCell))

@@ -166,8 +166,13 @@ function isolateHorizontally(schema: Schema, map: TableMap, startRow: number, en
 
 // Insert the given set of cells (as returned by `pastedCells`) into a
 // table, at the position pointed at by rect.
-export function insertCells(state: GardState, map: TableMap, startCol: number, startRow: number,
-                            cells: {width: number, height: number, rows: (readonly Node[])[]}): Transaction.Spec {
+export function insertCells(
+  state: GardState,
+  map: TableMap,
+  startCol: number, startRow: number,
+  cells: {width: number, height: number, rows: (readonly Node[])[]},
+  event: string
+): Transaction.Spec {
   let {schema} = state.doc
   let endCol = startCol + cells.width, endRow = startRow + cells.height
   let doc = state.doc, changeSet: ChangeSet | null = null, changes: ChangeSet.Spec[] = []
@@ -208,14 +213,14 @@ export function insertCells(state: GardState, map: TableMap, startCol: number, s
   return {
     changes: changeSet!,
     selection,
-    userEvent: "paste.table"
+    userEvent: `${event}.paste`
   }
 }
 
 /// @hide exported for testing
-export function handleTablePaste(state: GardState, slice: Slice, context: readonly Plot.Tag.Any[]) {
+export function handleTablePaste(state: GardState, slice: Slice, context: readonly Plot.Tag.Any[], drop?: number) {
   let {schema} = state.doc
-  if (state.selection instanceof CellSelection) {
+  if (drop == null && state.selection instanceof CellSelection) {
     let cells = pastedCells(schema, slice, context)
     if (!cells) {
       let single = fitSlice(schema, cellTag(schema), slice, context)
@@ -225,12 +230,12 @@ export function handleTablePaste(state: GardState, slice: Slice, context: readon
     let table = state.sel.from.parent!.parent!, map = TableMap.get(table.node, table.start)
     let rect = map.rectBetween(state.selection.anchorCell, state.selection.headCell)
     return insertCells(state, map, rect.startCol, rect.startRow,
-                       clipCells(cells, rect.endCol - rect.startCol, rect.endRow - rect.startRow))
+                       clipCells(cells, rect.endCol - rect.startCol, rect.endRow - rect.startRow), "paste")
   } else {
-    let cx = tableContext(state), cells
+    let cx = tableContext(state, drop), cells
     if (!cx || !(cells = pastedCells(schema, slice, context))) return false
     let rect = cx.map.cellRect(cx.cells[0])
-    return insertCells(state, cx.map, rect.startCol, rect.startRow, cells)
+    return insertCells(state, cx.map, rect.startCol, rect.startRow, cells, drop == null ? "drop" : "paste")
   }
 }
 
@@ -241,4 +246,22 @@ export function handleTablePaste(state: GardState, slice: Slice, context: readon
 export const tablePasteHandler = Wordgard.pasteHandler.of((wg, _event, slice, context) => {
   let tr = handleTablePaste(wg.state, slice, context)
   return tr && (wg.dispatch(tr), true)
+})
+
+/// A drop handler that overrides drops that move table cells
+export const tableDropHandler = Wordgard.dropHandler.of((wg, _event, pos, move, slice, context) => {
+  let tr = handleTablePaste(wg.state, slice, context, pos)
+  if (!tr) return false
+  if (move) {
+    let clear: ChangeSet.Spec[] = []
+    wg.state.doc.iterate(move.from, move.to, (node, pos) => {
+      if (wg.state.schema.matchNode(node.type, Node.Group.TableCell))
+        clear.push({from: pos + 1, to: pos + node.length - 1, fit: true})
+    })
+    let tr2 = wg.state.update(tr, {changes: clear})
+    wg.dispatch(tr2)
+  } else {
+    wg.dispatch(tr)
+  }
+  return true
 })

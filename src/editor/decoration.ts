@@ -250,6 +250,7 @@ export namespace Decoration {
       return new WidgetDecoration(widget, options?.side || 0, options && "trackMode" in options ? options.trackMode : "around")
     }
 
+    // FIXME support multiple attributes
     /// Add an attribute to the node after this decoration's position.
     static attribute(attribute: string, value: string, options?: {
       /// Target a specific element in the node's representation,

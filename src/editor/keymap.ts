@@ -1,5 +1,5 @@
 import {Command, enter, deleteUnit, deleteWord, deleteToLineEnd, insertLineBreak, transposeChars,
-        moveByUnit, moveToLineSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
+        moveByUnit, moveToLineSide, moveToTextblockSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
 import {GardState} from "wordgard/state"
 import {Wordgard} from "./editor"
@@ -248,8 +248,6 @@ for (var i = 0; i < 10; i++) charKeyCodes[48 + i] = String(i) // Digits
 for (var i = 1; i <= 24; i++) charKeyCodes[i + 111] = "F" + i // Function keys
 for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // Letters
 
-// FIXME test whether beforeinput events make it possible to do without most of these
-
 export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Enter", run: enter},
   {key: "Shift-Enter", run: insertLineBreak},
@@ -308,11 +306,10 @@ export const defaultKeymap: readonly KeyBinding[] = ([
    shift: Command.bind(moveByLine, {dir: "up", extend: true})},
   {mac: "Ctrl-n", run: Command.bind(moveByLine, {dir: "down"}),
    shift: Command.bind(moveByLine, {dir: "down", extend: true})},
-  // FIXME go to start/end of textblock
-  {mac: "Ctrl-a", run: Command.bind(moveToLineSide, {dir: "backward"}),
-   shift: Command.bind(moveToLineSide, {dir: "backward", extend: true})},
-  {mac: "Ctrl-e", run: Command.bind(moveToLineSide, {dir: "forward"}),
-   shift: Command.bind(moveToLineSide, {dir: "forward", extend: true})},
+  {mac: "Ctrl-a", run: Command.bind(moveToTextblockSide, {dir: "backward"}),
+   shift: Command.bind(moveToTextblockSide, {dir: "backward", extend: true})},
+  {mac: "Ctrl-e", run: Command.bind(moveToTextblockSide, {dir: "forward"}),
+   shift: Command.bind(moveToTextblockSide, {dir: "forward", extend: true})},
   {mac: "Ctrl-d", run: Command.bind(deleteUnit, "forward")},
   {mac: "Ctrl-h", run: Command.bind(deleteUnit, "backward")},
   {mac: "Ctrl-k", run: Command.bind(deleteToLineEnd, "forward")},
