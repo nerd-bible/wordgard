@@ -250,14 +250,14 @@ export namespace Decoration {
       return new WidgetDecoration(widget, options?.side || 0, options && "trackMode" in options ? options.trackMode : "around")
     }
 
-    // FIXME support multiple attributes
-    /// Add an attribute to the node after this decoration's position.
-    static attribute(attribute: string, value: string, options?: {
+    /// Add a set of attributes to the node after this decoration's
+    /// position.
+    static attributes(attrs: Attrs, options?: {
       /// Target a specific element in the node's representation,
       /// using an {@link Elt.Selector | element selector}.
       target?: string
     }) {
-      return new AttributeDecoration(attribute, value, options?.target ? Elt.Selector.parse(options.target) : null)
+      return new AttributeDecoration(Attributes.read(attrs), options?.target ? Elt.Selector.parse(options.target) : null)
     }
 
     /// Override the shape of the node after the decoration's point
@@ -407,8 +407,8 @@ function addAttrs(shape: Decoration.Shape, attrs: Attributes, inline: boolean) {
 
 function applyDeco(shape: Decoration.Shape, deco: Decoration.Point, tag: Node.Tag) {
   if (deco instanceof AttributeDecoration) {
-    let attrs: Attributes = [deco.attribute, deco.value]
-    return deco.selector && shape instanceof Elt ? shape.addAttrs(attrs, deco.selector) : addAttrs(shape, attrs, tag.isInline)
+    return deco.selector && shape instanceof Elt ? shape.addAttrs(deco.attrs, deco.selector)
+      : addAttrs(shape, deco.attrs, tag.isInline)
   } else if (deco instanceof WrapperDecoration) {
     return deco.selector && shape instanceof Elt ? shape.wrap(deco.elt, deco.selector) : deco.elt.fill([shape])
   }
@@ -487,12 +487,16 @@ class WidgetDecoration extends Decoration.Point {
   }
 }
 
+function selectorEq(a: Elt.Selector | null, b: Elt.Selector | null) {
+  return a ? !!b && a.eq(b) : !b
+}
+
 class AttributeDecoration extends Decoration.Point {
-  constructor(readonly attribute: string, readonly value: string, readonly selector: Elt.Selector | null) { super() }
+  constructor(readonly attrs: Attributes, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
-    return this == other || other instanceof AttributeDecoration && other.attribute == this.attribute &&
-      other.value == this.value && other.selector == this.selector
+    return this == other || other instanceof AttributeDecoration && Attributes.eq(other.attrs, this.attrs) &&
+      selectorEq(other.selector, this.selector)
   }
 
   get trackMode() { return "after" as const }
@@ -503,14 +507,15 @@ class WrapperDecoration extends Decoration.Point {
   constructor(readonly elt: DecoElt, readonly selector: Elt.Selector | null) { super() }
 
   eq(other: PointSet.Value): boolean {
-    return this == other || other instanceof WrapperDecoration && other.elt.eq(this.elt) && other.selector == this.selector
+    return this == other || other instanceof WrapperDecoration && other.elt.eq(this.elt) &&
+      selectorEq(other.selector, this.selector)
   }
 
   get trackMode() { return "after" as const }
   get side() { return 1e9 }
 }
 
-const nodeSelectionDeco = Decoration.Point.attribute("class", "wg-selected-node")
+const nodeSelectionDeco = Decoration.Point.attributes({class: "wg-selected-node"})
 
 function nodeSelection(state: GardState) {
   if (state.selection instanceof GardSelection.Node) {

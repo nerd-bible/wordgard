@@ -14,7 +14,7 @@ const cellSelectionDeco = GardState.Field.define<PointSet<Decoration.Point>>({
   provide: f => Decoration.Point.source.of(s => s.field(f))
 })
 
-const selectedCell = Decoration.Point.attribute("class", "wg-selected-cell")
+const selectedCell = Decoration.Point.attributes({class: "wg-selected-cell"})
 
 function getCellDeco(state: GardState): PointSet<Decoration.Point> {
   if (!(state.selection instanceof CellSelection)) return PointSet.empty

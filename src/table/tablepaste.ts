@@ -248,6 +248,9 @@ export const tablePasteHandler = Wordgard.pasteHandler.of((wg, _event, slice, co
   return tr && (wg.dispatch(tr), true)
 })
 
+// FIXME is it ridiculously hard to grab a multi-cell selection for
+// dragging. May require completely custom handling.
+
 /// A drop handler that overrides drops that move table cells
 export const tableDropHandler = Wordgard.dropHandler.of((wg, _event, pos, move, slice, context) => {
   let tr = handleTablePaste(wg.state, slice, context, pos)

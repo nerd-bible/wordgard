@@ -384,19 +384,19 @@ describe("DocTile", () => {
     })
 
     it("can add attributes to a specific node", () => {
-      let deco = PointSet.create([[0, Decoration.Point.attribute("class", "u")]])
+      let deco = PointSet.create([[0, Decoration.Point.attributes({class: "u"})]])
       ist(render(doc(p(), p()), Decoration.Point.source.of(() => deco)).dom.innerHTML,
           "<p class=\"u\"><br></p><p><br></p>")
     })
 
     it("won't try to add attributes to a text node", () => {
-      let deco = PointSet.create([[1, Decoration.Point.attribute("class", "u")]])
+      let deco = PointSet.create([[1, Decoration.Point.attributes({class: "u"})]])
       ist(render(doc(p("a")), Decoration.Point.source.of(() => deco)).dom.innerHTML, "<p>a</p>")
     })
 
     it("doesn't leave stale decorations on complex changes", () => {
       let doc = builder(tableSchema)
-      let attr = Decoration.Point.attribute("class", "x")
+      let attr = Decoration.Point.attributes({class: "x"})
       let tile = render(doc(p("-"), table(tr(td("A"), td("B")), tr(td("C"), td("D")))),
                         Decoration.Point.source.of(state => state.doc.length == 21
                           ? PointSet.create([[5, attr], [8, attr]]) : PointSet.empty))
