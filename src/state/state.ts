@@ -415,7 +415,7 @@ export namespace GardState {
   export class Facet<Input, Output = readonly Input[]> implements GardState.Facet.Reader<Output> {
     /// @internal
     readonly id = nextID++
-    /// @internal
+    /// The output of the facet when it has no inputs.
     readonly default: Output
     /// @internal
     readonly extensions: GardState.Extension | undefined

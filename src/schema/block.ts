@@ -7,10 +7,14 @@ import {Command, Menu, setTextblockType, setAlignment, setDirection, toggleBlock
 import {history} from "wordgard/history"
 import {Wordgard, KeyBinding, InputRule} from "wordgard/editor"
 
+/// {@link Doc | Schema element} that provides the outer document plot
+/// type for a document with block content.
 export function blockDoc(): GardState.Extension {
   return GardState.schemaElement.of(Doc)
 }
 
+/// Outer document {@link InlineDoc | schema element} for a document
+/// that contains only inline content.
 export function inlineDoc(): GardState.Extension {
   return GardState.schemaElement.of(InlineDoc)
 }
@@ -22,16 +26,24 @@ function selectionInType(tag: Plot.Tag.Any) {
   }
 }
 
+/// The basic {@link Paragraph | paragraph} schema element, with a
+/// {@link paragraph.button | menu button} and {@link
+/// paragraph.keyBinding | key binding} to switch to it.
 export function paragraph(): GardState.Extension {
   return [GardState.schemaElement.of(Paragraph), paragraph.button, paragraph.keyBinding]
 }
 
 export namespace paragraph {
+  /// Binds `Ctrl-Shift-0` to switching the selected textblocks to
+  /// regular paragraphs.
   export const keyBinding = KeyBinding.define({
     key: "Ctrl-Shift-0",
     run: Command.bind(setTextblockType, Paragraph)
   })
 
+  /// Button in the {@link Menu.Submenu.textblockStyle |
+  /// `textblockStyle`} menu that makes the selected textblocks
+  /// paragraphs.
   export const button = Menu.Button.define({
     run: Command.bind(setTextblockType, Paragraph),
     active: selectionInType(Paragraph),
@@ -41,6 +53,10 @@ export namespace paragraph {
   })
 }
 
+/// Support for heading blocks. Includes the {@link Heading | schema
+/// element}, some {@link heading.keyBindings | key bindings}, menu
+/// buttons, and an {@link heading.createOnHash | input rule} to
+/// switch to this block type.
 export function heading(): GardState.Extension {
   return [GardState.schemaElement.of(Heading),
           heading.button1, heading.button2, heading.button3,
@@ -48,6 +64,8 @@ export function heading(): GardState.Extension {
 }
 
 export namespace heading {
+  /// Binds `Ctrl-Shift-1` through `Ctrl-Shift-6` to make the selected
+  /// textblocks headings of the given level.
   export const keyBindings = [
     KeyBinding.define({key: "Ctrl-Shift-1", run: Command.bind(setTextblockType, Heading.of(1))}),
     KeyBinding.define({key: "Ctrl-Shift-2", run: Command.bind(setTextblockType, Heading.of(2))}),
@@ -57,6 +75,8 @@ export namespace heading {
     KeyBinding.define({key: "Ctrl-Shift-6", run: Command.bind(setTextblockType, Heading.of(6))})
   ]
 
+  /// Button for the {@link Menu.Submenu.textblockStyle | textblock
+  /// style} menu that switches to a level 1 heading.
   export const button1 = Menu.Button.define({
     run: Command.bind(setTextblockType, Heading.of(1)),
     active: selectionInType(Heading.of(1)),
@@ -65,6 +85,7 @@ export namespace heading {
     rank: 50
   })
 
+  /// Menu button that switches to a level 2 heading.
   export const button2 = Menu.Button.define({
     run: Command.bind(setTextblockType, Heading.of(2)),
     active: selectionInType(Heading.of(2)),
@@ -73,6 +94,7 @@ export namespace heading {
     rank: 51
   })
 
+  /// Menu button that switches to a level 3 heading.
   export const button3 = Menu.Button.define({
     run: Command.bind(setTextblockType, Heading.of(3)),
     active: selectionInType(Heading.of(3)),
@@ -81,20 +103,32 @@ export namespace heading {
     rank: 52
   })
 
+  /// Input rule that will switch to a heading when one to six hash
+  /// characters, followed by a space, are typed at the start of a
+  /// textblock, using the number of hash characters to determine the
+  /// heading level.
   export const createOnHash = InputRule.textblockType(/^(#{1,6}) $/, m => Heading.of(m[1]!.to.pos - m[1]!.from.pos))
 }
 
+/// Extensions to add support for code blocks. Includes the {@link
+/// CodeBlock | schema element}, a {@link codeBlock.keyBinding | key
+/// binding}, a {@link codeBlock.button | menu button}, and an {@link
+/// codeBlock.createOnBackticks | input rule}.
 export function codeBlock(): GardState.Extension {
   return [GardState.schemaElement.of(CodeBlock),
           codeBlock.button, codeBlock.keyBinding, codeBlock.createOnBackticks]
 }
 
 export namespace codeBlock {
+  /// Binds `Ctrl-Shift-\` to switch the selected textblocks to a code
+  /// block.
   export const keyBinding = KeyBinding.define({
     key: "Ctrl-Shift-\\",
     run: Command.bind(setTextblockType, CodeBlock)
   })
 
+  /// Button for the {@link Menu.Submenu.textblockStyle | textblock
+  /// style} menu that switches to a code block.
   export const button = Menu.Button.define({
     run: Command.bind(setTextblockType, CodeBlock),
     active: selectionInType(CodeBlock),
@@ -103,15 +137,16 @@ export namespace codeBlock {
     rank: 30
   })
 
+  /// Input rule that switches the current textblock to a code block
+  /// when you type three backticks at its start.
   export const createOnBackticks = InputRule.textblockType(/^```$/, CodeBlock)
 }
 
+/// Extensions that add support for text alignment—the {@link
+/// Alignment} mark, a set of {@link alignment.keyBindings | key
+/// bindings}, and a {@link alignment.button | menu button}.
 export function alignment(): GardState.Extension {
-  return [
-    GardState.schemaElement.of(Alignment),
-    alignment.button, alignment.buttonStart, alignment.buttonEnd, alignment.buttonCenter,
-    alignment.keyBindings
-  ]
+  return [GardState.schemaElement.of(Alignment), alignment.button, alignment.keyBindings]
 }
 
 function alignmentAtCursor(state: GardState): null | "end" | "center" {
@@ -120,19 +155,15 @@ function alignmentAtCursor(state: GardState): null | "end" | "center" {
 }
 
 export namespace alignment {
+  /// Bind `Mod-Shift-l` to left-align, `Mod-Shift-r` to right-align,
+  /// and `Mod-Shift-e` to center.
   export const keyBindings = [
     KeyBinding.define({key: "Mod-Shift-l", run: Command.bind(setAlignment, "left")}),
     KeyBinding.define({key: "Mod-Shift-r", run: Command.bind(setAlignment, "right")}),
     KeyBinding.define({key: "Mod-Shift-e", run: Command.bind(setAlignment, "center")})
   ]
 
-  export const button = Menu.Submenu.define({
-    description: phrases.ref("alignment"),
-    parent: Menu.Group.block,
-    arrow: false,
-    rank: 10
-  })
-
+  /// A button that sets text alignments to start.
   export const buttonStart = Menu.Button.define({
     run: Command.bind(setAlignment, null),
     active: state => alignmentAtCursor(state) == null,
@@ -141,10 +172,9 @@ export namespace alignment {
       directional: true
     },
     description: phrases.ref("align_start"),
-    parent: button,
-    rank: 10
   })
 
+  /// A button that sets text alignment to end.
   export const buttonEnd = Menu.Button.define({
     run: Command.bind(setAlignment, "end"),
     active: state => alignmentAtCursor(state) == "end",
@@ -153,10 +183,9 @@ export namespace alignment {
       directional: true
     },
     description: phrases.ref("align_end"),
-    parent: button,
-    rank: 20
   })
 
+  /// Menu button that sets text alignment to center.
   export const buttonCenter = Menu.Button.define({
     run: Command.bind(setAlignment, "center"),
     active: state => alignmentAtCursor(state) == "center",
@@ -164,14 +193,27 @@ export namespace alignment {
       icon: "M29 81a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m-13-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69m13-19a3 3 0 0 1 0-6h44a3 3 0 0 1 0 6h-44m-13-19a3 3 0 0 1 0-6h69a3 3 0 0 1 0 6h-69"
     },
     description: phrases.ref("align_center"),
-    parent: button,
-    rank: 30
+  })
+
+  /// A button that pops up a submenu for alignment choice. Includes
+  /// {@link buttonStart}, {@link buttonEnd}, and {@link buttonCenter}
+  /// as default content, so if you include this you don't have to
+  /// explicitly include those.
+  export const button = Menu.Submenu.define({
+    description: phrases.ref("alignment"),
+    parent: Menu.Group.block,
+    arrow: false,
+    rank: 10,
+    content: [buttonStart, buttonEnd, buttonCenter]
   })
 }
 
+/// Add support for selecting a text direction per textblock. Includes
+/// the {@link Direction} mark, the {@link direction.textblockDir |
+/// extension} to make the editor interpret that, and a {@link
+/// direction.button | menu button}.
 export function direction(): GardState.Extension {
-  return [GardState.schemaElement.of(Direction),
-          direction.textblockDir, direction.button, direction.buttonLTR, direction.buttonRTL, direction.buttonAuto]
+  return [GardState.schemaElement.of(Direction), direction.textblockDir, direction.button]
 }
 
 function autoDir(plot: Plot) {
@@ -190,57 +232,67 @@ function directionAtCursor(state: GardState): "ltr" | "rtl" | "auto" {
 }
 
 export namespace direction {
+  /// This extension makes the editor state understand the effect the
+  /// {@link Direction} mark has on text direction, so that cursor
+  /// motion and such behaves correctly in blocks that have it.
   export const textblockDir = GardState.textblockLTR.of(plot => {
     let dir = plot.mark(Direction)
     return !dir ? null : dir == "auto" ? autoDir(plot) : dir == "ltr"
   })
 
-  export const button = Menu.Submenu.define({
-    description: phrases.ref("text_dir"),
-    parent: Menu.Group.block,
-    arrow: false,
-    rank: 20
-  })
-
+  /// Menu button to choose a left-to-right text direction.
   export const buttonLTR = Menu.Button.define({
     run: Command.bind(setDirection, "ltr"),
     active: state => directionAtCursor(state) == "ltr",
     label: {
       icon: "M70 35l20 15l-20 15l0-30M45 83v-63h-5v63a3 3 0 0 1-6 0v-28h-4a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6h-7v62a3 3 0 0 1-6 0"
     },
-    description: phrases.ref("text_dir_ltr"),
-    parent: button,
-    rank: 10
+    description: phrases.ref("text_dir_ltr")
   })
 
+  /// Button to choose a right-to-left text direction.
   export const buttonRTL = Menu.Button.define({
     run: Command.bind(setDirection, "rtl"),
     active: state => directionAtCursor(state) == "rtl",
     label: {
       icon: "M30 35l-20 15l20 15l0-30M75 83v-63h-5v63a3 3 0 0 1-6 0v-28h-4a20 20 0 1 1 0-40h28a3 3 0 0 1 0 6h-7v62a3 3 0 0 1-6 0"
     },
-    description: phrases.ref("text_dir_rtl"),
-    parent: button,
-    rank: 20
+    description: phrases.ref("text_dir_rtl")
   })
 
+  /// Button that enables automatic text direction, where the content
+  /// of the textblock determines direction.
   export const buttonAuto = Menu.Button.define({
     run: Command.bind(setDirection, "auto"),
     active: state => directionAtCursor(state) == "auto",
     label: {
       icon: "M35 30l-23 20l23 20l0-40M60 30l23 20l-23 20l0-40"
     },
-    description: phrases.ref("text_dir_auto"),
-    parent: button,
-    rank: 30
+    description: phrases.ref("text_dir_auto")
+  })
+
+  /// Menu button for choosing text direction. Includes {@link
+  /// buttonLTR}, {@link buttonRTL}, and {@link buttonAuto} as default
+  /// content.
+  export const button = Menu.Submenu.define({
+    description: phrases.ref("text_dir"),
+    parent: Menu.Group.block,
+    arrow: false,
+    rank: 20,
+    content: [buttonLTR, buttonRTL, buttonAuto]
   })
 }
 
+/// Support for blockquotes. Adds the {@link Blockquote | schema
+/// element}, a {@link blockquote.button | menu button}, an {@link
+/// blockquote.createOnGT | input rule}, and a {@link blockquote.theme
+/// | default style}.
 export function blockquote(): GardState.Extension {
   return [GardState.schemaElement.of(Blockquote), blockquote.button, blockquote.createOnGT, blockquote.theme]
 }
 
 export namespace blockquote {
+  /// Menu button that toggles a blockquote wrapper.
   export const button = Menu.Button.define({
     run: Command.bind(toggleBlock, Blockquote),
     active: state => {
@@ -256,8 +308,12 @@ export namespace blockquote {
     rank: 40
   })
 
+  /// Input rule that wraps the current block in a blockquote when you
+  /// type a greater-than sign followed by a space at its start.
   export const createOnGT = InputRule.wrapping(/^> $/, Blockquote)
 
+  /// Simple style that shows a border next to blockquotes to make
+  /// them easy to see.
   export const theme = Wordgard.theme({
     blockquote: {
       marginInline: "3px",
@@ -267,11 +323,16 @@ export namespace blockquote {
   })
 }
 
+/// Support extension for horizontal rules. Provides the {@link
+/// HorizontalRule | schema element} and an {@link
+/// horizontalRule.createOnDashes | input rule}.
 export function horizontalRule(): GardState.Extension {
   return [GardState.schemaElement.of(HorizontalRule), horizontalRule.createOnDashes]
 }
 
 export namespace horizontalRule {
+  /// Input rule that will create a horizontal rule if you type three
+  /// dashes into an empty textblock.
   export const createOnDashes = InputRule.define({
     expr: /^---$/,
     lookahead: /^$/,

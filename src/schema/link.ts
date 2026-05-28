@@ -74,7 +74,7 @@ function renderLinkTooltip(target: string) {
 const linkTooltipTheme = Wordgard.baseTheme({
   "wg-link-tooltip": {
     maxWidth: "30em",
-    fontSize: "80%",
+    fontSize: "90%",
     textOverflow: "ellipsis",
     whiteSpace: "pre",
     overflow: "hidden",
@@ -88,16 +88,23 @@ const linkTooltipTheme = Wordgard.baseTheme({
   }
 })
 
+/// Extensions for a link mark—the {@link Link | schema element}, a
+/// {@link link.keyBinding | key binding}, a {@link link.button | menu
+/// button}, and the {@link link.tooltip | link tooltip}.
 export function link(): GardState.Extension {
-  return [GardState.schemaElement.of(Link), link.button, Menu.Group.inline, link.keyBinding, link.tooltip]
+  return [GardState.schemaElement.of(Link), link.button, link.keyBinding, link.tooltip]
 }
 
 export namespace link {
+  /// Binds `Mod-k` to toggle the link mark.
   export const keyBinding = KeyBinding.define({
     key: "Mod-k",
     run: toggleLink,
   })
 
+  /// Menu button that will remove the link mark from the selection if
+  /// present, or prompt for a target and make the current selection a
+  /// link.
   export const button = Menu.Button.define({
     run: toggleLink,
     active(state) {
@@ -119,6 +126,8 @@ export namespace link {
     rank: 50,
   })
 
+  /// Extension that displays a tooltip with the link target below the
+  /// cursor when that is in a link.
   export const tooltip: GardState.Extension = [
     linkTooltipField,
     GardState.prec.low(KeyBinding.define({

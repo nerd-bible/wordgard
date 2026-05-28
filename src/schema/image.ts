@@ -7,22 +7,35 @@ import {imagePhrases} from "wordgard/phrases"
 import {imageDialog, insertImage, activeImage, imageUploader} from "./imagedialog"
 
 function baseSupport(): GardState.Extension {
-  return [GardState.schemaElement.of(ImageAlt), image.button, imageDialog, image.keymap, image.dropHandler]
+  return [GardState.schemaElement.of(ImageAlt), image.button, imageDialog, image.keyBinding, image.dropHandler]
 }
 
+/// Returns extensions that add support for inline images. That
+/// includes the {@link Image | schema element}, the {@link AltText |
+/// alt text mark}, the {@link image.button | menu button}, a {@link
+/// image.keyBinding | key binding}, and a {@link image.dropHandler |
+/// drop handler for image files}.
 export function image(): GardState.Extension {
   return [GardState.schemaElement.of(Image), baseSupport()]
 }
 
-export function figure(conf: {captioned?: boolean} = {}): GardState.Extension {
+/// Support for block figures. Adds the same support extensions as
+/// {@link image}, but includes the {@link Figure} schema element instead.
+export function figure(conf: {
+  /// When enabled, also support {@link CaptionedFigure | captioned figures}.
+  captioned?: boolean
+} = {}): GardState.Extension {
   return [GardState.schemaElement.of(Figure), conf?.captioned ? [GardState.schemaElement.of(CaptionedFigure)] : [], baseSupport()]
 }
 
+/// Add resizing functionality for images and figures. Includes the
+/// {@link ImageSize} mark, the {@link resizeImage.dragHandle | drag
+/// handle}, and {@link resizeImage.keyBindings | key bindings}.
 export function imageResizing(): GardState.Extension {
-  return [GardState.schemaElement.of(ImageSize), resizeImage.keymap, resizeImage.dragHandle, imageTheme]
+  return [GardState.schemaElement.of(ImageSize), resizeImage.keyBindings, resizeImage.dragHandle]
 }
 
-const imageTheme = Wordgard.theme({
+const resizeTheme = Wordgard.theme({
   ".wg-resize-hover": {
     display: "inline-block",
     lineHeight: "0.1",
@@ -119,6 +132,11 @@ const resizeHandlers = Wordgard.domEventHandlers({
 })
 
 export namespace resizeImage {
+  /// Returns a command that resizes the currently selected image or
+  /// figure. When `relative` is fale, `by` indicates a pixel amount,
+  /// which can be positive or negative. When it is true, `by` is a
+  /// scaling factor, which should be between 0 and 1 to shrink the
+  /// image, and greater than1 to grow it.
   export const resizeCommand = (by: number, relative = false): Command => wg => {
     let {selection} = wg.state
     if (selection instanceof GardSelection.Node && wg.state.schema.markAllowed(ImageSize, selection.node.type)) {
@@ -135,23 +153,30 @@ export namespace resizeImage {
     return false
   }
 
-  export const keymap = [
+  /// Binds `Ctrl-Alt-l` (`Ctrl-Cmd-l` on Mac) to grow an image by
+  /// 10%, and `Ctrl-Alt-k` (`Ctrl-Cmd-k` on Mac) to shrink it by 10%.
+  export const keyBindings = [
     KeyBinding.define({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeCommand(1.1, true)}),
-    KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeCommand(0.9, true)}),
+    KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeCommand(0.9091, true)}),
   ]
 
+  /// Extension that displays a drag handle when the user hovers over
+  /// an image or figure, which can be dragged to adjust the element's
+  /// width.
   export const dragHandle: GardState.Extension = [
     GardState.prec.high(resizeHandlers),
     resizeState,
     Decoration.Point.source.of(s => s.field(resizeState).deco),
+    resizeTheme
   ]
 }
 
 export namespace image {
-  export const keymap = [
-    KeyBinding.define({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
-  ]
+  /// Binds `Ctrl-Alt-i` to open the image insert/update dialog.
+  export const keyBinding = KeyBinding.define({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
 
+  /// A menu button that opens a dialog to insert an image or figure,
+  /// or to adjust the currently selected image or figure.
   export const button = Menu.Button.define({
     run: insertImage,
     active: state => !!activeImage(state.sel),
@@ -163,6 +188,10 @@ export namespace image {
     rank: 30,
   })
 
+  /// A custom drop handler that checks whether an image file is being
+  /// dropped. When an {@link image.upload | uploader} has been
+  /// defined, it will feed the file to that, and insert an image with
+  /// the resulting URI when it finishes.
   export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({
     drop: (event, wg) => {
       let {state} = wg, upload = state.facet(imageUploader)[0]
@@ -188,7 +217,13 @@ export namespace image {
     }
   }))
 
+  /// The command that opens the image dialog.
   export const insert = insertImage
 
+  /// A facet that you can use to register a handler for image
+  /// uploads. Your function will be passed a file object, an editor
+  /// instance, and a function that it can call to indicate progress,
+  /// and should return a promise that resolves to a URI for the
+  /// uploaded image.
   export const uploader = imageUploader
 }

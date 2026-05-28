@@ -4,16 +4,21 @@ import {Strong, Emphasis, Code, Underline, Strikethrough, Superscript, Subscript
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
+/// Extension that enables strong emphasis support. Includes the
+/// {@link Strong | schema element}, {@link strong.keyBinding | key
+/// binding}, and {@link strong.button | menu button}.
 export function strong(): GardState.Extension {
-  return [GardState.schemaElement.of(Strong), strong.button, Menu.Group.inline, strong.keyBinding]
+  return [GardState.schemaElement.of(Strong), strong.button, strong.keyBinding]
 }
 
 export namespace strong {
+  /// Binds `Mod-b` to toggle strong emphasis.
   export const keyBinding = KeyBinding.define({
     key: "Mod-b",
     run: Command.bind(toggleMark, Strong),
   })
 
+  /// A menu button that toggles strong emphasis.
   export const button = Menu.Button.toggleMark({
     mark: Strong,
     parent: Menu.Group.inline,
@@ -25,16 +30,21 @@ export namespace strong {
   })
 }
 
+/// Returns extensions for the emphasis mark—the {@link Emphasis |
+/// schema element}, a {@link emphasis.keyBinding | key binding}, and
+/// a {@link emphasis.button | menu button}.
 export function emphasis(): GardState.Extension {
   return [GardState.schemaElement.of(Emphasis), emphasis.button, emphasis.keyBinding]
 }
 
 export namespace emphasis {
+  /// Binds `Mod-i` to toggle emphasis.
   export const keyBinding = KeyBinding.define({
     key: "Mod-i",
     run: Command.bind(toggleMark, Emphasis),
   })
 
+  /// Menu button that toggles emphasis.
   export const button = Menu.Button.toggleMark({
     mark: Emphasis,
     parent: Menu.Group.inline,
@@ -46,16 +56,21 @@ export namespace emphasis {
   })
 }
 
+/// Returns extensions that enable the code font mark. Includes the
+/// {@link Code | schema element}, a {@link code.keyBinding | key
+/// binding}, and a {@link code.button | menu button}.
 export function code(): GardState.Extension {
   return [GardState.schemaElement.of(Code), code.button, code.keyBinding]
 }
 
 export namespace code {
+  /// Binds `` Mod-` `` to toggle the code font mark.
   export const keyBinding = KeyBinding.define({
     key: "Mod-`",
     run: Command.bind(toggleMark, Code),
   })
 
+  /// Menu button for toggling code font.
   export const button = Menu.Button.toggleMark({
     mark: Code,
     parent: Menu.Group.inline,
@@ -67,16 +82,21 @@ export namespace code {
   })
 }
 
+/// Returns an extension bundle for the underline mark, including the
+/// {@link Underline | schema element}, a {@link underline.keyBinding
+/// | key bindding}, and a {@link underline.button | menu button}.
 export function underline(): GardState.Extension {
   return [GardState.schemaElement.of(Underline), underline.button, underline.keyBinding]
 }
 
 export namespace underline {
+  /// Binds `Mod-u` to toggle the underline mark.
   export const keyBinding = KeyBinding.define({
     key: "Mod-u",
     run: Command.bind(toggleMark, Underline)
   })
 
+  /// Menu button for toggling underline.
   export const button = Menu.Button.toggleMark({
     mark: Underline,
     parent: Menu.Group.inline,
@@ -88,16 +108,21 @@ export namespace underline {
   })
 }
 
+/// Extensions to support a strikethrough mark—the {@link
+/// Strikethrough | schema element}, a {@link strikethrough.keyBinding
+/// | key binding}, and a {@link strikethrough.button | menu button}.
 export function strikethrough(): GardState.Extension {
   return [GardState.schemaElement.of(Strikethrough), strikethrough.button, strikethrough.keyBinding]
 }
 
 export namespace strikethrough {
+  /// Binds `Mod-/` to toggle strikethrough.
   export const keyBinding = KeyBinding.define({
     key: "Mod-/",
     run: Command.bind(toggleMark, Strikethrough),
   })
 
+  /// Menu button that toggles the strikethrough mark.
   export const button = Menu.Button.toggleMark({
     mark: Strikethrough,
     parent: Menu.Group.inline,
@@ -109,16 +134,21 @@ export namespace strikethrough {
   })
 }
 
+/// Add support for a superscript mark. Includes the {@link
+/// Superscript | schema element}, a {@link superscript.keyBinding |
+/// key binding}, and a {@link superscript.button | menu button}.
 export function superscript(): GardState.Extension {
   return [GardState.schemaElement.of(Superscript), superscript.button, superscript.keyBinding]
 }
 
 export namespace superscript {
+  /// Binds `Mod-.` to toggle superscript.
   export const keyBinding = KeyBinding.define({
     key: "Mod-.",
     run: Command.bind(toggleMark, Superscript),
   })
 
+  /// Menu button for toggling superscript.
   export const button = Menu.Button.toggleMark({
     mark: Superscript,
     parent: Menu.Group.inline,
@@ -130,16 +160,21 @@ export namespace superscript {
   })
 }
 
+/// Support for a subscript mark. Includes the {@link Subscript |
+/// schema element}, a {@link subscript.keyBinding | key binding}, and
+/// a {@link subscript.button | menu button}.
 export function subscript(): GardState.Extension {
   return [GardState.schemaElement.of(Subscript), subscript.button, subscript.keyBinding]
 }
 
 export namespace subscript {
+  /// Binds `Mod-,` to toggle the subscript mark.
   export const keyBinding = KeyBinding.define({
     key: "Mod-,",
     run: Command.bind(toggleMark, Subscript),
   })
 
+  /// Menu button for toggling subscript.
   export const button = Menu.Button.toggleMark({
     mark: Subscript,
     parent: Menu.Group.inline,

@@ -515,6 +515,7 @@ const theme = Wordgard.baseTheme({
     padding: "1.5px",
     backgroundColor: "var(--wg-panel-color)",
     position: "absolute",
+    zIndex: "10",
     left: "-1.5px",
     top: "100%",
     border: "1px solid var(--wg-border-color)",

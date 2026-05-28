@@ -32,12 +32,16 @@ function setColor(wg: Wordgard, mark: Mark.Type<string>, value: string) {
   }
 }
 
+/// User interface component that shows a grid of colors and allows
+/// the user to pick one, for use in a menu.
 export class ColorPicker {
   dom: HTMLElement
   private width: number
   private selPos = 0
   private options: HTMLElement[]
 
+  /// Construct the color picker. `finish` will be called when a color
+  /// is selected.
   constructor(readonly wg: Wordgard, readonly finish: (color: string) => void) {
     this.width = wg.state.facet(ColorPicker.width)
     this.dom = document.createElement("wg-color-picker")
@@ -96,7 +100,16 @@ export class ColorPicker {
 }
 
 export namespace ColorPicker {
-  export type Option = {name: PhraseSet.Ref, detail?: PhraseSet.Ref, value: string}
+  /// The type used for color options.
+  export type Option = {
+    /// Reference to a phrase giving the name of the color.
+    name: PhraseSet.Ref,
+    /// An optional second phrase to show after the name.
+    detail?: PhraseSet.Ref,
+    /// The color, as a CSS color string, or the empty string to
+    /// indicate that this option clears the color.
+    value: string
+  }
 
   function col(rgb: string, name: PhraseSet.Tag<typeof colorNames>, mod?: -3 | -2 | -1 | 1 | 2 | 3) {
     let detail = mod == 3 ? colorNames.ref("lightest") : mod == 2 ? colorNames.ref("lighter") :
@@ -105,7 +118,7 @@ export namespace ColorPicker {
     return {name: colorNames.ref(name), detail, value: rgb}
   }
 
-  export function defaultColors(): readonly ColorPicker.Option[] {
+  function defaultColors(): readonly ColorPicker.Option[] {
     return [
       col("", "none"),
       col("#000000", "black"),
@@ -197,12 +210,39 @@ export namespace ColorPicker {
     ]
   }
 
+  /// Facet used to configure the width of the color picker. Defaults
+  /// to 10.
   export const width = GardState.Facet.define<number, number>({
     combine: values => values.length ? values[0] : 10
   })
 
+  /// Facet used to configure color picker options. The default is a
+  /// collection of 80 colors, starting with an empty one for clearing
+  /// color.
   export const options = GardState.Facet.define<readonly ColorPicker.Option[], readonly ColorPicker.Option[]>({
-    combine: values => values.length ? values[0] : ColorPicker.defaultColors()
+    combine: values => values.length ? values[0] : defaultColors()
+  })
+
+  /// Base CSS for the color picker.
+  export const theme = Wordgard.baseTheme({
+    "wg-color-picker": {
+      display: "grid",
+      gap: "4px",
+      padding: "3px",
+    },
+    "wg-color-picker-color": {
+      borderRadius: "50%",
+      border: "1px solid var(--wg-border-color)",
+      width: "12px",
+      height: "12px",
+      "wg-color-picker:focus &[aria-selected], &:hover": {
+        outline: "2px solid var(--wg-highlight-color)"
+      },
+      "&.wg-no-color": {
+        border: "none",
+        background: `${crossGradient(45)}, ${crossGradient(135)}`
+      }
+    },
   })
 }
 
@@ -210,29 +250,7 @@ function crossGradient(angle: number) {
   return `linear-gradient(${angle}deg, transparent, transparent 44%, currentColor 44%, currentColor 56%, transparent 56%)`
 }
 
-const colorPickerTheme = Wordgard.baseTheme({
-  "wg-color-picker": {
-    display: "grid",
-    gap: "4px",
-    padding: "3px",
-  },
-  "wg-color-picker-color": {
-    borderRadius: "50%",
-    border: "1px solid var(--wg-border-color)",
-    width: "12px",
-    height: "12px",
-    "wg-color-picker:focus &[aria-selected], &:hover": {
-      outline: "2px solid var(--wg-highlight-color)"
-    },
-    "&.wg-no-color": {
-      border: "none",
-      background: `${crossGradient(45)}, ${crossGradient(135)}`
-    }
-  },
-})
-
-
-export const colorPicker = Menu.CustomControl.define({
+const colorPicker = Menu.CustomControl.define({
   render(wg, done) {
     return new ColorPicker(wg, color => {
       done()
@@ -242,11 +260,15 @@ export const colorPicker = Menu.CustomControl.define({
   }
 })
 
+/// Adds support for a text color mark. Includes the {@link Color |
+/// schema element}, the {@link color.button | menu button}, and the
+/// {@link ColorPicker.theme | color picker styles}.
 export function color(): GardState.Extension {
-  return [GardState.schemaElement.of(Color), color.button, colorPickerTheme, Menu.Group.inline]
+  return [GardState.schemaElement.of(Color), color.button, ColorPicker.theme]
 }
 
 export namespace color {
+  /// A button that shows a color picker to change the text color.
   export const button = Menu.Submenu.define({
     label: {
       icon: "M5 8A3 3 0 0 1 8 5h28a3 3 0 0 1 3 3v30l23-23a3 3 0 0 1 4 0l20 20a3 3 0 0 1 0 4L63 61H92a3 3 0 0 1 3 3v28a3 3 0 0 1-3 3H22a17 17 0 0 1-12-5A17 17 0 0 1 5 78m34-1 41-41-16-16L39 45zM30 78a8 8 0 1 0-17 0 8 8 0 0 0 17 0M89 89v-22H57l-23 23zM5 8v70zm0 70V78z",
@@ -259,8 +281,12 @@ export namespace color {
   })
 }
 
+/// Adds support for a background color mark. Includes the {@link
+/// BackgroundColor | schema element}, the {@link
+/// backgroundColor.button | menu button}, and the {@link
+/// ColorPicker.theme | color picker styles}.
 export function backgroundColor(): GardState.Extension {
-  return [GardState.schemaElement.of(BackgroundColor), backgroundColor.button, colorPickerTheme, Menu.Group.inline]
+  return [GardState.schemaElement.of(BackgroundColor), backgroundColor.button, ColorPicker.theme]
 }
 
 const backgroundPicker = Menu.CustomControl.define({
@@ -274,6 +300,8 @@ const backgroundPicker = Menu.CustomControl.define({
 })
 
 export namespace backgroundColor {
+  /// A button that expands a submenu with a color picker that can be
+  /// used to change the text background color.
   export const button = Menu.Submenu.define({
     label: {
       icon: "M67 9a11 11 0 0 1 16 0l8 8a11 11 0 0 1 0 16l-2 2-45 51a3 3 0 0 1-2 1h-17a3 3 0 0 1-1 0l-2 2A3 3 0 0 1 19 89h-11a3 3 0 0 1-2-5l8-8A3 3 0 0 1 13 75v-17a3 3 0 0 1 1-2l51-45zm-1 8L20 59l21 21 42-46zm20 12 0 0a6 6 0 0 0 0-8L79 13a6 6 0 0 0-8 0l0 0zM35 81 19 65v9L26 81z"

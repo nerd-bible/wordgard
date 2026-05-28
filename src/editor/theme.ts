@@ -131,7 +131,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
 
   "wg-dialog": {
     display: "block",
-    padding: "2px 19px 4px 6px",
+    padding: "5px 19px 5px 6px",
     position: "relative",
     "& label, & .wg-label": {
       fontSize: "90%"

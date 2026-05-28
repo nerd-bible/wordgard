@@ -4,15 +4,26 @@ import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema
 import {phrases} from "wordgard/phrases"
 import {InputRule} from "wordgard/editor"
 
-export function bulletList(config: {blockItems?: boolean} = {}) {
+/// Enable support for bullet lists. Includes the schema elements, the {@link
+/// bulletList.toggleButton | menu button}, and the {@link
+/// bulletList.createOnDash | input rule}.
+export function bulletList(config: {
+  /// By defaults, list items contain {@link doc.Node.Group.Content |
+  /// block content}. Set this to fals to allow only inline content.
+  blockItems?: boolean
+} = {}) {
   return [GardState.schemaElement.of(BulletList),
           GardState.schemaElement.of(config.blockItems == false ? InlineListItem : ListItem),
           bulletList.toggleButton, bulletList.createOnDash]
 }
 
 export namespace bulletList {
+  /// This rule wraps the current textblock in a bullet list when the
+  /// user starts it by typing an optional space, a dash, and then another
+  /// space.
   export const createOnDash = InputRule.wrapping(/^ ?- $/, BulletList)
 
+  /// A menu button that toggles bullet list wrapping for the selection.
   export const toggleButton = Menu.Button.define({
     run: Command.bind(toggleList, BulletList),
     active: listIsActive(BulletList),
@@ -26,6 +37,9 @@ export namespace bulletList {
   })
 }
 
+/// Returns extensions that enable ordered list support, including the
+/// schema elements, {@link orderedList.toggleButton | menu button},
+/// and {@link orderedList.createOnNumber | input rule}.
 export function orderedList(config: {blockItems?: boolean} = {}) {
   return [GardState.schemaElement.of(OrderedList),
           GardState.schemaElement.of(config.blockItems == false ? InlineListItem : ListItem),
@@ -33,8 +47,13 @@ export function orderedList(config: {blockItems?: boolean} = {}) {
 }
 
 export namespace orderedList {
+  /// An input rule that, when the user starts a textblock with an
+  /// optional space, a number, a period, and a space, wraps the block
+  /// in an ordered list.
   export const createOnNumber = InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1]!.text))
 
+  /// A menu button that toggles an ordered list wrapper for the
+  /// selected textblocks.
   export const toggleButton = Menu.Button.define({
     run: Command.bind(toggleList, OrderedList.default!),
     active: listIsActive(OrderedList.default!),
