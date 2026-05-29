@@ -8,7 +8,7 @@ import {image, figure, imageResizing} from "./image"
 import {color, backgroundColor} from "./color"
 import {link} from "./link"
 
-/// Returns an extension that enables {@link LineBreak | line breaks}.
+/// Returns an extension that enables {@link LineBreak line breaks}.
 export function lineBreak(): GardState.Extension {
   return GardState.schemaElement.of(LineBreak)
 }
@@ -41,7 +41,7 @@ export function inlineSchema(): GardState.Extension {
 }
 
 /// Returns an extension with all the schema elements included in this
-/// module, in a {@link blockDoc | block document}.
+/// module, in a {@link blockDoc block document}.
 export function fullSchema(): GardState.Extension {
   return [
     basicSchema(), codeBlock(), alignment(), direction(), blockquote(), horizontalRule(),

@@ -66,8 +66,8 @@ export function showDialog(wg: Wordgard, config: DialogConfig): {
   })}
 }
 
-/// Find the [`Panel`](#editor.Panel) for an open dialog, using a class
-/// name as identifier.
+/// Find the {@link Panel} for an open dialog, using a class name as
+/// identifier.
 export function getDialog(wg: Wordgard, className: string) {
   let dialogs = wg.state.field(dialogField, false) || []
   for (let open of dialogs) {

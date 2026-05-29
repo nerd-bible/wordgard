@@ -57,9 +57,9 @@ export class Wordgard {
   /// The editable DOM element holding the editor content. You should
   /// not, usually, interact with this content directly though the
   /// DOM, since the editor will immediately undo most of the changes
-  /// you make. Instead, [dispatch](#editor.Wordgard.dispatch)
-  /// [transactions](#state.Transaction) to modify content, and
-  /// [decorations](#editor.Decoration) to style it.
+  /// you make. Instead, {@link Wordgard#dispatch dispatch} {@link
+  /// Transaction transactions} to modify content, and {@link
+  /// Decoration decorations} to style it.
   readonly contentDOM: HTMLElement
 
   private announceDOM: HTMLElement
@@ -97,7 +97,7 @@ export class Wordgard {
   domWriters: ((wg: Wordgard) => void)[] = []
 
   /// Construct a new editor. You'll want to either provide a `parent`
-  /// option, or put the editor's {@link Wordgard.dom | DOM element}
+  /// option, or put the editor's {@link Wordgard#dom DOM element}
   /// into your document after creating an editor, so that the user
   /// can see it.
   constructor(spec: Wordgard.Spec) {
@@ -170,8 +170,8 @@ export class Wordgard {
   /// property, but updating the DOM will be deferred to the next
   /// display update.
   ///
-  /// You should usually call [`dispatch`](#editor.Wordgard.dispatch)
-  /// instead, which uses this as a primitive.
+  /// You should usually call {@link Wordgard#dispatch} instead, which
+  /// uses this as a primitive.
   update(transaction: Transaction) {
     if (this.flushing) throw new Error("Cannot dispatch new updates during the editor flush phase")
     this.viewState.update(transaction)
@@ -366,8 +366,8 @@ export class Wordgard {
   }
 
   /// Schedule a function that needs to modify the DOM. When doing any
-  /// kind of DOM mutation that depends on a [DOM
-  /// read](#editor.Wordgard.scheduleDOMRead), use this method, so that
+  /// kind of DOM mutation that depends on a {@link
+  /// Wordgard#scheduleDOMRead | DOM read}, use this method, so that
   /// read and write phases remain separate.
   scheduleDOMWrite(write: (wg: Wordgard) => void) {
     this.scheduleFlush()
@@ -413,7 +413,7 @@ export class Wordgard {
   /// distance in pixels.
   ///
   /// When `start` has a
-  /// [`goalColumn`](#state.SelectionRange.goalColumn), the vertical
+  /// {@link GardSelection#goalColumn `goalColumn`}, the vertical
   /// motion will use that as a target horizontal position. Otherwise,
   /// the cursor's own horizontal position is used. The returned
   /// cursor will have its goal column set to whichever column was
@@ -506,9 +506,9 @@ export class Wordgard {
     })
   }
 
-  /// Returns an effect that can be
-  /// [added](#state.TransactionSpec.effects) to a transaction to
-  /// cause it to scroll the given position or range into view.
+  /// Returns an effect that can be {@link Transaction.Spec.effects
+  /// added} to a transaction to cause it to scroll the given position
+  /// or range into view.
   static scrollIntoView(pos: number | GardSelection, options: {
     /// By default (`"nearest"`) the position will be vertically
     /// scrolled only the minimal amount required to move the given
@@ -516,9 +516,8 @@ export class Wordgard {
     /// to the top of the editor, `"end"` to move it to the bottom, or
     /// `"center"` to move it to the center.
     y?: ScrollStrategy,
-    /// Effect similar to
-    /// [`y`](#editor.Wordgard^scrollIntoView^options.y), but for the
-    /// horizontal scroll position.
+    /// Effect similar to {@link Wordgard.scrollIntoView.options.y
+    /// `y`}, but for the horizontal scroll position.
     x?: ScrollStrategy,
     /// Extra vertical distance to add when moving something into
     /// view. Not used with the `"center"` strategy. Defaults to 5.
@@ -602,9 +601,8 @@ export class Wordgard {
 
   /// Facet to add a [style
   /// module](https://github.com/marijnh/style-mod#documentation) to
-  /// an editor. The editor will ensure that the module is
-  /// mounted in its [document
-  /// root](#editor.Wordgard.constructor^config.root).
+  /// an editor. The editor will ensure that the module is mounted in
+  /// its {@link Wordgard.Spec.root document root}.
   static styleModule = GardState.Facet.define<StyleModule>()
 
   /// Returns an extension that can be used to add DOM event handlers.
@@ -613,16 +611,16 @@ export class Wordgard {
   /// extension precedence, and the first handler to return true will
   /// be assumed to have handled that event, and no other handlers or
   /// built-in behavior will be activated for it. These are registered
-  /// on the [content element](#editor.Wordgard.contentDOM), except
+  /// on the {@link Wordgard.contentDOM content element}, except
   /// for `scroll` handlers, which will be called any time the
-  /// editor's [scroll element](#editor.Wordgard.scrollDOM) or one of
+  /// editor's {@link Wordgard.scrollDOM scroll element} or one of
   /// its parent nodes is scrolled.
   static domEventHandlers(handlers: DOMEventHandlers<any>): GardState.Extension {
     return Wordgard.Plugin.define(() => ({}), {eventHandlers: handlers})
   }
 
   /// Create an extension that registers DOM event observers. Contrary
-  /// to event [handlers](#editor.Wordgard^domEventHandlers),
+  /// to event {@link Wordgard.domEventHandlers handlers},
   /// observers can't be prevented from running by a higher-precedence
   /// handler returning true. They also don't prevent other handlers
   /// and observers from running when they return true, and should not
@@ -644,7 +642,7 @@ export class Wordgard {
   /// library catches an exception from an extension (mostly from
   /// plugins, but may be used by other extensions to route exceptions
   /// from user-code-provided callbacks). This is mostly useful for
-  /// debugging and logging. See [`logException`](#editor.logException).
+  /// debugging and logging. See {@link logException}.
   static exceptionSink = exceptionSink
 
   // FIXME better names for these (distinguish from .update, use nouns
@@ -665,8 +663,8 @@ export class Wordgard {
   /// When its highest-precedence value is `false`, the element will
   /// not have its `contenteditable` attribute set. (Note that this
   /// doesn't affect API calls that change the editor content, even
-  /// when those are bound to keys or buttons. See the
-  /// [`readOnly`](#state.GardState.readOnly) facet for that.)
+  /// when those are bound to keys or buttons. See the {@link
+  /// GardState.readOnly `readOnly` facet} for that.)
   static editable = GardState.Facet.define<boolean, boolean>({combine: values => values.length ? values[0] : true })
 
   /// Controls the length of a full cursor blink cycle, in milliseconds.
@@ -715,15 +713,14 @@ export class Wordgard {
   /// prefixed with a generated class for the style.
   ///
   /// Because the selectors will be prefixed with a scope class, rule
-  /// that directly match the editor's [wrapper
-  /// element](#editor.Wordgard.dom)—to which the scope class will be
-  /// added—need to be explicitly differentiated by adding an `&` to
-  /// the selector for that element—for example
-  /// `&:has(wg-content:focus)`.
+  /// that directly match the editor's {@link Wordgard.dom wrapper
+  /// element}—to which the scope class will be added—need to be
+  /// explicitly differentiated by adding an `&` to the selector for
+  /// that element—for example `&:has(wg-content:focus)`.
   ///
   /// When `dark` is set to true, the theme will be marked as dark,
-  /// which will cause the `&dark` rules from [base
-  /// themes](#editor.Wordgard^baseTheme) to be used (as opposed to
+  /// which will cause the `&dark` rules from {@link
+  /// Wordgard.baseTheme base themes} to be used (as opposed to
   /// `&light` when a light theme is active).
   static theme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
     let prefix = StyleModule.newName()
@@ -746,7 +743,7 @@ export class Wordgard {
   }
 
   /// Create an extension that adds styles to the base theme. Like
-  /// with [`theme`](#editor.Wordgard^theme), use `&` to indicate the
+  /// with {@link Wordgard.theme `theme`}, use `&` to indicate the
   /// place of the editor wrapper element when directly targeting
   /// that. You can also use `&dark` or `&light` instead to only
   /// target editors with a dark or light theme.
@@ -780,22 +777,20 @@ export class Wordgard {
 }
 
 export namespace Wordgard {
-  /// The type of object given to the [`Wordgard`](#editor.Wordgard)
-  /// constructor.
+  /// The type of object given to the {@link Wordgard} constructor.
   export interface Spec extends Partial<GardState.Spec> {
-    /// The editor's initial state. If not given, a new state is created
-    /// by passing this configuration object to
-    /// [`GardState.create`](#state.GardState^create), using its
-    /// `doc`, `selection`, and `extensions` field (if provided).
+    /// The editor's initial state. If not given, a new state is
+    /// created by passing this configuration object to {@link
+    /// GardState.create}, using its `doc`, `selection`, and
+    /// `extensions` field (if provided).
     state?: GardState,
     /// When given, the editor is immediately appended to the given
     /// element on creation. (Otherwise, you'll have to place the editor
     /// element in the document yourself.)
     parent?: Element | DocumentFragment
-    /// Pass an effect created with
-    /// [`Wordgard.scrollIntoView`](#editor.Wordgard^scrollIntoView) or
-    /// [`Wordgard.scrollSnapshot`](#editor.Wordgard.scrollSnapshot)
-    /// here to set an initial scroll position.
+    /// Pass an effect created with {@link Wordgard.scrollIntoView} or
+    /// {@link Wordgard.scrollSnapshot} here to set an initial scroll
+    /// position.
     scrollTo?: Transaction.Effect<any>,
   }
 }
@@ -897,18 +892,17 @@ export namespace Wordgard {
   }
 
   export namespace Plugin {
-    /// Provides additional information when defining a
-    /// [plugin](#editor.Wordgard.Plugin).
+    /// Provides additional information when defining a {link
+    /// Wordgard.Plugin plugin}.
     export interface Spec<V extends Wordgard.Plugin.Value> {
-      /// Register the given [event
-      /// handlers](#editor.Wordgard^domEventHandlers) for the plugin.
-      /// When called, these will have their `this` bound to the plugin
-      /// value.
+      /// Register the given {@link Wordgard.domEventHandlers event
+      /// handlers} for the plugin. When called, these will have their
+      /// `this` bound to the plugin value.
       eventHandlers?: DOMEventHandlers<V>,
 
-      /// Registers [event observers](#editor.Wordgard^domEventObservers)
-      /// for the plugin. Will, when called, have their `this` bound to
-      /// the plugin value.
+      /// Registers {@link Wordgard.domEventObservers event observers}
+      /// for the plugin. Will, when called, have their `this` bound
+      /// to the plugin value.
       eventObservers?: DOMEventHandlers<V>,
 
       /// Specify that the plugin provides additional extensions when
@@ -918,14 +912,15 @@ export namespace Wordgard {
 
     /// This is the interface plugin objects conform to.
     export interface Value {
-      /// Notifies the plugin of an update that happened in the editor. This
-      /// is called _before_ the editor updates its own DOM. It is
-      /// responsible for updating the plugin's internal state (including
-      /// any state that may be read by plugin fields) and _writing_ to
-      /// the DOM for the changes in the update. To avoid unnecessary
-      /// layout recomputations, it should _not_ read the DOM layout—use
-      /// [`requestMeasure`](#editor.Wordgard.requestMeasure) to schedule
-      /// your code in a DOM reading phase if you need to.
+      /// Notifies the plugin of an update that happened in the
+      /// editor. This is called _before_ the editor updates its own
+      /// DOM. It is responsible for updating the plugin's internal
+      /// state (including any state that may be read by plugin
+      /// fields) and _writing_ to the DOM for the changes in the
+      /// update. To avoid unnecessary layout recomputations, it
+      /// should _not_ read the DOM layout—use {@link
+      /// Wordgard#scheduleDOMRead `scheduleDOMRead`} to schedule your
+      /// code in a DOM reading phase if you need to.
       update?(update: Wordgard.Update): void
 
       /// When present, this will be called when an update causes any
@@ -947,7 +942,7 @@ export namespace Wordgard {
     }
   }
 
-  /// Editor [plugins](#editor.Wordgard.Plugin) are given instances of
+  /// Editor {@link Wordgard.Plugin plugins} are given instances of
   /// this class, which describe what happened, whenever the editor is
   /// updated.
   export class Update {

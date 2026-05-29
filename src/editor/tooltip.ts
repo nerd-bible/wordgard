@@ -398,16 +398,16 @@ const baseTheme = Wordgard.baseTheme({
 })
 
 /// Describes a tooltip. Values of this type, when provided through
-/// the [`showTooltip`](#editor.showTooltip) facet, control the
-/// individual tooltips on the editor.
+/// the {@link showTooltip} facet, control the individual tooltips on
+/// the editor.
 export interface Tooltip {
   /// The document position at which to show the tooltip.
   pos: number
   /// The end of the range annotated by this tooltip, if different
   /// from `pos`.
   end?: number
-  /// A constructor function that creates the tooltip's [DOM
-  /// representation](#editor.TooltipView).
+  /// A constructor function that creates the tooltip's {@link
+  /// TooltipView DOM representation}.
   create(wg: Wordgard): Tooltip.View
   /// Whether the tooltip should be shown above or below the target
   /// position. Not guaranteed to be respected for hover tooltips
@@ -493,8 +493,8 @@ export namespace Tooltip {
     /// Called when the tooltip is removed from the editor or the editor
     /// is destroyed.
     destroy?(wg: Wordgard): void
-    /// Called when the tooltip has been (re)positioned. The argument is
-    /// the [space](#editor.tooltips^config.tooltipSpace) available to the
+    /// Called when the tooltip has been (re)positioned. The argument
+    /// is the {@tooltips.config.tooltipSpace space} available to the
     /// tooltip.
     positioned?(space: DOMRect): void,
     /// By default, the library will restrict the size of tooltips so
@@ -538,10 +538,10 @@ export namespace Tooltip {
   /// container element. This allows multiple tooltips over the same
   /// range to be "merged" together without overlapping.
   ///
-  /// The return value is a valid [editor extension](#state.Extension)
-  /// but also provides an `active` property holding a state field that
-  /// can be used to read the currently active tooltips produced by this
-  /// extension.
+  /// The return value is a valid {@link GardState.Extension editor
+  /// extension} but also provides an `active` property holding a
+  /// state field that can be used to read the currently active
+  /// tooltips produced by this extension.
   export function hover(
     source: HoverTooltipSource,
     options: {
@@ -697,8 +697,8 @@ const showHoverTooltipHost = Tooltip.show.compute(state => {
 
 const enum Hover { Time = 300, MaxDist = 6 }
 
-/// The type of function that can be used as a [hover tooltip
-/// source](#editor.hoverTooltip^source).
+/// The type of function that can be used as a {@hoverTooltip.source
+/// hover tooltip source}.
 export type HoverTooltipSource = (wg: Wordgard, pos: number, side: -1 | 1) => Tooltip | readonly Tooltip[] | null | Promise<Tooltip | readonly Tooltip[] | null>
 
 class HoverPlugin {

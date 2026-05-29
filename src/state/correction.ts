@@ -101,20 +101,14 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 /// function to verify that some condition holds and optionally
 /// adjust the node.
 ///
-/// The correcting function will be passed a [`NodePos`](#doc.NodePos)
-/// object pointing at the matched node, as well as the editor state
-/// _before_ the transaction. Changes it produces will be interpreted
-/// as relative to the document _after_ the transaction (so `node.doc`).
+/// The correcting function will be passed a {@link `NodePos`} object
+/// pointing at the matched node, as well as the editor state _before_
+/// the transaction. Changes it produces will be interpreted as
+/// relative to the document _after_ the transaction (so `node.doc`).
 ///
-/// Corrections are wrappers around [transaction
-/// filters](#state.GardState^transactionFilter). This means that
-/// their effect will be included in transactions as they are applied.
-/// It also means that a correction, though generally effective, does
-/// not _guarantee_ that an invariant will always be preserved,
-/// because a transaction with
-/// [`filter`](#state.TransactionSpec.filter)`: false` may violate it
-/// and not be checked. Such a transaction may for example be created
-/// by concurrent collaborative changes.
+/// Corrections are wrappers around {@link Transaction.extender
+/// transaction extenders}. This means that their effect will be
+/// included in transactions as they are applied.
 export class Correction<PosType extends Pos.Node> {
   /// To take effect, corrections must be included in an editor
   /// configuration as extensions.

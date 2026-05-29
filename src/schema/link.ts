@@ -88,9 +88,9 @@ const linkTooltipTheme = Wordgard.baseTheme({
   }
 })
 
-/// Extensions for a link mark—the {@link Link | schema element}, a
-/// {@link link.keyBinding | key binding}, a {@link link.button | menu
-/// button}, and the {@link link.tooltip | link tooltip}.
+/// Extensions for a link mark—the {@link Link schema element}, a
+/// {@link link.keyBinding key binding}, a {@link link.button menu
+/// button}, and the {@link link.tooltip link tooltip}.
 export function link(): GardState.Extension {
   return [GardState.schemaElement.of(Link), link.button, link.keyBinding, link.tooltip]
 }

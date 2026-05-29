@@ -8,10 +8,10 @@ import browser from "./browser"
 /// Key bindings associate keys with functions that should be run when
 /// a matching keyboard event happens.
 ///
-/// A key binding can either specify a specific
-/// [character](#editor.KeyBinding.Spec.char) to match on, which will be
+/// A key binding can either specify a specific {@link
+/// KeyBinding.Spec.char character} to match on, which will be
 /// compared against the actual character produced by a key event, or
-/// describe a [key combination](#editor.KeyBinding.Spec.key).
+/// describe a {@link KeyBinding.Spec.key key combination}.
 ///
 /// Bindings for a given key event are evaluated in order of
 /// precedence, with each getting a chance to handle the event,

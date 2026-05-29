@@ -11,9 +11,9 @@ function baseSupport(): GardState.Extension {
 }
 
 /// Returns extensions that add support for inline images. That
-/// includes the {@link Image | schema element}, the {@link AltText |
-/// alt text mark}, the {@link image.button | menu button}, a {@link
-/// image.keyBinding | key binding}, and a {@link image.dropHandler |
+/// includes the {@link Image schema element}, the {@link AltText |
+/// alt text mark}, the {@link image.button menu button}, a {@link
+/// image.keyBinding key binding}, and a {@link image.dropHandler |
 /// drop handler for image files}.
 export function image(): GardState.Extension {
   return [GardState.schemaElement.of(Image), baseSupport()]
@@ -22,15 +22,15 @@ export function image(): GardState.Extension {
 /// Support for block figures. Adds the same support extensions as
 /// {@link image}, but includes the {@link Figure} schema element instead.
 export function figure(conf: {
-  /// When enabled, also support {@link CaptionedFigure | captioned figures}.
+  /// When enabled, also support {@link CaptionedFigure captioned figures}.
   captioned?: boolean
 } = {}): GardState.Extension {
   return [GardState.schemaElement.of(Figure), conf?.captioned ? [GardState.schemaElement.of(CaptionedFigure)] : [], baseSupport()]
 }
 
 /// Add resizing functionality for images and figures. Includes the
-/// {@link ImageSize} mark, the {@link resizeImage.dragHandle | drag
-/// handle}, and {@link resizeImage.keyBindings | key bindings}.
+/// {@link ImageSize} mark, the {@link resizeImage.dragHandle drag
+/// handle}, and {@link resizeImage.keyBindings key bindings}.
 export function imageResizing(): GardState.Extension {
   return [GardState.schemaElement.of(ImageSize), resizeImage.keyBindings, resizeImage.dragHandle]
 }
@@ -189,7 +189,7 @@ export namespace image {
   })
 
   /// A custom drop handler that checks whether an image file is being
-  /// dropped. When an {@link image.upload | uploader} has been
+  /// dropped. When an {@link image.upload uploader} has been
   /// defined, it will feed the file to that, and insert an image with
   /// the resulting URI when it finishes.
   export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({

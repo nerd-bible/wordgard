@@ -5,8 +5,8 @@ import {phrases} from "wordgard/phrases"
 import {InputRule} from "wordgard/editor"
 
 /// Enable support for bullet lists. Includes the schema elements, the {@link
-/// bulletList.toggleButton | menu button}, and the {@link
-/// bulletList.createOnDash | input rule}.
+/// bulletList.toggleButton menu button}, and the {@link
+/// bulletList.createOnDash input rule}.
 export function bulletList(config: {
   /// By defaults, list items contain {@link doc.Node.Group.Content |
   /// block content}. Set this to fals to allow only inline content.
@@ -38,8 +38,8 @@ export namespace bulletList {
 }
 
 /// Returns extensions that enable ordered list support, including the
-/// schema elements, {@link orderedList.toggleButton | menu button},
-/// and {@link orderedList.createOnNumber | input rule}.
+/// schema elements, {@link orderedList.toggleButton menu button},
+/// and {@link orderedList.createOnNumber input rule}.
 export function orderedList(config: {blockItems?: boolean} = {}) {
   return [GardState.schemaElement.of(OrderedList),
           GardState.schemaElement.of(config.blockItems == false ? InlineListItem : ListItem),

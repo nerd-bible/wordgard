@@ -103,7 +103,7 @@ export namespace InputRule {
     /// enforce a lookahead condition.
     lookahead?: RegExp,
     /// By default, input rules don't apply inside nodes with the
-    /// [`Code` role](#doc.Node.Role^Code). Set this to `true` to
+    /// {@link Node.Role.Code `Code` role}. Set this to `true` to
     /// allow matches in code.
     inCode?: boolean
   }

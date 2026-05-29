@@ -34,9 +34,9 @@ function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
 type DocSource = Plot.Doc | HTMLElement | DocumentFragment | string | Node.JSON | ((schema: Schema) => Plot.Doc)
 
 /// The editor state class is a persistent (immutable) data structure.
-/// To update a state, you [create](#state.GardState.update) a
-/// [transaction](#state.Transaction), which produces a _new_ state
-/// instance, without modifying the original object.
+/// To update a state, you {@link GardState.update create} a {@link
+/// Transaction transaction}, which produces a _new_ state instance,
+/// without modifying the original object.
 ///
 /// _Do not_ mutate properties of a state directly.
 export class GardState {
@@ -83,9 +83,9 @@ export class GardState {
     return this._selection
   }
 
-  /// Retrieve the value of a [state field](#state.StateField). Throws
-  /// an error when the state doesn't have that field, unless you pass
-  /// `false` as second parameter.
+  /// Retrieve the value of a {@link GardState.Field state field}.
+  /// Throws an error when the state doesn't have that field, unless
+  /// you pass `false` as second parameter.
   field<T>(field: GardState.Field<T>): T
   field<T>(field: GardState.Field<T>, require: false): T | undefined
   field<T>(field: GardState.Field<T>, require: boolean = true): T | undefined {
@@ -104,7 +104,7 @@ export class GardState {
     return getAddr(this, addr)
   }
 
-  /// Get the value of a state [facet](#state.Facet).
+  /// Get the value of a state {@link GardState.Facet facet}.
   facet<Output>(facet: GardState.Facet.Reader<Output>): Output {
     if (this.trackAccess) addValue(this.trackAccess, facet)
     let addr = this.config.address[facet.id]
@@ -113,18 +113,17 @@ export class GardState {
     return getAddr(this, addr)
   }
 
-  /// Create a [transaction](#state.Transaction) that updates this
-  /// state. Any number of [transaction specs](#state.TransactionSpec)
-  /// can be passed. Unless
-  /// [`sequential`](#state.TransactionSpec.sequential) is set, the
-  /// [changes](#state.TransactionSpec.changes) (if any) of each spec
-  /// are assumed to start in the _current_ document (not the document
-  /// produced by previous specs), and its
-  /// [selection](#state.TransactionSpec.selection) and
-  /// [effects](#state.TransactionSpec.effects) are assumed to refer
-  /// to the document created by its _own_ changes. The resulting
+  /// Create a {@link Transaction transaction} that updates this
+  /// state. Any number of {@link Transaction.Spec transaction specs}
+  /// can be passed. Unless {@link Transaction.Spec.sequential
+  /// `sequential`} is set, the {@link Transaction.Spec.changes
+  /// changes} (if any) of each spec are assumed to start in the
+  /// _current_ document (not the document produced by previous
+  /// specs), and its {@link Transaction.Spec.selection selection} and
+  /// {@link Transaction.Spec.effects effects} are assumed to refer to
+  /// the document created by its _own_ changes. The resulting
   /// transaction contains the combined effect of all the different
-  /// specs. For [selection](#state.TransactionSpec.selection), later
+  /// specs. For {@link Transaction.Spec.selection selection}, later
   /// specs take precedence over earlier ones.
   update(...specs: readonly Transaction.Spec[]): Transaction {
     return specs.length == 1 && specs[0] instanceof Transaction ? specs[0] : resolveTransaction(this, specs)
@@ -166,7 +165,7 @@ export class GardState {
   }
 
   /// A resolved form of the state's selection. Instead of raw
-  /// positions, this object holds [document position](#doc.Pos)
+  /// positions, this object holds {@link Pos document position}
   /// objects for `head`, `anchor`, `from`, and `to`.
   get sel() {
     return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
@@ -206,8 +205,8 @@ export class GardState {
 
   /// Deserialize a state from its JSON representation. When custom
   /// fields should be deserialized, pass the same object you passed
-  /// to [`toJSON`](#state.GardState.toJSON) when serializing as
-  /// third argument.
+  /// to {@link GardState.toJSON `toJSON`} when serializing as third
+  /// argument.
   static fromJSON(json: any, extensions: GardState.Extension, fields?: {[prop: string]: GardState.Field<any>}): GardState {
     if (!json)
       throw new ValidationError("Invalid JSON representation for GardState")
@@ -256,8 +255,8 @@ export class GardState {
                          (state, slot) => slot.create(state), null)
   }
 
-  /// Returns true when the editor is
-  /// [configured](#state.GardState^readOnly) to be read-only.
+  /// Returns true when the editor is {@link GardState.readOnly} to be
+  /// read-only.
   get readOnly() { return this.facet(GardState.readOnly) }
 
   /// Get the global text direction (true when left-to-right, false
@@ -276,10 +275,10 @@ export class GardState {
   }
 
   /// This effect can be used to reconfigure the root extensions of
-  /// the editor. Doing this will discard any extensions
-  /// [appended](#state.StateEffect^appendConfig), but does not reset
-  /// the content of [reconfigured](#state.Compartment.reconfigure)
-  /// compartments.
+  /// the editor. Doing this will discard any extensions {@link
+  /// GardState.Effect.appendConfig appended}, but does not reset the
+  /// content of {@link GardState.Compartment#reconfigure
+  /// reconfigured} compartments.
   static reconfigure = Transaction.Effect.define<GardState.Extension>()
 
   /// Append extensions to the top-level configuration of the editor.
@@ -287,8 +286,8 @@ export class GardState {
 }
 
 export namespace GardState {
-  /// Options passed when [creating](#state.GardState^create) an
-  /// editor state.
+  /// Options passed when {@link GardState.create creating} an editor
+  /// state.
   export interface Spec {
     /// The initial document.
     doc: DocSource
@@ -361,9 +360,9 @@ export namespace GardState {
       return [this, initField.of({field: this as any, create})]
     }
 
-    /// State field instances can be used as
-    /// [`Extension`](#state.Extension) values to enable the field in a
-    /// given state.
+    /// State field instances can be used as {@link
+    /// GardState.Extension `Extension`} values to enable the field in
+    /// a given state.
     get extension(): GardState.Extension { return this }
   }
 
@@ -373,7 +372,7 @@ export namespace GardState {
       create: (state: GardState) => Value,
 
       /// Compute a new value from the field's previous value and a
-      /// [transaction](#state.Transaction).
+      /// {@link Transaction transaction}.
       update: (value: Value, transaction: Transaction) => Value,
 
       /// Compare two values of the field, returning `true` when they are
@@ -382,17 +381,17 @@ export namespace GardState {
       /// `===`.
       compare?: (a: Value, b: Value) => boolean,
 
-      /// Provide extensions based on this field. The given function will
-      /// be called once with the initialized field. It will usually want
-      /// to call some facet's [`from`](#state.Facet.from) method to
-      /// create facet inputs from this field, but can also return other
-      /// extensions that should be enabled when the field is present in a
-      /// configuration.
+      /// Provide extensions based on this field. The given function
+      /// will be called once with the initialized field. It will
+      /// usually want to call some facet's {@Facet#from `from`}
+      /// method to create facet inputs from this field, but can also
+      /// return other extensions that should be enabled when the
+      /// field is present in a configuration.
       provide?: (field: GardState.Field<Value>) => GardState.Extension
 
       /// A function used to serialize this field's content to JSON. Only
       /// necessary when this field is included in the argument to
-      /// [`GardState.toJSON`](#state.GardState.toJSON).
+      /// {@link GardState#toJSON}.
       toJSON?: (value: Value, state: GardState) => any
 
       /// A function that deserializes the JSON representation of this
@@ -405,13 +404,12 @@ export namespace GardState {
   /// state. It takes inputs from any number of extensions, and combines
   /// those into a single output value.
   ///
-  /// Examples of uses of facets are the [tab
-  /// size](#state.GardState^tabSize), [editor
-  /// attributes](#editor.Wordgard^editorAttributes), and [update
-  /// listeners](#editor.Wordgard^updateListener).
+  /// Examples of uses of facets are the {@link GardState.tabSize tab
+  /// size}, {@link Wordgard.editorAtrributes editor attributes}, and
+  /// {@link Wordgard.afterUpdate update listeners}.
   ///
-  /// Note that `Facet` instances can be used anywhere where
-  /// [`FacetReader`](#state.FacetReader) is expected.
+  /// Note that `Facet` instances can be used anywhere where {@link
+  /// Facet.Reader} is expected.
   export class Facet<Input, Output = readonly Input[]> implements GardState.Facet.Reader<Output> {
     /// @internal
     readonly id = nextID++
@@ -436,7 +434,8 @@ export namespace GardState {
     }
 
     /// Returns a facet reader for this facet, which can be used to
-    /// [read](#state.GardState.facet) it but not to define values for it.
+    /// {@link GardState#facet read} it but not to define values for
+    /// it.
     get reader(): GardState.Facet.Reader<Output> { return this }
 
     /// Define a new facet.
@@ -461,7 +460,8 @@ export namespace GardState {
     /// in which case it is called again.
     ///
     /// In cases where your value depends only on a single field, you
-    /// can use the [`from`](#state.Facet.from) method instead.
+    /// can use the {@link GardState.Facet#from `from`} method
+    /// instead.
     compute(get: (state: GardState) => Input): GardState.Extension {
       if (this.isStatic) throw new Error("Can't compute a static facet")
       return new FacetProvider<Input>([], this, ProviderFlag.Auto, get)
@@ -540,10 +540,10 @@ export namespace GardState {
       enables?: GardState.Extension | ((self: GardState.Facet<Input, Output>) => GardState.Extension)
     }
 
-    /// A facet reader can be used to fetch the value of a facet, through
-    /// [`GardState.facet`](#state.GardState.facet) or as a dependency
-    /// in [`Facet.compute`](#state.Facet.compute), but not to define new
-    /// values for the facet.
+    /// A facet reader can be used to fetch the value of a facet,
+    /// through {@link GardState#facet} or as a dependency in {@link
+    /// GardState.Facet#compute `Facet.compute`}, but not to define
+    /// new values for the facet.
     export type Reader<Output> = {
       /// @internal
       id: number
@@ -683,14 +683,14 @@ export namespace GardState {
     return result.reduce((a, b) => a.concat(b))
   }
 
-  /// Extension values can be
-  /// [provided](#state.GardStateConfig.extensions) when creating a
-  /// state to attach various kinds of configuration and behavior
-  /// information. They can either be built-in extension-providing
-  /// objects, such as [state fields](#state.StateField) or [facet
-  /// providers](#state.Facet.of), or objects with an extension in its
-  /// `extension` property. Extensions can be nested in arrays
-  /// arbitrarily deep—they will be flattened when processed.
+  /// Extension values can be {@link GardState.Spec.config provided}
+  /// when creating a state to attach various kinds of configuration
+  /// and behavior information. They can either be built-in
+  /// extension-providing objects, such as {@link GardState.Field
+  /// state fields} or {@link GardState.Facet#of facet providers}, or
+  /// objects with an extension in its `extension` property.
+  /// Extensions can be nested in arrays arbitrarily deep—they will be
+  /// flattened when processed.
   export type Extension = {extension: GardState.Extension} | readonly GardState.Extension[]
 
   /// By default extensions are registered in the order they are found
@@ -698,9 +698,9 @@ export namespace GardState {
   /// Individual extension values can be assigned a precedence to
   /// override this. Extensions that do not have a precedence set get
   /// the precedence of the nearest parent with a precedence, or
-  /// [`default`](#state.Prec.default) if there is no such parent. The
-  /// final ordering of extensions is determined by first sorting by
-  /// precedence and then by order within each precedence.
+  /// {@link GardState.prec.default `default`} if there is no such
+  /// parent. The final ordering of extensions is determined by first
+  /// sorting by precedence and then by order within each precedence.
   export const prec = {
     /// The highest precedence level, for extensions that should end up
     /// near the start of the precedence ordering.
@@ -719,16 +719,16 @@ export namespace GardState {
   }
 
   /// Extension compartments can be used to make a configuration
-  /// dynamic. By [wrapping](#state.Compartment.of) part of your
-  /// configuration in a compartment, you can later
-  /// [replace](#state.Compartment.reconfigure) that part through a
+  /// dynamic. By {@link Compartment#of wrapping} part of your
+  /// configuration in a compartment, you can later {@link
+  /// Compartment#reconfigure replace} that part through a
   /// transaction.
   export class Compartment {
-    /// Create an instance of this compartment to add to your [state
-    /// configuration](#state.GardStateConfig.extensions).
+    /// Create an instance of this compartment to add to your {@link
+    /// GardState.Spec.config state configuration}.
     of(ext: GardState.Extension): GardState.Extension { return new CompartmentInstance(this, ext) }
 
-    /// Create an [effect](#state.TransactionSpec.effects) that
+    /// Create an {@link Transaction.Spec.effects effect} that
     /// reconfigures this compartment.
     reconfigure(content: GardState.Extension): Transaction.Effect<unknown> {
       return GardState.Compartment.reconfigureCompartment.of({compartment: this, extension: content})
@@ -745,7 +745,7 @@ export namespace GardState {
   }
 
   /// Facet used to register {@link Schema | schema} elements. **If**
-  /// a configuration contains a {@link Plot.defineDoc | document}
+  /// a configuration contains a {@link Plot.defineDoc document}
   /// type, the editor's document schema will be derived from the
   /// content of this facet. (Otherwise, the state will try to use the
   /// schema provided via the {@link GardState.Spec.doc} option, or
@@ -755,15 +755,14 @@ export namespace GardState {
     static: true
   })
 
-  /// This facet controls the value of the
-  /// [`readOnly`](#state.GardState.readOnly) getter, which is
-  /// consulted by commands and extensions that implement editing
-  /// functionality to determine whether they should apply. It
-  /// defaults to false, but when its highest-precedence value is
-  /// `true`, such functionality disables itself.
+  /// This facet controls the value of the {@link GardState#readOnly
+  /// `readOnly` getter}, which is consulted by commands and
+  /// extensions that implement editing functionality to determine
+  /// whether they should apply. It defaults to false, but when its
+  /// highest-precedence value is `true`, such functionality disables
+  /// itself.
   ///
-  /// Not to be confused with
-  /// [`Wordgard.editable`](#editor.Wordgard^editable), which
+  /// Not to be confused with {@link editor.Wordgard.editable}, which
   /// controls whether the editor's DOM is set to be editable (and
   /// thus focusable).
   export const readOnly = GardState.Facet.define<boolean, boolean>({

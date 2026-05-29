@@ -204,9 +204,8 @@ const dragScrollMargin = 6
 
 export const mouseSelectionStyle = GardState.Facet.define<MakeSelectionStyle>()
 
-/// Interface that objects registered with
-/// [`Wordgard.mouseSelectionStyle`](#editor.Wordgard^mouseSelectionStyle)
-/// must conform to.
+/// Interface that objects registered with {@link
+/// Wordgard.mouseSelectionStyle} must conform to.
 export interface MouseSelectionStyle {
   /// Return a new selection for the mouse gesture that starts with
   /// the event that was originally given to the constructor, and ends

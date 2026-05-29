@@ -393,8 +393,8 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag.Any) {
 
 /// Wrap the given range in the given wrapper tag. The caller is
 /// responsible for verifying that this is actually a valid wrapping.
-/// It is recommended to use [`findWrappable`](#editor.findWrappable)
-/// for finding wrap positions in non-trivial situations.
+/// It is recommended to use {@link findWrappable} for finding wrap
+/// positions in non-trivial situations.
 export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Plot.Tag.Any) {
   let changes: ChangeSet.Spec[] = [], parent = range.from.parent.node
   for (let i = range.from.index, openWrappers = 0, pos = range.from.pos;; i++) {
@@ -594,9 +594,9 @@ export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark:
 }
 
 /// Post-process the given transaction spec to check for any block
-/// boundaries touched by the changes in it that can be
-/// [auto-joined](#doc.NodeSpec.autoJoin). If any are found, the spec
-/// is updated to perform those joins.
+/// boundaries touched by the changes in it that can be {@link
+/// Plot.Spec.autoJoin auto-joined}. If any are found, the spec is
+/// updated to perform those joins.
 export function autoJoinBlocks(state: GardState, tr: Transaction.Spec): Transaction.Spec {
   if (!tr.changes) return tr
   let changes = ChangeSet.create(state.doc, tr.changes), doc = changes.apply(state.doc)

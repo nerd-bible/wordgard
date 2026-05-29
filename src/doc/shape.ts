@@ -315,9 +315,10 @@ export namespace Shape {
     atom?: boolean
   }
 
-  /// Declares the shape of a node in a potentially more complicated way
-  /// than {@link ElementShape}. This will not automatically create a
-  /// parse rule, so you'll want to define those yourself.
+  /// Declares the shape of a node in a way that allows a more
+  /// complicated shape than {@link Shape.Element}. This will not
+  /// automatically create a parse rule, so you'll want to define
+  /// those yourself.
   export type Structure<Param> = {
     /// The structure as a tree of {@link Elt}s. If this is for a plot
     /// that is not to be rendered as an atom, the structure should
@@ -357,8 +358,8 @@ export namespace Shape {
     /// The attributes to add, either directly or as a function of the
     /// mark's parameter.
     attributes: Record<string, string> | ((param: Param) => Record<string, string>)
-    /// A selector for the [preferred
-    /// target](#doc.AttributeShape.preferTarget) element.
+    /// A selector for the {@link Shape.Attribute.preferTarget
+    /// preferred target} element.
     preferTarget?: string
   }
 }

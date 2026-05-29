@@ -5,8 +5,8 @@ import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 
 /// Extension that enables strong emphasis support. Includes the
-/// {@link Strong | schema element}, {@link strong.keyBinding | key
-/// binding}, and {@link strong.button | menu button}.
+/// {@link Strong schema element}, {@link strong.keyBinding key
+/// binding}, and {@link strong.button menu button}.
 export function strong(): GardState.Extension {
   return [GardState.schemaElement.of(Strong), strong.button, strong.keyBinding]
 }
@@ -31,8 +31,8 @@ export namespace strong {
 }
 
 /// Returns extensions for the emphasis mark—the {@link Emphasis |
-/// schema element}, a {@link emphasis.keyBinding | key binding}, and
-/// a {@link emphasis.button | menu button}.
+/// schema element}, a {@link emphasis.keyBinding key binding}, and
+/// a {@link emphasis.button menu button}.
 export function emphasis(): GardState.Extension {
   return [GardState.schemaElement.of(Emphasis), emphasis.button, emphasis.keyBinding]
 }
@@ -57,8 +57,8 @@ export namespace emphasis {
 }
 
 /// Returns extensions that enable the code font mark. Includes the
-/// {@link Code | schema element}, a {@link code.keyBinding | key
-/// binding}, and a {@link code.button | menu button}.
+/// {@link Code schema element}, a {@link code.keyBinding key
+/// binding}, and a {@link code.button menu button}.
 export function code(): GardState.Extension {
   return [GardState.schemaElement.of(Code), code.button, code.keyBinding]
 }
@@ -83,8 +83,8 @@ export namespace code {
 }
 
 /// Returns an extension bundle for the underline mark, including the
-/// {@link Underline | schema element}, a {@link underline.keyBinding
-/// | key bindding}, and a {@link underline.button | menu button}.
+/// {@link Underline schema element}, a {@link underline.keyBinding
+/// key bindding}, and a {@link underline.button menu button}.
 export function underline(): GardState.Extension {
   return [GardState.schemaElement.of(Underline), underline.button, underline.keyBinding]
 }
@@ -109,8 +109,8 @@ export namespace underline {
 }
 
 /// Extensions to support a strikethrough mark—the {@link
-/// Strikethrough | schema element}, a {@link strikethrough.keyBinding
-/// | key binding}, and a {@link strikethrough.button | menu button}.
+/// Strikethrough schema element}, a {@link strikethrough.keyBinding
+/// key binding}, and a {@link strikethrough.button menu button}.
 export function strikethrough(): GardState.Extension {
   return [GardState.schemaElement.of(Strikethrough), strikethrough.button, strikethrough.keyBinding]
 }
@@ -135,8 +135,8 @@ export namespace strikethrough {
 }
 
 /// Add support for a superscript mark. Includes the {@link
-/// Superscript | schema element}, a {@link superscript.keyBinding |
-/// key binding}, and a {@link superscript.button | menu button}.
+/// Superscript schema element}, a {@link superscript.keyBinding |
+/// key binding}, and a {@link superscript.button menu button}.
 export function superscript(): GardState.Extension {
   return [GardState.schemaElement.of(Superscript), superscript.button, superscript.keyBinding]
 }
@@ -161,8 +161,8 @@ export namespace superscript {
 }
 
 /// Support for a subscript mark. Includes the {@link Subscript |
-/// schema element}, a {@link subscript.keyBinding | key binding}, and
-/// a {@link subscript.button | menu button}.
+/// schema element}, a {@link subscript.keyBinding key binding}, and
+/// a {@link subscript.button menu button}.
 export function subscript(): GardState.Extension {
   return [GardState.schemaElement.of(Subscript), subscript.button, subscript.keyBinding]
 }

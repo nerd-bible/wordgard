@@ -118,9 +118,8 @@ export type Change = {
   /// replacement will produce a valid document, set this to `true` or
   /// a stack of context labels to make the library process the
   /// replacement to make sure it fits. Context tags (passed with the
-  /// innermost tag first, as in
-  /// [`DocNode.contextAt`](#doc.DocNode.contextAt)) may be used as
-  /// wrappers when fitting the slice.
+  /// innermost tag first, as in {@link Plot.Doc.contextAt} may be
+  /// used as wrappers when fitting the slice.
   fit?: boolean | readonly Plot.Tag.Any[]
   /// Add the given mark to this change's range.
   add?: Mark<any>

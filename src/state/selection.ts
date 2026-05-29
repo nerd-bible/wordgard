@@ -71,7 +71,7 @@ export abstract class GardSelection {
   /// {@link GardSelection.Text} can override it.
   get headSide(): -1 | 1 { return this.head > this.anchor ? -1 : 1 }
 
-  /// The {@link GardSelection.headSide | side} associated with the
+  /// The {@link GardSelection.headSide side} associated with the
   /// selection anchor. Also by default points towards the head, or if
   /// that is the same position, forward.
   get anchorSide(): -1 | 1 { return this.anchor > this.head ? -1 : 1 }
@@ -140,15 +140,15 @@ export abstract class GardSelection {
   /// head. Normal cursor positions are:
   ///
   /// - Any inline position, except one directly inside of an inline
-  ///   plot that doesn't have {@link Plot.Spec.cursorInsideBounds |
+  ///   plot that doesn't have {@link Plot.Spec.cursorInsideBounds
   ///   `cursorInsideBounds`} set.
   ///
   /// - Positions between two cursor barriers, if not already an
   ///   inline position. Cursor barriers are the sides of the
   ///   document, any block leaves, or plots that are {@link
-  ///   Plot.Spec.isolating | isolating}, {@link
-  ///   Plot.spec.preserveWhitespace | whitespace-preserving}, or
-  ///   explicitly defined as a {@link Plot.Spec.cursorBarrier |
+  ///   Plot.Spec.isolating isolating}, {@link
+  ///   Plot.Spec.preserveWhitespace whitespace-preserving}, or
+  ///   explicitly defined as a {@link Plot.Spec.cursorBarrier
   ///   cursor barrier}.
   nextNormalCursor(cx: GardSelection.Context, forward = true): GardSelection.Text | null {
     let found = scanNormalFrom(cx, this.head, this.headSide, forward, true)
@@ -320,7 +320,7 @@ export namespace GardSelection {
 
   /// Node selections select a single node. They are created, for
   /// example, when clicking on or moving into a {@link
-  /// doc.Leaf.Spec.selectable | selectable} leaf node. Use {@link
+  /// doc.Leaf.Spec.selectable selectable} leaf node. Use {@link
   /// GardSelection.node} to create one.
   export class Node extends GardSelection {
     private constructor(
@@ -364,7 +364,7 @@ export namespace GardSelection {
   }
 
   /// A selection object where the selection positions have been
-  /// [resolved](#doc.DocNode.resolve). In an editor state, {@link
+  /// {@link Plot.Doc.resolve resolved}. In an editor state, {@link
   /// GardState.sel} provides an instance of this, derived from the
   /// regular canonical selection, for convenience.
   export class Resolved {
@@ -408,7 +408,7 @@ export namespace GardSelection {
 
     /// The active marks for this selection. If this is a cursor
     /// selection with explicitly stored {@link
-    /// GardSelection.Text.Spec.marks | marks}, those are returned.
+    /// GardSelection.Text.Spec.marks marks}, those are returned.
     /// Otherwise, this computes the marks that should be applied to
     /// content inserted in the selection's position, based on
     /// spanning marks on the surrounding nodes.

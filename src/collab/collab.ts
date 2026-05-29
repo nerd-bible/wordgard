@@ -25,7 +25,7 @@ class CollabState {
 type CollabConfig = {
   /// The starting document version. Defaults to 0.
   startVersion?: number,
-  /// This client's identifying [ID](#collab.getClientID). Will be a
+  /// This client's identifying {@link getClientID ID}. Will be a
   /// randomly generated string if not provided.
   clientID?: string,
   /// It is possible to share information other than document changes
@@ -99,9 +99,9 @@ export namespace collab {
     changes: ChangeSet,
     /// The effects in this update. There'll only ever be effects here
     /// when you configure your collab extension with a
-    /// [`sharedEffects`](#collab.collab^config.sharedEffects) option.
+    /// {@link CollabConfig.sharedEffects `sharedEffects`} option.
     effects?: readonly Transaction.Effect<unknown>[]
-    /// The [ID](#collab.collab^config.clientID) of the client who
+    /// The {@link CollabConfig.clientID ID} of the client who
     /// created this update.
     clientID: string
   }

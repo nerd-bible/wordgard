@@ -183,7 +183,7 @@ export namespace Mark {
     /// are preserved after the type change.
     keepOnTypeChange?: boolean | ((from: Node.Tag, to: Node.Tag) => boolean)
     /// A function or type name used to validate values of this mark.
-    /// See [`Tag.Spec.validateParam`](#doc.Tag.Spec.validateParam).
+    /// See {@link Tag.Spec.validateParam}.
     validate?: string | ((value: Value) => void)
     set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
     /// A mark can be either represented with a wrapping element, or

@@ -16,10 +16,10 @@ export const exceptionSink = GardState.Facet.define<(exception: any) => void>()
 /// exception can't be propagated to calling code in a reasonable way
 /// (for example when in an event handler).
 ///
-/// Either calls a handler registered with
-/// [`Wordgard.exceptionSink`](#editor.Wordgard^exceptionSink),
-/// `window.onerror`, if defined, or `console.error` (in which case
-/// it'll pass `context`, when given, as first argument).
+/// Either calls a handler registered with {@link
+/// Wordgard.exceptionSink}, `window.onerror`, if defined, or
+/// `console.error` (in which case it'll pass `context`, when given,
+/// as first argument).
 export function logException(state: GardState, exception: any, context?: string) {
   let handler = state.facet(exceptionSink)
   if (handler.length) handler[0](exception)

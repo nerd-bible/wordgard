@@ -44,7 +44,7 @@ export namespace Command {
   export type Pure<Param = null> = (target: {state: GardState}, param: Param) => false | Transaction.Spec
 
   /// Create an extension that adds a handler for the given {@link
-  /// state.Command | command}.
+  /// Command command}.
   export function handler<Param>(command: Command<Param>, handler: Command<Param>): GardState.Extension {
     return commandHandler.of([command, handler] as any)
   }
@@ -55,7 +55,7 @@ export namespace Command {
     return {command, param} as Command.Bound
   }
 
-  /// Opaque type used for {@link Command.bind | bound} commands.
+  /// Opaque type used for {@link Command.bind bound} commands.
   export type Bound = {
     readonly tag: unique symbol,
     /// @internal

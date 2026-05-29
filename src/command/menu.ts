@@ -191,7 +191,7 @@ export namespace Menu {
   }
 
   /// Groups are used to organize sets of menu items together. The
-  /// {@top Menu.Group.top | top-level menu} is a group, but groups
+  /// {@link Menu.Group.top | top-level menu} is a group, but groups
   /// may appear at any level, so that items with similar roles can
   /// attach themselves to them in order to appear next to each other.
   export class Group {

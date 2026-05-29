@@ -607,7 +607,7 @@ export namespace Plot {
     /// Plots with inlne content can always be empty.
     canBeEmpty?: boolean
     /// Whether the sides of this plot act as a 'barrier' when
-    /// [normalizing](#state.EditorSelection.normalize) a cursor
+    /// {@link GardSelection.normalize normalizing} a cursor
     /// position, which means that a separate cursor position exists
     /// at its boundary. By default, nodes that are {@link
     /// Plot.Spec.isolating | isolating}, {@link
@@ -623,8 +623,8 @@ export namespace Plot {
     /// Controls whether whitespace inside this type of node should be
     /// preserved. Disables whitespace collapsing and the replacement
     /// of newlines with line break nodes in the parser and
-    /// serializer. Defaults to false, unless the node has the [`Code`
-    /// role](#doc.Node.Role^Code).
+    /// serializer. Defaults to false, unless the node has the {@link
+    /// Node.Role.Code} role.
     preserveWhitespace?: boolean
     isolating?: boolean
     /// Block containers are, by default, assumed to arrange their
@@ -639,10 +639,10 @@ export namespace Plot {
     /// Neutral nodes may be completely replaced when their entire
     /// content gets replaced. Defaults to `!defining`.
     neutral?: boolean
-    /// Whether block nodes of this type should be automatically joined
-    /// when they become adjacent through an edit. Defaults to false.
-    /// Note that editing commands need to explicitly call
-    /// [`autoJoinBlocks`](#state.autoJoinBlocks) for joining to happen.
+    /// Whether block nodes of this type should be automatically
+    /// joined when they become adjacent through an edit. Defaults to
+    /// false. Note that editing commands need to explicitly call
+    /// {@link command.autoJoinBlocks} for joining to happen.
     autoJoin?: boolean | ((before: Plot.Tag.Any, after: Plot.Tag.Any) => boolean)
     /// By default, splitting a textblock at the end will revert the new
     /// block to the default type of textblock at that position. Setting

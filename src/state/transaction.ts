@@ -5,10 +5,9 @@ import {GardSelection} from "./selection"
 /// Changes to the editor state are grouped into transactions.
 /// Typically, a user action creates a single transaction, which may
 /// contain any number of document changes, may change the selection,
-/// or have other effects. Create a transaction by calling
-/// [`GardState.update`](#state.GardState.update), or immediately
-/// dispatch one by calling
-/// [`Wordgard.dispatch`](#editor.Wordgard.dispatch).
+/// or have other effects. Create a transaction by calling {@link
+/// GardState#update}, or immediately dispatch one by calling {@link
+/// editor.Wordgard#dispatch}.
 export class Transaction {
   /// @internal
   _state: GardState | null = null
@@ -37,17 +36,17 @@ export class Transaction {
   }
 
   /// The new document produced by the transaction. Contrary to
-  /// [`.state`](#state.Transaction.state)`.doc`, accessing this won't
+  /// {@link Transaction#state `.state`}`.doc`, accessing this won't
   /// force the entire new state to be computed right away, so it is
   /// recommended that {@link Transaction.extender | transaction
   /// extenders} use this property when they need to look at the new
   /// document.
   newDoc: Plot.Doc
 
-  /// The new selection produced by the transaction. If
-  /// [`this.selection`](#state.Transaction.selection) is undefined,
-  /// this will [map](#state.EditorSelection.map) the start state's
-  /// current selection through the changes made by the transaction.
+  /// The new selection produced by the transaction. If {@link
+  /// Transaction#selection `this.selection`} is undefined, this will
+  /// {@link GardSelection#map map} the start state's current
+  /// selection through the changes made by the transaction.
   newSelection: GardSelection
 
   /// @internal
@@ -71,15 +70,15 @@ export class Transaction {
   get docChanged(): boolean { return !this.changes.empty }
 
   /// Indicates whether this transaction reconfigures the state
-  /// (through a [configuration compartment](#state.Compartment) or
-  /// with a top-level configuration
-  /// [effect](#state.StateEffect^reconfigure).
+  /// (through a {@link GardState.Compartment configuration
+  /// compartment} or with a top-level configuration {@link
+  /// GardState.reconfigure effect}.
   get reconfigured(): boolean { return this.startState.config != this.state.config }
 
-  /// Returns true if the transaction has a [user
-  /// event](#state.Transaction^userEvent) annotation that is equal to
-  /// or more specific than `event`. For example, if the transaction
-  /// has `"select.pointer"` as user event, `"select"` and
+  /// Returns true if the transaction has a {@link
+  /// Transaction.userEvent user event} annotation that is equal to or
+  /// more specific than `event`. For example, if the transaction has
+  /// `"select.pointer"` as user event, `"select"` and
   /// `"select.pointer"` will match it.
   isUserEvent(event: string): boolean {
     let e = this.annotation(Transaction.userEvent)
@@ -120,7 +119,7 @@ export class Transaction {
   ///  - `"split"`, `"wrap"`, `"settype"`, `"wrap"`, `"unwrap"` for
   ///    block manipulation actions
   ///
-  /// Use [`isUserEvent`](#state.Transaction.isUserEvent) to check
+  /// Use {@link Transaction#isUserEvent `isUserEvent`} to check
   /// whether the annotation matches a given event.
   declare static userEvent: Transaction.Annotation.Type<string>
 
@@ -135,10 +134,9 @@ export class Transaction {
   declare static remote: Transaction.Annotation.Type<boolean>
 
   /// Merge two transaction specs into a single one, combining the
-  /// effect of both. Note that the
-  /// [`sequential`](#state.Transaction.Spec.sequential) field will be
-  /// interpreted *within* these transactions, and the resulting spec
-  /// will not have it.
+  /// effect of both. Note that the {@link Transaction.Spec.sequential
+  /// `sequential`} field will be interpreted *within* these
+  /// transactions, and the resulting spec will not have it.
   static merge(state: GardState, a: Transaction.Spec, b: Transaction.Spec): Transaction.Spec {
     let rA = resolveTransactionInner(state, null, a)
     return mergeTransaction(state, rA, resolveTransactionInner(state, rA.changes, b))
@@ -148,12 +146,12 @@ export class Transaction {
   /// transactions before they are applied. If such a function returns
   /// a transaction spec, it will be combined with the original
   /// transaction (in the same way as the arguments to
-  /// [`GardState.update`](#state.GardState.update)).
+  /// {@link GardState#update}).
   ///
-  /// When possible, it is recommended to avoid accessing
-  /// [`Transaction.state`](#state.Transaction.state) in an extender,
-  /// since it will force creation of a state that will then be
-  /// discarded again, if the transaction is actually extended.
+  /// When possible, it is recommended to avoid accessing {@link
+  /// Transaction#state} in an extender, since it will force creation
+  /// of a state that will then be discarded again, if the transaction
+  /// is actually extended.
   ///
   /// (This functionality should be used with care. Indiscriminately
   /// modifying transaction is likely to break something or degrade
@@ -162,8 +160,8 @@ export class Transaction {
 }
 
 export namespace Transaction {
-  /// Describes a [transaction](#state.Transaction) when calling the
-  /// [`GardState.update`](#state.GardState.update) method.
+  /// Describes a {@link Transaction transaction} when calling the
+  /// {@link GardState#update} method.
   export interface Spec {
     /// The changes to the document made by this transaction.
     changes?: ChangeSet.Spec
@@ -171,20 +169,21 @@ export namespace Transaction {
     /// Offsets in this selection should refer to the document as it is
     /// _after_ the transaction.
     selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection) | undefined,
-    /// Attach [state effects](#state.StateEffect) to this transaction.
+    /// Attach {@link Transaction.Effect effects} to this transaction.
     /// Again, when they contain positions and this same spec makes
     /// changes, those positions should refer to positions in the
     /// updated document.
     effects?: Transaction.Effect<any> | readonly Transaction.Effect<any>[],
-    /// Set [annotations](#state.Annotation) for this transaction.
+    /// Set {@link Transaction.Annotation annotations} for this
+    /// transaction.
     annotations?: Transaction.Annotation<any> | readonly Transaction.Annotation<any>[],
-    /// Shorthand for `annotations:` [`Transaction.userEvent`](#state.Transaction^userEvent)`.of(...)`.
+    /// Shorthand for `annotations: `{@link Transaction.userEvent `Transaction.userEvent`}`.of(...)`.
     userEvent?: string,
     /// When set to `true`, the transaction is marked as needing to
     /// scroll the current selection into view.
     scrollIntoView?: boolean,
     /// Normally, when multiple specs are combined (for example by
-    /// [`GardState.update`](#state.GardState.update)), the
+    /// {@link GardState#update}), the
     /// positions in `changes` are taken to refer to the document
     /// positions in the initial document. When a spec has `sequental`
     /// set to true, its positions will be taken to refer to the
@@ -194,11 +193,11 @@ export namespace Transaction {
 
   /// Annotations are tagged values that are used to add metadata to
   /// transactions in an extensible way. They should be used to model
-  /// things that effect the entire transaction (such as its [time
-  /// stamp](#state.Transaction^time) or information about its
-  /// [origin](#state.Transaction^userEvent)). For effects that happen
-  /// _alongside_ the other changes made by the transaction, [state
-  /// effects](#state.StateEffect) are more appropriate.
+  /// things that effect the entire transaction (such as its {@link
+  /// Transaction.time time stamp} or information about its {@link
+  /// Transaction.userEvent origin}). For effects that happen
+  /// _alongside_ the other changes made by the transaction, {@link
+  /// Transaction.Effect effects} are more appropriate.
   export class Annotation<T> {
     /// @internal
     constructor(
@@ -216,7 +215,7 @@ export namespace Transaction {
   }
 
   export namespace Annotation {
-    /// Marker that identifies a type of [annotation](#state.Annotation).
+    /// Marker that identifies a type of {@link Annotation annotation}.
     export class Type<T> {
       /// Create an instance of this annotation.
       of(value: T): Transaction.Annotation<T> { return new Transaction.Annotation(this, value) }
@@ -224,10 +223,10 @@ export namespace Transaction {
   }
 
   /// Transaction effects can be used to represent additional effects
-  /// associated with a [transaction](#state.Transaction.effects). They
-  /// are often useful to model changes to custom [state
-  /// fields](#state.StateField), when those changes aren't implicit in
-  /// document or selection changes.
+  /// associated with a {@link Transaction#effects transaction}. They
+  /// are often useful to model changes to custom {@link
+  /// GardState.Field state fields}, when those changes aren't
+  /// implicit in document or selection changes.
   export class Effect<Value> {
     /// @internal
     constructor(
@@ -245,13 +244,13 @@ export namespace Transaction {
     }
 
     /// Tells you whether this effect object is of a given
-    /// [type](#state.StateEffect.Type).
+    /// {@link Transaction.Effect.Type type}.
     is<T>(type: Transaction.Effect.Type<T>): this is Transaction.Effect<T> { return this.type == type as any }
 
-    /// Define a new effect type. The type parameter indicates the type
-    /// of values that his effect holds. It should be a type that
-    /// doesn't include `undefined`, since that is used in
-    /// [mapping](#state.StateEffect.map) to indicate that an effect is
+    /// Define a new effect type. The type parameter indicates the
+    /// type of values that his effect holds. It should be a type that
+    /// doesn't include `undefined`, since that is used in {@link
+    /// Transaction.Effect#map mapping} to indicate that an effect is
     /// removed.
     static define<Value = null>(spec: Transaction.Effect.Spec<Value> = {}): Transaction.Effect.Type<Value> {
       return new Transaction.Effect.Type(spec.map || (v => v))
@@ -271,7 +270,7 @@ export namespace Transaction {
 
   export namespace Effect {
     /// Representation of a type of state effect. Defined with
-    /// [`StateEffect.define`](#state.StateEffect^define).
+    /// {@Transaction.Effect.define}.
     export class Type<Value> {
       /// @internal
       constructor(
@@ -283,7 +282,7 @@ export namespace Transaction {
         readonly map: (value: any, mapping: ChangeSet) => any | undefined
       ) {}
 
-      /// Create a [state effect](#state.StateEffect) instance of this
+      /// Create an {@link Transaction.Effect effect} instance of this
       /// type.
       of(value: Value): Transaction.Effect<Value> { return new Transaction.Effect(this, value) }
     }

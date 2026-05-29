@@ -217,7 +217,7 @@ export function insertCells(
   }
 }
 
-/// @hide exported for testing
+/// @hidden exported for testing
 export function handleTablePaste(state: GardState, slice: Slice, context: readonly Plot.Tag.Any[], drop?: number) {
   let {schema} = state.doc
   if (drop == null && state.selection instanceof CellSelection) {

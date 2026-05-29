@@ -7,13 +7,13 @@ import {Command, Menu, setTextblockType, setAlignment, setDirection, toggleBlock
 import {history} from "wordgard/history"
 import {Wordgard, KeyBinding, InputRule} from "wordgard/editor"
 
-/// {@link Doc | Schema element} that provides the outer document plot
+/// {@link Doc Schema element} that provides the outer document plot
 /// type for a document with block content.
 export function blockDoc(): GardState.Extension {
   return GardState.schemaElement.of(Doc)
 }
 
-/// Outer document {@link InlineDoc | schema element} for a document
+/// Outer document {@link InlineDoc schema element} for a document
 /// that contains only inline content.
 export function inlineDoc(): GardState.Extension {
   return GardState.schemaElement.of(InlineDoc)
@@ -26,9 +26,9 @@ function selectionInType(tag: Plot.Tag.Any) {
   }
 }
 
-/// The basic {@link Paragraph | paragraph} schema element, with a
-/// {@link paragraph.button | menu button} and {@link
-/// paragraph.keyBinding | key binding} to switch to it.
+/// The basic {@link Paragraph paragraph} schema element, with a
+/// {@link paragraph.button menu button} and {@link
+/// paragraph.keyBinding key binding} to switch to it.
 export function paragraph(): GardState.Extension {
   return [GardState.schemaElement.of(Paragraph), paragraph.button, paragraph.keyBinding]
 }
@@ -53,9 +53,9 @@ export namespace paragraph {
   })
 }
 
-/// Support for heading blocks. Includes the {@link Heading | schema
-/// element}, some {@link heading.keyBindings | key bindings}, menu
-/// buttons, and an {@link heading.createOnHash | input rule} to
+/// Support for heading blocks. Includes the {@link Heading schema
+/// element}, some {@link heading.keyBindings key bindings}, menu
+/// buttons, and an {@link heading.createOnHash input rule} to
 /// switch to this block type.
 export function heading(): GardState.Extension {
   return [GardState.schemaElement.of(Heading),
@@ -75,7 +75,7 @@ export namespace heading {
     KeyBinding.define({key: "Ctrl-Shift-6", run: Command.bind(setTextblockType, Heading.of(6))})
   ]
 
-  /// Button for the {@link Menu.Submenu.textblockStyle | textblock
+  /// Button for the {@link Menu.Submenu.textblockStyle textblock
   /// style} menu that switches to a level 1 heading.
   export const button1 = Menu.Button.define({
     run: Command.bind(setTextblockType, Heading.of(1)),
@@ -111,9 +111,9 @@ export namespace heading {
 }
 
 /// Extensions to add support for code blocks. Includes the {@link
-/// CodeBlock | schema element}, a {@link codeBlock.keyBinding | key
-/// binding}, a {@link codeBlock.button | menu button}, and an {@link
-/// codeBlock.createOnBackticks | input rule}.
+/// CodeBlock schema element}, a {@link codeBlock.keyBinding key
+/// binding}, a {@link codeBlock.button menu button}, and an {@link
+/// codeBlock.createOnBackticks input rule}.
 export function codeBlock(): GardState.Extension {
   return [GardState.schemaElement.of(CodeBlock),
           codeBlock.button, codeBlock.keyBinding, codeBlock.createOnBackticks]
@@ -127,7 +127,7 @@ export namespace codeBlock {
     run: Command.bind(setTextblockType, CodeBlock)
   })
 
-  /// Button for the {@link Menu.Submenu.textblockStyle | textblock
+  /// Button for the {@link Menu.Submenu.textblockStyle textblock
   /// style} menu that switches to a code block.
   export const button = Menu.Button.define({
     run: Command.bind(setTextblockType, CodeBlock),
@@ -143,8 +143,8 @@ export namespace codeBlock {
 }
 
 /// Extensions that add support for text alignment—the {@link
-/// Alignment} mark, a set of {@link alignment.keyBindings | key
-/// bindings}, and a {@link alignment.button | menu button}.
+/// Alignment} mark, a set of {@link alignment.keyBindings key
+/// bindings}, and a {@link alignment.button menu button}.
 export function alignment(): GardState.Extension {
   return [GardState.schemaElement.of(Alignment), alignment.button, alignment.keyBindings]
 }
@@ -211,7 +211,7 @@ export namespace alignment {
 /// Add support for selecting a text direction per textblock. Includes
 /// the {@link Direction} mark, the {@link direction.textblockDir |
 /// extension} to make the editor interpret that, and a {@link
-/// direction.button | menu button}.
+/// direction.button menu button}.
 export function direction(): GardState.Extension {
   return [GardState.schemaElement.of(Direction), direction.textblockDir, direction.button]
 }
@@ -283,10 +283,10 @@ export namespace direction {
   })
 }
 
-/// Support for blockquotes. Adds the {@link Blockquote | schema
-/// element}, a {@link blockquote.button | menu button}, an {@link
-/// blockquote.createOnGT | input rule}, and a {@link blockquote.theme
-/// | default style}.
+/// Support for blockquotes. Adds the {@link Blockquote schema
+/// element}, a {@link blockquote.button menu button}, an {@link
+/// blockquote.createOnGT input rule}, and a {@link blockquote.theme
+/// default style}.
 export function blockquote(): GardState.Extension {
   return [GardState.schemaElement.of(Blockquote), blockquote.button, blockquote.createOnGT, blockquote.theme]
 }
@@ -324,8 +324,8 @@ export namespace blockquote {
 }
 
 /// Support extension for horizontal rules. Provides the {@link
-/// HorizontalRule | schema element} and an {@link
-/// horizontalRule.createOnDashes | input rule}.
+/// HorizontalRule schema element} and an {@link
+/// horizontalRule.createOnDashes input rule}.
 export function horizontalRule(): GardState.Extension {
   return [GardState.schemaElement.of(HorizontalRule), horizontalRule.createOnDashes]
 }

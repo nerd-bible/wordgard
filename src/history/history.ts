@@ -109,10 +109,9 @@ export function history(config: HistoryConfig = {}): GardState.Extension {
 
 export namespace history {
   /// The state field used to store the history data. Should probably
-  /// only be used when you want to
-  /// [serialize](#state.GardState.toJSON) or
-  /// [deserialize](#state.GardState^fromJSON) state objects in a way
-  /// that preserves history.
+  /// only be used when you want to {@link GardState.toJSON serialize}
+  /// or {@link GardState.fromJSON deserialize} state objects in a
+  /// way that preserves history.
   export const field = historyField_ as GardState.Field<unknown>
 
   /// Transaction annotation that will prevent that transaction from
