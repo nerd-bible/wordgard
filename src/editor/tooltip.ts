@@ -398,7 +398,7 @@ const baseTheme = Wordgard.baseTheme({
 })
 
 /// Describes a tooltip. Values of this type, when provided through
-/// the {@link showTooltip} facet, control the individual tooltips on
+/// the {@link Tooltip.show} facet, control the individual tooltips on
 /// the editor.
 export interface Tooltip {
   /// The document position at which to show the tooltip.
@@ -407,7 +407,7 @@ export interface Tooltip {
   /// from `pos`.
   end?: number
   /// A constructor function that creates the tooltip's {@link
-  /// TooltipView DOM representation}.
+  /// Tooltip.View DOM representation}.
   create(wg: Wordgard): Tooltip.View
   /// Whether the tooltip should be shown above or below the target
   /// position. Not guaranteed to be respected for hover tooltips

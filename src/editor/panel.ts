@@ -135,7 +135,7 @@ export namespace Panel {
     return config ? [panelConfig.of(config)] : []
   }
 
-  /// A function that initializes a panel. Used in {@link showPanel}.
+  /// A function that initializes a panel. Used in {@link Panel.show}.
   export type Constructor = (wg: Wordgard) => Panel
 
   /// Opening a panel is done by providing a constructor function for

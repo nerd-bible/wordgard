@@ -22,22 +22,7 @@ class CollabState {
   ) {}
 }
 
-type CollabConfig = {
-  /// The starting document version. Defaults to 0.
-  startVersion?: number,
-  /// This client's identifying {@link getClientID ID}. Will be a
-  /// randomly generated string if not provided.
-  clientID?: string,
-  /// It is possible to share information other than document changes
-  /// through this extension. If you provide this option, your
-  /// function will be called on each transaction, and the effects it
-  /// returns will be sent to the server, much like changes are. Such
-  /// effects are automatically remapped when conflicting remote
-  /// changes come in.
-  sharedEffects?: (tr: Transaction) => readonly Transaction.Effect<any>[]
-}
-
-const collabConfig = GardState.Facet.define<CollabConfig & {generatedID: string}, Required<CollabConfig>>({
+const collabConfig = GardState.Facet.define<collab.Config & {generatedID: string}, Required<collab.Config>>({
   combine(configs) {
     let combined = GardState.Facet.combineConfig(configs, {startVersion: 0, clientID: null as any, sharedEffects: () => []}, {
       generatedID: a => a
@@ -72,7 +57,7 @@ const collabField = GardState.Field.define({
 })
 
 /// Create an instance of the collaborative editing plugin.
-export function collab(config: CollabConfig = {}): GardState.Extension {
+export function collab(config: collab.Config = {}): GardState.Extension {
   return [collabField, collabConfig.of({generatedID: Math.floor(Math.random() * 1e9).toString(36), ...config})]
 }
 
@@ -88,6 +73,21 @@ function collapseUpdates(updates: readonly {changes: ChangeSet, effects?: readon
 }
 
 export namespace collab {
+  export type Config = {
+    /// The starting document version. Defaults to 0.
+    startVersion?: number,
+    /// This client's identifying {@link getClientID ID}. Will be a
+    /// randomly generated string if not provided.
+    clientID?: string,
+    /// It is possible to share information other than document changes
+    /// through this extension. If you provide this option, your
+    /// function will be called on each transaction, and the effects it
+    /// returns will be sent to the server, much like changes are. Such
+    /// effects are automatically remapped when conflicting remote
+    /// changes come in.
+    sharedEffects?: (tr: Transaction) => readonly Transaction.Effect<any>[]
+  }
+
   /// An update is a set of changes and effects.
   export interface Update {
     /// The document version that this update starts from.
@@ -99,9 +99,9 @@ export namespace collab {
     changes: ChangeSet,
     /// The effects in this update. There'll only ever be effects here
     /// when you configure your collab extension with a
-    /// {@link CollabConfig.sharedEffects `sharedEffects`} option.
+    /// {@link Config.sharedEffects `sharedEffects`} option.
     effects?: readonly Transaction.Effect<unknown>[]
-    /// The {@link CollabConfig.clientID ID} of the client who
+    /// The {@link Config.clientID ID} of the client who
     /// created this update.
     clientID: string
   }

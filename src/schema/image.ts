@@ -11,7 +11,7 @@ function baseSupport(): GardState.Extension {
 }
 
 /// Returns extensions that add support for inline images. That
-/// includes the {@link Image schema element}, the {@link AltText |
+/// includes the {@link Image schema element}, the {@link ImageAlt |
 /// alt text mark}, the {@link image.button menu button}, a {@link
 /// image.keyBinding key binding}, and a {@link image.dropHandler |
 /// drop handler for image files}.
@@ -189,7 +189,7 @@ export namespace image {
   })
 
   /// A custom drop handler that checks whether an image file is being
-  /// dropped. When an {@link image.upload uploader} has been
+  /// dropped. When an {@link image.uploader uploader} has been
   /// defined, it will feed the file to that, and insert an image with
   /// the resulting URI when it finishes.
   export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({

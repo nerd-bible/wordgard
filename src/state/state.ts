@@ -276,7 +276,7 @@ export class GardState {
 
   /// This effect can be used to reconfigure the root extensions of
   /// the editor. Doing this will discard any extensions {@link
-  /// GardState.Effect.appendConfig appended}, but does not reset the
+  /// GardState.appendConfig appended}, but does not reset the
   /// content of {@link GardState.Compartment#reconfigure
   /// reconfigured} compartments.
   static reconfigure = Transaction.Effect.define<GardState.Extension>()
@@ -404,9 +404,10 @@ export namespace GardState {
   /// state. It takes inputs from any number of extensions, and combines
   /// those into a single output value.
   ///
-  /// Examples of uses of facets are the {@link GardState.tabSize tab
-  /// size}, {@link Wordgard.editorAtrributes editor attributes}, and
-  /// {@link Wordgard.afterUpdate update listeners}.
+  /// Examples of uses of facets are the {@link GardState.readOnly
+  /// read-only configuration}, {@link
+  /// editor.Wordgard.editorAttributes editor attributes}, and {@link
+  /// editor.Wordgard.afterUpdate update listeners}.
   ///
   /// Note that `Facet` instances can be used anywhere where {@link
   /// Facet.Reader} is expected.

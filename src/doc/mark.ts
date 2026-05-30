@@ -175,15 +175,15 @@ export namespace Mark {
     /// true for specs with an element representation, false
     /// for specs with an attribute representation.
     spanning?: boolean
-    /// Used by `Tag.split` to determine whether to keep this mark in
-    /// the split-off tag. `atEnd` will be true if the split happens at
-    /// the end of the node's content.
+    /// Used by {@link Plot.Tag.split} to determine whether to keep
+    /// this mark in the split-off tag. `atEnd` will be true if the
+    /// split happens at the end of the node's content.
     keepOnSplit?: boolean | ((tag: Plot.Tag.Any, atEnd: boolean) => boolean)
-    /// Used by `Tag.changeType` to decide whether marks of this type
-    /// are preserved after the type change.
+    /// Used by {@link Schema.withMarksFrom} to decide whether marks
+    /// of this type are preserved after the type change.
     keepOnTypeChange?: boolean | ((from: Node.Tag, to: Node.Tag) => boolean)
     /// A function or type name used to validate values of this mark.
-    /// See {@link Tag.Spec.validateParam}.
+    /// See {@link Node.Spec.validateParam}.
     validate?: string | ((value: Value) => void)
     set?: Value extends ReadonlyArray<infer Content> ? {compare: (a: Content, b: Content) => number} : never
     /// A mark can be either represented with a wrapping element, or

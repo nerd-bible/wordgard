@@ -516,8 +516,7 @@ export class Wordgard {
     /// to the top of the editor, `"end"` to move it to the bottom, or
     /// `"center"` to move it to the center.
     y?: ScrollStrategy,
-    /// Effect similar to {@link Wordgard.scrollIntoView.options.y
-    /// `y`}, but for the horizontal scroll position.
+    /// Effect similar to `y`, but for the horizontal scroll position.
     x?: ScrollStrategy,
     /// Extra vertical distance to add when moving something into
     /// view. Not used with the `"center"` strategy. Defaults to 5.
@@ -602,7 +601,7 @@ export class Wordgard {
   /// Facet to add a [style
   /// module](https://github.com/marijnh/style-mod#documentation) to
   /// an editor. The editor will ensure that the module is mounted in
-  /// its {@link Wordgard.Spec.root document root}.
+  /// its {@link Wordgard#root document root}.
   static styleModule = GardState.Facet.define<StyleModule>()
 
   /// Returns an extension that can be used to add DOM event handlers.
@@ -788,9 +787,8 @@ export namespace Wordgard {
     /// element on creation. (Otherwise, you'll have to place the editor
     /// element in the document yourself.)
     parent?: Element | DocumentFragment
-    /// Pass an effect created with {@link Wordgard.scrollIntoView} or
-    /// {@link Wordgard.scrollSnapshot} here to set an initial scroll
-    /// position.
+    /// Pass an effect created with {@link Wordgard.scrollIntoView}
+    /// here to set an initial scroll position.
     scrollTo?: Transaction.Effect<any>,
   }
 }

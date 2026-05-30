@@ -606,8 +606,8 @@ export namespace Plot {
     /// child. You can set this to true to allow them to be empty.
     /// Plots with inlne content can always be empty.
     canBeEmpty?: boolean
-    /// Whether the sides of this plot act as a 'barrier' when
-    /// {@link GardSelection.normalize normalizing} a cursor
+    /// Whether the sides of this plot act as a 'barrier' when {@link
+    /// state.GardSelection.nextNormalCursor normalizing} a cursor
     /// position, which means that a separate cursor position exists
     /// at its boundary. By default, nodes that are {@link
     /// Plot.Spec.isolating | isolating}, {@link

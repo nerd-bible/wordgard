@@ -420,7 +420,7 @@ export namespace GardSelection {
 
   /// Many selection related functions need access to a configuration
   /// (to determine text direction and visual motion behavior) and a
-  /// document. Note that {@link EditorState} is a subtype of this.
+  /// document. Note that {@link GardState} is a subtype of this.
   export type Context = {doc: Plot.Doc, config: GardState.Configuration}
 }
 

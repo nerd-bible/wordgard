@@ -101,7 +101,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 /// function to verify that some condition holds and optionally
 /// adjust the node.
 ///
-/// The correcting function will be passed a {@link `NodePos`} object
+/// The correcting function will be passed a {@link Pos.Node} object
 /// pointing at the matched node, as well as the editor state _before_
 /// the transaction. Changes it produces will be interpreted as
 /// relative to the document _after_ the transaction (so `node.doc`).
