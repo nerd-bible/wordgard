@@ -819,19 +819,13 @@ function createWrapElement(wg: Wordgard) {
   return new _wrapElement(wg)
 }
 
-/// Helper type that maps event names to event object types, or the
-/// `any` type for unknown events.
-export interface DOMEventMap extends HTMLElementEventMap {
-  [other: string]: any
-}
-
-/// Event handlers are specified with objects like this. For event
-/// types known by TypeScript, this will infer the event argument type
-/// to hold the appropriate event object type. For unknown events, it
-/// is inferred to `any`, and should be explicitly set if you want type
-/// checking.
+/// Event handlers are specified with objects like this.
 export type DOMEventHandlers<This> = {
-  [event in keyof DOMEventMap]?: (this: This, event: DOMEventMap[event], wg: Wordgard) => boolean | void
+  [event in keyof HTMLElementEventMap]?: (
+    this: This,
+    ev: HTMLElementEventMap[event],
+    wg: Wordgard
+  ) => boolean | void
 }
 
 function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: string[]): Attributes {

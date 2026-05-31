@@ -1,4 +1,4 @@
-export {Wordgard, DOMEventHandlers, DOMEventMap} from "./editor"
+export {Wordgard, DOMEventHandlers} from "./editor"
 export {KeyBinding, defaultKeymap} from "./keymap"
 export {Widget, Decoration, PointSet, RangeSet} from "./decoration"
 export {Panel} from "./panel"

@@ -4,7 +4,7 @@ import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
-import {Wordgard, PluginInstance} from "./editor"
+import {Wordgard, PluginInstance, DOMEventHandlers} from "./editor"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -184,12 +184,12 @@ function computeHandlers(plugins: readonly PluginInstance[]) {
   for (let plugin of plugins) if (!plugin.deactivated) {
     let spec = plugin.spec
     if (spec.domEventHandlers) for (let type in spec.domEventHandlers) {
-      let f = spec.domEventHandlers[type]
-      if (f) record(type).handlers.push(bindHandler(plugin.value!, f))
+      let f = spec.domEventHandlers[type as keyof DOMEventHandlers<any>]
+      if (f) record(type).handlers.push(bindHandler(plugin.value!, f as any))
     }
     if (spec.domEventObservers) for (let type in spec.domEventObservers) {
-      let f = spec.domEventObservers[type]
-      if (f) record(type).observers.push(bindHandler(plugin.value!, f))
+      let f = spec.domEventObservers[type as keyof DOMEventHandlers<any>]
+      if (f) record(type).observers.push(bindHandler(plugin.value!, f as any))
     }
   }
   for (let type in handlers) record(type).handlers.push(handlers[type])
