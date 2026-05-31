@@ -252,15 +252,15 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
 
   get length(): number { return this.is(Leaf.Text) ? this.param.length : 1 }
 
-  join(onto: Node): Leaf.Any | null {
-    if (!this.is(Leaf.Text) || !onto.is(Leaf.Text) || !Mark.sameSet(this.marks, onto.marks)) return null
-    return Leaf.text(onto.param + this.param, this.marks)
-  }
-
   pushTo(nodes: Node[]) {
-    let joined = nodes.length && this.join(nodes[nodes.length - 1])
-    if (joined) nodes[nodes.length - 1] = joined
-    else nodes.push(this)
+    if (this.is(Leaf.Text)) {
+      let prevI = nodes.length - 1, prev = prevI >= 0 ? nodes[prevI] : null
+      if (prev && prev.is(Leaf.Text) && Mark.sameSet(prev.marks, this.marks)) {
+        nodes[prevI] = Leaf.text(prev.param + this.param, this.marks)
+        return
+      }
+    }
+    nodes.push(this)
   }
 
   slice(from: number, to = this.length) {
@@ -460,8 +460,6 @@ export class Plot implements Node.Shared {
   }
 
   mark<Value>(mark: Mark.Type<Value>): Value | undefined { return this.tag.mark(mark) }
-
-  join(other: Node) { return null }
 
   pushTo(nodes: Node[]) { nodes.push(this) }
 
@@ -737,15 +735,20 @@ function sliceContent(out: Token[], content: readonly Node[], from: number, to: 
 function joinText(nodes: readonly Node[]) {
   if (!nodes.length || nodes[0].isBlock) return nodes
   let joined: Node[] | undefined
-  for (let i = 0, last: Leaf.Any | null = null; i < nodes.length; i++) {
-    let node = nodes[i], join
-    if (join = last && node.join(last)) {
-      if (!joined) joined = nodes.slice(0, i)
-      last = joined[joined.length - 1] = join
+  for (let i = 0, last: Leaf<string> | null = null; i < nodes.length; i++) {
+    let node = nodes[i]
+    if (node.is(Leaf.Text)) {
+      if (last && Mark.sameSet(last.marks, node.marks)) {
+        if (!joined) joined = nodes.slice(0, i)
+        last = joined[joined.length - 1] = Leaf.text(last.param + node.param, node.marks)
+        continue
+      } else {
+        last = node
+      }
     } else {
-      last = node.isLeaf ? node : null
-      if (joined) joined.push(node)
+      last = null
     }
+    if (joined) joined.push(node)
   }
   return joined || nodes
 }
