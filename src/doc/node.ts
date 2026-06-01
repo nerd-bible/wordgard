@@ -214,7 +214,7 @@ export namespace Node {
     /// which identifies it as the node canonical that represents a
     /// line break. Nodes marked as line breaks will be parsed from
     /// and serialized to newline characters inside
-    /// {@link Plot.Spec.preserveWhitespace | whitespace-preserving}
+    /// {@link Plot.Spec.preserveWhitespace whitespace-preserving}
     /// nodes.
     static LineBreak = new Role
   }
@@ -608,9 +608,9 @@ export namespace Plot {
     /// state.GardSelection.nextNormalCursor normalizing} a cursor
     /// position, which means that a separate cursor position exists
     /// at its boundary. By default, nodes that are {@link
-    /// Plot.Spec.isolating | isolating}, {@link
-    /// Plot.Spec.preserveWhitespace | whitespace-preserving}, or both
-    /// a {@link Leaf | leaf} and a block count as barriers.
+    /// Plot.Spec.isolating isolating}, {@link
+    /// Plot.Spec.preserveWhitespace whitespace-preserving}, or both
+    /// a {@link Leaf leaf} and a block count as barriers.
     cursorBarrier?: boolean
     /// Indicates that this type of block is the default generic block
     /// type in parent nodes where it may occur (which is appropriate

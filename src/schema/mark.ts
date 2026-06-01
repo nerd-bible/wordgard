@@ -30,7 +30,7 @@ export namespace strong {
   })
 }
 
-/// Returns extensions for the emphasis mark—the {@link Emphasis |
+/// Returns extensions for the emphasis mark—the {@link Emphasis
 /// schema element}, a {@link emphasis.keyBinding key binding}, and
 /// a {@link emphasis.button menu button}.
 export function emphasis(): GardState.Extension {
@@ -135,7 +135,7 @@ export namespace strikethrough {
 }
 
 /// Add support for a superscript mark. Includes the {@link
-/// Superscript schema element}, a {@link superscript.keyBinding |
+/// Superscript schema element}, a {@link superscript.keyBinding
 /// key binding}, and a {@link superscript.button menu button}.
 export function superscript(): GardState.Extension {
   return [GardState.schemaElement.of(Superscript), superscript.button, superscript.keyBinding]
@@ -160,7 +160,7 @@ export namespace superscript {
   })
 }
 
-/// Support for a subscript mark. Includes the {@link Subscript |
+/// Support for a subscript mark. Includes the {@link Subscript
 /// schema element}, a {@link subscript.keyBinding key binding}, and
 /// a {@link subscript.button menu button}.
 export function subscript(): GardState.Extension {

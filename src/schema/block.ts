@@ -41,7 +41,7 @@ export namespace paragraph {
     run: Command.bind(setTextblockType, Paragraph)
   })
 
-  /// Button in the {@link Menu.Submenu.textblockStyle |
+  /// Button in the {@link Menu.Submenu.textblockStyle
   /// `textblockStyle`} menu that makes the selected textblocks
   /// paragraphs.
   export const button = Menu.Button.define({

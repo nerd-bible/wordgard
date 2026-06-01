@@ -228,7 +228,7 @@ export class GardState {
   /// are created by applying transactions.
   ///
   /// The schema of the state can be provided either via the {@link
-  /// GardState.schemaElement | configuration} or by passing in an
+  /// GardState.schemaElement configuration} or by passing in an
   /// initialized document (which will have its own schema). If the
   /// configuration contains a document plot type, the schema from the
   /// configuration will be used, even if a document was provided.
@@ -745,7 +745,7 @@ export namespace GardState {
     static reconfigureCompartment = Transaction.Effect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
 
-  /// Facet used to register {@link Schema | schema} elements. **If**
+  /// Facet used to register {@link Schema schema} elements. **If**
   /// a configuration contains a {@link Plot.defineDoc document}
   /// type, the editor's document schema will be derived from the
   /// content of this facet. (Otherwise, the state will try to use the

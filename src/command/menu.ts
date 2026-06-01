@@ -183,7 +183,7 @@ export namespace Menu {
       /// knows to close, and focus can be moved back to the editor if
       /// appropriate.
       render: (wg: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
-      /// If the control supports {@link Menu.Item.Spec.enable |
+      /// If the control supports {@link Menu.Item.Spec.enable
       /// disabling}, this function will be called when the enabled
       /// state changes, and should update the control to show this.
       setEnabled?: (focus: Element, enabled: boolean) => void
@@ -191,7 +191,7 @@ export namespace Menu {
   }
 
   /// Groups are used to organize sets of menu items together. The
-  /// {@link Menu.Group.top | top-level menu} is a group, but groups
+  /// {@link Menu.Group.top top-level menu} is a group, but groups
   /// may appear at any level, so that items with similar roles can
   /// attach themselves to them in order to appear next to each other.
   export class Group {
@@ -235,7 +235,7 @@ export namespace Menu {
       rank?: number,
       /// Default content for this group. Usually you don't need this,
       /// and let parent links from the content items determine what
-      /// goes in the group. See the {@link Menu.resolve | menu
+      /// goes in the group. See the {@link Menu.resolve menu
       /// resolution} system.
       content?: readonly (Item | "...")[]
       /// If given when, during resolution, the group contains more
@@ -304,7 +304,7 @@ export namespace Menu {
     export interface Spec extends Item.Spec {
       /// The label to show for the submenu. When not given, the
       /// submenu will look for the first {@link
-      /// Menu.Button.Spec.active | active} item in its children, and
+      /// Menu.Button.Spec.active active} item in its children, and
       /// use that child's label, or fall back to `defaultLabel`.
       label?: Label
       /// Fallback label when no regular label is given and there are
@@ -318,7 +318,7 @@ export namespace Menu {
       /// you want to prevent it from changing size as its label
       /// changes.
       width?: number,
-      /// An optional default content. See the {@link Menu.resolve |
+      /// An optional default content. See the {@link Menu.resolve
       /// resolution system}.
       content?: readonly (Item | "...")[]
     }
@@ -377,13 +377,13 @@ export namespace Menu {
   /// Given a set of menu items, and optionally a template, this
   /// function will resolve a concrete menu tree. To do this, it goes
   /// through the template (which defaults to just the {@link
-  /// Menu.Group.top | top group}), filling in open spaces
+  /// Menu.Group.top top group}), filling in open spaces
   /// (represented as the string literal `"..."`) with any items
   /// provided that have the group or submenu as parent.
   ///
   /// The idea is to combine a top-down (the template) and bottom-up
   /// (the items, which typically come from an editor {@link
-  /// Menu.Item.source | configuration}) in a way that allows the user
+  /// Menu.Item.source configuration}) in a way that allows the user
   /// to figure out a balance between manually specifying their menu
   /// and just using whatever is in the configuration.
   ///

@@ -113,7 +113,7 @@ export namespace Decoration {
     }
 
     export namespace shape {
-      /// This function allows you to define a {@link shape | custom
+      /// This function allows you to define a {@link shape custom
       /// node shape} that depends on the editor state. It will
       /// automatically track what slots (see {@link
       /// GardState.Facet.compute}) you use, and make sure the nodes
@@ -145,7 +145,7 @@ export namespace Decoration {
     /// part of it. The given elt should include a hole (`0`) to
     /// indicate where the original shape goes.
     export function wrapper(type: Node.Type.Ref<any>, wrapper: DecoElt, options?: {
-      /// If given, and {@link Elt.Selector | matching} some element
+      /// If given, and {@link Elt.Selector matching} some element
       /// in the node's existing shape, only that element will be
       /// wrapped.
       target?: string
@@ -212,7 +212,7 @@ export namespace Decoration {
         /// By default, the attribute is added to the outer element
         /// (or a wrapper element if the node is rendered as a
         /// widget). If this option is given, and {@link Elt.Selector
-        /// | matches} an element in the representation, it will be
+        /// matches} an element in the representation, it will be
         /// added to that element instead.
         target?: string
       }
@@ -253,7 +253,7 @@ export namespace Decoration {
     /// position.
     static attributes(attrs: Record<string, string>, options?: {
       /// Target a specific element in the node's representation,
-      /// using an {@link Elt.Selector | element selector}.
+      /// using an {@link Elt.Selector element selector}.
       target?: string
     }) {
       return new AttributeDecoration(Attributes.read(attrs), options?.target ? Elt.Selector.parse(options.target) : null)
@@ -267,7 +267,7 @@ export namespace Decoration {
 
     /// Wrap the node at the given position with a wrapper.
     static wrapper(wrapper: DecoElt, spec?: {
-      /// Provide a {@link Elt.Selector | selector} here to target
+      /// Provide a {@link Elt.Selector selector} here to target
       /// only a specific element in the node's representation.
       target?: string
     }) {
@@ -537,7 +537,7 @@ function findAbove(array: readonly number[], start: number, n: number) {
 const none: readonly any[] = []
 
 /// Data structure used to store sets of points and then track them
-/// across document changes. Mostly used for {@link Decoration.Point |
+/// across document changes. Mostly used for {@link Decoration.Point
 /// point decorations}, but can also track your own types, if you make
 /// sure they implement the {@link PointSet.Value} interface.
 export class PointSet<Value extends PointSet.Value = PointSet.Value> {

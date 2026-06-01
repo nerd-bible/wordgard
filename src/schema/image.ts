@@ -11,9 +11,9 @@ function baseSupport(): GardState.Extension {
 }
 
 /// Returns extensions that add support for inline images. That
-/// includes the {@link Image schema element}, the {@link ImageAlt |
+/// includes the {@link Image schema element}, the {@link ImageAlt
 /// alt text mark}, the {@link image.button menu button}, a {@link
-/// image.keyBinding key binding}, and a {@link image.dropHandler |
+/// image.keyBinding key binding}, and a {@link image.dropHandler
 /// drop handler for image files}.
 export function image(): GardState.Extension {
   return [GardState.schemaElement.of(Image), baseSupport()]

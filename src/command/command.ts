@@ -27,7 +27,7 @@ const commandHandler = GardState.Facet.define<
 ///
 /// Extensions can register additional handlers for a command, which
 /// will be called in order of precedence (until one returns true)
-/// when the command is {@link Command.dispatch | dispatched}.
+/// when the command is {@link Command.dispatch dispatched}.
 /// Commands are recognized by function identity. So, for example, the
 /// `enter` command is both the tag used to indicate invocation of an
 /// enter press and the function that implements the default behavior
@@ -50,7 +50,7 @@ export namespace Command {
   }
 
   /// Bind a command with a parameter. The only thing you can do with
-  /// a bound command is to {@link Command.dispatch | dispatch} it.
+  /// a bound command is to {@link Command.dispatch dispatch} it.
   export function bind<Param>(command: Command<Param>, param: Param): Command.Bound {
     return {command, param} as Command.Bound
   }
@@ -66,8 +66,7 @@ export namespace Command {
 
   /// Apply a command to the given editor view. The command can either
   /// be passed directly, with the parameter, if any, passed
-  /// separately, or in {@link
-  /// Command.bind | bound} form.
+  /// separately, or in {@link Command.bind bound} form.
   export function dispatch<Param>(wg: Wordgard, command: Command<null> | Command.Bound): boolean
   export function dispatch<Param>(wg: Wordgard, command: Command<Param>, param: Param): boolean
   export function dispatch<Param>(wg: Wordgard, command: Command<any> | Command.Bound, p?: Param): boolean {

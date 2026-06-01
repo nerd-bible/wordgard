@@ -38,7 +38,7 @@ export class Transaction {
   /// The new document produced by the transaction. Contrary to
   /// {@link Transaction#state `.state`}`.doc`, accessing this won't
   /// force the entire new state to be computed right away, so it is
-  /// recommended that {@link Transaction.extender | transaction
+  /// recommended that {@link Transaction.extender transaction
   /// extenders} use this property when they need to look at the new
   /// document.
   newDoc: Plot.Doc

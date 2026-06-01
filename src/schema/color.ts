@@ -260,9 +260,9 @@ const colorPicker = Menu.CustomControl.define({
   }
 })
 
-/// Adds support for a text color mark. Includes the {@link Color |
-/// schema element}, the {@link color.button | menu button}, and the
-/// {@link ColorPicker.theme | color picker styles}.
+/// Adds support for a text color mark. Includes the {@link Color
+/// schema element}, the {@link color.button menu button}, and the
+/// {@link ColorPicker.theme color picker styles}.
 export function color(): GardState.Extension {
   return [GardState.schemaElement.of(Color), color.button, ColorPicker.theme]
 }
@@ -282,9 +282,9 @@ export namespace color {
 }
 
 /// Adds support for a background color mark. Includes the {@link
-/// BackgroundColor | schema element}, the {@link
-/// backgroundColor.button | menu button}, and the {@link
-/// ColorPicker.theme | color picker styles}.
+/// BackgroundColor schema element}, the {@link
+/// backgroundColor.button menu button}, and the {@link
+/// ColorPicker.theme color picker styles}.
 export function backgroundColor(): GardState.Extension {
   return [GardState.schemaElement.of(BackgroundColor), backgroundColor.button, ColorPicker.theme]
 }
