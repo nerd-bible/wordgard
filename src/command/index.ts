@@ -1,4 +1,54 @@
 export {Command} from "./command"
 export {Menu} from "./menu"
-export * from "./commands"
-export * from "./helper"
+export {
+  insertText,
+  insertLineBreak,
+  enter,
+  deleteUnit,
+  deleteWord,
+  deleteToLineEnd,
+  deleteLine,
+  transposeChars,
+  setTextblockType,
+  unwrapBlock,
+  wrapBlock,
+  toggleBlock,
+  toggleMark,
+  toggleEmphasis,
+  toggleStrong,
+  toggleUnderline,
+  setAlignment,
+  setDirection,
+  toggleList,
+  listIsActive,
+  moveByUnit,
+  moveByWord,
+  moveByLine,
+  moveByPage,
+  moveToLineSide,
+  moveToTextblockSide,
+  moveToDocSide,
+  selectAll,
+  undo,
+  redo
+} from "./commands"
+export {
+  liftEmptyBlock,
+  splitTextblock,
+  deleteSelection,
+  deleteEmptyTextblock,
+  joinBackward,
+  joinListItems,
+  joinForward,
+  deleteBackward,
+  deleteForward,
+  selectedTextblocks,
+  clearNonFitting,
+  findWrappable,
+  wrapBlockRange,
+  findUnwrappable,
+  doUnwrapBlock,
+  joinBlocks,
+  canAddMarkInRange,
+  autoJoinBlocks
+} from "./helper"

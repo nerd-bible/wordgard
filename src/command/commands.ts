@@ -33,7 +33,7 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
 }
 
 /// Command to insert a line break. The default handler will, if the
-/// schema defines a {@link Leaf.Spec.isLineBreak line break} node and
+/// schema defines a {@link Node.Role.LineBreak line break} node and
 /// the selection's parent node allows that, insert such a node.
 /// Otherwise, in nodes marked as
 /// {@link Plot.Spec.preserveWhitespace whitespace-preserving}, this
