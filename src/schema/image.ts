@@ -29,8 +29,8 @@ export function figure(conf: {
 }
 
 /// Add resizing functionality for images and figures. Includes the
-/// {@link ImageSize} mark, the {@link resizeImage.dragHandle drag
-/// handle}, and {@link resizeImage.keyBindings key bindings}.
+/// {@link ImageSize} mark, the {@link imageResizing.dragHandle drag
+/// handle}, and {@link imageResizing.keyBindings key bindings}.
 export function imageResizing(): GardState.Extension {
   return [GardState.schemaElement.of(ImageSize), resizeImage.keyBindings, resizeImage.dragHandle]
 }
@@ -131,7 +131,7 @@ const resizeHandlers = Wordgard.domEventHandlers({
   }
 })
 
-export namespace resizeImage {
+export namespace imageResizing {
   /// Returns a command that resizes the currently selected image or
   /// figure. When `relative` is fale, `by` indicates a pixel amount,
   /// which can be positive or negative. When it is true, `by` is a
