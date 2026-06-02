@@ -49,6 +49,7 @@ export namespace Node {
       readonly shape: NodeShape<Param>
       abstract default: Node.Tag | null
 
+      /// @internal
       constructor(
         readonly name: string,
         readonly flags: NodeFlag,
@@ -82,10 +83,11 @@ export namespace Node {
     export abstract class Base<Param> {
       abstract type: Node.Type<Param>
 
-        constructor(
-          readonly param: Param,
-          readonly marks: readonly Mark[]
-        ) {}
+      /// @internal
+      constructor(
+        readonly param: Param,
+        readonly marks: readonly Mark[]
+      ) {}
 
       mark<Value>(mark: Mark.Type<Value>): Value | undefined {
         for (let v of this.marks) if (v.type == mark) return v.value as Value
@@ -200,15 +202,20 @@ export namespace Node {
   /// You can define your own, and use the `hasRole` method to check
   /// whether a given node has the role attached.
   export class Role {
+    private constructor() {}
+
     declare private tag: "Node.Role"
+
+    /// Define a new role.
+    static define() { return new Role }
 
     /// This role indicates that a plot contains code, and makes some
     /// commands behave differently inside such a plot.
-    static Code = new Role
+    static Code = Role.define()
 
     /// Identifies a plot as a list container. This makes some
     /// commands treat the plot specially.
-    static List = new Role
+    static List = Role.define()
 
     /// A single leaf type in a schema may have the `LineBreak` role,
     /// which identifies it as the node canonical that represents a
@@ -216,7 +223,7 @@ export namespace Node {
     /// and serialized to newline characters inside
     /// {@link Plot.Spec.preserveWhitespace whitespace-preserving}
     /// nodes.
-    static LineBreak = new Role
+    static LineBreak = Role.define()
   }
 }
 
@@ -264,7 +271,7 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
   }
 
   slice(from: number, to = this.length) {
-    return from == to ? Slice.empty : new Slice([this.is(Leaf.Text) ? this.sliceText(from, to) : this])
+    return from == to ? Slice.empty : Slice.of([this.is(Leaf.Text) ? this.sliceText(from, to) : this])
   }
 
   sliceText(from: number, to?: number) {
@@ -332,16 +339,22 @@ export namespace Leaf {
 }
 
 export class Plot implements Node.Shared {
-  contentLength: number
-  tag: Plot.Tag.Any
-
-  constructor(
-    tag: Plot.Tag.Any,
+  /// @internal
+  protected constructor(
+    /// The tag that identifies this plot.
+    readonly tag: Plot.Tag.Any,
+    /// The nodes in this plot.
     readonly content: readonly Node[],
   ) {
     this.tag = tag
     this.contentLength = content.reduce((s, c) => s + c.length, 0)
   }
+
+  /// The sum of the length of this plot's content nodes.
+  contentLength: number
+
+  /// @internal
+  static create(tag: Plot.Tag.Any, content: readonly Node[]) { return new Plot(tag, content) }
 
   get name() { return this.tag.name }
   get type() { return this.tag.type }
@@ -359,7 +372,7 @@ export class Plot implements Node.Shared {
     if (from == to) return Slice.empty
     let content: Token[] = []
     this.slicePlot(content, from, to)
-    return new Slice(content)
+    return Slice.of(content)
   }
 
   /// @internal
@@ -510,7 +523,7 @@ export namespace Plot {
 
     create(children?: readonly Node[]): Plot {
       if (this.isDoc) throw new Error("Document nodes must be created with schema.doc()")
-      return new Plot(this, children ? joinText(children) : none)
+      return Plot.create(this, children ? joinText(children) : none)
     }
 
     split(atEnd: boolean): Tag<Param> {

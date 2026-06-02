@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, Pos, parseDoc, SchemaError, ValidationError} from "wordgard/doc"
+import {Schema, Plot, Node, Pos, Parse, SchemaError, ValidationError} from "wordgard/doc"
 import {SelectionType, GardSelection, wordAt, cursorAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray} from "./transaction"
 import {TextblockMap} from "./textblock"
@@ -27,7 +27,7 @@ function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
   if (typeof doc == "function") return doc(schema)
   if (typeof doc == "string") doc = readHTML(doc)
   let {nodeType} = doc as any
-  if (nodeType === 1 || nodeType === 11) return parseDoc(schema, doc as HTMLElement | DocumentFragment)
+  if (nodeType === 1 || nodeType === 11) return Parse.doc(schema, doc as HTMLElement | DocumentFragment)
   return schema.docFromJSON(doc as Node.JSON)
 }
 
@@ -560,12 +560,14 @@ export namespace GardState {
   export class Configuration {
     readonly statusTemplate: SlotStatus[] = []
 
-    constructor(readonly base: GardState.Extension,
-                readonly compartments: Map<GardState.Compartment, GardState.Extension>,
-                readonly dynamicSlots: DynamicSlot[],
-                readonly address: {[id: number]: number},
-                readonly staticValues: readonly any[],
-                readonly facets: {[id: number]: readonly FacetProvider<any>[]}) {
+    private constructor(
+      readonly base: GardState.Extension,
+      readonly compartments: Map<GardState.Compartment, GardState.Extension>,
+      readonly dynamicSlots: DynamicSlot[],
+      readonly address: {[id: number]: number},
+      readonly staticValues: readonly any[],
+      readonly facets: {[id: number]: readonly FacetProvider<any>[]}
+    ) {
       while (this.statusTemplate.length < dynamicSlots.length)
         this.statusTemplate.push(SlotStatus.Unresolved)
     }
@@ -725,6 +727,10 @@ export namespace GardState {
   /// Compartment#reconfigure replace} that part through a
   /// transaction.
   export class Compartment {
+    private constructor() {}
+
+    static define() { return new Compartment }
+
     /// Create an instance of this compartment to add to your {@link
     /// GardState.Spec.config state configuration}.
     of(ext: GardState.Extension): GardState.Extension { return new CompartmentInstance(this, ext) }

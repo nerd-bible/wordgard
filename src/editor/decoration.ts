@@ -228,6 +228,9 @@ export namespace Decoration {
   /// point decorations can be provided as point sets through {@link
   /// Decoration.Point.source}.
   export abstract class Point implements PointSet.Value {
+    /// @internal
+    constructor() {}
+
     abstract eq(other: PointSet.Value): boolean
     abstract side: number
     abstract trackMode: ChangeSet.TrackMode | undefined

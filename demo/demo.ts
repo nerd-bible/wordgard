@@ -3,7 +3,7 @@ import {fullSchema} from "wordgard/schema"
 import {history} from "wordgard/history"
 import {tables, tableMenu} from "wordgard/table"
 
-;(window as any).wg = new Wordgard({
+;(window as any).wg = Wordgard.create({
   parent: document.body,
   doc: `<p>a</p><table><tr><td>A</td><td>B</td></tr><tr><td>X</td><td>Y</td></tr></table>
 `,

@@ -135,7 +135,7 @@ export class ChangeSet {
   private _length = -1
   private _newLength = -1
 
-  constructor(
+  private constructor(
     // Pairs of integers, first one representing the length of the
     // section in A, the second either -1 for a preserved, -2 for a
     // marked range, or a non-negative insertion length for a
@@ -143,6 +143,9 @@ export class ChangeSet {
     readonly sections: ChangeSet.Sections,
     readonly data: readonly SectionData[]
   ) {}
+
+  /// @internal
+  static new(sections: ChangeSet.Sections, data: readonly SectionData[]) { return new ChangeSet(sections, data) }
 
   get length() {
     if (this._length < 0) {
@@ -461,7 +464,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
   let flush = () => {
     if (cur) {
       if (cur.pos < cur.docLen) addSection(cur.sections, cur.data, cur.docLen - cur.pos, -1, null)
-      push(new ChangeSet(cur.sections, cur.data))
+      push(ChangeSet.new(cur.sections, cur.data))
       cur = null
     }
   }
@@ -532,7 +535,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
         }
       } else {
         if (to == null) to = from
-        insert = (!insert ? Slice.empty : Array.isArray(insert) ? new Slice(insert) : insert) as Slice
+        insert = (!insert ? Slice.empty : Array.isArray(insert) ? Slice.of(insert) : insert) as Slice
         if (to <= from) to = from
         if (fit) {
           doCorrect = true
@@ -617,7 +620,7 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, f
       }
       a.forward(pos - start)
     } else {
-      let correction = fitter && fitter.finish(), base = new ChangeSet(sections, data)
+      let correction = fitter && fitter.finish(), base = ChangeSet.new(sections, data)
       return correction ? base.compose(correction) : base
     }
   }
@@ -703,7 +706,7 @@ function applyModsToSlice(slice: Slice, mods: readonly Modification[] | null) {
       content.push(tok)
     }
   }
-  return new Slice(content)
+  return Slice.of(content)
 }
 
 const enum FitFlag {
@@ -951,12 +954,12 @@ class ChangeFitter implements Pos.Walker {
     let sections: number[] = [], data: SectionData[] = [], pos = 0
     for (let {from, to, insert} of this.patches) {
       addSection(sections, data, from - pos, -1, null)
-      let slice = new Slice(insert)
+      let slice = Slice.of(insert)
       addSection(sections, data, to - from, slice.length, slice)
       pos = to
     }
     addSection(sections, data, this.pos - pos, -1, null)
-    return new ChangeSet(sections, data)
+    return ChangeSet.new(sections, data)
   }
 }
 
@@ -1086,7 +1089,7 @@ function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Tag.Any
     ;(stack ? stack.children : top).push(node)
   }
   if (stack) splatContext(top, stack)
-  return new Slice(top)
+  return Slice.of(top)
 }
 
 function splatContext(top: Token[], cx: BuildContext) {

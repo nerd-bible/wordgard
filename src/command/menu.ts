@@ -216,7 +216,7 @@ export namespace Menu {
 
     /// Create a template for this group.
     template(...content: (Template | Item | "...")[]) {
-      return new Template(this, content.length ? content : ["..."])
+      return Template.new(this, content.length ? content : ["..."])
     }
 
     /// Define a menu group.
@@ -292,7 +292,7 @@ export namespace Menu {
 
     /// Create a template item for this submenu.
     template(...content: (Template | Item | "...")[]) {
-      return new Template(this, content.length ? content : ["..."])
+      return Template.new(this, content.length ? content : ["..."])
     }
 
     /// Define a submenu.
@@ -326,12 +326,15 @@ export namespace Menu {
     /// A resolved submenu, part of the output of {@link
     /// Menu.resolve}.
     export class Resolved {
-      constructor(
+      private constructor(
         /// The submenu item.
         readonly item: Submenu,
         /// The items inside the submenu.
         readonly content: readonly Item.Resolved[]
       ) {}
+
+      /// @internal
+      static new(item: Submenu, content: readonly Item.Resolved[]) { return new Resolved(item, content) }
     }
 
     /// The submenu to select textblock type. Used to switch between,
@@ -347,7 +350,8 @@ export namespace Menu {
 
   /// Templates are used to explicitly choose (part of) your menu
   /// structure, rather than letting the resolution algorithm build
-  /// one from your configuration. See {@link Menu.resolve}.
+  /// one from your configuration. See {@link Menu.resolve}, {@link
+  /// Group.template}, and {@link Submenu.template}.
   export class Template {
     /// @internal
     parent: Group | Submenu | null
@@ -355,14 +359,19 @@ export namespace Menu {
     rank: number
     declare private tag: "Template"
 
-    constructor(
+    private constructor(
       /// @internal
       readonly item: Group | Submenu,
       /// @internal
-      readonly content: readonly (Template | Item | "...")[] = []
+      readonly content: readonly (Template | Item | "...")[]
     ) {
       this.parent = item.parent ?? null
       this.rank = item.rank ?? 100
+    }
+
+    /// @internal
+    static new(item: Group | Submenu, content: readonly (Template | Item | "...")[] = []) {
+      return new Template(item, content)
     }
   }
 
@@ -437,10 +446,10 @@ export namespace Menu {
           if (inner.length) {
             if (template instanceof Submenu) {
               if (inner[inner.length - 1] === "|") inner.pop()
-              if (inner.length) target.push(new Submenu.Resolved(template, inner))
+              if (inner.length) target.push(Submenu.Resolved.new(template, inner))
             } else { // Group
               if (template.overflow && inner.length > template.overflow.at) {
-                let overflow = new Submenu.Resolved(template.overflow.wrap || defaultOverflow,
+                let overflow = Submenu.Resolved.new(template.overflow.wrap || defaultOverflow,
                                                     inner.slice(template.overflow.at - 1).filter(e => e != "|"))
                 inner.length = template.overflow.at - 1
                 inner.push(overflow)

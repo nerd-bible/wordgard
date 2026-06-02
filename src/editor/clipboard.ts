@@ -1,4 +1,4 @@
-import {Slice, Leaf, Plot, Node, Mark, Pos, serializeSlice, parseSlice, Token, Elt} from "wordgard/doc"
+import {Slice, Leaf, Plot, Node, Mark, Pos, serializeSlice, Parse, Token, Elt} from "wordgard/doc"
 import {GardState} from "wordgard/state"
 import browser from "./browser"
 
@@ -84,7 +84,7 @@ export function readClipboard(state: GardState, data: DataTransfer, targetContex
     if (browser.webkit) restoreReplacedSpaces(dom)
 
     let fromWordgard = dom.querySelector("[wg-content=true]")
-    ;({slice, context} = parseSlice(state.schema, dom, {
+    ;({slice, context} = Parse.slice(state.schema, dom, {
       collapseWhiteSpace: !fromWordgard,
       isOpen: fromWordgard ? isOpen : undefined
     }))
@@ -100,13 +100,13 @@ function readClipboardText(state: GardState, text: string, context: Pos, plain: 
   }
 
   let marks = plain ? [] : context.marks()
-  if (context.parent.node.type.hasRole(Node.Role.Code)) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), marks)])
+  if (context.parent.node.type.hasRole(Node.Role.Code)) return Slice.of([Leaf.text(text.replace(/\r?\n|\r/g, "\n"), marks)])
   let lines = text.split(/(?:\r\n?|\n)+/)
   let content: Token[] = lines[0] ? [Leaf.text(lines[0], marks)] : []
-  if (lines.length == 1) return new Slice(content)
+  if (lines.length == 1) return Slice.of(content)
   let parent = (context.parent.node.inlineContent ? context.parent.parent || context.parent : context.parent).node.tag
   let wrapping = state.schema.findWrapping(parent.type, Leaf.Text)
-  if (!wrapping || !wrapping.length) return new Slice([Leaf.text(text.replace(/\r?\n|\r/g, " "), marks)])
+  if (!wrapping || !wrapping.length) return Slice.of([Leaf.text(text.replace(/\r?\n|\r/g, " "), marks)])
   let wrapper = wrapping[wrapping.length - 1]
   content.push(Plot.End)
   for (let i = 1; i < lines.length - 1; i++)
@@ -114,7 +114,7 @@ function readClipboardText(state: GardState, text: string, context: Pos, plain: 
   content.push(wrapper)
   let last = lines[lines.length - 1]
   if (last) content.push(Leaf.text(last, marks))
-  return new Slice(content)
+  return Slice.of(content)
 }
 
 // Trick from jQuery -- some elements must be wrapped in other

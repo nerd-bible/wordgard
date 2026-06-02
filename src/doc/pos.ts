@@ -3,12 +3,16 @@ import {Mark} from "./mark"
 import {none} from "./helper"
 
 export class Pos {
-  constructor(
+  private constructor(
     readonly parent: Pos.Plot,
     readonly pos: number,
     readonly index: number,
     readonly inText: number
   ) {}
+
+  static create(parent: Pos.Plot, pos: number, index: number, inText: number) {
+    return new Pos(parent, pos, index, inText)
+  }
 
   matchingParent(pred: (plot: _Plot) => boolean) {
     for (let {parent} = this;;) {
@@ -81,7 +85,7 @@ export class Pos {
   }
 
   static atStart(doc: _Plot.Doc) {
-    return new Pos(cacheFor(doc).top, 0, 0, 0)
+    return Pos.create(cacheFor(doc).top, 0, 0, 0)
   }
 
   static resolve(doc: _Plot.Doc, pos: number): Pos {
@@ -109,7 +113,8 @@ export class Pos {
     let base = this.resolve(doc, pos)
     if (base.inText) return null
     let after = base.nodeAfter
-    return after && !after.isText ? new (after.isLeaf ? Pos.Node : Pos.Plot)(base.parent, after, pos, base.index) : null
+    return !after || after.isText ? null : after.isLeaf ? Pos.Node.create(base.parent, after, pos, base.index)
+      : Pos.Plot.create(base.parent, after, pos, base.index)
   }
 }
 
@@ -121,13 +126,17 @@ export namespace Pos {
   }
 
   export class Node {
-    constructor(
+    protected constructor(
       readonly parent: Pos.Plot | null,
       readonly node: _Node,
       /// @internal
       readonly pos: number,
       readonly index: number
     ) {}
+
+    static create(parent: Pos.Plot | null, node: _Node, pos: number, index: number) {
+      return new Node(parent, node, pos, index)
+    }
 
     get before() {
       if (this.pos < 0) throw new RangeError("Accessing `before` on the top level node")
@@ -162,13 +171,17 @@ export namespace Pos {
   export class Plot extends Pos.Node {
     declare node: _Plot
     
-    constructor(
+    private constructor(
       parent: Pos.Plot | null,
       node: _Plot,
       pos: number,
       index: number
     ) {
       super(parent, node, pos, index)
+    }
+
+    static create(parent: Pos.Plot | null, node: _Plot, pos: number, index: number) {
+      return new Plot(parent, node, pos, index)
     }
     
     get start() { return this.pos + 1 }
@@ -183,7 +196,7 @@ let cachePos = 0
 
 function cacheFor(doc: _Plot.Doc) {
   let found = posCache.get(doc)
-  if (!found) posCache.set(doc, found = {top: new Pos.Plot(null, doc, -1, 0), cache: []})
+  if (!found) posCache.set(doc, found = {top: Pos.Plot.create(null, doc, -1, 0), cache: []})
   return found
 }
 
@@ -195,7 +208,7 @@ function advancePos(distance: number, parent: Pos.Plot, pos: number, index: numb
     let textStart = pos - inText, textEnd = textStart + text.length
     if (walk) walk.skip(text.sliceText(inText, Math.min(text.length, target - textStart)), pos, parent, index)
     if (target < textEnd)
-      return new Pos(parent, target, index, target - textStart)
+      return Pos.create(parent, target, index, target - textStart)
     pos = textEnd
     index++
   }
@@ -212,7 +225,7 @@ function advancePos(distance: number, parent: Pos.Plot, pos: number, index: numb
       if (next.isLeaf) {
         if (next.isText && target < end) {
           if (walk) walk.skip(next.sliceText(0, target - pos), pos, parent, index)
-          return new Pos(parent, target, index, target - pos)
+          return Pos.create(parent, target, index, target - pos)
         } else {
           if (walk) walk.skip(next, pos, parent, index)
           pos = end
@@ -225,7 +238,7 @@ function advancePos(distance: number, parent: Pos.Plot, pos: number, index: numb
           else if (walk.enterPlot(next, pos, parent, index) === false && target >= end) enter = false
         }
         if (enter) {
-          parent = new Pos.Plot(parent, next, pos, index)
+          parent = Pos.Plot.create(parent, next, pos, index)
           pos++
           node = next
           index = 0
@@ -236,5 +249,5 @@ function advancePos(distance: number, parent: Pos.Plot, pos: number, index: numb
       }
     }
   }
-  return new Pos(parent, pos, index, 0)
+  return Pos.create(parent, pos, index, 0)
 }

@@ -97,12 +97,12 @@ function findTargetVertically(wg: Wordgard, from: number, forward: boolean, x: n
       let nextPos = pos - (forward ? 0 : next.length)
       if (next.isLeaf || next.type.isAtom) {
         if (allowNode && next.isLeaf && next.type.isSelectable)
-          return new Pos.Node(parent, next, nextPos, index - (forward ? 0 : 1))
+          return Pos.Node.create(parent, next, nextPos, index - (forward ? 0 : 1))
         index += forward ? 1 : -1
         pos += (forward ? 1 : -1) * next.length
         continue
       }
-      let node = new Pos.Plot(parent, next, nextPos, index - (forward ? 0 : 1))
+      let node = Pos.Plot.create(parent, next, nextPos, index - (forward ? 0 : 1))
       if (!next.inlineContent && next.type.orientation == "row") {
         // Find the child closest to the given x
         let closest = -1, closestPos = -1, closestDist = -1

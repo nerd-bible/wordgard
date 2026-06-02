@@ -40,7 +40,10 @@ export function subtractSet<T>(a: readonly T[], b: readonly T[], compare: (a: T,
 }
 
 export class Mark<Value = unknown> {
-  constructor(readonly type: Mark.Type<Value>, readonly value: Value) {}
+  private constructor(readonly type: Mark.Type<Value>, readonly value: Value) {}
+
+  /// @internal
+  static create<Value>(type: Mark.Type<Value>, value: Value) { return new Mark(type, value) }
 
   eq(other: Mark<any>) {
     return this.type == other.type && compareDeep(this.value, other.value)
@@ -55,7 +58,7 @@ export class Mark<Value = unknown> {
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
   static define(name: string, spec: Mark.Spec<null>): Mark<null> {
-    return new Mark.Type<null>(name, spec, true).default!
+    return Mark.Type.define<null>(name, spec, true).default!
   }
 
   addToSet(set: readonly Mark<any>[]): readonly Mark[] {
@@ -114,25 +117,25 @@ export namespace Mark {
     readonly set: null | ((a: any, b: any) => number)
     readonly default: Mark<Value> | null
     readonly inclusive: boolean
-    readonly element: Mark.Element<Value> | null = null
-    readonly attribute: Mark.Attribute<Value> | null = null
+    readonly element: {name: string, attrs: (value: Value) => Attributes} | null = null
+    readonly attribute: {get: (value: Value) => Attributes, target: Elt.Selector | null} | null = null
     readonly spanning: boolean
 
-    constructor(
+    private constructor(
       readonly name: string,
       readonly spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
-      this.default = isFlag ? new Mark(this, null as any) : null
+      this.default = isFlag ? Mark.create(this, null as any) : null
       this.inclusive = spec.inclusive !== false
-      if ("element" in spec.shape) this.element = new Mark.Element(spec.shape)
-      else this.attribute = new Mark.Attribute(spec.shape, this)
+      if ("element" in spec.shape) this.element = new ElementShape(spec.shape)
+      else this.attribute = new AttributeShape(spec.shape, this)
       this.spanning = this.element ? spec.spanning !== false : !!spec.spanning
     }
 
-    of(value: Value) { return new Mark(this, value) }
+    of(value: Value) { return Mark.create(this, value) }
 
     compareRank(other: Mark.Type<any>) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
@@ -148,8 +151,13 @@ export namespace Mark {
       return null
     }
 
-    static define<Value>(name: string, spec: Mark.Spec<Value>) {
-      return new Mark.Type<Value>(name, spec, false)
+    static define<Value>(
+      name: string,
+      spec: Mark.Spec<Value>,
+      /// @internal
+      isFlag = false
+    ) {
+      return new Mark.Type<Value>(name, spec, isFlag)
     }
   }
 
@@ -193,53 +201,53 @@ export namespace Mark {
     /// will automatically be defaulted to the mark type itself.
     parseRules?: readonly (ParseRule.Element<Value> | ParseRule.Attribute<Value>)[]
   }
+}
 
-  export class Element<Value> {
-    readonly name: string
-    readonly attrs: (value: Value) => Attributes
+class ElementShape<Value> {
+  readonly name: string
+  readonly attrs: (value: Value) => Attributes
 
-    constructor(readonly spec: Shape.Element<Value>) {
-      this.name = spec.element
-      const {attributes} = spec
-      if (typeof attributes == "function") {
-        this.attrs = (value: Value) => Attributes.read(attributes(value))
-      } else {
-        let attrs = Attributes.read(attributes)
-        this.attrs = () => attrs
-      }
+  constructor(spec: Shape.Element<Value>) {
+    this.name = spec.element
+    const {attributes} = spec
+    if (typeof attributes == "function") {
+      this.attrs = (value: Value) => Attributes.read(attributes(value))
+    } else {
+      let attrs = Attributes.read(attributes)
+      this.attrs = () => attrs
     }
   }
+}
 
-  export class Attribute<Value> {
-    readonly get: (param: Value) => Attributes
-    readonly target: Elt.Selector | null
+export class AttributeShape<Value> {
+  readonly get: (param: Value) => Attributes
+  readonly target: Elt.Selector | null
 
-    constructor(readonly spec: Shape.Attribute<Value> | Shape.Attributes<Value>, type: Mark.Type<Value>) {
-      if ("attribute" in spec) {
-        const {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
-        if (value === 0) {
-          if (type.default) throw new SchemaError("Attribute shapes for parameter-less marks cannot use 0 as value")
-          if (style) this.get = param => ["style", style + param]
-          else this.get = param => [attribute, String(param)]
-        } else if (typeof value == "function") {
-          if (style)
-            this.get = param => { let val = value(param); return val == null ? Attributes.none : ["style", style + val] }
-          else
-            this.get = param => { let val = value(param); return val == null ? Attributes.none : [attribute, val] }
-        } else {
-          let attrs = style ? ["style", style + value] : [attribute, value]
-          this.get = () => attrs
-        }
+  constructor(spec: Shape.Attribute<Value> | Shape.Attributes<Value>, type: Mark.Type<Value>) {
+    if ("attribute" in spec) {
+      const {value, attribute} = spec, style = /^style\//.test(attribute) ? attribute.slice(6) + ": " : null
+      if (value === 0) {
+        if (type.default) throw new SchemaError("Attribute shapes for parameter-less marks cannot use 0 as value")
+        if (style) this.get = param => ["style", style + param]
+        else this.get = param => [attribute, String(param)]
+      } else if (typeof value == "function") {
+        if (style)
+          this.get = param => { let val = value(param); return val == null ? Attributes.none : ["style", style + val] }
+        else
+          this.get = param => { let val = value(param); return val == null ? Attributes.none : [attribute, val] }
       } else {
-        const {attributes} = spec
-        if (typeof attributes == "function") {
-          this.get = param => Attributes.read(attributes(param))
-        } else {
-          let attrs = Attributes.read(attributes)
-          this.get = () => attrs
-        }
+        let attrs = style ? ["style", style + value] : [attribute, value]
+        this.get = () => attrs
       }
-      this.target = spec.preferTarget ? Elt.Selector.parse(spec.preferTarget) : null
+    } else {
+      const {attributes} = spec
+      if (typeof attributes == "function") {
+        this.get = param => Attributes.read(attributes(param))
+      } else {
+        let attrs = Attributes.read(attributes)
+        this.get = () => attrs
+      }
     }
+    this.target = spec.preferTarget ? Elt.Selector.parse(spec.preferTarget) : null
   }
 }

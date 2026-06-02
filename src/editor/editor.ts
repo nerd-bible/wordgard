@@ -17,7 +17,7 @@ import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView}
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {exceptionSink, logException} from "./util"
 
-const dirCompartment = new GardState.Compartment
+const dirCompartment = GardState.Compartment.define()
 
 /// This class implements the editor's user interface. It holds
 /// the editable DOM surface, and possibly other elements such as
@@ -96,11 +96,7 @@ export class Wordgard {
   /// @internal
   domWriters: ((wg: Wordgard) => void)[] = []
 
-  /// Construct a new editor. You'll want to either provide a `parent`
-  /// option, or put the editor's {@link Wordgard#dom DOM element}
-  /// into your document after creating an editor, so that the user
-  /// can see it.
-  constructor(spec: Wordgard.Spec) {
+  private constructor(spec: Wordgard.Spec) {
     this.flush = this.flush.bind(this)
     this.dispatch = this.dispatch.bind(this)
 
@@ -135,6 +131,13 @@ export class Wordgard {
     if (spec.parent) spec.parent.appendChild(this.dom)
   }
 
+  /// Construct a new editor. You'll want to either provide a `parent`
+  /// option, or put the editor's {@link Wordgard#dom DOM element}
+  /// into your document after creating an editor, so that the user
+  /// can see it.
+  static create(spec: Wordgard.Spec) { return new Wordgard(spec) }
+
+  /// @internal
   setConnected(value: boolean) {
     if (value == this.connected) return
     this.connected = value

@@ -17,7 +17,7 @@ function scanTransaction(tr: Transaction) {
   let updateWalker: Pos.Walker | undefined, {schema} = tr.startState.doc
   let checkMarks = (node: Node, pos: number, parent: Pos.Plot, index: number) => {
     for (let correction of marks) if (schema.matchNode(node.type, correction.query))
-      plan.push({node: new Pos.Node(parent, node, pos, index), correction})
+      plan.push({node: Pos.Node.create(parent, node, pos, index), correction})
   }
   if (marks.length) updateWalker = {
     enterPlot: checkMarks,
@@ -46,7 +46,7 @@ function scanTransaction(tr: Transaction) {
     },
     skip(node, pos, parent, index) {
       if (node.isPlot) for (let correction of newNode) if (schema.matchNode(node.type, correction.query))
-        plan.push({node: new Pos.Plot(parent, node, pos, index), correction})
+        plan.push({node: Pos.Plot.create(parent, node, pos, index), correction})
     },
     leavePlot() {}
   }

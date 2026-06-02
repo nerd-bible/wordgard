@@ -387,8 +387,8 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag.Any) {
     let ch = pFrom.parent.node.content[i]
     if (!schema.findWrapping(wrapper.type, ch.type)) return null
   }
-  return {from: new Pos(pFrom.parent, pFrom.before, pFrom.index, 0),
-          to: new Pos(pFrom.parent, pTo.after, pTo.index + 1, 0)}
+  return {from: Pos.create(pFrom.parent, pFrom.before, pFrom.index, 0),
+          to: Pos.create(pFrom.parent, pTo.after, pTo.index + 1, 0)}
 }
 
 /// Wrap the given range in the given wrapper tag. The caller is
@@ -533,7 +533,7 @@ export function doUnwrapBlock(block: Pos.Plot, from?: number, to?: number): Chan
             // If it doesn't fit directly but can be moved into a
             // different text block, do that
             replaceGap(pos + 1, [wrapText!])
-            changes.push(clearNonFitting(schema, new Pos.Plot(parent, next as Plot, pos, index), wrapText!.type))
+            changes.push(clearNonFitting(schema, Pos.Plot.create(parent, next as Plot, pos, index), wrapText!.type))
           }
           pos += next.length
           index++
@@ -545,7 +545,7 @@ export function doUnwrapBlock(block: Pos.Plot, from?: number, to?: number): Chan
         index++
       } else {
         // Enter anything else
-        parent = new Pos.Plot(parent, next, pos, index)
+        parent = Pos.Plot.create(parent, next, pos, index)
         index = 0
         pos++
       }

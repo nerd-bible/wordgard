@@ -22,7 +22,7 @@ export function tempEditor(doc: string | Plot.Doc, config: GardState.Extension =
   if (typeof doc != "string") {
     t0 = maybeTag(doc, 0); t1 = maybeTag(doc, 1)
   }
-  currentTempEditor = new Wordgard({doc, selection: t0 != null ? {anchor: t0, head: t1} : undefined, config})
+  currentTempEditor = Wordgard.create({doc, selection: t0 != null ? {anchor: t0, head: t1} : undefined, config})
   workspace.appendChild(currentTempEditor.dom)
   workspace.style.pointerEvents = ""
   if (hide == null) hide = setTimeout(() => {

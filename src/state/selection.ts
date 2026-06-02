@@ -17,7 +17,7 @@ export class SelectionType {
 /// GardSelection.Node}, but it is also possible for extensions to
 /// provide custom types.
 export abstract class GardSelection {
-  constructor(
+  protected constructor(
     /// The anchor of the selection—the side that doesn't move when
     /// you extend it.
     readonly anchor: number,
@@ -99,7 +99,7 @@ export abstract class GardSelection {
   }
 
   /// @internal
-  resolve(doc: Plot.Doc) { return new GardSelection.Resolved(doc, this) }
+  resolve(doc: Plot.Doc) { return GardSelection.Resolved.create(doc, this) }
 
   /// Convert this selection to an object that can be serialized to
   /// JSON.
@@ -375,7 +375,7 @@ export namespace GardSelection {
 
     private _ranges: readonly {from: Pos, to: Pos}[] | null = null
 
-    constructor(
+    private constructor(
       /// @internal
       readonly doc: Plot.Doc,
       /// The original selection.
@@ -384,6 +384,9 @@ export namespace GardSelection {
       this.anchor = doc.resolve(selection.anchor)
       this.head = selection.empty ? this.anchor : doc.resolve(selection.head)
     }
+
+    /// @internal
+    static create(doc: Plot.Doc, selection: GardSelection) { return new Resolved(doc, selection) }
 
     /// The lower bound of the selection.
     get from() { return this.anchor.pos < this.head.pos ? this.anchor : this.head }
@@ -456,7 +459,7 @@ function scanNormalFrom(
     let next = cx.config.visualCursorMotion ? map.moveVisually(pos.pos, side, forward) : map.moveLogically(pos.pos, forward)
     if (next != null) return next
     if (!block.parent) return null
-    pos = new Pos(block.parent, forward ? block.after : block.before, block.index + (forward ? 1 : 0), 0)
+    pos = Pos.create(block.parent, forward ? block.after : block.before, block.index + (forward ? 1 : 0), 0)
     pastBarrier = isBarrier(block.node)
   } else {
     pastBarrier = !pos.parent.parent && pos.index == (forward ? 0 : pos.parent.node.content.length)
@@ -499,7 +502,7 @@ function scanNormalFrom(
         p += nextNode.length * step
       } else {
         if (!forward) index--
-        parent = new Pos.Plot(parent, nextNode, forward ? p : p - nextNode.length, index)
+        parent = Pos.Plot.create(parent, nextNode, forward ? p : p - nextNode.length, index)
         p += step
         index = forward ? 0 : nextNode.content.length
       }

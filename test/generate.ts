@@ -18,7 +18,7 @@ export function open(node: Plot) { return node.tag }
 export const close = Plot.End
 
 export function slice(...tokens: (Token | string)[]) {
-  return new Slice(tokens.map(t => typeof t == "string" ? Leaf.text(t) : t))
+  return Slice.of(tokens.map(t => typeof t == "string" ? Leaf.text(t) : t))
 }
 
 export function permute<T>(array: readonly T[]): readonly (readonly T[])[] {

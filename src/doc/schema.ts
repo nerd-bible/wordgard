@@ -243,16 +243,16 @@ export class Schema {
   }
 
   static setMarkTarget(mark: Mark.Type<any> | Mark<any>, target: Node.Query | ((target: Node.Query) => Node.Query)) {
-    return new Schema.Override(mark instanceof Mark ? mark.type : mark, typeof target == "function" ? target : () => target)
+    return Schema.Override.new(mark instanceof Mark ? mark.type : mark, typeof target == "function" ? target : () => target)
   }
 
   static setPlotContent(plot: Plot.Type<any> | Plot.Tag<any>, content: Node.Query | ((content: Node.Query) => Node.Query)) {
-    return new Schema.Override(plot instanceof Plot.Tag ? plot.type : plot,
+    return Schema.Override.new(plot instanceof Plot.Tag ? plot.type : plot,
                                undefined, typeof content == "function" ? content : () => content)
   }
 
   static setNodeGroup(node: Node.Type<any> | Node.Tag, group: Node.Group | readonly Node.Group[]) {
-    return new Schema.Override(node instanceof Node.Tag.Base ? node.type : node as Node.Type<any>,
+    return Schema.Override.new(node instanceof Node.Tag.Base ? node.type : node as Node.Type<any>,
                                undefined, undefined, group instanceof Node.Group ? [group] : group)
   }
 
@@ -330,12 +330,22 @@ export namespace Schema {
   export type Element = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Mark<any> | Mark.Type<any> | Schema.Override
 
   export class Override {
-    constructor(
+    private constructor(
       readonly type: Mark.Type<any> | Node.Type<any>,
       readonly target?: (query: Node.Query) => Node.Query,
       readonly content?: (query: Node.Query) => Node.Query,
       readonly group?: readonly Node.Group[]
     ) {}
+
+    /// @internal
+    static new(
+      type: Mark.Type<any> | Node.Type<any>,
+      target?: (query: Node.Query) => Node.Query,
+      content?: (query: Node.Query) => Node.Query,
+      group?: readonly Node.Group[]
+    ) {
+      return new Override(type, target, content, group)
+    }
 
     eq(other: Schema.Override) {
       return this == other || this.type == other.type && this.target == other.target && this.content == other.content &&

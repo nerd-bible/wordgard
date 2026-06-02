@@ -40,9 +40,7 @@ export class ColorPicker {
   private selPos = 0
   private options: HTMLElement[]
 
-  /// Construct the color picker. `finish` will be called when a color
-  /// is selected.
-  constructor(readonly wg: Wordgard, readonly finish: (color: string) => void) {
+  private constructor(readonly wg: Wordgard, readonly finish: (color: string) => void) {
     this.width = wg.state.facet(ColorPicker.width)
     this.dom = document.createElement("wg-color-picker")
     this.dom.role = "listbox"
@@ -87,6 +85,12 @@ export class ColorPicker {
       }
       e.preventDefault()
     })
+  }
+
+  /// Construct the color picker. `finish` will be called when a color
+  /// is selected.
+  static create(wg: Wordgard, finish: (color: string) => void) {
+    return new ColorPicker(wg, finish)
   }
 
   private move(selPos: number) {
@@ -252,7 +256,7 @@ function crossGradient(angle: number) {
 
 const colorPicker = Menu.CustomControl.define({
   render(wg, done) {
-    return new ColorPicker(wg, color => {
+    return ColorPicker.create(wg, color => {
       done()
       setColor(wg, Color, color)
       wg.focus()
@@ -291,7 +295,7 @@ export function backgroundColor(): GardState.Extension {
 
 const backgroundPicker = Menu.CustomControl.define({
   render(wg, done) {
-    return new ColorPicker(wg, color => {
+    return ColorPicker.create(wg, color => {
       done()
       setColor(wg, BackgroundColor, color)
       wg.focus()

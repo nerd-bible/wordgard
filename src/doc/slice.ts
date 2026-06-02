@@ -18,9 +18,11 @@ export namespace Token {
 export class Slice {
   readonly length: number
 
-  constructor(readonly content: readonly Token[]) {
+  private constructor(readonly content: readonly Token[]) {
     this.length = content.reduce((l, e) => l + (e.tokenType == Token.Type.Node ? e.length : 1), 0)
   }
+
+  static of(content: readonly Token[]) { return new Slice(content) }
 
   toJSON(): Slice.JSON {
     return this.content.map(e => e.tokenType == Token.Type.Node ? {node: e.toJSON()}

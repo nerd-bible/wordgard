@@ -340,7 +340,7 @@ describe("DocTile", () => {
     })
 
     it("can remove attributes from tags", () => {
-      let comp = new GardState.Compartment()
+      let comp = GardState.Compartment.define()
       let node = render(doc(p("?")), comp.of(Decoration.Tag.attribute(Paragraph, "lang", "nl")))
       node = update(node, {effects: comp.reconfigure([])})
       ist(node.dom.innerHTML, "<p>?</p>")

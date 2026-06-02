@@ -6,144 +6,56 @@ import {ParseRule} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 
-const schemaCache = new WeakMap<Schema, RuleSet>()
-
-function addByPrec<T extends {precedence?: number}>(array: T[], value: T) {
-  let prec = value.precedence ?? 0, i = array.length
-  while (i > 0 && prec > (array[i - 1].precedence ?? 0)) i--
-  array.splice(i, 0, value)
-}
-
-/// A collection of parse rules. Usually derived from a schema.
-export class RuleSet {
-  /// @internal
-  elementRules: ParseRule.Element<unknown>[] = []
-  /// @internal
-  attributeRules: ParseRule.Attribute<unknown>[] = []
-
-  /// Create a rule set with the given parse rules.
-  constructor(readonly rules: readonly ParseRule[]) {
-    for (let rule of rules) addByPrec("selector" in rule ? this.elementRules : this.attributeRules, rule)
+export namespace Parse {
+  export type Options = {
+    /// Controls whether HTML-style whitespace collapsing is used
+    /// (outside nodes that don't enable `preserveWhitespace`). Defaults
+    /// to true.
+    collapseWhiteSpace?: boolean
+    /// Function used in in {@link Parse.slice} to determine
+    /// whether a given element is open (on either side).
+    isOpen?: (elt: Element) => null | "start" | "end" | "start end"
+    /// The rule set to use. Defaults to the rule set derived from the
+    /// schema.
+    ruleSet?: ParseRule.Set
   }
 
-  /// Create a rule set containing all the parse rules attached to
-  /// nodes and marks in the given schema, as well as the rules that
-  /// can be derived from the node and mark shape declarations.
-  static fromSchema(schema: Schema) {
-    let cached = schemaCache.get(schema)
-    if (cached) return cached
-
-    let rules: ParseRule[] = []
-    for (let tag of schema.tags) {
-      let {spec: {shape, parseRules}} = tag
-      if ("element" in shape && shape.element && (shape.readElement || tag.default)) rules.push({
-        selector: shape.selector || shape.element,
-        readElement: shape.readElement,
-        leaf: tag.isLeaf ? tag : undefined,
-        plot: tag.isLeaf ? undefined : tag
-      })
-      if (parseRules) for (let rule of parseRules) rules.push({
-        ...rule,
-        leaf: rule.leaf || (tag.isLeaf ? tag : undefined),
-        plot: rule.plot || (tag.isLeaf ? undefined : tag)
-      })
-    }
-    for (let mark of schema.marks) {
-      let {shape, parseRules} = mark.spec
-      if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
-      if ("element" in shape && (shape.readElement || mark.default)) {
-        rules.push({
-          selector: shape.selector || shape.element,
-          readElement: shape.readElement,
-          mark
-        })
-      } else if ("attribute" in shape) {
-        if (shape.readAttribute) {
-          rules.push({
-            attribute: shape.attribute,
-            readAttribute: shape.readAttribute,
-            mark
-          })
-        } else if (typeof shape.value == "string") {
-          rules.push({
-            attribute: shape.attribute,
-            value: shape.value,
-            mark
-          })
-        } else if (shape.value === 0) {
-          rules.push({
-            attribute: shape.attribute,
-            readAttribute: param => param,
-            mark
-          })
-        }
-      }
-    }
-    let result = new RuleSet(rules)
-    schemaCache.set(schema, result)
-    return result
+  export function doc(schema: Schema, doc: Element | DocumentFragment, options: Parse.Options = {}) {
+    let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
+    let cx = new ParseContext(schema, options, top)
+    cx.parseChildren(doc, [], false)
+    cx.sync(top)
+    return cx.finishNode(cx.top) as Plot.Doc
   }
 
-  /// @internal
-  matchElement(elt: Element): {rule: ParseRule.Element<unknown>, value?: unknown} | null {
-    for (let rule of this.elementRules) {
-      if (elt.matches(rule.selector)) {
-        if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
-        let result = rule.readElement(elt)
-        if (result === ParseRule.Reject) continue
-        return {rule, value: result}
-      }
-    }
-    return null
-  }
-}
-
-export type ParseOptions = {
-  /// Controls whether HTML-style whitespace collapsing is used
-  /// (outside nodes that don't enable `preserveWhitespace`). Defaults
-  /// to true.
-  collapseWhiteSpace?: boolean
-  isOpen?: (elt: Element) => null | "start" | "end" | "start end"
-  /// The rule set to use. Defaults to the rule set derived from the
-  /// schema.
-  ruleSet?: RuleSet
-}
-
-export function parseDoc(schema: Schema, doc: Element | DocumentFragment, options: ParseOptions = {}) {
-  let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
-  let cx = new ParseContext(schema, options, top)
-  cx.parseChildren(doc, [], false)
-  cx.sync(top)
-  return cx.finishNode(cx.top) as Plot.Doc
-}
-
-export function parseSlice(schema: Schema, doc: Element | DocumentFragment, options: ParseOptions = {}) {
-  let top = new NodeContext(guessParent(doc, schema), CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
-  let cx = new ParseContext(schema, options, top)
-  cx.parseChildren(doc, [], true)
-  cx.sync(top)
-  let tokens: Token[] = [], context: Plot.Tag.Any[] = []
-  let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
-    for (let i = 0; i < children.length; i++) {
-      let child = children[i]
-      if (openStart && i == 0 && child.isPlot && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
-        if (children.length == 1 && openEnd && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
-          emitTokens(child.content, true, true)
+  export function slice(schema: Schema, doc: Element | DocumentFragment, options: Parse.Options = {}) {
+    let top = new NodeContext(guessParent(doc, schema), CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
+    let cx = new ParseContext(schema, options, top)
+    cx.parseChildren(doc, [], true)
+    cx.sync(top)
+    let tokens: Token[] = [], context: Plot.Tag.Any[] = []
+    let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
+      for (let i = 0; i < children.length; i++) {
+        let child = children[i]
+        if (openStart && i == 0 && child.isPlot && ((cx.open.get(child) || 0) & CxFlag.OpenStart)) {
+          if (children.length == 1 && openEnd && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
+            emitTokens(child.content, true, true)
+          } else {
+            emitTokens(child.content, true, false)
+            tokens.push(Plot.End)
+          }
+          context.push(child.tag)
+        } else if (openEnd && i == children.length - 1 && child.isPlot && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
+          tokens.push(child.tag)
+          emitTokens((child as Plot).content, false, true)
         } else {
-          emitTokens(child.content, true, false)
-          tokens.push(Plot.End)
+          tokens.push(child)
         }
-        context.push(child.tag)
-      } else if (openEnd && i == children.length - 1 && child.isPlot && ((cx.open.get(child) || 0) & CxFlag.OpenEnd)) {
-        tokens.push(child.tag)
-        emitTokens((child as Plot).content, false, true)
-      } else {
-        tokens.push(child)
       }
     }
+    emitTokens(top.children, true, true)
+    return {slice: Slice.of(tokens), context}
   }
-  emitTokens(top.children, true, true)
-  return {slice: new Slice(tokens), context}
 }
 
 const enum CxFlag {
@@ -154,11 +66,11 @@ const enum CxFlag {
 }
 
 class ParseContext {
-  rules: RuleSet
+  rules: ParseRule.Set
   open: Map<Plot, CxFlag> = new Map
 
-  constructor(readonly schema: Schema, readonly options: ParseOptions, public top: NodeContext) {
-    this.rules = options.ruleSet || RuleSet.fromSchema(schema)
+  constructor(readonly schema: Schema, readonly options: Parse.Options, public top: NodeContext) {
+    this.rules = options.ruleSet || ParseRule.Set.fromSchema(schema)
   }
 
   parseChildren(parent: Element | DocumentFragment, marks: readonly Mark[], endOfSlice: boolean,
@@ -427,7 +339,7 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
                            "section", "table", "tfoot", "ul"])
 
 function guessParent(content: DocumentFragment | Element, schema: Schema) {
-  let rules = RuleSet.fromSchema(schema)
+  let rules = ParseRule.Set.fromSchema(schema)
   let tags: Node.Type<any>[] = []
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {

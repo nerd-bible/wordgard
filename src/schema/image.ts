@@ -32,7 +32,7 @@ export function figure(conf: {
 /// {@link ImageSize} mark, the {@link imageResizing.dragHandle drag
 /// handle}, and {@link imageResizing.keyBindings key bindings}.
 export function imageResizing(): GardState.Extension {
-  return [GardState.schemaElement.of(ImageSize), resizeImage.keyBindings, resizeImage.dragHandle]
+  return [GardState.schemaElement.of(ImageSize), imageResizing.keyBindings, imageResizing.dragHandle]
 }
 
 const resizeTheme = Wordgard.theme({

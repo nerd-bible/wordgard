@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
-        serialize, serializeSlice, parseDoc, parseSlice, type ParseOptions, RuleSet} from "wordgard/doc"
+        serialize, serializeSlice, Parse, ParseRule} from "wordgard/doc"
 import {Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema-def"
 import {basicBuilders, builder, basicSchema, tag, eq} from "./schema.ts"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olStart, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -120,10 +120,10 @@ describe("serializeSlice", () => {
   })
 })
 
-function parse(html: string, options: ParseOptions & {schema?: Schema} = {}) {
+function parse(html: string, options: Parse.Options & {schema?: Schema} = {}) {
   let wrap = document.implementation.createHTMLDocument("").createElement("div")
   wrap.innerHTML = html
-  return parseDoc(options.schema || basicSchema, wrap, options)
+  return Parse.doc(options.schema || basicSchema, wrap, options)
 }
 
 describe("parseDoc", () => {
@@ -201,7 +201,7 @@ describe("parseDoc", () => {
   })
 
   it("uses parse rule precedence", () => {
-    let rules = new RuleSet([
+    let rules = ParseRule.Set.of([
       {selector: "p", plot: Paragraph},
       {selector: "p.h", plot: Heading.of(1), precedence: 2}
     ])
@@ -219,14 +219,14 @@ describe("parseDoc", () => {
 })
 
 describe("parseSlice", () => {
-  function parse(html: string, options: ParseOptions & {schema?: Schema} = {}) {
+  function parse(html: string, options: Parse.Options & {schema?: Schema} = {}) {
     let wrap = document.implementation.createHTMLDocument("").createElement("div")
     wrap.innerHTML = html
-    return parseSlice(options.schema || basicSchema, wrap, options)
+    return Parse.slice(options.schema || basicSchema, wrap, options)
   }
 
   function slice(children: (string | Token)[]) {
-    return new Slice(children.map(ch => typeof ch == "string" ? Leaf.text(ch) : ch))
+    return Slice.of(children.map(ch => typeof ch == "string" ? Leaf.text(ch) : ch))
   }
 
   it("can parse a simple slice", () => {
