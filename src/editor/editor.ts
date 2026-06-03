@@ -804,6 +804,20 @@ export namespace Wordgard {
     /// editor.
     xMargin?: number
   }
+
+  /// Log or report an unhandled exception in client code. Should
+  /// probably only be used by extension code that allows client code to
+  /// provide functions, and calls those functions in a context where an
+  /// exception can't be propagated to calling code in a reasonable way
+  /// (for example when in an event handler).
+  ///
+  /// Either calls a handler registered with {@link
+  /// Wordgard.exceptionSink}, `window.onerror`, if defined, or
+  /// `console.error` (in which case it'll pass `context`, when given,
+  /// as first argument).
+  export function logException(state: GardState, exception: any, context?: string) {
+    logException(state, exception, context)
+  }
 }
 
 let _wrapElement: {new (wg: Wordgard): HTMLElement} | null = null
@@ -830,15 +844,6 @@ function wrapElementConstructor() {
 function createWrapElement(wg: Wordgard) {
   if (!_wrapElement) _wrapElement = wrapElementConstructor()
   return new _wrapElement(wg)
-}
-
-/// Event handlers are specified with objects like this.
-export type DOMEventHandlers<This> = {
-  [event in keyof HTMLElementEventMap]?: (
-    this: This,
-    ev: HTMLElementEventMap[event],
-    wg: Wordgard
-  ) => boolean | void
 }
 
 function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: string[]): Attributes {
@@ -874,7 +879,7 @@ export namespace Wordgard {
       this.extension = buildExtensions(this)
     }
 
-    /// Create an {@link Wordgard.eventHandler event handler} for this
+    /// Create an {@link Wordgard.domEventHandler event handler} for this
     /// plugin. Usually called from the plugin's `provide` function.
     eventHandler<Event extends keyof HTMLElementEventMap>(
       event: Event,
@@ -886,7 +891,7 @@ export namespace Wordgard {
       }})
     }
 
-    /// Create an {@link Wordgard.eventObserver event observer} for this
+    /// Create an {@link Wordgard.domEventObserver event observer} for this
     /// plugin.
     eventObserver<Event extends keyof HTMLElementEventMap>(
       event: Event,

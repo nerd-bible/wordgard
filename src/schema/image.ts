@@ -1,5 +1,5 @@
 import {elt} from "wordgard/doc"
-import {Wordgard, PointSet, Decoration, KeyBinding, logException} from "wordgard/editor"
+import {Wordgard, PointSet, Decoration, KeyBinding} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
 import {Command, Menu} from "wordgard/command"
@@ -210,7 +210,7 @@ export namespace image {
         userEvent: "drop.image"
       })
     }, err => {
-      logException(state, err, "Dropped image upload")
+      Wordgard.logException(state, err, "Dropped image upload")
     })
     return true
   }))
