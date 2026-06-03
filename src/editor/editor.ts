@@ -13,7 +13,7 @@ import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
         dragBehavior, pasteHandler, dropHandler} from "./input"
 import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
-import {DOMNode, getRoot, ScrollStrategy, clearScratchRange, scrollRectIntoView} from "./dom"
+import {DOMNode, getRoot, clearScratchRange, scrollRectIntoView} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
 import {exceptionSink, logException} from "./util"
 
@@ -253,9 +253,9 @@ export class Wordgard {
     let targetRect = new DOMRect(rect.left + margins.left, rect.top + margins.top,
                                  rect.width - margins.left - margins.right, rect.height - margins.top - margins.bottom)
     let {offsetWidth, offsetHeight} = this.scrollDOM
-    scrollRectIntoView(this.scrollDOM, targetRect, assoc, target.x, target.y,
-                       Math.max(Math.min(target.xMargin, offsetWidth), -offsetWidth),
-                       Math.max(Math.min(target.yMargin, offsetHeight), -offsetHeight),
+    scrollRectIntoView(this.scrollDOM, targetRect, assoc, target.spec.x, target.spec.y,
+                       Math.max(Math.min(target.spec.xMargin, offsetWidth), -offsetWidth),
+                       Math.max(Math.min(target.spec.yMargin, offsetHeight), -offsetHeight),
                        this.state.textLTR)
   }
 
@@ -512,27 +512,13 @@ export class Wordgard {
   /// Returns an effect that can be {@link Transaction.Spec.effects
   /// added} to a transaction to cause it to scroll the given position
   /// or range into view.
-  static scrollIntoView(pos: number | GardSelection, options: {
-    /// By default (`"nearest"`) the position will be vertically
-    /// scrolled only the minimal amount required to move the given
-    /// position into view. You can set this to `"start"` to move it
-    /// to the top of the editor, `"end"` to move it to the bottom, or
-    /// `"center"` to move it to the center.
-    y?: ScrollStrategy,
-    /// Effect similar to `y`, but for the horizontal scroll position.
-    x?: ScrollStrategy,
-    /// Extra vertical distance to add when moving something into
-    /// view. Not used with the `"center"` strategy. Defaults to 5.
-    /// Must be less than the height of the editor.
-    yMargin?: number,
-    /// Extra horizontal distance to add. Not used with the `"center"`
-    /// strategy. Defaults to 5. Must be less than the width of the
-    /// editor.
-    xMargin?: number,
-  } = {}): Transaction.Effect<unknown> {
+  static scrollIntoView(pos: number | GardSelection, options: Wordgard.ScrollSpec = {}): Transaction.Effect<unknown> {
     let [from, to, assoc]: [number, number, -1 | 1] = typeof pos == "number" ? [pos, pos, -1] :
       [pos.from, pos.to, pos.empty ? pos.headSide : pos.head < pos.anchor ? -1 : 1]
-    return scrollIntoView.of(new ScrollTarget(from, to, assoc, options.y, options.x, options.yMargin, options.xMargin))
+    return scrollIntoView.of(new ScrollTarget(from, to, assoc, {
+      y: options.y || "nearest", x: options.x || "nearest",
+      yMargin: options.yMargin ?? 5, xMargin: options.xMargin ?? 5
+    }))
   }
 
   /// Filter functions provided through this facet will be run on a
@@ -637,7 +623,7 @@ export class Wordgard {
   /// applied. Scroll handlers should never initiate editor updates.
   static scrollHandler = GardState.Facet.define<(
     wg: Wordgard,
-    target: {from: number, to: number, x: ScrollStrategy, y: ScrollStrategy, xMargin: number, yMargin: number}
+    target: {from: number, to: number} & Wordgard.ScrollSpec
   ) => boolean>()
 
   /// Allows you to provide a function that should be called when the
@@ -793,6 +779,25 @@ export namespace Wordgard {
     /// Pass an effect created with {@link Wordgard.scrollIntoView}
     /// here to set an initial scroll position.
     scrollTo?: Transaction.Effect<any>,
+  }
+
+  export type ScrollSpec = {
+    /// By default (`"nearest"`) the position will be vertically
+    /// scrolled only the minimal amount required to move the given
+    /// position into view. You can set this to `"start"` to move it
+    /// to the top of the editor, `"end"` to move it to the bottom, or
+    /// `"center"` to move it to the center.
+    y?: "nearest" | "start" | "end" | "center"
+    /// Effect similar to `y`, but for the horizontal scroll position.
+    x?: "nearest" | "start" | "end" | "center"
+    /// Extra vertical distance to add when moving something into
+    /// view. Not used with the `"center"` strategy. Defaults to 5.
+    /// Must be less than the height of the editor.
+    yMargin?: number
+    /// Extra horizontal distance to add. Not used with the `"center"`
+    /// strategy. Defaults to 5. Must be less than the width of the
+    /// editor.
+    xMargin?: number
   }
 }
 

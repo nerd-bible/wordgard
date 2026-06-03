@@ -92,8 +92,6 @@ export function windowRect(win: Window): DOMRect {
   return new DOMRect(0, 0, vp ? vp.width : win.innerWidth, vp ? vp.height : win.innerHeight)
 }
 
-export type ScrollStrategy = "nearest" | "start" | "end" | "center"
-
 export function getScale(elt: HTMLElement, rect: DOMRect) {
   let scaleX = rect.width / elt.offsetWidth
   let scaleY = rect.height / elt.offsetHeight
@@ -103,7 +101,7 @@ export function getScale(elt: HTMLElement, rect: DOMRect) {
 }
 
 export function scrollRectIntoView(dom: HTMLElement, rect: DOMRect, side: -1 | 1,
-                                   x: ScrollStrategy, y: ScrollStrategy,
+                                   x: "nearest" | "start" | "end" | "center", y: "nearest" | "start" | "end" | "center",
                                    xMargin: number, yMargin: number, ltr: boolean) {
   let doc = dom.ownerDocument!, win = doc.defaultView || window
 

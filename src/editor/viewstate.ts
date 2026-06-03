@@ -1,10 +1,17 @@
 import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
-import {getScale, ScrollStrategy} from "./dom"
+import {getScale} from "./dom"
 import {UpdateFlag} from "./editor"
 import {Wordgard} from "./editor"
 
 export const scrollIntoView = Transaction.Effect.define<ScrollTarget>({map: (t, ch) => t.map(ch)})
+
+const selectionScrollSpec: Required<Wordgard.ScrollSpec> = {
+  x: "nearest",
+  y: "nearest",
+  xMargin: 5,
+  yMargin: 5
+}
 
 export class ScrollTarget {
   constructor(
@@ -14,10 +21,7 @@ export class ScrollTarget {
     // in. Otherwise, it tells which side of the range is the head
     // (more important) side.
     readonly assoc: -1 | 1,
-    readonly y: ScrollStrategy = "nearest",
-    readonly x: ScrollStrategy = "nearest",
-    readonly yMargin: number = 5,
-    readonly xMargin: number = 5,
+    readonly spec: Required<Wordgard.ScrollSpec>
   ) {}
 
   map(changes: ChangeSet) {
@@ -29,13 +33,13 @@ export class ScrollTarget {
       from = changes.mapPos(this.from, 1)
       to = Math.max(from, changes.mapPos(this.to, -1))
     }
-    return new ScrollTarget(from, to, this.assoc, this.y, this.x, this.yMargin, this.xMargin)
+    return new ScrollTarget(from, to, this.assoc, this.spec)
   }
 
   clip(state: GardState) {
     let len = state.doc.length
     return this.to <= len ? this :
-      new ScrollTarget(Math.min(len, this.from), Math.min(len, this.to), this.assoc, this.y, this.x, this.yMargin, this.xMargin)
+      new ScrollTarget(Math.min(len, this.from), Math.min(len, this.to), this.assoc, this.spec)
   }
 }
 
@@ -66,7 +70,7 @@ export class ViewState {
     if (this.scrollTarget) this.scrollTarget = this.scrollTarget.map(tr.changes)
     if (tr.scrollIntoView) {
       let {selection: sel} = tr.state
-      this.scrollTarget = new ScrollTarget(sel.head, sel.head, sel.headSide)
+      this.scrollTarget = new ScrollTarget(sel.head, sel.head, sel.headSide, selectionScrollSpec)
     }
     for (let e of tr.effects)
       if (e.is(scrollIntoView)) this.scrollTarget = e.value.clip(this.state)

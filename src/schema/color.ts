@@ -40,7 +40,12 @@ export class ColorPicker {
   private selPos = 0
   private options: HTMLElement[]
 
-  private constructor(readonly wg: Wordgard, readonly finish: (color: string) => void) {
+  private constructor(
+    /// @internal
+    readonly wg: Wordgard,
+    /// @internal
+    readonly finish: (color: string) => void
+  ) {
     this.width = wg.state.facet(ColorPicker.width)
     this.dom = document.createElement("wg-color-picker")
     this.dom.role = "listbox"
