@@ -102,35 +102,18 @@ function compareModification(a: Modification, b: Modification) {
   return isAdd(a) ? isAdd(b) && a.add.eq(b.add) : isRemove(b) && a.remove.eq(b.remove)
 }
 
-/// Representation of a single document change. Changes can either
-/// affect marks (when `add` or `remove` is present), or replace a
-/// part of the document (otherwise).
-export type Change = {
-  /// The start position of the change.
-  from: number
-  /// The end position. When not given, this defaults to `from` for
-  /// replacement changes, and `from + 1` for changes that add or
-  /// remove marks.
-  to?: number
-  /// Replace the given range with this slice.
-  insert?: Slice | readonly Token[]
-  /// For deletions or insertions where it isn't obvious that the
-  /// replacement will produce a valid document, set this to `true` or
-  /// a stack of context labels to make the library process the
-  /// replacement to make sure it fits. Context tags (passed with the
-  /// innermost tag first, as in {@link Plot.Doc.contextAt} may be
-  /// used as wrappers when fitting the slice.
-  fit?: boolean | readonly Plot.Tag.Any[]
-  /// Add the given mark to this change's range.
-  add?: Mark<any>
-  /// Remove the given mark from this range.
-  remove?: Mark<any>
-}
-
 type SectionData = Slice | readonly Modification[] | null
 
 const applyCache = new WeakMap<ChangeSet, {a: Plot.Doc, b: Plot.Doc}>()
 
+/// A change set describes a series of changes to a given document
+/// that produce a new document. They divide the document in a number
+/// of sections that are either kept as-is, have some marks added, or
+/// are replaced entirely by a {@link Slice} of new tokens.
+///
+/// Change sets store the length of their start document and will
+/// raise an error if you try to apply them to a document with a
+/// different length.
 export class ChangeSet {
   private _length = -1
   private _newLength = -1
@@ -141,12 +124,14 @@ export class ChangeSet {
     // marked range, or a non-negative insertion length for a
     // replacement.
     readonly sections: ChangeSet.Sections,
+    /// @internal
     readonly data: readonly SectionData[]
   ) {}
 
   /// @internal
   static new(sections: ChangeSet.Sections, data: readonly SectionData[]) { return new ChangeSet(sections, data) }
 
+  /// The length of the start document.
   get length() {
     if (this._length < 0) {
       this._length = 0
@@ -155,6 +140,7 @@ export class ChangeSet {
     return this._length
   }
 
+  /// The length of the updated document.
   get newLength() {
     if (this._newLength < 0) {
       this._newLength = 0
@@ -166,8 +152,10 @@ export class ChangeSet {
     return this._newLength
   }
 
+  /// Returns true if this set makes no changes.
   get empty() { return this.sections.length == 0 || this.sections.length == 2 && this.sections[1] < 0 }
 
+  /// Compare this change set to another one.
   eq(other: ChangeSet) {
     if (other.sections.length != this.sections.length) return false
     for (let i = 0; i < this.sections.length; i++)
@@ -179,6 +167,12 @@ export class ChangeSet {
     return true
   }
 
+  /// Apply the changes to the given document, producing a new
+  /// document. Will raise an error if the document length doesn't
+  /// match or the change is not well-formed for this document.
+  ///
+  /// The result of this method is cached, so applying the same change
+  /// set to the same document multiple times is cheap.
   apply(doc: Plot.Doc) {
     if (this.length != doc.length)
       throw new ValidationError(`Trying to apply change of length ${this.length} to doc of length ${doc.length}`)
@@ -207,6 +201,7 @@ export class ChangeSet {
     return newDoc
   }
 
+  /// Convert this change set to a JSON-serializeable representation.
   toJSON(): ChangeSet.JSON {
     return this.data.map((data, i) => {
       let length = this.sections[i << 1], type = this.sections[(i << 1) + 1]
@@ -216,6 +211,7 @@ export class ChangeSet {
     })
   }
 
+  /// Parse a JSON representation into a change set.
   static fromJSON(schema: Schema, json: ChangeSet.JSON) {
     if (!Array.isArray(json)) throw new ValidationError("Invalid ChangeSet JSON")
     let sections: number[] = [], data: SectionData[] = []
@@ -235,15 +231,33 @@ export class ChangeSet {
     return new ChangeSet(sections, data)
   }
 
+  /// Perform an [operational
+  /// transformation](https://en.wikipedia.org/wiki/Operational_transformation)
+  /// on this change and the given other change. Both changes should
+  /// start with the given document `doc`. Returns a modified version
+  /// of the change that can be applied _after_ the other change has
+  /// been applied to `doc`.
+  ///
+  /// By default, the semantics of conflicting changes are resolved as
+  /// if `this` came after `other`. That means content inserted in the
+  /// same position by both will put the content inserted by `this`
+  /// last. You can set `before` to true to invert this, making `this`
+  /// come before `other`. Setting this correctly is necessary to make
+  /// the result of independently applied transformed changes converge.
   map(other: ChangeSet, doc: Plot.Doc, before: boolean = false): ChangeSet {
     return map(this, other, doc, before, true)
   }
 
+  /// Compose two change sets, where `other` starts from the document
+  /// produced by `this`, into a single change set.
   compose(other: ChangeSet): ChangeSet {
     let {sections, data} = compose(this.sections, other.sections, this.data, other.data)
     return new ChangeSet(sections, data!)
   }
 
+  /// Compute the inverse of this change set. `doc` is the document
+  /// that the change starts from. For a given change `A`,
+  /// `doc.apply(A).apply(A.invert(doc))` equals `doc`.
   invert(doc: Plot.Doc) {
     let sections: number[] = [], data: SectionData[] = []
     for (let i = 0, iS = 0, pos = 0; iS < this.sections.length; iS += 2, i++) {
@@ -284,8 +298,22 @@ export class ChangeSet {
     return fit ? this.compose(fit) : this
   }
 
-  mapPos(pos: number, assoc?: number): number
-  mapPos(pos: number, assoc: number, track: ChangeSet.TrackMode | undefined): number | null
+  /// Map a document position through this change, returning either
+  /// the adjusted position, or `null` if a the tracked position is
+  /// deleted.
+  ///
+  /// The `assoc` parameter, which defaults to `-1`, decides to which
+  /// side the position sticks. When content is inserted precisely at
+  /// the mapped position, it will stay before it when `assoc == -1`,
+  /// and move after it when `assoc == 1`.
+  ///
+  /// By default, mapping will always return a new position, even if
+  /// all the content around the position was deleted. You can pass a
+  /// {@link ChangeSet.TrackMode tracking mode} to make it return null
+  /// when either the token before, the token after, or both tokens
+  /// around the position were deleted.
+  mapPos(pos: number, assoc?: -1 | 1): number
+  mapPos(pos: number, assoc: -1 | 1, track: ChangeSet.TrackMode | undefined): number | null
   mapPos(pos: number, assoc = -1, track?: ChangeSet.TrackMode) {
     let posA = 0, posB = 0
     for (let i = 0; i < this.sections.length;) {
@@ -433,16 +461,76 @@ export class ChangeSet {
 }
 
 export namespace ChangeSet {
+  /// Representation of a single document change. Changes can either
+  /// affect marks (when `add` or `remove` is present), or replace a
+  /// part of the document (otherwise).
+  export type Change = {
+    /// The start position of the change.
+    from: number
+    /// The end position. When not given, this defaults to `from` for
+    /// replacement changes, and `from + 1` for changes that add or
+    /// remove marks.
+    to?: number
+    /// Replace the given range with this slice.
+    insert?: Slice | readonly Token[]
+    /// For deletions or insertions where it isn't obvious that the
+    /// replacement will produce a valid document, set this to `true` or
+    /// a stack of context tags to make the library process the
+    /// replacement to make sure it fits. Context tags (passed with the
+    /// innermost tag first, as in {@link Plot.Doc.contextAt} may be
+    /// used as wrappers when fitting the slice.
+    fit?: boolean | readonly Plot.Tag.Any[]
+    /// Add the given mark to this change's range.
+    add?: Mark<any>
+    /// Remove the given mark from this range.
+    remove?: Mark<any>
+  }
+
+  /// Type used to describe a {@link ChangeSet.create change set}. A
+  /// spec can be a single change, an existing change set, a set of
+  /// changes wrapped in a correction scope, or an array of the same.
+  ///
+  /// The {@link ChangeSet.Change.from `from`} and {@link
+  /// ChangeSet.Change.to `to`} positions in the changes in a set spec
+  /// all refer to the origin document. It is not necessary to
+  /// 'compensate' for earlier changes in those specified later. If,
+  /// for some reason, you have changes that should be applied after
+  /// each other, create multiple change sets and {@link
+  /// ChangeSet.compose compose} them.
+  ///
+  /// By default, the provider of changes vouches for their
+  /// correctness. It is possible to create change sets that will
+  /// error when you try to apply them, because applying them does not
+  /// create a well formed document.
+  ///
+  /// When making changes where you cannot guarantee that they fit,
+  /// you should either use {@link Change.fit}, which will try to
+  /// change the range of a change to make it fit, or the `{correct}`
+  /// form, which will combine the changes it is given, and then
+  /// process them as a whole to make sure they produce a valid
+  /// document. The `local` flag indicates that the effect of changes
+  /// should be kept as narrow as possible—for example, that nodes
+  /// opened but not closed by them should not extend to cover content
+  /// after the change.
+  export type Spec = ChangeSet.Change | {correct: ChangeSet.Spec, local?: boolean} | ChangeSet | readonly ChangeSet.Spec[]
+
+  /// The sections in a change set are represented as an array, with
+  /// each pair of two numbers describing a changed section. The first
+  /// number is the length of the section in the old document. The
+  /// second number is `-1` for unchanged sections, `-2` for updated
+  /// sections, and a non-negative number (the length of the inserted
+  /// content) for replacements.
   export type Sections = readonly number[]
 
-  export type Spec = Change | {correct: ChangeSet.Spec, local?: boolean} | ChangeSet | readonly ChangeSet.Spec[]
-
+  /// The JSON representation of a change set.
   export type JSON = readonly {
     length: number
     modifications?: readonly ModificationJSON[]
     replacement?: Slice.JSON
   }[]
 
+  /// Modes available in {@link ChangeSet.mapPos} to control whether
+  /// `null` is returned on nearby deletions.
   export type TrackMode = "before" | "after" | "around"
 }
 
@@ -487,13 +575,13 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
     } else if (spec instanceof ChangeSet) {
       flush()
       push(spec)
-    } else if ((spec as any).correct) {
+    } else if ("correct" in spec) {
       flush()
-      let {correct, local} = spec as any
+      let {correct, local} = spec
       let inner = createChangeSet(doc, correct, false)
       push(mayCorrect || local ? inner.correct(doc, local) : inner)
     } else {
-      let {from, to, add, remove, insert, fit} = spec as Change
+      let {from, to, add, remove, insert, fit} = spec as ChangeSet.Change
       let modifies = add || remove
       if (modifies) {
         if (insert)

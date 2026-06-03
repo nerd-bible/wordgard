@@ -4,6 +4,8 @@ import {Slice, Token} from "./slice"
 import {Mark} from "./mark"
 import {Elt, Attributes} from "./shape"
 
+// FIXME organize exports
+
 export type SerializeOptions = {
   emitNewlines?: boolean
 }

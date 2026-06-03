@@ -2,6 +2,7 @@ import type {Node as _Node, Plot as _Plot, Leaf} from "./node"
 import {Mark} from "./mark"
 import {none} from "./helper"
 
+/// FIXME doc
 export class Pos {
   private constructor(
     readonly parent: Pos.Plot,
