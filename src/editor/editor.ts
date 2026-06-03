@@ -10,7 +10,7 @@ import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFil
 import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
-        dragBehavior, pasteHandler, dropHandler} from "./input"
+        dragBehavior, pasteHandler, dropHandler, eventHandler, eventObserver} from "./input"
 import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
 import {DOMNode, getRoot, clearScratchRange, scrollRectIntoView} from "./dom"
@@ -302,7 +302,7 @@ export class Wordgard {
       for (let p of this.plugins) p.mustUpdate = update
     }
     for (let i = 0; i < this.plugins.length; i++) this.plugins[i].update(this)
-    if (configChange) this.inputState.ensureHandlers(this.plugins)
+    if (configChange) this.inputState.ensureHandlers(update.state)
   }
 
   /// Get the CSS classes for the currently active editor themes.
@@ -593,28 +593,33 @@ export class Wordgard {
   /// its {@link Wordgard#root document root}.
   static styleModule = GardState.Facet.define<StyleModule>()
 
-  /// Returns an extension that can be used to add DOM event handlers.
-  /// The value should be an object mapping event names to handler
-  /// functions. For any given event, such functions are ordered by
-  /// extension precedence, and the first handler to return true will
-  /// be assumed to have handled that event, and no other handlers or
-  /// built-in behavior will be activated for it. These are registered
-  /// on the {@link Wordgard.contentDOM content element}, except
-  /// for `scroll` handlers, which will be called any time the
-  /// editor's {@link Wordgard.scrollDOM scroll element} or one of
-  /// its parent nodes is scrolled.
-  static domEventHandlers(handlers: DOMEventHandlers<any>): GardState.Extension {
-    return Wordgard.Plugin.define(() => ({}), {eventHandlers: handlers})
+  /// Returns an extension that can be used to add a DOM event handler
+  /// to the editor. For any given event, such functions are ordered
+  /// by extension precedence, and the first handler to return true
+  /// will be assumed to have handled that event, and no other
+  /// handlers or built-in behavior will be activated for it. These
+  /// are registered on the {@link Wordgard.contentDOM content
+  /// element}, except for `scroll` handlers, which will be called any
+  /// time the editor's {@link Wordgard.scrollDOM scroll element} or
+  /// one of its parent nodes is scrolled.
+  static domEventHandler<Event extends keyof HTMLElementEventMap>(
+    event: Event,
+    handler: (event: HTMLElementEventMap[Event], wg: Wordgard) => boolean | void
+  ): GardState.Extension {
+    return eventHandler.of({event, handler: handler as any})
   }
 
-  /// Create an extension that registers DOM event observers. Contrary
-  /// to event {@link Wordgard.domEventHandlers handlers},
+  /// Create an extension that registers a DOM event observers. Contrary
+  /// to event {@link Wordgard.domEventHandler handlers},
   /// observers can't be prevented from running by a higher-precedence
   /// handler returning true. They also don't prevent other handlers
   /// and observers from running when they return true, and should not
   /// call `preventDefault`.
-  static domEventObservers(observers: DOMEventHandlers<any>): GardState.Extension {
-    return Wordgard.Plugin.define(() => ({}), {eventObservers: observers})
+  static domEventObserver<Event extends keyof HTMLElementEventMap>(
+    event: Event,
+    observer: (event: HTMLElementEventMap[Event], wg: Wordgard) => void
+  ): GardState.Extension {
+    return eventObserver.of({event, observer: observer as any})
   }
 
   /// Scroll handlers can override how things are scrolled into view.
@@ -864,20 +869,42 @@ export namespace Wordgard {
     private constructor(
       /// @internal
       readonly create: (wg: Wordgard) => V,
-      /// @internal
-      readonly domEventHandlers: DOMEventHandlers<V> | undefined,
-      /// @internal
-      readonly domEventObservers: DOMEventHandlers<V> | undefined,
       buildExtensions: (plugin: Wordgard.Plugin<V>) => GardState.Extension
     ) {
       this.extension = buildExtensions(this)
     }
 
+    /// Create an {@link Wordgard.eventHandler event handler} for this
+    /// plugin. Usually called from the plugin's `provide` function.
+    eventHandler<Event extends keyof HTMLElementEventMap>(
+      event: Event,
+      handler: (event: HTMLElementEventMap[Event], wg: Wordgard, value: V) => boolean | void
+    ): GardState.Extension {
+      return eventHandler.of({event, handler: (event, wg) => {
+        let value = wg.plugin(this)
+        return value ? handler(event as HTMLElementEventMap[Event], wg, value) : false
+      }})
+    }
+
+    /// Create an {@link Wordgard.eventObserver event observer} for this
+    /// plugin.
+    eventObserver<Event extends keyof HTMLElementEventMap>(
+      event: Event,
+      observer: (event: HTMLElementEventMap[Event], wg: Wordgard, value: V) => void
+    ): GardState.Extension {
+      return eventObserver.of({event, observer: (event, wg) => {
+        let value = wg.plugin(this)
+        if (value) observer(event as HTMLElementEventMap[Event], wg, value)
+      }})
+    }
+
     /// Define a plugin from a constructor function that creates the
     /// plugin's value, given an editor.
-    static define<V extends Wordgard.Plugin.Value>(create: (wg: Wordgard) => V, spec?: Wordgard.Plugin.Spec<V>) {
-      const {eventHandlers, eventObservers, provide} = spec || {}
-      return new Wordgard.Plugin<V>(create, eventHandlers, eventObservers, plugin => {
+    static define<V extends Wordgard.Plugin.Value>(
+      create: (wg: Wordgard) => V,
+      provide?: (plugin: Wordgard.Plugin<V>) => GardState.Extension
+    ) {
+      return new Wordgard.Plugin<V>(create, plugin => {
         let ext = [editorPlugin.of(plugin)]
         if (provide) ext.push(provide(plugin))
         return ext
@@ -886,30 +913,15 @@ export namespace Wordgard {
 
     /// Create a plugin for a class whose constructor takes a single
     /// editor as argument.
-    static fromClass<V extends Wordgard.Plugin.Value>(cls: {new (wg: Wordgard): V}, spec?: Wordgard.Plugin.Spec<V>) {
-      return Wordgard.Plugin.define(wg => new cls(wg), spec)
+    static fromClass<V extends Wordgard.Plugin.Value>(
+      cls: {new (wg: Wordgard): V},
+      provide?: (plugin: Wordgard.Plugin<V>) => GardState.Extension
+    ) {
+      return Wordgard.Plugin.define(wg => new cls(wg), provide)
     }
   }
 
   export namespace Plugin {
-    /// Provides additional information when defining a {link
-    /// Wordgard.Plugin plugin}.
-    export interface Spec<V extends Wordgard.Plugin.Value> {
-      /// Register the given {@link Wordgard.domEventHandlers event
-      /// handlers} for the plugin. When called, these will have their
-      /// `this` bound to the plugin value.
-      eventHandlers?: DOMEventHandlers<V>,
-
-      /// Registers {@link Wordgard.domEventObservers event observers}
-      /// for the plugin. Will, when called, have their `this` bound
-      /// to the plugin value.
-      eventObservers?: DOMEventHandlers<V>,
-
-      /// Specify that the plugin provides additional extensions when
-      /// added to an editor configuration.
-      provide?: (plugin: Wordgard.Plugin<V>) => GardState.Extension // FIXME is this useful?
-    }
-
     /// This is the interface plugin objects conform to.
     export interface Value {
       /// Notifies the plugin of an update that happened in the

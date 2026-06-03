@@ -4,12 +4,36 @@ import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
-import {Wordgard, PluginInstance, DOMEventHandlers} from "./editor"
+import {Wordgard} from "./editor"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 import {eqArray, logException} from "./util"
 import {Tile, CoordPos} from "./tile"
+
+export const eventHandler = GardState.Facet.define<
+  {event: string, handler: (event: Event, wg: Wordgard) => boolean | void},
+  Record<string, ((event: Event, wg: Wordgard) => boolean | void)[]>
+>({
+  combine: handlers => {
+    let result: Record<string, ((event: Event, wg: Wordgard) => boolean | void)[]> = Object.create(null)
+    for (let {event, handler} of handlers)
+      (result[event] || (result[event] = [])).push(handler)
+    return result
+  }
+})
+
+export const eventObserver = GardState.Facet.define<
+  {event: string, observer: (event: Event, wg: Wordgard) => void},
+  Record<string, ((event: Event, wg: Wordgard) => void)[]>
+>({
+  combine: observers => {
+    let result: Record<string, ((event: Event, wg: Wordgard) => void)[]> = Object.create(null)
+    for (let {event, observer} of observers)
+      (result[event] || (result[event] = [])).push(observer)
+    return result
+  }
+})
 
 export class InputState {
   shiftKey = false
@@ -88,8 +112,8 @@ export class InputState {
     }
   }
 
-  ensureHandlers(plugins: readonly PluginInstance[]) {
-    let handlers = computeHandlers(plugins), prev = this.handlers, dom = this.wg.contentDOM
+  ensureHandlers(state: GardState) {
+    let handlers = computeHandlers(state), prev = this.handlers, dom = this.wg.contentDOM
     for (let type in handlers) if (type != "scroll") {
       let passive = !handlers[type].handlers.length
       let exists: (typeof prev)["type"] | null = prev[type]
@@ -150,7 +174,7 @@ export class InputState {
   }
 
   connect() {
-    this.ensureHandlers(this.wg.plugins)
+    this.ensureHandlers(this.wg.state)
   }
 
   disconnect() {
@@ -161,19 +185,15 @@ export class InputState {
 type HandlerFunction = (wg: Wordgard, event: Event) => boolean | void
 
 function bindHandler(
-  plugin: Wordgard.Plugin.Value,
-  handler: (this: Wordgard.Plugin.Value, event: Event, wg: Wordgard) => boolean | void
+  handler: (event: Event, wg: Wordgard) => boolean | void
 ): HandlerFunction {
   return (wg, event) => {
-    try {
-      return handler.call(plugin, event, wg)
-    } catch (e) {
-      logException(wg.state, e)
-    }
+    try { return handler(event, wg) }
+    catch (e) { logException(wg.state, e) }
   }
 }
 
-function computeHandlers(plugins: readonly PluginInstance[]) {
+function computeHandlers(state: GardState) {
   let result: {[event: string]: {
     observers: HandlerFunction[],
     handlers: HandlerFunction[]
@@ -181,17 +201,9 @@ function computeHandlers(plugins: readonly PluginInstance[]) {
   function record(type: string) {
     return result[type] || (result[type] = {observers: [], handlers: []})
   }
-  for (let plugin of plugins) if (!plugin.deactivated) {
-    let spec = plugin.spec
-    if (spec.domEventHandlers) for (let type in spec.domEventHandlers) {
-      let f = spec.domEventHandlers[type as keyof DOMEventHandlers<any>]
-      if (f) record(type).handlers.push(bindHandler(plugin.value!, f as any))
-    }
-    if (spec.domEventObservers) for (let type in spec.domEventObservers) {
-      let f = spec.domEventObservers[type as keyof DOMEventHandlers<any>]
-      if (f) record(type).observers.push(bindHandler(plugin.value!, f as any))
-    }
-  }
+  let h = state.facet(eventHandler), o = state.facet(eventObserver)
+  for (let type in h) for (let handler of h[type]) record(type).handlers.push(bindHandler(handler))
+  for (let type in o) for (let observer of o[type]) record(type).observers.push(bindHandler(observer))
   for (let type in handlers) record(type).handlers.push(handlers[type])
   for (let type in observers) record(type).observers.push(observers[type])
   return result

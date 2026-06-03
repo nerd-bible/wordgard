@@ -54,10 +54,8 @@ export class KeyBinding {
   static define(spec: KeyBinding.Spec) { return new KeyBinding(spec) }
 }
 
-const handleKeyEvents = GardState.prec.default(Wordgard.domEventHandlers({
-  keydown(event, wg) {
-    return KeyBinding.runScopeHandlers(wg, event, "editor")
-  }
+const handleKeyEvents = GardState.prec.default(Wordgard.domEventHandler("keydown", (event, wg) => {
+  return KeyBinding.runScopeHandlers(wg, event, "editor")
 }))
 
 export namespace KeyBinding {

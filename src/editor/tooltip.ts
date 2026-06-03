@@ -337,11 +337,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
   maybeMeasure() {
     if (this.manager.tooltips.length) this.wg.scheduleDOMRead(this.measure)
   }
-}, {
-  eventObservers: {
-    scroll() { this.maybeMeasure() }
-  }
-})
+}, plugin => plugin.eventObserver("scroll", (event, wg, value) => value.maybeMeasure()))
 
 function setLeftStyle(elt: HTMLElement, value: number) {
   let current = parseInt(elt.style.left, 10)

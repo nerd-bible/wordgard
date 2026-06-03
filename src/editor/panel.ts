@@ -113,12 +113,10 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
     this.top.sync([], wg)
     this.bottom.sync([], wg)
   }
-}, {
-  provide: plugin => Wordgard.scrollMargins.of(wg => {
-    let value = wg.plugin(plugin)
-    return value && {top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin()}
-  })
-})
+}, plugin => Wordgard.scrollMargins.of(wg => {
+  let value = wg.plugin(plugin)
+  return value && {top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin()}
+}))
 
 export namespace Panel {
   /// Get the active panel created by the given constructor, if any.

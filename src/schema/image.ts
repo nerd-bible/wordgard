@@ -91,8 +91,8 @@ function imageNode(wg: Wordgard, pos: number) {
   return dom.nodeName == "IMG" ? dom : dom.querySelector("img[src]")!
 }
 
-const resizeHandlers = Wordgard.domEventHandlers({
-  mousedown: (event, wg) => {
+const resizeHandlers = [
+  Wordgard.domEventHandler("mousedown", (event, wg) => {
     let resizing = wg.state.field(resizeState)
     if (resizing.target < 0) return
     for (let dom = event.target as Element;;) {
@@ -105,8 +105,8 @@ const resizeHandlers = Wordgard.domEventHandlers({
     let width = node.tag.mark(ImageSize) ?? imageNode(wg, resizing.target).getBoundingClientRect().width
     wg.dispatch({effects: setResizing.of({target: resizing.target, resizing: width})})
     event.preventDefault()
-  },
-  mousemove: (event, wg) => {
+  }),
+  Wordgard.domEventHandler("mousemove", (event, wg) => {
     let resizing = wg.state.field(resizeState)
     if (resizing.resizing > -1) {
       let dom = imageNode(wg, resizing.target)
@@ -120,16 +120,16 @@ const resizeHandlers = Wordgard.domEventHandlers({
       if (target != resizing.target)
         wg.dispatch({effects: setResizing.of({target, resizing: -1})})
     }
-  },
-  mouseup: (event, wg) => {
+  }),
+  Wordgard.domEventHandler("mouseup", (event, wg) => {
     let resizing = wg.state.field(resizeState)
     if (resizing.resizing < 0) return
     wg.dispatch({
       effects: setResizing.of({target: resizing.target, resizing: -1}),
       changes: {from: resizing.target, add: ImageSize.of(Math.round(resizing.resizing))}
     })
-  }
-})
+  })
+]
 
 export namespace imageResizing {
   /// Returns a command that resizes the currently selected image or
@@ -192,29 +192,27 @@ export namespace image {
   /// dropped. When an {@link image.uploader uploader} has been
   /// defined, it will feed the file to that, and insert an image with
   /// the resulting URI when it finishes.
-  export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandlers({
-    drop: (event, wg) => {
-      let {state} = wg, upload = state.facet(imageUploader)[0]
-      const type = state.schema.has(Image) ? Image : state.schema.has(Figure) ? Figure : null
-      if (!type || !upload || !event.dataTransfer) return false
-      let files = event.dataTransfer.files, uploads: Promise<string>[] = []
-      for (let i = 0; i < files.length; i++) {
-        let file = files[i]
-        if (/^image\//.test(file.type))
-          uploads.push(upload(file, wg, () => {}))
-      }
-      if (!uploads.length) return false
-      let dropPos = {x: event.clientX, y: event.clientY}
-      Promise.all(uploads).then(urls => {
-        wg.dispatch({
-          changes: {from: wg.posAtCoords(dropPos).pos, insert: urls.map(u => type.of(u)), fit: true},
-          userEvent: "drop.image"
-        })
-      }, err => {
-        logException(state, err, "Dropped image upload")
-      })
-      return true
+  export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandler("drop", (event, wg) => {
+    let {state} = wg, upload = state.facet(imageUploader)[0]
+    const type = state.schema.has(Image) ? Image : state.schema.has(Figure) ? Figure : null
+    if (!type || !upload || !event.dataTransfer) return false
+    let files = event.dataTransfer.files, uploads: Promise<string>[] = []
+    for (let i = 0; i < files.length; i++) {
+      let file = files[i]
+      if (/^image\//.test(file.type))
+        uploads.push(upload(file, wg, () => {}))
     }
+    if (!uploads.length) return false
+    let dropPos = {x: event.clientX, y: event.clientY}
+    Promise.all(uploads).then(urls => {
+      wg.dispatch({
+        changes: {from: wg.posAtCoords(dropPos).pos, insert: urls.map(u => type.of(u)), fit: true},
+        userEvent: "drop.image"
+      })
+    }, err => {
+      logException(state, err, "Dropped image upload")
+    })
+    return true
   }))
 
   /// The command that opens the image dialog.
