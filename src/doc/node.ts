@@ -105,8 +105,8 @@ export namespace Node {
       get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
 
       is<T>(type: Leaf.Type<T>): this is Leaf<T>
-        is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
-        is(type: any) { return this.type == type }
+      is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+      is(type: any) { return this.type == type }
 
       toJSON(): Node.JSON {
         let result: Node.JSON = {type: this.name}

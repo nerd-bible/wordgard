@@ -364,7 +364,7 @@ export namespace GardSelection {
   }
 
   /// A selection object where the selection positions have been
-  /// {@link Plot.Doc#resolve resolved}. In an editor state, {@link
+  /// {@link Plot.Doc.resolve resolved}. In an editor state, {@link
   /// GardState.sel} provides an instance of this, derived from the
   /// regular canonical selection, for convenience.
   export class Resolved {

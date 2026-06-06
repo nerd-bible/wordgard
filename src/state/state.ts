@@ -277,7 +277,7 @@ export class GardState {
   /// This effect can be used to reconfigure the root extensions of
   /// the editor. Doing this will discard any extensions {@link
   /// GardState.appendConfig appended}, but does not reset the
-  /// content of {@link GardState.Compartment#reconfigure
+  /// content of {@link GardState.Compartment.reconfigure
   /// reconfigured} compartments.
   static reconfigure = Transaction.Effect.define<GardState.Extension>()
 
@@ -383,7 +383,7 @@ export namespace GardState {
 
       /// Provide extensions based on this field. The given function
       /// will be called once with the initialized field. It will
-      /// usually want to call some facet's {@Facet#from `from`}
+      /// usually want to call some facet's {@Facet.from `from`}
       /// method to create facet inputs from this field, but can also
       /// return other extensions that should be enabled when the
       /// field is present in a configuration.
@@ -391,7 +391,7 @@ export namespace GardState {
 
       /// A function used to serialize this field's content to JSON. Only
       /// necessary when this field is included in the argument to
-      /// {@link GardState#toJSON}.
+      /// {@link GardState.toJSON}.
       toJSON?: (value: Value, state: GardState) => any
 
       /// A function that deserializes the JSON representation of this
@@ -410,7 +410,7 @@ export namespace GardState {
   /// editor.Wordgard.afterUpdate update listeners}.
   ///
   /// Note that `Facet` instances can be used anywhere where {@link
-  /// Facet.Reader} is expected.
+  /// GardState.Facet.Reader} is expected.
   export class Facet<Input, Output = readonly Input[]> implements GardState.Facet.Reader<Output> {
     /// @internal
     readonly id = nextID++
@@ -435,7 +435,7 @@ export namespace GardState {
     }
 
     /// Returns a facet reader for this facet, which can be used to
-    /// {@link GardState#facet read} it but not to define values for
+    /// {@link GardState.facet read} it but not to define values for
     /// it.
     get reader(): GardState.Facet.Reader<Output> { return this }
 
@@ -461,7 +461,7 @@ export namespace GardState {
     /// in which case it is called again.
     ///
     /// In cases where your value depends only on a single field, you
-    /// can use the {@link GardState.Facet#from `from`} method
+    /// can use the {@link GardState.Facet.from `from`} method
     /// instead.
     compute(get: (state: GardState) => Input): GardState.Extension {
       if (this.isStatic) throw new Error("Can't compute a static facet")
@@ -542,8 +542,8 @@ export namespace GardState {
     }
 
     /// A facet reader can be used to fetch the value of a facet,
-    /// through {@link GardState#facet} or as a dependency in {@link
-    /// GardState.Facet#compute `Facet.compute`}, but not to define
+    /// through {@link GardState.facet} or as a dependency in {@link
+    /// GardState.Facet.compute `Facet.compute`}, but not to define
     /// new values for the facet.
     export type Reader<Output> = {
       /// @internal
@@ -690,7 +690,7 @@ export namespace GardState {
   /// when creating a state to attach various kinds of configuration
   /// and behavior information. They can either be built-in
   /// extension-providing objects, such as {@link GardState.Field
-  /// state fields} or {@link GardState.Facet#of facet providers}, or
+  /// state fields} or {@link GardState.Facet.of facet providers}, or
   /// objects with an extension in its `extension` property.
   /// Extensions can be nested in arrays arbitrarily deep—they will be
   /// flattened when processed.
@@ -722,9 +722,9 @@ export namespace GardState {
   }
 
   /// Extension compartments can be used to make a configuration
-  /// dynamic. By {@link Compartment#of wrapping} part of your
+  /// dynamic. By {@link GardState.Compartment.of wrapping} part of your
   /// configuration in a compartment, you can later {@link
-  /// Compartment#reconfigure replace} that part through a
+  /// GardState.Compartment.reconfigure replace} that part through a
   /// transaction.
   export class Compartment {
     private constructor() {}
@@ -762,7 +762,7 @@ export namespace GardState {
     static: true
   })
 
-  /// This facet controls the value of the {@link GardState#readOnly
+  /// This facet controls the value of the {@link GardState.readOnly
   /// `readOnly` getter}, which is consulted by commands and
   /// extensions that implement editing functionality to determine
   /// whether they should apply. It defaults to false, but when its

@@ -10,7 +10,7 @@ export class Widget<T = unknown> {
   /// `Widget<T>` is a subtype of `Widget<unknown>`.
   readonly type: Widget.Type<unknown extends T ? any : Widget.Type<T>>
 
-  private constructor(type: Widget.Type<T>, readonly value: T) { this.type = type as any }
+    private constructor(type: Widget.Type<T>, readonly value: T) { this.type = type as any }
 
   /// @internal
   static new<T>(type: Widget.Type<T>, value: T) { return new Widget(type, value) }
@@ -113,8 +113,8 @@ export namespace Decoration {
     }
 
     export namespace shape {
-      /// This function allows you to define a {@link shape custom
-      /// node shape} that depends on the editor state. It will
+      /// This function allows you to define a {@link Decoration.Tag.shape
+      /// custom node shape} that depends on the editor state. It will
       /// automatically track what slots (see {@link
       /// GardState.Facet.compute}) you use, and make sure the nodes
       /// are redrawn when those change.

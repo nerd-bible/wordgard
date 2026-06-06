@@ -504,14 +504,14 @@ export namespace ChangeSet {
   /// create a well formed document.
   ///
   /// When making changes where you cannot guarantee that they fit,
-  /// you should either use {@link Change.fit}, which will try to
-  /// change the range of a change to make it fit, or the `{correct}`
-  /// form, which will combine the changes it is given, and then
-  /// process them as a whole to make sure they produce a valid
-  /// document. The `local` flag indicates that the effect of changes
-  /// should be kept as narrow as possible—for example, that nodes
-  /// opened but not closed by them should not extend to cover content
-  /// after the change.
+  /// you should either use {@link ChangeSet.Change.fit}, which will
+  /// try to change the range of a change to make it fit, or the
+  /// `{correct}` form, which will combine the changes it is given,
+  /// and then process them as a whole to make sure they produce a
+  /// valid document. The `local` flag indicates that the effect of
+  /// changes should be kept as narrow as possible—for example, that
+  /// nodes opened but not closed by them should not extend to cover
+  /// content after the change.
   export type Spec = ChangeSet.Change | {correct: ChangeSet.Spec, local?: boolean} | ChangeSet | readonly ChangeSet.Spec[]
 
   /// The sections in a change set are represented as an array, with

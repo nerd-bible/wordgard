@@ -57,7 +57,7 @@ export class Wordgard {
   /// The editable DOM element holding the editor content. You should
   /// not, usually, interact with this content directly though the
   /// DOM, since the editor will immediately undo most of the changes
-  /// you make. Instead, {@link Wordgard#dispatch dispatch} {@link
+  /// you make. Instead, {@link Wordgard.dispatch dispatch} {@link
   /// Transaction transactions} to modify content, and {@link
   /// Decoration decorations} to style it.
   readonly contentDOM: HTMLElement
@@ -132,7 +132,7 @@ export class Wordgard {
   }
 
   /// Construct a new editor. You'll want to either provide a `parent`
-  /// option, or put the editor's {@link Wordgard#dom DOM element}
+  /// option, or put the editor's {@link Wordgard.dom DOM element}
   /// into your document after creating an editor, so that the user
   /// can see it.
   static create(spec: Wordgard.Spec) { return new Wordgard(spec) }
@@ -173,7 +173,7 @@ export class Wordgard {
   /// property, but updating the DOM will be deferred to the next
   /// display update.
   ///
-  /// You should usually call {@link Wordgard#dispatch} instead, which
+  /// You should usually call {@link Wordgard.dispatch} instead, which
   /// uses this as a primitive.
   update(transaction: Transaction) {
     if (this.flushing) throw new Error("Cannot dispatch new updates during the editor flush phase")
@@ -370,7 +370,7 @@ export class Wordgard {
 
   /// Schedule a function that needs to modify the DOM. When doing any
   /// kind of DOM mutation that depends on a {@link
-  /// Wordgard#scheduleDOMRead | DOM read}, use this method, so that
+  /// Wordgard.scheduleDOMRead | DOM read}, use this method, so that
   /// read and write phases remain separate.
   scheduleDOMWrite(write: (wg: Wordgard) => void) {
     this.scheduleFlush()
@@ -416,7 +416,7 @@ export class Wordgard {
   /// distance in pixels.
   ///
   /// When `start` has a
-  /// {@link GardSelection#goalColumn `goalColumn`}, the vertical
+  /// {@link GardSelection.goalColumn `goalColumn`}, the vertical
   /// motion will use that as a target horizontal position. Otherwise,
   /// the cursor's own horizontal position is used. The returned
   /// cursor will have its goal column set to whichever column was
@@ -590,7 +590,7 @@ export class Wordgard {
   /// Facet to add a [style
   /// module](https://github.com/marijnh/style-mod#documentation) to
   /// an editor. The editor will ensure that the module is mounted in
-  /// its {@link Wordgard#root document root}.
+  /// its {@link Wordgard.root document root}.
   static styleModule = GardState.Facet.define<StyleModule>()
 
   /// Returns an extension that can be used to add a DOM event handler
@@ -635,7 +635,7 @@ export class Wordgard {
   /// library catches an exception from an extension (mostly from
   /// plugins, but may be used by other extensions to route exceptions
   /// from user-code-provided callbacks). This is mostly useful for
-  /// debugging and logging. See {@link logException}.
+  /// debugging and logging. See {@link Wordgard.logException}.
   static exceptionSink = exceptionSink
 
   // FIXME better names for these (distinguish from .update, use nouns
@@ -936,7 +936,7 @@ export namespace Wordgard {
       /// fields) and _writing_ to the DOM for the changes in the
       /// update. To avoid unnecessary layout recomputations, it
       /// should _not_ read the DOM layout—use {@link
-      /// Wordgard#scheduleDOMRead `scheduleDOMRead`} to schedule your
+      /// Wordgard.scheduleDOMRead} to schedule your
       /// code in a DOM reading phase if you need to.
       update?(update: Wordgard.Update): void
 

@@ -43,7 +43,7 @@ export namespace Menu {
     }
 
     /// Base class for menu items, storing the fields specified in
-    /// {@link Item.Spec}.
+    /// {@link Menu.Item.Spec}.
     export class Base {
       select: ((state: GardState) => boolean) | undefined
       enable: ((state: GardState) => boolean) | undefined
@@ -118,7 +118,7 @@ export namespace Menu {
     }
 
     /// Creates a menu button that toggles an inline mark via {@link
-    /// toggleMark}, and is shown as active when either that mark is part
+    /// Menu.Button.toggleMark}, and is shown as active when either that mark is part
     /// of the marks associated with the current cursor, or the selection
     /// covers only content with that mark.
     export function toggleMark(config: {
@@ -351,7 +351,7 @@ export namespace Menu {
   /// Templates are used to explicitly choose (part of) your menu
   /// structure, rather than letting the resolution algorithm build
   /// one from your configuration. See {@link Menu.resolve}, {@link
-  /// Group.template}, and {@link Submenu.template}.
+  /// Menu.Group.template}, and {@link Menu.Submenu.template}.
   export class Template {
     /// @internal
     parent: Group | Submenu | null

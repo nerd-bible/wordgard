@@ -196,9 +196,9 @@ export namespace alignment {
   })
 
   /// A button that pops up a submenu for alignment choice. Includes
-  /// {@link buttonStart}, {@link buttonEnd}, and {@link buttonCenter}
-  /// as default content, so if you include this you don't have to
-  /// explicitly include those.
+  /// {@link alignment.buttonStart}, {@link alignment.buttonEnd}, and
+  /// {@link alignment.buttonCenter} as default content, so if you
+  /// include this you don't have to explicitly include those.
   export const button = Menu.Submenu.define({
     description: phrases.ref("alignment"),
     parent: Menu.Group.block,

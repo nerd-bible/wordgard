@@ -76,7 +76,7 @@ export namespace collab {
   export type Config = {
     /// The starting document version. Defaults to 0.
     startVersion?: number,
-    /// This client's identifying {@link getClientID ID}. Will be a
+    /// This client's identifying {@link collab.getClientID ID}. Will be a
     /// randomly generated string if not provided.
     clientID?: string,
     /// It is possible to share information other than document changes
@@ -98,10 +98,10 @@ export namespace collab {
     /// The changes made by this update.
     changes: ChangeSet,
     /// The effects in this update. There'll only ever be effects here
-    /// when you configure your collab extension with a
-    /// {@link Config.sharedEffects `sharedEffects`} option.
+    /// when you configure your collab extension with a {@link
+    /// collab.Config.sharedEffects `sharedEffects`} option.
     effects?: readonly Transaction.Effect<unknown>[]
-    /// The {@link Config.clientID ID} of the client who
+    /// The {@link collab.Config.clientID ID} of the client who
     /// created this update.
     clientID: string
   }
