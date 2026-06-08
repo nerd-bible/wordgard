@@ -1,4 +1,4 @@
-import {Slice, Leaf, Plot, Node, Mark, Pos, serializeSlice, Parse, Token, Elt} from "wordgard/doc"
+import {Slice, Leaf, Plot, Node, Pos, serialize, Parse, Token, Elt} from "wordgard/doc"
 import {GardState} from "wordgard/state"
 import browser from "./browser"
 
@@ -14,11 +14,6 @@ export const clipboardInputHTMLFilter = GardState.Facet.define<(html: string, st
 export const clipboardTextParser = GardState.Facet.define<(text: string, state: GardState) => Slice | null>()
 export const clipboardInputTextFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
 
-const openMark = Mark.Type.define<string>("Open", {
-  shape: {attribute: "wg-open", value: 0},
-  target: Node.Group.All
-})
-
 export function writeClipboard(state: GardState, slice: Slice, context: readonly Plot.Tag.Any[], data: DataTransfer) {
   for (let filter of state.facet(clipboardOutputFilter)) slice = filter(slice, state)
 
@@ -28,11 +23,10 @@ export function writeClipboard(state: GardState, slice: Slice, context: readonly
     if (next.type.defining && (!includeContext || next.type != context[includeContext - 1].type)) includeContext = i + 1
     else if (next.type.defining || !next.isTextblock) break
   }
-  let doc = detachedDoc(), dom = Elt.dom(serializeSlice(slice, {
-    schema: state.schema,
+  let doc = detachedDoc(), dom = Elt.dom(serialize.slice(slice, {
     context,
     includeContext,
-    openMark
+    openAttr: "wg-open"
   }))
 
   let needsWrap, wrappers = 0

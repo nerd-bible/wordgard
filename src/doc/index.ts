@@ -37,4 +37,4 @@ export {Parse} from "./parse"
 
 /// ### Serialization
 
-export {serialize, serializeNode, serializeSlice, SerializeOptions} from "./serialize"
+export {serialize} from "./serialize"

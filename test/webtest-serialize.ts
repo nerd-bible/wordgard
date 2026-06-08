@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Plot, Leaf, Node, Mark, Slice, type Token, Schema, Elt, elt,
-        serialize, serializeSlice, Parse, ParseRule} from "wordgard/doc"
+import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt, elt,
+        serialize, Parse, ParseRule} from "wordgard/doc"
 import {Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema-def"
 import {basicBuilders, builder, basicSchema, tag, eq} from "./schema.ts"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olStart, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -16,14 +16,13 @@ function istHTML(doc: Plot.Doc, expected: string) {
   ist(Elt.html(serialize(doc)), expected)
 }
 
-function istSliceHTML(doc: Plot.Doc, expected: string, options?: any) {
+function istSliceHTML(doc: Plot.Doc, expected: string, options?: serialize.slice.Options & {maxDepth?: number}) {
   let wrap = document.createElement("div")
   let slice = doc.slice(tag(doc, 0), tag(doc, 1)), opts = {
     ...options,
-    schema: doc.schema,
     context: doc.contextAt(tag(doc, 0), options?.maxDepth)
   }
-  let frag = serializeSlice(slice, opts)
+  let frag = serialize.slice(slice, opts)
   wrap.appendChild(Elt.dom(frag))
   ist(wrap.innerHTML, expected)
   ist(Elt.html(frag), expected)
@@ -105,18 +104,16 @@ describe("serializeSlice", () => {
                  "<ul><li><p>A</p></li></ul><blockquote><p>B</p></blockquote>")
   })
 
-  const openMark = Mark.Type.define<string>("Open", {shape: {attribute: "open", value: 0}, target: Node.Group.All})
-
   it("can mark open nodes", () => {
     istSliceHTML(doc(p(0, "a"), blockquote(p("b", 1))),
                  '<p open="start">a</p><blockquote open="end"><p open="end">b</p></blockquote>',
-                 {openMark})
+                 {openAttr: "open"})
   })
 
   it("can include extra context", () => {
     istSliceHTML(doc(blockquote(ul(li(p(0, "a")), li(p("b"), 1)))),
                  '<ul open="start end"><li open="start"><p open="start">a</p></li><li open="end"><p>b</p></li></ul>',
-                 {openMark, maxDepth: 3, includeContext: 3})
+                 {openAttr: "open", maxDepth: 3, includeContext: 3})
   })
 })
 
