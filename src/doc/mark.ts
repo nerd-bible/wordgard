@@ -1,4 +1,5 @@
-import {Shape, ParseRule, Elt, Attributes} from "./shape"
+import {Shape, Elt, Attributes} from "./shape"
+import {type parse} from "./parse"
 import {compareDeep, eqArray, none} from "./helper"
 import {Node, Plot} from "./node"
 import {SchemaError} from "./error"
@@ -199,7 +200,7 @@ export namespace Mark {
     shape: Shape.Element<Value> | Shape.Attribute<Value> | Shape.Attributes<Value>
     /// A set of parse rules for this mark. The `mark` field for these
     /// will automatically be defaulted to the mark type itself.
-    parseRules?: readonly (ParseRule.Element<Value> | ParseRule.Attribute<Value>)[]
+    parseRules?: readonly (parse.Rule.Element<Value> | parse.Rule.Attribute<Value>)[]
   }
 }
 

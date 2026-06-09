@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt,
-        serialize, parse, ParseRule} from "wordgard/doc"
+        serialize, parse} from "wordgard/doc"
 import {Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema-def"
 import {basicBuilders, builder, basicSchema, tag, eq} from "./schema.ts"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olStart, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -198,7 +198,7 @@ describe("parseDoc", () => {
   })
 
   it("uses parse rule precedence", () => {
-    let rules = ParseRule.Set.of([
+    let rules = parse.Rule.Set.of([
       {selector: "p", plot: Paragraph},
       {selector: "p.h", plot: Heading.of(1), precedence: 2}
     ])

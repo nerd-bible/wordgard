@@ -2,9 +2,9 @@ import {Schema} from "./schema"
 import {Plot, Node, Leaf} from "./node"
 import {Mark} from "./mark"
 import {Slice, Token} from "./slice"
-import {ParseRule} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
+type DOMElement = Element
 
 export function parse(schema: Schema, doc: Element | DocumentFragment, options: parse.Options = {}) {
   let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
@@ -25,7 +25,7 @@ export namespace parse {
     isOpen?: (elt: Element) => null | "start" | "end" | "start end"
     /// The rule set to use. Defaults to the rule set derived from the
     /// schema.
-    ruleSet?: ParseRule.Set
+    ruleSet?: parse.Rule.Set
   }
 
   export function slice(schema: Schema, doc: Element | DocumentFragment, options: parse.Options = {}) {
@@ -56,6 +56,139 @@ export namespace parse {
     emitTokens(top.children, true, true)
     return {slice: Slice.of(tokens), context}
   }
+
+  export type Rule<Param = any> = Rule.Element<Param> | Rule.Attribute<Param>
+
+  export namespace Rule {
+    export interface Element<Param> {
+      selector: string
+      plot?: Plot.Tag<Param> | Plot.Type<Param>
+        leaf?: Leaf<Param> | Leaf.Type<Param>
+        mark?: Mark.Type<Param> | Mark<Param>
+        ignore?: boolean | "skip"
+      param?: Param
+      readElement?: (element: DOMElement) => Param | Rule.Reject
+      marksFrom?: string
+      contentElement?: string | ((elt: DOMElement) => DOMElement)
+      /// Ignore DOM nodes matching this selector or predicate, when
+      /// they appear in this plot's content element.
+      ignoreContent?: string | ((elt: DOMElement) => boolean)
+      /// A number between -10 and 10 (inclusive) that specifies the
+      /// relative precedence of this rule. Defaults to 0.
+      precedence?: number
+    }
+
+    export interface Attribute<Param> {
+      attribute: string
+      mark?: Mark.Type<Param> | Mark<Param>
+        ignore?: boolean
+      clearMark?: (mark: Mark<unknown>) => boolean
+      param?: Param
+      value?: string
+      readAttribute?: (value: string) => Param | Rule.Reject
+      consuming?: boolean
+      /// A number between -10 and 10 (inclusive) that specifies the
+      /// relative precedence of this rule. Defaults to 0.
+      precedence?: number
+    }
+
+    export const Reject: unique symbol = Symbol("reject")
+    export type Reject = typeof Rule.Reject
+
+    const schemaCache = new WeakMap<Schema, Rule.Set>()
+
+    function addByPrec<T extends {precedence?: number}>(array: T[], value: T) {
+      let prec = value.precedence ?? 0, i = array.length
+      while (i > 0 && prec > (array[i - 1].precedence ?? 0)) i--
+      array.splice(i, 0, value)
+    }
+
+    /// A collection of parse rules. Usually derived from a schema.
+    export class Set {
+      /// @internal
+      elementRules: Rule.Element<unknown>[] = []
+      /// @internal
+      attributeRules: Rule.Attribute<unknown>[] = []
+
+      private constructor(readonly rules: readonly Rule[]) {
+        for (let rule of rules) addByPrec("selector" in rule ? this.elementRules : this.attributeRules, rule)
+      }
+
+      /// Create a rule set with the given parse rules.
+      static of(rules: readonly Rule[]) { return new Set(rules) }
+
+      /// Create a rule set containing all the parse rules attached to
+      /// nodes and marks in the given schema, as well as the rules that
+      /// can be derived from the node and mark shape declarations.
+      static fromSchema(schema: Schema) {
+        let cached = schemaCache.get(schema)
+        if (cached) return cached
+
+        let rules: Rule[] = []
+        for (let tag of schema.tags) {
+          let {spec: {shape, parseRules}} = tag
+          if ("element" in shape && shape.element && (shape.readElement || tag.default)) rules.push({
+            selector: shape.selector || shape.element,
+            readElement: shape.readElement,
+            leaf: tag.isLeaf ? tag : undefined,
+            plot: tag.isLeaf ? undefined : tag
+          })
+          if (parseRules) for (let rule of parseRules) rules.push({
+            ...rule,
+            leaf: rule.leaf || (tag.isLeaf ? tag : undefined),
+            plot: rule.plot || (tag.isLeaf ? undefined : tag)
+          })
+        }
+        for (let mark of schema.marks) {
+          let {shape, parseRules} = mark.spec
+          if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
+          if ("element" in shape && (shape.readElement || mark.default)) {
+            rules.push({
+              selector: shape.selector || shape.element,
+              readElement: shape.readElement,
+              mark
+            })
+          } else if ("attribute" in shape) {
+            if (shape.readAttribute) {
+              rules.push({
+                attribute: shape.attribute,
+                readAttribute: shape.readAttribute,
+                mark
+              })
+            } else if (typeof shape.value == "string") {
+              rules.push({
+                attribute: shape.attribute,
+                value: shape.value,
+                mark
+              })
+            } else if (shape.value === 0) {
+              rules.push({
+                attribute: shape.attribute,
+                readAttribute: param => param,
+                mark
+              })
+            }
+          }
+        }
+        let result = new Rule.Set(rules)
+        schemaCache.set(schema, result)
+        return result
+      }
+
+      /// @internal
+      matchElement(elt: DOMElement): {rule: Rule.Element<unknown>, value?: unknown} | null {
+        for (let rule of this.elementRules) {
+          if (elt.matches(rule.selector)) {
+            if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
+            let result = rule.readElement(elt)
+            if (result === Rule.Reject) continue
+            return {rule, value: result}
+          }
+        }
+        return null
+      }
+    }
+  }
 }
 
 const enum CxFlag {
@@ -66,11 +199,11 @@ const enum CxFlag {
 }
 
 class ParseContext {
-  rules: ParseRule.Set
+  rules: parse.Rule.Set
   open: Map<Plot, CxFlag> = new Map
 
   constructor(readonly schema: Schema, readonly options: parse.Options, public top: NodeContext) {
-    this.rules = options.ruleSet || ParseRule.Set.fromSchema(schema)
+    this.rules = options.ruleSet || parse.Rule.Set.fromSchema(schema)
   }
 
   parseChildren(parent: Element | DocumentFragment, marks: readonly Mark[], endOfSlice: boolean,
@@ -115,7 +248,7 @@ class ParseContext {
     }
   }
 
-  parseElementByRule(elt: Element, match: {rule: ParseRule.Element<unknown>, value?: unknown},
+  parseElementByRule(elt: Element, match: {rule: parse.Rule.Element<unknown>, value?: unknown},
                      marks: readonly Mark[], endOfSlice: boolean) {
     let sync, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.plot) {
@@ -191,7 +324,7 @@ class ParseContext {
       if (rule.readAttribute) {
         param = rule.readAttribute(value)
         hasParam = true
-        if (param == ParseRule.Reject) continue
+        if (param == parse.Rule.Reject) continue
       } else if (rule.value != null && rule.value != value) {
         continue
       }
@@ -339,7 +472,7 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
                            "section", "table", "tfoot", "ul"])
 
 function guessParent(content: DocumentFragment | Element, schema: Schema) {
-  let rules = ParseRule.Set.fromSchema(schema)
+  let rules = parse.Rule.Set.fromSchema(schema)
   let tags: Node.Type<any>[] = []
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {

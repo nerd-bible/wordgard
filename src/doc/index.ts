@@ -8,7 +8,7 @@ export {Mark} from "./mark"
 
 /// ### Shapes
 
-export {Elt, Attributes, Shape, ParseRule} from "./shape"
+export {Elt, Attributes, Shape} from "./shape"
 
 /// ### Schema
 ///

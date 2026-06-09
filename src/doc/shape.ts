@@ -1,7 +1,6 @@
-import {Plot, Leaf, Node} from "./node"
-import {Mark} from "./mark"
+import {Node} from "./node"
 import {DOMElement} from "./helper"
-import {type Schema} from "./schema"
+import {type parse} from "./parse"
 
 const noChildren: readonly any[] = []
 
@@ -310,8 +309,8 @@ export namespace Shape {
     /// Attributes to add to the element.
     attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
     /// A helper to read a parameter value from the element. If this
-    /// returns {@link ParseRule.Reject}, the parse rule will not apply.
-    readElement?: (element: DOMElement) => Param | ParseRule.Reject
+    /// returns {@link parse.Rule.Reject}, the parse rule will not apply.
+    readElement?: (element: DOMElement) => Param | parse.Rule.Reject
     /// When specifying the shape of a plot, this indicates whether this
     /// node is an atom, meaning its content isn't editable through the
     /// editor.
@@ -344,7 +343,7 @@ export namespace Shape {
     value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
     /// An optional function that converts the value of the attribute
     /// back into a parameter value. Used in the parse rule.
-    readAttribute?: (value: string) => Param | ParseRule.Reject
+    readAttribute?: (value: string) => Param | parse.Rule.Reject
     /// If the target node may be a composite shape (rather than a
     /// single DOM element), you can provide a limited form of selector
     /// here to target a specific element in that shape. Node names and
@@ -401,140 +400,5 @@ export class NodeShape<Param> {
     }
     if (atom == false && type.isLeaf) throw new Error(`Leaf tag ${type.name}'s shape must be atomic`)
     return new NodeShape<Param>(atom, create, spec)
-  }
-}
-
-type Element_ = Element
-
-export type ParseRule<Param = any> = ParseRule.Element<Param> | ParseRule.Attribute<Param>
-
-export namespace ParseRule {
-  export interface Element<Param> {
-    selector: string
-    plot?: Plot.Tag<Param> | Plot.Type<Param>
-    leaf?: Leaf<Param> | Leaf.Type<Param>
-    mark?: Mark.Type<Param> | Mark<Param>
-    ignore?: boolean | "skip"
-    param?: Param
-    readElement?: (element: DOMElement) => Param | ParseRule.Reject
-    marksFrom?: string
-    contentElement?: string | ((elt: DOMElement) => DOMElement)
-    /// Ignore DOM nodes matching this selector or predicate, when
-    /// they appear in this plot's content element.
-    ignoreContent?: string | ((elt: DOMElement) => boolean)
-    /// A number between -10 and 10 (inclusive) that specifies the
-    /// relative precedence of this rule. Defaults to 0.
-    precedence?: number
-  }
-
-  export interface Attribute<Param> {
-    attribute: string
-    mark?: Mark.Type<Param> | Mark<Param>
-    ignore?: boolean
-    clearMark?: (mark: Mark<unknown>) => boolean
-    param?: Param
-    value?: string
-    readAttribute?: (value: string) => Param | ParseRule.Reject
-    consuming?: boolean
-    /// A number between -10 and 10 (inclusive) that specifies the
-    /// relative precedence of this rule. Defaults to 0.
-    precedence?: number
-  }
-
-  export const Reject: unique symbol = Symbol("reject")
-  export type Reject = typeof ParseRule.Reject
-
-  const schemaCache = new WeakMap<Schema, ParseRule.Set>()
-
-  function addByPrec<T extends {precedence?: number}>(array: T[], value: T) {
-    let prec = value.precedence ?? 0, i = array.length
-    while (i > 0 && prec > (array[i - 1].precedence ?? 0)) i--
-    array.splice(i, 0, value)
-  }
-
-  /// A collection of parse rules. Usually derived from a schema.
-  export class Set {
-    /// @internal
-    elementRules: ParseRule.Element<unknown>[] = []
-    /// @internal
-    attributeRules: ParseRule.Attribute<unknown>[] = []
-
-    private constructor(readonly rules: readonly ParseRule[]) {
-      for (let rule of rules) addByPrec("selector" in rule ? this.elementRules : this.attributeRules, rule)
-    }
-
-    /// Create a rule set with the given parse rules.
-    static of(rules: readonly ParseRule[]) { return new Set(rules) }
-
-    /// Create a rule set containing all the parse rules attached to
-    /// nodes and marks in the given schema, as well as the rules that
-    /// can be derived from the node and mark shape declarations.
-    static fromSchema(schema: Schema) {
-      let cached = schemaCache.get(schema)
-      if (cached) return cached
-
-      let rules: ParseRule[] = []
-      for (let tag of schema.tags) {
-        let {spec: {shape, parseRules}} = tag
-        if ("element" in shape && shape.element && (shape.readElement || tag.default)) rules.push({
-          selector: shape.selector || shape.element,
-          readElement: shape.readElement,
-          leaf: tag.isLeaf ? tag : undefined,
-          plot: tag.isLeaf ? undefined : tag
-        })
-        if (parseRules) for (let rule of parseRules) rules.push({
-          ...rule,
-          leaf: rule.leaf || (tag.isLeaf ? tag : undefined),
-          plot: rule.plot || (tag.isLeaf ? undefined : tag)
-        })
-      }
-      for (let mark of schema.marks) {
-        let {shape, parseRules} = mark.spec
-        if (parseRules) for (let rule of parseRules) rules.push({...rule, mark: rule.mark || mark})
-        if ("element" in shape && (shape.readElement || mark.default)) {
-          rules.push({
-            selector: shape.selector || shape.element,
-            readElement: shape.readElement,
-            mark
-          })
-        } else if ("attribute" in shape) {
-          if (shape.readAttribute) {
-            rules.push({
-              attribute: shape.attribute,
-              readAttribute: shape.readAttribute,
-              mark
-            })
-          } else if (typeof shape.value == "string") {
-            rules.push({
-              attribute: shape.attribute,
-              value: shape.value,
-              mark
-            })
-          } else if (shape.value === 0) {
-            rules.push({
-              attribute: shape.attribute,
-              readAttribute: param => param,
-              mark
-            })
-          }
-        }
-      }
-      let result = new ParseRule.Set(rules)
-      schemaCache.set(schema, result)
-      return result
-    }
-
-    /// @internal
-    matchElement(elt: Element_): {rule: ParseRule.Element<unknown>, value?: unknown} | null {
-      for (let rule of this.elementRules) {
-        if (elt.matches(rule.selector)) {
-          if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
-          let result = rule.readElement(elt)
-          if (result === ParseRule.Reject) continue
-          return {rule, value: result}
-        }
-      }
-      return null
-    }
   }
 }

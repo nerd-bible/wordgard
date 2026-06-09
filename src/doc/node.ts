@@ -5,7 +5,8 @@ import type {Schema} from "./schema"
 import {Pos} from "./pos"
 import {Mark} from "./mark"
 import {eqArray, none, compareDeep} from "./helper"
-import {Shape, ParseRule} from "./shape"
+import {Shape} from "./shape"
+import {type parse} from "./parse"
 import {SchemaError} from "./error"
 
 const enum NodeFlag {
@@ -144,7 +145,7 @@ export namespace Node {
     /// certain semantic role, such as being a list.
     role?: Node.Role | readonly Node.Role[]
     shape: Shape.Element<Param> | Shape.Structure<Param>
-    parseRules?: readonly ParseRule.Element<Param>[]
+    parseRules?: readonly parse.Rule.Element<Param>[]
   }
 
   /// The JSON representation for a node.
