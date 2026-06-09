@@ -1,4 +1,4 @@
-import {elt, ParseRule, Plot, Leaf, Node, Mark, ValidationError} from "wordgard/doc"
+import {Elt, ParseRule, Plot, Leaf, Node, Mark, ValidationError} from "wordgard/doc"
 
 const G = Node.Group
 
@@ -22,7 +22,7 @@ export const Heading = Plot.Type.defineBlock("Heading", {
   },
   inlineContent: true,
   group: G.Content,
-  shape: {structure: level => elt("h" + level, 0), atom: false},
+  shape: {structure: level => Elt.mk("h" + level, [0]), atom: false},
   defining: true,
   parseRules: [
     {selector: "h1", param: 1},
@@ -182,7 +182,7 @@ export const Table = Plot.defineBlock("Table", {
   blockContent: TableRow,
   isolating: true,
   group: G.Content,
-  shape: {structure: elt("table", elt("tbody", 0))},
+  shape: {structure: Elt.mk("table", [Elt.mk("tbody", [0])])},
   parseRules: [{selector: "table"}]
 })
 
@@ -230,7 +230,7 @@ export const Image = Leaf.Type.defineInline<string>("Image", {
 /// `<img>` in it. The parameter holds the image URI.
 export const Figure = Leaf.Type.defineBlock<string>("Figure", {
   validateParam: "string",
-  shape: {structure: src => elt("figure", elt({_: "img", src}))},
+  shape: {structure: src => Elt.mk("figure", [Elt.mk("img", {src})])},
   selectable: true,
   group: G.Content,
   parseRules: [{
@@ -249,7 +249,7 @@ export const Figure = Leaf.Type.defineBlock<string>("Figure", {
 export const CaptionedFigure = Plot.Type.defineBlock<string>("CaptionedFigure", {
   inlineContent: true,
   validateParam: "string",
-  shape: {structure: src => elt("figure", elt({_: "img", src}), elt("figcaption", 0)), atom: false},
+  shape: {structure: src => Elt.mk("figure", [Elt.mk("img", {src}), Elt.mk("figcaption", [0])]), atom: false},
   group: G.Content,
   parseRules: [{
     selector: "figure:has(img[src]):has(figcaption)",

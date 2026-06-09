@@ -1,6 +1,6 @@
 import ist from "ist"
-import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt, elt,
-        serialize, Parse, ParseRule} from "wordgard/doc"
+import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt,
+        serialize, parse, ParseRule} from "wordgard/doc"
 import {Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema-def"
 import {basicBuilders, builder, basicSchema, tag, eq} from "./schema.ts"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olStart, ul, li, pre, h1, h2, br, hr} = basicBuilders
@@ -62,7 +62,7 @@ describe("serialize", () => {
 
   it("can serialize targeted marks", () => Plot.Doc.noValidate(() => {
     let Img = Leaf.defineInline("Img", {
-      shape: {structure: () => elt({_: "span", class: "my-img"}, elt({_: "img", src: "/x.webp"}))}
+      shape: {structure: () => Elt.mk("span", {class: "my-img"}, [Elt.mk("img", {src: "/x.webp"})])}
     })
     let Alt = Mark.Type.define<string>("Alt", {
       target: Img,
@@ -117,84 +117,84 @@ describe("serializeSlice", () => {
   })
 })
 
-function parse(html: string, options: Parse.Options & {schema?: Schema} = {}) {
+function parseDoc(html: string, options: parse.Options & {schema?: Schema} = {}) {
   let wrap = document.implementation.createHTMLDocument("").createElement("div")
   wrap.innerHTML = html
-  return Parse.doc(options.schema || basicSchema, wrap, options)
+  return parse(options.schema || basicSchema, wrap, options)
 }
 
 describe("parseDoc", () => {
   it("can parse simple content", () => {
-    ist(parse("<p>Ok</p>"), doc(p("Ok")), eq)
+    ist(parseDoc("<p>Ok</p>"), doc(p("Ok")), eq)
   })
 
   it("can parse nested nodes", () => {
-    ist(parse("<ul><li><p>A</p></li><li><blockquote><p>B</p></blockquote></li></ul>"),
+    ist(parseDoc("<ul><li><p>A</p></li><li><blockquote><p>B</p></blockquote></li></ul>"),
         doc(ul(li(p("A")),li(blockquote(p("B"))))), eq)
   })
 
   it("can parse nodes with params", () => {
-    ist(parse("<p><img src='x.png'></p><ol start=3><li><p>Three</p></li></ol>"),
+    ist(parseDoc("<p><img src='x.png'></p><ol start=3><li><p>Three</p></li></ol>"),
         doc(p(img("x.png")), olStart(3, li(p("Three")))), eq)
   })
 
   it("can parse marks", () => {
-    ist(parse("<p><em>one <strong>two</strong> <code>three</code></em> four</p>"),
+    ist(parseDoc("<p><em>one <strong>two</strong> <code>three</code></em> four</p>"),
         doc(p(em("one ", strong("two"), " ", code("three")), " four")), eq)
   })
 
   it("will add wrapper nodes", () => {
-    ist(parse("A"), doc(p("A")), eq)
-    ist(parse("<li>A</li>"), doc(ul(li(p("A")))), eq)
+    ist(parseDoc("A"), doc(p("A")), eq)
+    ist(parseDoc("<li>A</li>"), doc(ul(li(p("A")))), eq)
   })
 
   it("parses line breaks in code blocks as break nodes", () => {
-    ist(parse("<pre>a\n\nb</pre>"), doc(pre("a", br, br, "b")), eq)
+    ist(parseDoc("<pre>a\n\nb</pre>"), doc(pre("a", br, br, "b")), eq)
   })
 
   it("preserves whitespace in code blocks", () => {
-    ist(parse("<pre>one  two\n  three</pre>"),
+    ist(parseDoc("<pre>one  two\n  three</pre>"),
         doc(pre("one  two", br, "  three")), eq)
   })
 
   it("collapses whitespace", () => {
-    ist(parse("<p>  \none   \n two  </p>\n  <p>three</p>"),
+    ist(parseDoc("<p>  \none   \n two  </p>\n  <p>three</p>"),
         doc(p("one two"), p("three")), eq)
   })
 
   it("can disable whitespace collapsing", () => {
-    ist(parse("<p>  \none \n two  </p>", {collapseWhiteSpace: false}),
+    ist(parseDoc("<p>  \none \n two  </p>", {collapseWhiteSpace: false}),
         doc(p("   one   two  ")), eq)
   })
 
   it("parses heading levels", () => {
-    ist(parse("<h1>One</h1><h2>Two</h2>"),
+    ist(parseDoc("<h1>One</h1><h2>Two</h2>"),
         doc(h1("One"), h2("Two")), eq)
   })
 
 
   it("ignores non-content tags", () => {
-    ist(parse("<title>T</title><p>P</p><script>S</script>"),
+    ist(parseDoc("<title>T</title><p>P</p><script>S</script>"),
         doc(p("P")), eq)
   })
 
   it("parses style properties", () => {
-    ist(parse("<p style='font-weight: bold'><span style='font-style: italic'>A</span>B</p>"),
+    ist(parseDoc("<p style='font-weight: bold'><span style='font-style: italic'>A</span>B</p>"),
         doc(p(strong(em("A"), "B"))), eq)
   })
 
   it("clears marks via style properties", () => {
-    ist(parse("<p><strong>a<span style='font-weight: normal'>b</span>c</strong></p>"),
+    ist(parseDoc("<p><strong>a<span style='font-weight: normal'>b</span>c</strong></p>"),
         doc(p(strong("a"), "b", strong("c"))), eq)
   })
 
   it("can parse marks with pass-through attributes", () => {
-    ist(parse("<p><img alt=x src='test.png'></p>"),
+    ist(parseDoc("<p><img alt=x src='test.png'></p>"),
         doc(p(imgAlt("x", img("test.png")))), eq)
   })
 
   it("joins text nodes", () => {
-    ist(parse("<p>a<span>b</span></p>"), doc(p("ab")), eq)
+    ist(parseDoc("<p>a<span>b</span></p>"), doc(p("ab")), eq)
   })
 
   it("uses parse rule precedence", () => {
@@ -202,7 +202,7 @@ describe("parseDoc", () => {
       {selector: "p", plot: Paragraph},
       {selector: "p.h", plot: Heading.of(1), precedence: 2}
     ])
-    ist(parse("<p class=h>H</p>", {ruleSet: rules}), doc(h1("H")), eq)
+    ist(parseDoc("<p class=h>H</p>", {ruleSet: rules}), doc(h1("H")), eq)
   })
 
   it("can parse different image types", () => {
@@ -211,15 +211,15 @@ describe("parseDoc", () => {
     let html = `<p>Img: <img src=test.png></p>
 <figure><img src=test.png></figure>
 <figure><img src=test.png><figcaption>Caption</figcaption></figure>`
-    ist(parse(html, {schema}), doc(p("Img: ", img("test.png")), fig("test.png"), capFig("test.png", "Caption")), eq)
+    ist(parseDoc(html, {schema}), doc(p("Img: ", img("test.png")), fig("test.png"), capFig("test.png", "Caption")), eq)
   })
 })
 
 describe("parseSlice", () => {
-  function parse(html: string, options: Parse.Options & {schema?: Schema} = {}) {
+  function parseSlice(html: string, options: parse.Options & {schema?: Schema} = {}) {
     let wrap = document.implementation.createHTMLDocument("").createElement("div")
     wrap.innerHTML = html
-    return Parse.slice(options.schema || basicSchema, wrap, options)
+    return parse.slice(options.schema || basicSchema, wrap, options)
   }
 
   function slice(children: (string | Token)[]) {
@@ -227,23 +227,23 @@ describe("parseSlice", () => {
   }
 
   it("can parse a simple slice", () => {
-    ist(parse("<p>One</p><p>Two</p>").slice, slice(["One", Plot.End, p().tag, "Two"]), eq)
+    ist(parseSlice("<p>One</p><p>Two</p>").slice, slice(["One", Plot.End, p().tag, "Two"]), eq)
   })
 
   it("can parse text at the top level", () => {
-    ist(parse("hello").slice, slice(["hello"]), eq)
+    ist(parseSlice("hello").slice, slice(["hello"]), eq)
   })
 
   it("doesn't trim text at the top level", () => {
-    ist(parse("  hello  ", {collapseWhiteSpace: false}).slice, slice(["  hello  "]), eq)
+    ist(parseSlice("  hello  ", {collapseWhiteSpace: false}).slice, slice(["  hello  "]), eq)
   })
 
   it("opens nested nodes", () => {
-    ist(parse("<ul><li><p>One</p></li></ul>").slice, slice(["One"]), eq)
+    ist(parseSlice("<ul><li><p>One</p></li></ul>").slice, slice(["One"]), eq)
   })
 
   it("doesn't open leaf nodes", () => {
-    ist(parse("<hr><p>A<br></p>").slice, slice([hr, p().tag, "A", br]), eq)
+    ist(parseSlice("<hr><p>A<br></p>").slice, slice([hr, p().tag, "A", br]), eq)
   })
 
   function isOpen(elt: Element): "start" | "end" | "start end" | null {
@@ -252,7 +252,7 @@ describe("parseSlice", () => {
   }
 
   it("can query the DOM for open structure", () => {
-    ist(parse('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}).slice,
+    ist(parseSlice('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}).slice,
         slice([p().tag, "hi"]), eq)
   })
 })

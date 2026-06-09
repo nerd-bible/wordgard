@@ -6,7 +6,15 @@ import {ParseRule} from "./shape"
 
 type DOMNode = InstanceType<typeof window.Node>
 
-export namespace Parse {
+export function parse(schema: Schema, doc: Element | DocumentFragment, options: parse.Options = {}) {
+  let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
+  let cx = new ParseContext(schema, options, top)
+  cx.parseChildren(doc, [], false)
+  cx.sync(top)
+  return cx.finishNode(cx.top) as Plot.Doc
+}
+
+export namespace parse {
   export type Options = {
     /// Controls whether HTML-style whitespace collapsing is used
     /// (outside nodes that don't enable `preserveWhitespace`). Defaults
@@ -20,15 +28,7 @@ export namespace Parse {
     ruleSet?: ParseRule.Set
   }
 
-  export function doc(schema: Schema, doc: Element | DocumentFragment, options: Parse.Options = {}) {
-    let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
-    let cx = new ParseContext(schema, options, top)
-    cx.parseChildren(doc, [], false)
-    cx.sync(top)
-    return cx.finishNode(cx.top) as Plot.Doc
-  }
-
-  export function slice(schema: Schema, doc: Element | DocumentFragment, options: Parse.Options = {}) {
+  export function slice(schema: Schema, doc: Element | DocumentFragment, options: parse.Options = {}) {
     let top = new NodeContext(guessParent(doc, schema), CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
     let cx = new ParseContext(schema, options, top)
     cx.parseChildren(doc, [], true)
@@ -69,7 +69,7 @@ class ParseContext {
   rules: ParseRule.Set
   open: Map<Plot, CxFlag> = new Map
 
-  constructor(readonly schema: Schema, readonly options: Parse.Options, public top: NodeContext) {
+  constructor(readonly schema: Schema, readonly options: parse.Options, public top: NodeContext) {
     this.rules = options.ruleSet || ParseRule.Set.fromSchema(schema)
   }
 

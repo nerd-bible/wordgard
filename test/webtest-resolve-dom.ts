@@ -1,6 +1,6 @@
 import {Wordgard, Widget, Decoration, PointSet} from "wordgard/editor"
 import {GardState} from "wordgard/state"
-import {Plot, Leaf, elt} from "wordgard/doc"
+import {Plot, Leaf, Elt} from "wordgard/doc"
 import ist from "ist"
 import {basicBuilders} from "./schema.ts"
 
@@ -99,7 +99,11 @@ describe("DocTile.resolve", () => {
   it("can handle node structure inside content wrappers", () => {
     let Complex = Plot.defineBlock("Complex", {
       shape: {
-        structure: elt("weird", elt("span", "<<"), elt("inner", elt("span", "[["), 0, elt("span", "]]")), elt("span", ">>")),
+        structure: Elt.mk("weird", [
+          Elt.mk("span", ["<<"]),
+          Elt.mk("inner", [Elt.mk("span", ["[["]), 0, Elt.mk("span", ["]]"])]),
+          Elt.mk("span", [">>"])
+        ])
       },
       inlineContent: true
     })

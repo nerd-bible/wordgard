@@ -1,4 +1,4 @@
-import {Slice, Leaf, Plot, Node, Pos, serialize, Parse, Token, Elt} from "wordgard/doc"
+import {Slice, Leaf, Plot, Node, Pos, serialize, parse, Token, Elt} from "wordgard/doc"
 import {GardState} from "wordgard/state"
 import browser from "./browser"
 
@@ -78,7 +78,7 @@ export function readClipboard(state: GardState, data: DataTransfer, targetContex
     if (browser.webkit) restoreReplacedSpaces(dom)
 
     let fromWordgard = dom.querySelector("[wg-content=true]")
-    ;({slice, context} = Parse.slice(state.schema, dom, {
+    ;({slice, context} = parse.slice(state.schema, dom, {
       collapseWhiteSpace: !fromWordgard,
       isOpen: fromWordgard ? isOpen : undefined
     }))

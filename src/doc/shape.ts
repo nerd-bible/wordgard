@@ -3,6 +3,8 @@ import {Mark} from "./mark"
 import {DOMElement} from "./helper"
 import {type Schema} from "./schema"
 
+const noChildren: readonly any[] = []
+
 export class Elt<T = string> {
   private constructor(
     readonly tagName: string,
@@ -13,7 +15,7 @@ export class Elt<T = string> {
   static new<T = string>(
     tagName: string,
     attrs: Attributes,
-    children: readonly (T | 0 | Elt<T>)[]
+    children: Elt.Fragment<T>
   ): Elt<Exclude<T, Elt<any> | 0>> {
     return new Elt(tagName, attrs, children as any)
   }
@@ -133,23 +135,32 @@ export class Elt<T = string> {
   static dom(elt: Elt, doc?: Document): Element
   static dom(elt: string, doc?: Document): Text
   static dom(elt: Elt.Fragment, doc?: Document): DocumentFragment
-  static dom(elt: Elt | string | Elt.Fragment, doc?: Document): Element | Text | DocumentFragment
   static dom(elt: Elt | string | Elt.Fragment, doc: Document = document): Element | Text | DocumentFragment {
     if (typeof elt == "string") {
       return doc.createTextNode(elt)
     } else if (elt instanceof Elt) {
       let dom = elt.outerDOM(doc)
-      for (let ch of elt.children) if (ch !== 0) dom.appendChild(Elt.dom(ch, doc))
+      for (let ch of elt.children) if (ch !== 0) dom.appendChild(Elt.dom(ch as any, doc))
       return dom
     } else {
       let frag = doc.createDocumentFragment()
-      for (let ch of elt) if (ch !== 0) frag.appendChild(Elt.dom(ch))
+      for (let ch of elt) if (ch !== 0) frag.appendChild(Elt.dom(ch as any))
       return frag
     }
   }
 
   static empty: readonly any[] = []
-  static hole: [0] = [0]
+  static hole: readonly [0] = [0]
+
+  static mk<T = string>(name: string, children?: (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
+  static mk<T = string>(name: string, attrs: Record<string, string>, children?: Elt.Fragment<T>): Elt<Exclude<T, Elt<any> | 0>>
+  static mk<T>(name: string, arg1?: Record<string, string> | Elt.Fragment<T>, arg2?: Elt.Fragment<T>) {
+    let [attrs, children] = arg2 ? [Attributes.read(arg1 as Record<string, string>), arg2] :
+      !arg1 ? [Attributes.none, noChildren] : Array.isArray(arg1) ? [Attributes.none, arg1 as Elt.Fragment<T>]
+      : [Attributes.read(arg1 as Record<string, string>), noChildren]
+    if (children.length == 1 && children[0] === 0) children = Elt.hole
+    return new Elt<T>(name, attrs, children)
+  }
 }
 
 const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
@@ -192,19 +203,6 @@ export namespace Elt {
       return new Selector(tag, classes)
     }
   }
-}
-
-export function elt<T = string>(
-  tag: string | {_: string, [attr: string]: string | null},
-  ...children: (T | 0 | Elt<T>)[]
-): Elt<Exclude<T, Elt<any> | 0>> {
-  let [name, attrs] = typeof tag == "string" ? [tag, Attributes.none] : [tag._, Attributes.read(tag)]
-  let contentChildren = 0n
-  for (let ch of children) {
-    if (ch === 0 || ch instanceof Elt && ch.hasContent) contentChildren++
-  }
-  if (contentChildren > 1) throw new Error("Multiple holes in elt")
-  return Elt.new(name, attrs, children.length ? children : Elt.empty as any)
 }
 
 // Sets of attributes are stored in arrays of strings, with the even

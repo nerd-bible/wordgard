@@ -8,7 +8,7 @@ export {Mark} from "./mark"
 
 /// ### Shapes
 
-export {Elt, elt, Attributes, Shape, ParseRule} from "./shape"
+export {Elt, Attributes, Shape, ParseRule} from "./shape"
 
 /// ### Schema
 ///
@@ -33,7 +33,7 @@ export {Pos} from "./pos"
 
 /// ### Parsing
 
-export {Parse} from "./parse"
+export {parse} from "./parse"
 
 /// ### Serialization
 

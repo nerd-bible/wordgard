@@ -1,4 +1,4 @@
-import {elt} from "wordgard/doc"
+import {Elt} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
@@ -59,11 +59,12 @@ const setResizing = Transaction.Effect.define<{target: number, resizing: number}
   }
 })
 
-const handleElt = elt({_: "svg:svg", class: "wg-resize-handle", viewBox: "0 0 20 20"},
-                      elt({_: "svg:path", d: "M20 0L0 20M20 5L5 20M20 10L10 20", stroke: "#000000aa", "stroke-width": "1.5"}),
-                      elt({_: "svg:polygon", points: "0,20 20,20 20,0", fill: "transparent", class: "wg-resize-handle-active"}))
+const handleElt = Elt.mk("svg:svg", {class: "wg-resize-handle", viewBox: "0 0 20 20"}, [
+  Elt.mk("svg:path", {d: "M20 0L0 20M20 5L5 20M20 10L10 20", stroke: "#000000aa", "stroke-width": "1.5"}),
+  Elt.mk("svg:polygon", {points: "0,20 20,20 20,0", fill: "transparent", class: "wg-resize-handle-active"})
+])
 
-const resizeWrapper = Decoration.Point.wrapper(elt({_: "span", class: "wg-resize-hover"}, handleElt, 0), {target: "img"})
+const resizeWrapper = Decoration.Point.wrapper(Elt.mk("span", {class: "wg-resize-hover"}, [handleElt, 0]), {target: "img"})
 
 const resizeState = GardState.Field.define<{target: number, resizing: number, deco: PointSet<Decoration.Point>}>({
   create: () => ({target: -1, resizing: -1, deco: PointSet.empty}),

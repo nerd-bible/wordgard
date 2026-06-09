@@ -1,4 +1,4 @@
-import {Schema, Plot, Node, Pos, Parse, SchemaError, ValidationError} from "wordgard/doc"
+import {Schema, Plot, Node, Pos, parse, SchemaError, ValidationError} from "wordgard/doc"
 import {SelectionType, GardSelection, wordAt, cursorAtStart} from "./selection"
 import {Transaction, resolveTransaction, asArray} from "./transaction"
 import {TextblockMap} from "./textblock"
@@ -27,7 +27,7 @@ function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
   if (typeof doc == "function") return doc(schema)
   if (typeof doc == "string") doc = readHTML(doc)
   let {nodeType} = doc as any
-  if (nodeType === 1 || nodeType === 11) return Parse.doc(schema, doc as HTMLElement | DocumentFragment)
+  if (nodeType === 1 || nodeType === 11) return parse(schema, doc as HTMLElement | DocumentFragment)
   return schema.docFromJSON(doc as Node.JSON)
 }
 
