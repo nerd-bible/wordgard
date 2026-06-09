@@ -19,7 +19,8 @@ export class Elt<T = string> {
   }
 
   get hasContent(): boolean {
-    return this.children.some(ch => ch === 0 || ch instanceof Elt && ch.hasContent) }
+    return this.children.some(ch => ch === 0 || ch instanceof Elt && ch.hasContent)
+  }
 
   eqTag(elt: Elt<any>) {
     return elt.tagName == this.tagName && Attributes.eq(this.attrs, elt.attrs)
@@ -30,7 +31,11 @@ export class Elt<T = string> {
     if (this.children.length != elt.children.length) return false
     for (let i = 0; i < this.children.length; i++) {
       let a = this.children[i], b = elt.children[i]
-      if (typeof a == "object" && (a as any).eq && (b as any).eq ? (a as any).eq(b) : a === b) return false
+      if (a !== b && (
+          (!a || !b || typeof a != "object" || typeof b != "object" ||
+           (a as any).constructor != (b as any).constructor || !(a as any).eq ||
+           !(a as any).eq(b))))
+        return false
     }
     return true
   }
@@ -63,7 +68,6 @@ export class Elt<T = string> {
     }
     return Elt.new(this.tagName, Attributes.merge(this.attrs, attrs), this.children)
   }
-
 
   fill(content: Elt.Fragment<T>) {
     let children: (0 | T | Elt<T>)[] = []
