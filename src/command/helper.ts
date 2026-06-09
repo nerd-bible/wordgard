@@ -21,7 +21,7 @@ export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
       scrollIntoView: true,
       userEvent: "unwrap.empty"
     }
-    if (level.node.isInline || level.node.type.isolating) break
+    if (level.node.type.isInline || level.node.type.isolating) break
     if (index) atStart = false
     if (atStart) start--
     else before.push(Plot.End)
@@ -128,11 +128,11 @@ export function joinBackward(state: GardState): Transaction.Spec | false {
   while (!scan.index) {
     if (!scan.parent) return false
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock) return false
+    if (scan.node.type.isolating || !scan.node.type.isBlock) return false
   }
   let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
   while (before.isLeaf || !before.isTextblock) {
-    if (before.isLeaf || before.type.isAtom || before.type.isolating || !before.isBlock) return false
+    if (before.isLeaf || before.type.isAtom || before.type.isolating || !before.type.isBlock) return false
     let last = before.content.length - 1
     if (last < 0) return false
     parent = before
@@ -165,7 +165,7 @@ export function joinListItems(state: GardState): Transaction.Spec | false {
   for (let scan = head.parent;;) {
     let next = scan.parent
     if (!next) return false
-    if (scan.node.isBlock && next.node.type.hasRole(Node.Role.List)) {
+    if (scan.node.type.isBlock && next.node.type.hasRole(Node.Role.List)) {
       const prev = scan.previousSibling
       if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.schema.canContain(prev.type, ch.type))) return false
       return {
@@ -191,11 +191,11 @@ export function joinForward(state: GardState): Transaction.Spec | false {
     if (!scan.parent) return false
     if (scan.index < scan.parent.node.content.length - 1) break
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.isBlock) return false
+    if (scan.node.type.isolating || !scan.node.type.isBlock) return false
   }
   let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
   while (after.isLeaf || !after.isTextblock) {
-    if (after.isLeaf || after.type.isolating || after.type.isAtom || !after.isBlock || !after.content.length)
+    if (after.isLeaf || after.type.isolating || after.type.isAtom || !after.type.isBlock || !after.content.length)
       return false
     parent = after
     after = after.content[0]
@@ -270,7 +270,7 @@ export function deleteBackward(state: GardState, word = false): Transaction.Spec
   }
   let from = pos - next.length, to = pos
   let parent: Pos.Plot | null = state.doc.resolve(pos).parent
-  while (parent && parent.node.isBlock && parent.node.content.length == 1) {
+  while (parent && parent.node.type.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -334,7 +334,7 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   }
   let from = pos, to = pos + next.length
   let parent: Pos.Plot | null = state.doc.resolve(pos).parent
-  while (parent && parent.node.isBlock && parent.node.content.length == 1) {
+  while (parent && parent.node.type.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -435,7 +435,7 @@ export function findUnwrappable(schema: Schema, from: Pos, to: Pos, query?: Node
   let outerCandidates: Pos.Plot[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
-    if (node.isBlock && node.isPlot && !node.inlineContent && parent &&
+    if (node.type.isBlock && node.isPlot && !node.inlineContent && parent &&
         (fromTextblock ? doc.schema.canContain(parent.type, fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!query || schema.matchNode(node.type, query))) {
       let pos = doc.resolveNode(p) as Pos.Plot, depth = pos.depth
@@ -605,13 +605,13 @@ export function autoJoinBlocks(state: GardState, tr: Transaction.Spec): Transact
   let cursor = doc.resolve(0), check = (pos: number) => {
     cursor = cursor.advance(pos - cursor.pos)
     let before = cursor.nodeBefore, after = cursor.nodeAfter
-    if (before && after && before.isPlot && before.isBlock && after.isPlot && after.type == before.type) {
+    if (before && after && before.isPlot && before.type.isBlock && after.isPlot && after.type == before.type) {
       let {autoJoin} = after.type.spec
       if (autoJoin && (typeof autoJoin != "function" || autoJoin(before.tag, after.tag))) {
         let from = pos - 1, to = pos + 1
         for (;;) {
           let last: Node | null = before!.lastChild, first: Node | null = after!.firstChild
-          if (!first || !last || first.isLeaf || last.isLeaf || first.type != last.type || first.isInline) break
+          if (!first || !last || first.isLeaf || last.isLeaf || first.type != last.type || first.type.isInline) break
           autoJoin = last.type.spec.autoJoin
           if (!autoJoin || (typeof autoJoin == "function" && !autoJoin(last.tag, first.tag))) break
           from--, to++

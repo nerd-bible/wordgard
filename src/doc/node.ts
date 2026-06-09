@@ -20,28 +20,46 @@ const enum NodeFlag {
   CanBeEmpty = 64,
 }
 
-// FIXME make these types easier to import (and ideally to understand)
-
+/// A node in the document is either a plot (which may have content)
+/// or a leaf node.
 export type Node = Plot | Leaf.Any
 
 export namespace Node {
+  /// The interface shared by all node objects.
   export interface Shared {
+    /// The name of this node's type.
     name: string
+    /// The node's {@link Node.Tag tag}. For leaves, this is the leaf
+    /// itself, for plots, the {@link Plot.Tag plot tag}.
     tag: Node.Tag
-    mark<Value>(mark: Mark.Type<Value>): Value | undefined
-    eq(other: Node | Node.Tag): boolean
-    withMarks(marks: readonly Mark<unknown>[]): Node
-    pushTo(nodes: Node[]): void
-    slice(from: number, to?: number): Slice
-    isInline: boolean
-    isBlock: boolean
-    isLeaf: boolean
-    isPlot: boolean
-    isText: boolean
+    /// The length of this node. For a plot, this is its {@link
+    /// Plot.contentLength} plus 2 (for the open and close tokens),
+    /// for leaves this is 1, except for text leaves, where it is the
+    /// length of the text.
     length: number
+    /// Get the value of the given mark for this node, if any.
+    mark<Value>(mark: Mark.Type<Value>): Value | undefined
+    /// Compare this node to another node.
+    eq(other: Node): boolean
+    /// Create a copy of this node with the given set of marks instead
+    /// of its current mark set.
+    withMarks(marks: readonly Mark<unknown>[]): Node
+    /// @internal
+    pushTo(nodes: Node[]): void
+    /// @internal
+    slice(from: number, to?: number): Slice
+    /// True when this is a leaf node. TypeScript will automatically
+    /// narrow from {@link Node} to {@link Leaf} after you check this.
+    isLeaf: boolean
+    /// Tests whether this is a {@link Leaf.Text text leaf}.
+    isText: boolean
+    /// True when this is a {@link Plot}.
+    isPlot: boolean
+    /// Convert this node to its JSON-serializeable representation.
     toJSON(): Node.JSON
   }
 
+  /// A generic node type.
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
   export namespace Type {
@@ -365,7 +383,7 @@ export class Plot implements Node.Shared {
     return 2 + this.contentLength
   }
 
-  eq(other: Node | Node.Tag): boolean {
+  eq(other: Node): boolean {
     return this == other || other instanceof Plot && this.tag.eq(other.tag) && eqArray(this.content, other.content)
   }
 
@@ -389,11 +407,10 @@ export class Plot implements Node.Shared {
     if (to >= this.length) out.push(Plot.End)
   }
 
+  /// @hidden
   is<T>(type: Leaf.Type<T>): false { return false }
 
   get isText(): false { return false }
-  get isInline() { return this.type.isInline }
-  get isBlock() { return this.type.isBlock }
   get inlineContent() { return this.type.inlineContent }
   get isTextblock() { return this.type.isTextblock }
   get isLeaf(): false { return false }
@@ -747,7 +764,7 @@ function sliceContent(out: Token[], content: readonly Node[], from: number, to: 
 }
 
 function joinText(nodes: readonly Node[]) {
-  if (!nodes.length || nodes[0].isBlock) return nodes
+  if (!nodes.length || nodes[0].type.isBlock) return nodes
   let joined: Node[] | undefined
   for (let i = 0, last: Leaf<string> | null = null; i < nodes.length; i++) {
     let node = nodes[i]

@@ -235,7 +235,7 @@ export class CompositeTile extends Tile {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) {
         textblock = TextblockMap.get(start, start ? state.doc.nodeAt(start - 1) as Plot : state.doc, state.textblockLTR(node))
-      } else if (node.isBlock) {
+      } else if (node.type.isBlock) {
         textblock = null
       }
     } else if (node && node.isText) {

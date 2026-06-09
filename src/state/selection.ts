@@ -439,8 +439,7 @@ function isBarrier(node: wgNode) {
   if (node.isLeaf) return node.isBlock
   let override = node.type.spec.cursorBarrier
   if (override != null) return override
-  return node.type.isolating || node.type.preserveWhitespace ||
-    node.isBlock && node.type.isAtom
+  return node.type.isolating || node.type.preserveWhitespace || node.type.isBlock && node.type.isAtom
 }
 
 // Find the next 'normal' cursor position from the given position. Any

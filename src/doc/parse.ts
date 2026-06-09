@@ -231,7 +231,7 @@ class ParseContext {
     } else if (!match || match.rule.ignore === "skip") {
       let sync, top = this.top
       if (blockTags.has(name)) {
-        if (top.children.length && top.children[0].isInline) this.close()
+        if (top.children.length && top.children[0].type.isInline) this.close()
         sync = true
       }
       let innerMarks = match && match.rule.ignore ? marks : this.parseAttributes(elt, marks)
@@ -417,8 +417,8 @@ class ParseContext {
   finishNode(cx: NodeContext) {
     if (!(cx.flags & CxFlag.OpenEnd) && cx.children.length && !cx.tag.type.preserveWhitespace &&
         this.options.collapseWhiteSpace !== false) {
-      let last = cx.children[cx.children.length - 1], m
-      if (last.isText && (m = /[ \t\r\n\u000c]+$/.exec(last.param as string))) {
+      let last = cx.children[cx.children.length - 1].tag, m
+      if (last.is(Leaf.Text) && (m = /[ \t\r\n\u000c]+$/.exec(last.param))) {
         let len = last.length - m[0].length
         if (!len) cx.children.pop()
         else cx.children[cx.children.length - 1] = last.sliceText(0, len)
