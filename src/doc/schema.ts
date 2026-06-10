@@ -29,7 +29,7 @@ export class Schema {
   }
 
   doc(children: readonly Node[]) {
-    return new Plot.Doc(this, children)
+    return Plot.Doc.new(this, children)
   }
 
   validate(node: Node) {

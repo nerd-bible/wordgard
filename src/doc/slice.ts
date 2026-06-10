@@ -71,7 +71,7 @@ export class Slice {
       off += elt.tokenType == Token.Type.Node ? elt.length : 1
       if (off <= from) continue
       if (start < from || off > to) {
-        let inner = (elt as Node).slice(Math.max(0, from - start), Math.min((elt as Plot).length, to - start))
+        let inner = (elt as Node).sliceInner(Math.max(0, from - start), Math.min((elt as Plot).length, to - start))
         for (let elt of inner.content) result.push(elt)
       } else {
         result.push(elt)

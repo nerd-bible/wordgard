@@ -61,10 +61,10 @@ export abstract class BaseType<Param> {
 export abstract class BaseTag<Param> {
   abstract type: Node.Type<Param>
 
-  constructor(
-    readonly param: Param,
-    readonly marks: readonly Mark[]
-  ) {}
+    constructor(
+      readonly param: Param,
+      readonly marks: readonly Mark[]
+    ) {}
 
   mark<Value>(mark: Mark.Type<Value>): Value | undefined {
     for (let v of this.marks) if (v.type == mark) return v.value as Value
@@ -80,8 +80,8 @@ export abstract class BaseTag<Param> {
   get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
 
   is<T>(type: Leaf.Type<T>): this is Leaf<T>
-  is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
-  is(type: any) { return this.type == type }
+    is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+    is(type: any) { return this.type == type }
 
   toJSON(): Node.JSON {
     let result: Node.JSON = {type: this.name}
@@ -116,8 +116,6 @@ export namespace Node {
     withMarks(marks: readonly Mark<unknown>[]): Node
     /// @internal
     pushTo(nodes: Node[]): void
-    /// @internal
-    slice(from: number, to?: number): Slice
     /// True when this is a leaf node. TypeScript will automatically
     /// narrow from {@link Node} to {@link Leaf} after you check this.
     isLeaf: boolean
@@ -135,17 +133,17 @@ export namespace Node {
   /// Leaf.Type.isLeaf} can narrow the type.
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
-  export namespace Type {
-    /// Used as input type by some functions acting on node types, so
-    /// that you can pass either a bare type or a singleton leaf or
-    /// plot tag.
-    export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
+    export namespace Type {
+      /// Used as input type by some functions acting on node types, so
+      /// that you can pass either a bare type or a singleton leaf or
+      /// plot tag.
+      export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
 
-    /// Get the type referred to by a {@link Node.Type.Ref reference}.
-    export function get<T>(ref: Ref<T>): Node.Type<T> {
-      return ref instanceof BaseType ? ref as Node.Type<T> : ref.type
+        /// Get the type referred to by a {@link Node.Type.Ref reference}.
+        export function get<T>(ref: Ref<T>): Node.Type<T> {
+          return ref instanceof BaseType ? ref as Node.Type<T> : ref.type
+        }
     }
-  }
 
   /// A tag is a node type with a parameter. For leaves, the entire
   /// node is the tag. For plots, it is a separate object in the
@@ -158,8 +156,8 @@ export namespace Node {
     export interface Shared<Param> {
       /// The type of the tag.
       type: Node.Type<Param>
-      /// The tag parameter. Will be `null` for parameter-less types.
-      param: Param
+        /// The tag parameter. Will be `null` for parameter-less types.
+        param: Param
       /// The set of marks for this tag.
       marks: readonly Mark[]
       /// The name of the tag's type.
@@ -179,10 +177,10 @@ export namespace Node {
 
       /// Test whether this tag is of the given type.
       is<T>(type: Leaf.Type<T>): this is Leaf<T>
-      is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+        is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
 
-      /// Holds `true` when this is a text leaf.
-      isText: boolean
+        /// Holds `true` when this is a text leaf.
+        isText: boolean
 
       /// Convert this tag to a JSON-serializeable object.
       toJSON(): Node.JSON
@@ -293,6 +291,7 @@ export namespace Node {
   export class Role {
     private constructor() {}
 
+    /// @internal
     declare private tag: "Node.Role"
 
     /// Define a new role.
@@ -374,7 +373,8 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
     nodes.push(this)
   }
 
-  slice(from: number, to = this.length) {
+  /// @internal
+  sliceInner(from: number, to: number) {
     return from == to ? Slice.empty : Slice.of([this.is(Leaf.Text) ? this.sliceText(from, to) : this])
   }
 
@@ -439,21 +439,36 @@ export namespace Leaf {
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
-    toText?(node: Leaf.Any): string
+    /// Can be used to make leaves of this type show up in the output
+    /// of {@link Plot.textContent}.
+    toText?: (node: Leaf.Any) => string
+    /// When set to `true`, nodes of this type can be selected by
+    /// clicking them or moving the selection into them with the
+    /// keyboard.
     selectable?: boolean
   }
 
+  /// Type for any generic leaf. Needed because `Leaf<any>` makes it
+  /// very easy to violate type safety, but `Leaf<unknown>` isn't a
+  /// supertype of `Leaf` types with a specific parameter type.
   export type Any = Omit<Leaf<unknown>, "type" | "tag" | "withMarks"> & {
     type: Leaf.Type<any>,
     tag: Leaf.Any,
     withMarks(marks: readonly Mark[]): Leaf.Any
   }
 
+  /// The type of text leaves. Represents a series of characters with
+  /// a given set of marks. The only leaf with a length that isn't
+  /// always 1. Adjacent text leaves with the same marks are merged
+  /// automatically.
   export const Text = Leaf.Type.new<string>("Text", NodeFlag.Inline, {
     shape: {element: ""}
   })
 }
 
+/// Plots delimit parts of the document, giving a special meaning to
+/// the nodes inside them. They are defined by a {@link Plot.Tag tag}
+/// and an array of {@link Plot.content content}.
 export class Plot implements Node.Shared {
   /// @internal
   protected constructor(
@@ -473,6 +488,7 @@ export class Plot implements Node.Shared {
   static create(tag: Plot.Tag.Any, content: readonly Node[]) { return new Plot(tag, content) }
 
   get name() { return this.tag.name }
+  /// The type of this plot's tag.
   get type() { return this.tag.type }
   get marks() { return this.tag.marks }
 
@@ -484,7 +500,8 @@ export class Plot implements Node.Shared {
     return this == other || other instanceof Plot && this.tag.eq(other.tag) && eqArray(this.content, other.content)
   }
 
-  slice(from: number, to = this.length) {
+  /// @internal
+  sliceInner(from: number, to: number) {
     if (from == to) return Slice.empty
     let content: Token[] = []
     this.slicePlot(content, from, to)
@@ -508,16 +525,22 @@ export class Plot implements Node.Shared {
   is<T>(type: Leaf.Type<T>): false { return false }
 
   get isText(): false { return false }
+
+  /// Tells you whether the content of this plot is inline.
   get inlineContent() { return this.type.inlineContent }
+  /// True if this is a block node with inline content.
   get isTextblock() { return this.type.isTextblock }
   get isLeaf(): false { return false }
   get isPlot(): true { return true }
+  /// True if this is a document node.
   get isDoc() { return this.type.isDoc }
 
+  /// Get the plot's first child, if any.
   get firstChild(): Node | null {
     return this.content.length ? this.content[0] : null
   }
 
+  /// Get the plot's first child.
   get lastChild(): Node | null {
     let last = this.content.length - 1
     return last < 0 ? null : this.content[last]
@@ -537,18 +560,44 @@ export class Plot implements Node.Shared {
       this.iterInner(0, from, to, f)
   }
 
+  /// Return the node that starts at the given offset from this node's
+  /// content start, if any. Will not return text nodes.
   nodeAt(pos: number): Node | null {
     for (let node of this.content) {
-      if (pos == 0) return node
+      if (pos == 0) return node.isText ? null : node
       if (pos < node.length) return node.isLeaf ? null : node.nodeAt(pos - 1)
       pos -= node.length
     }
     return null
   }
 
+  /// Return the plot at the given offset, if any.
   plotAt(pos: number): Plot | null {
     let node = this.nodeAt(pos)
     return node instanceof Plot ? node : null
+  }
+
+  /// Return the text content of this plot.
+  textContent(options: {
+    /// An optional start position, as an offset from the plot's
+    /// content start.
+    from?: number,
+    /// An optional end position.
+    to?: number,
+    /// Text to separate blocks with. Defaults to a single newline
+    /// character.
+    blockSeparator?: string,
+    /// Override the way non-text leaves are converted to string.
+    leafText?: string | ((node: Leaf.Any) => string)
+  } = {}) {
+    let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
+    let out = new TextOutput(blockSeparator, leafText == null ? undefined
+      : typeof leafText == "string" ? () => leafText : leafText)
+    this.iterate(from, to, (node, pos) => {
+      return !out.serialize(node.is(Leaf.Text) ? node.sliceText(Math.max(0, from - pos),
+                                                                Math.min(node.length, to - pos)) : node)
+    })
+    return out.text
   }
 
   /// @internal
@@ -574,34 +623,24 @@ export class Plot implements Node.Shared {
     return result
   }
 
-  textContent(options: {
-    from?: number, to?: number,
-    blockSeparator?: string,
-    leafText?: string | ((node: Leaf.Any) => string)
-  } = {}) {
-    let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
-    let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
-    this.iterate(from, to, (node, pos) => {
-      return !out.serialize(node.is(Leaf.Text) ? node.sliceText(Math.max(0, from - pos), Math.min(node.length, to - pos)) : node)
-    })
-    return out.text
-  }
-
   mark<Value>(mark: Mark.Type<Value>): Value | undefined { return this.tag.mark(mark) }
 
+  /// @internal
   pushTo(nodes: Node[]) { nodes.push(this) }
 
   withMarks(marks: readonly Mark[]) {
     return Mark.sameSet(this.tag.marks, marks) ? this : this.tag.withMarks(marks).create(this.content)
   }
 
+  /// Plot nodes count as node {@link Token tokens} in a {@link
+  /// Slice}.
   get tokenType(): Token.Type.Node { return Token.Type.Node }
 
   /// Define a singleton plot type. If the plot needs a parameter
   /// value, use {@link Plot.Type.define} instead.
   static define(name: string, spec: Plot.Spec<null>): Plot.Tag<null> {
     checkTagName(name)
-    return new Plot.Type<null>(name, flagsFor(spec) | NodeFlag.NullParam, spec).default!
+    return Plot.Type.new<null>(name, flagsFor(spec) | NodeFlag.NullParam, spec).default!
   }
 
   /// Define a document plot type. Exactly one of these must occur in a schema.
@@ -610,7 +649,7 @@ export class Plot implements Node.Shared {
     let flags = NodeFlag.NullParam | NodeFlag.Doc | NodeFlag.NullParam
     if (spec.inlineContent) flags |= NodeFlag.InlineContent
     if (spec.inlineContent || spec.canBeEmpty) flags |= NodeFlag.CanBeEmpty
-    return new Plot.Type<null>("Doc", flags, {
+    return Plot.Type.new<null>("Doc", flags, {
       ...spec,
       shape: {element: ""}
     })
@@ -621,9 +660,16 @@ export class Plot implements Node.Shared {
 }
 
 export namespace Plot {
+  /// A plot tag holds the type of the plot, its parameter (if any),
+  /// and a set of marks.
   export class Tag<Param> extends BaseTag<Param> implements Node.Tag.Shared<Param> {
-    constructor(readonly type: Plot.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+    private constructor(readonly type: Plot.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
       super(param, marks)
+    }
+
+    /// @internal
+    static new<Param>(type: Plot.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+      return new Tag(type, param, marks)
     }
 
     eq(other: Node | Node.Tag): boolean {
@@ -635,11 +681,16 @@ export namespace Plot {
       return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
     }
 
-    create(children?: readonly Node[]): Plot {
+    /// Create a plot with this tag and the given content.
+    create(content?: readonly Node[]): Plot {
       if (this.isDoc) throw new Error("Document nodes must be created with schema.doc()")
-      return Plot.create(this, children ? joinText(children) : none)
+      return Plot.create(this, content ? joinText(content) : none)
     }
 
+    /// Create a tag that represents content split off from the plot
+    /// with this tag. Will respect the {@link Mark.Spec.keepOnSplit}
+    /// mark property. `atEnd` should be set to true if the split
+    /// happens at the end of the plot's content.
     split(atEnd: boolean): Tag<Param> {
       return this.marks.length ? this.withMarks(this.marks.filter(p => {
         let {keepOnSplit} = p.type.spec
@@ -647,12 +698,17 @@ export namespace Plot {
       })) : this
     }
 
+    /// A plot tag counts as an open {@link Token token} in a {@link
+    /// Slice slice}.
     get tokenType(): Token.Type.Open { return Token.Type.Open }
 
+    /// True when this plot type contains inline content.
     get inlineContent() { return this.type.inlineContent }
+    /// True when this is a block plot with inline content.
     get isTextblock() { return this.type.isTextblock }
     get isLeaf(): false { return false }
     get isPlot(): true { return true }
+    /// Test whether this is a document plot.
     get isDoc() { return this.type.isDoc }
 
     /// @internal
@@ -662,6 +718,9 @@ export namespace Plot {
   }
 
   export namespace Tag {
+    /// Convenience type that is more type safe than `Plot.Tag<any>`
+    /// but, unlike `Plot.Tag<unknown>`, is a supertype of tags with a
+    /// known parameter type.
     export type Any = Omit<Plot.Tag<unknown>, "type" | "split" | "withMarks"> & {
       type: Plot.Type<any>,
       split(atEnd: boolean): Plot.Tag.Any
@@ -669,6 +728,7 @@ export namespace Plot {
     }
   }
 
+  /// A type of {@link Plot plot}.
   export class Type<Param> extends BaseType<Param> {
     /// A default tag for this plot type.
     readonly default: Plot.Tag<Param> | null
@@ -687,7 +747,7 @@ export namespace Plot {
     /// Plot.Spec.orientation set}.
     readonly orientation: "row" | "column"
 
-    constructor(
+    private constructor(
       name: string,
       flags: NodeFlag,
       /// The spec used to define this plot type.
@@ -701,10 +761,15 @@ export namespace Plot {
       this.neutral = spec.neutral ?? !this.defining
       this.preserveWhitespace = spec.preserveWhitespace ?? !!this.hasRole(Node.Role.Code)
       this.orientation = flags & NodeFlag.InlineContent ? "row" : spec.orientation || "column"
-      this.default = "defaultParam" in spec ? new Plot.Tag(this, spec.defaultParam!, none) :
-        (flags & NodeFlag.NullParam) ? new Plot.Tag(this, null as any, none) : null
+      this.default = "defaultParam" in spec ? Plot.Tag.new(this, spec.defaultParam!, none) :
+        (flags & NodeFlag.NullParam) ? Plot.Tag.new(this, null as any, none) : null
       if (!this.shape.atom && this.isInline && !this.inlineContent)
         throw new SchemaError("Inline tags with block content must be marked as atoms")
+    }
+
+    /// @internal
+    static new<Param>(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
+      return new Type(name, flags, spec)
     }
 
     /// Define a plot type.
@@ -713,19 +778,31 @@ export namespace Plot {
       return new Plot.Type<T>(name, flagsFor(spec), spec)
     }
 
+    /// Create a plot tag of this type with the given parameter and
+    /// mark set.
     of(param: Param, marks: readonly Mark<any>[] = none) {
       if (!marks.length && this.default && compareDeep(this.default.param, param)) return this.default
-      return new Plot.Tag(this, param, marks)
+      return Plot.Tag.new(this, param, marks)
     }
 
+    /// Tells you whether this plot type has inline content.
     get inlineContent() { return (this.flags & NodeFlag.InlineContent) > 0 }
+    /// True if this is a block plot with inline content.
     get isTextblock() { return this.isBlock && this.inlineContent }
+    /// True if this is a document plot type.
     get isDoc() { return (this.flags & NodeFlag.Doc) > 0 }
+    /// Tells you that this is not a leaf type.
     get isLeaf(): false { return false }
+    /// This is a plot type. Can be used to narrow `Node.Type` to
+    /// `Plot.Type`.
     get isPlot(): true { return true }
+
+    /// Tells you whether this plot type is allowed {@link
+    /// Plot.Spec.canBeEmpty to be empty}.
     get canBeEmpty() { return (this.flags & NodeFlag.CanBeEmpty) > 0 }
   }
 
+  /// Object used to define a plot type.
   export interface Spec<Param> extends Node.Spec<Param> {
     /// When this node has block-level content, provide a query
     /// matching the nodes it may contain here. You generally don't
@@ -761,6 +838,9 @@ export namespace Plot {
     /// serializer. Defaults to false, unless the node has the {@link
     /// Node.Role.Code} role.
     preserveWhitespace?: boolean
+    /// Isolating plots disallow some kinds of editing across their
+    /// borders (such as backspacing or unwrapping). A table cell is
+    /// an example of a node that you'd use this for.
     isolating?: boolean
     /// Block containers are, by default, assumed to arrange their
     /// children vertically below each other (`"column"`). You can set this
@@ -792,31 +872,53 @@ export namespace Plot {
 
   let validate = true
 
+  /// Document plots are used as the top level plot in a document.
+  /// They offer some additional methods and, unlike normal plots,
+  /// their {@link Plot.Doc.length `length` property} reports only the
+  /// length of their content, without counting open/close tokens
+  /// (because those are not part of the document).
   export class Doc extends Plot {
-    constructor(readonly schema: Schema, children: readonly Node[]) {
+    private constructor(
+      /// The document's schema.
+      readonly schema: Schema,
+      children: readonly Node[]
+    ) {
       super(schema.docTag, children)
       if (validate) schema.validate(this)
     }
 
+    /// @internal
+    static new(schema: Schema, children: readonly Node[]) { return new Doc(schema, children) }
+
+    /// The document's length.
     get length() { return this.contentLength }
 
+    /// @internal
     slicePlot(content: Token[], from: number, to: number) {
       sliceContent(content, this.content, from, to)
     }
 
+    /// Resolve the given position in the document, returning an
+    /// object describing its context.
     resolve(pos: number) {
       return Pos.resolve(this, pos)
     }
 
+    /// Resolve the node at the given position, providing information
+    /// about its context.
     resolveNode(pos: number) {
       return Pos.resolveNode(this, pos)
     }
 
+    /// Like {@link Plot.Doc.resolveNode}, but only resolves plot
+    /// nodes.
     resolvePlot(pos: number) {
       let r = this.resolveNode(pos)
       return r instanceof Pos.Plot ? r : null
     }
 
+    /// Get the context stack (the array of wrapping plot tags,
+    /// inner-to-outer) at the given position.
     contextAt(pos: number, maxDepth?: number): readonly Plot.Tag.Any[] {
       for (let {parent} = this.resolve(pos), context = [];;) {
         if (!parent.parent || maxDepth != null && context.length == maxDepth) return context
@@ -825,6 +927,12 @@ export namespace Plot {
       }
     }
 
+    /// Create a slice of the content between `from` and `to`.
+    slice(from: number, to = this.length) {
+      return this.sliceInner(from, to)
+    }
+
+    /// @internal
     static noValidate<T>(f: () => T): T {
       let prev = validate
       validate = false

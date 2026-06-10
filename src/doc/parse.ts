@@ -20,7 +20,7 @@ export namespace parse {
     /// (outside nodes that don't enable `preserveWhitespace`). Defaults
     /// to true.
     collapseWhiteSpace?: boolean
-    /// Function used in in {@link Parse.slice} to determine
+    /// Function used in in {@link parse.slice} to determine
     /// whether a given element is open (on either side).
     isOpen?: (elt: Element) => null | "start" | "end" | "start end"
     /// The rule set to use. Defaults to the rule set derived from the

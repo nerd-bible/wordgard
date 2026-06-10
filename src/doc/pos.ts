@@ -89,6 +89,7 @@ export class Pos {
     return Pos.create(cacheFor(doc).top, 0, 0, 0)
   }
 
+  /// @internal
   static resolve(doc: _Plot.Doc, pos: number): Pos {
     if (pos < 0 || pos > doc.length) throw new RangeError(`Resolving invalid position ${pos}`)
     let {top, cache} = cacheFor(doc), nearest: Pos | undefined, nearestDist = 0, result
@@ -110,6 +111,7 @@ export class Pos {
     return cache[cache.length < cacheSize ? cache.length : cachePos = (cachePos + 1) % cacheSize] = result
   }
 
+  /// @internal
   static resolveNode(doc: _Plot.Doc, pos: number) {
     let base = this.resolve(doc, pos)
     if (base.inText) return null
