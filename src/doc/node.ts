@@ -153,6 +153,8 @@ export namespace Node {
   export type Tag = Leaf.Any | Plot.Tag.Any
 
   export namespace Tag {
+    /// The interface shared by {@link Leaf leaves} and {@link
+    /// Plot.Tag plot tags}.
     export interface Shared<Param> {
       /// The type of the tag.
       type: Node.Type<Param>
@@ -191,8 +193,12 @@ export namespace Node {
       Type extends Leaf.Type<infer T> ? Leaf<T> : Type extends Plot.Type<infer T> ? Plot.Tag<T> : Type
   }
 
+  /// Shared fields between {@link Leaf.Spec} and {@link Plot.Spec}.
   export interface Spec<Param> {
-    defaultParam?: Param extends null ? never : Param
+    /// The default parameter value for the node type. Only meaningful
+    /// when the type is being defined directly, rather than as a
+    /// singleton tag.
+    defaultParam?: Param
     /// A function or type name used to validate this tag's parameter
     /// value. This will be used when deserializing the attribute from
     /// JSON. When a string, it should be a `|`-separated string of
@@ -210,7 +216,12 @@ export namespace Node {
     /// Roles to add to this node type, which mark it as having a
     /// certain semantic role, such as being a list.
     role?: Node.Role | readonly Node.Role[]
+    /// The default DOM/HTML shape of this node. This will determine
+    /// what the node looks like, both in an editor an in serialized
+    /// HTML form. In most cases, this also specifies the way the node
+    /// is parsed when reading HTML content.
     shape: Shape.Element<Param> | Shape.Structure<Param>
+    /// Extra parse rules to associate with this node type.
     parseRules?: readonly parse.Rule.Element<Param>[]
   }
 
@@ -302,9 +313,22 @@ export namespace Node {
   }
 }
 
+/// A leaf node, which is a node with no content nodes. Used for
+/// things like text, images, line breaks, and so on. Counts as a
+/// {@link Node.Tag}.
 export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag.Shared<Param> {
-  constructor(readonly type: Leaf.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+  private constructor(
+    /// This leaf's type.
+    readonly type: Leaf.Type<Param>,
+    param: Param,
+    marks: readonly Mark<unknown>[]
+  ) {
     super(param, marks)
+  }
+
+  /// @internal
+  static new<Param>(type: Leaf.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+    return new Leaf(type, param, marks)
   }
 
   get tag() { return this }
@@ -328,12 +352,16 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
     return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
   }
 
+  /// In {@link Slice slices}, leaf nodes count as node {@link Token
+  /// tokens}.
   get tokenType(): Token.Type.Node { return Token.Type.Node }
+
   get isLeaf(): true { return true }
   get isPlot(): false { return false }
 
   get length(): number { return this.is(Leaf.Text) ? this.param.length : 1 }
 
+  /// @internal
   pushTo(nodes: Node[]) {
     if (this.is(Leaf.Text)) {
       let prevI = nodes.length - 1, prev = prevI >= 0 ? nodes[prevI] : null
@@ -349,6 +377,7 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
     return from == to ? Slice.empty : Slice.of([this.is(Leaf.Text) ? this.sliceText(from, to) : this])
   }
 
+  /// @internal
   sliceText(from: number, to?: number) {
     if (!this.is(Leaf.Text)) throw new Error("Calling sliceText on a non-text node")
     if (to == null) to = this.param.length
@@ -356,6 +385,7 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
     return Leaf.Text.of(this.param.slice(Math.max(from, 0), Math.max(0, to)), this.marks)
   }
 
+  /// Create a text node with the given text and mark set.
   static text(text: string, marks: readonly Mark<any>[] = none) {
     return Leaf.Text.of(text, marks)
   }
@@ -367,6 +397,7 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
 }
 
 export namespace Leaf {
+  /// Node type for leaves.
   export class Type<Param> extends BaseType<Param> {
     /// A default leaf for this type. Available if the leaf was
     /// defined with {@link Leaf.defineInline}/{@link Leaf.defineBlock
@@ -380,8 +411,8 @@ export namespace Leaf {
       readonly spec: Leaf.Spec<Param>
     ) {
       super(name, flags, spec, NodeShape.from(name, true, spec.shape))
-      this.default = "defaultParam" in spec ? new Leaf(this, spec.defaultParam!, none) :
-        (flags & NodeFlag.NullParam) ? new Leaf(this, null as any, none) : null
+      this.default = "defaultParam" in spec ? Leaf.new(this, spec.defaultParam!, none) :
+        (flags & NodeFlag.NullParam) ? Leaf.new(this, null as any, none) : null
     }
 
     /// @internal
@@ -397,13 +428,16 @@ export namespace Leaf {
       return new Leaf.Type<T>(name, flagsFor(spec, false), spec)
     }
 
+    /// Create a leaf with this type.
     of(param: Param, marks: readonly Mark<any>[] = none) {
       if (!marks.length && this.default && compareDeep(this.default.param, param)) return this.default
-      return new Leaf(this, param, marks)
+      return Leaf.new(this, param, marks)
     }
 
     get isLeaf(): true { return true }
     get isPlot(): false { return false }
+
+    /// Whether this leaf is {@link Leaf.Spec.selectable selectable}.
     get isSelectable() { return (this.flags & NodeFlag.Selectable) > 0 }
   }
 
