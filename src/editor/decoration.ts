@@ -105,7 +105,7 @@ export namespace Decoration {
       type: T,
       shape: Shape | ((tag: Node.Tag.For<T>) => Shape)
     ) {
-      let tp = type instanceof Node.Type.Base ? type as Node.Type<any> : type.type
+      let tp = Node.Type.get(type)
       let shapeFunc: (tag: Node.Tag) => Shape = typeof shape == "function"
         ? tag => addMarkAttributes(shape(tag as any), tag)
         : tag => addMarkAttributes(shape, tag)
@@ -133,7 +133,7 @@ export namespace Decoration {
         type: T,
         shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape)
       ) {
-        let tp = type instanceof Node.Type.Base ? type as Node.Type<any> : type.type
+        let tp = Node.Type.get(type)
         return tagShape.compute(state => {
           let s = shape(state)
           return {type: tp, shape: typeof s == "function" ? memo(s as any) : () => s}
@@ -152,7 +152,7 @@ export namespace Decoration {
     }) {
       if (!wrapper.hasContent) throw new Error("Wrapper elements should have a content hole")
       return tagWrapper.of({
-        type: type instanceof Node.Type.Base ? type as Node.Type<any> : type.type,
+        type: Node.Type.get(type),
         elt: wrapper,
         target: options && options.target ? Elt.Selector.parse(options.target) : null
       })
@@ -175,7 +175,7 @@ export namespace Decoration {
       widget: Widget | ((tag: Node.Tag.For<T>) => Widget)
     ) {
       return tagWidget.of({
-        type: type instanceof Node.Type.Base ? type as Node.Type<any> : type.type,
+        type: Node.Type.get(type),
         place: getPlace(place),
         widget: typeof widget == "function" ? memo(widget as any) : (() => widget)
       })
@@ -190,7 +190,7 @@ export namespace Decoration {
         place: "before" | "after" | "start" | "end",
         widget: (state: GardState) => Widget | ((tag: Node.Tag.For<T>) => Widget)
       ) {
-        let tp = type instanceof Node.Type.Base ? type as Node.Type<any> : type.type
+        let tp = Node.Type.get(type)
         let p = getPlace(place)
         return tagWidget.compute(state => {
           let w = widget(state)
@@ -205,7 +205,7 @@ export namespace Decoration {
 
     /// Add an attribute to the representation of a given node type.
     export function attribute<T extends Node.Type.Ref<any>>(
-      tag: T,
+      type: T,
       attr: string,
       value: string | ((tag: Node.Tag.For<T>) => string),
       options?: {
@@ -217,9 +217,9 @@ export namespace Decoration {
         target?: string
       }
     ) {
-      let type = tag instanceof Node.Type.Base ? tag as Node.Type<any> : tag.type
-      return tagAttribute.of({type, attr, value: typeof value == "string" ? () => value : value as any,
-                               target: options?.target ? Elt.Selector.parse(options.target) : null})
+      let tp = Node.Type.get(type)
+      return tagAttribute.of({type: tp, attr, value: typeof value == "string" ? () => value : value as any,
+                              target: options?.target ? Elt.Selector.parse(options.target) : null})
     }
   }
 

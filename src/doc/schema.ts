@@ -1,4 +1,4 @@
-import {Plot, Node, Leaf} from "./node"
+import {Plot, Node, Leaf, BaseType} from "./node"
 import {Mark} from "./mark"
 import {none, validate} from "./helper"
 import {SchemaError, ValidationError} from "./error"
@@ -80,7 +80,7 @@ export class Schema {
       let groups = this.nodeGroup.get(node)
       return groups ? groups.has(q) : false
     }
-    if (q instanceof Node.Type.Base) return q == node
+    if (q instanceof BaseType) return q == node
     if (q instanceof Node.Tag.Base) return q.type == node
     if ("and" in q) return q.and.every(q => this.matchNode(node, q))
     return (q as readonly Node.Query[]).some(q => this.matchNode(node, q))

@@ -1,4 +1,3 @@
-import {Node} from "./node"
 import {DOMElement} from "./helper"
 import {type parse} from "./parse"
 
@@ -373,10 +372,10 @@ export class NodeShape<Param> {
     readonly spec: Shape.Element<Param> | Shape.Structure<Param>
   ) {}
 
-  static from<Param>(type: Node.Type.Base<Param>, spec: Shape.Element<Param> | Shape.Structure<Param>) {
+  static from<Param>(name: string, leaf: boolean, spec: Shape.Element<Param> | Shape.Structure<Param>) {
     let atom = spec.atom, create: (param: Param) => Elt<string>
     if ("element" in spec) {
-      if (atom == null) atom = type.isLeaf
+      if (atom == null) atom = leaf
       let {element, attributes} = spec
       if (typeof attributes == "function") {
         create = (param: Param) => Elt.new(element, Attributes.read(attributes(param)), atom ? Elt.empty : Elt.hole)
@@ -385,20 +384,20 @@ export class NodeShape<Param> {
         create = () => elt
       }
     } else {
-      if (type.isLeaf) atom = true
+      if (leaf) atom = true
       let {structure} = spec
       if (typeof structure == "function") {
-        if (atom == null) throw new Error(`Dynamic structure for tag ${type.name} must define an \`atom\` field`)
+        if (atom == null) throw new Error(`Dynamic structure for tag ${name} must define an \`atom\` field`)
         create = structure
       } else {
         if (atom == null)
           atom = !structure.hasContent
         else if (atom != !structure.hasContent)
-          throw new Error(`Disagreement between \`atom\` field and structure for tag ${type.name}`)
+          throw new Error(`Disagreement between \`atom\` field and structure for tag ${name}`)
         create = () => structure
       }
     }
-    if (atom == false && type.isLeaf) throw new Error(`Leaf tag ${type.name}'s shape must be atomic`)
+    if (atom == false && leaf) throw new Error(`Leaf tag ${name}'s shape must be atomic`)
     return new NodeShape<Param>(atom, create, spec)
   }
 }

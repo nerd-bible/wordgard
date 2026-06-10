@@ -24,6 +24,40 @@ const enum NodeFlag {
 /// or a leaf node.
 export type Node = Plot | Leaf.Any
 
+// Base class of types. Not public, though some of its properties are.
+export abstract class BaseType<Param> {
+  /// @internal
+  readonly roles: Set<Node.Role> = new Set
+
+  /// @internal
+  constructor(
+    /// The name of this node type.
+    readonly name: string,
+    /// @internal
+    readonly flags: NodeFlag,
+    spec: Node.Spec<Param>,
+    /// @internal
+    readonly shape: NodeShape<Param>
+  ) {
+    if (spec.role instanceof Node.Role) this.roles.add(spec.role)
+    else if (spec.role) for (let role of spec.role) this.roles.add(role)
+    if (this.shape.atom) this.flags |= NodeFlag.Atom
+  }
+
+  /// Test whether this node has the given role.
+  hasRole(role: Node.Role) { return this.roles.has(role) }
+
+  /// True when this is an inline node type.
+  get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
+  /// True when this is a block node type.
+  get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
+  /// True when this node is a leaf or a plot whose default
+  /// shape is rendered as an atom.
+  get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
+  abstract isLeaf: boolean
+  abstract isPlot: boolean
+}
+
 export namespace Node {
   /// The interface shared by all node objects.
   export interface Shared {
@@ -59,42 +93,22 @@ export namespace Node {
     toJSON(): Node.JSON
   }
 
-  /// A generic node type.
+  /// A node type can be either a leaf type or a plot type. Both share
+  /// a {@Node.Type.Base base class}, but you'll generally want to use
+  /// this union type to refer to them, so that properties like {@link
+  /// Leaf.Type.isLeaf} can narrow the type.
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
-  export namespace Type {
-    export abstract class Base<Param> {
-      readonly roles: Set<Node.Role> = new Set
-      readonly shape: NodeShape<Param>
-      abstract default: Node.Tag | null
+    export namespace Type {
+      /// Used as input type by some functions acting on node types, so
+      /// that you can pass either a bare type or a singleton leaf or
+      /// plot tag.
+      export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
 
-      /// @internal
-      constructor(
-        readonly name: string,
-        readonly flags: NodeFlag,
-        readonly spec: Node.Spec<Param>
-      ) {
-        if (spec.role instanceof Node.Role) this.roles.add(spec.role)
-        else if (spec.role) for (let role of spec.role) this.roles.add(role)
-        this.shape = NodeShape.from(this, spec.shape)
-        if (this.shape.atom) this.flags |= NodeFlag.Atom
+      export function get<T>(ref: Ref<T>): Node.Type<T> {
+        return ref instanceof BaseType ? ref as Node.Type<T> : ref.type
       }
-
-      /// Test whether this node has the given role.
-      hasRole(role: Node.Role) { return this.roles.has(role) }
-
-      get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
-      get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
-      get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
-      abstract isLeaf: boolean
-      abstract isPlot: boolean
     }
-
-    /// Used as input type by some functions acting on node types, so
-    /// that you can pass either a bare type or a singleton leaf or
-    /// plot tag.
-    export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
-  }
 
   export type Tag = Leaf.Any | Plot.Tag.Any
 
@@ -102,11 +116,11 @@ export namespace Node {
     export abstract class Base<Param> {
       abstract type: Node.Type<Param>
 
-      /// @internal
-      constructor(
-        readonly param: Param,
-        readonly marks: readonly Mark[]
-      ) {}
+        /// @internal
+        constructor(
+          readonly param: Param,
+          readonly marks: readonly Mark[]
+        ) {}
 
       mark<Value>(mark: Mark.Type<Value>): Value | undefined {
         for (let v of this.marks) if (v.type == mark) return v.value as Value
@@ -124,8 +138,8 @@ export namespace Node {
       get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
 
       is<T>(type: Leaf.Type<T>): this is Leaf<T>
-      is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
-      is(type: any) { return this.type == type }
+        is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+        is(type: any) { return this.type == type }
 
       toJSON(): Node.JSON {
         let result: Node.JSON = {type: this.name}
@@ -215,6 +229,14 @@ export namespace Node {
     static builtin = [Group.All, Group.Inline, Group.Block, Group.Leaf, Group.Plot, Group.Textblock]
   }
 
+  /// Describes a set of node types. Can be either a single tag or
+  /// type, which matches exactly that type (tags are assumed to be
+  /// singleton tags—only their type is used), reference to a {@link
+  /// Node.Group node group}, or a combination of multiple of those.
+  /// An array indicates the union of all the groups in the array
+  /// (matches types that match any of the queries). An object with an
+  /// `and` property indicates an intersection (must match all the
+  /// queries).
   export type Query = Node.Tag | Node.Type<any> | Group | readonly Node.Query[] | {and: readonly Node.Query[]}
 
   /// Roles are used to add some semantic information to node types.
@@ -260,12 +282,12 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
 
   static defineInline(name: string, spec: Leaf.Spec<null>): Leaf<null> {
     checkTagName(name)
-    return new Leaf.Type<null>(name, flagsFor(spec, true) | NodeFlag.NullParam, spec).default!
+    return Leaf.Type.new<null>(name, flagsFor(spec, true) | NodeFlag.NullParam, spec).default!
   }
 
   static defineBlock(name: string, spec: Leaf.Spec<null>): Leaf<null> {
     checkTagName(name)
-    return new Leaf.Type<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
+    return Leaf.Type.new<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
   }
 
   withMarks(marks: readonly Mark<unknown>[]) {
@@ -311,15 +333,25 @@ export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
 }
 
 export namespace Leaf {
-  export class Type<Param> extends Node.Type.Base<Param> {
+  export class Type<Param> extends BaseType<Param> {
+    /// A default leaf for this type. Available if the leaf was
+    /// defined with {@link Leaf.defineInline}/{@link Leaf.defineBlock
+    /// `Block`}, or a {@link Node.Spec.defaultParam} was given.
     default: Leaf<Param> | null
-    declare spec: Leaf.Spec<Param>
 
-    constructor(name: string, flags: NodeFlag, spec: Leaf.Spec<Param>) {
-      super(name, flags, spec)
+    private constructor(
+      name: string,
+      flags: NodeFlag,
+      /// The spec used to define this type.
+      readonly spec: Leaf.Spec<Param>
+    ) {
+      super(name, flags, spec, NodeShape.from(name, true, spec.shape))
       this.default = "defaultParam" in spec ? new Leaf(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? new Leaf(this, null as any, none) : null
     }
+
+    /// @internal
+    static new<Param>(name: string, flags: NodeFlag, spec: Leaf.Spec<Param>) { return new Type(name, flags, spec) }
 
     static defineInline<T>(name: string, spec: Leaf.Spec<T>) {
       checkTagName(name)
@@ -352,7 +384,7 @@ export namespace Leaf {
     withMarks(marks: readonly Mark[]): Leaf.Any
   }
 
-  export const Text = new Leaf.Type<string>("Text", NodeFlag.Inline, {
+  export const Text = Leaf.Type.new<string>("Text", NodeFlag.Inline, {
     shape: {element: ""}
   })
 }
@@ -573,17 +605,31 @@ export namespace Plot {
     }
   }
 
-  export class Type<Param> extends Node.Type.Base<Param> {
+  export class Type<Param> extends BaseType<Param> {
+    /// A default tag for this plot type.
     readonly default: Plot.Tag<Param> | null
-    declare spec: Plot.Spec<Param>
+    /// Whether the {@link Plot.Spec.isolating} flag is set on this
+    /// plot type.
     readonly isolating: boolean
+    /// The plot's {@link Plot.Spec.defining} flag.
     readonly defining: boolean
+    /// The plot's {@link Plot.Spec.neutral} flag.
     readonly neutral: boolean
+    /// Whether whitespace should be preserved inside this plot.
     readonly preserveWhitespace: boolean
+    /// The orientation of the content of the plot. Will be `"row"`
+    /// for plots with inline content, and defaults to `"column"` for
+    /// plots with block content unless explicitly {@link
+    /// Plot.Spec.orientation set}.
     readonly orientation: "row" | "column"
 
-    constructor(name: string, flags: NodeFlag, spec: Plot.Spec<Param>) {
-      super(name, flags, spec)
+    constructor(
+      name: string,
+      flags: NodeFlag,
+      /// The spec used to define this plot type.
+      readonly spec: Plot.Spec<Param>
+    ) {
+      super(name, flags, spec, NodeShape.from(name, false, spec.shape))
       if (!spec.inlineContent && !spec.blockContent)
         throw new SchemaError("Plot definitions must specify either inlineContent or blockContent")
       this.isolating = !!spec.isolating

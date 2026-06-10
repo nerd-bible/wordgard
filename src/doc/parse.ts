@@ -63,9 +63,9 @@ export namespace parse {
     export interface Element<Param> {
       selector: string
       plot?: Plot.Tag<Param> | Plot.Type<Param>
-        leaf?: Leaf<Param> | Leaf.Type<Param>
-        mark?: Mark.Type<Param> | Mark<Param>
-        ignore?: boolean | "skip"
+      leaf?: Leaf<Param> | Leaf.Type<Param>
+      mark?: Mark.Type<Param> | Mark<Param>
+      ignore?: boolean | "skip"
       param?: Param
       readElement?: (element: DOMElement) => Param | Rule.Reject
       marksFrom?: string
@@ -81,7 +81,7 @@ export namespace parse {
     export interface Attribute<Param> {
       attribute: string
       mark?: Mark.Type<Param> | Mark<Param>
-        ignore?: boolean
+      ignore?: boolean
       clearMark?: (mark: Mark<unknown>) => boolean
       param?: Param
       value?: string
