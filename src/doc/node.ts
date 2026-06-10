@@ -58,6 +58,42 @@ export abstract class BaseType<Param> {
   abstract isPlot: boolean
 }
 
+export abstract class BaseTag<Param> {
+  abstract type: Node.Type<Param>
+
+  constructor(
+    readonly param: Param,
+    readonly marks: readonly Mark[]
+  ) {}
+
+  mark<Value>(mark: Mark.Type<Value>): Value | undefined {
+    for (let v of this.marks) if (v.type == mark) return v.value as Value
+    return undefined
+  }
+
+  get name() { return this.type.name }
+
+  abstract eq(other: Node | Node.Tag): boolean
+
+  abstract isLeaf: boolean
+  abstract isPlot: boolean
+  get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
+
+  is<T>(type: Leaf.Type<T>): this is Leaf<T>
+  is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+  is(type: any) { return this.type == type }
+
+  toJSON(): Node.JSON {
+    let result: Node.JSON = {type: this.name}
+    if (this != this.type.default as any) result.param = this.param
+    if (this.marks.length) {
+      result.marks = Object.create(null)
+      for (let {name, value} of this.marks) result.marks![name] = value
+    }
+    return result
+  }
+}
+
 export namespace Node {
   /// The interface shared by all node objects.
   export interface Shared {
@@ -99,57 +135,55 @@ export namespace Node {
   /// Leaf.Type.isLeaf} can narrow the type.
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
-    export namespace Type {
-      /// Used as input type by some functions acting on node types, so
-      /// that you can pass either a bare type or a singleton leaf or
-      /// plot tag.
-      export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
+  export namespace Type {
+    /// Used as input type by some functions acting on node types, so
+    /// that you can pass either a bare type or a singleton leaf or
+    /// plot tag.
+    export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
 
-      export function get<T>(ref: Ref<T>): Node.Type<T> {
-        return ref instanceof BaseType ? ref as Node.Type<T> : ref.type
-      }
+    /// Get the type referred to by a {@link Node.Type.Ref reference}.
+    export function get<T>(ref: Ref<T>): Node.Type<T> {
+      return ref instanceof BaseType ? ref as Node.Type<T> : ref.type
     }
+  }
 
+  /// A tag is a node type with a parameter. For leaves, the entire
+  /// node is the tag. For plots, it is a separate object in the
+  /// {@link Plot.tag `tag` property}.
   export type Tag = Leaf.Any | Plot.Tag.Any
 
   export namespace Tag {
-    export abstract class Base<Param> {
-      abstract type: Node.Type<Param>
+    export interface Shared<Param> {
+      /// The type of the tag.
+      type: Node.Type<Param>
+      /// The tag parameter. Will be `null` for parameter-less types.
+      param: Param
+      /// The set of marks for this tag.
+      marks: readonly Mark[]
+      /// The name of the tag's type.
+      name: string
 
-        /// @internal
-        constructor(
-          readonly param: Param,
-          readonly marks: readonly Mark[]
-        ) {}
+      /// Find the value of the given given make type in this tag's
+      /// set of marks, or return `undefined` if it isn't present.
+      mark<Value>(mark: Mark.Type<Value>): Value | undefined
 
-      mark<Value>(mark: Mark.Type<Value>): Value | undefined {
-        for (let v of this.marks) if (v.type == mark) return v.value as Value
-        return undefined
-      }
+      /// Compare this tag to another tag.
+      eq(other: Node.Tag): boolean
 
-      get name() { return this.type.name }
+      /// Test whether this is a leaf.
+      isLeaf: boolean
+      /// Test whether this is a plot tag.
+      isPlot: boolean
 
-      abstract eq(other: Node | Node.Tag): boolean
-
-      get isInline() { return this.type.isInline }
-      get isBlock() { return this.type.isBlock }
-      abstract isLeaf: boolean
-      abstract isPlot: boolean
-      get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
-
+      /// Test whether this tag is of the given type.
       is<T>(type: Leaf.Type<T>): this is Leaf<T>
-        is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
-        is(type: any) { return this.type == type }
+      is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
 
-      toJSON(): Node.JSON {
-        let result: Node.JSON = {type: this.name}
-        if (this != this.type.default as any) result.param = this.param
-        if (this.marks.length) {
-          result.marks = Object.create(null)
-          for (let {name, value} of this.marks) result.marks![name] = value
-        }
-        return result
-      }
+      /// Holds `true` when this is a text leaf.
+      isText: boolean
+
+      /// Convert this tag to a JSON-serializeable object.
+      toJSON(): Node.JSON
     }
 
     /// Deduce a tag type for a given node or tag type.
@@ -180,7 +214,7 @@ export namespace Node {
     parseRules?: readonly parse.Rule.Element<Param>[]
   }
 
-  /// The JSON representation for a node.
+  /// The JSON representation for a node or tag.
   export interface JSON {
     type: string
     param?: any
@@ -268,7 +302,7 @@ export namespace Node {
   }
 }
 
-export class Leaf<Param> extends Node.Tag.Base<Param> implements Node.Shared {
+export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag.Shared<Param> {
   constructor(readonly type: Leaf.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
     super(param, marks)
   }
@@ -557,7 +591,7 @@ export class Plot implements Node.Shared {
 }
 
 export namespace Plot {
-  export class Tag<Param> extends Node.Tag.Base<Param> {
+  export class Tag<Param> extends BaseTag<Param> implements Node.Tag.Shared<Param> {
     constructor(readonly type: Plot.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
       super(param, marks)
     }

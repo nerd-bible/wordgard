@@ -1,4 +1,4 @@
-import {Plot, Node, Leaf, BaseType} from "./node"
+import {Plot, Node, Leaf, BaseType, BaseTag} from "./node"
 import {Mark} from "./mark"
 import {none, validate} from "./helper"
 import {SchemaError, ValidationError} from "./error"
@@ -67,7 +67,7 @@ export class Schema {
   /// Test whether the given mark or tag type is included in this
   /// schema.
   has(elt: Mark<any> | Mark.Type<any> | Node.Tag | Node.Type<any>) {
-    if (elt instanceof Mark || elt instanceof Node.Tag.Base) elt = elt.type
+    if (elt instanceof Mark || elt instanceof BaseTag) elt = elt.type
     if (elt instanceof Mark.Type) return this.marksByName[elt.name] == elt
     return this.tagsByName[elt.name] == elt
   }
@@ -81,7 +81,7 @@ export class Schema {
       return groups ? groups.has(q) : false
     }
     if (q instanceof BaseType) return q == node
-    if (q instanceof Node.Tag.Base) return q.type == node
+    if (q instanceof BaseTag) return q.type == node
     if ("and" in q) return q.and.every(q => this.matchNode(node, q))
     return (q as readonly Node.Query[]).some(q => this.matchNode(node, q))
   }
@@ -252,7 +252,7 @@ export class Schema {
   }
 
   static setNodeGroup(node: Node.Type<any> | Node.Tag, group: Node.Group | readonly Node.Group[]) {
-    return Schema.Override.new(node instanceof Node.Tag.Base ? node.type : node as Node.Type<any>,
+    return Schema.Override.new(node instanceof BaseTag ? node.type : node as Node.Type<any>,
                                undefined, undefined, group instanceof Node.Group ? [group] : group)
   }
 

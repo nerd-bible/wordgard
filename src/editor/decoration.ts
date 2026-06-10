@@ -400,7 +400,7 @@ function addMarkAttributes(shape: Decoration.Shape, tag: Node.Tag) {
       }
     }
   }
-  return attrs ? addAttrs(shape, attrs, tag.isInline) : shape
+  return attrs ? addAttrs(shape, attrs, tag.type.isInline) : shape
 }
 
 function addAttrs(shape: Decoration.Shape, attrs: Attributes, inline: boolean) {
@@ -410,7 +410,7 @@ function addAttrs(shape: Decoration.Shape, attrs: Attributes, inline: boolean) {
 function applyDeco(shape: Decoration.Shape, deco: Decoration.Point, tag: Node.Tag) {
   if (deco instanceof AttributeDecoration) {
     return deco.selector && shape instanceof Elt ? shape.addAttrs(deco.attrs, deco.selector)
-      : addAttrs(shape, deco.attrs, tag.isInline)
+      : addAttrs(shape, deco.attrs, tag.type.isInline)
   } else if (deco instanceof WrapperDecoration) {
     return deco.selector && shape instanceof Elt ? shape.wrap(deco.elt, deco.selector) : deco.elt.fill([shape])
   }
@@ -1202,7 +1202,7 @@ function nodeWrappers(
 
 function tagScope(tag: Node.Tag, atom: boolean): DecorationScope {
   return DecorationScope.All |
-    (atom ? DecorationScope.Atom | (tag.isInline ? DecorationScope.InlineAtom : 0) : 0)
+    (atom ? DecorationScope.Atom | (tag.type.isInline ? DecorationScope.InlineAtom : 0) : 0)
 }
 
 export function renderWrapper(src: WrapperSource): DecoElt {
@@ -1355,7 +1355,7 @@ export class DecoIterator {
     }
     if (add) {
       if (shape instanceof Elt) shape = Elt.new(shape.tagName, Attributes.merge(shape.attrs, add), shape.children)
-      else shape = Elt.new(tag.isBlock ? "div" : "span", add, [shape])
+      else shape = Elt.new(tag.type.isBlock ? "div" : "span", add, [shape])
     }
     return shape
   }

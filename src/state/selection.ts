@@ -436,7 +436,7 @@ export function cursorAtStart(cx: GardSelection.Context, block?: Pos.Plot) {
 }
 
 function isBarrier(node: wgNode) {
-  if (node.isLeaf) return node.isBlock
+  if (node.isLeaf) return node.type.isBlock
   let override = node.type.spec.cursorBarrier
   if (override != null) return override
   return node.type.isolating || node.type.preserveWhitespace || node.type.isBlock && node.type.isAtom
