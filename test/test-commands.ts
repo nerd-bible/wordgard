@@ -85,7 +85,7 @@ function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: GardS
   ist((state.selection as GardSelection.Text).marks, expect, (a, b) => a == b || a && b && Mark.sameSet(a, b))
 }
 
-let TextOnly = Plot.defineBlock("TextOnly", {
+let TextOnly = Plot.define("TextOnly", {
   inlineContent: Leaf.Text,
   shape: {element: "div"},
   group: Node.Group.Content,
@@ -106,12 +106,14 @@ let PreservedMark = Mark.define("PreservedMark", {
   shape: {element: "mark2"}
 }), pp = builder(PreservedMark)
 
-let InlineSpan = Plot.defineInline("InlineSpan", {
+let InlineSpan = Plot.define("InlineSpan", {
+  inline: true,
   inlineContent: true,
   shape: {element: "span"}
 }), sp = builder(InlineSpan)
 
-let InlineAtom = Plot.defineInline("InlineAtom", {
+let InlineAtom = Plot.define("InlineAtom", {
+  inline: true,
   inlineContent: true,
   shape: {element: "var", atom: true},
 }), at = builder(InlineAtom)
@@ -636,8 +638,8 @@ describe("unwrapBlock", () => {
   })
 
   it("can unwrap textblock list items", () => {
-    let item = Plot.defineBlock("Item", {shape: {element: "li"}, inlineContent: true})
-    let list = Plot.defineBlock("List", {shape: {element: "ul"}, group: Node.Group.Content, blockContent: item})
+    let item = Plot.define("Item", {shape: {element: "li"}, inlineContent: true})
+    let list = Plot.define("List", {shape: {element: "ul"}, group: Node.Group.Content, blockContent: item})
     let s = Schema.define([...basicSchema.tags, list, item])
     let state = GardState.create({
       doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),
@@ -725,16 +727,16 @@ describe("toggleList", () => {
   })
 
   describe("with textblock items", () => {
-    let InlineListItem = Plot.defineBlock("ListItem", {
+    let InlineListItem = Plot.define("ListItem", {
       inlineContent: true,
       shape: {element: "li"}
     })
-    let InlineOrderedList = Plot.defineBlock("OrderedList", {
+    let InlineOrderedList = Plot.define("OrderedList", {
       blockContent: InlineListItem,
       shape: {element: "ol"},
       role: Node.Role.List
     })
-    let InlineBulletList = Plot.defineBlock("BulletList", {
+    let InlineBulletList = Plot.define("BulletList", {
       blockContent: InlineListItem,
       shape: {element: "ul"},
       role: Node.Role.List

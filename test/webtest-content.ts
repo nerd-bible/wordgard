@@ -41,7 +41,8 @@ describe("DocTile", () => {
   })
 
   it("can draw marks with a preferred target", () => {
-    let Img = Leaf.defineInline("Img", {
+    let Img = Leaf.define("Img", {
+      inline: true,
       shape: {structure: () => Elt.mk("span", {class: "my-img"}, [Elt.mk("img", {src: "/x.webp"})])}
     })
     let Alt = Mark.Type.define<string>("Alt", {
@@ -60,7 +61,7 @@ describe("DocTile", () => {
   })
 
   it("can draw nodes with complicated structure", () => {
-    let FancyBlock = Plot.defineBlock("FancyBlock", {
+    let FancyBlock = Plot.define("FancyBlock", {
       group: Node.Group.Content,
       inlineContent: Node.Group.Inline,
       shape: {

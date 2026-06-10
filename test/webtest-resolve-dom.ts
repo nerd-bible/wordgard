@@ -97,7 +97,7 @@ describe("DocTile.resolve", () => {
   })
 
   it("can handle node structure inside content wrappers", () => {
-    let Complex = Plot.defineBlock("Complex", {
+    let Complex = Plot.define("Complex", {
       shape: {
         structure: Elt.mk("weird", [
           Elt.mk("span", ["<<"]),

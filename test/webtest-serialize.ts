@@ -61,7 +61,8 @@ describe("serialize", () => {
   }))
 
   it("can serialize targeted marks", () => Plot.Doc.noValidate(() => {
-    let Img = Leaf.defineInline("Img", {
+    let Img = Leaf.define("Img", {
+      inline: true,
       shape: {structure: () => Elt.mk("span", {class: "my-img"}, [Elt.mk("img", {src: "/x.webp"})])}
     })
     let Alt = Mark.Type.define<string>("Alt", {

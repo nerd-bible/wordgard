@@ -5,17 +5,19 @@ import {GardSelection, GardState} from "wordgard/state"
 import {basicSchema, basicBuilders, builder, maybeTag} from "./schema.ts"
 const {p, hr, blockquote, pre, $img, table, tr, td, th} = basicBuilders
 
-let Iso = Plot.defineBlock("Iso", {
+let Iso = Plot.define("Iso", {
   blockContent: Node.Group.Content,
   group: Node.Group.Content,
   isolating: true,
   shape: {element: "div"}
 }), iso = builder(Iso)
-let InlineA = Plot.defineInline("InlineA", {
+let InlineA = Plot.define("InlineA", {
+  inline: true,
   inlineContent: true,
   shape: {element: "span"}
 }), a = builder(InlineA)
-let InlineB = Plot.defineInline("InlineB", {
+let InlineB = Plot.define("InlineB", {
+  inline: true,
   inlineContent: true,
   cursorInsideBounds: true,
   shape: {element: "span"}

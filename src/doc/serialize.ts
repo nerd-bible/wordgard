@@ -59,7 +59,7 @@ export namespace serialize {
   }
 }
 
-const genericTag = Plot.defineBlock("generic", {
+const genericTag = Plot.define("generic", {
   blockContent: Node.Group.All,
   shape: {element: "div"}
 })

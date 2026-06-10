@@ -4,7 +4,7 @@ const G = Node.Group
 
 /// A paragraph. Part of the {@link Node.Group.Content | `Content`}
 /// group, allowing inline content, rendered as `<p>`.
-export const Paragraph = Plot.defineBlock("Paragraph", {
+export const Paragraph = Plot.define("Paragraph", {
   inlineContent: true,
   group: G.Content,
   defaultBlock: true,
@@ -14,7 +14,7 @@ export const Paragraph = Plot.defineBlock("Paragraph", {
 /// Heading plot. Its parameter indicates the heading level. In the
 /// {@link Node.Group.Content | `Content`} group, allows inline
 /// content, rendered as `<h1>` to `<h6>`.
-export const Heading = Plot.Type.defineBlock("Heading", {
+export const Heading = Plot.Type.define("Heading", {
   defaultParam: 1,
   validateParam: value => {
     if (typeof value != "number" || Math.floor(value) != value || value < 1 || value > 6)
@@ -37,7 +37,7 @@ export const Heading = Plot.Type.defineBlock("Heading", {
 /// A code block. Part of the {@link Node.Group.Content | `Content`}
 /// group, with the {@link Node.Role.Code | `Code`} role. Rendered
 /// as `<pre>`.
-export const CodeBlock = Plot.defineBlock("CodeBlock", {
+export const CodeBlock = Plot.define("CodeBlock", {
   inlineContent: true,
   group: G.Content,
   role: Node.Role.Code,
@@ -56,7 +56,7 @@ export const CodeBlockLanguage = Mark.Type.define<string>("CodeBlockLanguage", {
 /// Blockquote plot. Allows any {@link Node.Group.Content | `Content`}
 /// blocks inside of it, and is itself part of that group. Rendered as
 /// `<blockquote>`.
-export const Blockquote = Plot.defineBlock("Blockquote", {
+export const Blockquote = Plot.define("Blockquote", {
   blockContent: G.Content,
   group: G.Content,
   shape: {element: "blockquote"},
@@ -65,7 +65,7 @@ export const Blockquote = Plot.defineBlock("Blockquote", {
 
 /// Block list item. Allows any {@link Node.Group.Content | `Content`}
 /// blocks as content. Rendered as `<li>`.
-export const ListItem = Plot.defineBlock("ListItem", {
+export const ListItem = Plot.define("ListItem", {
   blockContent: G.Content,
   shape: {element: "li"},
   defining: true,
@@ -74,7 +74,7 @@ export const ListItem = Plot.defineBlock("ListItem", {
 /// List item with inline content. You'll want to have either this
 /// plot type or {@link ListItem} in your schema, not both. Rendered
 /// as `<li>`.
-export const InlineListItem = Plot.defineBlock("ListItem", {
+export const InlineListItem = Plot.define("ListItem", {
   inlineContent: true,
   shape: {element: "li"},
   defining: true,
@@ -84,7 +84,7 @@ export const InlineListItem = Plot.defineBlock("ListItem", {
 /// `Content`} group, allows either {@link ListItem} or {@link
 /// InlineListItem} as content. Rendered as `<ol>`, with the parameter
 /// providing the `start` attribute.
-export const OrderedList = Plot.Type.defineBlock("OrderedList", {
+export const OrderedList = Plot.Type.define("OrderedList", {
   defaultParam: 1,
   validateParam: "number",
   blockContent: [ListItem, InlineListItem],
@@ -102,7 +102,7 @@ export const OrderedList = Plot.Type.defineBlock("OrderedList", {
 /// An unordered list. Defaults to the {@link Node.Group.Content |
 /// `Content`} group. Allows {@link ListItem} or {@link
 /// InlineListItem} as content. Rendered as `<ul>`.
-export const BulletList = Plot.defineBlock("BulletList", {
+export const BulletList = Plot.define("BulletList", {
   blockContent: [ListItem, InlineListItem],
   group: G.Content,
   role: Node.Role.List,
@@ -113,7 +113,7 @@ export const BulletList = Plot.defineBlock("BulletList", {
 
 /// A horizontal separator. Part of the {@link Node.Group.Content |
 /// `Content`} group. Renders as `<hr>`.
-export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
+export const HorizontalRule = Leaf.define("HorizontalRule", {
   group: G.Content,
   shape: {element: "hr"},
   toText: () => "---",
@@ -122,7 +122,8 @@ export const HorizontalRule = Leaf.defineBlock("HorizontalRule", {
 
 /// A hard line break. Renders as `<br>` and has the {@link
 /// Node.Role.LineBreak | `LineBreak`} role.
-export const LineBreak = Leaf.defineInline("LineBreak", {
+export const LineBreak = Leaf.define("LineBreak", {
+  inline: true,
   role: Node.Role.LineBreak,
   toText: () => "\n",
   shape: {element: "br"}
@@ -130,7 +131,7 @@ export const LineBreak = Leaf.defineInline("LineBreak", {
 
 /// Table cell plot. Allows inline content, and is in the {@link
 /// Node.Group.TableCell | `TableCell`} group. Rendered as `<td>`
-export const Cell = Plot.defineBlock("Cell", {
+export const Cell = Plot.define("Cell", {
   inlineContent: true,
   group: G.TableCell,
   isolating: true,
@@ -139,7 +140,7 @@ export const Cell = Plot.defineBlock("Cell", {
 })
 
 /// Table header cell. Like {@link Cell}, but rendered as `<th>`.
-export const HeaderCell = Plot.defineBlock("HeaderCell", {
+export const HeaderCell = Plot.define("HeaderCell", {
   inlineContent: true,
   group: G.TableCell,
   isolating: true,
@@ -149,7 +150,7 @@ export const HeaderCell = Plot.defineBlock("HeaderCell", {
 
 /// Table cell with block content. Rendered as `<td>`. You can use
 /// either this one or {@link Cell} in your schema, not both.
-export const BlockCell = Plot.defineBlock("Cell", {
+export const BlockCell = Plot.define("Cell", {
   blockContent: G.Content,
   group: G.TableCell,
   isolating: true,
@@ -158,7 +159,7 @@ export const BlockCell = Plot.defineBlock("Cell", {
 })
 
 /// Table header cell with block content. Rendered as `<th>`.
-export const BlockHeaderCell = Plot.defineBlock("HeaderCell", {
+export const BlockHeaderCell = Plot.define("HeaderCell", {
   blockContent: G.Content,
   group: G.TableCell,
   isolating: true,
@@ -168,7 +169,7 @@ export const BlockHeaderCell = Plot.defineBlock("HeaderCell", {
 
 /// Table row. Allows nodes with the {@link Node.Group.TableCell |
 /// `TableCell`} group as content. Rendered as `<tr>`.
-export const TableRow = Plot.defineBlock("TableRow", {
+export const TableRow = Plot.define("TableRow", {
   blockContent: G.TableCell,
   canBeEmpty: true,
   orientation: "row",
@@ -178,7 +179,7 @@ export const TableRow = Plot.defineBlock("TableRow", {
 /// A table. Contains {@link TableRow}s, is part of the {@link
 /// Node.Group.Content | `Content`} group. Rendered as
 /// `<table><tbody>`.
-export const Table = Plot.defineBlock("Table", {
+export const Table = Plot.define("Table", {
   blockContent: TableRow,
   isolating: true,
   group: G.Content,
@@ -216,7 +217,8 @@ export const RowSpan = Mark.Type.define<number>("RowSpan", {
 
 /// An inline image leaf. The string parameter is the image's source
 /// URI. Rendered as `<img>`.
-export const Image = Leaf.Type.defineInline<string>("Image", {
+export const Image = Leaf.Type.define<string>("Image", {
+  inline: true,
   validateParam: "string",
   shape: {element: "img", attributes: src => ({src})},
   selectable: true,
@@ -228,7 +230,7 @@ export const Image = Leaf.Type.defineInline<string>("Image", {
 
 /// A block image leaf. Renders as a `<figure>` element with an
 /// `<img>` in it. The parameter holds the image URI.
-export const Figure = Leaf.Type.defineBlock<string>("Figure", {
+export const Figure = Leaf.Type.define<string>("Figure", {
   validateParam: "string",
   shape: {structure: src => Elt.mk("figure", [Elt.mk("img", {src})])},
   selectable: true,
@@ -246,7 +248,7 @@ export const Figure = Leaf.Type.defineBlock<string>("Figure", {
 /// Assigned to the {@link Node.Group.Content | `Content`} group by
 /// default. Renders as a `<figure>` element with `<img>` and
 /// `<figcaption>` elements as children.
-export const CaptionedFigure = Plot.Type.defineBlock<string>("CaptionedFigure", {
+export const CaptionedFigure = Plot.Type.define<string>("CaptionedFigure", {
   inlineContent: true,
   validateParam: "string",
   shape: {structure: src => Elt.mk("figure", [Elt.mk("img", {src}), Elt.mk("figcaption", [0])]), atom: false},

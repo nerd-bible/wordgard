@@ -58,14 +58,14 @@ describe("Schema", () => {
   })
 
   it("can append elements", () => {
-    let Thing = Leaf.defineBlock("Thing", {group: Node.Group.Content, shape: {element: "thing"}})
+    let Thing = Leaf.define("Thing", {group: Node.Group.Content, shape: {element: "thing"}})
     let schema = basicSchema.append([Thing])
     ist(builder(schema)(p("one"), builder(Thing)).toString(), 'Doc(Paragraph("one"),Thing)')
   })
 
   describe("validate", () => {
     it("checks for tags not in the schema", () => {
-      let Stranger = Plot.defineBlock("Stranger", {
+      let Stranger = Plot.define("Stranger", {
         group: Node.Group.Content,
         inlineContent: true,
         shape: {element: "div"}

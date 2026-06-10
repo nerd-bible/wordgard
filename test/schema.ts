@@ -33,11 +33,12 @@ export function builder(
   )
 }
 
-const InlineFragment = Plot.defineInline("Fragment", {
+const InlineFragment = Plot.define("Fragment", {
+  inline: true,
   shape: {element: "span"},
   inlineContent: true
 })
-const BlockFragment = Plot.defineBlock("Fragment", {
+const BlockFragment = Plot.define("Fragment", {
   shape: {element: "div"},
   blockContent: Node.Group.All
 })

@@ -195,6 +195,9 @@ export namespace Node {
 
   /// Shared fields between {@link Leaf.Spec} and {@link Plot.Spec}.
   export interface Spec<Param> {
+    /// Whether this node is an inline or a block node. Defaults to
+    /// block.
+    inline?: boolean
     /// The default parameter value for the node type. Only meaningful
     /// when the type is being defined directly, rather than as a
     /// singleton tag.
@@ -338,14 +341,12 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
       Mark.sameSet(this.marks, other.marks)
   }
 
-  static defineInline(name: string, spec: Leaf.Spec<null>): Leaf<null> {
+  /// Define a singleton leaf type, without parameter. If you need to
+  /// store a parameter value in each leaf of the type, use {@link
+  /// Leaf.Type.define} instead.
+  static define(name: string, spec: Leaf.Spec<null>): Leaf<null> {
     checkTagName(name)
-    return Leaf.Type.new<null>(name, flagsFor(spec, true) | NodeFlag.NullParam, spec).default!
-  }
-
-  static defineBlock(name: string, spec: Leaf.Spec<null>): Leaf<null> {
-    checkTagName(name)
-    return Leaf.Type.new<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
+    return Leaf.Type.new<null>(name, flagsFor(spec) | NodeFlag.NullParam, spec).default!
   }
 
   withMarks(marks: readonly Mark<unknown>[]) {
@@ -400,8 +401,8 @@ export namespace Leaf {
   /// Node type for leaves.
   export class Type<Param> extends BaseType<Param> {
     /// A default leaf for this type. Available if the leaf was
-    /// defined with {@link Leaf.defineInline}/{@link Leaf.defineBlock
-    /// `Block`}, or a {@link Node.Spec.defaultParam} was given.
+    /// defined with {@link Leaf.define}, or a {@link
+    /// Node.Spec.defaultParam} was given.
     default: Leaf<Param> | null
 
     private constructor(
@@ -418,14 +419,10 @@ export namespace Leaf {
     /// @internal
     static new<Param>(name: string, flags: NodeFlag, spec: Leaf.Spec<Param>) { return new Type(name, flags, spec) }
 
-    static defineInline<T>(name: string, spec: Leaf.Spec<T>) {
+    /// Define a new leaf type.
+    static define<T>(name: string, spec: Leaf.Spec<T>) {
       checkTagName(name)
-      return new Leaf.Type<T>(name, flagsFor(spec, true), spec)
-    }
-
-    static defineBlock<T>(name: string, spec: Leaf.Spec<T>) {
-      checkTagName(name)
-      return new Leaf.Type<T>(name, flagsFor(spec, false), spec)
+      return new Leaf.Type<T>(name, flagsFor(spec), spec)
     }
 
     /// Create a leaf with this type.
@@ -600,16 +597,14 @@ export class Plot implements Node.Shared {
 
   get tokenType(): Token.Type.Node { return Token.Type.Node }
 
-  static defineInline(name: string, spec: Plot.Spec<null>): Plot.Tag<null> {
+  /// Define a singleton plot type. If the plot needs a parameter
+  /// value, use {@link Plot.Type.define} instead.
+  static define(name: string, spec: Plot.Spec<null>): Plot.Tag<null> {
     checkTagName(name)
-    return new Plot.Type<null>(name, flagsFor(spec, true) | NodeFlag.NullParam, spec).default!
+    return new Plot.Type<null>(name, flagsFor(spec) | NodeFlag.NullParam, spec).default!
   }
 
-  static defineBlock(name: string, spec: Plot.Spec<null>): Plot.Tag<null> {
-    checkTagName(name)
-    return new Plot.Type<null>(name, flagsFor(spec, false) | NodeFlag.NullParam, spec).default!
-  }
-
+  /// Define a document plot type. Exactly one of these must occur in a schema.
   static defineDoc(spec: {inlineContent?: Node.Query | true, blockContent?: Node.Query, canBeEmpty?: boolean}) {
     if (!spec.inlineContent && !spec.blockContent) throw new SchemaError("Doc nodes must allow content")
     let flags = NodeFlag.NullParam | NodeFlag.Doc | NodeFlag.NullParam
@@ -621,6 +616,7 @@ export class Plot implements Node.Shared {
     })
   }
 
+  /// The end token for a plot. Used in {@link Slice slices}.
   static End = Token.End
 }
 
@@ -711,14 +707,10 @@ export namespace Plot {
         throw new SchemaError("Inline tags with block content must be marked as atoms")
     }
 
-    static defineInline<T>(name: string, spec: Plot.Spec<T>) {
+    /// Define a plot type.
+    static define<T>(name: string, spec: Plot.Spec<T>) {
       checkTagName(name)
-      return new Plot.Type<T>(name, flagsFor(spec, true), spec)
-    }
-
-    static defineBlock<T>(name: string, spec: Plot.Spec<T>) {
-      checkTagName(name)
-      return new Plot.Type<T>(name, flagsFor(spec, false), spec)
+      return new Plot.Type<T>(name, flagsFor(spec), spec)
     }
 
     of(param: Param, marks: readonly Mark<any>[] = none) {
@@ -842,8 +834,8 @@ export namespace Plot {
   }
 }
 
-function flagsFor(spec: Plot.Spec<any>, inline: boolean) {
-  let flags = inline ? NodeFlag.Inline : NodeFlag.None
+function flagsFor(spec: Plot.Spec<any>) {
+  let flags = spec.inline ? NodeFlag.Inline : NodeFlag.None
   if (spec.inlineContent && spec.blockContent) throw new SchemaError("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
   if (spec.inlineContent || spec.canBeEmpty) flags |= NodeFlag.CanBeEmpty

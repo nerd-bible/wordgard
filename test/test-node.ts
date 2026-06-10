@@ -68,7 +68,7 @@ describe("Node", () => {
       ist(doc(p("a"), blockquote(blockquote(p("b")))).textContent(), "a\nb")
     })
 
-    let BlockLeaf = Leaf.defineBlock("BlockLeaf", {group: Node.Group.Content, shape: {element: "div"}})
+    let BlockLeaf = Leaf.define("BlockLeaf", {group: Node.Group.Content, shape: {element: "div"}})
 
     it("doesn't add block separator around non-rendered leaf nodes", () => Plot.Doc.noValidate(() => {
       ist(blockquote(p("one"), BlockLeaf, BlockLeaf, p("two")).textContent(), "one\ntwo")
