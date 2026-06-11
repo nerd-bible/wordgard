@@ -404,7 +404,7 @@ function addMarkAttributes(shape: Decoration.Shape, tag: Node.Tag) {
 }
 
 function addAttrs(shape: Decoration.Shape, attrs: Attributes, inline: boolean) {
-  return shape instanceof Elt ? shape.addAttrs(attrs) : Elt.new(inline ? "span" : "div", attrs, [shape])
+  return shape instanceof Elt ? shape.addAttrs(attrs) : Elt.create(inline ? "span" : "div", attrs, [shape])
 }
 
 function applyDeco(shape: Decoration.Shape, deco: Decoration.Point, tag: Node.Tag) {
@@ -456,7 +456,7 @@ class WrapperRangeDecoration extends Decoration.Range {
     let {attributes} = spec
     this.rank = Math.max(0, Math.min(spec.rank ?? 100))
     this.spanning = spec.spanning !== false
-    this.elt = Elt.new(element, attributes ? Attributes.read(attributes) : Attributes.none, Elt.hole)
+    this.elt = Elt.create(element, attributes ? Attributes.read(attributes) : Attributes.none, Elt.hole)
   }
 
   eq(other: RangeSet.Value): boolean {
@@ -1212,7 +1212,7 @@ export function renderWrapper(src: WrapperSource): DecoElt {
 
 export const renderMarkWrapper = memo((mark: Mark<any>) => {
   let shape = mark.type.element!
-  return Elt.new(shape.name, shape.attrs(mark.value), Elt.hole)
+  return Elt.create(shape.name, shape.attrs(mark.value), Elt.hole)
 })
 
 export class DecoIterator {
@@ -1354,8 +1354,8 @@ export class DecoIterator {
         Attributes.push(add || (add = []), deco.attribute, deco.value)
     }
     if (add) {
-      if (shape instanceof Elt) shape = Elt.new(shape.tagName, Attributes.merge(shape.attrs, add), shape.children)
-      else shape = Elt.new(tag.type.isBlock ? "div" : "span", add, [shape])
+      if (shape instanceof Elt) shape = Elt.create(shape.tagName, Attributes.merge(shape.attrs, add), shape.children)
+      else shape = Elt.create(tag.type.isBlock ? "div" : "span", add, [shape])
     }
     return shape
   }

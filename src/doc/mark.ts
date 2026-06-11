@@ -40,28 +40,41 @@ export function subtractSet<T>(a: readonly T[], b: readonly T[], compare: (a: T,
   }
 }
 
+/// A mark has a type and a value. Some mark types, without a
+/// meaningful parameter value (such as {@link schema-def.Emphasis},
+/// will only use a single mark object.
 export class Mark<Value = unknown> {
   private constructor(readonly type: Mark.Type<Value>, readonly value: Value) {}
 
   /// @internal
   static create<Value>(type: Mark.Type<Value>, value: Value) { return new Mark(type, value) }
 
+  /// Compare this mark to another one. Parameter values are compared
+  /// by structure.
   eq(other: Mark<any>) {
     return this.type == other.type && compareDeep(this.value, other.value)
   }
 
+  /// The name of this mark's type.
   get name() { return this.type.name }
 
+  /// @internal
   get rank() { return this.type.rank }
 
+  /// @internal
   get spanning() { return this.type.spanning }
 
+  /// @internal
   toString() { return this.value == null ? this.name : `${this.name}=${JSON.stringify(this.value)}` }
 
+  /// Define a singleton mark.
   static define(name: string, spec: Mark.Spec<null>): Mark<null> {
     return Mark.Type.define<null>(name, spec, true).default!
   }
 
+  /// Add this mark to the given set. Will overwrite existing
+  /// instances of the mark in the set, unless this is a {@link
+  /// Mark.Spec.set set-valued} mark.
   addToSet(set: readonly Mark<any>[]): readonly Mark[] {
     let placed: Mark<any> | null = null, copy: Mark<any>[] = []
     for (let i = 0; i < set.length; i++) {
@@ -78,6 +91,7 @@ export class Mark<Value = unknown> {
     return copy
   }
 
+  /// Remove this mark from the given set.
   removeFromSet(set: readonly Mark<any>[]): readonly Mark[] {
     let type = this.type
     for (var i = 0; i < set.length; i++) if (set[i].type == type) {
@@ -100,26 +114,36 @@ export class Mark<Value = unknown> {
     return set
   }
 
+  /// Test whether this mark is in the given set.
   isInSet(set: readonly Mark<any>[]): Mark<Value> | null {
     for (let v of set) if (v.eq(this)) return v as Mark<Value>
     return null
   }
 
+  /// Compare two sets of marks.
   static sameSet(a: readonly Mark<any>[], b: readonly Mark<any>[]): boolean {
     return eqArray(a, b)
   }
 
+  /// The empty mark set.
   static none: readonly Mark[] = none
 }
 
 export namespace Mark {
   export class Type<Value> {
+    /// @internal
     readonly rank: number
+    /// @internal
     readonly set: null | ((a: any, b: any) => number)
+    /// The default mark for this type, if any.
     readonly default: Mark<Value> | null
+    /// Whether this is an inclusive mark.
     readonly inclusive: boolean
+    /// @internal
     readonly element: {name: string, attrs: (value: Value) => Attributes} | null = null
+    /// @internal
     readonly attribute: {get: (value: Value) => Attributes, target: Elt.Selector | null} | null = null
+    /// Whether this is a {@link Mark.Spec.spanning spanning} mark.
     readonly spanning: boolean
 
     private constructor(
@@ -152,6 +176,10 @@ export namespace Mark {
       return null
     }
 
+    /// Whether this mark is rendered with an element.
+    get isElement() { return !!this.element }
+
+    /// Define a mark type with the given parameter type.
     static define<Value>(
       name: string,
       spec: Mark.Spec<Value>,

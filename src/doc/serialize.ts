@@ -117,7 +117,7 @@ function serializeNodeInner(node: Node, cx: SerializeContext): Elt | string {
     }
   }
   if (node.is(Leaf.Text))
-    return markAttrs.length ? Elt.new("span", markAttrs, [node.param]) : node.param
+    return markAttrs.length ? Elt.create("span", markAttrs, [node.param]) : node.param
   let children: readonly (string | Elt)[]
   if (node.isLeaf) {
     children = []
@@ -140,7 +140,7 @@ function withContent(elt: Elt, content: readonly (string | Elt)[]): Elt<string> 
     else if (typeof ch == "string") children.push(ch)
     else children.push(withContent(ch, content))
   }
-  return Elt.new(elt.tagName, elt.attrs, children)
+  return Elt.create(elt.tagName, elt.attrs, children)
 }
 
 function lineBreaksToNewlines(nodes: readonly Node[]) {
@@ -159,7 +159,7 @@ class EltCx {
   children: (Elt | string)[] = []
   constructor(readonly tagName: string, readonly attrs: Attributes, readonly parent: EltCx | null) {}
   pop() {
-    let repr = Elt.new(this.tagName, this.attrs, this.children)
+    let repr = Elt.create(this.tagName, this.attrs, this.children)
     let parent = this.parent!
     parent.children.push(repr)
     return parent

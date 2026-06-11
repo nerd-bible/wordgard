@@ -95,7 +95,7 @@ export abstract class BaseTag<Param> {
 }
 
 export namespace Node {
-  /// The interface shared by all node objects.
+  /// The interface shared by both {@link Leaf} and {@link Plot}.
   export interface Shared {
     /// The name of this node's type.
     name: string

@@ -885,7 +885,7 @@ class ContentUpdate {
     for (let parent = composition.target.parentNode; parent; parent = parent.parentNode) {
       let tile = parent.wgTile
       if (!tile) {
-        let elt = Elt.new(parent.nodeName.toLowerCase(), takeAttributes(parent as Element), Elt.hole)
+        let elt = Elt.create(parent.nodeName.toLowerCase(), takeAttributes(parent as Element), Elt.hole)
         tile = new EltTile(elt, null, 0, 0, parent as Element)
       } else if (tile.isNode || tile.isDoc) {
         break
@@ -935,7 +935,7 @@ class ContentUpdate {
         let wrapCount = wrappers.length
         if (node.is(Leaf.Text)) {
           while (shape instanceof Elt) {
-            this.openWrapper(Elt.new(shape.tagName, shape.attrs, Elt.hole), true, reuse)
+            this.openWrapper(Elt.create(shape.tagName, shape.attrs, Elt.hole), true, reuse)
             wrapCount++
             shape = shape.children[0] as Decoration.Shape
           }

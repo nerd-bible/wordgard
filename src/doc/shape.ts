@@ -3,14 +3,33 @@ import {type parse} from "./parse"
 
 const noChildren: readonly any[] = []
 
+/// This class describes a DOM element, its attributes, and its
+/// children. It is used in describing the structure of {@link
+/// Node.Spec.shape nodes} and {@link editor.Decoration decorations}.
+///
+/// Elements can provide a wrapping structure by having a content hole
+/// somewhere in their children, which indicates where the structure
+/// they wrap (typically a node's content) goes.
+///
+/// The type parameter indicates the set of additional leaf types. By
+/// default, it holds only `string` (as a shorthand for text nodes),
+/// but elements used in decorations also support {@link editor.Widget
+/// custom widgets}.
 export class Elt<T = string> {
   private constructor(
+    /// The element's tag name. May be prefixed with `"svg:"` or
+    /// `"math:"` to indicate an SVG or MathML element.
     readonly tagName: string,
+    /// The set of attributes, as an {@link Attributes array of
+    /// strings}.
     readonly attrs: Attributes,
+    /// The element's children.
     readonly children: Elt.Fragment<T>
   ) {}
 
-  static new<T = string>(
+  /// Create an element. See also {@link Elt.mk} for a more ergonomic
+  /// creation function.
+  static create<T = string>(
     tagName: string,
     attrs: Attributes,
     children: Elt.Fragment<T>
@@ -18,14 +37,32 @@ export class Elt<T = string> {
     return new Elt(tagName, attrs, children as any)
   }
 
+  /// Create an element, specifying the attributes as an object. Both
+  /// the set of attributesand the array of children are optional. The
+  /// literal number 0 is used to indicate a content hole in the
+  /// array of children.
+  static mk<T = string>(name: string, children?: (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
+  static mk<T = string>(name: string, attrs: Record<string, string>, children?: Elt.Fragment<T>): Elt<Exclude<T, Elt<any> | 0>>
+  static mk<T>(name: string, arg1?: Record<string, string> | Elt.Fragment<T>, arg2?: Elt.Fragment<T>) {
+    let [attrs, children] = arg2 ? [Attributes.read(arg1 as Record<string, string>), arg2] :
+      !arg1 ? [Attributes.none, noChildren] : Array.isArray(arg1) ? [Attributes.none, arg1 as Elt.Fragment<T>]
+      : [Attributes.read(arg1 as Record<string, string>), noChildren]
+    if (children.length == 1 && children[0] === 0) children = Elt.hole
+    return new Elt<T>(name, attrs, children)
+  }
+
+  /// True if this element or one of its children has a content hole.
   get hasContent(): boolean {
     return this.children.some(ch => ch === 0 || ch instanceof Elt && ch.hasContent)
   }
 
+  /// Compare this element's tag name and attributes (not its
+  /// children) to another element.
   eqTag(elt: Elt<any>) {
     return elt.tagName == this.tagName && Attributes.eq(this.attrs, elt.attrs)
   }
 
+  /// @internal
   eqChildren(elt: Elt<T>) {
     if (elt.children == this.children) return true
     if (this.children.length != elt.children.length) return false
@@ -40,10 +77,13 @@ export class Elt<T = string> {
     return true
   }
 
+  /// Compare this element (including its children) to another
+  /// element.
   eq(other: any) {
     return other instanceof Elt && this.eqTag(other) && this.eqChildren(other)
   }
 
+  /// @internal
   outerDOM(doc = document) {
     let {tagName: name, attrs} = this
     let dom = /^svg:/.test(name) ? doc.createElementNS("http://www.w3.org/2000/svg", name.slice(4))
@@ -53,6 +93,7 @@ export class Elt<T = string> {
     return dom
   }
 
+  /// @internal
   wrap(wrapper: Elt<T>, target?: Elt.Selector) {
     if (target) {
       let added = this.modifyBySelector(wrapper, target)
@@ -61,14 +102,16 @@ export class Elt<T = string> {
     return wrapper.fill([this])
   }
 
+  /// @internal
   addAttrs(attrs: Attributes, target?: Elt.Selector) {
     if (target) {
       let added = this.modifyBySelector(attrs, target)
       if (added) return added
     }
-    return Elt.new(this.tagName, Attributes.merge(this.attrs, attrs), this.children)
+    return Elt.create(this.tagName, Attributes.merge(this.attrs, attrs), this.children)
   }
 
+  /// @internal
   fill(content: Elt.Fragment<T>) {
     let children: (0 | T | Elt<T>)[] = []
     for (let ch of this.children) {
@@ -90,12 +133,13 @@ export class Elt<T = string> {
       if (ch instanceof Elt && (matched = ch.modifyBySelector(mod, target))) {
         let copy = this.children.slice()
         copy[i] = matched
-        return Elt.new(this.tagName, this.attrs, copy)
+        return Elt.create(this.tagName, this.attrs, copy)
       }
     }
     return null
   }
 
+  /// Convert an element, string, or fragment to an HTML string.
   static html(content: Elt | string | Elt.Fragment): string {
     let html = ""
     function scan(elt: Elt<string> | string | 0) {
@@ -130,6 +174,7 @@ export class Elt<T = string> {
     return html
   }
 
+  /// Convert an element, string, or fragment to a DOM tree.
   static dom(elt: Elt, doc?: Document): Element
   static dom(elt: string, doc?: Document): Text
   static dom(elt: Elt.Fragment, doc?: Document): DocumentFragment
@@ -147,18 +192,11 @@ export class Elt<T = string> {
     }
   }
 
+  /// @internal
   static empty: readonly any[] = []
-  static hole: readonly [0] = [0]
 
-  static mk<T = string>(name: string, children?: (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
-  static mk<T = string>(name: string, attrs: Record<string, string>, children?: Elt.Fragment<T>): Elt<Exclude<T, Elt<any> | 0>>
-  static mk<T>(name: string, arg1?: Record<string, string> | Elt.Fragment<T>, arg2?: Elt.Fragment<T>) {
-    let [attrs, children] = arg2 ? [Attributes.read(arg1 as Record<string, string>), arg2] :
-      !arg1 ? [Attributes.none, noChildren] : Array.isArray(arg1) ? [Attributes.none, arg1 as Elt.Fragment<T>]
-      : [Attributes.read(arg1 as Record<string, string>), noChildren]
-    if (children.length == 1 && children[0] === 0) children = Elt.hole
-    return new Elt<T>(name, attrs, children)
-  }
+  /// @internal
+  static hole: readonly [0] = [0]
 }
 
 const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
@@ -166,8 +204,11 @@ const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "f
                              "source", "track", "wbr", "menuitem"])
 
 export namespace Elt {
+  /// An element fragment is an array of leaf types, nested elements,
+  /// or content holes.
   export type Fragment<T = string> = readonly (0 | T | Elt<T>)[]
 
+  /// @internal
   export class Selector {
     private constructor(readonly tag: string | null, readonly classes: readonly string[]) {}
 
@@ -203,14 +244,16 @@ export namespace Elt {
   }
 }
 
-// Sets of attributes are stored in arrays of strings, with the even
-// indices holding attribute names, the odd ones attribute values. The
-// attributes are sorted by name.
+/// Sets of attributes are stored in arrays of strings, with the even
+/// indices holding attribute names, the odd ones attribute values. The
+/// attributes are sorted by name.
 export type Attributes = readonly string[]
 
 export namespace Attributes {
+  /// The empty set of attributes.
   export const none: Attributes = []
 
+  /// Compare two attribute sets.
   export function eq(a: Attributes, b: Attributes) {
     if (a == b) return true
     if (a.length != b.length) return false
@@ -218,6 +261,7 @@ export namespace Attributes {
     return true
   }
 
+  /// @internal
   export function compare(a: Attributes, b: Attributes) {
     for (let iA = 0, iB = 0, score = 0;;) {
       if (iA < a.length && iB < b.length && a[iA] == b[iB]) {
@@ -235,8 +279,8 @@ export namespace Attributes {
     }
   }
 
-  // Combine two attribute sets, with b having higher precedence when
-  // they set the same attribute.
+  /// Combine two attribute sets, with b having higher precedence when
+  /// they set the same attribute.
   export function merge(a: Attributes, b: Attributes) {
     if (!a.length) return b
     if (!b.length) return a
@@ -260,6 +304,7 @@ export namespace Attributes {
     }
   }
 
+  /// @internal
   export function push(a: string[], name: string, value: string) {
     let i = 0
     while (i < a.length && a[i] < name) i += 2
@@ -271,7 +316,8 @@ export namespace Attributes {
       a.splice(i, 0, name, value)
     }
   }
-  
+
+  /// Convert an attribute object into a set.
   export function read(obj: Record<string, string | null> | null | undefined) {
     if (!obj) return Attributes.none
     let result: string[] = []
@@ -288,6 +334,7 @@ export namespace Attributes {
     return result.length ? result : Attributes.none
   }
 
+  /// Get the value of the given attribute.
   export function get(attrs: Attributes, name: string) {
     for (let i = 0; i < attrs.length; i += 2) if (attrs[i] == name) return attrs[i + 1]
     return null
@@ -378,9 +425,9 @@ export class NodeShape<Param> {
       if (atom == null) atom = leaf
       let {element, attributes} = spec
       if (typeof attributes == "function") {
-        create = (param: Param) => Elt.new(element, Attributes.read(attributes(param)), atom ? Elt.empty : Elt.hole)
+        create = (param: Param) => Elt.create(element, Attributes.read(attributes(param)), atom ? Elt.empty : Elt.hole)
       } else {
-        let elt = Elt.new(element, Attributes.read(attributes), atom ? Elt.empty : Elt.hole)
+        let elt = Elt.create(element, Attributes.read(attributes), atom ? Elt.empty : Elt.hole)
         create = () => elt
       }
     } else {
