@@ -37,8 +37,8 @@ export {SchemaError, ValidationError} from "./error"
 /// Document changes are represented as a series of replaced or
 /// updated (adding or removing marks) ranges.
 
-export {Token, Slice} from "./slice"
 export {ChangeSet} from "./change"
+export {Slice, Token} from "./slice"
 
 /// ### Resolved Positions
 ///
@@ -56,5 +56,4 @@ export {Pos} from "./pos"
 /// expressible in a given Wordgard schema, parsing is lossy.
 
 export {parse} from "./parse"
-
 export {serialize} from "./serialize"

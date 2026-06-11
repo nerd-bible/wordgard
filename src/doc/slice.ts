@@ -3,11 +3,16 @@ import {TextOutput} from "./text"
 import {Schema} from "./schema"
 import {ValidationError} from "./error"
 
+/// The type of tokens in a slice. A plot tag represents the point
+/// where a plot is opened, {@link Plot.End} the point where a plot is
+/// closed, and nodes just represent the insertion of that node.
 export type Token = Node | Plot.Tag.Any | typeof Plot.End
 
 export namespace Token {
+  /// Tokens have a `tokenType` property holding oneof these values.
   export enum Type { Open, Close, Node }
 
+  /// @internal
   export const End = {
     tokenType: Token.Type.Close,
     /// @internal
@@ -15,30 +20,21 @@ export namespace Token {
   } as {tokenType: Token.Type.Close}
 }
 
+/// A slice represents a part of a document. It is used to represent
+/// inserted content in {@link ChangeSet change sets}, or things like
+/// clipboard content.
 export class Slice {
+  /// The length of the slice's content.
   readonly length: number
 
   private constructor(readonly content: readonly Token[]) {
     this.length = content.reduce((l, e) => l + (e.tokenType == Token.Type.Node ? e.length : 1), 0)
   }
 
+  /// Create a slice.
   static of(content: readonly Token[]) { return new Slice(content) }
 
-  toJSON(): Slice.JSON {
-    return this.content.map(e => e.tokenType == Token.Type.Node ? {node: e.toJSON()}
-      : e.tokenType == Token.Type.Open ? {open: e.toJSON()} : {close: true})
-  }
-
-  static fromJSON(schema: Schema, json: Slice.JSON) {
-    if (!Array.isArray(json)) throw new ValidationError("Invalid slice JSON")
-    return new Slice(json.map(value => {
-      if (value.open) return schema.tagFromJSON(value.open)
-      if (value.close) return Token.End
-      if (value.node) return schema.nodeFromJSON(value.node)
-      throw new ValidationError("Invalid slice JSON")
-    }))
-  }
-
+  /// Compare a slice to another one.
   eq(other: Slice) {
     if (other.content.length != this.content.length) return false
     for (let i = 0; i < this.content.length; i++) {
@@ -54,7 +50,8 @@ export class Slice {
     return true
   }
 
-  run(track: Slice.Walker, startPos = 0) {
+  /// @internal
+  run(track: SliceWalker, startPos = 0) {
     let pos = startPos
     for (let elt of this.content) {
       if (elt.tokenType == Token.Type.Open) track.open(elt, pos++)
@@ -63,6 +60,7 @@ export class Slice {
     }
   }
 
+  /// Create a sub-slice of this slice.
   slice(from: number, to = this.length) {
     if (from == to) return Slice.empty
     let result: Token[] = [], off = 0
@@ -81,6 +79,7 @@ export class Slice {
     return new Slice(result)
   }
 
+  /// Concatenate this slice to another slice.
   concat(other: Slice) {
     let content = this.content.slice()
     let i = 0
@@ -93,6 +92,7 @@ export class Slice {
     return new Slice(content)
   }
 
+  /// Get the text content of the slice's tokens.
   textContent(options: {
     blockSeparator?: string,
     leafText?: string | ((node: Leaf.Any) => string)
@@ -110,19 +110,39 @@ export class Slice {
     return out.text
   }
 
+  /// The empty slice.
   static empty = new Slice([])
 
+  /// @internal
   toString() {
     return `<${this.content.join()}>`
+  }
+
+  /// Convert this slice to a JSON-serializeable representation.
+  toJSON(): Slice.JSON {
+    return this.content.map(e => e.tokenType == Token.Type.Node ? {node: e.toJSON()}
+      : e.tokenType == Token.Type.Open ? {open: e.toJSON()} : {close: true})
+  }
+
+  /// Build a slice from its JSON representation.
+  static fromJSON(schema: Schema, json: Slice.JSON) {
+    if (!Array.isArray(json)) throw new ValidationError("Invalid slice JSON")
+    return new Slice(json.map(value => {
+      if (value.open) return schema.tagFromJSON(value.open)
+      if (value.close) return Token.End
+      if (value.node) return schema.nodeFromJSON(value.node)
+      throw new ValidationError("Invalid slice JSON")
+    }))
   }
 }
 
 export namespace Slice {
-  export interface Walker {
-    node(node: Node, pos: number): void
-    open(tag: Plot.Tag.Any, pos: number): void
-    close(pos: number): void
-  }
-
+  /// A slice's JSON representation.
   export type JSON = readonly ({node: Node.JSON} | {open: Node.JSON} | {close: true})[]
+}
+
+export interface SliceWalker {
+  node(node: Node, pos: number): void
+  open(tag: Plot.Tag.Any, pos: number): void
+  close(pos: number): void
 }

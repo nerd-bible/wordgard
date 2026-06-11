@@ -30,7 +30,7 @@ describe("Context", () => {
 
   it("can walk through a document", () => {
     let d = doc(p("one"), ul(li(p("a", br, "b"), p())))
-    let cx = Pos.atStart(d)
+    let cx = d.resolve(0)
     let tokens = "OPEN(Paragraph) o n e CLOSE OPEN(BulletList) OPEN(ListItem) OPEN(Paragraph) a LineBreak" +
       " b CLOSE OPEN(Paragraph) CLOSE CLOSE CLOSE"
     let found: string[] = []

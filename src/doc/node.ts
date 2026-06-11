@@ -133,17 +133,17 @@ export namespace Node {
   /// Leaf.Type.isLeaf} can narrow the type.
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
-    export namespace Type {
-      /// Used as input type by some functions acting on node types, so
-      /// that you can pass either a bare type or a singleton leaf or
-      /// plot tag.
-      export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
+  export namespace Type {
+    /// Used as input type by some functions acting on node types, so
+    /// that you can pass either a bare type or a singleton leaf or
+    /// plot tag.
+    export type Ref<T> = Plot.Type<T> | Leaf.Type<T> | Plot.Tag<T> | Leaf<T>
 
-        /// Get the type referred to by a {@link Node.Type.Ref reference}.
-        export function get<T>(ref: Ref<T>): Node.Type<T> {
-          return ref instanceof BaseType ? ref as Node.Type<T> : ref.type
-        }
+    /// Get the type referred to by a {@link Node.Type.Ref reference}.
+    export function get<T>(ref: Ref<T>): Node.Type<T> {
+      return ref instanceof BaseType ? ref as Node.Type<T> : ref.type
     }
+  }
 
   /// A tag is a node type with a parameter. For leaves, the entire
   /// node is the tag. For plots, it is a separate object in the
@@ -156,8 +156,8 @@ export namespace Node {
     export interface Shared<Param> {
       /// The type of the tag.
       type: Node.Type<Param>
-        /// The tag parameter. Will be `null` for parameter-less types.
-        param: Param
+      /// The tag parameter. Will be `null` for parameter-less types.
+      param: Param
       /// The set of marks for this tag.
       marks: Mark.Set
       /// The name of the tag's type.
@@ -177,16 +177,16 @@ export namespace Node {
 
       /// Test whether this tag is of the given type.
       is<T>(type: Leaf.Type<T>): this is Leaf<T>
-        is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+      is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
 
-        /// Holds `true` when this is a text leaf.
-        isText: boolean
+      /// Holds `true` when this is a text leaf.
+      isText: boolean
 
       /// Convert this tag to a JSON-serializeable object.
       toJSON(): Node.JSON
     }
 
-    /// Deduce a tag type for a given node or tag type.
+    /// Deduce a tag type for a given node type or tag.
     export type For<Type extends Node.Type.Ref<any>> =
       Type extends Leaf.Type<infer T> ? Leaf<T> : Type extends Plot.Type<infer T> ? Plot.Tag<T> : Type
   }

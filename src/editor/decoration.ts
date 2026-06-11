@@ -145,9 +145,10 @@ export namespace Decoration {
     /// part of it. The given elt should include a hole (`0`) to
     /// indicate where the original shape goes.
     export function wrapper(type: Node.Type.Ref<any>, wrapper: DecoElt, options?: {
-      /// If given, and {@link Elt.Selector matching} some element
-      /// in the node's existing shape, only that element will be
-      /// wrapped.
+      /// If given, and matching some element in the node's existing
+      /// shape, only that element will be wrapped. Uses a subset of
+      /// CSS selectors that supports only tag name and class names
+      /// (`img.x.y`).
       target?: string
     }) {
       if (!wrapper.hasContent) throw new Error("Wrapper elements should have a content hole")
@@ -211,9 +212,10 @@ export namespace Decoration {
       options?: {
         /// By default, the attribute is added to the outer element
         /// (or a wrapper element if the node is rendered as a
-        /// widget). If this option is given, and {@link Elt.Selector
-        /// matches} an element in the representation, it will be
-        /// added to that element instead.
+        /// widget). If this option is given, and
+        /// [matches](#editor.Decoration.Tag.wrapper.options.target)
+        /// an element in the representation, it will be added to that
+        /// element instead.
         target?: string
       }
     ) {
@@ -255,8 +257,9 @@ export namespace Decoration {
     /// Add a set of attributes to the node after this decoration's
     /// position.
     static attributes(attrs: Record<string, string>, options?: {
-      /// Target a specific element in the node's representation,
-      /// using an {@link Elt.Selector element selector}.
+      /// Target a [specific
+      /// element](#editor.Decoration.Tag.wrapper.options.target) in
+      /// the node's representation.
       target?: string
     }) {
       return new AttributeDecoration(Attributes.read(attrs), options?.target ? Elt.Selector.parse(options.target) : null)
@@ -270,8 +273,10 @@ export namespace Decoration {
 
     /// Wrap the node at the given position with a wrapper.
     static wrapper(wrapper: DecoElt, spec?: {
-      /// Provide a {@link Elt.Selector selector} here to target
-      /// only a specific element in the node's representation.
+      /// Provide a
+      /// [selector](#editor.Decoration.Tag.wrapper.options.target)
+      /// here to target only a specific element in the node's
+      /// representation.
       target?: string
     }) {
       if (!wrapper.hasContent) throw new Error("Wrapper decoration elements must have a content hole")
@@ -302,6 +307,7 @@ export namespace Decoration {
     /// @internal
     readonly inc: Inc
 
+    /// @hidden
     protected constructor(spec: RangeSpec) {
       let {query, inclusive} = spec
       this.query = query || null
@@ -1287,10 +1293,10 @@ export class DecoIterator {
         return !atom
       },
       leavePlot: tag => {
-        if (started) this.widgets(tag!, WidgetPlace.End, walker)
+        if (started) this.widgets(tag, WidgetPlace.End, walker)
         else started = true
         walker.leave()
-        this.widgets(tag!, WidgetPlace.After, walker)
+        this.widgets(tag, WidgetPlace.After, walker)
       }
     }
 

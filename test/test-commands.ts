@@ -123,7 +123,7 @@ let AtomMark = Mark.define("AtomMark", {
   shape: {element: "atom-mark"}
 }), ap = builder(AtomMark)
 
-let schema = Schema.define([...basicSchema.tags, ...basicSchema.marks, TextOnly,
+let schema = Schema.define([...basicSchema.nodes, ...basicSchema.marks, TextOnly,
                             BlockMark, PreservedMark, InlineSpan, InlineAtom, AtomMark])
 let doc = builder(schema)
 
@@ -640,7 +640,7 @@ describe("unwrapBlock", () => {
   it("can unwrap textblock list items", () => {
     let item = Plot.define("Item", {shape: {element: "li"}, inlineContent: true})
     let list = Plot.define("List", {shape: {element: "ul"}, group: Node.Group.Content, blockContent: item})
-    let s = Schema.define([...basicSchema.tags, list, item])
+    let s = Schema.define([...basicSchema.nodes, list, item])
     let state = GardState.create({
       doc: s.doc([list.create([item.create([Leaf.text("a")]), item.create([Leaf.text("b")])])]),
       selection: {anchor: 0, head: 8}

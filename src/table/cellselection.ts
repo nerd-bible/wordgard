@@ -91,7 +91,7 @@ const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((wg, event) => 
 })
 
 export class CellSelection extends GardSelection {
-  constructor(
+  private constructor(
     anchor: number,
     head: number,
     readonly anchorCell: number,
@@ -200,7 +200,7 @@ export class CellSelection extends GardSelection {
 
   static extension = [
     GardSelection.define<CellSelection, {anchor: number, head: number}>(
-      "cell", CellSelection,
+      "cell", CellSelection as any,
       sel => ({anchor: sel.anchor, head: sel.head}),
       (doc, json) => {
         if (!json || typeof json.anchor != "number" || typeof json.head != "number")

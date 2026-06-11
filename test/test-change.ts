@@ -154,7 +154,7 @@ describe("ChangeSet", () => {
         group: Node.Group.Content,
         shape: {element: "wrapper"}
       })
-      let schema = Schema.define([...basicSchema.tags, Wrapper, Inner])
+      let schema = Schema.define([...basicSchema.nodes, Wrapper, Inner])
       let doc = schema.doc([p()]), ch = ChangeSet.create(doc, {from: 0, insert: slice(Inner), fit: true})
       ist(ch.apply(doc), schema.doc([Wrapper.create([Inner]), p()]), eq)
     })

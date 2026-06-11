@@ -558,6 +558,7 @@ export namespace GardState {
   }
 
   export class Configuration {
+    /// @internal
     readonly statusTemplate: SlotStatus[] = []
 
     private constructor(

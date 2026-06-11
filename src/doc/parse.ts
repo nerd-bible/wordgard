@@ -125,7 +125,7 @@ export namespace parse {
         if (cached) return cached
 
         let rules: Rule[] = []
-        for (let tag of schema.tags) {
+        for (let tag of schema.nodes) {
           let {spec: {shape, parseRules}} = tag
           if ("element" in shape && shape.element && (shape.readElement || tag.default)) rules.push({
             selector: shape.selector || shape.element,
@@ -490,7 +490,7 @@ function guessParent(content: DocumentFragment | Element, schema: Schema) {
   }
   explore(content)
   let best: Plot.Tag.Any | undefined, bestCost = 0
-  for (let parent of schema.tags) if (parent.isPlot && parent.default) {
+  for (let parent of schema.nodes) if (parent.isPlot && parent.default) {
     let cost = parent.isDoc ? -1 : 0
     for (let child of tags) {
       let fit = schema.findWrapping(parent, child)

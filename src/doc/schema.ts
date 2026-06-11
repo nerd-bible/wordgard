@@ -3,35 +3,45 @@ import {Mark} from "./mark"
 import {none, validate} from "./helper"
 import {SchemaError, ValidationError} from "./error"
 
+/// A schema is a collection of node and mark types, including exactly
+/// one document type, plus an optional set of {@link Schema.Override
+/// overrides} that modify the relations between those elements. It
+/// determines what kind of elements may occur in documents that
+/// follow this schema, and where they can show up.
 export class Schema {
-  private tagsByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
+  private nodesByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
   private marksByName: {[name: string]: Mark.Type<any>} = Object.create(null)
   private wrappingCache: {[key: string]: readonly Plot.Tag.Any[] | null} = Object.create(null)
   private validated: WeakSet<Node> = new WeakSet
-  readonly docTag: Plot.Tag<null>
-  /// All the schema elements that make up this schema. Useful if you
-  /// want to include the schema as a whole in an editor configuration.
-  elements: readonly Schema.Element[]
 
   private constructor(
-    readonly tags: readonly Node.Type<unknown>[],
+    /// All the schema elements that make up this schema. Useful if you
+    /// want to base another schema on this one.
+    readonly elements: readonly Schema.Element[],
+    /// The node types that are part of this schema.
+    readonly nodes: readonly Node.Type<unknown>[],
+    /// Mark types used in this schema.
     readonly marks: readonly Mark.Type<any>[],
-    readonly plotContent: Map<Plot.Type<any>, Node.Query>,
-    readonly markTarget: Map<Mark.Type<any>, Node.Query>,
-    readonly nodeGroup: Map<Node.Type<any>, Set<Node.Group>>,
-    docType: Plot.Type<null>,
+    private plotContent: Map<Plot.Type<any>, Node.Query>,
+    private markTarget: Map<Mark.Type<any>, Node.Query>,
+    private nodeGroup: Map<Node.Type<any>, Set<Node.Group>>,
+    /// The plot tag used by documents in this schema.
+    readonly docTag: Plot.Tag<null>,
+    /// The {@link Node.Role.LineBreak line break} node defined in
+    /// this schema, if any.
     readonly lineBreak: Leaf<unknown> | null
   ) {
-    this.docTag = docType.default!
-    for (let tag of tags) this.tagsByName[tag.name] = tag
+    for (let tag of nodes) this.nodesByName[tag.name] = tag
     for (let mark of marks) this.marksByName[mark.name] = mark
-    this.elements = (tags as Schema.Element[]).concat(marks)
   }
 
+  /// Create a document in this schema.
   doc(children: readonly Node[]) {
     return Plot.Doc.new(this, children)
   }
 
+  /// Validate that a node and its content conform to this schema.
+  /// Will run automatically when creating a document.
   validate(node: Node) {
     if (this.validated.has(node)) return
     if (node.isLeaf) {
@@ -51,7 +61,7 @@ export class Schema {
 
   /// @internal
   validateTag(tag: Node | Plot.Tag.Any) {
-    if (this.tagsByName[tag.name] != tag.type)
+    if (this.nodesByName[tag.name] != tag.type)
       throw new ValidationError(`Tag type ${tag.name} not in schema`)
     for (let mark of tag.marks) this.validateMark(mark, tag.type)
   }
@@ -66,15 +76,13 @@ export class Schema {
 
   /// Test whether the given mark or tag type is included in this
   /// schema.
-  has(elt: Mark<any> | Mark.Type<any> | Node.Tag | Node.Type<any>) {
+  has(elt: Mark<any> | Mark.Type<any> | Node.Type.Ref<any>) {
     if (elt instanceof Mark || elt instanceof BaseTag) elt = elt.type
-    if (elt instanceof Mark.Type) return this.marksByName[elt.name] == elt
-    return this.tagsByName[elt.name] == elt
+    return (elt instanceof Mark.Type ? this.marksByName : this.nodesByName)[elt.name] == elt
   }
 
-  /// Test whether a node type matches the given group query. When
-  /// multiple group names, separated by spaces, are given, this
-  /// tests whether the node is in _all_ of those groups.
+  /// Test whether a node type matches the given {@link Node.Query
+  /// node query}.
   matchNode(node: Node.Type<any>, q: Node.Query): boolean {
     if (q instanceof Node.Group) {
       let groups = this.nodeGroup.get(node)
@@ -86,16 +94,22 @@ export class Schema {
     return (q as readonly Node.Query[]).some(q => this.matchNode(node, q))
   }
 
+  /// Test whether the given mark is allowed on the given node type.
   markAllowed(mark: Mark.Type<any>, node: Node.Type<any>) {
     let target = this.markTarget.get(mark)
     return target ? this.matchNode(node, target) : false
   }
 
+  /// Returns true if there's at least one node type in the schema
+  /// that may occur in both `a` and `b`.
   sharesContent(a: Plot.Type<any>, b: Plot.Type<any>) {
-    for (let tp of this.tags) if (this.canContain(a, tp) && this.canContain(b, tp)) return true
+    for (let tp of this.nodes) if (this.canContain(a, tp) && this.canContain(b, tp)) return true
     return false
   }
 
+  /// Returns a copy of `to` with all the marks from `from` that it
+  /// doesn't already have, and that aren't dropped by the mark's
+  /// {@link Mark.Spec.keepOnTypeChange} configuration.
   withMarksFrom<T extends Node.Tag>(from: Node.Tag, to: T): T {
     if (!from.marks.length) return to
     let marks = to.marks
@@ -107,33 +121,44 @@ export class Schema {
     return to.withMarks(marks) as T
   }
 
+  /// Check whether a given plot type can contain a given node type.
   canContain(parent: Plot.Type<any>, child: Node.Type<any>) {
     if (child.isPlot && child.isDoc) return false
     let content = this.plotContent.get(parent)
     return content ? this.matchNode(child, content) : false
   }
 
+  /// Return the first {@link Leaf.Type.default defaultable} node tag that
+  /// can occur as a child of `parent`.
   defaultContentTag(parent: Plot.Type<any>): Node.Tag | null {
-    for (let tag of this.tags) if (tag.default && this.canContain(parent, tag)) return tag.default
+    for (let tag of this.nodes) if (tag.default && this.canContain(parent, tag)) return tag.default
     return null
   }
 
+  /// Return the first {@link Plot.Type.default defaultable} plot tag
+  /// that can be a child of `parent`.
   defaultContentPlot(parent: Plot.Type<any>): Plot.Tag.Any | null {
-    for (let tag of this.tags) if (tag.default && tag.isPlot && this.canContain(parent, tag)) return tag.default
+    for (let tag of this.nodes) if (tag.default && tag.isPlot && this.canContain(parent, tag)) return tag.default
     return null
   }
 
+  /// @internal
   createDefault(parent: Plot.Type<any>): Node {
     let child = this.defaultContentTag(parent)
     if (!child) throw new Error(`No defaultable child node for ${parent.name}`)
     return this.createAndFill(child)
   }
 
+  /// Create a node from a tag, optionally adding a default child if
+  /// this is a plot that cannot be empty.
   createAndFill(parent: Node.Tag): Node {
     if (parent.isLeaf) return parent
     return parent.create(parent.type.canBeEmpty ? [] : [this.createDefault(parent.type)])
   }
 
+  /// Find a set of tags that `child` must be wrapped in to be able to
+  /// occur in `parent`. Will return the empty array if it fits
+  /// directly, and `null` if it cannot occur at all.
   findWrapping(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag.Any[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
@@ -144,7 +169,7 @@ export class Schema {
     let seen: Set<Node.Type<unknown>> = new Set, work: Plot.Tag.Any[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
-      for (let tag of this.tags) if (this.canContain(at, tag)) {
+      for (let tag of this.nodes) if (this.canContain(at, tag)) {
         if (tag == child) return path
         if (!seen.has(tag) && !tag.isLeaf && tag.default) {
           seen.add(tag)
@@ -155,8 +180,15 @@ export class Schema {
     return null
   }
 
-  getMark(name: string): Mark.Type<any> | undefined { return this.marksByName[name] }
+  /// Get the mark type with the given name in this schema.
+  getMark(name: string): Mark.Type<unknown> | undefined { return this.marksByName[name] }
 
+  /// Get the node type with the given name.
+  getNode(name: string): Node.Type<unknown> | undefined { return this.nodesByName[name] }
+
+  /// Define a schema from a set of schema elements. The set must
+  /// contain precisely one document type, and no conflicting node or
+  /// mark names.
   static define(spec: readonly Schema.Element[]) {
     let cached = findCachedSchema(spec)
     if (cached) return cached
@@ -169,9 +201,11 @@ export class Schema {
     let nodeGroup = new Map<Node.Type<any>, Set<Node.Group>>()
     nodeGroup.set(Leaf.Text, new Set([Node.Group.Inline, Node.Group.Leaf, Node.Group.All]))
     let overrides: Schema.Override[] = spec.filter(e => e instanceof Schema.Override).reverse()
+    let elements: (Node.Type<any> | Mark.Type<any> | Schema.Override)[] = []
 
     for (let e of spec) {
       let elt = normalizeElt(e)
+      elements.push(elt)
       if (elt instanceof Plot.Type || elt instanceof Leaf.Type) {
         if (tags.includes(elt)) continue
         if (tagNames.has(elt.name)) throw new SchemaError(`Duplicate use of tag name ${elt.name} in schema`)
@@ -208,7 +242,7 @@ export class Schema {
         throw new SchemaError("Unexpected schema element type. You may have multiple versions of @wordgard/doc loaded")
       }
     }
-    let docTag: Plot.Type<null> | null = null
+    let docType: Plot.Type<null> | null = null
     let lineBreak: Leaf<any> | null = null
     for (let tag of tags) {
       if (tag.isLeaf) {
@@ -220,13 +254,14 @@ export class Schema {
         }
       } else {
         if (tag.isDoc) {
-          if (docTag) throw new SchemaError("Multiple document tags specified")
-          docTag = tag
+          if (docType) throw new SchemaError("Multiple document types specified")
+          docType = tag
         }
       }
     }
-    if (!docTag) throw new SchemaError("A schema must define a document tag")
-    let schema = new Schema(tags, marks, plotContent, markTarget, nodeGroup, docTag, lineBreak as Leaf<unknown> | null)
+    if (!docType) throw new SchemaError("A schema must define a document type")
+    let schema = new Schema(elements, tags, marks, plotContent, markTarget, nodeGroup,
+                            docType.default!, lineBreak as Leaf<unknown> | null)
     for (let tag of tags) if (tag.isPlot) {
       let sawDefaultable = false
       for (let child of tags) if (schema.canContain(tag, child)) {
@@ -242,30 +277,7 @@ export class Schema {
     return schema
   }
 
-  static setMarkTarget(mark: Mark.Type<any> | Mark<any>, target: Node.Query | ((target: Node.Query) => Node.Query)) {
-    return Schema.Override.new(mark instanceof Mark ? mark.type : mark, typeof target == "function" ? target : () => target)
-  }
-
-  static setPlotContent(plot: Plot.Type<any> | Plot.Tag<any>, content: Node.Query | ((content: Node.Query) => Node.Query)) {
-    return Schema.Override.new(plot instanceof Plot.Tag ? plot.type : plot,
-                               undefined, typeof content == "function" ? content : () => content)
-  }
-
-  static setNodeGroup(node: Node.Type<any> | Node.Tag, group: Node.Group | readonly Node.Group[]) {
-    return Schema.Override.new(node instanceof BaseTag ? node.type : node as Node.Type<any>,
-                               undefined, undefined, group instanceof Node.Group ? [group] : group)
-  }
-
-  append(other: Schema | readonly Schema.Element[]) {
-    let add: Schema.Element[] = []
-    for (let elt of (other instanceof Schema ? other.elements : other)) {
-      if (elt instanceof Leaf || elt instanceof Plot.Tag || elt instanceof Mark) elt = elt.type
-      if (elt instanceof Schema.Override ? !this.elements.includes(elt) :
-          (elt instanceof Mark.Type ? this.marksByName : this.tagsByName)[elt.name] != elt) add.push(elt)
-    }
-    return add.length ? Schema.define(this.elements.concat(add)) : this
-  }
-
+  /// Deserialize a node from its JSON representation.
   nodeFromJSON(json: Node.JSON): Node {
     let tag = this.tagFromJSON(json), children = none
     if (tag.isLeaf) return tag
@@ -275,10 +287,11 @@ export class Schema {
     return tag.create(children)
   }
 
+  /// Deserialize a tag from its JSON representation.
   tagFromJSON(json: Node.JSON) {
-    if (!json || typeof json != "object" || !(json.type in this.tagsByName))
+    if (!json || typeof json != "object" || !(json.type in this.nodesByName))
       throw new ValidationError("Invalid tag JSON")
-    let type = this.tagsByName[json.type]
+    let type = this.nodesByName[json.type]
     let marks = json.marks ? this.marksFromJSON(json.marks) : none
     let tag = "param" in json ? type.of(validate(type.spec.validateParam, json.param), marks)
       : !type.default ? null
@@ -287,6 +300,7 @@ export class Schema {
     return tag
   }
 
+  /// Read a set of marks from their JSON representation.
   marksFromJSON(json: Record<string, any>): Mark.Set {
     if (!json || typeof json != "object") throw new ValidationError("Invalid mark JSON")
     let marks = none
@@ -298,6 +312,7 @@ export class Schema {
     return marks
   }
 
+  /// Read a document from JSON.
   docFromJSON(json: Node.JSON) {
     if (!json || json.type != this.docTag.name)
       throw new ValidationError("Invalid document JSON")
@@ -327,29 +342,51 @@ function normalizeElt(elt: Schema.Element): Node.Type<any> | Mark.Type<any> | Sc
 }
 
 export namespace Schema {
-  export type Element = Leaf.Any | Plot.Tag.Any | Node.Type<any> | Mark<any> | Mark.Type<any> | Schema.Override
+  /// A schema element is any node tag or type, mark or mark type, or
+  /// override.
+  export type Element = Node.Tag | Node.Type<any> | Mark<any> | Mark.Type<any> | Schema.Override
 
+  /// Though nodes and marks are mostly self-contained, a few of their
+  /// aspects can be overridden per schema.
   export class Override {
     private constructor(
+      /// @internal
       readonly type: Mark.Type<any> | Node.Type<any>,
+      /// @internal
       readonly target?: (query: Node.Query) => Node.Query,
+      /// @internal
       readonly content?: (query: Node.Query) => Node.Query,
+      /// @internal
       readonly group?: readonly Node.Group[]
     ) {}
 
     /// @internal
-    static new(
-      type: Mark.Type<any> | Node.Type<any>,
-      target?: (query: Node.Query) => Node.Query,
-      content?: (query: Node.Query) => Node.Query,
-      group?: readonly Node.Group[]
-    ) {
-      return new Override(type, target, content, group)
-    }
-
     eq(other: Schema.Override) {
       return this == other || this.type == other.type && this.target == other.target && this.content == other.content &&
         this.group == other.group
+    }
+
+    /// @hidden
+    declare tag: "schema.override"
+
+    /// Create a schema override that changes the target nodes for a
+    /// mark.
+    static markTarget(mark: Mark.Type<any> | Mark<any>, target: Node.Query | ((target: Node.Query) => Node.Query)) {
+      return new Schema.Override(mark instanceof Mark ? mark.type : mark, typeof target == "function" ? target : () => target)
+    }
+
+    /// Create a schema override that changes the content specification
+    /// for a given node. Note that this can not change a node with
+    /// inline content to block content or vice versa.
+    static plotContent(plot: Plot.Type<any> | Plot.Tag<any>, content: Node.Query | ((content: Node.Query) => Node.Query)) {
+      return new Schema.Override(plot instanceof Plot.Tag ? plot.type : plot,
+                                 undefined, typeof content == "function" ? content : () => content)
+    }
+
+    /// Override the set of groups that a node may be part of.
+    static nodeGroup(node: Node.Type<any> | Node.Tag, group: Node.Group | readonly Node.Group[]) {
+      return new Schema.Override(node instanceof BaseTag ? node.type : node as Node.Type<any>,
+                                 undefined, undefined, group instanceof Node.Group ? [group] : group)
     }
   }
 }

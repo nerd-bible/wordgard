@@ -2,19 +2,30 @@ import type {Node as _Node, Plot as _Plot, Leaf} from "./node"
 import {Mark} from "./mark"
 import {none} from "./helper"
 
-/// FIXME doc
+/// This class represents a {@link Plot.Doc.resolve resolved}
+/// position.
 export class Pos {
   private constructor(
+    /// The plot that the position points into.
     readonly parent: Pos.Plot,
+    /// The position itself.
     readonly pos: number,
+    /// The index into its parent's content array. Note that if
+    /// `inText` is non-zero, this is the index of the text node.
     readonly index: number,
+    /// Text nodes don't count as parent plots. Rather, positions that
+    /// fall inside a text node have a non-zero value here that
+    /// provides the offset into the text node.
     readonly inText: number
   ) {}
 
+  /// @internal
   static create(parent: Pos.Plot, pos: number, index: number, inText: number) {
     return new Pos(parent, pos, index, inText)
   }
 
+  /// Find the innermost parent plot for which the given predicate
+  /// returns true.
   matchingParent(pred: (plot: _Plot) => boolean) {
     for (let {parent} = this;;) {
       if (pred(parent.node)) return parent
@@ -23,25 +34,41 @@ export class Pos {
     }
   }
 
+  /// Move ahead through the document the given number of positions.
+  /// Don't descend into nodes that fall entirely within the skipped
+  /// range. If `walk` is given, call methods on it for each node
+  /// entered, skipped, or left. Return a new position at the end of
+  /// the range.
   advance(distance: number, walk?: Pos.Walker) {
     return distance ? advancePos(distance, this.parent, this.pos, this.index, this.inText, walk) : this
   }
 
+  /// Move ahead through the document, always entering every plot. If
+  /// `walk` is given, call methods on it for each node or node
+  /// boundary passed. Return a new position.
   walk(distance: number, walk: Pos.Walker) {
     return distance ? advancePos(distance, this.parent, this.pos, this.index, this.inText, walk, true) : this
   }
 
+  /// Get the node directly after this position. If `inText` is
+  /// non-zero, return only the part of the text node that's after the
+  /// position.
   get nodeAfter(): _Node | null {
     if (this.index == this.parent.node.content.length) return null
     let node = this.parent.node.content[this.index]
     return this.inText ? (node as Leaf<string>).sliceText(this.inText) : node
   }
 
+  /// Get the node directly before this position. If `inText` is
+  /// non-zero, return only the part of the text node before the
+  /// position.
   get nodeBefore(): _Node | null {
     if (this.inText) return (this.parent.node.content[this.index] as Leaf<string>).sliceText(0, this.inText)
     return this.index ? this.parent.node.content[this.index - 1] : null
   }
 
+  /// Get the nearest parent that is a {@link Plot.isTextblock
+  /// textblock}.
   get textblockParent() {
     for (let p: Pos.Plot | null = this.parent;; p = p.parent) {
       if (!p || !p.node.inlineContent) return null
@@ -49,6 +76,11 @@ export class Pos {
     }
   }
 
+  /// Get the depth of this position (the amount of plots that wrap
+  /// it, not counting the document).
+  get depth() { return this.parent.depth }
+
+  /// Get the parent plot at the given depth.
   parentAt(depth: number) {
     let d = this.depth
     if (depth > d) throw new RangeError("Asking for parent deeper than position depth")
@@ -56,43 +88,47 @@ export class Pos {
       if (d == depth) return p
   }
 
+  /// Returns true if this position is right at the start of the given
+  /// parent plot, or transitively at the start of its first child.
   isAtStart(parent: Pos.Plot) {
     if (this.inText) return false
     for (let p: Pos.Plot | null = this.parent, index = this.index;; index = p.index, p = p.parent) {
       if (!p || index) return false
-      if (p == parent) return true
+      if (p.pos == parent.pos) return true
     }
   }
 
+  /// Returns true if this position is right at the end of the given
+  /// parent plot, or transitively at the end of its last child.
   isAtEnd(parent: Pos.Plot) {
     if (this.inText) return false
     for (let p: Pos.Plot | null = this.parent, index = this.index;; index = p.index + 1, p = p.parent) {
       if (!p || index < p.node.content.length) return false
-      if (p == parent) return true
+      if (p.pos == parent.pos) return true
     }
   }
 
-  get depth() { return this.parent.depth }
-
+  /// Get the document that this position points into.
   get doc() { return this.parent.doc }
 
+  /// Get the set of active inline marks at this position or, if
+  /// `across` is given, the marks that would apply to content
+  /// replacing the range between that `this` and `across`.
   marks(across?: Pos) {
     if (this.inText && (!across || across.pos == this.pos)) return this.parent.node.content[this.index].tag.marks
     let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
+    if (!from.parent.node.inlineContent || !to.parent.node.inlineContent) return Mark.none
     let before = from.nodeBefore, after = to.nodeAfter
     let [main, sec]: [Mark.Set, Mark.Set] =
       before ? [before.tag.marks, after ? after.tag.marks : none] : [after ? after.tag.marks : none, none]
     return main.filter(p => p.spanning && (p.type.inclusive || p.isInSet(sec)))
   }
 
-  static atStart(doc: _Plot.Doc) {
-    return Pos.create(cacheFor(doc).top, 0, 0, 0)
-  }
-
   /// @internal
   static resolve(doc: _Plot.Doc, pos: number): Pos {
     if (pos < 0 || pos > doc.length) throw new RangeError(`Resolving invalid position ${pos}`)
     let {top, cache} = cacheFor(doc), nearest: Pos | undefined, nearestDist = 0, result
+    if (pos == 0) return Pos.create(top, 0, 0, 0)
     for (let elt of cache) {
       if (elt.pos == pos) return elt
       let dist = Math.abs(elt.pos - pos)
@@ -122,41 +158,60 @@ export class Pos {
 }
 
 export namespace Pos {
+  /// Interface for the walker object that can be passed to {@link
+  /// Pos.advance `Pos.advance`} and {@link Pos.walk}.
   export interface Walker {
+    /// Called when a node is skipped over. Will only be called for
+    /// leaves when using {@link Pos.walk}.
     skip(node: _Node, pos: number, parent: Pos.Plot, index: number): void
+    /// Called when a plot is entered.
     enterPlot(node: _Plot, pos: number, parent: Pos.Plot, index: number): void | boolean
-    leavePlot(tag: _Plot.Tag.Any | undefined, pos: number, parent: Pos.Plot | null, index: number): void
+    /// Called when leaving a plot.
+    leavePlot(tag: _Plot.Tag.Any, pos: number, parent: Pos.Plot, index: number): void
   }
 
+  /// Represents the position of a node, with information about its
+  /// parent plots.
   export class Node {
+    /// @hidden
     protected constructor(
+      /// The node's direct parent.
       readonly parent: Pos.Plot | null,
+      /// The node object.
       readonly node: _Node,
       /// @internal
       readonly pos: number,
+      /// The node's index in its parent plot.
       readonly index: number
     ) {}
 
+    /// @internal
     static create(parent: Pos.Plot | null, node: _Node, pos: number, index: number) {
       return new Node(parent, node, pos, index)
     }
 
+    /// The position before the node. Will raise an error if this is
+    /// the document top node.
     get before() {
       if (this.pos < 0) throw new RangeError("Accessing `before` on the top level node")
       return this.pos
     }
 
+    /// The position after the node. Throws if this is a document.
     get after() {
       if (this.pos < 0) throw new RangeError("Accessing `after` on the top level node")
       return this.pos + this.node.length
     }
 
+    /// The depth of this node (the number of parent nodes, not
+    /// counting the document).
     get depth() {
       let d = 0
       for (let n: Pos.Node = this; n.parent; n = n.parent) d++
       return d
     }
 
+    /// The document that this position points into.
     get doc(): _Plot.Doc {
       let n: Pos.Node = this
       while (n.parent) n = n.parent
@@ -164,13 +219,19 @@ export namespace Pos {
       return n.node as _Plot.Doc
     }
 
+    /// Returns true if this is either a document node or the first
+    /// node in its parent.
     get isFirst() { return !this.parent || this.index == 0 }
+    /// Returns true if this is a document node or the last node in its parent.
     get isLast() { return !this.parent || this.index == this.parent.node.content.length - 1 }
 
+    /// The node before this one, if any.
     get nextSibling() { return this.isLast ? null : this.parent!.node.content[this.index + 1] }
+    /// The node after this node, if any.
     get previousSibling() { return this.isFirst ? null : this.parent!.node.content[this.index - 1] }
   }
 
+  /// Subclass of {@link Pos.Node} that points at a plot node.
   export class Plot extends Pos.Node {
     declare node: _Plot
     
@@ -183,12 +244,15 @@ export namespace Pos {
       super(parent, node, pos, index)
     }
 
+    /// @internal
     static create(parent: Pos.Plot | null, node: _Plot, pos: number, index: number) {
       return new Plot(parent, node, pos, index)
     }
-    
+
+    /// The position at the start of this plot's content.
     get start() { return this.pos + 1 }
 
+    /// The position at end of this plot's content.
     get end() { return this.pos + 1 + this.node.contentLength }
   }
 

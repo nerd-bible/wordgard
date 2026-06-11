@@ -23,7 +23,7 @@ let InlineB = Plot.define("InlineB", {
   shape: {element: "span"}
 }), b = builder(InlineB)
 
-const schema = Schema.define([...basicSchema.tags, ...basicSchema.marks, Iso, InlineA, InlineB,
+const schema = Schema.define([...basicSchema.nodes, ...basicSchema.marks, Iso, InlineA, InlineB,
                               Table, TableRow, Cell, HeaderCell])
 const doc = builder(schema)
 

@@ -1,7 +1,7 @@
 import {Plot, Node} from "./node"
 import {Mark, subtractSet} from "./mark"
 import {Schema} from "./schema"
-import {Slice, Token} from "./slice"
+import {Slice, SliceWalker, Token} from "./slice"
 import {Pos} from "./pos"
 import {validate} from "./helper"
 import {ValidationError} from "./error"
@@ -11,7 +11,7 @@ class BuildContext {
   constructor(readonly tag: Plot.Tag.Any, readonly parent: BuildContext | null) {}
 }
 
-class Builder implements Pos.Walker, Slice.Walker {
+class Builder implements Pos.Walker, SliceWalker {
   stack: BuildContext
   modifications: readonly Modification[] | null = null
   schema: Schema
@@ -181,7 +181,7 @@ export class ChangeSet {
     if (cached && doc.eq(cached.a)) return cached.b
 
     let builder = new Builder(doc)
-    let cursor = Pos.atStart(doc)
+    let cursor = doc.resolve(0)
     for (let i = 0, iS = 0; i < this.data.length; i++) {
       let lenA = this.sections[iS++], lenB = this.sections[iS++]
       if (lenB < 0) {
@@ -842,7 +842,7 @@ class ChangeFitter implements Pos.Walker {
   constructor(doc: Plot.Doc, readonly local: boolean) {
     this.schema = doc.schema
     this.stack = new FitLevel(doc.tag, null)
-    this.inputPos = this.delInputPos = Pos.atStart(doc)
+    this.inputPos = this.delInputPos = doc.resolve(0)
   }
 
   getPos(at: number) {

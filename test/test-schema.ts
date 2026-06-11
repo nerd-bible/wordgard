@@ -40,7 +40,7 @@ describe("Schema", () => {
       Paragraph,
       Strong,
       Plot.defineDoc({blockContent: Paragraph}),
-      Schema.setMarkTarget(Strong, Paragraph)
+      Schema.Override.markTarget(Strong, Paragraph)
     ])
     ist(builder(s)(strong(p("hi"))).toString(), 'Doc(Paragraph[Strong]("hi"))')
     ist.throws(() => builder(s)(p(strong("hi"))))
@@ -51,16 +51,10 @@ describe("Schema", () => {
       Paragraph,
       Image,
       Plot.defineDoc({blockContent: Paragraph}),
-      Schema.setPlotContent(Paragraph, Leaf.Text)
+      Schema.Override.plotContent(Paragraph, Leaf.Text)
     ])
     builder(s)(p("hi"))
     ist.throws(() => builder(s)(p($img)))
-  })
-
-  it("can append elements", () => {
-    let Thing = Leaf.define("Thing", {group: Node.Group.Content, shape: {element: "thing"}})
-    let schema = basicSchema.append([Thing])
-    ist(builder(schema)(p("one"), builder(Thing)).toString(), 'Doc(Paragraph("one"),Thing)')
   })
 
   describe("validate", () => {

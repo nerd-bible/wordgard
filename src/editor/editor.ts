@@ -770,7 +770,7 @@ export class Wordgard {
 }
 
 export namespace Wordgard {
-  /// The type of object given to the {@link Wordgard} constructor.
+  /// The type of object given to {@link Wordgard.create}.
   export interface Spec extends Partial<GardState.Spec> {
     /// The editor's initial state. If not given, a new state is
     /// created by passing this configuration object to {@link
