@@ -341,7 +341,7 @@ export class DocTile extends CompositeTile {
   constructor(
     readonly state: GardState,
     dom: Element,
-    readonly cursorWrapper: readonly Mark<any>[] | null,
+    readonly cursorWrapper: Mark.Set | null,
     readonly decoSet: DecoSet
   ) {
     super(dom, TileFlag.PlotContent)
@@ -803,7 +803,7 @@ class ContentUpdate {
   reused = new Map<Tile, Reused>()
   keepWalker: TileWalker
 
-  constructor(readonly state: GardState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: readonly Mark<any>[] | null) {
+  constructor(readonly state: GardState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: Mark.Set | null) {
     this.old = new TilePointer(old, 0, null)
     this.new = new DocTile(state, old.dom as Element, cursorWrapper, deco.decoSet)
     this.keepWalker = {

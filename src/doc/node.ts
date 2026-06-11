@@ -63,7 +63,7 @@ export abstract class BaseTag<Param> {
 
     constructor(
       readonly param: Param,
-      readonly marks: readonly Mark[]
+      readonly marks: Mark.Set
     ) {}
 
   mark<Value>(mark: Mark.Type<Value>): Value | undefined {
@@ -113,7 +113,7 @@ export namespace Node {
     eq(other: Node): boolean
     /// Create a copy of this node with the given set of marks instead
     /// of its current mark set.
-    withMarks(marks: readonly Mark<unknown>[]): Node
+    withMarks(marks: Mark.Set): Node
     /// @internal
     pushTo(nodes: Node[]): void
     /// True when this is a leaf node. TypeScript will automatically
@@ -159,7 +159,7 @@ export namespace Node {
         /// The tag parameter. Will be `null` for parameter-less types.
         param: Param
       /// The set of marks for this tag.
-      marks: readonly Mark[]
+      marks: Mark.Set
       /// The name of the tag's type.
       name: string
 
@@ -323,13 +323,13 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
     /// This leaf's type.
     readonly type: Leaf.Type<Param>,
     param: Param,
-    marks: readonly Mark<unknown>[]
+    marks: Mark.Set
   ) {
     super(param, marks)
   }
 
   /// @internal
-  static new<Param>(type: Leaf.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+  static new<Param>(type: Leaf.Type<Param>, param: Param, marks: Mark.Set) {
     return new Leaf(type, param, marks)
   }
 
@@ -348,7 +348,7 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
     return Leaf.Type.new<null>(name, flagsFor(spec) | NodeFlag.NullParam, spec).default!
   }
 
-  withMarks(marks: readonly Mark<unknown>[]) {
+  withMarks(marks: Mark.Set) {
     return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
   }
 
@@ -387,7 +387,7 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
   }
 
   /// Create a text node with the given text and mark set.
-  static text(text: string, marks: readonly Mark<any>[] = none) {
+  static text(text: string, marks: Mark.Set = Mark.none) {
     return Leaf.Text.of(text, marks)
   }
 
@@ -426,7 +426,7 @@ export namespace Leaf {
     }
 
     /// Create a leaf with this type.
-    of(param: Param, marks: readonly Mark<any>[] = none) {
+    of(param: Param, marks: Mark.Set = Mark.none) {
       if (!marks.length && this.default && compareDeep(this.default.param, param)) return this.default
       return Leaf.new(this, param, marks)
     }
@@ -454,7 +454,7 @@ export namespace Leaf {
   export type Any = Omit<Leaf<unknown>, "type" | "tag" | "withMarks"> & {
     type: Leaf.Type<any>,
     tag: Leaf.Any,
-    withMarks(marks: readonly Mark[]): Leaf.Any
+    withMarks(marks: Mark.Set): Leaf.Any
   }
 
   /// The type of text leaves. Represents a series of characters with
@@ -628,7 +628,7 @@ export class Plot implements Node.Shared {
   /// @internal
   pushTo(nodes: Node[]) { nodes.push(this) }
 
-  withMarks(marks: readonly Mark[]) {
+  withMarks(marks: Mark.Set) {
     return Mark.sameSet(this.tag.marks, marks) ? this : this.tag.withMarks(marks).create(this.content)
   }
 
@@ -663,12 +663,12 @@ export namespace Plot {
   /// A plot tag holds the type of the plot, its parameter (if any),
   /// and a set of marks.
   export class Tag<Param> extends BaseTag<Param> implements Node.Tag.Shared<Param> {
-    private constructor(readonly type: Plot.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+    private constructor(readonly type: Plot.Type<Param>, param: Param, marks: Mark.Set) {
       super(param, marks)
     }
 
     /// @internal
-    static new<Param>(type: Plot.Type<Param>, param: Param, marks: readonly Mark<unknown>[]) {
+    static new<Param>(type: Plot.Type<Param>, param: Param, marks: Mark.Set) {
       return new Tag(type, param, marks)
     }
 
@@ -677,7 +677,7 @@ export namespace Plot {
         compareDeep(this.param, other.param) && Mark.sameSet(this.marks, other.marks)
     }
 
-    withMarks(marks: readonly Mark[]) {
+    withMarks(marks: Mark.Set) {
       return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
     }
 
@@ -724,7 +724,7 @@ export namespace Plot {
     export type Any = Omit<Plot.Tag<unknown>, "type" | "split" | "withMarks"> & {
       type: Plot.Type<any>,
       split(atEnd: boolean): Plot.Tag.Any
-      withMarks(marks: readonly Mark[]): Plot.Tag.Any
+      withMarks(marks: Mark.Set): Plot.Tag.Any
     }
   }
 
@@ -780,7 +780,7 @@ export namespace Plot {
 
     /// Create a plot tag of this type with the given parameter and
     /// mark set.
-    of(param: Param, marks: readonly Mark<any>[] = none) {
+    of(param: Param, marks: Mark.Set = Mark.none) {
       if (!marks.length && this.default && compareDeep(this.default.param, param)) return this.default
       return Plot.Tag.new(this, param, marks)
     }
@@ -951,7 +951,7 @@ function flagsFor(spec: Plot.Spec<any>) {
   return flags
 }
 
-function markString(marks: readonly Mark[]) {
+function markString(marks: Mark.Set) {
   let values: string[] = []
   for (let mark of marks) {
     if (mark.type.default == mark) values.push(mark.type.name)

@@ -80,7 +80,7 @@ export class Pos {
     if (this.inText && (!across || across.pos == this.pos)) return this.parent.node.content[this.index].tag.marks
     let [from, to] = !across ? [this, this] : across.pos > this.pos ? [this, across] : [across, this]
     let before = from.nodeBefore, after = to.nodeAfter
-    let [main, sec]: [readonly Mark[], readonly Mark[]] =
+    let [main, sec]: [Mark.Set, Mark.Set] =
       before ? [before.tag.marks, after ? after.tag.marks : none] : [after ? after.tag.marks : none, none]
     return main.filter(p => p.spanning && (p.type.inclusive || p.isInSet(sec)))
   }

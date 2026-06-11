@@ -206,7 +206,7 @@ class ParseContext {
     this.rules = options.ruleSet || parse.Rule.Set.fromSchema(schema)
   }
 
-  parseChildren(parent: Element | DocumentFragment, marks: readonly Mark[], endOfSlice: boolean,
+  parseChildren(parent: Element | DocumentFragment, marks: Mark.Set, endOfSlice: boolean,
                 ignore?: string | ((elt: Element) => boolean)) {
     for (let ch = parent.firstChild; ch; ch = ch.nextSibling) {
       if (ch.nodeType == 1)
@@ -217,12 +217,12 @@ class ParseContext {
     }
   }
 
-  ignoreElement(elt: Element, marks: readonly Mark[]) {
+  ignoreElement(elt: Element, marks: Mark.Set) {
     if (elt.nodeName == "BR" && !this.top.tag.inlineContent)
       this.findPlace(Leaf.Text.of("-"), marks, false)
   }
 
-  parseElement(elt: Element, marks: readonly Mark[], endOfSlice: boolean) {
+  parseElement(elt: Element, marks: Mark.Set, endOfSlice: boolean) {
     let name = elt.nodeName.toLowerCase()
     if (name in normalizers) normalizers[name](elt)
     let match = this.rules.matchElement(elt)
@@ -249,7 +249,7 @@ class ParseContext {
   }
 
   parseElementByRule(elt: Element, match: {rule: parse.Rule.Element<unknown>, value?: unknown},
-                     marks: readonly Mark[], endOfSlice: boolean) {
+                     marks: Mark.Set, endOfSlice: boolean) {
     let sync, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.plot) {
       let plot = rule.plot instanceof Plot.Tag ? rule.plot :
@@ -283,7 +283,7 @@ class ParseContext {
     if (sync && this.sync(startIn)) this.close()
   }
 
-  parseTextNode(dom: Text, marks: readonly Mark[]) {
+  parseTextNode(dom: Text, marks: Mark.Set) {
     let text = dom.nodeValue!
     if (!this.top.tag.type.preserveWhitespace && this.options.collapseWhiteSpace !== false) {
       // Ignore entirely blank node
@@ -313,7 +313,7 @@ class ParseContext {
     }
   }
 
-  parseAttributes(elt: Element, marks: readonly Mark[]) {
+  parseAttributes(elt: Element, marks: Mark.Set) {
     let matched = new Set<string>(), style = (elt as HTMLElement).style, hasStyles = style && style.length > 0
     for (let rule of this.rules.attributeRules) if (!matched.has(rule.attribute)) {
       let isStyle = /^style\//.test(rule.attribute)
@@ -342,7 +342,7 @@ class ParseContext {
     return marks
   }
 
-  insertNode(node: Node, marks: readonly Mark[]) {
+  insertNode(node: Node, marks: Mark.Set) {
     let innerMarks = this.findPlace(node.tag, marks, false)
     if (innerMarks) {
       let top = this.top
@@ -358,7 +358,7 @@ class ParseContext {
   // context. May add intermediate wrappers and/or leave non-solid
   // nodes that we're in. Returns null if no place could be created, a
   // set of mark values not applied to wrappers otherwise.
-  findPlace(tag: Node.Tag, marks: readonly Mark[], endOfSlice: boolean): readonly Mark[] | null {
+  findPlace(tag: Node.Tag, marks: Mark.Set, endOfSlice: boolean): Mark.Set | null {
     let route, under: NodeContext | undefined
     for (let cx: NodeContext = this.top;; cx = cx.parent!) {
       let found = this.schema.findWrapping(cx.tag.type, tag.type)
@@ -376,7 +376,7 @@ class ParseContext {
     return marks
   }
 
-  enter(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, elt: Element) {
+  enter(tag: Plot.Tag.Any, marks: Mark.Set, endOfSlice: boolean, elt: Element) {
     let innerMarks = this.findPlace(tag, marks, endOfSlice)
     if (innerMarks) innerMarks = this.enterInner(tag, marks, endOfSlice, elt)
     return innerMarks
@@ -384,7 +384,7 @@ class ParseContext {
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(tag: Plot.Tag.Any, marks: readonly Mark[], endOfSlice: boolean, element: Element | null) {
+  enterInner(tag: Plot.Tag.Any, marks: Mark.Set, endOfSlice: boolean, element: Element | null) {
     marks = marks.filter(p => {
       if (!this.schema.markAllowed(p.type, tag.type)) return true
       tag = tag.withMarks(p.addToSet(tag.marks))

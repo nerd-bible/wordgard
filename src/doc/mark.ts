@@ -75,7 +75,7 @@ export class Mark<Value = unknown> {
   /// Add this mark to the given set. Will overwrite existing
   /// instances of the mark in the set, unless this is a {@link
   /// Mark.Spec.set set-valued} mark.
-  addToSet(set: readonly Mark<any>[]): readonly Mark[] {
+  addToSet(set: Mark.Set): Mark.Set {
     let placed: Mark<any> | null = null, copy: Mark<any>[] = []
     for (let i = 0; i < set.length; i++) {
       let other = set[i]
@@ -92,10 +92,10 @@ export class Mark<Value = unknown> {
   }
 
   /// Remove this mark from the given set.
-  removeFromSet(set: readonly Mark<any>[]): readonly Mark[] {
+  removeFromSet(set: Mark.Set): Mark.Set {
     let type = this.type
     for (var i = 0; i < set.length; i++) if (set[i].type == type) {
-      let val = set[i], newSet: readonly Mark<any>[]
+      let val = set[i], newSet: Mark.Set
       if (type.set) {
         let rest = subtractSet(val.value as any[], this.value as any[], type.set)
         if (!rest.length) {
@@ -115,18 +115,18 @@ export class Mark<Value = unknown> {
   }
 
   /// Test whether this mark is in the given set.
-  isInSet(set: readonly Mark<any>[]): Mark<Value> | null {
+  isInSet(set: Mark.Set): Mark<Value> | null {
     for (let v of set) if (v.eq(this)) return v as Mark<Value>
     return null
   }
 
   /// Compare two sets of marks.
-  static sameSet(a: readonly Mark<any>[], b: readonly Mark<any>[]): boolean {
+  static sameSet(a: Mark.Set, b: Mark.Set): boolean {
     return eqArray(a, b)
   }
 
   /// The empty mark set.
-  static none: readonly Mark[] = none
+  static none: Mark.Set = none
 }
 
 export namespace Mark {
@@ -160,18 +160,23 @@ export namespace Mark {
       this.spanning = this.element ? spec.spanning !== false : !!spec.spanning
     }
 
+    /// Create a mark of this type.
     of(value: Value) { return Mark.create(this, value) }
 
+    /// @internal
     compareRank(other: Mark.Type<any>) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
     }
 
-    removeFromSet(set: readonly Mark[]): readonly Mark[] {
+    /// Remove the mark of this type from the given set, if present.
+    removeFromSet(set: Mark.Set): Mark.Set {
       for (var i = 0; i < set.length; i++) if (set[i].type == this) return remove(set, i)
       return set
     }
 
-    isInSet(set: readonly Mark[]): Mark<Value> | null {
+    /// Test whether there is a mark of this type in the given set. If
+    /// so, return it.
+    isInSet(set: Mark.Set): Mark<Value> | null {
       for (let v of set) if (v.type == this) return v as Mark<Value>
       return null
     }
@@ -230,6 +235,10 @@ export namespace Mark {
     /// will automatically be defaulted to the mark type itself.
     parseRules?: readonly (parse.Rule.Element<Value> | parse.Rule.Attribute<Value>)[]
   }
+
+  /// A set of marks is a sorted array in which a given mark type can
+  /// occur at most once.
+  export type Set = readonly Mark[]
 }
 
 class ElementShape<Value> {

@@ -74,8 +74,8 @@ function fromCmd<T>(command: Command.Pure<T>, param?: T) {
   return (state: GardState) => command({state}, param!)
 }
 
-function testSelMarks(before: readonly Mark<any>[] | undefined, f: (state: GardState) => Transaction.Spec | false,
-                      expect: readonly Mark<any>[]) {
+function testSelMarks(before: Mark.Set | undefined, f: (state: GardState) => Transaction.Spec | false,
+                      expect: Mark.Set) {
   let state = GardState.create({
     doc: doc(p()),
     selection: GardSelection.Text.create({anchor: 1, marks: before})

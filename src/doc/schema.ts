@@ -287,7 +287,7 @@ export class Schema {
     return tag
   }
 
-  marksFromJSON(json: Record<string, any>): readonly Mark<undefined>[] {
+  marksFromJSON(json: Record<string, any>): Mark.Set {
     if (!json || typeof json != "object") throw new ValidationError("Invalid mark JSON")
     let marks = none
     for (let name in json) {

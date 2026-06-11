@@ -66,7 +66,7 @@ export function rDoc(minLength: number) {
   }
   do {
     open()
-    let marks: readonly Mark[] = []
+    let marks = Mark.none
     for (let i = 0, elements = r(7); i < elements * 2 - 1; i++) {
       let node: Node
       if (i % 2) {

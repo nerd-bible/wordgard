@@ -72,7 +72,7 @@ export class InputState {
   compositionPendingKey = false
   // Used to smuggle information from beforeinput to input
   pendingComposition: {from: number, to: number, text: string} | null = null
-  wrappingComposition: readonly Mark<any>[] | null = null
+  wrappingComposition: Mark.Set | null = null
 
   mouseSelection: MouseSelection | null = null
   // When a drag from the editor is active, this points at the range
@@ -624,7 +624,7 @@ observers.compositionstart = observers.compositionupdate = (wg, event: Compositi
   if (!wg.inputState.composing) {
     wg.inputState.composing = {changes: 0, target: null}
 
-    let wrap: readonly Mark<any>[] | null = null
+    let wrap: Mark.Set | null = null
     if (!wg.inputState.composing.changes && !event.data) {
       let sel = wg.state.selection, rSel = wg.state.sel
       if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
@@ -665,7 +665,7 @@ export type CompositionInfo = {
   fromA: number, toA: number,
   text: string,
   target: Text | null,
-  wrapCursor?: readonly Mark<any>[] | null
+  wrapCursor?: Mark.Set | null
 }
 
 export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {

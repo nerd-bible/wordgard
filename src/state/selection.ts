@@ -223,14 +223,14 @@ export namespace GardSelection {
       /// Used mostly for making the effect of toggling inline styles
       /// stick until something is inserted. Marks that aren't valid for
       /// the inserted content will be ignored.
-      readonly marks: readonly Mark[] | undefined,
+      readonly marks: Mark.Set | undefined,
     ) {
       super(anchor, head, goalColumn)
     }
 
     /// @internal
     static createInner(anchor: number, head: number, side?: -1 | 1,
-                       goalColumn?: number, marks?: readonly Mark<any>[]) {
+                       goalColumn?: number, marks?: Mark.Set) {
       return new Text(anchor, head, side ?? (head > anchor ? -1 : 1), goalColumn, marks)
     }
 
@@ -288,7 +288,7 @@ export namespace GardSelection {
       /// Marks associated with a cursor selection, which will determine
       /// the marks of inline content inserted at that selection. This is
       /// used for things like toggling emphasis on a cursor selection.
-      marks?: readonly Mark<any>[]
+      marks?: Mark.Set
     }
 
     /// The representation of a text selection when serialized to JSON.
@@ -415,7 +415,7 @@ export namespace GardSelection {
     /// Otherwise, this computes the marks that should be applied to
     /// content inserted in the selection's position, based on
     /// spanning marks on the surrounding nodes.
-    get activeMarks(): readonly Mark[] {
+    get activeMarks(): Mark.Set {
       let repl = this.replacementRange
       return (this.selection instanceof GardSelection.Text && this.selection.marks) || repl.from.marks(repl.to)
     }

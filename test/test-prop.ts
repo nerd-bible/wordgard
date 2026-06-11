@@ -18,13 +18,13 @@ describe("Mark", () => {
        ist(!Link.of("http://foo").eq(Link.of("http://bar"))))
   })
 
-  function set(marks: readonly Mark<any>[]) {
-    let result: readonly Mark<any>[] = []
+  function set(marks: Mark.Set) {
+    let result = Mark.none
     for (let mark of marks) result = mark.addToSet(result)
     return result
   }
 
-  function eqSet(a: readonly Mark<any>[], b: readonly Mark<any>[]) {
+  function eqSet(a: Mark.Set, b: Mark.Set) {
     if (a.length != b.length) return false
     for (let i = 0; i < a.length; i++) if (!a[i].eq(b[i])) return false
     return true
