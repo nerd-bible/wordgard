@@ -200,8 +200,8 @@ describe("parseDoc", () => {
 
   it("uses parse rule precedence", () => {
     let rules = parse.Rule.Set.of([
-      {selector: "p", plot: Paragraph},
-      {selector: "p.h", plot: Heading.of(1), precedence: 2}
+      {selector: "p", tag: Paragraph},
+      {selector: "p.h", tag: Heading.of(1), precedence: 2}
     ])
     ist(parseDoc("<p class=h>H</p>", {ruleSet: rules}), doc(h1("H")), eq)
   })

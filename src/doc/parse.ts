@@ -1,11 +1,15 @@
 import {Schema} from "./schema"
-import {Plot, Node, Leaf} from "./node"
+import {Plot, Node, Leaf, BaseTag} from "./node"
 import {Mark} from "./mark"
 import {Slice, Token} from "./slice"
+import {SchemaError} from "./error"
 
 type DOMNode = InstanceType<typeof window.Node>
 type DOMElement = Element
 
+/// Parse the given DOM structure as a document, using the given
+/// schema. By default the set of parse rules will be derived from the
+/// schema, but it is possible to pass in a custom set.
 export function parse(schema: Schema, doc: Element | DocumentFragment, options: parse.Options = {}) {
   let top = new NodeContext(schema.docTag, CxFlag.Solid, null)
   let cx = new ParseContext(schema, options, top)
@@ -15,6 +19,7 @@ export function parse(schema: Schema, doc: Element | DocumentFragment, options: 
 }
 
 export namespace parse {
+  /// Options that can be passed to parsing functions.
   export type Options = {
     /// Controls whether HTML-style whitespace collapsing is used
     /// (outside nodes that don't enable `preserveWhitespace`). Defaults
@@ -28,6 +33,7 @@ export namespace parse {
     ruleSet?: parse.Rule.Set
   }
 
+  /// Parse the given DOM structure as a slice.
   export function slice(schema: Schema, doc: Element | DocumentFragment, options: parse.Options = {}) {
     let top = new NodeContext(guessParent(doc, schema), CxFlag.Solid | CxFlag.OpenStart | CxFlag.OpenEnd, null)
     let cx = new ParseContext(schema, options, top)
@@ -57,18 +63,46 @@ export namespace parse {
     return {slice: Slice.of(tokens), context}
   }
 
+  /// Parse rules describe how DOM constructs should map to Wordgard
+  /// document nodes. Many can be automatically derived from node and
+  /// mark {@link Node.Spec.shape shapes}, but it is also often
+  /// useful to provide them directly.
   export type Rule<Param = any> = Rule.Element<Param> | Rule.Attribute<Param>
 
   export namespace Rule {
+    /// Describes a rule that matches elements by selector.
     export interface Element<Param> {
+      /// The CSS selector that should match the element.
       selector: string
-      plot?: Plot.Tag<Param> | Plot.Type<Param>
-      leaf?: Leaf<Param> | Leaf.Type<Param>
+      /// If this is a node-creating rule, this holds the type of node
+      /// to create when this rule matches. If this is a node type
+      /// without default parameter, you _must_ also define {@link
+      /// parse.Rule.Element.param} or {@link
+      /// parse.Rule.Element.readElement}.
+      tag?: Leaf<Param> | Plot.Tag<Param> | Node.Type<Param>
+      /// Mark-creating rules should provide a mark or mark type here.
+      /// The mark will be applied to the content of the element.
+      /// Again, if the type lacks a parameter, {@link
+      /// parse.Rule.Element.param} or {@link
+      /// parse.Rule.Element.readElement} will be used to find it.
       mark?: Mark.Type<Param> | Mark<Param>
+      /// Instead of creating a node or mark, rules may tell the
+      /// parser to ignore a given element. `true` means discard it
+      /// entirely, `"skip"` means ignore the element itself, but do
+      /// parse its child nodes.
       ignore?: boolean | "skip"
+      /// A parameter for the tag or mark type.
       param?: Param
-      readElement?: (element: DOMElement) => Param | Rule.Reject
+      /// A function that reads the parameter from the matched
+      /// element. May return {@link parse.Rule.Reject} to indicate
+      /// that the rule should not be applied to this element.
+      readElement?: (element: DOMElement) => Param | typeof Rule.Reject
+      /// An optional CSS selector for finding an additional inner
+      /// element to read marks from.
       marksFrom?: string
+      /// By default, when applying a rule for a plot or mark type,
+      /// parsing continues with the element's direct children. You
+      /// can pass a selector or function here to select another content element.
       contentElement?: string | ((elt: DOMElement) => DOMElement)
       /// Ignore DOM nodes matching this selector or predicate, when
       /// they appear in this plot's content element.
@@ -78,22 +112,40 @@ export namespace parse {
       precedence?: number
     }
 
+    /// An attribute parse rule matches an attribute, instead of an
+    /// entire element. Such a rule can only create marks, not tags.
     export interface Attribute<Param> {
+      /// The attribute to look for. May have the form `style/color`
+      /// to look at a style property instead.
       attribute: string
-      mark?: Mark.Type<Param> | Mark<Param>
-      ignore?: boolean
-      clearMark?: (mark: Mark<unknown>) => boolean
-      param?: Param
+      /// When given, this rule only matches when the attribute has
+      /// this value.
       value?: string
-      readAttribute?: (value: string) => Param | Rule.Reject
+      /// The mark to create for this attribute, if any.
+      mark?: Mark.Type<Param> | Mark<Param>
+      /// Remove a mark from the surrounding set of marks when this
+      /// rule matches.
+      clearMark?: (mark: Mark<unknown>) => boolean
+      /// Can be set to true to cause the parser to ignore this
+      /// attribute.
+      ignore?: boolean
+      /// A parameter to give to the mark type in {@link
+      /// parse.Rule.Attribute.mark}.
+      param?: Param
+      /// Read a parameter value from the attribute value. May return
+      /// {@link parse.Rule.Reject} to prevent the rule from matching.
+      readAttribute?: (value: string) => Param | typeof Rule.Reject
+      /// Controls whether other rules may match this attribute after
+      /// this rule matches. Defaults to true.
       consuming?: boolean
       /// A number between -10 and 10 (inclusive) that specifies the
       /// relative precedence of this rule. Defaults to 0.
       precedence?: number
     }
 
+    /// A special value that parse rule functions can return to block
+    /// the rule from matching.
     export const Reject: unique symbol = Symbol("reject")
-    export type Reject = typeof Rule.Reject
 
     const schemaCache = new WeakMap<Schema, Rule.Set>()
 
@@ -110,7 +162,10 @@ export namespace parse {
       /// @internal
       attributeRules: Rule.Attribute<unknown>[] = []
 
-      private constructor(readonly rules: readonly Rule[]) {
+      private constructor(
+        /// The rules in this set.
+        readonly rules: readonly Rule[]
+      ) {
         for (let rule of rules) addByPrec("selector" in rule ? this.elementRules : this.attributeRules, rule)
       }
 
@@ -130,13 +185,11 @@ export namespace parse {
           if ("element" in shape && shape.element && (shape.readElement || tag.default)) rules.push({
             selector: shape.selector || shape.element,
             readElement: shape.readElement,
-            leaf: tag.isLeaf ? tag : undefined,
-            plot: tag.isLeaf ? undefined : tag
+            tag
           })
           if (parseRules) for (let rule of parseRules) rules.push({
             ...rule,
-            leaf: rule.leaf || (tag.isLeaf ? tag : undefined),
-            plot: rule.plot || (tag.isLeaf ? undefined : tag)
+            tag: rule.tag || tag
           })
         }
         for (let mark of schema.marks) {
@@ -251,21 +304,20 @@ class ParseContext {
   parseElementByRule(elt: Element, match: {rule: parse.Rule.Element<unknown>, value?: unknown},
                      marks: Mark.Set, endOfSlice: boolean) {
     let sync, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
-    if (rule.plot) {
-      let plot = rule.plot instanceof Plot.Tag ? rule.plot :
-        rule.plot instanceof Plot.Type ? (hasValue ? rule.plot.of(match.value) : rule.plot.default) : null
-      if (!plot) throw new Error(`Parse rule for ${rule.selector} is missing a parameter`)
-      let innerMarks = this.enter(plot, marks, endOfSlice, elt)
-      if (innerMarks) {
-        sync = true
-        marks = innerMarks
+    if (rule.tag) {
+      let tag: Node.Tag | null = rule.tag instanceof BaseTag ? rule.tag as Node.Tag :
+        hasValue ? (rule.tag as Node.Type<any>).of(match.value) : (rule.tag as Node.Type<any>).default
+      if (!tag) throw new SchemaError(`Parse rule for ${rule.selector} is missing a parameter`)
+      if (tag.isPlot) {
+        let innerMarks = this.enter(tag, marks, endOfSlice, elt)
+        if (innerMarks) {
+          sync = true
+          marks = innerMarks
+        }
+      } else {
+        this.insertNode(tag, marks)
+        isLeaf = true
       }
-    } else if (rule.leaf) {
-      let leaf = rule.leaf instanceof Leaf ? rule.leaf :
-        rule.leaf instanceof Leaf.Type ? (hasValue ? rule.leaf.of(match.value) : rule.leaf.default) : null
-      if (!leaf) throw new Error(`Parse rule for ${rule.selector} is missing a parameter`)
-      this.insertNode(leaf, marks)
-      isLeaf = true
     } else {
       let mark = rule.mark instanceof Mark ? rule.mark :
         rule.mark instanceof Mark.Type ? (hasValue ? rule.mark.of(match.value) : rule.mark.default) : null
@@ -479,10 +531,8 @@ function guessParent(content: DocumentFragment | Element, schema: Schema) {
       tags.push(Leaf.Text)
     } else if (node.nodeType == 1) {
       let match = rules.matchElement(node as Element)
-      if (match && match.rule.leaf) {
-        tags.push(match.rule.leaf instanceof Leaf ? match.rule.leaf.type : match.rule.leaf)
-      } else if (match && match.rule.plot) {
-        tags.push(match.rule.plot instanceof Plot.Tag ? match.rule.plot.type : match.rule.plot)
+      if (match && match.rule.tag) {
+        tags.push(Node.Type.get(match.rule.tag))
       } else if (!(match && match.rule.ignore)) {
         for (let ch = node.firstChild; ch; ch = ch.nextSibling) explore(ch)
       }
