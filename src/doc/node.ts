@@ -128,7 +128,7 @@ export namespace Node {
   }
 
   /// A node type can be either a leaf type or a plot type.
-  export type Type<T> = Leaf.Type<T> | Plot.Type<T>
+  export type Type<T = unknown> = Leaf.Type<T> | Plot.Type<T>
 
   export namespace Type {
     /// Used as input type by some functions acting on node types, so
@@ -280,7 +280,7 @@ export namespace Node {
   /// (matches types that match any of the queries). An object with an
   /// `and` property indicates an intersection (must match all the
   /// queries).
-  export type Query = Node.Tag | Node.Type<any> | Group | readonly Node.Query[] | {and: readonly Node.Query[]}
+  export type Query = Node.Tag | Node.Type | Group | readonly Node.Query[] | {and: readonly Node.Query[]}
 
   /// Roles are used to add some semantic information to node types.
   /// You can define your own, and use the `hasRole` method to check
@@ -395,7 +395,7 @@ export class Leaf<Param = unknown> extends BaseTag<Param> implements Node.Shared
 
 export namespace Leaf {
   /// Node type for leaves.
-  export class Type<Param> extends BaseType<Param> {
+  export class Type<Param = unknown> extends BaseType<Param> {
     /// A default leaf for this type. Available if the leaf was
     /// defined with {@link Leaf.define}, or a {@link
     /// Node.Spec.defaultParam} was given.
@@ -714,7 +714,7 @@ export namespace Plot {
   }
 
   /// A type of {@link Plot plot}.
-  export class Type<Param> extends BaseType<Param> {
+  export class Type<Param = unknown> extends BaseType<Param> {
     /// A default tag for this plot type.
     readonly default: Plot.Tag<Param> | null
     /// Whether the {@link Plot.Spec.isolating} flag is set on this

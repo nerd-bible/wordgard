@@ -339,22 +339,22 @@ export namespace Decoration {
   }
 }
 
-type TagShape = {type: Node.Type<any>, shape: (tag: Node.Tag) => Decoration.Shape}
+type TagShape = {type: Node.Type, shape: (tag: Node.Tag) => Decoration.Shape}
 
 const tagShape = GardState.Facet.define<TagShape>()
 
-type TagWrapper = {type: Node.Type<any>, elt: DecoElt, target: Elt.Selector | null}
+type TagWrapper = {type: Node.Type, elt: DecoElt, target: Elt.Selector | null}
 
 const tagWrapper = GardState.Facet.define<TagWrapper>()
 
 const enum WidgetPlace { Before, After, Start, End }
 
-type TagWidget = {type: Node.Type<any>, place: WidgetPlace, widget: (tag: Node.Tag) => Widget}
+type TagWidget = {type: Node.Type, place: WidgetPlace, widget: (tag: Node.Tag) => Widget}
 
 const tagWidget = GardState.Facet.define<TagWidget>()
 
 type TagAttribute = {
-  type: Node.Type<any>,
+  type: Node.Type,
   attr: string,
   value: (tag: Node.Tag) => string,
   target: Elt.Selector | null

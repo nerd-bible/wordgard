@@ -65,7 +65,7 @@ type Modification = {add: Mark} | {remove: Mark}
 function isAdd(m: Modification): m is {add: Mark} { return !!(m as any).add }
 function isRemove(m: Modification): m is {remove: Mark} { return !!(m as any).remove }
 
-function applyModifications(modifications: readonly Modification[], marks: Mark.Set, type: Node.Type<any>) {
+function applyModifications(modifications: readonly Modification[], marks: Mark.Set, type: Node.Type) {
   for (const m of modifications) {
     if (isAdd(m)) {
       marks = m.add.addToSet(marks)

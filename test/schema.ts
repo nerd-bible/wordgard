@@ -15,7 +15,7 @@ export function builder<Param>(from: Mark<Param>): (...children: ContentSpec[]) 
 export function builder<Param>(from: Mark.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
 export function builder(from: Schema): (...children: ContentSpec[]) => Plot.Doc
 export function builder(
-  from: Mark | Mark.Type<any> | Node.Type<any> | Leaf | Plot.Tag | Schema
+  from: Mark | Mark.Type | Node.Type | Leaf | Plot.Tag | Schema
 ): any {
   return (from instanceof Plot.Tag
     ? (...children: ContentSpec[]) => from.create(collectChildren(children))
@@ -29,7 +29,7 @@ export function builder(
     ? from
     : from instanceof Schema
     ? (...children: ContentSpec[]) => from.doc(collectChildren(children))
-    : (value: any, ...children: ContentSpec[]) => fragment(children, (from as any as Mark.Type<any>).of(value))
+    : (value: any, ...children: ContentSpec[]) => fragment(children, (from as any as Mark.Type).of(value))
   )
 }
 

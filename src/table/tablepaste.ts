@@ -19,7 +19,7 @@ function fitSlice(schema: Schema, parent: Plot.Tag, slice: Slice, context: reado
   return node && node.type == parent.type ? node : null
 }
 
-function isTableContent(schema: Schema, type: Node.Type<any>) {
+function isTableContent(schema: Schema, type: Node.Type) {
   return type == TableRow.type || schema.matchNode(type, Node.Group.TableCell)
 }
 

@@ -8,10 +8,10 @@ import cr from "crelt"
 
 export const imageUploader = GardState.Facet.define<(file: File, wg: Wordgard, progress: (percent: number) => void) => Promise<string>>()
 
-const imageTypes = [Image, Figure, CaptionedFigure]
+const imageTypes: Node.Type[] = [Image, Figure, CaptionedFigure]
 
 export function activeImage(sel: GardSelection.Resolved) {
-  if (sel.selection instanceof GardSelection.Node && imageTypes.includes(sel.selection.node.type as Node.Type<any>))
+  if (sel.selection instanceof GardSelection.Node && imageTypes.includes(sel.selection.node.type))
     return sel.selection.node.tag
   if (sel.head.parent.start == sel.anchor.parent.start && sel.head.parent.node.type == CaptionedFigure)
     return sel.head.parent.node.tag

@@ -306,7 +306,7 @@ class ParseContext {
     let sync, isLeaf = false, {rule} = match, hasValue = Object.prototype.hasOwnProperty.call(match, "value")
     if (rule.tag) {
       let tag: Node.Tag | null = rule.tag instanceof BaseTag ? rule.tag as Node.Tag :
-        hasValue ? (rule.tag as Node.Type<any>).of(match.value) : (rule.tag as Node.Type<any>).default
+        hasValue ? (rule.tag as Node.Type).of(match.value) : (rule.tag as Node.Type).default
       if (!tag) throw new SchemaError(`Parse rule for ${rule.selector} is missing a parameter`)
       if (tag.isPlot) {
         let innerMarks = this.enter(tag, marks, endOfSlice, elt)
@@ -525,7 +525,7 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
 
 function guessParent(content: DocumentFragment | Element, schema: Schema) {
   let rules = parse.Rule.Set.fromSchema(schema)
-  let tags: Node.Type<any>[] = []
+  let tags: Node.Type[] = []
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {
       tags.push(Leaf.Text)

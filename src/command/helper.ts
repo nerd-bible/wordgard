@@ -359,7 +359,7 @@ export function selectedTextblocks(state: GardState) {
   return textblocks
 }
 
-export function clearNonFitting(schema: Schema, node: Pos.Plot, type: Plot.Type<any>) {
+export function clearNonFitting(schema: Schema, node: Pos.Plot, type: Plot.Type) {
   let changes: ChangeSet.Spec[] = []
   for (let i = 0, pos = node.start; i < node.node.content.length; i++) {
     let child = node.node.content[i], end = pos + child.length
@@ -418,7 +418,7 @@ export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Plot.Tag) {
   return changes
 }
 
-function textblockChild(schema: Schema, type: Plot.Type<any>) {
+function textblockChild(schema: Schema, type: Plot.Type) {
   let wrap = schema.findWrapping(type, Leaf.Text)
   return wrap && wrap.length == 1 ? wrap[0] : null
 }
@@ -583,7 +583,7 @@ export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec[] 
   return changes
 }
 
-export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark: Mark | Mark.Type<any>) {
+export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark: Mark | Mark.Type) {
   let found = false, type = mark instanceof Mark.Type ? mark : mark.type
   doc.iterate(from, to, node => {
     if (found || mark.isInSet(node.tag.marks)) return false

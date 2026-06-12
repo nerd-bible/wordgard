@@ -130,7 +130,7 @@ export class Mark<Value = unknown> {
 }
 
 export namespace Mark {
-  export class Type<Value> {
+  export class Type<Value = unknown> {
     /// @internal
     readonly rank: number
     /// @internal
@@ -170,7 +170,7 @@ export namespace Mark {
     of(value: Value) { return Mark.create(this, value) }
 
     /// @internal
-    compareRank(other: Mark.Type<any>) {
+    compareRank(other: Mark.Type) {
       return this.rank - other.rank || (other.name < this.name ? 1 : -1)
     }
 
