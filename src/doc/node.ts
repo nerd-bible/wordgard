@@ -127,10 +127,7 @@ export namespace Node {
     toJSON(): Node.JSON
   }
 
-  /// A node type can be either a leaf type or a plot type. Both share
-  /// a {@Node.Type.Base base class}, but you'll generally want to use
-  /// this union type to refer to them, so that properties like {@link
-  /// Leaf.Type.isLeaf} can narrow the type.
+  /// A node type can be either a leaf type or a plot type.
   export type Type<T> = Leaf.Type<T> | Plot.Type<T>
 
   export namespace Type {
@@ -145,9 +142,9 @@ export namespace Node {
     }
   }
 
-  /// A tag is a node type with a parameter. For leaves, the entire
-  /// node is the tag. For plots, it is a separate object in the
-  /// {@link Plot.tag `tag` property}.
+  /// A tag is a node type with a parameter and a set of marks. For
+  /// leaves, the entire node is the tag. For plots, it is a separate
+  /// object in the {@link Plot.tag `tag` property}.
   export type Tag = Leaf.Any | Plot.Tag.Any
 
   export namespace Tag {
@@ -204,15 +201,15 @@ export namespace Node {
     /// value. This will be used when deserializing the attribute from
     /// JSON. When a string, it should be a `|`-separated string of
     /// primitive types (`"number"`, `"string"`, `"boolean"`, `"null"`,
-    /// and `"undefined"`), and the library will raise an error when the
+    /// and `"undefined"`). The library will raise an error when the
     /// value is not one of those types. When a function, it should
     /// raise an error if the value doesn't have the expected type or
     /// shape.
     validateParam?: string | ((param: Param) => void)
     /// Assign one or more groups to this node type. Groups are used
-    /// when specifying allowed content for a plot. Some pre-defined
-    /// group names (see {@link Node.Group}) are used to identify the
-    /// semantic role of nodes.
+    /// when specifying allowed content for a plot. Schema overrides
+    /// can {@link Schema.Override.nodeGroup change} a node's set of
+    /// groups.
     group?: Group | readonly Group[]
     /// Roles to add to this node type, which mark it as having a
     /// certain semantic role, such as being a list.
@@ -266,7 +263,7 @@ export namespace Node {
     /// lists. The basic schema uses this as the content type for the
     /// top level document, blockquotes, and list items.
     static Content = Group.define()
-    /// Group for the innermost cell nodes in tables.
+    /// Group for the cell nodes in tables.
     static TableCell = Group.define()
     /// Generic list item group.
     static ListItem = Group.define()
@@ -277,7 +274,7 @@ export namespace Node {
 
   /// Describes a set of node types. Can be either a single tag or
   /// type, which matches exactly that type (tags are assumed to be
-  /// singleton tags—only their type is used), reference to a {@link
+  /// singleton tags—only their type is used), a reference to a {@link
   /// Node.Group node group}, or a combination of multiple of those.
   /// An array indicates the union of all the groups in the array
   /// (matches types that match any of the queries). An object with an
@@ -306,11 +303,10 @@ export namespace Node {
     static List = Role.define()
 
     /// A single leaf type in a schema may have the `LineBreak` role,
-    /// which identifies it as the node canonical that represents a
+    /// which identifies it as the canonical node that represents a
     /// line break. Nodes marked as line breaks will be parsed from
-    /// and serialized to newline characters inside
-    /// {@link Plot.Spec.preserveWhitespace whitespace-preserving}
-    /// nodes.
+    /// and serialized to newline characters inside {@link
+    /// Plot.Spec.preserveWhitespace whitespace-preserving} nodes.
     static LineBreak = Role.define()
   }
 }
@@ -431,7 +427,10 @@ export namespace Leaf {
       return Leaf.new(this, param, marks)
     }
 
+    /// Used to narrow {@link Node.Type} values to {@link Leaf}.
     get isLeaf(): true { return true }
+
+    /// Leaves are not plots.
     get isPlot(): false { return false }
 
     /// Whether this leaf is {@link Leaf.Spec.selectable selectable}.
@@ -450,7 +449,8 @@ export namespace Leaf {
 
   /// Type for any generic leaf. Needed because `Leaf<any>` makes it
   /// very easy to violate type safety, but `Leaf<unknown>` isn't a
-  /// supertype of `Leaf` types with a specific parameter type.
+  /// supertype of `Leaf` types with a specific parameter type, and
+  /// thus impractical to use.
   export type Any = Omit<Leaf<unknown>, "type" | "tag" | "withMarks"> & {
     type: Leaf.Type<any>,
     tag: Leaf.Any,

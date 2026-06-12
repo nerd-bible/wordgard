@@ -1,17 +1,19 @@
 /// This module defines the library's document data structure. A
 /// document is a tree of nodes. It is made up of these elements:
 ///
-/// - {@link Node Nodes} can be {@link Plot plots} (nodes with
-///   content) or {@link Leaf leaves}.
+/// - {@link Node Nodes} can be {@link Plot plots} (nodes with content
+///   nodes) or {@link Leaf leaves}. The top document node is a plot.
+///
+/// - Each node has a {@link Node.Type type}.
 ///
 /// - {@link Mark Marks} are pieces of information attached to nodes.
 ///   They are used for things like text style, image alt text, or
 ///   block alignment.
 ///
-/// - A {@link Node.Tag Tags} describes a node's nature, it combines a
+/// - {@link Node.Tag Tags} describes a node's nature, it combines a
 ///   {@link Node.Type node type}, an optional parameter value, and a
-///   set of marks. Leaf nodes _are_ tags, plot nodes {@link Plot.tag
-///   _have_} tags.
+///   set of marks. Leaf nodes {@link Leaf _are_} tags, plot nodes
+///   {@link Plot.tag _have_} tags.
 
 export {Node, Leaf, Plot} from "./node"
 export {Mark} from "./mark"
