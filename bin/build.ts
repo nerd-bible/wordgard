@@ -1,9 +1,9 @@
 import ts from "typescript"
 import {join, dirname, resolve} from "node:path"
 import * as fs from "fs"
-import {rollup, type RollupBuild, type Plugin, type SourceMap} from "rollup"
+import {rollup, type RollupBuild, type Plugin} from "rollup"
 import dts from "rollup-plugin-dts"
-import {parse, Node} from "acorn"
+import {parse, type AnyNode} from "acorn"
 import {recursive} from "acorn-walk"
 import {Package, packages} from "./packages.ts"
 
@@ -23,11 +23,6 @@ export interface BuildOptions {
   outputPlugin?: (dir: string) => Plugin | Promise<Plugin>
   /// Adds an output plugin to use only for CommonJS bundles.
   cjsOutputPlugin?: (root: string) => Plugin
-  /// When set to true, add a `/*@__PURE__*/` comment before top level
-  /// function calls, so that tree shakers will consider them pure.
-  /// Note that this can break your code if it makes top-level
-  /// function calls that have side effects.
-  pureTopCalls?: boolean
 }
 
 const tsDefaultOptions = {
@@ -158,16 +153,16 @@ function outputPlugin(output: Output, ext: string, base: Plugin) {
     },
     load(file: string) {
       let code = output.get(file)
-      return code ? {code, map: output.get(file + '.map')} : (load instanceof Function ? load.call(this, file) : undefined)
+      return code ? {code} : (load instanceof Function ? load.call(this, file) : undefined)
     }
   } as Plugin
 }
 
 const pure = "/*@__PURE__*/"
 
-function addPureComments(code: string) {
+function processOutput(code: string) {
   let patches: {from: number, to?: number, insert: string}[] = []
-  function walkCall(node: any, c: (node: Node, state?: any) => void) {
+  function walkCall(node: any, c: (node: AnyNode, state?: any) => void) {
     node.arguments.forEach((n: any) => c(n))
     c(node.callee)
   }
@@ -176,8 +171,13 @@ function addPureComments(code: string) {
     if (!last || last.from != pos || last.insert != pure)
       patches.push({from: pos, insert: pure})
   }
+  function delComment(isBlock: boolean, _text: string, from: number, to: number) {
+    if (!isBlock || code[to] == "\n") to++
+    patches.push({from, to, insert: ""})
+  }
 
-  recursive(parse(code, {ecmaVersion: 2021, sourceType: "module"}), null, {
+  let tree = parse(code, {ecmaVersion: "latest", sourceType: "module", onComment: delComment})
+  recursive(tree, null, {
     CallExpression(node: any, _s, c) {
       walkCall(node, c)
       let m
@@ -211,18 +211,13 @@ function addPureComments(code: string) {
   }
 }
 
-async function emit(bundle: RollupBuild, conf: any, makePure = false) {
+async function emit(bundle: RollupBuild, conf: any, dts = false) {
   let result = await bundle.generate(conf)
   let dir = dirname(conf.file)
   await fs.promises.mkdir(dir, {recursive: true}).catch(() => null)
   for (let file of result.output) {
     let content = (file as any).code || (file as any).source
-    if (makePure) content = addPureComments(content)
-    let sourceMap: SourceMap = (file as any).map
-    if (sourceMap) {
-      content = content + `\n//# sourceMappingURL=${file.fileName}.map`
-      await fs.promises.writeFile(join(dir, file.fileName + ".map"), sourceMap.toString())
-    }
+    if (!dts) content = processOutput(content)
     await fs.promises.writeFile(join(dir, file.fileName), content)
   }
 }
@@ -242,12 +237,11 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
     external,
     plugins: [outputPlugin(compiled, ".js", base)]
   })
-  // makePure set to false when generating source map since this manipulates output after source map is generated
   await emit(bundle, {
     format: "esm",
     file: join(dist, pkg.name + ".js"),
     externalLiveBindings: false,
-  }, options.pureTopCalls)
+  })
 
   let tscBundle = await rollup({
     input: input.replace(/\.ts$/, ".d.ts"),
@@ -261,7 +255,7 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
   await emit(tscBundle, {
     format: "esm",
     file: join(dist, pkg.name + ".d.ts")
-  })
+  }, true)
 }
 
 /// Build the package with main entry point `main`, or the set of
@@ -299,7 +293,7 @@ export function watch(pkgs: readonly Package[], options: BuildOptions = {}): voi
   }
 }
 
-let options = {pureTopCalls: true}
+let options = {}
 
 if (process.argv.includes("--watch")) watch(packages, options)
 else build(packages, options)
