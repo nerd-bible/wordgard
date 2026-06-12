@@ -135,7 +135,7 @@ export const transposeChars: Command.Pure = ({state}) => {
   }
 }
 
-export const setTextblockType: Command.Pure<Plot.Tag.Any> = ({state}, tag) => {
+export const setTextblockType: Command.Pure<Plot.Tag> = ({state}, tag) => {
   let changes: ChangeSet.Spec[] = [], {schema} = state.doc
   for (let block of selectedTextblocks(state)) {
     if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
@@ -171,7 +171,7 @@ export const unwrapBlock: Command.Pure<Node.Query | null> = ({state}, query) => 
 
 /// Try to wrap selected textblocks in the given wrapper. Will return
 /// null if no wrapping is possible.
-export const wrapBlock: Command.Pure<Plot.Tag.Any> = ({state}, wrapper) => {
+export const wrapBlock: Command.Pure<Plot.Tag> = ({state}, wrapper) => {
   let changes: ChangeSet.Spec[] = [], lastTo = -1
   for (let {from, to} of state.selection.ranges) {
     let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
@@ -185,7 +185,7 @@ export const wrapBlock: Command.Pure<Plot.Tag.Any> = ({state}, wrapper) => {
 
 /// If the selection is in a block of the given type, unwap it.
 /// Otherwise, try to wrap the selected blocks in such a tag.
-export const toggleBlock: Command.Pure<Plot.Tag.Any> = (target, tag) => {
+export const toggleBlock: Command.Pure<Plot.Tag> = (target, tag) => {
   return unwrapBlock(target, tag) || wrapBlock(target, tag)
 }
 
@@ -272,7 +272,7 @@ export const setDirection: Command.Pure<null | "ltr" | "rtl" | "auto"> = ({state
 
 /// Toggle list wrapping with the given list tag for the selected
 /// blocks.
-export const toggleList: Command.Pure<Plot.Tag.Any> = ({state}, listTag) => {
+export const toggleList: Command.Pure<Plot.Tag> = ({state}, listTag) => {
   let blocks = selectedTextblocks(state)
   if (!blocks.length) return false
   return addList(state, blocks, listTag) || removeList(state, blocks, listTag)
@@ -280,7 +280,7 @@ export const toggleList: Command.Pure<Plot.Tag.Any> = ({state}, listTag) => {
 
 /// Returns true when all selected textblocks are wrapped in a list of
 /// the given type.
-export const listIsActive = (listTag: Plot.Tag.Any): (state: GardState) => boolean => state => {
+export const listIsActive = (listTag: Plot.Tag): (state: GardState) => boolean => state => {
   return selectedTextblocks(state).every(b => {
     let item = isListItem(b)
     return item && item.parent!.node.type == listTag.type
@@ -297,13 +297,13 @@ function isListItem(node: Pos.Node): Pos.Plot | null {
   }
 }
 
-function autoJoin(a: Plot.Tag.Any, b: Plot.Tag.Any) {
+function autoJoin(a: Plot.Tag, b: Plot.Tag) {
   let {autoJoin} = a.type.spec
   return typeof autoJoin == "function" ? autoJoin(a, b) : typeof autoJoin == "boolean" ? autoJoin : a.eq(b)
 }
 
-function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag.Any): Transaction.Spec | false {
-  let plan: ({wrap: Pos.Plot, item: Plot.Tag.Any} | {change: Pos.Node, item: Pos.Node})[] = []
+function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag): Transaction.Spec | false {
+  let plan: ({wrap: Pos.Plot, item: Plot.Tag} | {change: Pos.Node, item: Pos.Node})[] = []
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let lastItem = -1, {schema} = state.doc
   for (let block of blocks) {
@@ -367,8 +367,8 @@ function addList(state: GardState, blocks: Pos.Plot[], listTag: Plot.Tag.Any): T
   return {changes, userEvent: "wrap.list"}
 }
 
-function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any): Transaction.Spec | false {
-  let plan: {item: Pos.Plot, rewrap: Plot.Tag.Any | null}[] = [], lastItem = -1
+function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag): Transaction.Spec | false {
+  let plan: {item: Pos.Plot, rewrap: Plot.Tag | null}[] = [], lastItem = -1
   let chBefore: Set<number> = new Set, chAfter: Set<number> = new Set
   let {schema} = state.doc
   for (let block of blocks) {
@@ -380,7 +380,7 @@ function removeList(state: GardState, blocks: Pos.Node[], listTag: Plot.Tag.Any)
           ? (rewrap = schema.defaultContentPlot(parent.node.type)) && rewrap.isTextblock
           : schema.canContain(parent.node.type, block.node.type))) {
       lastItem = item.before
-      plan.push({item, rewrap: rewrap as Plot.Tag.Any})
+      plan.push({item, rewrap: rewrap as Plot.Tag})
       chAfter.add(item.before)
       chBefore.add(item.after)
     }

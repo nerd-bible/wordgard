@@ -22,7 +22,7 @@ const enum NodeFlag {
 
 /// A node in the document is either a plot (which may have content)
 /// or a leaf node.
-export type Node = Plot | Leaf.Any
+export type Node = Plot | Leaf
 
 // Base class of types. Not public, though some of its properties are.
 export abstract class BaseType<Param> {
@@ -77,11 +77,11 @@ export abstract class BaseTag<Param> {
 
   abstract isLeaf: boolean
   abstract isPlot: boolean
-  get isText() { return this.type == Leaf.Text as Leaf.Type<any> }
+  get isText(): boolean { return this.type == Leaf.Text }
 
   is<T>(type: Leaf.Type<T>): this is Leaf<T>
-    is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
-    is(type: any) { return this.type == type }
+  is<T>(type: Plot.Type<T>): this is Plot.Tag<T>
+  is(type: any) { return this.type == type }
 
   toJSON(): Node.JSON {
     let result: Node.JSON = {type: this.name}
@@ -145,7 +145,7 @@ export namespace Node {
   /// A tag is a node type with a parameter and a set of marks. For
   /// leaves, the entire node is the tag. For plots, it is a separate
   /// object in the {@link Plot.tag `tag` property}.
-  export type Tag = Leaf.Any | Plot.Tag.Any
+  export type Tag = Leaf | Plot.Tag
 
   export namespace Tag {
     /// The interface shared by {@link Leaf leaves} and {@link
@@ -314,7 +314,7 @@ export namespace Node {
 /// A leaf node, which is a node with no content nodes. Used for
 /// things like text, images, line breaks, and so on. Counts as a
 /// {@link Node.Tag}.
-export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag.Shared<Param> {
+export class Leaf<Param = unknown> extends BaseTag<Param> implements Node.Shared, Node.Tag.Shared<Param> {
   private constructor(
     /// This leaf's type.
     readonly type: Leaf.Type<Param>,
@@ -375,7 +375,7 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
   }
 
   /// @internal
-  sliceText(from: number, to?: number) {
+  sliceText(from: number, to?: number): Leaf<string> {
     if (!this.is(Leaf.Text)) throw new Error("Calling sliceText on a non-text node")
     if (to == null) to = this.param.length
     if (!from && to == this.param.length) return this
@@ -389,7 +389,7 @@ export class Leaf<Param> extends BaseTag<Param> implements Node.Shared, Node.Tag
 
   /// @internal
   toString() {
-    return (this.is(Leaf.Text) ? JSON.stringify(this.param) : this.name) + markString(this.marks)
+    return (this.is(Leaf.Text) ? JSON.stringify(this.param) : (this as Leaf).name) + markString(this.marks)
   }
 }
 
@@ -401,7 +401,10 @@ export namespace Leaf {
     /// Node.Spec.defaultParam} was given.
     default: Leaf<Param> | null
 
-    /// The spec used to define this type.
+    /// The spec used to define this type. Its type parameter is
+    /// cleared to avoid this field making the class invariant (in the
+    /// type system sense), which would prevent `Leaf.Type<unknown>`
+    /// from being a supertype of specific leaf types.
     readonly spec: Leaf.Spec<any>
 
     private constructor(
@@ -443,28 +446,18 @@ export namespace Leaf {
   export interface Spec<Param> extends Node.Spec<Param> {
     /// Can be used to make leaves of this type show up in the output
     /// of {@link Plot.textContent}.
-    toText?: (node: Leaf.Any) => string
+    toText?: (node: Leaf) => string
     /// When set to `true`, nodes of this type can be selected by
     /// clicking them or moving the selection into them with the
     /// keyboard.
     selectable?: boolean
   }
 
-  /// Type for any generic leaf. Needed because `Leaf<any>` makes it
-  /// very easy to violate type safety, but `Leaf<unknown>` isn't a
-  /// supertype of `Leaf` types with a specific parameter type, and
-  /// thus impractical to use.
-  export type Any = Omit<Leaf<unknown>, "type" | "tag" | "withMarks"> & {
-    type: Leaf.Type<any>,
-    tag: Leaf.Any,
-    withMarks(marks: Mark.Set): Leaf.Any
-  }
-
   /// The type of text leaves. Represents a series of characters with
   /// a given set of marks. The only leaf with a length that isn't
   /// always 1. Adjacent text leaves with the same marks are merged
   /// automatically.
-  export const Text = Leaf.Type.new<string>("Text", NodeFlag.Inline, {
+  export const Text: Leaf.Type<string> = Leaf.Type.new<string>("Text", NodeFlag.Inline, {
     shape: {element: ""}
   })
 }
@@ -476,7 +469,7 @@ export class Plot implements Node.Shared {
   /// @internal
   protected constructor(
     /// The tag that identifies this plot.
-    readonly tag: Plot.Tag.Any,
+    readonly tag: Plot.Tag,
     /// The nodes in this plot.
     readonly content: readonly Node[],
   ) {
@@ -488,7 +481,7 @@ export class Plot implements Node.Shared {
   contentLength: number
 
   /// @internal
-  static create(tag: Plot.Tag.Any, content: readonly Node[]) { return new Plot(tag, content) }
+  static create(tag: Plot.Tag, content: readonly Node[]) { return new Plot(tag, content) }
 
   get name() { return this.tag.name }
   /// The type of this plot's tag.
@@ -591,7 +584,7 @@ export class Plot implements Node.Shared {
     /// character.
     blockSeparator?: string,
     /// Override the way non-text leaves are converted to string.
-    leafText?: string | ((node: Leaf.Any) => string)
+    leafText?: string | ((node: Leaf) => string)
   } = {}) {
     let {from = 0, to = this.length, blockSeparator = "\n", leafText} = options
     let out = new TextOutput(blockSeparator, leafText == null ? undefined
@@ -665,7 +658,7 @@ export class Plot implements Node.Shared {
 export namespace Plot {
   /// A plot tag holds the type of the plot, its parameter (if any),
   /// and a set of marks.
-  export class Tag<Param> extends BaseTag<Param> implements Node.Tag.Shared<Param> {
+  export class Tag<Param = unknown> extends BaseTag<Param> implements Node.Tag.Shared<Param> {
     private constructor(readonly type: Plot.Type<Param>, param: Param, marks: Mark.Set) {
       super(param, marks)
     }
@@ -720,17 +713,6 @@ export namespace Plot {
     }
   }
 
-  export namespace Tag {
-    /// Convenience type that is more type safe than `Plot.Tag<any>`
-    /// but, unlike `Plot.Tag<unknown>`, is a supertype of tags with a
-    /// known parameter type.
-    export type Any = Omit<Plot.Tag<unknown>, "type" | "split" | "withMarks"> & {
-      type: Plot.Type<any>,
-      split(atEnd: boolean): Plot.Tag.Any
-      withMarks(marks: Mark.Set): Plot.Tag.Any
-    }
-  }
-
   /// A type of {@link Plot plot}.
   export class Type<Param> extends BaseType<Param> {
     /// A default tag for this plot type.
@@ -750,13 +732,16 @@ export namespace Plot {
     /// Plot.Spec.orientation set}.
     readonly orientation: "row" | "column"
 
+    /// The spec used to define this plot type.
+    readonly spec: Plot.Spec<any>
+
     private constructor(
       name: string,
       flags: NodeFlag,
-      /// The spec used to define this plot type.
-      readonly spec: Plot.Spec<Param>
+      spec: Plot.Spec<Param>
     ) {
       super(name, flags, spec, NodeShape.from(name, false, spec.shape))
+      this.spec = spec
       if (!spec.inlineContent && !spec.blockContent)
         throw new SchemaError("Plot definitions must specify either inlineContent or blockContent")
       this.isolating = !!spec.isolating
@@ -861,7 +846,7 @@ export namespace Plot {
     /// joined when they become adjacent through an edit. Defaults to
     /// false. Note that editing commands need to explicitly call
     /// {@link command.autoJoinBlocks} for joining to happen.
-    autoJoin?: boolean | ((before: Plot.Tag.Any, after: Plot.Tag.Any) => boolean)
+    autoJoin?: boolean | ((before: Plot.Tag, after: Plot.Tag) => boolean)
     /// By default, splitting a textblock at the end will revert the new
     /// block to the default type of textblock at that position. Setting
     /// this to true on a textblock type will prevent that behavior.
@@ -922,7 +907,7 @@ export namespace Plot {
 
     /// Get the context stack (the array of wrapping plot tags,
     /// inner-to-outer) at the given position.
-    contextAt(pos: number, maxDepth?: number): readonly Plot.Tag.Any[] {
+    contextAt(pos: number, maxDepth?: number): readonly Plot.Tag[] {
       for (let {parent} = this.resolve(pos), context = [];;) {
         if (!parent.parent || maxDepth != null && context.length == maxDepth) return context
         context.push(parent.node.tag)

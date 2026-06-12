@@ -415,8 +415,8 @@ export namespace Shape {
 export class NodeShape<Param> {
   constructor(
     readonly atom: boolean,
-    readonly create: (param: Param) => Elt<string>,
-    readonly spec: Shape.Element<Param> | Shape.Structure<Param>
+    // Param type set to any to avoid variance issues.
+    readonly create: (param: any) => Elt<string>,
   ) {}
 
   static from<Param>(name: string, leaf: boolean, spec: Shape.Element<Param> | Shape.Structure<Param>) {
@@ -445,6 +445,6 @@ export class NodeShape<Param> {
       }
     }
     if (atom == false && leaf) throw new Error(`Leaf tag ${name}'s shape must be atomic`)
-    return new NodeShape<Param>(atom, create, spec)
+    return new NodeShape<Param>(atom, create)
   }
 }

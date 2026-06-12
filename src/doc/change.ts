@@ -8,7 +8,7 @@ import {ValidationError} from "./error"
 
 class BuildContext {
   children: Plot[] = []
-  constructor(readonly tag: Plot.Tag.Any, readonly parent: BuildContext | null) {}
+  constructor(readonly tag: Plot.Tag, readonly parent: BuildContext | null) {}
 }
 
 class Builder implements Pos.Walker, SliceWalker {
@@ -45,7 +45,7 @@ class Builder implements Pos.Walker, SliceWalker {
     this.add(node)
   }
 
-  open(tag: Plot.Tag.Any) {
+  open(tag: Plot.Tag) {
     if (this.modifications) tag = tag.withMarks(applyModifications(this.modifications, tag.marks, tag.type))
     this.stack = new BuildContext(tag, this.stack)
   }
@@ -479,7 +479,7 @@ export namespace ChangeSet {
     /// replacement to make sure it fits. Context tags (passed with the
     /// innermost tag first, as in {@link Plot.Doc.contextAt} may be
     /// used as wrappers when fitting the slice.
-    fit?: boolean | readonly Plot.Tag.Any[]
+    fit?: boolean | readonly Plot.Tag[]
     /// Add the given mark to this change's range.
     add?: Mark
     /// Remove the given mark from this range.
@@ -807,7 +807,7 @@ class FitLevel {
   flags = FitFlag.None
 
   constructor(
-    readonly tag: Plot.Tag.Any,
+    readonly tag: Plot.Tag,
     readonly next: FitLevel | null,
   ) {
     if (!this.tag.type.canBeEmpty) this.flags |= FitFlag.NeedsChild
@@ -904,7 +904,7 @@ class ChangeFitter implements Pos.Walker {
 
   fit(tag: Node.Tag) {
     if (this.schema.canContain(this.stack.tag.type, tag.type)) return true
-    let fix: {leave: number, enter: readonly Plot.Tag.Any[], cost: number, context: boolean} | null = null
+    let fix: {leave: number, enter: readonly Plot.Tag[], cost: number, context: boolean} | null = null
     let dDelta = this.stackDelta - this.inputDelta
     for (let level: FitLevel | null = this.stack, leave = 0, leaveCost = 0; level; level = level.next, leave++) {
       if (fix && leaveCost > fix.cost) break
@@ -920,7 +920,7 @@ class ChangeFitter implements Pos.Walker {
           if (this.schema.canContain(level.tag.type, cx.node.type)) {
             let cost = leaveCost + i * 2 - Math.max(0, Math.min(-dDelta, i))
             if (!fix || fix.cost > cost || !fix.context) {
-              let enter: Plot.Tag.Any[] = []
+              let enter: Plot.Tag[] = []
               for (let scan = top;; scan = scan!.parent) {
                 enter.unshift(scan!.node.tag)
                 if (scan == cx) break
@@ -984,7 +984,7 @@ class ChangeFitter implements Pos.Walker {
     }
   }
 
-  open(tag: Plot.Tag.Any) { this.enter(tag) }
+  open(tag: Plot.Tag) { this.enter(tag) }
   close() { this.leavePlot() }
   node(node: Node) { this.skip(node) }
 
@@ -998,7 +998,7 @@ class ChangeFitter implements Pos.Walker {
 
   enterPlot(node: Plot) { this.enter(node.tag) }
 
-  enter(tag: Plot.Tag.Any) {
+  enter(tag: Plot.Tag) {
     if (this.inserting) this.inputDelta++
     if (this.doubleDeleteDelta > 0) {
       this.doubleDeleteDelta--
@@ -1153,7 +1153,7 @@ function finishCx(cx: BuildContext, schema: Schema) {
                        : [schema.createDefault(cx.tag.type)])
 }
 
-function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Tag.Any[], depth: number, closeEnd = false) {
+function closeSlice(schema: Schema, slice: Slice, context: readonly Plot.Tag[], depth: number, closeEnd = false) {
   let top: Token[] = [], stack: BuildContext | null = null
   for (let i = depth - 1; i >= 0; i--) stack = new BuildContext(context[i], stack)
   for (let token of slice.content) {
@@ -1186,7 +1186,7 @@ function splatContext(top: Token[], cx: BuildContext) {
   for (let ch of cx.children) top.push(ch)
 }
 
-function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context: readonly Plot.Tag.Any[]) {
+function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context: readonly Plot.Tag[]) {
   if (!slice.length) return fitDeletion(doc, from, to)
 
   let preferredContext = -1

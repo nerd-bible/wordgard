@@ -167,7 +167,7 @@ export namespace Pos {
     /// Called when a plot is entered.
     enterPlot(node: _Plot, pos: number, parent: Pos.Plot, index: number): void | boolean
     /// Called when leaving a plot.
-    leavePlot(tag: _Plot.Tag.Any, pos: number, parent: Pos.Plot, index: number): void
+    leavePlot(tag: _Plot.Tag, pos: number, parent: Pos.Plot, index: number): void
   }
 
   /// Represents the position of a node, with information about its

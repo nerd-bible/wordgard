@@ -8,14 +8,14 @@ import {Doc, Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
 export type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 
 export function builder<Param>(from: Leaf<Param>): Leaf<Param>
-export function builder<Param>(from: Leaf.Type<Param>): (param: Param) => Leaf.Any
-export function builder(from: Plot.Tag.Any): (...children: ContentSpec[]) => Plot
+export function builder<Param>(from: Leaf.Type<Param>): (param: Param) => Leaf
+export function builder(from: Plot.Tag): (...children: ContentSpec[]) => Plot
 export function builder<Param>(from: Plot.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
 export function builder<Param>(from: Mark<Param>): (...children: ContentSpec[]) => Plot
 export function builder<Param>(from: Mark.Type<Param>): (param: Param, ...children: ContentSpec[]) => Plot
 export function builder(from: Schema): (...children: ContentSpec[]) => Plot.Doc
 export function builder(
-  from: Mark | Mark.Type<any> | Node.Type<any> | Leaf.Any | Plot.Tag.Any | Schema
+  from: Mark | Mark.Type<any> | Node.Type<any> | Leaf | Plot.Tag | Schema
 ): any {
   return (from instanceof Plot.Tag
     ? (...children: ContentSpec[]) => from.create(collectChildren(children))

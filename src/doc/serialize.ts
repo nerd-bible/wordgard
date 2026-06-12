@@ -52,7 +52,7 @@ export namespace serialize {
       openAttr?: string
       /// The slice's context. Will be used to determine the type of
       /// open nodes at the start of the slice.
-      context?: readonly Plot.Tag.Any[]
+      context?: readonly Plot.Tag[]
       /// The amount of context nodes to include in the output.
       /// Defaults to 0, meaning only use those that are open at the
       /// start of the slice.
@@ -73,7 +73,7 @@ const openMark = Mark.Type.define<"start" | "end" | "start end">("Open", {
 
 function flattenSlice(
   content: readonly Token[],
-  context: readonly Plot.Tag.Any[], includeContext: number,
+  context: readonly Plot.Tag[], includeContext: number,
   markOpen: boolean
 ): readonly Node[] {
   let depth = 0, i = 0, scan = (inner: boolean): readonly Node[] => {

@@ -11,7 +11,8 @@ export const imageUploader = GardState.Facet.define<(file: File, wg: Wordgard, p
 const imageTypes = [Image, Figure, CaptionedFigure]
 
 export function activeImage(sel: GardSelection.Resolved) {
-  if (sel.selection instanceof GardSelection.Node && imageTypes.includes(sel.selection.node.type)) return sel.selection.node.tag
+  if (sel.selection instanceof GardSelection.Node && imageTypes.includes(sel.selection.node.type as Node.Type<any>))
+    return sel.selection.node.tag
   if (sel.head.parent.start == sel.anchor.parent.start && sel.head.parent.node.type == CaptionedFigure)
     return sel.head.parent.node.tag
   return null

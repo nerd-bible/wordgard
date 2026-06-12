@@ -5,7 +5,7 @@ import browser from "./browser"
 export const clipboardOutputFilter = GardState.Facet.define<(content: Slice, state: GardState) => Slice>()
 export const clipboardOutputHTMLFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
 export const clipboardTextSerializer = GardState.Facet.define<
-  (slice: Slice, context: readonly Plot.Tag.Any[], state: GardState) => string | null
+  (slice: Slice, context: readonly Plot.Tag[], state: GardState) => string | null
 >()
 export const clipboardOutputTextFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
 
@@ -14,7 +14,7 @@ export const clipboardInputHTMLFilter = GardState.Facet.define<(html: string, st
 export const clipboardTextParser = GardState.Facet.define<(text: string, state: GardState) => Slice | null>()
 export const clipboardInputTextFilter = GardState.Facet.define<(html: string, state: GardState) => string>()
 
-export function writeClipboard(state: GardState, slice: Slice, context: readonly Plot.Tag.Any[], data: DataTransfer) {
+export function writeClipboard(state: GardState, slice: Slice, context: readonly Plot.Tag[], data: DataTransfer) {
   for (let filter of state.facet(clipboardOutputFilter)) slice = filter(slice, state)
 
   let includeContext = 0
@@ -66,7 +66,7 @@ function isOpen(elt: Element) {
 export function readClipboard(state: GardState, data: DataTransfer, targetContext: Pos, plain: boolean) {
   let html = data.getData("text/html")
   let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list").replace(/\r?\n/g, " ")
-  let slice: Slice, context: readonly Plot.Tag.Any[] = []
+  let slice: Slice, context: readonly Plot.Tag[] = []
   if (text && (targetContext.parent.node.type.hasRole(Node.Role.Code) || !html || plain)) {
     for (let filter of state.facet(clipboardInputTextFilter)) text = filter(text, state)
     slice = readClipboardText(state, text, targetContext, plain)

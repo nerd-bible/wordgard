@@ -33,7 +33,7 @@ export class InputRule {
   /// of a textblock. `tag` gives the type of plot to wrap in.
   static wrapping(
     expr: RegExp,
-    tag: Plot.Tag.Any | ((match: InputRule.MatchArray) => Plot.Tag.Any)
+    tag: Plot.Tag | ((match: InputRule.MatchArray) => Plot.Tag)
   ) {
     return InputRule.define({
       expr,
@@ -61,7 +61,7 @@ export class InputRule {
   /// `InputRule.wrapping` function.
   static textblockType(
     expr: RegExp,
-    tag: Plot.Tag.Any | ((match: InputRule.MatchArray) => Plot.Tag.Any)
+    tag: Plot.Tag | ((match: InputRule.MatchArray) => Plot.Tag)
   ) {
     return InputRule.define({
       expr,

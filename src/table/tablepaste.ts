@@ -7,7 +7,7 @@ import {TableMap} from "./tablemap"
 import {CellSelection} from "./cellselection"
 import {tableContext, cellTag} from "./tablecommands"
 
-function fitSlice(schema: Schema, parent: Plot.Tag.Any, slice: Slice, context: readonly Plot.Tag.Any[]) {
+function fitSlice(schema: Schema, parent: Plot.Tag, slice: Slice, context: readonly Plot.Tag[]) {
   let wrap = schema.findWrapping(schema.docTag.type, parent.type)
   if (!wrap) return null
   let content = [schema.createAndFill(parent)]
@@ -25,7 +25,7 @@ function isTableContent(schema: Schema, type: Node.Type<any>) {
 
 // Get a rectangular area of cells from a slice, or null if the outer
 // nodes of the slice aren't table cells or rows.
-function pastedCells(schema: Schema, slice: Slice, context: readonly Plot.Tag.Any[]) {
+function pastedCells(schema: Schema, slice: Slice, context: readonly Plot.Tag[]) {
   let table: Plot | null = null, tok
   if (slice.content.length == 1 && (tok = slice.content[0]).tokenType == Token.Type.Node &&
       tok.type == Table.type) {
@@ -218,7 +218,7 @@ export function insertCells(
 }
 
 /// @hidden exported for testing
-export function handleTablePaste(state: GardState, slice: Slice, context: readonly Plot.Tag.Any[], drop?: number) {
+export function handleTablePaste(state: GardState, slice: Slice, context: readonly Plot.Tag[], drop?: number) {
   let {schema} = state.doc
   if (drop == null && state.selection instanceof CellSelection) {
     let cells = pastedCells(schema, slice, context)

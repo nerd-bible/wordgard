@@ -4,7 +4,7 @@ export class TextOutput {
   text = ""
   started = false
 
-  constructor(readonly blockSep: string, readonly leafText?: (node: Leaf.Any) => string) {}
+  constructor(readonly blockSep: string, readonly leafText?: (node: Leaf) => string) {}
 
   serialize(node: Node): boolean {
     let nodeText = node.isPlot ? null

@@ -226,7 +226,7 @@ export namespace Mark {
     /// Used by {@link Plot.Tag.split} to determine whether to keep
     /// this mark in the split-off tag. `atEnd` will be true if the
     /// split happens at the end of the node's content.
-    keepOnSplit?: boolean | ((tag: Plot.Tag.Any, atEnd: boolean) => boolean)
+    keepOnSplit?: boolean | ((tag: Plot.Tag, atEnd: boolean) => boolean)
     /// Used by {@link Schema.withMarksFrom} to decide whether marks
     /// of this type are preserved after the type change.
     keepOnTypeChange?: boolean | ((from: Node.Tag, to: Node.Tag) => boolean)

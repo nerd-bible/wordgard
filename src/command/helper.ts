@@ -372,7 +372,7 @@ export function clearNonFitting(schema: Schema, node: Pos.Plot, type: Plot.Type<
 /// Find a way to wrap the blocks betwen `from` and `to` in a node
 /// with the given tag. Returns precise start and end positions where
 /// a wrap is possible, or null if none is possible.
-export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag.Any) {
+export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag) {
   let dFrom = from.depth, dTo = to.depth
   let pFrom = from.parent, pTo = to.parent
   while (dFrom > dTo) { pFrom = pFrom.parent!; dFrom-- }
@@ -395,7 +395,7 @@ export function findWrappable(from: Pos, to: Pos, wrapper: Plot.Tag.Any) {
 /// responsible for verifying that this is actually a valid wrapping.
 /// It is recommended to use {@link findWrappable} for finding wrap
 /// positions in non-trivial situations.
-export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Plot.Tag.Any) {
+export function wrapBlockRange(range: {from: Pos, to: Pos}, wrapper: Plot.Tag) {
   let changes: ChangeSet.Spec[] = [], parent = range.from.parent.node
   for (let i = range.from.index, openWrappers = 0, pos = range.from.pos;; i++) {
     let tokens: Token[] = []
@@ -559,7 +559,7 @@ export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec[] 
   let dBefore = before.depth, dAfter = after.depth
   let tokensAfter: Token[] = [], posAfter = after.after, end = posAfter
   if (dBefore > dAfter) {
-    let extraContext: Plot.Tag.Any[] = []
+    let extraContext: Plot.Tag[] = []
     for (let i = dBefore - dAfter, level = before.parent!; i > 0; i--, level = level.parent!)
       extraContext.push(level.node.tag)
     let nodeAfter = after.nextSibling

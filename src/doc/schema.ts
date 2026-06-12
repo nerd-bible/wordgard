@@ -11,7 +11,7 @@ import {SchemaError, ValidationError} from "./error"
 export class Schema {
   private nodesByName: {[name: string]: Node.Type<unknown>} = Object.create(null)
   private marksByName: {[name: string]: Mark.Type<any>} = Object.create(null)
-  private wrappingCache: {[key: string]: readonly Plot.Tag.Any[] | null} = Object.create(null)
+  private wrappingCache: {[key: string]: readonly Plot.Tag[] | null} = Object.create(null)
   private validated: WeakSet<Node> = new WeakSet
 
   private constructor(
@@ -29,7 +29,7 @@ export class Schema {
     readonly docTag: Plot.Tag<null>,
     /// The {@link Node.Role.LineBreak line break} node defined in
     /// this schema, if any.
-    readonly lineBreak: Leaf<unknown> | null
+    readonly lineBreak: Leaf | null
   ) {
     for (let tag of nodes) this.nodesByName[tag.name] = tag
     for (let mark of marks) this.marksByName[mark.name] = mark
@@ -60,7 +60,7 @@ export class Schema {
   }
 
   /// @internal
-  validateTag(tag: Node | Plot.Tag.Any) {
+  validateTag(tag: Node | Plot.Tag) {
     if (this.nodesByName[tag.name] != tag.type)
       throw new ValidationError(`Tag type ${tag.name} not in schema`)
     for (let mark of tag.marks) this.validateMark(mark, tag.type)
@@ -137,7 +137,7 @@ export class Schema {
 
   /// Return the first {@link Plot.Type.default defaultable} plot tag
   /// that can be a child of `parent`.
-  defaultContentPlot(parent: Plot.Type<any>): Plot.Tag.Any | null {
+  defaultContentPlot(parent: Plot.Type<any>): Plot.Tag | null {
     for (let tag of this.nodes) if (tag.default && tag.isPlot && this.canContain(parent, tag)) return tag.default
     return null
   }
@@ -159,14 +159,14 @@ export class Schema {
   /// Find a set of tags that `child` must be wrapped in to be able to
   /// occur in `parent`. Will return the empty array if it fits
   /// directly, and `null` if it cannot occur at all.
-  findWrapping(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag.Any[] | null {
+  findWrapping(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag[] | null {
     let key = `${parent.name}-${child.name}`, cached = this.wrappingCache[key]
     if (cached !== undefined) return cached
     return this.wrappingCache[key] = this.findWrappingInner(parent, child)
   }
 
-  private findWrappingInner(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag.Any[] | null {
-    let seen: Set<Node.Type<unknown>> = new Set, work: Plot.Tag.Any[][] = [[]]
+  private findWrappingInner(parent: Plot.Type<any>, child: Node.Type<any>): readonly Plot.Tag[] | null {
+    let seen: Set<Node.Type<unknown>> = new Set, work: Plot.Tag[][] = [[]]
     for (let i = 0; i < work.length; i++) {
       let path = work[i], at = path.length ? path[path.length - 1].type : parent
       for (let tag of this.nodes) if (this.canContain(at, tag)) {
@@ -243,7 +243,7 @@ export class Schema {
       }
     }
     let docType: Plot.Type<null> | null = null
-    let lineBreak: Leaf<any> | null = null
+    let lineBreak: Leaf | null = null
     for (let tag of tags) {
       if (tag.isLeaf) {
         if (tag.hasRole(Node.Role.LineBreak)) {
@@ -261,7 +261,7 @@ export class Schema {
     }
     if (!docType) throw new SchemaError("A schema must define a document type")
     let schema = new Schema(elements, tags, marks, plotContent, markTarget, nodeGroup,
-                            docType.default!, lineBreak as Leaf<unknown> | null)
+                            docType.default!, lineBreak as Leaf | null)
     for (let tag of tags) if (tag.isPlot) {
       let sawDefaultable = false
       for (let child of tags) if (schema.canContain(tag, child)) {
@@ -378,7 +378,7 @@ export namespace Schema {
     /// Create a schema override that changes the content specification
     /// for a given node. Note that this can not change a node with
     /// inline content to block content or vice versa.
-    static plotContent(plot: Plot.Type<any> | Plot.Tag<any>, content: Node.Query | ((content: Node.Query) => Node.Query)) {
+    static plotContent(plot: Plot.Type<unknown> | Plot.Tag, content: Node.Query | ((content: Node.Query) => Node.Query)) {
       return new Schema.Override(plot instanceof Plot.Tag ? plot.type : plot,
                                  undefined, typeof content == "function" ? content : () => content)
     }

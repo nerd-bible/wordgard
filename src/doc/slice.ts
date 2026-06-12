@@ -6,7 +6,7 @@ import {ValidationError} from "./error"
 /// The type of tokens in a slice. A plot tag represents the point
 /// where a plot is opened, {@link Plot.End} the point where a plot is
 /// closed, and nodes just represent the insertion of that node.
-export type Token = Node | Plot.Tag.Any | typeof Plot.End
+export type Token = Node | Plot.Tag | typeof Plot.End
 
 export namespace Token {
   /// Tokens have a `tokenType` property holding oneof these values.
@@ -95,7 +95,7 @@ export class Slice {
   /// Get the text content of the slice's tokens.
   textContent(options: {
     blockSeparator?: string,
-    leafText?: string | ((node: Leaf.Any) => string)
+    leafText?: string | ((node: Leaf) => string)
   } = {}) {
     let {blockSeparator = "\n", leafText} = options
     let out = new TextOutput(blockSeparator, leafText == null ? undefined : typeof leafText == "string" ? () => leafText : leafText)
@@ -143,6 +143,6 @@ export namespace Slice {
 
 export interface SliceWalker {
   node(node: Node, pos: number): void
-  open(tag: Plot.Tag.Any, pos: number): void
+  open(tag: Plot.Tag, pos: number): void
   close(pos: number): void
 }

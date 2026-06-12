@@ -515,7 +515,7 @@ export const dropHandler = GardState.Facet.define<(
   pos: number,
   move: {from: number, to: number} | null,
   slice: Slice,
-  context: readonly Plot.Tag.Any[]
+  context: readonly Plot.Tag[]
 ) => boolean>()
 
 handlers.drop = (wg, event: DragEvent) => {
@@ -545,7 +545,7 @@ export const pasteHandler = GardState.Facet.define<(
   wg: Wordgard,
   event: ClipboardEvent,
   slice: Slice,
-  context: readonly Plot.Tag.Any[]
+  context: readonly Plot.Tag[]
 ) => boolean>()
 
 handlers.paste = (wg: Wordgard, event: ClipboardEvent) => {

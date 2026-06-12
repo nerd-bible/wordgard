@@ -39,7 +39,7 @@ export namespace parse {
     let cx = new ParseContext(schema, options, top)
     cx.parseChildren(doc, [], true)
     cx.sync(top)
-    let tokens: Token[] = [], context: Plot.Tag.Any[] = []
+    let tokens: Token[] = [], context: Plot.Tag[] = []
     let emitTokens = (children: readonly Node[], openStart: boolean, openEnd: boolean) => {
       for (let i = 0; i < children.length; i++) {
         let child = children[i]
@@ -428,7 +428,7 @@ class ParseContext {
     return marks
   }
 
-  enter(tag: Plot.Tag.Any, marks: Mark.Set, endOfSlice: boolean, elt: Element) {
+  enter(tag: Plot.Tag, marks: Mark.Set, endOfSlice: boolean, elt: Element) {
     let innerMarks = this.findPlace(tag, marks, endOfSlice)
     if (innerMarks) innerMarks = this.enterInner(tag, marks, endOfSlice, elt)
     return innerMarks
@@ -436,7 +436,7 @@ class ParseContext {
 
   // Open a node of the given type. Return the set of marks not
   // assigned to that node.
-  enterInner(tag: Plot.Tag.Any, marks: Mark.Set, endOfSlice: boolean, element: Element | null) {
+  enterInner(tag: Plot.Tag, marks: Mark.Set, endOfSlice: boolean, element: Element | null) {
     marks = marks.filter(p => {
       if (!this.schema.markAllowed(p.type, tag.type)) return true
       tag = tag.withMarks(p.addToSet(tag.marks))
@@ -488,7 +488,7 @@ class ParseContext {
 class NodeContext {
   children: Node[] = []
 
-  constructor(readonly tag: Plot.Tag.Any,
+  constructor(readonly tag: Plot.Tag,
               readonly flags: CxFlag,
               readonly parent: NodeContext | null) {}
 
@@ -539,7 +539,7 @@ function guessParent(content: DocumentFragment | Element, schema: Schema) {
     }
   }
   explore(content)
-  let best: Plot.Tag.Any | undefined, bestCost = 0
+  let best: Plot.Tag | undefined, bestCost = 0
   for (let parent of schema.nodes) if (parent.isPlot && parent.default) {
     let cost = parent.isDoc ? -1 : 0
     for (let child of tags) {

@@ -19,7 +19,7 @@ export function inlineDoc(): GardState.Extension {
   return GardState.schemaElement.of(InlineDoc)
 }
 
-function selectionInType(tag: Plot.Tag.Any) {
+function selectionInType(tag: Plot.Tag) {
   return (state: GardState) => {
     let {sel} = state, block = sel.head.textblockParent
     return !!block && block.start == sel.anchor.textblockParent?.start && block.node.tag.eq(tag)

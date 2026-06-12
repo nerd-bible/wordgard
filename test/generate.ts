@@ -43,7 +43,7 @@ function rWord(len = 2 + r(5)) {
 }
 
 export function rDoc(minLength: number) {
-  let stack: {tag: Plot.Tag.Any, children: Node[]}[] = [{tag: schema.docTag, children: []}]
+  let stack: {tag: Plot.Tag, children: Node[]}[] = [{tag: schema.docTag, children: []}]
   let len = 0
   function open() {
     while (!r(5)) {

@@ -15,7 +15,7 @@ function selFor(doc: Plot.Doc): GardSelection | undefined {
   return CellSelection.normalize(range, doc) || range
 }
 
-function test(doc: Plot.Doc, content: Token[] | {slice: readonly Token[], context: readonly Plot.Tag.Any[]},
+function test(doc: Plot.Doc, content: Token[] | {slice: readonly Token[], context: readonly Plot.Tag[]},
               expect: Plot.Doc | null) {
   let state = GardState.create({doc, selection: selFor(doc), config: CellSelection})
   let [slice, context] = Array.isArray(content) ? [Slice.of(content), []] : [Slice.of(content.slice), content.context]
