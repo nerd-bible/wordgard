@@ -33,22 +33,49 @@ function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
 
 type DocSource = Plot.Doc | HTMLElement | DocumentFragment | string | Node.JSON | ((schema: Schema) => Plot.Doc)
 
-/// The editor state class is a persistent (immutable) data structure.
-/// To update a state, you {@link GardState.update create} a {@link
-/// Transaction transaction}, which produces a _new_ state instance,
-/// without modifying the original object.
+/// The editor state tracks things like the current document, the
+/// selection, the configuration of the editor, and any extra state
+/// defined by extensions.
 ///
-/// _Do not_ mutate properties of a state directly.
+/// The state is a persistent (immutable) data structure. To update a
+/// state, you {@link GardState.update create} a {@link Transaction
+/// transaction}, which produces a _new_ state instance, without
+/// modifying the original object.
 export class GardState {
   /// @internal
   readonly status: SlotStatus[]
   /// @internal
   computeSlot: null | ((state: GardState, slot: DynamicSlot) => SlotStatus)
-  private _resolvedSel: GardSelection.Resolved | null = null
+  private resolvedSel: GardSelection.Resolved | null = null
   private trackAccess: Slot[] | null = null
 
+  /// Create a new state. You'll usually only need this when
+  /// initializing an editor or loading a new document—updated states
+  /// are created by applying transactions.
+  ///
+  /// The schema of the state can be provided either via the {@link
+  /// GardState.schemaElement configuration} or by passing in an
+  /// initialized document (which will have its own schema). If the
+  /// configuration contains a document plot type, the schema from the
+  /// configuration will be used, even if a document was provided.
+  static create(spec: GardState.Spec): GardState {
+    let config = spec.config instanceof GardState.Configuration ? spec.config
+      : GardState.Configuration.resolve(spec.config || [], new Map)
+    let configSchema = config.staticFacet(GardState.schemaElement)
+    let configHasDoc = configSchema.some(elt => elt instanceof Plot.Type && elt.isDoc), schema
+    if (configHasDoc) schema = Schema.define(configSchema)
+    else if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
+    else throw new SchemaError(`No document plot provided, unable to create schema`)
+    let doc = readDoc(schema, spec.doc)
+    let selection = !spec.selection ? cursorAtStart({doc, config})
+      : typeof spec.selection == "function" ? spec.selection({doc, config})
+      : spec.selection instanceof GardSelection ? spec.selection
+      : GardSelection.Text.create(spec.selection)
+    return GardState.fromConfig(config, doc, selection)
+  }
+
   private constructor(
-    /// The configuration 
+    /// The configuration for this state.
     readonly config: GardState.Configuration,
     private _doc: Plot.Doc,
     private _selection: GardSelection,
@@ -72,6 +99,7 @@ export class GardState {
     return this._doc
   }
 
+  /// The document's schema.
   get schema() {
     if (this.trackAccess) addValue(this.trackAccess, "schema")
     return this._doc.schema
@@ -81,6 +109,13 @@ export class GardState {
   get selection() {
     if (this.trackAccess) addValue(this.trackAccess, "selection")
     return this._selection
+  }
+
+  /// A resolved form of the state's selection. Instead of raw
+  /// positions, this object holds {@link Pos document position}
+  /// objects for `head`, `anchor`, `from`, and `to`.
+  get sel() {
+    return this.resolvedSel || (this.resolvedSel = this.selection.resolve(this.doc))
   }
 
   /// Retrieve the value of a {@link GardState.Field state field}.
@@ -156,19 +191,12 @@ export class GardState {
       startValues = intermediateState.values
       let schemaElts = conf.staticFacet(GardState.schemaElement)
       if (schemaElts != this.facet(GardState.schemaElement) &&
-          schemaElts.some(elt => elt instanceof Plot.Type && elt.isDoc))
+        schemaElts.some(elt => elt instanceof Plot.Type && elt.isDoc))
         doc = Schema.define(schemaElts).doc(doc.content)
     } else {
       startValues = tr.startState.values.slice()
     }
     new GardState(conf, doc, tr.newSelection, startValues, (state, slot) => slot.update(state, tr), tr)
-  }
-
-  /// A resolved form of the state's selection. Instead of raw
-  /// positions, this object holds {@link Pos document position}
-  /// objects for `head`, `anchor`, `from`, and `to`.
-  get sel() {
-    return this._resolvedSel || (this._resolvedSel = this.selection.resolve(this.doc))
   }
 
   /// @internal
@@ -221,31 +249,6 @@ export class GardState {
     let schema = Schema.define(config.staticFacet(GardState.schemaElement))
     let doc = schema.docFromJSON(json.doc)
     return GardState.fromConfig(config, doc, GardSelection.fromJSON({config, doc}, json.selection))
-  }
-
-  /// Create a new state. You'll usually only need this when
-  /// initializing an editor or loading a new document—updated states
-  /// are created by applying transactions.
-  ///
-  /// The schema of the state can be provided either via the {@link
-  /// GardState.schemaElement configuration} or by passing in an
-  /// initialized document (which will have its own schema). If the
-  /// configuration contains a document plot type, the schema from the
-  /// configuration will be used, even if a document was provided.
-  static create(spec: GardState.Spec): GardState {
-    let config = spec.config instanceof GardState.Configuration ? spec.config
-      : GardState.Configuration.resolve(spec.config || [], new Map)
-    let configSchema = config.staticFacet(GardState.schemaElement)
-    let configHasDoc = configSchema.some(elt => elt instanceof Plot.Type && elt.isDoc), schema
-    if (configHasDoc) schema = Schema.define(configSchema)
-    else if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
-    else throw new SchemaError(`No document plot provided, unable to create schema`)
-    let doc = readDoc(schema, spec.doc)
-    let selection = !spec.selection ? cursorAtStart({doc, config})
-      : typeof spec.selection == "function" ? spec.selection({doc, config})
-      : spec.selection instanceof GardSelection ? spec.selection
-      : GardSelection.Text.create(spec.selection)
-    return GardState.fromConfig(config, doc, selection)
   }
 
   /// @internal
@@ -367,12 +370,15 @@ export namespace GardState {
   }
 
   export namespace Field {
+    /// The options passed when defining a state field.
     export type Spec<Value> = {
       /// Creates the initial value for the field when a state is created.
       create: (state: GardState) => Value,
 
       /// Compute a new value from the field's previous value and a
-      /// {@link Transaction transaction}.
+      /// {@link Transaction transaction}. Should not mutate the old
+      /// value (since that will change the existing state), but
+      /// create a fresh one or return the old value unchanged.
       update: (value: Value, transaction: Transaction) => Value,
 
       /// Compare two values of the field, returning `true` when they are
@@ -382,11 +388,11 @@ export namespace GardState {
       compare?: (a: Value, b: Value) => boolean,
 
       /// Provide extensions based on this field. The given function
-      /// will be called once with the initialized field. It will
-      /// usually want to call some facet's {@Facet.from `from`}
-      /// method to create facet inputs from this field, but can also
-      /// return other extensions that should be enabled when the
-      /// field is present in a configuration.
+      /// will be called once with the initialized field. It is
+      /// typically used with a facet's {@Facet.from `from`} method to
+      /// create facet inputs from this field, but can also return
+      /// other extensions that should be enabled when the field is
+      /// present in a configuration.
       provide?: (field: GardState.Field<Value>) => GardState.Extension
 
       /// A function used to serialize this field's content to JSON. Only
@@ -439,7 +445,7 @@ export namespace GardState {
     /// it.
     get reader(): GardState.Facet.Reader<Output> { return this }
 
-    /// Define a new facet.
+    /// Defines a facet.
     static define<Input, Output = readonly Input[]>(config: GardState.Facet.Spec<Input, Output> = {}) {
       return new GardState.Facet<Input, Output>(config.combine || ((a: any) => a) as any,
                                                 config.compareInput || ((a, b) => a === b),
@@ -487,14 +493,18 @@ export namespace GardState {
       return new FacetProvider<Input>([field], this, 0 as ProviderFlag, state => get!(state.field(field)))
     }
 
+    tag!: Output
+  }
+
+  export namespace Facet {
     /// Utility function for combining behaviors to fill in a config
-    /// object from an array of provided configs. `defaults` should hold
-    /// default values for all optional fields in `Config`.
+    /// object from an array of provided configs. `defaults` should
+    /// hold default values for all optional fields in `Config`.
     ///
-    /// The function will, by default, error
-    /// when a field gets two values that aren't `===`-equal, but you can
-    /// provide combine functions per field to do something else.
-    static combineConfig<Config extends object>(
+    /// The function will, by default, error when a field gets two
+    /// values that aren't `===`-equal, but you can provide combine
+    /// functions per field to do something else.
+    export function combineConfig<Config extends object>(
       configs: readonly Partial<Config>[],
       defaults: Partial<Config>, // Should hold only the optional properties of Config, but I haven't managed to express that
       combine: {[P in keyof Config]?: (first: Config[P], second: Config[P]) => Config[P]} = {}
@@ -511,10 +521,8 @@ export namespace GardState {
       return result
     }
 
-    tag!: Output
-  }
-
-  export namespace Facet {
+    /// Options passed when {@link GardState.Facet.define defining} a
+    /// facet.
     export type Spec<Input, Output> = {
       /// How to combine the input values into a single output value. When
       /// not given, the array of input values becomes the output. This
@@ -530,7 +538,9 @@ export namespace GardState {
       /// How to compare input values to avoid recomputing the output
       /// value when no inputs changed. Defaults to comparing with `===`.
       compareInput?: (a: Input, b: Input) => boolean,
-      /// Forbids dynamic inputs to this facet.
+      /// Forbids dynamic inputs to this facet. Allows the facet to be
+      /// {@link GardState.Configuration.staticFacet read} from a
+      /// configuration.
       static?: boolean,
       /// If given, these extension(s) (or the result of calling the given
       /// function with the facet) will be added to any state where this
@@ -550,35 +560,43 @@ export namespace GardState {
       id: number
       /// @internal
       default: Output
-      /// Dummy tag that makes sure TypeScript doesn't consider all object
-      /// types as conforming to this type. Not actually present on the
-      /// object.
+      /// @hidden
       tag: Output
     }
   }
 
+  /// A state configuration stores a set of extensions, structured so
+  /// that state updates can be performed efficiently.
   export class Configuration {
     /// @internal
     readonly statusTemplate: SlotStatus[] = []
 
     private constructor(
+      /// The set of extensions that this configuration is based on.
       readonly base: GardState.Extension,
+      /// @internal
       readonly compartments: Map<GardState.Compartment, GardState.Extension>,
+      /// @internal
       readonly dynamicSlots: DynamicSlot[],
+      /// @internal
       readonly address: {[id: number]: number},
+      /// @internal
       readonly staticValues: readonly any[],
+      /// @internal
       readonly facets: {[id: number]: readonly FacetProvider<any>[]}
     ) {
       while (this.statusTemplate.length < dynamicSlots.length)
         this.statusTemplate.push(SlotStatus.Unresolved)
     }
 
+    /// Read the value of a static facet.
     staticFacet<Output>(facet: GardState.Facet<any, Output>): Output {
       if (!facet.isStatic) throw new Error("Only static facets can be accessed from a configuration")
       let addr = this.address[facet.id]
       return addr == null ? facet.default : this.staticValues[addr >> 1]
     }
 
+    /// @internal
     static resolve(base: GardState.Extension, compartments: Map<GardState.Compartment, GardState.Extension>, oldState?: GardState) {
       let fields: GardState.Field<any>[] = []
       let facets: {[id: number]: FacetProvider<any>[]} = Object.create(null)
@@ -694,7 +712,7 @@ export namespace GardState {
   /// state fields} or {@link GardState.Facet.of facet providers}, or
   /// objects with an extension in its `extension` property.
   /// Extensions can be nested in arrays arbitrarily deep—they will be
-  /// flattened when processed.
+  /// flattened when resolved into a configuration.
   export type Extension = {extension: GardState.Extension} | readonly GardState.Extension[]
 
   /// By default extensions are registered in the order they are found
@@ -730,6 +748,7 @@ export namespace GardState {
   export class Compartment {
     private constructor() {}
 
+    /// Define a new compartment.
     static define() { return new Compartment }
 
     /// Create an instance of this compartment to add to your {@link
@@ -757,7 +776,7 @@ export namespace GardState {
   /// type, the editor's document schema will be derived from the
   /// content of this facet. (Otherwise, the state will try to use the
   /// schema provided via the {@link GardState.Spec.doc} option, or
-  /// error is none is provided.)
+  /// raise an error is none is provided.)
   export const schemaElement = GardState.Facet.define<Schema.Element | readonly Schema.Element[], readonly Schema.Element[]>({
     combine: values => values.reduce((set: readonly Schema.Element[], elt) => set.concat(elt), none),
     static: true
@@ -800,6 +819,11 @@ export namespace GardState {
     static: true
   })
 
+  /// Configure whether to use visual or logical cursor motion in
+  /// bidirectional text. The default is visual, where pressing
+  /// left/right arrow keys moves the cursor in the direction that
+  /// corresponds to the arrow on key. When disabled, the motion uses
+  /// the string index order instead.
   export const visualCursorMotion = GardState.Facet.define<boolean, boolean>({
     combine(values) { return !values.length ? true : values[0] },
     static: true

@@ -293,7 +293,7 @@ export class Schema {
       throw new ValidationError("Invalid tag JSON")
     let type = this.nodesByName[json.type]
     let marks = json.marks ? this.marksFromJSON(json.marks) : none
-    let tag = "param" in json ? type.of(validate(type.spec.validateParam, json.param), marks)
+    let tag = "param" in json ? type.of(validate(type.spec.validate, json.param), marks)
       : !type.default ? null
       : marks.length ? type.of(type.default.param, marks) : type.default
     if (!tag) throw new ValidationError(`Missing param for tag type ${type.name}`)

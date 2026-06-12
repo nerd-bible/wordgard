@@ -61,10 +61,10 @@ export abstract class BaseType<Param> {
 export abstract class BaseTag<Param> {
   abstract type: Node.Type<Param>
 
-    constructor(
-      readonly param: Param,
-      readonly marks: Mark.Set
-    ) {}
+  constructor(
+    readonly param: Param,
+    readonly marks: Mark.Set
+  ) {}
 
   mark<Value>(mark: Mark.Type<Value>): Value | undefined {
     for (let v of this.marks) if (v.type == mark) return v.value as Value
@@ -107,6 +107,8 @@ export namespace Node {
     /// for leaves this is 1, except for text leaves, where it is the
     /// length of the text.
     length: number
+    /// The set of marks for this node.
+    marks: Mark.Set
     /// Get the value of the given mark for this node, if any.
     mark<Value>(mark: Mark.Type<Value>): Value | undefined
     /// Compare this node to another node.
@@ -205,7 +207,7 @@ export namespace Node {
     /// value is not one of those types. When a function, it should
     /// raise an error if the value doesn't have the expected type or
     /// shape.
-    validateParam?: string | ((param: Param) => void)
+    validate?: string | ((param: Param) => void)
     /// Assign one or more groups to this node type. Groups are used
     /// when specifying allowed content for a plot. Schema overrides
     /// can {@link Schema.Override.nodeGroup change} a node's set of
@@ -650,12 +652,12 @@ export class Plot implements Node.Shared {
       shape: {element: ""}
     })
   }
-
-  /// The end token for a plot. Used in {@link Slice slices}.
-  static End = Token.End
 }
 
 export namespace Plot {
+  /// The end token for a plot. Used in {@link Slice slices}.
+  export const End = Token.End
+
   /// A plot tag holds the type of the plot, its parameter (if any),
   /// and a set of marks.
   export class Tag<Param = unknown> extends BaseTag<Param> implements Node.Tag.Shared<Param> {
@@ -673,17 +675,18 @@ export namespace Plot {
         compareDeep(this.param, other.param) && Mark.sameSet(this.marks, other.marks)
     }
 
-    withMarks(marks: Mark.Set) {
-      return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
-    }
-
     /// Create a plot with this tag and the given content.
     create(content?: readonly Node[]): Plot {
       if (this.isDoc) throw new Error("Document nodes must be created with schema.doc()")
       return Plot.create(this, content ? joinText(content) : none)
     }
 
-    /// Create a tag that represents content split off from the plot
+    /// Create a copy of this tag with the given marks.
+    withMarks(marks: Mark.Set) {
+      return Mark.sameSet(this.marks, marks) ? this : this.type.of(this.param, marks)
+    }
+
+    /// Return a tag that represents content split off from the plot
     /// with this tag. Will respect the {@link Mark.Spec.keepOnSplit}
     /// mark property. `atEnd` should be set to true if the split
     /// happens at the end of the plot's content.
@@ -840,7 +843,8 @@ export namespace Plot {
     /// Defaults to false.
     defining?: boolean
     /// Neutral nodes may be completely replaced when their entire
-    /// content gets replaced. Defaults to `!defining`.
+    /// content gets replaced. Defaults to `!`{@link
+    /// Plot.Spec.defining}.
     neutral?: boolean
     /// Whether block nodes of this type should be automatically
     /// joined when they become adjacent through an edit. Defaults to
@@ -878,7 +882,7 @@ export namespace Plot {
     /// @internal
     static new(schema: Schema, children: readonly Node[]) { return new Doc(schema, children) }
 
-    /// The document's length.
+    /// The length of the document's content.
     get length() { return this.contentLength }
 
     /// @internal

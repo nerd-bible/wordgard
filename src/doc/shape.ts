@@ -139,8 +139,24 @@ export class Elt<T = string> {
     return null
   }
 
+  /// @internal
+  static empty: readonly any[] = []
+
+  /// @internal
+  static hole: readonly [0] = [0]
+}
+
+const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
+                             "hr", "img", "input", "keygen", "link", "meta", "param",
+                             "source", "track", "wbr", "menuitem"])
+
+export namespace Elt {
+  /// An element fragment is an array of leaf types, nested elements,
+  /// or a content hole.
+  export type Fragment<T = string> = readonly (0 | T | Elt<T>)[]
+
   /// Convert an element, string, or fragment to an HTML string.
-  static html(content: Elt | string | Elt.Fragment): string {
+  export function html(content: Elt | string | Elt.Fragment): string {
     let html = ""
     function scan(elt: Elt<string> | string | 0) {
       if (typeof elt == "string") {
@@ -175,10 +191,10 @@ export class Elt<T = string> {
   }
 
   /// Convert an element, string, or fragment to a DOM tree.
-  static dom(elt: Elt, doc?: Document): Element
-  static dom(elt: string, doc?: Document): Text
-  static dom(elt: Elt.Fragment, doc?: Document): DocumentFragment
-  static dom(elt: Elt | string | Elt.Fragment, doc: Document = document): Element | Text | DocumentFragment {
+  export function dom(elt: Elt, doc?: Document): Element
+  export function dom(elt: string, doc?: Document): Text
+  export function dom(elt: Elt.Fragment, doc?: Document): DocumentFragment
+  export function dom(elt: Elt | string | Elt.Fragment, doc: Document = document): Element | Text | DocumentFragment {
     if (typeof elt == "string") {
       return doc.createTextNode(elt)
     } else if (elt instanceof Elt) {
@@ -191,22 +207,6 @@ export class Elt<T = string> {
       return frag
     }
   }
-
-  /// @internal
-  static empty: readonly any[] = []
-
-  /// @internal
-  static hole: readonly [0] = [0]
-}
-
-const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "frame",
-                             "hr", "img", "input", "keygen", "link", "meta", "param",
-                             "source", "track", "wbr", "menuitem"])
-
-export namespace Elt {
-  /// An element fragment is an array of leaf types, nested elements,
-  /// or content holes.
-  export type Fragment<T = string> = readonly (0 | T | Elt<T>)[]
 
   /// @internal
   export class Selector {
@@ -318,8 +318,7 @@ export namespace Attributes {
   }
 
   /// Convert an attribute object into a set.
-  export function read(obj: Record<string, string | null> | null | undefined) {
-    if (!obj) return Attributes.none
+  export function read(obj: Record<string, string | null>) {
     let result: string[] = []
     for (let prop in obj) if (prop != "_") {
       let value = obj[prop]
@@ -384,8 +383,9 @@ export namespace Shape {
   export type Attribute<Param> = {
     /// The name of the attribute.
     attribute: string
-    /// Its value. When given as 0, which is ony valid when the `Param`
-    /// type is `string`, the value of the mark's parameter is used.
+    /// Its value. When given as 0, which is ony valid when the
+    /// `Param` type is `string`, the value of the mark's parameter is
+    /// used directly.
     value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
     /// An optional function that converts the value of the attribute
     /// back into a parameter value. Used in the parse rule.
@@ -393,7 +393,7 @@ export namespace Shape {
     /// If the target node may be a composite shape (rather than a
     /// single DOM element), you can provide a limited form of selector
     /// here to target a specific element in that shape. Node names and
-    /// class names are selected, as in `"img"`, `"img.my-class"`, or
+    /// class names are supported, as in `"img"`, `"img.my-class"`, or
     /// `".class1.class2"`. If no matching element is found, the
     /// attributes will be added to the node's outer element, as normal.
     preferTarget?: string
@@ -427,7 +427,7 @@ export class NodeShape<Param> {
       if (typeof attributes == "function") {
         create = (param: Param) => Elt.create(element, Attributes.read(attributes(param)), atom ? Elt.empty : Elt.hole)
       } else {
-        let elt = Elt.create(element, Attributes.read(attributes), atom ? Elt.empty : Elt.hole)
+        let elt = Elt.create(element, attributes ? Attributes.read(attributes) : Attributes.none, atom ? Elt.empty : Elt.hole)
         create = () => elt
       }
     } else {

@@ -1,5 +1,9 @@
-/// This module defines the library's document data structure. A
-/// document is a tree of nodes. It is made up of these elements:
+/// This module defines the library's document data structure, change
+/// model, and some helper functionality for working with those.
+///
+/// ### Document
+///
+/// A document is a tree of nodes. It is made up of these elements:
 ///
 /// - {@link Node Nodes} can be {@link Plot plots} (nodes with content
 ///   nodes) or {@link Leaf leaves}. The top document node is a plot.

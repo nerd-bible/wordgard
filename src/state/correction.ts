@@ -96,22 +96,11 @@ const corrections = GardState.Facet.define<Correction<Pos.Node>, readonly (reado
 
 const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 
-/// Corrections are extensions that listen for some kinds of document
-/// changes on specific types of nodes and, when they occur, run a
-/// function to verify that some condition holds and optionally
-/// adjust the node.
-///
-/// The correcting function will be passed a {@link Pos.Node} object
-/// pointing at the matched node, as well as the editor state _before_
-/// the transaction. Changes it produces will be interpreted as
-/// relative to the document _after_ the transaction (so `node.doc`).
-///
-/// Corrections are wrappers around {@link Transaction.extender
-/// transaction extenders}. This means that their effect will be
-/// included in transactions as they are applied.
+/// The class representing a correction. Counts as an editor
+/// extension.
 export class Correction<PosType extends Pos.Node> {
   /// To take effect, corrections must be included in an editor
-  /// configuration as extensions.
+  /// configuration.
   extension: GardState.Extension
 
   private constructor(

@@ -270,7 +270,7 @@ export namespace Transaction {
   }
 
   export namespace Effect {
-    /// Representation of a type of state effect. Defined with
+    /// A type of state effect. Defined with
     /// {@Transaction.Effect.define}.
     export class Type<Value> {
       /// @internal
@@ -288,6 +288,7 @@ export namespace Transaction {
       of(value: Value): Transaction.Effect<Value> { return new Transaction.Effect(this, value) }
     }
 
+    /// Options passed when defining an effect.
     export interface Spec<Value> {
       /// Provides a way to map an effect like this through a position
       /// mapping. When not given, the effects will simply not be mapped.

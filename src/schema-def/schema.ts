@@ -16,7 +16,7 @@ export const Paragraph = Plot.define("Paragraph", {
 /// content, rendered as `<h1>` to `<h6>`.
 export const Heading = Plot.Type.define("Heading", {
   defaultParam: 1,
-  validateParam: value => {
+  validate: value => {
     if (typeof value != "number" || Math.floor(value) != value || value < 1 || value > 6)
       throw new ValidationError(`Invalid heading level: ${value}`)
   },
@@ -86,7 +86,7 @@ export const InlineListItem = Plot.define("ListItem", {
 /// providing the `start` attribute.
 export const OrderedList = Plot.Type.define("OrderedList", {
   defaultParam: 1,
-  validateParam: "number",
+  validate: "number",
   blockContent: [ListItem, InlineListItem],
   group: G.Content,
   role: Node.Role.List,
@@ -219,7 +219,7 @@ export const RowSpan = Mark.Type.define<number>("RowSpan", {
 /// URI. Rendered as `<img>`.
 export const Image = Leaf.Type.define<string>("Image", {
   inline: true,
-  validateParam: "string",
+  validate: "string",
   shape: {element: "img", attributes: src => ({src})},
   selectable: true,
   parseRules: [{
@@ -231,7 +231,7 @@ export const Image = Leaf.Type.define<string>("Image", {
 /// A block image leaf. Renders as a `<figure>` element with an
 /// `<img>` in it. The parameter holds the image URI.
 export const Figure = Leaf.Type.define<string>("Figure", {
-  validateParam: "string",
+  validate: "string",
   shape: {structure: src => Elt.mk("figure", [Elt.mk("img", {src})])},
   selectable: true,
   group: G.Content,
@@ -250,7 +250,7 @@ export const Figure = Leaf.Type.define<string>("Figure", {
 /// `<figcaption>` elements as children.
 export const CaptionedFigure = Plot.Type.define<string>("CaptionedFigure", {
   inlineContent: true,
-  validateParam: "string",
+  validate: "string",
   shape: {structure: src => Elt.mk("figure", [Elt.mk("img", {src}), Elt.mk("figcaption", [0])]), atom: false},
   group: G.Content,
   parseRules: [{
