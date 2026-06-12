@@ -22,6 +22,7 @@ export function serialize(doc: Plot.Doc, options: serialize.Options = {}): Elt.F
 }
 
 export namespace serialize {
+  /// The options passed to serializer functions.
   export interface Options {
     /// Set this to true to replace nodes with the {@link
     /// Node.Role.LineBreak `LineBreak`} role with newline characters.
@@ -43,6 +44,7 @@ export namespace serialize {
   }
 
   export namespace slice {
+    /// Options passed to {@link serialize.slice}.
     export interface Options extends serialize.Options {
       /// If given, the serializer will set this attribute to
       /// `"start"`, `"end"`, or `"start end"` for nodes that are open

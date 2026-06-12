@@ -51,7 +51,7 @@ export class Mark<Value = unknown> {
 
   /// Compare this mark to another one. Parameter values are compared
   /// by structure.
-  eq(other: Mark<any>) {
+  eq(other: Mark.Any) {
     return this.type == other.type && compareDeep(this.value, other.value)
   }
 
@@ -76,7 +76,7 @@ export class Mark<Value = unknown> {
   /// instances of the mark in the set, unless this is a {@link
   /// Mark.Spec.set set-valued} mark.
   addToSet(set: Mark.Set): Mark.Set {
-    let placed: Mark<any> | null = null, copy: Mark<any>[] = []
+    let placed: Mark.Any | null = null, copy: Mark.Any[] = []
     for (let i = 0; i < set.length; i++) {
       let other = set[i]
       if (this.eq(other)) return set
@@ -236,9 +236,16 @@ export namespace Mark {
     parseRules?: readonly (parse.Rule.Element<Value> | parse.Rule.Attribute<Value>)[]
   }
 
+  /// A projection of `Mark<unknown>` that is a supertype of a
+  /// specific mark type.
+  export type Any = Omit<Mark<unknown>, "type" | "isInSet"> & {
+    type: Mark.Type<any>,
+    isInSet(set: Mark.Set): Mark.Any | null
+  }
+
   /// A set of marks is a sorted array in which a given mark type can
   /// occur at most once.
-  export type Set = readonly Mark[]
+  export type Set = readonly Mark.Any[]
 }
 
 class ElementShape<Value> {

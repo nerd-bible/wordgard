@@ -193,7 +193,7 @@ export const toggleBlock: Command.Pure<Plot.Tag.Any> = (target, tag) => {
 /// the cursor's active marks, or removed if it is already in there.
 /// Otherwise, if any selected content allows for the mark to be
 /// added, it is added. If not, remove the mark from the selection.
-export const toggleMark: Command.Pure<Mark<any>> = ({state}, mark) => {
+export const toggleMark: Command.Pure<Mark.Any> = ({state}, mark) => {
   let {selection, doc} = state
   if (selection instanceof GardSelection.Text && selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks(), add = !mark.isInSet(selMarks)

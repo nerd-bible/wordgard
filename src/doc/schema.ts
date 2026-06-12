@@ -344,7 +344,7 @@ function normalizeElt(elt: Schema.Element): Node.Type<any> | Mark.Type<any> | Sc
 export namespace Schema {
   /// A schema element is any node tag or type, mark or mark type, or
   /// override.
-  export type Element = Node.Tag | Node.Type<any> | Mark<any> | Mark.Type<any> | Schema.Override
+  export type Element = Node.Tag | Node.Type<any> | Mark.Any | Mark.Type<any> | Schema.Override
 
   /// Though nodes and marks are mostly self-contained, a few of their
   /// aspects can be overridden per schema.
@@ -371,8 +371,8 @@ export namespace Schema {
 
     /// Create a schema override that changes the target nodes for a
     /// mark.
-    static markTarget(mark: Mark.Type<any> | Mark<any>, target: Node.Query | ((target: Node.Query) => Node.Query)) {
-      return new Schema.Override(mark instanceof Mark ? mark.type : mark, typeof target == "function" ? target : () => target)
+    static markTarget(mark: Mark.Type<any> | Mark.Any, target: Node.Query | ((target: Node.Query) => Node.Query)) {
+      return new Schema.Override(mark instanceof Mark.Type ? mark : mark.type, typeof target == "function" ? target : () => target)
     }
 
     /// Create a schema override that changes the content specification
