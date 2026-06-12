@@ -481,9 +481,9 @@ export namespace ChangeSet {
     /// used as wrappers when fitting the slice.
     fit?: boolean | readonly Plot.Tag.Any[]
     /// Add the given mark to this change's range.
-    add?: Mark.Any
+    add?: Mark
     /// Remove the given mark from this range.
-    remove?: Mark.Any
+    remove?: Mark
   }
 
   /// Type used to describe a {@link ChangeSet.create change set}. A

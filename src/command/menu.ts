@@ -122,7 +122,7 @@ export namespace Menu {
     /// of the marks associated with the current cursor, or the selection
     /// covers only content with that mark.
     export function toggleMark(config: {
-      mark: Mark.Any,
+      mark: Mark,
       parent?: Menu.Group | Menu.Submenu
       rank?: number
       description?: PhraseSet.Ref

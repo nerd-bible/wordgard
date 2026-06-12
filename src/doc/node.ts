@@ -401,13 +401,16 @@ export namespace Leaf {
     /// Node.Spec.defaultParam} was given.
     default: Leaf<Param> | null
 
+    /// The spec used to define this type.
+    readonly spec: Leaf.Spec<any>
+
     private constructor(
       name: string,
       flags: NodeFlag,
-      /// The spec used to define this type.
-      readonly spec: Leaf.Spec<Param>
+      spec: Leaf.Spec<Param>
     ) {
       super(name, flags, spec, NodeShape.from(name, true, spec.shape))
+      this.spec = spec
       this.default = "defaultParam" in spec ? Leaf.new(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? Leaf.new(this, null as any, none) : null
     }

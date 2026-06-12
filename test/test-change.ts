@@ -5,7 +5,7 @@ import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
 import {basicBuilders, basicSchema, tag, maybeTag, eq} from "./schema.ts"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, hr, img, imgAlt, $img, a, em, strong} = basicBuilders
 
-type ChangeData = (Token | string)[] | {add: Mark.Any} | {remove: Mark.Any}
+type ChangeData = (Token | string)[] | {add: Mark} | {remove: Mark}
 
 // Construct a change set starting from the given document, using
 // pairs of tags (i*2, i*2+1 ?? i*2) as the extent of each change.

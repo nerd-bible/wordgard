@@ -51,7 +51,7 @@ export class Mark<Value = unknown> {
 
   /// Compare this mark to another one. Parameter values are compared
   /// by structure.
-  eq(other: Mark.Any) {
+  eq(other: Mark) {
     return this.type == other.type && compareDeep(this.value, other.value)
   }
 
@@ -76,7 +76,7 @@ export class Mark<Value = unknown> {
   /// instances of the mark in the set, unless this is a {@link
   /// Mark.Spec.set set-valued} mark.
   addToSet(set: Mark.Set): Mark.Set {
-    let placed: Mark.Any | null = null, copy: Mark.Any[] = []
+    let placed: Mark | null = null, copy: Mark[] = []
     for (let i = 0; i < set.length; i++) {
       let other = set[i]
       if (this.eq(other)) return set
@@ -140,17 +140,23 @@ export namespace Mark {
     /// Whether this is an inclusive mark.
     readonly inclusive: boolean
     /// @internal
-    readonly element: {name: string, attrs: (value: Value) => Attributes} | null = null
+    readonly element: {name: string, attrs(value: Value): Attributes} | null = null
     /// @internal
-    readonly attribute: {get: (value: Value) => Attributes, target: Elt.Selector | null} | null = null
+    readonly attribute: {get(value: Value): Attributes, target: Elt.Selector | null} | null = null
     /// Whether this is a {@link Mark.Spec.spanning spanning} mark.
     readonly spanning: boolean
 
+    /// The spec used to define this mark. (Its type parameter is set
+    /// to `any` to circumvent a typing issue where `Mark<T>` isn't a
+    /// subtype of `Mark<unknown>`.)
+    readonly spec: Mark.Spec<any>
+
     private constructor(
       readonly name: string,
-      readonly spec: Mark.Spec<Value>,
+      spec: Mark.Spec<Value>,
       isFlag: boolean
     ) {
+      this.spec = spec
       this.rank = Math.max(0, Math.min(spec.rank ?? 100, 100))
       this.set = spec.set ? spec.set.compare : null
       this.default = isFlag ? Mark.create(this, null as any) : null
@@ -231,21 +237,14 @@ export namespace Mark {
     /// A mark can be either represented with a wrapping element, or
     /// with one or more attributes added to the affected nodes.
     shape: Shape.Element<Value> | Shape.Attribute<Value> | Shape.Attributes<Value>
-    /// A set of parse rules for this mark. The `mark` field for these
-    /// will automatically be defaulted to the mark type itself.
-    parseRules?: readonly (parse.Rule.Element<Value> | parse.Rule.Attribute<Value>)[]
-  }
-
-  /// A projection of `Mark<unknown>` that is a supertype of a
-  /// specific mark type.
-  export type Any = Omit<Mark<unknown>, "type" | "isInSet"> & {
-    type: Mark.Type<any>,
-    isInSet(set: Mark.Set): Mark.Any | null
+      /// A set of parse rules for this mark. The `mark` field for these
+      /// will automatically be defaulted to the mark type itself.
+      parseRules?: readonly (parse.Rule.Element<Value> | parse.Rule.Attribute<Value>)[]
   }
 
   /// A set of marks is a sorted array in which a given mark type can
   /// occur at most once.
-  export type Set = readonly Mark.Any[]
+  export type Set = readonly Mark[]
 }
 
 class ElementShape<Value> {

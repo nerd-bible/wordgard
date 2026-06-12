@@ -583,7 +583,7 @@ export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec[] 
   return changes
 }
 
-export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark: Mark.Any | Mark.Type<any>) {
+export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark: Mark | Mark.Type<any>) {
   let found = false, type = mark instanceof Mark.Type ? mark : mark.type
   doc.iterate(from, to, node => {
     if (found || mark.isInSet(node.tag.marks)) return false
