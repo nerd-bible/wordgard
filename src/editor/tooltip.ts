@@ -241,14 +241,10 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
       }
     }
     if (makeAbsolute || this.position == "absolute") {
-      if (this.parent) {
-        let rect = this.parent.getBoundingClientRect()
-        if (rect.width && rect.height) {
-          scaleX = rect.width / this.parent.offsetWidth
-          scaleY = rect.height / this.parent.offsetHeight
-        }
-      } else {
-        ;({scaleX, scaleY} = this.wg.viewState)
+      let measure = this.parent || this.container, rect = measure.getBoundingClientRect()
+      if (rect.width && rect.height) {
+        scaleX = rect.width / measure.offsetWidth
+        scaleY = rect.height / measure.offsetHeight
       }
     }
     let visible = this.wg.scrollDOM.getBoundingClientRect(), margins = this.wg.getScrollMargins()
@@ -290,7 +286,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
       let arrow: HTMLElement | null = tooltip.arrow ? tView.dom.querySelector("wg-tooltip-arrow") : null
       let arrowHeight = arrow ? Arrow.Size : 0
       let width = size.right - size.left, height = knownHeight.get(tView) ?? size.bottom - size.top
-      let offset = tView.offset || noOffset, ltr = this.wg.textLTR
+      let offset = tView.offset || noOffset, ltr = this.wg.state.textLTR
       let left = size.width > space.right - space.left
         ? (ltr ? space.left : space.right - size.width)
         : ltr ? Math.max(space.left, Math.min(pos.left - (arrow ? Arrow.Offset : 0) + offset.x, space.right - width))

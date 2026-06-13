@@ -196,11 +196,11 @@ export abstract class GardSelection {
 }
 
 export namespace GardSelection {
-  /// Create an extension that registers a custom selection type. Such
-  /// a selection is only valid in a state that has the extension
-  /// active. The JSON representation of a selection will be tagged
-  /// with the `tag` string, and created and read via the functions
-  /// passed here.
+  /// Create an extension that registers a custom selection type using
+  /// the given class. Such a selection is only valid in a state that
+  /// has the extension active. The JSON representation of a selection
+  /// will be tagged with the `tag` string, and created and read via
+  /// the functions passed here.
   export function define<T extends GardSelection, JSON extends object>(
     tag: string, cls: {new(...args: any[]): T},
     toJSON: (sel: T) => JSON,

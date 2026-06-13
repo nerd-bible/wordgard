@@ -19,11 +19,15 @@ import {exceptionSink, logException} from "./util"
 
 const dirCompartment = GardState.Compartment.define()
 
-/// This class implements the editor's user interface. It holds
-/// the editable DOM surface, and possibly other elements such as
-/// panels. It handles events and dispatches state transactions for
-/// editing actions.
+/// This class implements the editor's user interface. It wraps the
+/// editable DOM surface and possibly other elements such as panels.
 export class Wordgard {
+  /// Construct a new editor. You'll want to either provide a `parent`
+  /// option, or put the editor's {@link Wordgard.dom DOM element}
+  /// into your document after creating an editor, so that the user
+  /// can see it.
+  static create(spec: Wordgard.Spec) { return new Wordgard(spec) }
+
   /// The current editor state.
   get state() { return this.viewState.state }
 
@@ -131,12 +135,6 @@ export class Wordgard {
     if (spec.parent) spec.parent.appendChild(this.dom)
   }
 
-  /// Construct a new editor. You'll want to either provide a `parent`
-  /// option, or put the editor's {@link Wordgard.dom DOM element}
-  /// into your document after creating an editor, so that the user
-  /// can see it.
-  static create(spec: Wordgard.Spec) { return new Wordgard(spec) }
-
   /// @internal
   setConnected(value: boolean) {
     if (value == this.connected) return
@@ -164,23 +162,17 @@ export class Wordgard {
   /// or transaction spec and updates the editor to show the new state
   /// produced by that transaction. This function is bound to the editor
   /// instance, so it does not have to be called as a method.
-  dispatch(tr: Transaction | Transaction.Spec): void {
-    this.update(tr instanceof Transaction ? tr : this.state.update(tr))
-  }
-
-  /// Update the editor for the given transaction. Updates
-  /// will be immediately be reflected in the object's `state`
+  ///
+  /// Updates will be immediately be reflected in the object's `state`
   /// property, but updating the DOM will be deferred to the next
   /// display update.
-  ///
-  /// You should usually call {@link Wordgard.dispatch} instead, which
-  /// uses this as a primitive.
-  update(transaction: Transaction) {
+  dispatch(tr: Transaction | Transaction.Spec): void {
     if (this.flushing) throw new Error("Cannot dispatch new updates during the editor flush phase")
-    this.viewState.update(transaction)
+    this.viewState.update(tr instanceof Transaction ? tr : this.state.update(tr))
     this.scheduleFlush()
   }
 
+  /// @internal
   scheduleFlush() {
     if (!this.willFlush && !this.flushing && this.connected) {
       this.win.queueMicrotask(this.flush)
@@ -188,6 +180,7 @@ export class Wordgard {
     }
   }
 
+  /// @internal
   flush(force = false) {
     if ((!this.connected && !force) || this.inputState.pendingComposition) return
     this.observer.pollSelection()
@@ -305,13 +298,6 @@ export class Wordgard {
     if (configChange) this.inputState.ensureHandlers(update.state)
   }
 
-  /// Get the CSS classes for the currently active editor themes.
-  get themeClasses() {
-    return baseThemeID + " " +
-      (this.state.facet(darkTheme) ?? this.defaultDarkTheme ? baseDarkID : baseLightID) + " " +
-      this.state.facet(theme)
-  }
-
   private updateAttrs() {
     let editorAttrs = attrsFromFacet(this, Wordgard.editorAttributes, [
       "class", this.themeClasses,
@@ -378,23 +364,15 @@ export class Wordgard {
   }
 
   /// Get the value of a specific plugin, if present. Note that
-  /// plugins that crash can be dropped from an editor, so even when you
-  /// know you registered a given plugin, it is recommended to check
-  /// the return value of this method.
+  /// plugins that crash can be dropped from an editor, so even when
+  /// you know you registered a given plugin, it is recommended to
+  /// check the return value of this method.
   plugin<T extends Wordgard.Plugin.Value>(plugin: Wordgard.Plugin<T>): T | null {
     let known = this.pluginMap.get(plugin)
     if (known === undefined || known && known.spec != plugin)
       this.pluginMap.set(plugin, known = this.plugins.find(p => p.spec == plugin && !p.deactivated) || null)
     return known && known.update(this).value as T
   }
-
-  /// If the editor is transformed with CSS, this provides the scale
-  /// along the X axis. Otherwise, it will just be 1. Note that
-  /// transforms other than translation and scaling are not supported.
-  get scaleX() { return this.viewState.scaleX }
-
-  /// Provide the CSS transformed scale along the Y axis.
-  get scaleY() { return this.viewState.scaleY }
 
   private checkFlushed() {
     if (!this.connected)
@@ -403,8 +381,8 @@ export class Wordgard {
       throw new Error("Trying to read from unflushed editor DOM")
   }
 
-  /// Move to the end or start of the (wrapped) line. If the given
-  /// position isn't in a textblock, this will return null.
+  /// Find the position at the end or start of the (wrapped) line. If
+  /// the given position isn't in a textblock, this will return null.
   moveToLineBoundary(start: GardSelection, forward: boolean) {
     this.checkFlushed()
     return moveToLineBoundary(this, start, forward)
@@ -436,6 +414,7 @@ export class Wordgard {
     return {node: tilePos.tile.dom, offset: tilePos.offset}
   }
 
+  /// Get the DOM element for the node at the given position, if any.
   nodeDOM(pos: number): Element | null {
     this.checkFlushed()
     let tile = this.docTile.nodeTile(pos)
@@ -486,11 +465,6 @@ export class Wordgard {
     return this.docTile.coordsForElement(pos)
   }
 
-  /// The text direction
-  /// ([`direction`](https://developer.mozilla.org/en-US/docs/Web/CSS/direction)
-  /// CSS property) of the editor's content element.
-  get textLTR(): boolean { return this.viewState.styleLTR }
-
   /// Check whether the editor has focus.
   get hasFocus(): boolean {
     // Safari return false for hasFocus when the context menu is open
@@ -507,6 +481,13 @@ export class Wordgard {
       this.contentDOM.focus({preventScroll: true})
       setDOMSelection(this)
     })
+  }
+
+  /// Get the CSS classes for the currently active editor themes.
+  get themeClasses() {
+    return baseThemeID + " " +
+      (this.state.facet(darkTheme) ?? this.defaultDarkTheme ? baseDarkID : baseLightID) + " " +
+      this.state.facet(theme)
   }
 
   /// Returns an effect that can be {@link Transaction.Spec.effects
@@ -568,24 +549,6 @@ export class Wordgard {
   /// editor's focused status changed. It holds `true` when the editor
   /// gained focus, `false` when it lost focus.
   static isFocusChange = isFocusChange
-
-  /// Enable or disable tab-focus mode, which disables key bindings
-  /// for Tab and Shift-Tab, letting the browser's default
-  /// focus-changing behavior go through instead. This is useful to
-  /// prevent trapping keyboard users in your editor.
-  ///
-  /// Without argument, this toggles the mode. With a boolean, it
-  /// enables (true) or disables it (false). Given a number, it
-  /// temporarily enables the mode until that number of milliseconds
-  /// have passed or another non-Tab key is pressed.
-  setTabFocusMode(to?: boolean | number) {
-    if (to == null)
-      this.inputState.tabFocusMode = this.inputState.tabFocusMode < 0 ? 0 : -1
-    else if (typeof to == "boolean")
-      this.inputState.tabFocusMode = to ? 0 : -1
-    else if (this.inputState.tabFocusMode != 0)
-      this.inputState.tabFocusMode = Date.now() + to
-  }
 
   /// Facet to add a [style
   /// module](https://github.com/marijnh/style-mod#documentation) to

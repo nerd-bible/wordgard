@@ -43,13 +43,6 @@ export class InputState {
   lastScrollTop = 0
   lastScrollLeft = 0
 
-  /// When enabled (>-1), tab presses are not given to key handlers,
-  /// leaving the browser's default behavior. If >0, the mode expires
-  /// at that timestamp, and any other keypress clears it.
-  /// Esc enables temporary tab focus mode for two seconds when not
-  /// otherwise handled.
-  tabFocusMode: number = -1
-
   lastSelectionOrigin: string | null = null
   lastSelectionTime: number = 0
   lastContextMenu: number = 0
@@ -133,11 +126,6 @@ export class InputState {
     this.lastKeyCode = event.keyCode
     this.lastKeyTime = Date.now()
     this.shiftKey = event.keyCode == 16 || event.shiftKey
-
-    if (event.keyCode == 9 && this.tabFocusMode > -1 && (!this.tabFocusMode || Date.now() <= this.tabFocusMode))
-      return true
-    if (this.tabFocusMode > 0 && event.keyCode != 27 && modifierCodes.indexOf(event.keyCode) < 0)
-      this.tabFocusMode = -1
     return false
   }
 
@@ -400,7 +388,6 @@ observers.scroll = wg => {
 
 handlers.keydown = (wg, event: KeyboardEvent) => {
   wg.inputState.setSelectionOrigin("select")
-  if (event.keyCode == 27 && wg.inputState.tabFocusMode != 0) wg.inputState.tabFocusMode = Date.now() + 2000
   return false
 }
 

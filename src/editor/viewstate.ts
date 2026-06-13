@@ -1,6 +1,5 @@
 import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
-import {getScale} from "./dom"
 import {UpdateFlag} from "./editor"
 import {Wordgard} from "./editor"
 
@@ -49,11 +48,6 @@ export class ViewState {
   contentDOMHeight = 0 // contentDOM.getBoundingClientRect().height
   editorHeight = 0 // scrollDOM.clientHeight
   editorWidth = 0 // scrollDOM.clientWidth
-  scrollTop = 0 // Last seen scrollDOM.scrollTop
-  // The CSS-transformation scale of the editor (transformed size /
-  // concrete size)
-  scaleX = 1
-  scaleY = 1
   // A scroll target that hasn't been scrolled to yet
   scrollTarget: ScrollTarget | null = null
 
@@ -92,21 +86,10 @@ export class ViewState {
     this.contentDOMHeight = domRect.height
     let result = 0
 
-    if (domRect.width && domRect.height) {
-      let {scaleX, scaleY} = getScale(dom, domRect)
-      if (scaleX > .005 && Math.abs(this.scaleX - scaleX) > .005 ||
-          scaleY > .005 && Math.abs(this.scaleY - scaleY) > .005) {
-        this.scaleX = scaleX; this.scaleY = scaleY
-        result |= UpdateFlag.Geometry
-      }
-    }
-
     if (this.editorWidth != wg.scrollDOM.clientWidth) {
       this.editorWidth = wg.scrollDOM.clientWidth
       result |= UpdateFlag.Geometry
     }
-    let scrollTop = wg.scrollDOM.scrollTop * this.scaleY
-    if (this.scrollTop != scrollTop) this.scrollTop = scrollTop
 
     let contentWidth = domRect.width
     if (this.contentDOMWidth != contentWidth || this.editorHeight != wg.scrollDOM.clientHeight) {
@@ -124,6 +107,5 @@ export class ViewState {
     this.contentDOMHeight = domRect.height
     this.editorHeight = wg.scrollDOM.clientHeight
     this.editorWidth = wg.scrollDOM.clientWidth
-    this.scrollTop = wg.scrollDOM.scrollTop
   }
 }
