@@ -61,8 +61,6 @@ export class BidiSpan {
   /// The direction of this span.
   get ltr(): boolean { return (this.level % 2) == 0 }
 
-  get dir() { return 1 }
-
   /// @internal
   constructor(
     /// The start of the span (relative to the start of the line).
@@ -71,9 +69,10 @@ export class BidiSpan {
     readonly to: number,
     /// The ["bidi
     /// level"](https://unicode.org/reports/tr9/#Basic_Display_Algorithm)
-    /// of the span (in this context, 0 means
-    /// left-to-right, 1 means right-to-left, 2 means left-to-right
-    /// number inside right-to-left text).
+    /// of the span. 0 means left-to-right, 1 means right-to-left, 2
+    /// means left-to-right embedded inside right-to-left, and so on,
+    /// with even numbers being left-to-right, odd numbers
+    /// right-to-left..
     readonly level: number
   ) {}
 

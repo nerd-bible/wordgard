@@ -272,8 +272,9 @@ export namespace direction {
   })
 
   /// Menu button for choosing text direction. Includes {@link
-  /// buttonLTR}, {@link buttonRTL}, and {@link buttonAuto} as default
-  /// content.
+  /// direction.buttonLTR `buttonLTR`}, {@link direction.buttonRTL
+  /// `buttonRTL`}, and {@link direction buttonAuto `buttonAuto`} as
+  /// default content.
   export const button = Menu.Submenu.define({
     description: phrases.ref("text_dir"),
     parent: Menu.Group.block,

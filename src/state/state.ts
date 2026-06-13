@@ -292,17 +292,27 @@ export namespace GardState {
   /// Options passed when {@link GardState.create creating} an editor
   /// state.
   export interface Spec {
-    /// The initial document.
+    /// The initial document. When passing in a document here, it is
+    /// not necessary to include a schema in your configuration
+    /// (though it is allowed, and the document content will be moved
+    /// into that schema if it differs from the one on the given
+    /// document).
+    ///
+    /// All other forms require a schema from the configuration. A
+    /// string or DOM structure will be parsed as HTML, a JSON node
+    /// deserialized, and a function called to produce the document.
     doc: DocSource
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
     selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection)
-    /// The configuration for this state.
+    /// The configuration for this state, either as a resolved {@link
+    /// GardState.Configuration} or as a set of extensions.
     config?: GardState.Extension | GardState.Configuration
   }
 
   /// Fields can store additional information in an editor state, and
-  /// keep it in sync with the rest of the state.
+  /// keep it in sync with the rest of the state. The type parameter
+  /// indicates the type of value stored in the field.
   export class Field<Value> {
     /// @internal
     public provides: GardState.Extension | undefined = undefined
@@ -356,17 +366,17 @@ export namespace GardState {
       }
     }
 
+    /// State field instances can be used as {@link
+    /// GardState.Extension `Extension`} values to enable the field in
+    /// a given state.
+    get extension(): GardState.Extension { return this }
+
     /// Returns an extension that enables this field and overrides the
     /// way it is initialized. Can be useful when you need to provide a
     /// non-default starting value for the field.
     init(create: (state: GardState) => Value): GardState.Extension {
       return [this, initField.of({field: this as any, create})]
     }
-
-    /// State field instances can be used as {@link
-    /// GardState.Extension `Extension`} values to enable the field in
-    /// a given state.
-    get extension(): GardState.Extension { return this }
   }
 
   export namespace Field {
@@ -417,6 +427,12 @@ export namespace GardState {
   ///
   /// Note that `Facet` instances can be used anywhere where {@link
   /// GardState.Facet.Reader} is expected.
+  ///
+  /// Facets have an input type (the type of values provided for it),
+  /// and an output type (the type you get when you read the facet)
+  /// that defaults to an array of input values, but can be anything
+  /// if a {@link GardState.Facet.Spec.combine}
+  /// option is provided.
   export class Facet<Input, Output = readonly Input[]> implements GardState.Facet.Reader<Output> {
     /// @internal
     readonly id = nextID++
@@ -440,12 +456,11 @@ export namespace GardState {
       this.extensions = typeof enables == "function" ? enables(this) : enables
     }
 
-    /// Returns a facet reader for this facet, which can be used to
-    /// {@link GardState.facet read} it but not to define values for
-    /// it.
+    /// A facet reader for this facet, which can be used to {@link
+    /// GardState.facet read} it but not to define values for it.
     get reader(): GardState.Facet.Reader<Output> { return this }
 
-    /// Defines a facet.
+    /// Defines a facet with the given input an output types.
     static define<Input, Output = readonly Input[]>(config: GardState.Facet.Spec<Input, Output> = {}) {
       return new GardState.Facet<Input, Output>(config.combine || ((a: any) => a) as any,
                                                 config.compareInput || ((a, b) => a === b),
@@ -454,7 +469,8 @@ export namespace GardState {
                                                 config.enables)
     }
 
-    /// Returns an extension that adds the given value to this facet.
+    /// Returns an extension that provides the given value to this
+    /// facet.
     of(value: Input): GardState.Extension {
       return new FacetProvider<Input>(none, this, ProviderFlag.Static, value)
     }
@@ -484,7 +500,7 @@ export namespace GardState {
     /// Shorthand method for registering a facet source with a state
     /// field as input. If the field's type corresponds to this facet's
     /// input type, the getter function can be omitted. If given, it
-    /// will be used to retrieve the input from the field value.
+    /// will be used to produce the input from the field value.
     from<T extends Input>(field: GardState.Field<T>): GardState.Extension
     from<T>(field: GardState.Field<T>, get: (value: T) => Input): GardState.Extension
     from<T>(field: GardState.Field<T>, get?: (value: T) => Input): GardState.Extension {
@@ -497,13 +513,59 @@ export namespace GardState {
   }
 
   export namespace Facet {
-    /// Utility function for combining behaviors to fill in a config
-    /// object from an array of provided configs. `defaults` should
-    /// hold default values for all optional fields in `Config`.
+    /// Options passed when {@link GardState.Facet.define defining} a
+    /// facet.
+    export type Spec<Input, Output> = {
+      /// How to combine the input values into a single output value. When
+      /// not given, the array of input values becomes the output. This
+      /// function will immediately be called on creating the facet, with
+      /// an empty array, to compute the facet's default value when no
+      /// inputs are present.
+      combine?: (value: readonly Input[]) => Output,
+      /// How to compare output values to determine whether the value
+      /// of the facet changed. When a new value for the facet is
+      /// computed that that compares as equal to the old value, the
+      /// old value is kept. So in most circumstances, facet values
+      /// can be cheaply compared by identity to check for changes.
+      /// Defaults to comparing by `===` or, if no `combine` function
+      /// was given, comparing each element of the array with `===`.
+      compare?: (a: Output, b: Output) => boolean,
+      /// How to compare input values to avoid recomputing the output
+      /// value when no inputs changed. Defaults to comparing with `===`.
+      compareInput?: (a: Input, b: Input) => boolean,
+      /// Forbids dynamic inputs to this facet. Allows the facet to be
+      /// {@link GardState.Configuration.staticFacet read} from a
+      /// configuration.
+      static?: boolean,
+      /// If given, these extensions (or the result of calling the
+      /// given function with the facet) will be added to any state
+      /// where this facet is provided. (Note that, while a facet's
+      /// {@link GardState.Facet.default default} value can be read
+      /// from a state even if the facet wasn't present in the state
+      /// at all, the extensions won't be added in that situation.)
+      enables?: GardState.Extension | ((self: GardState.Facet<Input, Output>) => GardState.Extension)
+    }
+
+    /// A facet reader can be used to fetch the value of a facet,
+    /// through {@link GardState.facet} or as a dependency in {@link
+    /// GardState.Facet.compute `Facet.compute`}, but not to define
+    /// new values for the facet.
+    export type Reader<Output> = {
+      /// @internal
+      id: number
+      /// @internal
+      default: Output
+      /// @hidden
+      tag: Output
+    }
+
+    /// Utility function for combining multiple configuration objects.
+    /// `defaults` should hold default values for all optional fields
+    /// in `Config`.
     ///
-    /// The function will, by default, error when a field gets two
-    /// values that aren't `===`-equal, but you can provide combine
-    /// functions per field to do something else.
+    /// The function will, by default, raise an error when a field
+    /// gets two values that aren't `===`-equal, but you can provide
+    /// combine functions per field to do something else.
     export function combineConfig<Config extends object>(
       configs: readonly Partial<Config>[],
       defaults: Partial<Config>, // Should hold only the optional properties of Config, but I haven't managed to express that
@@ -519,49 +581,6 @@ export namespace GardState {
       }
       for (let key in defaults) if (result[key] === undefined) result[key] = defaults[key]
       return result
-    }
-
-    /// Options passed when {@link GardState.Facet.define defining} a
-    /// facet.
-    export type Spec<Input, Output> = {
-      /// How to combine the input values into a single output value. When
-      /// not given, the array of input values becomes the output. This
-      /// function will immediately be called on creating the facet, with
-      /// an empty array, to compute the facet's default value when no
-      /// inputs are present.
-      combine?: (value: readonly Input[]) => Output,
-      /// How to compare output values to determine whether the value of
-      /// the facet changed. Defaults to comparing by `===` or, if no
-      /// `combine` function was given, comparing each element of the
-      /// array with `===`.
-      compare?: (a: Output, b: Output) => boolean,
-      /// How to compare input values to avoid recomputing the output
-      /// value when no inputs changed. Defaults to comparing with `===`.
-      compareInput?: (a: Input, b: Input) => boolean,
-      /// Forbids dynamic inputs to this facet. Allows the facet to be
-      /// {@link GardState.Configuration.staticFacet read} from a
-      /// configuration.
-      static?: boolean,
-      /// If given, these extension(s) (or the result of calling the given
-      /// function with the facet) will be added to any state where this
-      /// facet is provided. (Note that, while a facet's default value can
-      /// be read from a state even if the facet wasn't present in the
-      /// state at all, these extensions won't be added in that
-      /// situation.)
-      enables?: GardState.Extension | ((self: GardState.Facet<Input, Output>) => GardState.Extension)
-    }
-
-    /// A facet reader can be used to fetch the value of a facet,
-    /// through {@link GardState.facet} or as a dependency in {@link
-    /// GardState.Facet.compute `Facet.compute`}, but not to define
-    /// new values for the facet.
-    export type Reader<Output> = {
-      /// @internal
-      id: number
-      /// @internal
-      default: Output
-      /// @hidden
-      tag: Output
     }
   }
 
@@ -716,7 +735,7 @@ export namespace GardState {
   export type Extension = {extension: GardState.Extension} | readonly GardState.Extension[]
 
   /// By default extensions are registered in the order they are found
-  /// in the flattened form of nested array that was provided.
+  /// in the flattened form of the configuration's extension tree.
   /// Individual extension values can be assigned a precedence to
   /// override this. Extensions that do not have a precedence set get
   /// the precedence of the nearest parent with a precedence, or
@@ -771,7 +790,7 @@ export namespace GardState {
     static reconfigureCompartment = Transaction.Effect.define<{compartment: GardState.Compartment, extension: GardState.Extension}>()
   }
 
-  /// Facet used to register {@link Schema schema} elements. **If**
+  /// Facet used to register {@link Schema schema} elements. *If*
   /// a configuration contains a {@link Plot.defineDoc document}
   /// type, the editor's document schema will be derived from the
   /// content of this facet. (Otherwise, the state will try to use the
@@ -786,8 +805,8 @@ export namespace GardState {
   /// `readOnly` getter}, which is consulted by commands and
   /// extensions that implement editing functionality to determine
   /// whether they should apply. It defaults to false, but when its
-  /// highest-precedence value is `true`, such functionality disables
-  /// itself.
+  /// highest-precedence value is `true`, the state is considered
+  /// read-only, and such functions won't change the document.
   ///
   /// Not to be confused with {@link editor.Wordgard.editable}, which
   /// controls whether the editor's DOM is set to be editable (and
@@ -809,12 +828,14 @@ export namespace GardState {
     static: true
   })
 
-  /// Configure the text direction in the editor. A `Direction` value
-  /// sets the direction for the entire editor. A function is
-  /// consulted for a given textblock tag to determine the direction
-  /// in that block, or given `null` to query the direction outside of
-  /// textblocks. When multiple values are given, they are consulted
-  /// in order of precedence.
+  /// Configure the text direction per textblock. All values given for
+  /// this will be consulted in order of precedence, until one returns
+  /// a non-null value. If none set a direction, the editor's {@link
+  /// GardState.textLTR base direction} is used.
+  ///
+  /// Schema elements like {@link schema.direction} register an
+  /// instance of this to make the editor aware of the meaning of the
+  /// {@link schema-def.Direction} mark.
   export const textblockLTR = GardState.Facet.define<((plot: Plot) => boolean | null)>({
     static: true
   })

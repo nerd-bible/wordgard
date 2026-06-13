@@ -14,8 +14,7 @@ export class SelectionType {
 
 /// The base class for editor selections. Actual selections will be a
 /// subclass of this—usually {@link GardSelection.Text} or {@link
-/// GardSelection.Node}, but it is also possible for extensions to
-/// provide custom types.
+/// GardSelection.Node}.
 export abstract class GardSelection {
   protected constructor(
     /// The anchor of the selection—the side that doesn't move when
@@ -59,14 +58,14 @@ export abstract class GardSelection {
   get domSelection(): {head: number, headSide: -1 | 1, anchor: number, anchorSide: -1 | 1} { return this }
 
   /// The side that the selection head is associated with. -1 means it
-  /// is after the elemente before its position, 1 means it is before
+  /// is after the element before its position, 1 means it is before
   /// the element after its position. This influences where the
-  /// selection is drawn (for example when on a line wrapping boundary
+  /// cursor is drawn (for example when on a line wrapping boundary
   /// or in bidirectional text) and where further motion takes it. It
   /// is valid for it to point in a direction where the is no element
   /// (say, -1 when at the start of its parent node).
   ///
-  /// By default, this joint points in the direction of the anchor or
+  /// By default, this points in the direction of the anchor or
   /// forward if that is equal to the head, but selection types like
   /// {@link GardSelection.Text} can override it.
   get headSide(): -1 | 1 { return this.head > this.anchor ? -1 : 1 }
@@ -102,7 +101,8 @@ export abstract class GardSelection {
   resolve(doc: Plot.Doc) { return GardSelection.Resolved.create(doc, this) }
 
   /// Convert this selection to an object that can be serialized to
-  /// JSON.
+  /// JSON. Each selection type may define its own JSON representation
+  /// format.
   toJSON(state: GardState): unknown {
     let type = state.facet(GardSelection.selectionType).find(tp => this instanceof tp.cls)
     if (!type) throw new Error("Selection type not enabled in state given to GardSelection.toJSON")
@@ -193,22 +193,22 @@ export abstract class GardSelection {
 
   /// @internal
   declare static selectionType: GardState.Facet<SelectionType>
+}
 
+export namespace GardSelection {
   /// Create an extension that registers a custom selection type. Such
   /// a selection is only valid in a state that has the extension
   /// active. The JSON representation of a selection will be tagged
   /// with the `tag` string, and created and read via the functions
   /// passed here.
-  static define<T extends GardSelection, JSON extends object>(
+  export function define<T extends GardSelection, JSON extends object>(
     tag: string, cls: {new(...args: any[]): T},
     toJSON: (sel: T) => JSON,
     fromJSON: (doc: Plot.Doc, json: JSON) => T
   ) {
     return GardSelection.selectionType.of(new SelectionType(tag, cls, toJSON as any, fromJSON as any)) as any
   }
-}
 
-export namespace GardSelection {
   /// Text selections hold a single arbitrary range in the document.
   /// They represent a cursor when their anchor and head are the same
   /// position.
@@ -216,7 +216,7 @@ export namespace GardSelection {
     private constructor(
       anchor: number,
       head: number,
-      readonly _headSide: -1 | 1,
+      private _headSide: -1 | 1,
       goalColumn: number | undefined,
       /// A set of active marks that should be applied to content
       /// inserted at this selection (replacing the contextual marks).
@@ -364,9 +364,9 @@ export namespace GardSelection {
   }
 
   /// A selection object where the selection positions have been
-  /// {@link Plot.Doc.resolve resolved}. In an editor state, {@link
-  /// GardState.sel} provides an instance of this, derived from the
-  /// regular canonical selection, for convenience.
+  /// {@link Plot.Doc.resolve resolved}. For convenience, an editor
+  /// state's {@link GardState.sel `sel` property} provides an
+  /// instance of this, derived from the state's regular selection.
   export class Resolved {
     /// The selection anchor.
     anchor: Pos

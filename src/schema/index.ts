@@ -1,5 +1,5 @@
 export {strong, emphasis, code, underline, strikethrough, superscript, subscript} from "./mark"
-export {blockDoc, inlineDoc, paragraph, heading, codeBlock, alignment, blockquote, horizontalRule} from "./block"
+export {blockDoc, inlineDoc, paragraph, heading, codeBlock, alignment, direction, blockquote, horizontalRule} from "./block"
 export {color, backgroundColor, ColorPicker} from "./color"
 export {link} from "./link"
 export {bulletList, orderedList} from "./list"

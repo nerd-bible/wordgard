@@ -5,22 +5,23 @@ import {GardSelection} from "./selection"
 /// Changes to the editor state are grouped into transactions.
 /// Typically, a user action creates a single transaction, which may
 /// contain any number of document changes, may change the selection,
-/// or have other effects. Create a transaction by calling {@link
-/// GardState.update}, or immediately dispatch one by calling {@link
-/// editor.Wordgard.dispatch}.
+/// or have other {@link Transaction.Effect effects}. Create a
+/// transaction by calling {@link GardState.update}, or immediately
+/// dispatch one by calling {@link editor.Wordgard.dispatch
+/// `Wordgard.dispatch`}.
 export class Transaction {
   /// @internal
   _state: GardState | null = null
 
   private constructor(
-    /// The state from which the transaction starts.
+    /// The state from which this transaction starts.
     readonly startState: GardState,
     /// The document changes made by this transaction.
     readonly changes: ChangeSet,
     /// The selection set by this transaction, or undefined if it
     /// doesn't explicitly set a selection.
     readonly selection: GardSelection | undefined,
-    /// The effects added to the transaction.
+    /// The effects contained in this transaction.
     readonly effects: readonly Transaction.Effect<any>[],
     /// @internal
     readonly annotations: readonly Transaction.Annotation<any>[],
@@ -35,6 +36,12 @@ export class Transaction {
     this.newSelection.check(startState.config, this.newDoc)
   }
 
+  /// The new selection produced by the transaction. If {@link
+  /// Transaction.selection `this.selection`} is undefined, this will
+  /// {@link GardSelection.map map} the start state's current
+  /// selection through the changes made by the transaction.
+  newSelection: GardSelection
+
   /// The new document produced by the transaction. Contrary to
   /// {@link Transaction.state `.state`}`.doc`, accessing this won't
   /// force the entire new state to be computed right away, so it is
@@ -43,24 +50,21 @@ export class Transaction {
   /// document.
   newDoc: Plot.Doc
 
-  /// The new selection produced by the transaction. If {@link
-  /// Transaction.selection `this.selection`} is undefined, this will
-  /// {@link GardSelection.map map} the start state's current
-  /// selection through the changes made by the transaction.
-  newSelection: GardSelection
-
   /// @internal
   static create(startState: GardState, spec: ResolvedSpec) {
     return new Transaction(startState, spec.changes, spec.selection, spec.effects, spec.annotations, spec.scrollIntoView)
   }
 
-  /// The new state created by the transaction.
+  /// The new state created by the transaction. Lazily computed so
+  /// that the state is resolved the first time this property is
+  /// accessed.
   get state() {
     if (!this._state) this.startState.applyTransaction(this)
     return this._state!
   }
 
-  /// Get the value of the given annotation type, if any.
+  /// Get the value of the given transaction {@link
+  /// Transaction.Annotation annotation} type, if any.
   annotation<T>(type: Transaction.Annotation.Type<T>): T | undefined {
     for (let ann of this.annotations) if (ann.type == type) return ann.value
     return undefined
@@ -71,8 +75,8 @@ export class Transaction {
 
   /// Indicates whether this transaction reconfigures the state
   /// (through a {@link GardState.Compartment configuration
-  /// compartment} or with a top-level configuration {@link
-  /// GardState.reconfigure effect}.
+  /// compartment}, {@link GardState.reconfigure reconfiguration}, or
+  /// {@link GardState.appendConfig appended configuration}).
   get reconfigured(): boolean { return this.startState.config != this.state.config }
 
   /// Returns true if the transaction has a {@link
@@ -160,15 +164,18 @@ export class Transaction {
 }
 
 export namespace Transaction {
-  /// Describes a {@link Transaction transaction} when calling the
-  /// {@link GardState.update} method.
+  /// Describes a {@link Transaction transaction} when calling {@link
+  /// GardState.update `GardState.update`} or {@link Wordgard.dispatch
+  /// `Wordgard.dispatch`}.
   export interface Spec {
     /// The changes to the document made by this transaction.
     changes?: ChangeSet.Spec
     /// When set, this transaction explicitly updates the selection.
-    /// Offsets in this selection should refer to the document as it is
-    /// _after_ the transaction.
-    selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection) | undefined,
+    /// Offsets in this selection should refer to the document as it
+    /// is _after_ the transaction. If a selection can only be
+    /// computed after the new document is available, you can pass a
+    /// function here.
+    selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection)
     /// Attach {@link Transaction.Effect effects} to this transaction.
     /// Again, when they contain positions and this same spec makes
     /// changes, those positions should refer to positions in the
@@ -183,11 +190,12 @@ export namespace Transaction {
     /// scroll the current selection into view.
     scrollIntoView?: boolean,
     /// Normally, when multiple specs are combined (for example by
-    /// {@link GardState.update}), the
-    /// positions in `changes` are taken to refer to the document
-    /// positions in the initial document. When a spec has `sequental`
-    /// set to true, its positions will be taken to refer to the
-    /// document created by the specs before it instead.
+    /// {@link GardState.update `GardState.update`} or {@link
+    /// Transaction.merge}), the positions in `changes` are taken to
+    /// refer to the document positions in the initial document. When
+    /// a spec has `sequental` set to true, its positions will be
+    /// taken to refer to the document created by the changes in the
+    /// specs before it.
     sequential?: boolean
   }
 
@@ -238,7 +246,7 @@ export namespace Transaction {
     ) {}
 
     /// Map this effect through a position mapping. Will return
-    /// `undefined` when that ends up deleting the effect.
+    /// `undefined` when the changes deleted the effect.
     map(mapping: ChangeSet): Transaction.Effect<Value> | undefined {
       let mapped = this.type.map(this.value, mapping)
       return mapped === undefined ? undefined : mapped == this.value ? this : new Transaction.Effect(this.type, mapped)
@@ -256,9 +264,11 @@ export namespace Transaction {
     static define<Value = null>(spec: Transaction.Effect.Spec<Value> = {}): Transaction.Effect.Type<Value> {
       return new Transaction.Effect.Type(spec.map || (v => v))
     }
+  }
 
+  export namespace Effect {
     /// Map an array of effects through a change set.
-    static mapEffects(effects: readonly Transaction.Effect<any>[], mapping: ChangeSet) {
+    export function mapEffects(effects: readonly Transaction.Effect<any>[], mapping: ChangeSet) {
       if (!effects.length) return effects
       let result = []
       for (let effect of effects) {
@@ -267,11 +277,9 @@ export namespace Transaction {
       }
       return result
     }
-  }
 
-  export namespace Effect {
-    /// A type of state effect. Defined with
-    /// {@Transaction.Effect.define}.
+    /// A type of state effect. Defined with {@link
+    /// Transaction.Effect.define}.
     export class Type<Value> {
       /// @internal
       constructor(

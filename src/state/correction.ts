@@ -146,21 +146,21 @@ export class Correction<PosType extends Pos.Node> {
   }
 
   /// Create a correction that runs whenever the child list of a node
-  /// that matches the given selector changes, or such a node is
-  /// inserted into the document.
+  /// that matches the given query changes, or such a node is inserted
+  /// into the document.
   static onChildList(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
     return new Correction<Pos.Plot>(CorrectionEvent.ChildList, query, correct as any)
   }
 
   /// Create a correction that runs whenever any content inside a node
-  /// that matches the given selector changes, or such a node is
-  /// inserted into the document.
+  /// that matches the given query changes, or such a node is inserted
+  /// into the document.
   static onContent(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
     return new Correction<Pos.Plot>(CorrectionEvent.Content, query, correct as any)
   }
 
-  /// Define a correction that runs whenever the set of marks on a tag
-  /// matching a selector changes.
+  /// Define a correction that runs whenever the set of marks on a
+  /// matching tag changes.
   static onMarks(query: Node.Query, correct: (node: Pos.Node, state: GardState) => ChangeSet.Spec | null) {
     return new Correction<Pos.Plot>(CorrectionEvent.Marks, query, correct)
   }

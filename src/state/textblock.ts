@@ -14,7 +14,7 @@ const enum Section {
 }
 
 /// A textblock map contains the text in a textblock as a string, and
-/// can helps between string offsets and document positions.
+/// can help convert between string offsets and document positions.
 ///
 /// Note that this is not the way to convert a piece of document to a
 /// string. Use {@link doc.Plot.textContent} for that.
@@ -27,8 +27,8 @@ export class TextblockMap {
     /// Whether the base direction of this block is left-to-right.
     readonly ltr: boolean,
     /// The text in the block. Non-text leaf nodes and nodes with
-    /// block content will be replaced by a single 0xfffc character in
-    /// this string.
+    /// block content will be replaced by a single `0xfffc` character
+    /// in this string.
     readonly text: string,
     private _order: readonly BidiSpan[] | null,
     // Describe the correspondence between the indices and document
@@ -37,13 +37,16 @@ export class TextblockMap {
     private sections: number[]
   ) {}
 
-  /// The order of the text in this block.
+  /// The text order of the text in this block. Will generally be a
+  /// single span, but if the block mixes left-to-right and
+  /// right-to-left text, this describes the individual sections,
+  /// ordered from the block's start to its end.
   get order() {
     return this._order || (this._order = computeOrder(this.text, this.ltr, []))
   }
 
-  /// Get the map for the given textblock. Will cache for unchanged
-  /// blocks.
+  /// Get the map for the given textblock. Will use a cache to reuse
+  /// results for unchanged blocks.
   static get(start: number, node: Plot, ltr: boolean) {
     // FIXME handle isolates
     let cached = cache.get(node)
