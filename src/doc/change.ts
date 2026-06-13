@@ -106,10 +106,10 @@ type SectionData = Slice | readonly Modification[] | null
 
 const applyCache = new WeakMap<ChangeSet, {a: Plot.Doc, b: Plot.Doc}>()
 
-/// A change set describes a series of changes to a given document
-/// that produce a new document. They divide the document in a number
-/// of sections that are either kept as-is, have some marks added, or
-/// are replaced entirely by a {@link Slice} of new tokens.
+/// A change set contains a series of changes to a given document that
+/// produce a new document. They divide the document in a number of
+/// sections that are either kept as-is, have marks added or removed,
+/// or are replaced entirely by a {@link Slice} of new tokens.
 ///
 /// Change sets store the length of their start document and will
 /// raise an error if you try to apply them to a document with a
@@ -119,10 +119,10 @@ export class ChangeSet {
   private _newLength = -1
 
   private constructor(
-    // Pairs of integers, first one representing the length of the
-    // section in A, the second either -1 for a preserved, -2 for a
-    // marked range, or a non-negative insertion length for a
-    // replacement.
+    /// Pairs of integers, with the first one representing the length
+    /// of the section in the start document, the second either -1 for
+    /// a preserved, -2 for a marked range, or a non-negative
+    /// insertion length for a replacement.
     readonly sections: ChangeSet.Sections,
     /// @internal
     readonly data: readonly SectionData[]
@@ -313,7 +313,7 @@ export class ChangeSet {
   /// when either the token before, the token after, or both tokens
   /// around the position were deleted.
   mapPos(pos: number, assoc?: -1 | 1): number
-  mapPos(pos: number, assoc: -1 | 1, track: ChangeSet.TrackMode | undefined): number | null
+  mapPos(pos: number, assoc: -1 | 1, track?: ChangeSet.TrackMode): number | null
   mapPos(pos: number, assoc = -1, track?: ChangeSet.TrackMode) {
     let posA = 0, posB = 0
     for (let i = 0; i < this.sections.length;) {
@@ -336,6 +336,10 @@ export class ChangeSet {
     return posB
   }
 
+  /// Scan through the content inserted by this change until a tag
+  /// that matches the predicate is found. If successful, return the
+  /// position (in the new document) of the tag. This can be useful
+  /// for when creating a new selection after a fitted change.
   findInserted(pred: (tag: Node.Tag) => boolean): number | null {
     let found: number | null = null
     this.iterChanges((_f, _t, pos, _to, inserted) => {
@@ -353,6 +357,8 @@ export class ChangeSet {
     return found
   }
 
+  /// Returns true if any of the replaced ranges in this change set
+  /// overlaps or is adjacent to the given range.
   touchesRange(from: number, to: number) {
     for (let i = 0, pos = 0; i < this.sections.length && pos <= to;) {
       let len = this.sections[i++], ins = this.sections[i++], end = pos + len
@@ -408,7 +414,7 @@ export class ChangeSet {
   }
 
   /// Iterate over the ranges changed (either replaced or modified) by
-  /// this change desc.
+  /// this change desc. Joins adjacent changed ranges together.
   iterChangedRanges(range: (fromA: number, toA: number, fromB: number, toB: number) => void) {
     for (let i = 0, posA = 0, posB = 0; i < this.sections.length;) {
       let len = this.sections[i++], ins = this.sections[i++]
@@ -428,10 +434,13 @@ export class ChangeSet {
     }
   }
 
+  /// Create a change set. All positions in the given change
+  /// description refer to positions in the starting document.
   static create(doc: Plot.Doc, spec: ChangeSet.Spec): ChangeSet {
     return createChangeSet(doc, spec)
   }
 
+  /// Returns an empty change set for a document of the given length.
   static empty(length: number) {
     return length ? new ChangeSet([length, -1], [null]) : new ChangeSet([], [])
   }
@@ -455,15 +464,17 @@ export class ChangeSet {
     return result
   }
 
+  /// @internal
   static composeSections(a: ChangeSet.Sections, b: ChangeSet.Sections): ChangeSet.Sections {
     return compose(a, b).sections
   }
 }
 
 export namespace ChangeSet {
-  /// Representation of a single document change. Changes can either
-  /// affect marks (when `add` or `remove` is present), or replace a
-  /// part of the document (otherwise).
+  /// Representation of a single document change, as used in {@link
+  /// ChangeSet.Spec}. Changes can either affect marks (when `add` or
+  /// `remove` is present), or replace a part of the document
+  /// (otherwise).
   export type Change = {
     /// The start position of the change.
     from: number
@@ -474,21 +485,23 @@ export namespace ChangeSet {
     /// Replace the given range with this slice.
     insert?: Slice | readonly Token[]
     /// For deletions or insertions where it isn't obvious that the
-    /// replacement will produce a valid document, set this to `true` or
-    /// a stack of context tags to make the library process the
-    /// replacement to make sure it fits. Context tags (passed with the
-    /// innermost tag first, as in {@link Plot.Doc.contextAt} may be
-    /// used as wrappers when fitting the slice.
+    /// replacement will produce a valid document, set this to `true`
+    /// or a stack of context tags to make the library process the
+    /// replacement to make sure it fits. Context tags (passed with
+    /// the innermost tag first, as in {@link Plot.Doc.contextAt} may
+    /// be used as wrappers when fitting the slice.
     fit?: boolean | readonly Plot.Tag[]
-    /// Add the given mark to this change's range.
+    /// Add the given mark to this change's range. Cannot be combined
+    /// with `insert`.
     add?: Mark
     /// Remove the given mark from this range.
     remove?: Mark
   }
 
-  /// Type used to describe a {@link ChangeSet.create change set}. A
-  /// spec can be a single change, an existing change set, a set of
-  /// changes wrapped in a correction scope, or an array of the same.
+  /// This type is used to describe a {@link ChangeSet.create change
+  /// set}. A spec can be a single change, an existing change set, a
+  /// set of changes wrapped in a correction scope, or an array of the
+  /// same.
   ///
   /// The {@link ChangeSet.Change.from `from`} and {@link
   /// ChangeSet.Change.to `to`} positions in the changes in a set spec

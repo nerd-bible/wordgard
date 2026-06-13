@@ -40,8 +40,9 @@ export {SchemaError, ValidationError} from "./error"
 
 /// ### Changes
 ///
-/// Document changes are represented as a series of replaced or
-/// updated (adding or removing marks) ranges.
+/// Change sets provide a precise description of how a document
+/// changed. Any modification to the editor's document goes through a
+/// transaction, which describes it using a change set.
 
 export {ChangeSet} from "./change"
 export {Slice, Token} from "./slice"
