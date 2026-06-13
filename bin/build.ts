@@ -173,6 +173,11 @@ function processOutput(code: string) {
   }
   function delComment(isBlock: boolean, _text: string, from: number, to: number) {
     if (!isBlock || code[to] == "\n") to++
+    while (from) {
+      let prev = code[from - 1]
+      if (prev != " " && prev != "\t") break
+      from--
+    }
     patches.push({from, to, insert: ""})
   }
 
