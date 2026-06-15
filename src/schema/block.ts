@@ -1,7 +1,7 @@
 import {Plot, Leaf, Pos, ChangeSet} from "wordgard/doc"
 import {GardState, GardSelection, BidiSpan} from "wordgard/state"
 import {Doc, InlineDoc, Paragraph, Heading, CodeBlock,
-        Blockquote, Alignment, Direction, HorizontalRule} from "wordgard/schema-def"
+        Blockquote, Alignment, Direction, HorizontalRule} from "wordgard/types"
 import {phrases} from "wordgard/phrases"
 import {Command, Menu, setTextblockType, setAlignment, setDirection, toggleBlock} from "wordgard/command"
 import {history} from "wordgard/history"

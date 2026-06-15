@@ -1,7 +1,7 @@
 import {CellSelection} from "wordgard/table"
 import {GardSelection} from "wordgard/state"
 import {Plot, Leaf, Mark, Schema} from "wordgard/doc"
-import {Table, TableRow, Cell, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Table, TableRow, Cell, ColSpan, RowSpan} from "wordgard/types"
 import {builder, basicBuilders, basicSchema} from "./schema.ts"
 import ist from "ist"
 

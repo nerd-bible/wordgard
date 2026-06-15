@@ -3,7 +3,7 @@
 // rowspans). Uses the problems reported by `TableMap`.
 
 import {Plot, ChangeSet} from "wordgard/doc"
-import {Table, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Table, ColSpan, RowSpan} from "wordgard/types"
 import {Correction} from "wordgard/state"
 import {TableMap} from "./tablemap"
 

@@ -1,6 +1,6 @@
 import {GardState} from "wordgard/state"
 import {Command, Menu, toggleList, listIsActive} from "wordgard/command"
-import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/schema-def"
+import {BulletList, OrderedList, ListItem, InlineListItem} from "wordgard/types"
 import {phrases} from "wordgard/phrases"
 import {InputRule} from "wordgard/editor"
 

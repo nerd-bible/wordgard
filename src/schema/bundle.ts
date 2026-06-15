@@ -1,5 +1,5 @@
 import {GardState} from "wordgard/state"
-import {LineBreak} from "wordgard/schema-def"
+import {LineBreak} from "wordgard/types"
 
 import {strong, emphasis, code, underline, strikethrough, superscript, subscript} from "./mark"
 import {blockDoc, inlineDoc, paragraph, heading, codeBlock, alignment, direction, blockquote, horizontalRule} from "./block"

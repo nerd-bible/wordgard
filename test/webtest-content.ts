@@ -1,7 +1,7 @@
 import {Wordgard, Decoration, Widget, PointSet, RangeSet} from "wordgard/editor"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, Elt, Mark, Token} from "wordgard/doc"
-import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, HorizontalRule} from "wordgard/schema-def"
+import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, HorizontalRule} from "wordgard/types"
 import ist from "ist"
 import {builder, basicBuilders, tableSchema} from "./schema.ts"
 

@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/editor"
 import {GardState} from "wordgard/state"
-import {Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/types"
 import {CellSelection} from "./cellselection"
 import {tableCorrection} from "./correct"
 import {tablePasteHandler, tableDropHandler} from "./tablepaste"

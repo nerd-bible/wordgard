@@ -6,7 +6,7 @@
   "main": "dist/editor.js",
   "exports": {
     "./doc": "./dist/doc.js",
-    "./schema-def": "./dist/schema-def.js",
+    "./types": "./dist/types.js",
     "./schema": "./dist/schema.js",
     "./table": "./dist/table.js",
     "./state": "./dist/state.js",

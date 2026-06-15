@@ -1,7 +1,7 @@
 import ist from "ist"
 import {Plot, Leaf, Mark, Slice, type Token, Schema, Elt,
         serialize, parse} from "wordgard/doc"
-import {Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/schema-def"
+import {Paragraph, Heading, Figure, CaptionedFigure} from "wordgard/types"
 import {basicBuilders, builder, basicSchema, tag, eq} from "./schema.ts"
 const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olStart, ul, li, pre, h1, h2, br, hr} = basicBuilders
 

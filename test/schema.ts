@@ -3,7 +3,7 @@ import {Doc, Paragraph, Heading, CodeBlock, CodeBlockLanguage, LineBreak,
         Blockquote, OrderedList, BulletList, ListItem, HorizontalRule,
         Image, ImageAlt, Figure, CaptionedFigure,
         Emphasis, Strong, Code, Link, Underline, Superscript, Subscript, Alignment,
-        Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/schema-def"
+        Table, TableRow, Cell, HeaderCell, BlockCell, BlockHeaderCell, ColSpan, RowSpan} from "wordgard/types"
 
 export type ContentSpec = Node | string | number | null | readonly ContentSpec[]
 

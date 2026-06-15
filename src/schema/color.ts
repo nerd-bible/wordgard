@@ -1,7 +1,7 @@
 import {Menu} from "wordgard/command"
 import {GardState, GardSelection} from "wordgard/state"
 import {ChangeSet, Mark} from "wordgard/doc"
-import {Color, BackgroundColor} from "wordgard/schema-def"
+import {Color, BackgroundColor} from "wordgard/types"
 import {PhraseSet, phrases, colorNames} from "wordgard/phrases"
 import {Wordgard} from "wordgard/editor"
 

@@ -1,5 +1,5 @@
 import {Plot, Node, Slice, Token, Schema, ChangeSet} from "wordgard/doc"
-import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
+import {Table, TableRow, RowSpan, ColSpan} from "wordgard/types"
 import {GardState, Transaction} from "wordgard/state"
 import {Wordgard} from "wordgard/editor"
 

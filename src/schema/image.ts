@@ -1,7 +1,7 @@
 import {Elt} from "wordgard/doc"
 import {Wordgard, PointSet, Decoration, KeyBinding} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
-import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/schema-def"
+import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/types"
 import {Command, Menu} from "wordgard/command"
 import {imagePhrases} from "wordgard/phrases"
 import {imageDialog, insertImage, activeImage, imageUploader} from "./imagedialog"

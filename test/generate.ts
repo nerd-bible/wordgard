@@ -1,6 +1,6 @@
 import {Plot, Node, Mark, Leaf, Slice, type Token, ChangeSet, Schema} from "wordgard/doc"
 import {Paragraph, Blockquote, CodeBlock, CodeBlockLanguage,
-        Emphasis, Strong, Code, Link} from "wordgard/schema-def"
+        Emphasis, Strong, Code, Link} from "wordgard/types"
 import {builder, basicBuilders, basicSchema} from "./schema.ts"
 const {p, h1, pre, ul, ol, li, blockquote, img, br} = basicBuilders
 

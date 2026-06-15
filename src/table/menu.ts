@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/editor"
 import {GardState, GardSelection} from "wordgard/state"
-import {Table, TableRow, RowSpan, ColSpan} from "wordgard/schema-def"
+import {Table, TableRow, RowSpan, ColSpan} from "wordgard/types"
 import {Plot, ChangeSet} from "wordgard/doc"
 import {Command, Menu} from "wordgard/command"
 import {tablePhrases} from "wordgard/phrases"

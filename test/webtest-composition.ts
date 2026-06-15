@@ -1,5 +1,5 @@
 import {Wordgard} from "wordgard/editor"
-import {Strong} from "wordgard/schema-def"
+import {Strong} from "wordgard/types"
 import {GardSelection} from "wordgard/state"
 import ist from "ist"
 import {tempEditor, requireFocus} from "./tempview.ts"

@@ -4,7 +4,7 @@ import {Command, liftEmptyBlock, insertLineBreak, enter,
         wrapBlock, unwrapBlock, toggleList, toggleMark} from "wordgard/command"
 import {Plot, Mark, Leaf, Node, Schema, ChangeSet} from "wordgard/doc"
 import {Paragraph, Heading, Blockquote, BulletList, OrderedList,
-        Emphasis, Strong, Link} from "wordgard/schema-def"
+        Emphasis, Strong, Link} from "wordgard/types"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"
 import {basicSchema, basicBuilders, maybeTag, builder, eq} from "./schema.ts"

@@ -835,7 +835,7 @@ export namespace GardState {
   ///
   /// Schema elements like {@link schema.direction} register an
   /// instance of this to make the editor aware of the meaning of the
-  /// {@link schema-def.Direction} mark.
+  /// {@link types.Direction} mark.
   export const textblockLTR = GardState.Facet.define<((plot: Plot) => boolean | null)>({
     static: true
   })

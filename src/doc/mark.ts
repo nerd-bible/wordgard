@@ -41,7 +41,7 @@ export function subtractSet<T>(a: readonly T[], b: readonly T[], compare: (a: T,
 }
 
 /// A mark has a type and a value. Some mark types without a
-/// meaningful parameter value (such as {@link schema-def.Emphasis}),
+/// meaningful parameter value (such as {@link types.Emphasis}),
 /// will only use a single mark object.
 export class Mark<Value = unknown> {
   private constructor(

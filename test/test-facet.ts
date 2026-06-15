@@ -1,7 +1,7 @@
 import ist from "ist"
 import {GardState, Transaction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
-import {Cell} from "wordgard/schema-def"
+import {Cell} from "wordgard/types"
 import {basicBuilders, basicSchema} from "./schema.ts"
 
 const {doc, p} = basicBuilders

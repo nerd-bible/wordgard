@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Plot, Leaf, Mark, Node, Schema} from "wordgard/doc"
-import {Paragraph, CodeBlock, Blockquote, Strong, Image} from "wordgard/schema-def"
+import {Paragraph, CodeBlock, Blockquote, Strong, Image} from "wordgard/types"
 import {basicBuilders, basicSchema, builder} from "./schema.ts"
 const {doc, p, strong, $img} = basicBuilders
 

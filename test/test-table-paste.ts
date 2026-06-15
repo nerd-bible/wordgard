@@ -1,5 +1,5 @@
 import {Plot, Slice, Leaf, Token} from "wordgard/doc"
-import {TableRow, Cell} from "wordgard/schema-def"
+import {TableRow, Cell} from "wordgard/types"
 import {CellSelection, handleTablePaste} from "wordgard/table"
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import ist from "ist"

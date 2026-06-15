@@ -1,6 +1,6 @@
 import ist from "ist"
 import {Plot, Mark, Leaf, Node, ChangeSet, type Token, Schema} from "wordgard/doc"
-import {CodeBlockLanguage, Emphasis, Strong, Link, ImageAlt} from "wordgard/schema-def"
+import {CodeBlockLanguage, Emphasis, Strong, Link, ImageAlt} from "wordgard/types"
 import {permute, open, close, slice, rDoc, rChange} from "./generate.ts"
 import {basicBuilders, basicSchema, tag, maybeTag, eq} from "./schema.ts"
 const {doc, p, h1, blockquote, ol, ul, li, pre, preLang, hr, img, imgAlt, $img, a, em, strong} = basicBuilders

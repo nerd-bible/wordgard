@@ -1,7 +1,7 @@
 import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet} from "wordgard/doc"
 import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/editor"
-import {Alignment, Direction, Emphasis, Strong, Underline} from "wordgard/schema-def"
+import {Alignment, Direction, Emphasis, Strong, Underline} from "wordgard/types"
 import {Command} from "./command"
 import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBlocks,
         deleteSelection, deleteEmptyTextblock, deleteForward, deleteBackward,

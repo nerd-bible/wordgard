@@ -10,7 +10,7 @@
 // to or gotten from this structure by that amount.
 
 import {Plot} from "wordgard/doc"
-import {Table, ColSpan, RowSpan} from "wordgard/schema-def"
+import {Table, ColSpan, RowSpan} from "wordgard/types"
 
 export class Rect {
   constructor(readonly startCol: number,

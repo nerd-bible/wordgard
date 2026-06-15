@@ -1,6 +1,6 @@
 import {GardState} from "wordgard/state"
 import {Command, Menu, toggleMark} from "wordgard/command"
-import {Strong, Emphasis, Code, Underline, Strikethrough, Superscript, Subscript} from "wordgard/schema-def"
+import {Strong, Emphasis, Code, Underline, Strikethrough, Superscript, Subscript} from "wordgard/types"
 import {phrases} from "wordgard/phrases"
 import {KeyBinding} from "wordgard/editor"
 

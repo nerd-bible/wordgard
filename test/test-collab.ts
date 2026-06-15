@@ -1,6 +1,6 @@
 import {GardState, Transaction, Correction} from "wordgard/state"
 import {Leaf, type ChangeSet} from "wordgard/doc"
-import {Paragraph} from "wordgard/schema-def"
+import {Paragraph} from "wordgard/types"
 import {basicBuilders, eq} from "./schema.ts"
 import {history, undo, redo} from "wordgard/history"
 import ist from "ist"
