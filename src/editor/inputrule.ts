@@ -59,7 +59,7 @@ export class InputRule {
         changes.push(wrapBlockRange(range, wrapper))
         wg.dispatch(autoJoinBlocks(wg.state, {
           changes,
-          annotations: history.isolate.of("full")
+          annotations: history.isolate.of(true)
         }))
         return true
       },
@@ -87,7 +87,7 @@ export class InputRule {
         if (!outer || !wg.state.schema.canContain(outer.node.type, block.type)) return false
         wg.dispatch({
           changes: [{from: from.pos - 1, to: to.pos, insert: [block]}],
-          annotations: history.isolate.of("full")
+          annotations: history.isolate.of(true)
         })
         return true
       },
@@ -106,7 +106,7 @@ export namespace InputRule {
     /// the document positions of the full match and all matched
     /// groups in `expr`. Should return `true` when it has taken an
     /// action, `false` when it didn't. You probably want to include
-    /// {@link history.history.isolate}`.of("full")` in any
+    /// {@link history.history.isolate}`.of(true)` in any
     /// transactions you dispatch from a rule handler, so that users
     /// can undo the adjustment if it wasn't what they wanted.
     ///
@@ -160,7 +160,7 @@ function applyString(text: string) {
   return (wg: Wordgard, match: InputRule.MatchArray) => {
     wg.dispatch({
       changes: {from: match[0].from.pos, to: match[0].to.pos, insert: [Leaf.text(text)]},
-      annotations: history.isolate.of("full")
+      annotations: history.isolate.of(true)
     })
     return true
   }

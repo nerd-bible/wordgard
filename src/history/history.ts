@@ -52,7 +52,7 @@ const historyField_ = GardState.Field.define({
     }
 
     let isolate = tr.annotation(history.isolate)
-    if (isolate == "full" || isolate == "before") state = state.isolate()
+    if (isolate == true || isolate == "before") state = state.isolate()
 
     if (tr.annotation(Transaction.addToHistory) === false)
       return tr.changes.empty ? state : new HistoryState(
@@ -64,7 +64,7 @@ const historyField_ = GardState.Field.define({
     let time = tr.annotation(Transaction.time)!, userEvent = tr.annotation(Transaction.userEvent)
     if (event) state = state.addChanges(event, time, userEvent, config, tr)
 
-    if (isolate == "full" || isolate == "after") state = state.isolate()
+    if (isolate == true || isolate == "after") state = state.isolate()
     return state.clip(config.minDepth)
   },
 
@@ -95,7 +95,10 @@ const historyField_ = GardState.Field.define({
   }
 })
 
-/// Create a history extension with the given configuration.
+/// Create a history extension with the given configuration. Will
+/// include the state field that tracks history, handlers for the
+/// {@link undo} and {@link redo} commands that make use of it, and
+/// the {@link undoButton undo}/{@link redoButton redo} menu buttons.
 export function history(config: HistoryConfig = {}): GardState.Extension {
   return [
     historyField_,
@@ -118,8 +121,8 @@ export namespace history {
   /// being combined with other transactions in the undo history. Given
   /// `"before"`, it'll prevent merging with previous transactions. With
   /// `"after"`, subsequent transactions won't be combined with this
-  /// one. With `"full"`, the transaction is isolated on both sides.
-  export const isolate = Transaction.Annotation.define<"before" | "after" | "full">()
+  /// one. With `true`, the transaction is isolated on both sides.
+  export const isolate = Transaction.Annotation.define<"before" | "after" | true>()
 
   /// This facet provides a way to register functions that, given a
   /// transaction, provide a set of effects that the history should
@@ -140,9 +143,7 @@ export namespace history {
 }
 
 /// Undo a single group of history events. Returns false if no group
-/// is available. Note that transaction specs produced with this
-/// function should be dispatched as-is, and not combined with further
-/// changes.
+/// is available.
 export const undo: Command.Pure = ({state}) => {
   let historyState = state.field(historyField_, false)
   if (state.readOnly || !historyState) return false
@@ -150,8 +151,7 @@ export const undo: Command.Pure = ({state}) => {
 }
 
 /// Redo a single group of undone history events. Returns false if no
-/// group is available. Transaction specs produced with this
-/// function should be dispatched as-is.
+/// group is available.
 export const redo: Command.Pure = ({state}) => {
   let historyState = state.field(historyField_, false)
   if (state.readOnly || !historyState) return false
@@ -355,6 +355,7 @@ class HistoryState {
   }
 }
 
+/// A menu button that undoes a change.
 export const undoButton = Menu.Button.define({
   run: undo,
   label: {
@@ -366,6 +367,7 @@ export const undoButton = Menu.Button.define({
   rank: 10
 })
 
+/// A menu button that redoes an undone change.
 export const redoButton = Menu.Button.define({
   run: redo,
   label: {

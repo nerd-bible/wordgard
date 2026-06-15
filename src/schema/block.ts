@@ -348,7 +348,7 @@ export namespace horizontalRule {
       wg.dispatch({
         changes,
         selection: cx => GardSelection.near(cx, hr + 1, 1),
-        annotations: history.isolate.of("full"),
+        annotations: history.isolate.of(true),
         userEvent: "insert.horizontalrule"
       })
       return true

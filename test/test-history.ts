@@ -357,7 +357,7 @@ describe("history", () => {
     state = state.update({changes: {from: 2, insert: [Leaf.text("b")]}}).state
     state = state.update({changes: {from: 3, insert: [Leaf.text("c")]}, annotations: history.isolate.of("after")}).state
     state = state.update({changes: {from: 4, insert: [Leaf.text("d")]}}).state
-    state = state.update({changes: {from: 5, insert: [Leaf.text("e")]}, annotations: history.isolate.of("full")}).state
+    state = state.update({changes: {from: 5, insert: [Leaf.text("e")]}, annotations: history.isolate.of(true)}).state
     state = state.update({changes: {from: 6, insert: [Leaf.text("f")]}}).state
     ist(undoDepth(state), 5)
   })
@@ -499,10 +499,10 @@ describe("history", () => {
       let state = GardState.create({config: [history(), comments, invertComments],
                                       doc: doc(p("one two foo"))})
       state = state.update({effects: addComment.of(new Comment(1, 4, "c1")),
-                            annotations: history.isolate.of("full")}).state
+                            annotations: history.isolate.of(true)}).state
       ist(commentStr(state), "c1@1")
       state = state.update({changes: {from: 4, to: 5, insert: [Leaf.text("---")]},
-                            annotations: history.isolate.of("full"),
+                            annotations: history.isolate.of(true),
                             effects: addComment.of(new Comment(7, 10, "c2"))}).state
       ist(commentStr(state), "c1@1,c2@7")
       state = state.update({changes: {from: 1, insert: [Leaf.text("---")]},
@@ -521,7 +521,7 @@ describe("history", () => {
       state = command(state, undo).update({changes: {from: 11, to: 12, insert: [Leaf.text("---")]},
                                            annotations: Transaction.addToHistory.of(false)}).state
       state = state.update({effects: addComment.of(new Comment(14, 17, "c3")),
-                            annotations: history.isolate.of("full")}).state
+                            annotations: history.isolate.of(true)}).state
       ist(commentStr(state), "c1@4,c3@14")
       state = command(state, undo)
       ist(state.doc, doc(p("---one two---foo")), eq)
@@ -534,7 +534,7 @@ describe("history", () => {
       let state = GardState.create({config: [history(), comments, invertComments],
                                       doc: doc(p("123456"))})
       state = state.update({effects: addComment.of(new Comment(4, 6, "c1")),
-                            annotations: history.isolate.of("full")}).state
+                            annotations: history.isolate.of(true)}).state
       state = state.update({changes: {from: 3, to: 7}}).state
       ist(commentStr(state), "")
       state = command(state, undo)
