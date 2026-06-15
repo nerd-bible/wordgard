@@ -46,7 +46,10 @@ export class KeyBinding {
   /// configuration.
   extension: GardState.Extension
 
-  private constructor(readonly spec: KeyBinding.Spec) {
+  private constructor(
+    /// The configuration object used to define this binding.
+    readonly spec: KeyBinding.Spec
+  ) {
     this.extension = KeyBinding.source.of(this)
   }
 
@@ -82,7 +85,7 @@ export namespace KeyBinding {
     /// this command.
     shift?: Command.Bound | Command
     /// When this property is present, the function is called for every
-    /// key.
+    /// key, and may return true to indicate the key was handled.
     any?: (wg: Wordgard, event: KeyboardEvent) => boolean
     /// By default, key bindings apply when focus is on the editor
     /// content (the `"editor"` scope). Some extensions, mostly those
@@ -92,17 +95,15 @@ export namespace KeyBinding {
     /// binding, separating them by spaces.
     scope?: string
     /// By default, all keys events for which a handler exists have
-    /// their `preventDefault` called. You can set this to true to
-    /// disable that behavior.
+    /// their `preventDefault` called, even if no handler returns
+    /// true. You can set this to true to disable that behavior.
     allowDefault?: boolean
   }
 
-  /// Facet used for registering key bindings.
-  ///
-  /// You can add multiple keymaps to an editor. Their priorities
-  /// determine their precedence (the ones specified early or with high
-  /// priority get checked first). When a handler has returned `true`
-  /// for a given key, no further handlers are called.
+  /// Facet used for registering key bindings. Extension precedence
+  /// determines the order in which bindings that match the same key
+  /// are called. When a handler has returned `true` for a given key,
+  /// no further handlers are called.
   export const source = GardState.Facet.define<KeyBinding, readonly KeyBinding[]>({
     enables: handleKeyEvents
   })
@@ -246,6 +247,53 @@ for (var i = 0; i < 10; i++) charKeyCodes[48 + i] = String(i) // Digits
 for (var i = 1; i <= 24; i++) charKeyCodes[i + 111] = "F" + i // Function keys
 for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // Letters
 
+/// The editor's set of default key bindings. Binds the following
+/// keys. Most cursor motion bindings include a `Shift-` variant that
+/// passes the `extend` flag to the command.
+///
+///  - `Enter` to {@link command.enter}
+///  - `Shift-Enter` to {@link command.insertLineBreak}
+///  - `Backspace` to {@link command.deleteUnit} (`"backward"`)
+///  - `Delete` to {@link command.deleteUnit} (`"forward"`)
+///  - `Ctrl-Backspace` (`Alt-Backspace` on MacOS) to {@link command.deleteWord} (`"backward"`)
+///  - `Ctrl-Delete` (`Alt-Delete` on MacOS) to {@link command.deleteWord} (`"forward"`)
+///  - `Cmd-Backspace` (MacOS) to {@link command.deleteToLineEnd} (`"backward"`)
+///  - `Cmd-Delete` (MacOS) to {@link command.deleteToLineEnd} (`"forward"`)
+///  - `ArrowLeft` to {@link command.moveByUnit} (`{dir: "left"}`)
+///  - `ArrowRight` to {@link command.moveByUnit} (`{dir: "right"}`)
+///  - `ArrowUp` to {@link command.moveByLine} (`{dir: "up"}`)
+///  - `ArrowDown` to {@link command.moveByLine} (`{dir: "down"}`)
+///  - `Ctrl-AllowLeft` (`Cmd-ArrowLeft` on MacOS) to {@link command.moveByWord} (`{dir: "left"}`)
+///  - `Ctrl-AllowRight` (`Cmd-ArrowRight` on MacOS) to {@link command.moveByWord} (`{dir: "right"}`)
+///  - `Cmd-ArrowUp` (MacOS) to {@link command.moveToDocSide} (`{side: "start"}`)
+///  - `Cmd-ArrowDown` (MacOS) to {@link command.moveToDocSide} (`{side: "end"}`)
+///  - `Ctrl-ArrowUp` (MacOS) to {@link command.moveByPage} (`{dir: "up"}`)
+///  - `Ctrl-ArrowDown` (MacOS) to {@link command.moveByPage} (`{dir: "down"}`)
+///  - `PageUp` to {@link command.moveByPage} (`{dir: "up"}`)
+///  - `PageDown` to {@link command.moveByPage} (`{dir: "down"}`)
+///  - `Home` to {@link command.moveToLineSide} (`{dir: "backward"}`)
+///  - `End` to {@link command.moveToLineSide} (`{dir: "forward"}`)
+///  - `Ctrl-Home` (`Cmd-Home` on MacOS) to {@link command.moveToDocSide} (`{side: "start"}`)
+///  - `Ctrl-End` (`Cmd-End` on MacOS) to {@link command.moveToDocSide} (`{side: "end"}`)
+///  - `Ctrl-a` (`Cmd-a` on MacOS) to {@link command.selectAll}
+///  - `Ctrl-z` (`Cmd-z` on MacOS) to {@link command.undo}
+///  - `Ctrl-y` (`Shift-Cmd-z` on MacOS) to {@link command.redo}
+///
+/// On MacOS, the following Emacs-style bindings are available:
+///
+///  - `Ctrl-b` to {@link command.moveByUnit} (`{dir: "backward"}`)
+///  - `Ctrl-f` to {@link command.moveByUnit} (`{dir: "forward"}`)
+///  - `Ctrl-p` to {@link command.moveByLine} (`{dir: "up"}`)
+///  - `Ctrl-n` to {@link command.moveByLine} (`{dir: "down"}`)
+///  - `Ctrl-a` to {@link command.moveToTextblockSide} (`{dir: "backward"}`)
+///  - `Ctrl-e` to {@link command.moveToTextblockSide} (`{dir: "forward"}`)
+///  - `Ctrl-d` to {@link command.deleteUnit} (`"forward"`)
+///  - `Ctrl-h` to {@link command.deleteUnit} (`"backward"`)
+///  - `Ctrl-k` to {@link command.deleteToLineEnd} (`"forward"`)
+///  - `Ctrl-Alt-h` to {@link command.deleteWord} (`"backward"`)
+///  - `Ctrl-o` to {@link command.insertLineBreak}
+///  - `Ctrl-t` to {@link command.transposeChars}
+///  - `Ctrl-v` to {@link command.moveByPage} (`{dir: "down"}`)
 export const defaultKeymap: readonly KeyBinding[] = ([
   {key: "Enter", run: enter},
   {key: "Shift-Enter", run: insertLineBreak},

@@ -541,6 +541,11 @@ const barTemplate = GardState.Facet.define<readonly Menu.Template[], readonly Me
   combine: inputs => inputs.length ? inputs[0] : [Menu.Group.top.template()]
 })
 
+/// Provides a menu bar that displays menu items defined via the
+/// {@link command.Menu menu system} in a button bar at the top of the
+/// editor. The same menu items can be used by custom menu
+/// implementations, but this extension provides a solid default menu
+/// style.
 export function menuBar(config: {
   template?: Menu.Template | readonly Menu.Template[]
 } = {}): GardState.Extension {

@@ -35,7 +35,7 @@ export interface Panel {
   /// Called, when present, when the panel has been added the DOM.
   connect?(wg: Wordgard): void
   /// Called when the editor with the panel is disconnected from the
-  /// DOM.
+  /// DOM, or the panel is removed from an editor.
   disconnect?(wg: Wordgard): void
   /// Called when the panel is removed from the editor.
   destroy?(wg: Wordgard): void
@@ -113,12 +113,22 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
     this.top.sync([], wg)
     this.bottom.sync([], wg)
   }
-}, plugin => Wordgard.scrollMargins.of(wg => {
+}, plugin => Wordgard.coveredMargins.of(wg => {
   let value = wg.plugin(plugin)
   return value && {top: value.top.scrollMargin(), bottom: value.bottom.scrollMargin()}
 }))
 
 export namespace Panel {
+  /// A function that initializes a panel. Used in {@link Panel.show}.
+  export type Constructor = (wg: Wordgard) => Panel
+
+  /// Opening a panel is done by providing a constructor function for
+  /// the panel through this facet. (The panel is closed again when its
+  /// constructor is no longer provided.) Values of `null` are ignored.
+  export const show = GardState.Facet.define<Panel.Constructor | null>({
+    enables: panelPlugin
+  })
+
   /// Get the active panel created by the given constructor, if any.
   /// This can be useful when you need access to your panels' DOM
   /// structure.
@@ -132,16 +142,6 @@ export namespace Panel {
   export function configure(config?: PanelConfig): GardState.Extension {
     return config ? [panelConfig.of(config)] : []
   }
-
-  /// A function that initializes a panel. Used in {@link Panel.show}.
-  export type Constructor = (wg: Wordgard) => Panel
-
-  /// Opening a panel is done by providing a constructor function for
-  /// the panel through this facet. (The panel is closed again when its
-  /// constructor is no longer provided.) Values of `null` are ignored.
-  export const show = GardState.Facet.define<Panel.Constructor | null>({
-    enables: panelPlugin
-  })
 }
 
 class PanelGroup {

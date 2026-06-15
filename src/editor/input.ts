@@ -204,32 +204,7 @@ const dragScrollMargin = 6
 
 export const mouseSelectionStyle = GardState.Facet.define<MakeSelectionStyle>()
 
-/// Interface that objects registered with {@link
-/// Wordgard.mouseSelectionStyle} must conform to.
-export interface MouseSelectionStyle {
-  /// Return a new selection for the mouse gesture that starts with
-  /// the event that was originally given to the constructor, and ends
-  /// with the event passed here. In case of a plain click, those may
-  /// both be the `mousedown` event, in case of a drag gesture, the
-  /// latest `mousemove` event will be passed.
-  ///
-  /// When `extend` is true, that means the new selection should, if
-  /// possible, extend the start selection.
-  get: (curEvent: MouseEvent, extend: boolean) => GardSelection
-  /// Called when the editor is updated while the gesture is in
-  /// progress. When the document changes, it may be necessary to map
-  /// some data (like the original selection or start position)
-  /// through the changes.
-  ///
-  /// This may return `true` to indicate that the `get` method should
-  /// get queried again after the update, because something in the
-  /// update could change its result. Be wary of infinite loops when
-  /// using this (where `get` returns a new selection, which will
-  /// trigger `update`, which schedules another `get` in response).
-  update: (update: Wordgard.Update) => boolean | void
-}
-
-export type MakeSelectionStyle = (wg: Wordgard, event: MouseEvent) => MouseSelectionStyle | null
+export type MakeSelectionStyle = (wg: Wordgard, event: MouseEvent) => Wordgard.MouseSelectionStyle | null
 
 function dragScrollSpeed(dist: number) {
   return Math.max(0, dist) * 0.7 + 8
@@ -249,7 +224,7 @@ class MouseSelection {
 
   constructor(private wg: Wordgard,
               private startEvent: MouseEvent,
-              private style: MouseSelectionStyle,
+              private style: Wordgard.MouseSelectionStyle,
               private mustSelect: boolean) {
     this.lastEvent = startEvent
     this.scrollParents = scrollableParents(wg.contentDOM)
@@ -405,7 +380,7 @@ observers.touchmove = wg => {
 handlers.mousedown = (wg, event: MouseEvent) => {
   wg.inputState.shiftKey = event.shiftKey
   if (wg.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
-  let style: MouseSelectionStyle | null = null
+  let style: Wordgard.MouseSelectionStyle | null = null
   for (let makeStyle of wg.state.facet(mouseSelectionStyle)) {
     style = makeStyle(wg, event)
     if (style) break
@@ -474,7 +449,7 @@ function basicMouseSelection(wg: Wordgard, event: MouseEvent) {
       }
       return from == range.from && to == range.to ? range : GardSelection.range(from, to, cur.side)
     }
-  } as MouseSelectionStyle
+  } as Wordgard.MouseSelectionStyle
 }
 
 handlers.dragstart = (wg, event: DragEvent) => {

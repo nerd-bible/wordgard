@@ -21,7 +21,7 @@ export namespace bulletList {
   /// This rule wraps the current textblock in a bullet list when the
   /// user starts it by typing an optional space, a dash, and then another
   /// space.
-  export const createOnDash = InputRule.wrapping(/^ ?- $/, BulletList)
+  export const createOnDash = InputRule.wrapping(/^ ?- $/, BulletList, true)
 
   /// A menu button that toggles bullet list wrapping for the selection.
   export const toggleButton = Menu.Button.define({
@@ -50,7 +50,7 @@ export namespace orderedList {
   /// An input rule that, when the user starts a textblock with an
   /// optional space, a number, a period, and a space, wraps the block
   /// in an ordered list.
-  export const createOnNumber = InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1]!.text))
+  export const createOnNumber = InputRule.wrapping(/^ ?(\d+)\. $/, match => OrderedList.of(+match[1]!.text), true)
 
   /// A menu button that toggles an ordered list wrapper for the
   /// selected textblocks.

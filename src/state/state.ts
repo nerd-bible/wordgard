@@ -399,10 +399,10 @@ export namespace GardState {
 
       /// Provide extensions based on this field. The given function
       /// will be called once with the initialized field. It is
-      /// typically used with a facet's {@Facet.from `from`} method to
-      /// create facet inputs from this field, but can also return
-      /// other extensions that should be enabled when the field is
-      /// present in a configuration.
+      /// typically used with a facet's {@link GardState.Facet.from}
+      /// method to create facet inputs from this field, but can also
+      /// return other extensions that should be enabled when the
+      /// field is present in a configuration.
       provide?: (field: GardState.Field<Value>) => GardState.Extension
 
       /// A function used to serialize this field's content to JSON. Only

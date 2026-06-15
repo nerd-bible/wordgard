@@ -8,19 +8,28 @@ const inputRule = GardState.Facet.define<InputRule>()
 
 const beforeUpdate = Wordgard.beforeUpdate.of(applyInputRules)
 
+/// Objects of this type represent input rules.
 export class InputRule {
+  /// Rules can be added to a configuration as extension values.
   extension: GardState.Extension
+  /// @internal
   lookahead: RegExp | undefined
+  /// @internal
   inCode: boolean
 
-  private constructor(readonly expr: RegExp,
-                      readonly apply: (wg: Wordgard, match: InputRule.MatchArray) => boolean,
-                      spec: InputRule.Spec) {
+  private constructor(
+    /// @internal
+    readonly expr: RegExp,
+    /// @internal
+    readonly apply: (wg: Wordgard, match: InputRule.MatchArray) => boolean,
+    spec: InputRule.Spec
+  ) {
     this.lookahead = spec.lookahead
     this.inCode = !!spec.inCode
     this.extension = [inputRule.of(this), beforeUpdate]
   }
 
+  /// Define an input rule.
   static define(spec: InputRule.Spec) {
     return new InputRule(ensureAnchor(spec.expr),
                          typeof spec.apply == "string" ? applyString(spec.apply) : spec.apply,
@@ -31,9 +40,13 @@ export class InputRule {
   /// a given string is typed. You'll probably want the regexp to
   /// start with `^`, so that the pattern can only occur at the start
   /// of a textblock. `tag` gives the type of plot to wrap in.
+  ///
+  /// When `empty` is given as `true`, the rule only applies when the
+  /// expression matches the textblock's entire content.
   static wrapping(
     expr: RegExp,
-    tag: Plot.Tag | ((match: InputRule.MatchArray) => Plot.Tag)
+    tag: Plot.Tag | ((match: InputRule.MatchArray) => Plot.Tag),
+    empty = false
   ) {
     return InputRule.define({
       expr,
@@ -49,7 +62,8 @@ export class InputRule {
           annotations: history.isolate.of("full")
         }))
         return true
-      }
+      },
+      lookahead: empty ? /^$/ : undefined
     })
   }
 
@@ -61,7 +75,8 @@ export class InputRule {
   /// `InputRule.wrapping` function.
   static textblockType(
     expr: RegExp,
-    tag: Plot.Tag | ((match: InputRule.MatchArray) => Plot.Tag)
+    tag: Plot.Tag | ((match: InputRule.MatchArray) => Plot.Tag),
+    empty = false
   ) {
     return InputRule.define({
       expr,
@@ -75,12 +90,14 @@ export class InputRule {
           annotations: history.isolate.of("full")
         })
         return true
-      }
+      },
+      lookahead: empty ? /^$/ : undefined
     })
   }
 }
 
 export namespace InputRule {
+  /// Configuration given to {@link InputRule.define}.
   export interface Spec {
     /// The regular expression to match against the text before the
     /// input. This expression should end in a `$` marker.
@@ -89,9 +106,9 @@ export namespace InputRule {
     /// the document positions of the full match and all matched
     /// groups in `expr`. Should return `true` when it has taken an
     /// action, `false` when it didn't. You probably want to include
-    /// `isolateHistory.of("full")` in any transactions you dispatch
-    /// from a rule handler, so that users can undo the adjustment if
-    /// it wasn't what they wanted.
+    /// {@link history.history.isolate}`.of("full")` in any
+    /// transactions you dispatch from a rule handler, so that users
+    /// can undo the adjustment if it wasn't what they wanted.
     ///
     /// When given as a string, the full match will be replaced by
     /// that string.
@@ -108,12 +125,17 @@ export namespace InputRule {
     inCode?: boolean
   }
 
+  /// An object representing a matched group for an input rule. Holds
+  /// the start and end positions of the group in the document, along
+  /// with the matched text content.
   export type Match = {from: Pos, to: Pos, text: string}
+
+  /// An array of {@link InputRule.Match matches}.
   export type MatchArray = readonly (InputRule.Match | null)[] & {0: InputRule.Match}
 
-  /// Converts double dashes to an emdash.
+  /// Input rule that converts double dashes to an emdash.
   export const emDash = InputRule.define({expr: /--$/, apply: "—"})
-  /// Converts three dots to an ellipsis character.
+  /// Rule that converts three dots to an ellipsis character.
   export const ellipsis = InputRule.define({expr: /\.\.\.$/, apply: "…"})
   /// “Smart” opening double quotes.
   export const openDoubleQuote = InputRule.define({expr: /(?:^|[\s\{\[\(\<'"\u2018\u201C])(")$/, apply: "“"})

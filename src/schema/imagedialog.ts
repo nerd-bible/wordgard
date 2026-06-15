@@ -1,5 +1,5 @@
 import {Node, Mark, ChangeSet, Plot} from "wordgard/doc"
-import {Wordgard, Panel, showDialog} from "wordgard/editor"
+import {Wordgard, Panel, Dialog} from "wordgard/editor"
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure, Alignment} from "wordgard/schema-def"
 import {Command} from "wordgard/command"
@@ -109,7 +109,7 @@ function startUpload(wg: Wordgard, file: HTMLInputElement, set: (url: string) =>
     set(url)
   }, err => {
     reset()
-    showDialog(wg, {label: imagePhrases.get(wg.state, "upload_failed") + ": " + err})
+    Dialog.show(wg, {label: imagePhrases.get(wg.state, "upload_failed") + ": " + err})
   })
 }
 

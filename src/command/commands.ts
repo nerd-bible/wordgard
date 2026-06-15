@@ -487,7 +487,7 @@ export const moveByLine: Command<{dir: "up" | "down", extend?: boolean}> = (wg, 
 
 function pageHeight(wg: Wordgard) {
   let marginTop = 0, marginBottom = 0
-  for (let source of wg.state.facet((wg.constructor as typeof Wordgard).scrollMargins)) {
+  for (let source of wg.state.facet((wg.constructor as typeof Wordgard).coveredMargins)) {
     let margins = source(wg)
     if (margins?.top) marginTop = Math.max(margins?.top, marginTop)
     if (margins?.bottom) marginBottom = Math.max(margins?.bottom, marginBottom)

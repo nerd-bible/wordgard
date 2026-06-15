@@ -3,7 +3,9 @@ import {phrases} from "wordgard/phrases"
 import {Panel} from "./panel"
 import {Wordgard} from "./editor"
 
-type DialogConfig = {
+/// Dialogs are {@link Panel panels} opened as a side-effect, and
+/// closed by user action. This interface is used to describe them.
+export interface Dialog {
   /// A function to render the content of the dialog. The result
   /// should contain at least one `<form>` element. Submit handlers
   /// and a handler for the Escape key will be added to the form.
@@ -32,49 +34,49 @@ type DialogConfig = {
   top?: boolean
 }
 
-// FIXME refine interface
-
-/// Show a panel above or below the editor to show the user a message
-/// or prompt them for input. Returns an effect that can be dispatched
-/// to close the dialog, and a promise that resolves when the dialog
-/// is closed or a form inside of it is submitted.
-///
-/// You are encouraged, if your handling of the result of the promise
-/// dispatches a transaction, to include the `close` effect in it. If
-/// you don't, this function will automatically dispatch a separate
-/// transaction right after.
-export function showDialog(wg: Wordgard, config: DialogConfig): {
-  close: Transaction.Effect<unknown>,
-  result: Promise<HTMLFormElement | null>
-} {
-  let resolve: (form: HTMLFormElement | null) => void
-  let promise = new Promise<HTMLFormElement | null>(r => resolve = r)
-  let panelCtor = (wg: Wordgard) => createDialog(wg, config, resolve)
-  if (wg.state.field(dialogField, false)) {
-    wg.dispatch({effects: openDialogEffect.of(panelCtor)})
-  } else {
-    wg.dispatch({effects: GardState.appendConfig.of(dialogField.init(() => [panelCtor]))})
+export namespace Dialog {
+  /// Show a dialog to display a message or prompt the user for input.
+  /// Returns an effect that can be dispatched to close the dialog,
+  /// and a promise that resolves when the dialog is closed or a form
+  /// inside of it is submitted.
+  ///
+  /// You are encouraged, if your handling of the result of the promise
+  /// dispatches a transaction, to include the `close` effect in it. If
+  /// you don't, this function will automatically dispatch a separate
+  /// transaction right after.
+  export function show(wg: Wordgard, config: Dialog): {
+    close: Transaction.Effect<unknown>,
+    result: Promise<HTMLFormElement | null>
+  } {
+    let resolve: (form: HTMLFormElement | null) => void
+    let promise = new Promise<HTMLFormElement | null>(r => resolve = r)
+    let panelCtor = (wg: Wordgard) => createDialog(wg, config, resolve)
+    if (wg.state.field(dialogField, false)) {
+      wg.dispatch({effects: openDialogEffect.of(panelCtor)})
+    } else {
+      wg.dispatch({effects: GardState.appendConfig.of(dialogField.init(() => [panelCtor]))})
+    }
+    let close = closeDialogEffect.of(panelCtor)
+    return {close, result: promise.then(form => {
+      let queue = wg.win.queueMicrotask || ((f: () => void) => wg.win.setTimeout(f, 10))
+      queue(() => {
+        if (wg.state.field(dialogField).indexOf(panelCtor) > -1)
+          wg.dispatch({effects: close})
+      })
+      return form
+    })}
   }
-  let close = closeDialogEffect.of(panelCtor)
-  return {close, result: promise.then(form => {
-    let queue = wg.win.queueMicrotask || ((f: () => void) => wg.win.setTimeout(f, 10))
-    queue(() => {
-      if (wg.state.field(dialogField).indexOf(panelCtor) > -1)
-        wg.dispatch({effects: close})
-    })
-    return form
-  })}
-}
 
-/// Find the {@link Panel} for an open dialog, using a class name as
-/// identifier.
-export function getDialog(wg: Wordgard, className: string) {
-  let dialogs = wg.state.field(dialogField, false) || []
-  for (let open of dialogs) {
-    let panel = Panel.get(wg, open)
-    if (panel && panel.dom.classList.contains(className)) return panel
+  /// Find the {@link Panel} for an open dialog, using a class name as
+  /// identifier.
+  export function get(wg: Wordgard, className: string) {
+    let dialogs = wg.state.field(dialogField, false) || []
+    for (let open of dialogs) {
+      let panel = Panel.get(wg, open)
+      if (panel && panel.dom.classList.contains(className)) return panel
+    }
+    return null
   }
-  return null
 }
 
 const dialogField = GardState.Field.define<readonly Panel.Constructor[]>({
@@ -92,7 +94,7 @@ const dialogField = GardState.Field.define<readonly Panel.Constructor[]>({
 const openDialogEffect = Transaction.Effect.define<Panel.Constructor>()
 const closeDialogEffect = Transaction.Effect.define<Panel.Constructor>()
 
-function createDialog(wg: Wordgard, config: DialogConfig, result: (form: HTMLFormElement | null) => void): Panel {
+function createDialog(wg: Wordgard, config: Dialog, result: (form: HTMLFormElement | null) => void): Panel {
   let content = config.content ? config.content(wg, () => done(null)) : null
   if (!content) {
     content = document.createElement("form")

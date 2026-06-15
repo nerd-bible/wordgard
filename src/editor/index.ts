@@ -11,8 +11,6 @@
 
 export {Wordgard} from "./editor"
 
-export {MouseSelectionStyle} from "./input"
-
 /// ### Key Bindings
 ///
 /// Functionality used for binding keys to editing commands.
@@ -36,7 +34,8 @@ export {Decoration, Widget, PointSet, RangeSet} from "./decoration"
 /// things like dialogs, status bars, and menu bars.
 
 export {Panel} from "./panel"
-export {showDialog, getDialog} from "./dialog"
+export {menuBar} from "./menubar"
+export {Dialog} from "./dialog"
 
 /// ### Tooltips
 ///
@@ -44,15 +43,6 @@ export {showDialog, getDialog} from "./dialog"
 /// specific document position.
 
 export {Tooltip} from "./tooltip"
-
-/// ### Menu Bar
-///
-/// The {@link menuBar} extension displays menu items defined via the
-/// {@link command.Menu menu system} in a button bar at the top of the
-/// editor. It is possible to replace it with your own custom menu
-/// implementation, but 
-
-export {menuBar} from "./menubar"
 
 /// ### Input Rules
 ///

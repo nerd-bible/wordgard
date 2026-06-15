@@ -3,7 +3,7 @@ import {ChangeSet} from "wordgard/doc"
 import {GardState, Transaction} from "wordgard/state"
 import {Link} from "wordgard/schema-def"
 import {phrases} from "wordgard/phrases"
-import {Wordgard, showDialog, KeyBinding, Tooltip} from "wordgard/editor"
+import {Wordgard, Dialog, KeyBinding, Tooltip} from "wordgard/editor"
 
 function toggleLink(wg: Wordgard) {
   let {selection, doc} = wg.state
@@ -16,7 +16,7 @@ function toggleLink(wg: Wordgard) {
   if (remove.length) {
     wg.dispatch({changes: remove, userEvent: "mark.remove"})
   } else {
-    showDialog(wg, {
+    Dialog.show(wg, {
       label: phrases.get(wg.state, "link_target"),
       input: {type: "text", name: "url"},
       submitLabel: phrases.get(wg.state, "create_link"),

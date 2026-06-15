@@ -390,8 +390,8 @@ const baseTheme = Wordgard.baseTheme({
 })
 
 /// Describes a tooltip. Values of this type, when provided through
-/// the {@link Tooltip.show} facet, control the individual tooltips on
-/// the editor.
+/// the {@link Tooltip.show} facet, provide the active tooltips on an
+/// editor.
 export interface Tooltip {
   /// The document position at which to show the tooltip.
   pos: number
@@ -439,10 +439,10 @@ export namespace Tooltip {
     /// library also falls back to absolute positioning.
     position?: "fixed" | "absolute",
     /// The element to put the tooltips into. By default, they are put
-    /// in the editor (`<wordgard>`) element, and that is usually what
-    /// you want. But in some layouts that can lead to positioning
-    /// issues, and you need to use a different parent to work around
-    /// those.
+    /// in the editor (`<wordgard-editor>`) element, and that is
+    /// usually what you want. But in some layouts that can lead to
+    /// positioning issues, and you need to use a different parent to
+    /// work around those.
     parent?: HTMLElement
     /// By default, when figuring out whether there is room for a
     /// tooltip at a given position, the extension considers the entire
@@ -486,8 +486,8 @@ export namespace Tooltip {
     /// is destroyed.
     destroy?(wg: Wordgard): void
     /// Called when the tooltip has been (re)positioned. The argument
-    /// is the {@tooltips.config.tooltipSpace space} available to the
-    /// tooltip.
+    /// is the {@link Tooltip.configure.config.tooltipSpace space}
+    /// available to the tooltip.
     positioned?(space: DOMRect): void,
     /// By default, the library will restrict the size of tooltips so
     /// that they don't stick out of the available space. Set this to
@@ -530,24 +530,14 @@ export namespace Tooltip {
   /// container element. This allows multiple tooltips over the same
   /// range to be "merged" together without overlapping.
   ///
-  /// The return value is a valid {@link GardState.Extension editor
-  /// extension} but also provides an `active` property holding a
-  /// state field that can be used to read the currently active
-  /// tooltips produced by this extension.
+  /// Returns an {@link GardState.Extension editor extension} that
+  /// installs the hover behavior and a state field that can be used
+  /// to read the currently active tooltips produced by this
+  /// extension.
   export function hover(
     source: HoverTooltipSource,
-    options: {
-      /// Controls whether a transaction hides the tooltip. The default
-      /// is to not hide.
-      hideOn?: (tr: Transaction, tooltip: Tooltip) => boolean,
-      /// When enabled (this defaults to false), close the tooltip
-      /// whenever the document changes or the selection is set.
-      hideOnChange?: boolean | "touch",
-      /// Hover time after which the tooltip should appear, in
-      /// milliseconds. Defaults to 300ms.
-      hoverTime?: number
-    } = {}
-  ): GardState.Extension & {active: GardState.Field<readonly Tooltip[]>} {
+    options: hover.Spec = {}
+  ): {extension: GardState.Extension, active: GardState.Field<readonly Tooltip[]>} {
     let setHover = Transaction.Effect.define<readonly Tooltip[]>()
     let hoverState = GardState.Field.define<readonly Tooltip[]>({
       create() { return [] },
@@ -590,12 +580,27 @@ export namespace Tooltip {
     }
   }
 
-  /// Transaction effect that closes all hover tooltips.
-  export const closeHover = closeHoverTooltipEffect.of(null)
+  export namespace hover {
+    /// Options given to {@link Tooltip.hover}.
+    export type Spec = {
+      /// Controls whether a transaction hides the tooltip. The default
+      /// is to not hide.
+      hideOn?: (tr: Transaction, tooltip: Tooltip) => boolean,
+      /// When enabled (this defaults to false), close the tooltip
+      /// whenever the document changes or the selection is set.
+      hideOnChange?: boolean | "touch",
+      /// Hover time after which the tooltip should appear, in
+      /// milliseconds. Defaults to 300ms.
+      hoverTime?: number
+    }
 
-  /// Returns true if any hover tooltips are currently active.
-  export function hasHover(state: GardState) {
-    return state.facet(showHoverTooltip).some(x => x)
+    /// Returns true if any hover tooltips are currently active.
+    export function has(state: GardState) {
+      return state.facet(showHoverTooltip).some(x => x)
+    }
+
+    /// Transaction effect that closes all hover tooltips.
+    export const closeAll = closeHoverTooltipEffect.of(null)
   }
 }
 

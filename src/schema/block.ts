@@ -107,7 +107,7 @@ export namespace heading {
   /// characters, followed by a space, are typed at the start of a
   /// textblock, using the number of hash characters to determine the
   /// heading level.
-  export const createOnHash = InputRule.textblockType(/^(#{1,6}) $/, m => Heading.of(m[1]!.to.pos - m[1]!.from.pos))
+  export const createOnHash = InputRule.textblockType(/^(#{1,6}) $/, m => Heading.of(m[1]!.to.pos - m[1]!.from.pos), true)
 }
 
 /// Extensions to add support for code blocks. Includes the {@link
@@ -311,7 +311,7 @@ export namespace blockquote {
 
   /// Input rule that wraps the current block in a blockquote when you
   /// type a greater-than sign followed by a space at its start.
-  export const createOnGT = InputRule.wrapping(/^> $/, Blockquote)
+  export const createOnGT = InputRule.wrapping(/^> $/, Blockquote, true)
 
   /// Simple style that shows a border next to blockquotes to make
   /// them easy to see.

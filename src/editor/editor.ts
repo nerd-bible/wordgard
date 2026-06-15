@@ -118,7 +118,7 @@ export class Wordgard {
     this.dom.appendChild(this.announceDOM)
     this.dom.appendChild(this.scrollDOM)
 
-    if (!spec.state && !spec.doc)
+    if (!spec.state && spec.doc == null)
       throw new Error("When Wordgard.Spec.state isn't given, the doc field must be present")
     this.viewState = new ViewState(spec.state || GardState.create(spec as GardState.Spec))
     if (spec.scrollTo && spec.scrollTo.is(scrollIntoView))
@@ -585,8 +585,8 @@ export class Wordgard {
     return eventObserver.of({event, observer: observer as any})
   }
 
-  /// Scroll handlers can override how things are scrolled into view.
-  /// If they return `true`, no further handling happens for the
+  /// Scroll handlers can override how editor content is scrolled into
+  /// view. If they return `true`, no further handling happens for the
   /// scrolling. If they return false, the default scroll behavior is
   /// applied. Scroll handlers should never initiate editor updates.
   static scrollHandler = GardState.Facet.define<(
@@ -621,6 +621,10 @@ export class Wordgard {
   /// doesn't affect API calls that change the editor content, even
   /// when those are bound to keys or buttons. See the {@link
   /// GardState.readOnly `readOnly` facet} for that.)
+  ///
+  /// A non-editable editor will, by default, not be focusable. You
+  /// can set a {@link Wordgard.contentAttributes content attribute}
+  /// of `tabindex: 0` to make an uneditable Wordgard focusable.
   static editable = GardState.Facet.define<boolean, boolean>({combine: values => values.length ? values[0] : true })
 
   /// Controls the length of a full cursor blink cycle, in milliseconds.
@@ -638,20 +642,15 @@ export class Wordgard {
   /// Facet used to configure whether a given selection drag event
   /// should move or copy the selection. The given predicate will be
   /// called with the `mousedown` event, and can return `true` when
-  /// the drag should move the content.
+  /// the drag should move the content. The default behavior is to
+  /// copy when holding Alt on Mac and Control on other platforms, and
+  /// move otherwise.
   static dragMovesSelection = dragBehavior
-
-  /// Facet that allows extensions to provide additional scroll
-  /// margins (space around the sides of the scrolling element that
-  /// should be considered invisible). This can be useful when the
-  /// plugin introduces elements that cover part of that element (for
-  /// example a horizontally fixed gutter).
-  static scrollMargins = GardState.Facet.define<(wg: Wordgard) => Partial<DOMRect> | null>()
 
   /// @internal
   getScrollMargins() {
     let left = 0, right = 0, top = 0, bottom = 0
-    for (let source of this.state.facet(Wordgard.scrollMargins)) {
+    for (let source of this.state.facet(Wordgard.coveredMargins)) {
       let m = source(this)
       if (m) {
         if (m.left != null) left = Math.max(left, m.left)
@@ -666,19 +665,14 @@ export class Wordgard {
   /// Create a theme extension. The first argument can be a
   /// [`style-mod`](https://github.com/marijnh/style-mod#documentation)
   /// style spec providing the styles for the theme. These will be
-  /// prefixed with a generated class for the style.
+  /// prefixed with a generated scope class.
   ///
-  /// Because the selectors will be prefixed with a scope class, rule
-  /// that directly match the editor's {@link Wordgard.dom wrapper
-  /// element}—to which the scope class will be added—need to be
-  /// explicitly differentiated by adding an `&` to the selector for
-  /// that element—for example `&:has(wg-content:focus)`.
-  ///
-  /// When `dark` is set to true, the theme will be marked as dark,
-  /// which will cause the `&dark` rules from {@link
-  /// Wordgard.baseTheme base themes} to be used (as opposed to
-  /// `&light` when a light theme is active).
-  static theme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
+  /// Because the selectors are prefixed, rules that directly match
+  /// the editor's {@link Wordgard.dom wrapper element} (to which the
+  /// scope class will be added) need to be explicitly differentiated
+  /// by adding an `&` to the selector for that element—for example
+  /// `&:has(wg-content:focus)`.
+  static theme(spec: Record<string, StyleSpec>): GardState.Extension {
     let prefix = StyleModule.newName()
     return [theme.of(prefix), Wordgard.styleModule.of(buildTheme(`.${prefix}`, spec))]
   }
@@ -703,7 +697,7 @@ export class Wordgard {
   /// place of the editor wrapper element when directly targeting
   /// that. You can also use `&dark` or `&light` instead to only
   /// target editors with a dark or light theme.
-  static baseTheme(spec: {[selector: string]: StyleSpec}): GardState.Extension {
+  static baseTheme(spec: Record<string, StyleSpec>): GardState.Extension {
     return GardState.prec.lowest(Wordgard.styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
   }
 
@@ -713,7 +707,8 @@ export class Wordgard {
   static cspNonce = GardState.Facet.define<string, string>({combine: values => values.length ? values[0] : ""})
 
   /// Facet that provides additional DOM attributes for the editor's
-  /// editable DOM element.
+  /// editable DOM element, either directly, or as a function from the
+  /// editor state.
   static contentAttributes = GardState.Facet.define<AttrSource>()
 
   /// Facet that provides DOM attributes for the editor's outer
@@ -730,57 +725,13 @@ export class Wordgard {
 
   /// @internal for testing
   static DocTile = DocTile
-}
 
-export namespace Wordgard {
-  /// The type of object given to {@link Wordgard.create}.
-  export interface Spec extends Partial<GardState.Spec> {
-    /// The editor's initial state. If not given, a new state is
-    /// created by passing this configuration object to {@link
-    /// GardState.create}, using its `doc`, `selection`, and
-    /// `extensions` field (if provided).
-    state?: GardState,
-    /// When given, the editor is immediately appended to the given
-    /// element on creation. (Otherwise, you'll have to place the editor
-    /// element in the document yourself.)
-    parent?: Element | DocumentFragment
-    /// Pass an effect created with {@link Wordgard.scrollIntoView}
-    /// here to set an initial scroll position.
-    scrollTo?: Transaction.Effect<any>,
-  }
-
-  export type ScrollSpec = {
-    /// By default (`"nearest"`) the position will be vertically
-    /// scrolled only the minimal amount required to move the given
-    /// position into view. You can set this to `"start"` to move it
-    /// to the top of the editor, `"end"` to move it to the bottom, or
-    /// `"center"` to move it to the center.
-    y?: "nearest" | "start" | "end" | "center"
-    /// Effect similar to `y`, but for the horizontal scroll position.
-    x?: "nearest" | "start" | "end" | "center"
-    /// Extra vertical distance to add when moving something into
-    /// view. Not used with the `"center"` strategy. Defaults to 5.
-    /// Must be less than the height of the editor.
-    yMargin?: number
-    /// Extra horizontal distance to add. Not used with the `"center"`
-    /// strategy. Defaults to 5. Must be less than the width of the
-    /// editor.
-    xMargin?: number
-  }
-
-  /// Log or report an unhandled exception in client code. Should
-  /// probably only be used by extension code that allows client code to
-  /// provide functions, and calls those functions in a context where an
-  /// exception can't be propagated to calling code in a reasonable way
-  /// (for example when in an event handler).
-  ///
-  /// Either calls a handler registered with {@link
-  /// Wordgard.exceptionSink}, `window.onerror`, if defined, or
-  /// `console.error` (in which case it'll pass `context`, when given,
-  /// as first argument).
-  export function logException(state: GardState, exception: any, context?: string) {
-    logException(state, exception, context)
-  }
+  /// Facet that allows extensions to indicate that some amount of
+  /// space around the sides of the scrolling element should be
+  /// considered blocked from view when scrolling something into view.
+  /// This is only used by plugins that introduce elements that cover
+  /// part of the editor (for example a gutter).
+  static coveredMargins = GardState.Facet.define<(wg: Wordgard) => Partial<DOMRect> | null>()
 }
 
 let _wrapElement: {new (wg: Wordgard): HTMLElement} | null = null
@@ -812,7 +763,7 @@ function createWrapElement(wg: Wordgard) {
 function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: string[]): Attributes {
   for (let sources = wg.state.facet(facet), i = sources.length - 1; i >= 0; i--) {
     let source = sources[i], value = typeof source == "function" ? source(wg) : source
-    if (value) for (let attr in value) {
+    for (let attr in value) {
       let attrVal = value[attr]
       if (attrVal != null) Attributes.push(base, attr, attrVal)
     }
@@ -827,9 +778,84 @@ export const editorPlugin = GardState.Facet.define<Wordgard.Plugin<any>>({
 })
 
 export namespace Wordgard {
-  /// Plugins associate stateful values with an editor. They can
-  /// influence the way the content is drawn, and are notified of
-  /// things that happen in the editor.
+  /// The type of object given to {@link Wordgard.create}.
+  export interface Spec extends Partial<GardState.Spec> {
+    /// The editor's initial state. If not given, a new state is
+    /// created by passing this configuration object to {@link
+    /// GardState.create}, using its `doc`, `selection`, and
+    /// `config` fields (if provided).
+    state?: GardState,
+    /// When present, the editor is immediately appended to the given
+    /// element on creation. (Otherwise, you'll have to place the
+    /// editor {@link Wordgard.dom element} in the document yourself.)
+    parent?: Element | DocumentFragment
+    /// Pass an effect created with {@link Wordgard.scrollIntoView}
+    /// here to set an initial scroll position.
+    scrollTo?: Transaction.Effect<any>,
+  }
+
+  /// Options passed to {@link Wordgard.scrollIntoView}.
+  export type ScrollSpec = {
+    /// By default (`"nearest"`) the position will be vertically
+    /// scrolled only the minimal amount required to move the given
+    /// position into view. You can set this to `"start"` to move it
+    /// to the top of the editor, `"end"` to move it to the bottom, or
+    /// `"center"` to move it to the center.
+    y?: "nearest" | "start" | "end" | "center"
+    /// Effect similar to `y`, but for the horizontal scroll position.
+    x?: "nearest" | "start" | "end" | "center"
+    /// Extra vertical distance to add when moving something into
+    /// view. Not used with the `"center"` strategy. Defaults to 5.
+    /// Must be less than the height of the editor.
+    yMargin?: number
+    /// Extra horizontal distance to add. Not used with the `"center"`
+    /// strategy. Defaults to 5. Must be less than the width of the
+    /// editor.
+    xMargin?: number
+  }
+
+  /// The interface that objects registered with {@link
+  /// Wordgard.mouseSelectionStyle} must conform to.
+  export interface MouseSelectionStyle {
+    /// Return a new selection for the mouse gesture that starts with
+    /// the event that was originally given to the constructor, and ends
+    /// with the event passed here. In case of a plain click, those may
+    /// both be the `mousedown` event, in case of a drag gesture, the
+    /// latest `mousemove` event will be passed.
+    ///
+    /// When `extend` is true, that means the new selection should, if
+    /// possible, extend the start selection.
+    get: (curEvent: MouseEvent, extend: boolean) => GardSelection
+    /// Called when the editor is updated while the gesture is in
+    /// progress. When the document changes, it may be necessary to map
+    /// some data (like the original selection or start position)
+    /// through the changes.
+    ///
+    /// This may return `true` to indicate that the `get` method should
+    /// get queried again after the update, because something in the
+    /// update could change its result. Be wary of infinite loops when
+    /// using this (where `get` returns a new selection, which will
+    /// trigger `update`, which schedules another `get` in response).
+    update: (update: Wordgard.Update) => boolean | void
+  }
+
+  /// Log or report an unhandled exception in client code. Should
+  /// probably only be used by extension code that allows client code to
+  /// provide functions, and calls those functions in a context where an
+  /// exception can't be propagated to calling code in a reasonable way
+  /// (for example when in an event handler).
+  ///
+  /// Either calls a handler registered with {@link
+  /// Wordgard.exceptionSink}, `window.onerror`, if defined, or
+  /// `console.error` (in which case it'll pass `context`, when given,
+  /// as first argument).
+  export function logException(state: GardState, exception: any, context?: string) {
+    logException(state, exception, context)
+  }
+
+  /// Plugins associate stateful values with an editor. They can be
+  /// useful for displaying interface elements, or keeping ephemeral
+  /// interface state.
   export class Plugin<V extends Wordgard.Plugin.Value> {
     /// Instances of this class act as extensions.
     extension: GardState.Extension
@@ -840,6 +866,28 @@ export namespace Wordgard {
       buildExtensions: (plugin: Wordgard.Plugin<V>) => GardState.Extension
     ) {
       this.extension = buildExtensions(this)
+    }
+
+    /// Define a plugin from a constructor function that creates the
+    /// plugin's value, given an editor.
+    static define<V extends Wordgard.Plugin.Value>(
+      create: (wg: Wordgard) => V,
+      provide?: (plugin: Wordgard.Plugin<V>) => GardState.Extension
+    ) {
+      return new Wordgard.Plugin<V>(create, plugin => {
+        let ext = [editorPlugin.of(plugin)]
+        if (provide) ext.push(provide(plugin))
+        return ext
+      })
+    }
+
+    /// Create a plugin for a class whose constructor takes an editor
+    /// as only argument.
+    static fromClass<V extends Wordgard.Plugin.Value>(
+      cls: {new (wg: Wordgard): V},
+      provide?: (plugin: Wordgard.Plugin<V>) => GardState.Extension
+    ) {
+      return Wordgard.Plugin.define(wg => new cls(wg), provide)
     }
 
     /// Create an {@link Wordgard.domEventHandler event handler} for this
@@ -865,32 +913,10 @@ export namespace Wordgard {
         if (value) observer(event as HTMLElementEventMap[Event], wg, value)
       }})
     }
-
-    /// Define a plugin from a constructor function that creates the
-    /// plugin's value, given an editor.
-    static define<V extends Wordgard.Plugin.Value>(
-      create: (wg: Wordgard) => V,
-      provide?: (plugin: Wordgard.Plugin<V>) => GardState.Extension
-    ) {
-      return new Wordgard.Plugin<V>(create, plugin => {
-        let ext = [editorPlugin.of(plugin)]
-        if (provide) ext.push(provide(plugin))
-        return ext
-      })
-    }
-
-    /// Create a plugin for a class whose constructor takes a single
-    /// editor as argument.
-    static fromClass<V extends Wordgard.Plugin.Value>(
-      cls: {new (wg: Wordgard): V},
-      provide?: (plugin: Wordgard.Plugin<V>) => GardState.Extension
-    ) {
-      return Wordgard.Plugin.define(wg => new cls(wg), provide)
-    }
   }
 
   export namespace Plugin {
-    /// This is the interface plugin objects conform to.
+    /// This is the interface plugin objects must expose.
     export interface Value {
       /// Notifies the plugin of an update that happened in the
       /// editor. This is called _before_ the editor updates its own
@@ -917,14 +943,15 @@ export namespace Wordgard {
       /// and make sure to release/undo it in its `disconnect` method.
       connect?(wg: Wordgard): void
 
-      /// Called when the editor is removed from the DOM.
+      /// Called when the editor is removed from the DOM, or the
+      /// plugin is removed from the editor.
       disconnect?(wg: Wordgard): void
     }
   }
 
-  /// Editor {@link Wordgard.Plugin plugins} are given instances of
-  /// this class, which describe what happened, whenever the editor is
-  /// updated.
+  /// Editor {@link Wordgard.Plugin plugins} and {@link
+  /// Wordgard.beforeUpdate update handlers} are given instances of
+  /// this class whenever the editor is updated.
   export class Update {
     /// The changes made to the document by this update.
     readonly changes: ChangeSet
@@ -955,8 +982,8 @@ export namespace Wordgard {
       return new Wordgard.Update(wg, startState, state, transactions, flags)
     }
 
-    /// Returns true when the document was modified or the size of the
-    /// editor, or elements within the editor, changed.
+    /// Returns true when the document was modified or when the size
+    /// of the editor, or elements within the editor, changed.
     get geometryChanged() {
       return this.docChanged || (this.flags & UpdateFlag.Geometry) > 0
     }
@@ -981,7 +1008,7 @@ export namespace Wordgard {
   }
 }
 
-export class PluginInstance {
+class PluginInstance {
   // When starting an update, all plugins have this field set to the
   // update object, indicating they need to be updated. When finished
   // updating, it is set to `null`. Retrieving a plugin that needs to
@@ -1064,6 +1091,6 @@ export class PluginInstance {
   }
 }
 
-export type AttrSource = Record<string, string | null> | ((wg: Wordgard) => Record<string, string | null> | null)
+export type AttrSource = Record<string, string | null> | ((wg: Wordgard) => Record<string, string | null>)
 
 export const enum UpdateFlag { Focus = 1, Geometry = 2 }
