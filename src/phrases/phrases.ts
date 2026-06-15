@@ -1,6 +1,6 @@
 import {PhraseSet} from "./phraseset"
 
-/// The phrase set for the core package and menus.
+/// The phrase set for the core package and basic menu items.
 export const phrases = PhraseSet.define({
   dialog_close: "close",
 
@@ -38,6 +38,7 @@ export const phrases = PhraseSet.define({
   text_dir_auto: "Automatic text direction",
 })
 
+/// Phrases used by the {@link schema.image.button image dialog}.
 export const imagePhrases = PhraseSet.define({
   insert_image: "Insert image",
   update_image: "Update image",
@@ -60,6 +61,8 @@ export const imagePhrases = PhraseSet.define({
   auto: "automatic"
 })
 
+/// Phrases (mostly color names) used by the {@link schema.ColorPicker
+/// color picker}.
 export const colorNames = PhraseSet.define({
   none: "none",
   black: "black",
@@ -83,6 +86,7 @@ export const colorNames = PhraseSet.define({
   lightest: "very light",
 })
 
+/// Phrases used by [wordgard/table](#table).
 export const tablePhrases = PhraseSet.define({
   dimensions_title: "Table dimensions $1 by $2. Use arrow keys to change.",
   dimensions_live: "$1 by $2",
