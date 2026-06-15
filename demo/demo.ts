@@ -1,7 +1,7 @@
 import {Wordgard, defaultKeymap, menuBar} from "wordgard/editor"
 import {fullSchema} from "wordgard/schema"
 import {history} from "wordgard/history"
-import {tables, tableMenu} from "wordgard/table"
+import {tables} from "wordgard/table"
 
 ;(window as any).wg = Wordgard.create({
   parent: document.body,
@@ -12,7 +12,7 @@ import {tables, tableMenu} from "wordgard/table"
     defaultKeymap,
     history(),
     menuBar(),
-    tables(), tableMenu(),
+    tables(),
 /*    Wordgard.beforeUpdate.of(u => {
       for (let tr of u.transactions) console.log("=> " + tr.newDoc, tr.selection? [tr.selection.head, tr.selection.anchor, tr.selection.constructor.name] : null)
     })*/

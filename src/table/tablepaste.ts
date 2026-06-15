@@ -239,10 +239,6 @@ export function handleTablePaste(state: GardState, slice: Slice, context: readon
   }
 }
 
-/// A paste handler that makes pasting into tables fill the entire
-/// cell selection or, if table cell content is being pasted into a
-/// cell, to expand the pasted region over the shape covered by the
-/// pasted content.
 export const tablePasteHandler = Wordgard.pasteHandler.of((wg, _event, slice, context) => {
   let tr = handleTablePaste(wg.state, slice, context)
   return tr && (wg.dispatch(tr), true)
@@ -250,8 +246,6 @@ export const tablePasteHandler = Wordgard.pasteHandler.of((wg, _event, slice, co
 
 // FIXME is it ridiculously hard to grab a multi-cell selection for
 // dragging. May require completely custom handling.
-
-/// A drop handler that overrides drops that move table cells
 export const tableDropHandler = Wordgard.dropHandler.of((wg, _event, pos, move, slice, context) => {
   let tr = handleTablePaste(wg.state, slice, context, pos)
   if (!tr) return false

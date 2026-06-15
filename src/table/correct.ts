@@ -1,5 +1,5 @@
-// This file defines helpers for normalizing tables, making sure no
-// cells overlap (which can happen, if you have the wrong col- and
+// This file defines a correction that normalizes tables, making sure
+// no cells overlap (which can happen, if you have the wrong col- and
 // rowspans). Uses the problems reported by `TableMap`.
 
 import {Plot, ChangeSet} from "wordgard/doc"
@@ -7,7 +7,6 @@ import {Table, ColSpan, RowSpan} from "wordgard/types"
 import {Correction} from "wordgard/state"
 import {TableMap} from "./tablemap"
 
-/// Correct tables where the cells do not form a proper rectangle.
 export const tableCorrection = Correction.onContent(Table, (pos, state) => {
   let map = TableMap.get(pos.node, pos.start)
   if (!map.data.problems) return null

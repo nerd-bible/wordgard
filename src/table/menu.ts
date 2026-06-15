@@ -119,6 +119,12 @@ const dimensionPicker = Menu.CustomControl.define({
   }
 })
 
+/// Returns the full table menu. This consists of two buttons that
+/// look the same but behave differently. When the selection is not in
+/// a table, {@link tableMenu.createTable} is shown, which provides an
+/// interface for creating a new table. Otherwise, {@link
+/// tableMenu.modifyTable} is visible, which contains menu items for
+/// manipulating the current table.
 export function tableMenu(): GardState.Extension {
   return [
     tableMenu.createTable,
@@ -135,6 +141,9 @@ const tableIcon = {
 }
 
 export namespace tableMenu {
+  /// A menu button that expands into a dimension picker when
+  /// activated, which inserts a table with the given dimensions when
+  /// confirmed.
   export const createTable = Menu.Submenu.define({
     select(state) {
       return state.schema.has(Table) && !state.sel.head.matchingParent(plot => plot.type == Table.type)
@@ -146,6 +155,7 @@ export namespace tableMenu {
     content: [dimensionPicker]
   })
 
+  /// A submenu with for table manipulation items.
   export const modifyTable = Menu.Submenu.define({
     select(state) {
       return !!state.sel.head.matchingParent(plot => plot.type == Table.type)
@@ -156,6 +166,8 @@ export namespace tableMenu {
     rank: 90
   })
 
+  /// A button that toggles the selected cells between header and
+  /// normal cells.
   export const toggleHeader = Menu.Button.define({
     run: toggleHeaderCell,
     select: state => !!headerCellTag(state.schema),
@@ -164,6 +176,7 @@ export namespace tableMenu {
     rank: 10
   })
 
+  /// Adds a row above the selected cell(s).
   export const addRowAbove = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "before"),
     label: tablePhrases.ref("add_row_above"),
@@ -171,6 +184,7 @@ export namespace tableMenu {
     rank: 20,
   })
 
+  /// Adds a row below the selected cell(s).
   export const addRowBelow = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "after"),
     label: tablePhrases.ref("add_row_below"),
@@ -178,6 +192,7 @@ export namespace tableMenu {
     rank: 21,
   })
 
+  /// Deletes the row(s) that hold the selection.
   export const deleteRow = Menu.Button.define({
     run: _deleteRow,
     label: tablePhrases.ref("delete_row"),
@@ -185,6 +200,7 @@ export namespace tableMenu {
     rank: 25
   })
 
+  /// Button to insert a column before the selection.
   export const addColumnBefore = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "before"),
     label: tablePhrases.ref("add_col_before"),
@@ -192,6 +208,7 @@ export namespace tableMenu {
     rank: 30,
   })
 
+  /// Add a column after the selection.
   export const addColumnAfter = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "after"),
     label: tablePhrases.ref("add_col_after"),
@@ -199,6 +216,7 @@ export namespace tableMenu {
     rank: 31,
   })
 
+  /// Delete the selected column(s).
   export const deleteColumn = Menu.Button.define({
     run: _deleteColumn,
     label: tablePhrases.ref("delete_col"),
@@ -206,6 +224,7 @@ export namespace tableMenu {
     rank: 35,
   })
 
+  /// When multiple cells are selected, merge them into a single cell.
   export const mergeCells = Menu.Button.define({
     run: _mergeCells,
     select: state => {
@@ -218,6 +237,8 @@ export namespace tableMenu {
     rank: 40,
   })
 
+  /// When a merged cell is selected, split it into its smallest
+  /// elements again.
   export const splitCell = Menu.Button.define({
     run: _splitCell,
     select: state => {

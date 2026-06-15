@@ -62,6 +62,9 @@ function selectedRect(state: GardState, cx: {cells: number[], map: TableMap}) {
     : cx.map.cellRect(cx.cells[0])
 }
 
+/// Add a column at the given side of the selection. The selection may
+/// either be a cell selection or another type of selection inside a
+/// table cell.
 export const addColumn: Command.Pure<"before" | "after"> = ({state}, side) => {
   let cx = tableContext(state)
   if (!cx) return false
@@ -87,6 +90,8 @@ export const addColumn: Command.Pure<"before" | "after"> = ({state}, side) => {
   }
 }
 
+/// Delete the selected columns. Will act on a cell selection or
+/// another type of selection inside a cell.
 export const deleteColumn: Command.Pure = ({state}) => {
   let cx = tableContext(state)
   if (!cx) return false
@@ -141,6 +146,7 @@ export const deleteColumn: Command.Pure = ({state}) => {
   }
 }
 
+/// Add a row next to the selected cells, on the side indicated.
 export const addRow: Command.Pure<"before" | "after"> = ({state}, side) => {
   let cx = tableContext(state)
   if (!cx) return false
@@ -173,6 +179,7 @@ export const addRow: Command.Pure<"before" | "after"> = ({state}, side) => {
   }
 }
 
+/// Delete the selected row(s).
 export const deleteRow: Command.Pure = ({state}) => {
   let cx = tableContext(state)
   if (!cx) return false
@@ -225,6 +232,10 @@ export const deleteRow: Command.Pure = ({state}) => {
   }
 }
 
+/// If the current selection is a multi-cell cell selection, merge the
+/// cells into a single cell by giving it a {@link types.RowSpan}
+/// and/or {@link types.ColSpan}. The content from the cells is all
+/// put into the resulting merged cell.
 export const mergeCells: Command.Pure = ({state}) => {
   if (!(state.selection instanceof CellSelection) || state.selection.ranges.length == 1) return false
   let cx = tableContext(state)!
@@ -250,6 +261,8 @@ export const mergeCells: Command.Pure = ({state}) => {
   }
 }
 
+/// When the selection is in or on a merged cell, split it again. Any
+/// content is left in the first split-off cell.
 export const splitCell: Command.Pure = ({state}) => {
   let cx = tableContext(state)
   if (!cx || cx.cells.length > 1) return false

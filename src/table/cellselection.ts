@@ -90,13 +90,26 @@ const cellSelectionTripleClick = Wordgard.mouseSelectionStyle.of((wg, event) => 
   return null
 })
 
+/// A cell selection is a custom selection type that, instead of
+/// spanning the range between two document positions, spans the
+/// rectangle between two cells in the same table. It comes with
+/// extensions that make sure it is drawn in a recognizeable way,
+/// automatically created when a selection crosses cell boundaries,
+/// and adjusted appropriately in response to keyboard and mouse
+/// actions.
 export class CellSelection extends GardSelection {
   private constructor(
     anchor: number,
     head: number,
+    /// The position directly in front of the cell that acts as this
+    /// selection's anchor.
     readonly anchorCell: number,
+    /// The position directly in front of the cell acting as the
+    /// selection head.
     readonly headCell: number,
+    /// @internal
     readonly _ranges: readonly {from: number, to: number}[],
+    /// @internal
     readonly anchorRange: number
   ) {
     super(anchor, head)
@@ -127,6 +140,8 @@ export class CellSelection extends GardSelection {
       || GardSelection.near(cx, changes.mapPos(this.head), assoc)
   }
 
+  /// Move the head cell in the given direction, returning a new cell
+  /// selection if the selection can be extended that way.
   moveHead(doc: Plot.Doc, dir: "up" | "down" | "forward" | "backward"): CellSelection | null {
     let head = doc.resolve(this.head), inv = this.head < this.anchor
     let headPos = this.head - (inv ? 0 : head.nodeBefore!.length)
@@ -141,6 +156,12 @@ export class CellSelection extends GardSelection {
       : CellSelection.between(doc, newHead, map.cellEnd(anchorPos))
   }
 
+  /// Create a table selection between the given points. They should
+  /// point before and after the first and last cell of the selection
+  /// (`anchor` may be before or after `head`, as long as the lower
+  /// sits before a cell and the higher after a cell). Returns `null`
+  /// if the given range does not wrap a range of cells in a single
+  /// table.
   static between(doc: Plot.Doc, anchor: number, head: number) {
     let from = doc.resolve(Math.min(anchor, head)), to = doc.resolve(Math.max(anchor, head))
     let fromCell = from.nodeAfter, toCell = to.nodeBefore, table = from.parent?.parent
@@ -198,7 +219,8 @@ export class CellSelection extends GardSelection {
     return !modified ? null : sel.anchor < sel.head ? GardSelection.range(from, to) : GardSelection.range(to, from)
   }
 
-  static extension = [
+  /// This object can be used as an extension to enable cell selection.
+  static extension: GardState.Extension = [
     GardSelection.define<CellSelection, {anchor: number, head: number}>(
       "cell", CellSelection as any,
       sel => ({anchor: sel.anchor, head: sel.head}),
