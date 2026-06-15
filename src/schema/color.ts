@@ -115,7 +115,7 @@ export namespace ColorPicker {
     name: PhraseSet.Ref,
     /// An optional second phrase to show after the name.
     detail?: PhraseSet.Ref,
-    /// The color, as a CSS color string, or the empty string to
+    /// The color as a CSS color string, or the empty string to
     /// indicate that this option clears the color.
     value: string
   }
@@ -219,8 +219,8 @@ export namespace ColorPicker {
     ]
   }
 
-  /// Facet used to configure the width of the color picker. Defaults
-  /// to 10.
+  /// Facet used to configure the width (in color widgets) of the
+  /// color picker. Defaults to 10.
   export const width = GardState.Facet.define<number, number>({
     combine: values => values.length ? values[0] : 10
   })
@@ -232,7 +232,7 @@ export namespace ColorPicker {
     combine: values => values.length ? values[0] : defaultColors()
   })
 
-  /// Base CSS for the color picker.
+  /// Base theme for the color picker.
   export const theme = Wordgard.baseTheme({
     "wg-color-picker": {
       display: "grid",

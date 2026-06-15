@@ -8,8 +8,8 @@ import {InputRule} from "wordgard/editor"
 /// bulletList.toggleButton menu button}, and the {@link
 /// bulletList.createOnDash input rule}.
 export function bulletList(config: {
-  /// By defaults, list items contain {@link doc.Node.Group.Content |
-  /// block content}. Set this to fals to allow only inline content.
+  /// By defaults, list items contain {@link doc.Node.Group.Content
+  /// block content}. Set this to false to allow only inline content.
   blockItems?: boolean
 } = {}) {
   return [GardState.schemaElement.of(BulletList),

@@ -22,7 +22,7 @@ export function basicMarks(): GardState.Extension {
 /// Enable {@link strong}, {@link emphasis}, {@link code}, and {@link
 /// link}, {@link underline}, {@link strikethrough}, {@link
 /// superscript}, {@link color}, and {@link backgroundColor}.
-export function allMarks(): GardState.Extension {
+export function inlineMarks(): GardState.Extension {
   return [basicMarks(), underline(), strikethrough(), superscript(), subscript(), color(), backgroundColor()]
 }
 
@@ -44,9 +44,9 @@ export function inlineSchema(): GardState.Extension {
 /// module, in a {@link blockDoc block document}.
 export function fullSchema(): GardState.Extension {
   return [
-    basicSchema(), codeBlock(), alignment(), direction(), blockquote(), horizontalRule(),
+    blockDoc(), paragraph(), heading(), lineBreak(),
+    codeBlock(), alignment(), direction(), blockquote(), horizontalRule(),
     bulletList(), orderedList(),
-    image(), figure(), imageResizing(),
-    underline(), strikethrough(), superscript(), subscript(), color(), backgroundColor()
+    inlineMarks(), image(), figure(), imageResizing()
   ]
 }
