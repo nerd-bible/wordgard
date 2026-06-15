@@ -36,7 +36,7 @@ export class Widget<Param = unknown> {
 
   /// This widget's type. The type mangling is a kludge to make sure
   /// `Widget<Param>` is a subtype of `Widget<unknown>`.
-  readonly type: Widget.Type<unknown extends Param ? any : Widget.Type<Param>>
+  readonly type: Widget.Type<unknown extends Param ? any : Param>
 
   /// @internal
   get hasContent() { return false }

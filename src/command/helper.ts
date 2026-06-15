@@ -105,6 +105,9 @@ export function deleteSelection(state: GardState): Transaction.Spec | false {
   })
 }
 
+/// If the cursor is inside an empty textblock, return a transaction
+/// that deletes the entire block. `dir` determines which way the
+/// cursor moves after the deletion.
 export function deleteEmptyTextblock(state: GardState, dir: -1 | 1 = -1): Transaction.Spec | false {
   if (!state.selection.isCursor) return false
   let block = state.sel.head.textblockParent
@@ -346,6 +349,7 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   }
 }
 
+/// Get an array of all textblocks that contain part of the selection.
 export function selectedTextblocks(state: GardState) {
   let textblocks: Pos.Plot[] = [], lastBlock = -1
   for (let {from, to} of state.selection.ranges) {
@@ -359,6 +363,8 @@ export function selectedTextblocks(state: GardState) {
   return textblocks
 }
 
+/// Remove all content in `node` that is not allowed to appear in
+/// `type`.
 export function clearNonFitting(schema: Schema, node: Pos.Plot, type: Plot.Type) {
   let changes: ChangeSet.Spec[] = []
   for (let i = 0, pos = node.start; i < node.node.content.length; i++) {
@@ -554,6 +560,8 @@ export function doUnwrapBlock(block: Pos.Plot, from?: number, to?: number): Chan
   return changes
 }
 
+/// Join two adjacent (only separated by first a sequence of block end
+/// tokens and then a sequence of block open tokens) block plots.
 export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec[] {
   let changes: ChangeSet.Spec[] = [{from: before.end, to: after.start}]
   let dBefore = before.depth, dAfter = after.depth
@@ -583,6 +591,8 @@ export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec[] 
   return changes
 }
 
+/// Query whether the given range has any content to which the given
+/// mark or mark type could be added.
 export function canAddMarkInRange(doc: Plot.Doc, from: number, to: number, mark: Mark | Mark.Type) {
   let found = false, type = mark instanceof Mark.Type ? mark : mark.type
   doc.iterate(from, to, node => {

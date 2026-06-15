@@ -18,31 +18,25 @@ export {Command} from "./command"
 
 export {Menu} from "./menu"
 
-/// ### Deletion Commands
+/// ### Basic Editing Commands
 ///
-/// Commands that delete content.
+/// Commands for fundamental editing actions.
 
 export {
   insertText,
   insertLineBreak,
   enter,
-  deleteUnit,
-  deleteWord,
-  deleteToLineEnd,
-  deleteLine,
   transposeChars,
-  setTextblockType,
-  unwrapBlock,
-  wrapBlock,
-  toggleBlock,
-  toggleMark,
-  toggleEmphasis,
-  toggleStrong,
-  toggleUnderline,
-  setAlignment,
-  setDirection,
-  toggleList,
-  listIsActive,
+  undo,
+  redo
+} from "./commands"
+
+/// ### Selection Commands
+///
+/// Commands that move the selection. Most take an `extend` flag that
+/// controls whether they move or extend the selection.
+
+export {
   moveByUnit,
   moveByWord,
   moveByLine,
@@ -51,26 +45,68 @@ export {
   moveToTextblockSide,
   moveToDocSide,
   selectAll,
-  undo,
-  redo
+} from "./commands"
+
+/// ### Deletion Commands
+///
+/// Commands that delete content.
+
+export {
+  deleteUnit,
+  deleteWord,
+  deleteToLineEnd,
+  deleteLine,
+} from "./commands"
+
+/// ### Block Manipulation Commands
+///
+/// Commands that act on the document's block structure.
+
+export {
+  setTextblockType,
+  unwrapBlock,
+  wrapBlock,
+  toggleBlock,
+  setAlignment,
+  setDirection,
+  toggleList,
+} from "./commands"
+
+/// ### Inline Mark Commands
+///
+/// Commands that toggle inline marks.
+
+export {
+  toggleMark,
+  toggleEmphasis,
+  toggleStrong,
+  toggleUnderline,
+} from "./commands"
+
+/// ### Utility Functions
+///
+/// Functions that may be useful when implementing your own commands.
+
+export {
+  listIsActive,
 } from "./commands"
 export {
   liftEmptyBlock,
   splitTextblock,
   deleteSelection,
+  deleteBackward,
+  deleteForward,
   deleteEmptyTextblock,
   joinBackward,
   joinListItems,
   joinForward,
-  deleteBackward,
-  deleteForward,
+  joinBlocks,
   selectedTextblocks,
   clearNonFitting,
   findWrappable,
   wrapBlockRange,
   findUnwrappable,
   doUnwrapBlock,
-  joinBlocks,
   canAddMarkInRange,
   autoJoinBlocks
 } from "./helper"

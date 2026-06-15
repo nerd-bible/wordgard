@@ -81,18 +81,32 @@ export const enter: Command.Pure = ({state}) => {
   return liftEmptyBlock(state) || splitTextblock(state)
 }
 
+/// Delete the selection, or the unit after or before the selection.
+/// If that unit is the start or end of a textblock, this will try to
+/// join that textblock to the next one. Otherwise, if it is a
+/// character or leaf node, that is deleted. If none of that is
+/// possible and the cursor is in an empty textblock, this will delete
+/// the textblock.
+///
+/// When deleting backward at the start of a list item that has a
+/// sibling before it, this command will try to join those list items.
 export const deleteUnit: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
   return deleteSelection(state) || (dir == "forward"
     ? joinForward(state) || deleteForward(state) || deleteEmptyTextblock(state, 1)
     : joinListItems(state) || joinBackward(state) || deleteBackward(state) || deleteEmptyTextblock(state, -1))
 }
 
+/// Delete the selection, or the word next to it. Will behave like
+/// {@link deleteUnit}, except that, when deleting text, it will
+/// delete an entire word.
 export const deleteWord: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
   return deleteSelection(state) || (dir == "forward"
     ? joinForward(state) || deleteForward(state, true) || deleteEmptyTextblock(state, 1)
     : joinListItems(state) || joinBackward(state) || deleteBackward(state, true) || deleteEmptyTextblock(state, -1))
 }
 
+/// Delete to the end or start of the line. Stops at line wrapping
+/// points.
 export const deleteToLineEnd: Command<"forward" | "backward"> = (wg, dir) => {
   let tr = deleteSelection(wg.state), {selection} = wg.state
   if (tr) return (wg.dispatch(tr), true)
@@ -106,6 +120,8 @@ export const deleteToLineEnd: Command<"forward" | "backward"> = (wg, dir) => {
   }
 }
 
+/// Delete the selection, or if that is empty, the line around the
+/// cursor.
 export const deleteLine: Command = wg => {
   let tr = deleteSelection(wg.state), {selection} = wg.state
   if (tr) return (wg.dispatch(tr), true)
@@ -119,6 +135,7 @@ export const deleteLine: Command = wg => {
   }
 }
 
+/// Swap the characters before and after the cursor.
 export const transposeChars: Command.Pure = ({state}) => {
   if (!state.selection.isCursor) return false
   let {sel} = state, head = state.selection.head
@@ -135,6 +152,8 @@ export const transposeChars: Command.Pure = ({state}) => {
   }
 }
 
+/// Set the type of the textblock(s) around the selection to the given
+/// tag.
 export const setTextblockType: Command.Pure<Plot.Tag> = ({state}, tag) => {
   let changes: ChangeSet.Spec[] = [], {schema} = state.doc
   for (let block of selectedTextblocks(state)) {
