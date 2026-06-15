@@ -25,10 +25,10 @@ const SVG = "http://www.w3.org/2000/svg"
 function labelButton(wg: Wordgard, button: HTMLElement, label?: Menu.Label) {
   button.textContent = ""
   if (!label) {
-  } else if (typeof label == "function") {
+  } else if (typeof label == "function" || typeof label == "string") {
     let span = button.appendChild(document.createElement("span"))
     span.className = "wg-button-label"
-    span.textContent = label(wg.state)
+    span.textContent = typeof label == "string" ? label : label(wg.state)
   } else if ("icon" in label) {
     let svg = button.appendChild(document.createElementNS(SVG, "svg"))
     svg.classList.add("wg-icon")

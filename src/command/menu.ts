@@ -10,7 +10,7 @@ import {toggleMark as _toggleMark} from "./commands"
 export namespace Menu {
   /// Editor menus are structured as trees, with item groups and
   /// submenus as internal nodes, and buttons and custom controls as
-  /// leafnodes.
+  /// leaf nodes.
   export type Item = Group | Submenu | Button | CustomControl
 
   export namespace Item {
@@ -51,6 +51,9 @@ export namespace Menu {
       parent: Group | Submenu | undefined
       rank: number
       description: PhraseSet.Ref | undefined
+      /// Menu items can be used as editor extensions to include them
+      /// in a configuration.
+      extension: GardState.Extension
 
       /// @internal
       constructor(spec: Item.Spec) {
@@ -60,6 +63,7 @@ export namespace Menu {
         this.parent = spec.parent
         this.rank = spec.rank == null ? 100 : Math.max(0, Math.min(100, spec.rank))
         this.description = spec.description
+        this.extension = Menu.Item.source.of(this as any)
       }
     }
 
@@ -75,19 +79,19 @@ export namespace Menu {
   }
 
   /// Labels are used by buttons and submenus to determine what they
-  /// look like. They may either be textual (a reference to a phrase
-  /// set), or an icon, which is expressed an SVG path string that
-  /// draws the icon inside a 100-by-100 space. The `directional` flag
-  /// indicates that the icon should be mirrored vertically in a
+  /// look like. They may either be textual (a string or reference to
+  /// a phrase), or an icon, which is expressed an SVG path string
+  /// that draws the icon inside a 100-by-100 space. The `directional`
+  /// flag indicates that the icon should be mirrored vertically in a
   /// right-to-left editor.
-  export type Label = PhraseSet.Ref | {icon: string, directional?: boolean}
+  export type Label = string | PhraseSet.Ref | {icon: string, directional?: boolean}
 
-  /// A menu button runs a command when activated.
+  /// A menu button runs a command when activated. See the {@link
+  /// Menu.Button.Spec spec type} for the meaning of the fields.
   export class Button extends Item.Base {
     label: Label
     run: Command.Bound | Command
     active: ((state: GardState) => boolean) | undefined
-    extension: GardState.Extension
 
     private constructor(
       /// The configuration object used to create this button.
@@ -97,7 +101,6 @@ export namespace Menu {
       this.run = spec.run
       this.active = spec.active
       this.label = spec.label
-      this.extension = Item.source.of(this)
       if (this.parent) this.extension = [this.parent.extension, this.extension]
     }
 
@@ -109,18 +112,20 @@ export namespace Menu {
     export interface Spec extends Item.Spec {
       /// The command to run when the user activates the button.
       run: Command.Bound | Command
-      /// When given and returning true, the button is highlighted. An
-      /// example of a use of this would be to show the emphasis
-      /// button as active when the cursor is in emphasized text.
+      /// When this returns true, the button is highlighted as active.
+      /// This can be used to show, for example, that a mark is active
+      /// at the cursor, or that a block type matches the block around
+      /// the current selection. Also used to automatically select a
+      /// label for a {@link Menu.Submenu submenu}.
       active?: (state: GardState) => boolean
       /// The label to show on this button.
       label: Label
     }
 
     /// Creates a menu button that toggles an inline mark via {@link
-    /// Menu.Button.toggleMark}, and is shown as active when either that mark is part
-    /// of the marks associated with the current cursor, or the selection
-    /// covers only content with that mark.
+    /// Menu.Button.toggleMark}, and is shown as active when either
+    /// that mark is part of the marks associated with the current
+    /// cursor, or the selection covers only content with that mark.
     export function toggleMark(config: {
       mark: Mark,
       parent?: Menu.Group | Menu.Submenu
@@ -149,13 +154,13 @@ export namespace Menu {
   /// Custom controls are similar to buttons, in that they can be part
   /// of the menu and receive focus through menu navigation, but they
   /// manage their own DOM. This can be used for elements like color
-  /// pickers that should be displayed inside of the menu but need
-  /// some custom form of user
-  /// interaction.
+  /// pickers that should be displayed inside of the menu but support
+  /// user interaction more complex than a button.
   export class CustomControl extends Item.Base {
+    /// See {@link Menu.CustomControl.Spec.render}.
     render: (wg: Wordgard, done: () => void) => {dom: HTMLElement, focus?: HTMLElement}
+    /// See {@link Menu.CustomControl.Spec.setEnabled}.
     setEnabled: ((dom: Element, enabled: boolean) => void) | undefined
-    extension: GardState.Extension
 
     private constructor(
       /// The configuration object used to create this control.
@@ -164,7 +169,6 @@ export namespace Menu {
       super(spec)
       this.render = spec.render
       this.setEnabled = spec.setEnabled
-      this.extension = Item.source.of(this)
     }
 
     /// Define a custom menu item.
@@ -194,13 +198,17 @@ export namespace Menu {
   /// {@link Menu.Group.top top-level menu} is a group, but groups
   /// may appear at any level, so that items with similar roles can
   /// attach themselves to them in order to appear next to each other.
+  ///
+  /// See the {@link Menu.Group.Spec spec type} for the meaning of the
+  /// class's fields.
   export class Group {
     margin: boolean
-    extension: GardState.Extension
     parent: Group | Submenu | undefined
     rank: number
     content: readonly (Item | "...")[] | undefined
     overflow: {at: number, wrap?: Submenu} | undefined
+    /// Menu groups count as extensions.
+    extension: GardState.Extension
 
     private constructor(
       /// The configuration object used to create this group.
@@ -214,13 +222,13 @@ export namespace Menu {
       this.overflow = spec.overflow
     }
 
+    /// Define a menu group.
+    static define(spec: Group.Spec = {}) { return new Group(spec) }
+
     /// Create a template for this group.
     template(...content: (Template | Item | "...")[]) {
       return Template.new(this, content.length ? content : ["..."])
     }
-
-    /// Define a menu group.
-    static define(spec: Group.Spec = {}) { return new Group(spec) }
   }
 
   export namespace Group {
@@ -234,14 +242,15 @@ export namespace Menu {
       /// The group's rank within its parent.
       rank?: number,
       /// Default content for this group. Usually you don't need this,
-      /// and let parent links from the content items determine what
-      /// goes in the group. See the {@link Menu.resolve menu
+      /// as you let parent links from the content items determine
+      /// what goes in the group. See the {@link Menu.resolve menu
       /// resolution} system.
       content?: readonly (Item | "...")[]
       /// If given when, during resolution, the group contains more
       /// than `at` items, wrap items `at - 1` and up in a submenu.
-      /// You may optionally provide submenu object, or let it default
-      /// to showing three vertical dots.
+      /// You may optionally provide submenu object to specify the
+      /// look of the submenu, or let it default to showing three
+      /// vertical dots.
       overflow?: {at: number, wrap?: Submenu}
     }
 
@@ -262,20 +271,20 @@ export namespace Menu {
     /// and text alignment.
     export const block = Group.define({parent: top, rank: 70, margin: true})
 
-    /// Group for inserting elements, such as images or tables, into
-    /// the document.
+    /// Group for inserting elements into the document, such as images
+    /// or tables.
     export const insert = Group.define({parent: top, rank: 90, margin: true})
   }
 
   /// A submenu is a menu item that, when activated, shows the menu
-  /// items that are nested under it.
+  /// items that are nested under it. See the {@link Menu.Submenu.spec
+  /// spec type} for the meaning of the class fields.
   export class Submenu extends Item.Base {
     label: Label | undefined
     defaultLabel: Label | undefined
     arrow: boolean
     width: number | undefined
     content: readonly (Item | "...")[] | undefined
-    extension: GardState.Extension
 
     private constructor(
       /// The configuration object used to define this submenu.
@@ -287,16 +296,15 @@ export namespace Menu {
       this.arrow = spec.arrow !== false
       this.width = spec.width
       this.content = spec.content
-      this.extension = Item.source.of(this)
     }
+
+    /// Define a submenu.
+    static define(spec: Submenu.Spec) { return new Submenu(spec) }
 
     /// Create a template item for this submenu.
     template(...content: (Template | Item | "...")[]) {
       return Template.new(this, content.length ? content : ["..."])
     }
-
-    /// Define a submenu.
-    static define(spec: Submenu.Spec) { return new Submenu(spec) }
   }
 
   export namespace Submenu {
@@ -351,7 +359,8 @@ export namespace Menu {
   /// Templates are used to explicitly choose (part of) your menu
   /// structure, rather than letting the resolution algorithm build
   /// one from your configuration. See {@link Menu.resolve}, {@link
-  /// Menu.Group.template}, and {@link Menu.Submenu.template}.
+  /// Menu.Group.template `Group.template`}, and {@link
+  /// Menu.Submenu.template `Submenu.template`}.
   export class Template {
     /// @internal
     parent: Group | Submenu | null
@@ -383,12 +392,12 @@ export namespace Menu {
     arrow: false
   })
 
-  /// Given a set of menu items, and optionally a template, this
+  /// Given a set of menu items and optionally a template, this
   /// function will resolve a concrete menu tree. To do this, it goes
   /// through the template (which defaults to just the {@link
-  /// Menu.Group.top top group}), filling in open spaces
-  /// (represented as the string literal `"..."`) with any items
-  /// provided that have the group or submenu as parent.
+  /// Menu.Group.top top group}), filling in open spaces (represented
+  /// as the string literal `"..."`) with any items provided that have
+  /// the group or submenu as parent.
   ///
   /// The idea is to combine a top-down (the template) and bottom-up
   /// (the items, which typically come from an editor {@link

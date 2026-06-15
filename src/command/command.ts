@@ -16,14 +16,22 @@ const commandHandler = GardState.Facet.define<
   }
 })
 
-/// Commands functions are used by things like key bindings, menus,
-/// and event handlers to dispatch a specific type of user action.
-/// They have a parameter type (which may be null and ignored).
+/// A command is a function that takes an editor and an additional
+/// parameter, and either...
 ///
-/// A command may return `true`, which indicates that it took effect
-/// (via a side effect), or a transaction spec (which should be
-/// dispatched as its effect). Or it can return `false` to indicate
-/// that it doesn't apply.
+///  - returns `false` to indicate that it does not apply to the
+///    current editor state
+///
+///  - performs its action as a side effect and returns `true`
+///
+///  - returns a {@link state.Transaction.Spec transaction spec} that
+///    should be dispatched as its effect
+///
+/// This formulation is chosen to cover both side-effecting commands
+/// (whose effect may not even directly affect the editor—a command
+/// may just open a dialog or change some editor-external state) _and_
+/// {@link Command.Pure commands} implemented as pure functions from
+/// state to transaction.
 ///
 /// Extensions can register additional handlers for a command, which
 /// will be called in order of precedence (until one returns true)
@@ -31,7 +39,7 @@ const commandHandler = GardState.Facet.define<
 /// Commands are recognized by function identity. So, for example, the
 /// `enter` command is both the tag used to indicate invocation of an
 /// enter press and the function that implements the default behavior
-/// for that.
+/// for this action.
 export type Command<Param = null> = (target: Wordgard, param: Param) => boolean | Transaction.Spec
 
 export namespace Command {
@@ -41,6 +49,9 @@ export namespace Command {
   /// with this type, so that it can be invoked without a full editor
   /// component for testing or for use in a context where there is no
   /// editor.
+  ///
+  /// Note that invoking a command function directly will not activate
+  /// custom {@link Command.handler handlers}.
   export type Pure<Param = null> = (target: {state: GardState}, param: Param) => false | Transaction.Spec
 
   /// Create an extension that adds a handler for the given {@link
@@ -64,10 +75,10 @@ export namespace Command {
     readonly param: any
   }
 
-  /// Apply a command to the given editor view. The command can either
-  /// be passed directly, with the parameter, if any, passed
-  /// separately, or in {@link Command.bind bound} form.
-  export function dispatch<Param>(wg: Wordgard, command: Command<null> | Command.Bound): boolean
+  /// Apply a command to the given editor view. When passing a
+  /// non-{@link Command.bind bound} command with a parameter, the
+  /// parameter has to be passed as second argument.
+  export function dispatch(wg: Wordgard, command: Command<null> | Command.Bound): boolean
   export function dispatch<Param>(wg: Wordgard, command: Command<Param>, param: Param): boolean
   export function dispatch<Param>(wg: Wordgard, command: Command<any> | Command.Bound, p?: Param): boolean {
     let {command: cmd, param} = typeof command == "object" ? command : {command, param: p ?? null}
