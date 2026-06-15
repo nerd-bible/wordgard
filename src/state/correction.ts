@@ -8,11 +8,11 @@ const enum CorrectionEvent {
   Marks = 2,
 }
 
-type PlanElt<PosType extends Pos.Node> = {node: PosType, correction: Correction<PosType>}
+type PlanElt = {node: Pos.Node, correction: Correction}
 
 function scanTransaction(tr: Transaction) {
   let [childList, content, marks] = tr.startState.facet(corrections)
-  let plan: PlanElt<any>[] = []
+  let plan: PlanElt[] = []
   let queried: Set<number> = new Set, newNode = childList.concat(content)
   let updateWalker: Pos.Walker | undefined, {schema} = tr.startState.doc
   let checkMarks = (node: Node, pos: number, parent: Pos.Plot, index: number) => {
@@ -86,9 +86,9 @@ function scanTransaction(tr: Transaction) {
   return plan
 }
 
-const corrections = GardState.Facet.define<Correction<Pos.Node>, readonly (readonly Correction<Pos.Node>[])[]>({
+const corrections = GardState.Facet.define<Correction, readonly (readonly Correction[])[]>({
   combine(corrections) {
-    let buckets: Correction<Pos.Node>[][] = [[], [], []]
+    let buckets: Correction[][] = [[], [], []]
     for (let c of corrections) buckets[c.event].push(c)
     return buckets
   }
@@ -98,7 +98,7 @@ const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
 
 /// The class representing a correction. Counts as an editor
 /// extension.
-export class Correction<PosType extends Pos.Node> {
+export class Correction {
   /// To take effect, corrections must be included in an editor
   /// configuration.
   extension: GardState.Extension
@@ -109,7 +109,7 @@ export class Correction<PosType extends Pos.Node> {
     /// @internal
     readonly query: Node.Query,
     /// @internal
-    readonly correct: (node: PosType, state: GardState) => ChangeSet.Spec | null
+    readonly correct: (node: Pos.Node, state: GardState) => ChangeSet.Spec | null
   ) {
     this.extension = [
       corrections.of(this as any),
@@ -137,7 +137,7 @@ export class Correction<PosType extends Pos.Node> {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
       if (state.schema.matchNode(node.type, this.query) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
-        let change = this.correct(state.doc.resolveNode(pos) as PosType, state)
+        let change = this.correct(state.doc.resolveNode(pos)!, state)
         if (change) changes.push(change)
       }
     })
@@ -149,19 +149,19 @@ export class Correction<PosType extends Pos.Node> {
   /// that matches the given query changes, or such a node is inserted
   /// into the document.
   static onChildList(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
-    return new Correction<Pos.Plot>(CorrectionEvent.ChildList, query, correct as any)
+    return new Correction(CorrectionEvent.ChildList, query, correct as any)
   }
 
   /// Create a correction that runs whenever any content inside a node
   /// that matches the given query changes, or such a node is inserted
   /// into the document.
   static onContent(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
-    return new Correction<Pos.Plot>(CorrectionEvent.Content, query, correct as any)
+    return new Correction(CorrectionEvent.Content, query, correct as any)
   }
 
   /// Define a correction that runs whenever the set of marks on a
   /// matching tag changes.
   static onMarks(query: Node.Query, correct: (node: Pos.Node, state: GardState) => ChangeSet.Spec | null) {
-    return new Correction<Pos.Plot>(CorrectionEvent.Marks, query, correct)
+    return new Correction(CorrectionEvent.Marks, query, correct)
   }
 }
