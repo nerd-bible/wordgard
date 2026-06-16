@@ -363,8 +363,9 @@ describe("ChangeSet", () => {
       for (let i = 0; i < 250; i++) {
         let doc = rDoc(10), a = rChange(doc, 2), b = rChange(doc, 2)
         try {
-          let docAB = b.map(a, doc).apply(a.apply(doc))
-          let docBA = a.map(b, doc, true).apply(b.apply(doc))
+          let mapped = ChangeSet.crossMap(a, b, doc)
+          let docAB = mapped.b.apply(a.apply(doc))
+          let docBA = mapped.a.apply(b.apply(doc))
           ist(docAB, docBA, eq)
         } catch(e) {
           console.log(`Failed random convergence test:\n  start doc: ${doc}\n  change a: ${a}\n  change b: ${b}`)
@@ -383,8 +384,9 @@ describe("ChangeSet", () => {
               receiver.unconf = null
             } else if (receiver.unconf) {
               let {doc, unconf, syncedDoc} = receiver
-              receiver.unconf = unconf.map(change, syncedDoc)
-              receiver.doc = change.map(unconf, syncedDoc, true).apply(doc)
+              let {a, b} = ChangeSet.crossMap(change, unconf, syncedDoc)
+              receiver.unconf = b
+              receiver.doc = a.apply(doc)
             } else {
               receiver.doc = change.apply(receiver.doc)
             }
@@ -412,16 +414,18 @@ describe("ChangeSet", () => {
       let d = doc(0, pre(1, "a"))
       let a = mk(d, [{add: CodeBlockLanguage.of("x")}])
       let b = mk(d, [{add: CodeBlockLanguage.of("y")}])
-      let docAB = b.map(a, d).apply(a.apply(d))
-      let docBA = a.map(b, d, true).apply(b.apply(d))
+      let mapped = ChangeSet.crossMap(a, b, d)
+      let docAB = mapped.b.apply(a.apply(d))
+      let docBA = mapped.a.apply(b.apply(d))
       ist(docAB, docBA, eq)
     })
 
     it("orders mark-adding modifications correctly", () => {
       let d = doc(p(0, "a", 1))
       let a = mk(d, [{add: Link.of("x")}]), b = mk(d, [{add: Link.of("y")}])
-      let docAB = b.map(a, d).apply(a.apply(d))
-      let docBA = a.map(b, d, true).apply(b.apply(d))
+      let mapped = ChangeSet.crossMap(a, b, d)
+      let docAB = mapped.b.apply(a.apply(d))
+      let docBA = mapped.a.apply(b.apply(d))
       ist(docAB, docBA, eq)
     })
 

@@ -205,7 +205,7 @@ class Branch {
     let {mapped: {change, doc}, next} = this
     // Map the event's changes and mapped.change (which both start
     // from mapped.doc) over each other
-    let mappedChanges = this.changes.map(change, doc), mappedMapping = change.map(this.changes, doc, true)
+    let {a: mappedMapping, b: mappedChanges} = ChangeSet.crossMap(change, this.changes, doc)
     // If there's more events below this, push the updated mapping down
     if (next) next = next.addMapping(mappedMapping, next.mapped ? null : this.changes.apply(doc))
     // If there's nothing left in this event, return the next one

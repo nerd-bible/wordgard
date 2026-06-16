@@ -245,7 +245,8 @@ export class ChangeSet {
   /// come before `other`. Setting this correctly is necessary to make
   /// the result of independently applied transformed changes converge.
   map(other: ChangeSet, doc: Plot.Doc, before: boolean = false): ChangeSet {
-    return map(this, other, doc, before, true)
+    let {set, fix} = map(this, other, doc, before, true)
+    return fix ? set.compose(fix) : set
   }
 
   /// Compose two change sets, where `other` starts from the document
@@ -468,6 +469,21 @@ export class ChangeSet {
   static composeSections(a: ChangeSet.Sections, b: ChangeSet.Sections): ChangeSet.Sections {
     return compose(a, b).sections
   }
+
+  /// Map two change set starting from the same document over each
+  /// other, returning two mapped change sets. The returned `a` can be
+  /// applied after the `b` passed in, and the returned `b` can be
+  /// applied after the `a` passed in, resulting the same final
+  /// document on both sides. `a` is taken to happen before `b` in the
+  /// mapping.
+  ///
+  /// This method is slightly more efficient than mapping both steps
+  /// separately.
+  static crossMap(a: ChangeSet, b: ChangeSet, doc: Plot.Doc) {
+    let {set: mA, fix} = map(a, b, doc, true, true)
+    let mB = map(b, a, doc, false, false).set
+    return fix ? {a: mA.compose(fix), b: mB.compose(fix)} : {a: mA, b: mB}
+  }
 }
 
 export namespace ChangeSet {
@@ -570,7 +586,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
     }
   }
   let push = (set: ChangeSet) => {
-    accum = accum ? accum.compose(map(set, accum, doc, false, false)) : set
+    accum = accum ? accum.compose(map(set, accum, doc, false, false).set) : set
   }
   let section = (from: number, to: number, ins: number, value: SectionData) => {
     if (!cur || from < cur.pos) {
@@ -721,8 +737,10 @@ function map(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, f
       }
       a.forward(pos - start)
     } else {
-      let correction = fitter && fitter.finish(), base = ChangeSet.new(sections, data)
-      return correction ? base.compose(correction) : base
+      return {
+        set: ChangeSet.new(sections, data),
+        fix: fitter && fitter.finish()
+      }
     }
   }
 }
