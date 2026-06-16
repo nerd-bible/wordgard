@@ -21,3 +21,5 @@ export {CellSelection} from "./cellselection"
 /// Table editing commands.
 
 export {addColumn, addRow, deleteColumn, deleteRow, toggleHeaderCell, mergeCells, splitCell} from "./tablecommands"
+
+export {handleTablePaste} from "./tablepaste"

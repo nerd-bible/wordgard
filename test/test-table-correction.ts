@@ -1,5 +1,5 @@
 import {Plot} from "wordgard/doc"
-import {tableCorrection} from "wordgard/table"
+import {tables} from "wordgard/table"
 import {GardState} from "wordgard/state"
 import ist from "ist"
 import {tableSchema as schema, basicBuilders, builder, eq} from "./schema.ts"
@@ -9,7 +9,7 @@ const doc = builder(schema)
 
 function test(doc: Plot.Doc, expect: Plot.Doc | null) {
   let state = GardState.create({doc})
-  let tr = tableCorrection.scan(state)
+  let tr = tables.correction.scan(state)
   if (expect) {
     ist(tr)
     ist(state.update(tr!).newDoc, expect, eq)
@@ -18,7 +18,7 @@ function test(doc: Plot.Doc, expect: Plot.Doc | null) {
   }
 }
 
-describe("tableCorrection", () => {
+describe("tables.correction", () => {
   it("adds cells to rows that are too short", () =>
     test(doc(table(tr(td("a"), td("b")), tr(td("c")))),
          doc(table(tr(td("a"), td("b")), tr(td("c"), td())))))
