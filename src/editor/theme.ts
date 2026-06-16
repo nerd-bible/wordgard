@@ -67,7 +67,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
     whiteSpace: "pre-wrap",
     boxSizing: "border-box",
     minHeight: "100%",
-    padding: "4px",
+    padding: "4px 12px",
     outline: "none",
     caretColor: "transparent",
   },
