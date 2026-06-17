@@ -1,24 +1,24 @@
-//: Table editing support. Defines a custom {@link CellSelection cell
-//: selection} type, a number of commands, and some support extensions
-//: to make table editing work.
+//- Table editing support. Defines a custom {@link CellSelection cell
+//- selection} type, a number of commands, and some support extensions
+//- to make table editing work.
 
-//: ### Support
+//- ### Support
 
-//: Miscellaneous extensions needed for working with tables.
+//- Miscellaneous extensions needed for working with tables.
 
 export {tables} from "./table"
 export {tableMenu} from "./menu"
 
-//: ### Cell Selection
+//- ### Cell Selection
 
-//: Custom handling of cross-cell selections makes it possible to
-//: select rows, columns, or rectangles in a table.
+//- Custom handling of cross-cell selections makes it possible to
+//- select rows, columns, or rectangles in a table.
 
 export {CellSelection} from "./cellselection"
 
-//: ### Commands
+//- ### Commands
 
-//: Table editing commands.
+//- Table editing commands.
 
 export {addColumn, addRow, deleteColumn, deleteRow, toggleHeaderCell, mergeCells, splitCell} from "./tablecommands"
 

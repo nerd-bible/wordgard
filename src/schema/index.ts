@@ -1,35 +1,35 @@
-//: This module provides editing support extensions and convenient
-//: bundle functions for most of the schema elements defined in
-//: [wordgard/types](#types).
+//- This module provides editing support extensions and convenient
+//- bundle functions for most of the schema elements defined in
+//- [wordgard/types](#types).
 
-//: ### Block Structure
+//- ### Block Structure
 
-//: Extension bundle functions and individual extensions related to
-//: block-level document structure.
+//- Extension bundle functions and individual extensions related to
+//- block-level document structure.
 
 export {paragraph, heading, codeBlock, alignment, direction, blockquote, horizontalRule} from "./block"
 export {bulletList, orderedList} from "./list"
 export {blockDoc, inlineDoc} from "./block"
 
-//: ### Inline Structure
+//- ### Inline Structure
 
-//: Extensions related to inline content.
+//- Extensions related to inline content.
 
 export {lineBreak} from "./bundle"
 export {strong, emphasis, code, underline, strikethrough, superscript, subscript} from "./mark"
 export {color, backgroundColor, ColorPicker} from "./color"
 export {link} from "./link"
 
-//: ### Images
+//- ### Images
 
-//: Support for images and a dialog to create or modify them.
+//- Support for images and a dialog to create or modify them.
 
 export {image, figure, imageResizing} from "./image"
 
-//: ### Bundles
+//- ### Bundles
 
-//: Helper functions that bundle the extensions provided by this
-//: module into groups, so that they can easily be included in a
-//: configuration.
+//- Helper functions that bundle the extensions provided by this
+//- module into groups, so that they can easily be included in a
+//- configuration.
 
 export {basicMarks, inlineMarks, basicSchema, inlineSchema, fullSchema} from "./bundle"
