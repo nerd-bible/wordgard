@@ -1,8 +1,6 @@
 import {GardState, Transaction} from "wordgard/state"
 import {ChangeSet, Plot} from "wordgard/doc"
 
-// FIXME look into server-side merging again
-
 class LocalUpdate {
   constructor(
     readonly changes: ChangeSet,
@@ -73,6 +71,7 @@ function collapseUpdates(updates: readonly {changes: ChangeSet, effects?: readon
 }
 
 export namespace collab {
+  /// Options to {@link collab}.
   export type Config = {
     /// The starting document version. Defaults to 0.
     startVersion?: number,
@@ -138,7 +137,7 @@ export namespace collab {
     if (unconfirmed.length) {
       let ours = collapseUpdates(unconfirmed)
       let {a, b} = ChangeSet.crossMap(changes, ours.changes, syncedDoc)
-      let oursMapped = new LocalUpdate(b, Transaction.Effect.mapEffects(ours.effects, changes))
+      let oursMapped = new LocalUpdate(b, Transaction.Effect.mapEffects(ours.effects, a))
       unconfirmed = [oursMapped]
       changes = a
       effects = Transaction.Effect.mapEffects(effects, oursMapped.changes)
