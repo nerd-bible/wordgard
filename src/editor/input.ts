@@ -10,6 +10,7 @@ import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter}
 import {readClipboard, writeClipboard} from "./clipboard"
 import {eqArray, logException} from "./util"
 import {Tile, CoordPos} from "./tile"
+import {KeyBinding} from "./keymap"
 
 export const eventHandler = GardState.Facet.define<
   {event: string, handler: (event: Event, wg: Wordgard) => boolean | void},
@@ -363,7 +364,7 @@ observers.scroll = wg => {
 
 handlers.keydown = (wg, event: KeyboardEvent) => {
   wg.inputState.setSelectionOrigin("select")
-  return false
+  return KeyBinding.runScopeHandlers(wg, event, "editor")
 }
 
 // FIXME proper strategy for touch handling

@@ -15,7 +15,7 @@ export {Wordgard} from "./editor"
 
 //- Functionality used for binding keys to editing commands.
 
-export {KeyBinding, defaultKeymap} from "./keymap"
+export {KeyBinding} from "./keymap"
 
 //- ### Decoration
 
