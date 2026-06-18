@@ -1,5 +1,5 @@
 import {GardSelection} from "wordgard/state"
-import {Pos} from "wordgard/doc"
+import {Pos, Leaf} from "wordgard/doc"
 import {Wordgard} from "./editor"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
 
@@ -76,7 +76,7 @@ export function moveVertically(
     } else {
       let coords = wg.coordsForElement(nextNode.before)!
       if (forward ? coords.bottom > y : coords.top < y)
-        return GardSelection.node(nextNode.before, nextNode.node, goalColumn)
+        return GardSelection.node(nextNode.before, nextNode.node as Leaf, goalColumn)
       scan = forward ? nextNode.after : nextNode.before
     }
   }

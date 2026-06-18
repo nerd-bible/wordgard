@@ -132,7 +132,7 @@ export abstract class GardSelection {
   }
 
   /// Create a node selection.
-  static node(pos: number, node: wgNode, goalColumn?: number) {
+  static node(pos: number, node: Leaf, goalColumn?: number) {
     return GardSelection.Node.create(pos, node, goalColumn)
   }
 
@@ -326,22 +326,22 @@ export namespace GardSelection {
     private constructor(
       from: number,
       to: number,
-      /// The selected node.
-      readonly node: wgNode,
+      /// The selected leaf node.
+      readonly node: Leaf,
       goalColumn?: number
     ) {
       super(from, to, goalColumn)
     }
 
     /// @internal
-    static create(pos: number, node: wgNode, goalColumn?: number) {
+    static create(pos: number, node: Leaf, goalColumn?: number) {
       return new Node(pos, pos + node.length, node, goalColumn)
     }
 
     map(change: ChangeSet, cx: GardSelection.Context, assoc: -1 | 1 = -1) {
       let newPos = change.mapPos(this.anchor, 1, "after")
       if (newPos == null) return GardSelection.near(cx, change.mapPos(this.anchor, assoc), assoc)
-      return Node.create(newPos, cx.doc.nodeAt(newPos)!)
+      return Node.create(newPos, cx.doc.nodeAt(newPos) as Leaf)
     }
 
     eq(other: GardSelection) {
@@ -358,7 +358,8 @@ export namespace GardSelection {
     /// @internal
     export const type = new SelectionType("node", Node, (sel): JSON => ({pos: sel.anchor}), (doc, json: JSON) => {
       let node = json && typeof json.pos == "number" && doc.nodeAt(json.pos)
-      if (!node || node.isText) throw new ValidationError("Invalid GardSelection.Node JSON representation")
+      if (!node || node.isText || node.isPlot || !node.type.isSelectable)
+        throw new ValidationError("Invalid GardSelection.Node JSON representation")
       return Node.create(json.pos, node)
     })
   }

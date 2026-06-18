@@ -216,9 +216,10 @@ export namespace Mark {
     /// The default is `{and: [Node.Group.Inline, Node.Group.Leaf]}`.
     target?: Node.Query
     /// Determines the position of this mark relative to other marks.
-    /// Marks with lower rank appear first in mark set arrays, and are
-    /// rendered around higher rank marks in DOM representation. Ties
-    /// are broken by name.
+    /// Should be a number between 0 and 100. Marks with lower rank
+    /// appear first in mark set arrays, and are rendered around
+    /// higher rank marks when rendered as an element. Ties are broken
+    /// by name. Defaults to 100.
     rank?: number
     /// Whether this mark should be active when the cursor is positioned
     /// at its end (or at its start when that is also the start of the
