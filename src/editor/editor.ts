@@ -753,8 +753,8 @@ let _wrapElement: {new (wg: Wordgard): HTMLElement} | null = null
 function wrapElementConstructor() {
   let ctor = class extends HTMLElement {
     constructor(readonly wg: Wordgard) { super() }
-    connectedCallback() { this.wg.setConnected(true) }
-    disconnectedCallback() { this.wg.setConnected(false) }
+    connectedCallback() { this.wg && this.wg.setConnected(true) }
+    disconnectedCallback() { this.wg && this.wg.setConnected(false) }
   }
   // Need to register a name before browsers let you instantiate a
   // custom element. Try multiple names in case multiple versions of
