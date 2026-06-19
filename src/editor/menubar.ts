@@ -229,12 +229,7 @@ function instantiate(item: Menu.Item.Resolved, bar: MenuBar, flat: BarElement[])
 }
 
 const menuBarPanel = Panel.show.of(wg => {
-  let bar = new MenuBar(wg)
-  return {
-    dom: bar.dom,
-    update: u => bar.update(u),
-    top: true
-  }
+  return new MenuBar(wg)
 })
 
 class MenuBar {
@@ -248,7 +243,6 @@ class MenuBar {
   constructor(readonly wg: Wordgard) {
     this.dom = document.createElement("wg-menubar")
     this.dom.role = "toolbar"
-    this.dom.setAttribute("aria-controls", wg.contentDOM.id)
     this.dom.addEventListener("keydown", this.key.bind(this))
     this.dom.addEventListener("mousedown", this.click.bind(this))
     this.dom.addEventListener("focusout", this.focusout.bind(this))
@@ -279,6 +273,10 @@ class MenuBar {
     } else {
       this.updateElts(update, this.selection)
     }
+  }
+
+  connect() {
+    this.dom.setAttribute("aria-controls", this.wg.contentDOM.id)
   }
 
   updateElts(update: Wordgard.Update | boolean, selection: readonly BarElement[]) {
@@ -412,6 +410,8 @@ class MenuBar {
     if (this.selection.length > 1)
       this.setSelection([this.selection[0]], false)
   }
+
+  get top() { return true }
 }
 
 function findChild(children: readonly BarElement[], start: boolean) {

@@ -305,8 +305,7 @@ export class Wordgard {
 
   private updateAttrs() {
     let editorAttrs = attrsFromFacet(this, Wordgard.editorAttributes, [
-      "class", this.themeClasses,
-      "id", this.id
+      "class", this.themeClasses
     ])
     let contentAttrs = attrsFromFacet(this, Wordgard.contentAttributes, [
       "aria-multiline", "true",
@@ -314,6 +313,7 @@ export class Wordgard {
       "contenteditable", String(this.state.facet(Wordgard.editable)),
       "role", "textbox",
       "translate", "no",
+      "id", this.id
     ])
 
     let changedContent = updateAttributes(this.contentDOM, this.contentAttrs, contentAttrs)
