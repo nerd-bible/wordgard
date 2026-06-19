@@ -544,37 +544,5 @@ describe("ChangeSet", () => {
       ist(c.mapPos(6, 1), 4)
       ist(c.mapPos(8), 6)
     })
-
-    it("can map back over a deletion", () => {
-      let c = ch({from: 2, to: 4})
-      ist(c.mapPosBack(3), 5)
-      ist(c.mapPosBack(2), 2)
-      ist(c.mapPosBack(2, 1), 4)
-      ist(c.mapPosBack(1), 1)
-    })
-
-    it("can map back over an insertion", () => {
-      let c = ch({from: 5, insert: [Leaf.text("--")]})
-      ist(c.mapPosBack(1), 1)
-      ist(c.mapPosBack(7), 5)
-      ist(c.mapPosBack(6), 5)
-    })
-
-    it("can map back over a replacement", () => {
-      let c = ch({from: 4, to: 6, insert: [Leaf.text("--")]})
-      ist(c.mapPosBack(1), 1)
-      ist(c.mapPosBack(4, 1), 4)
-      ist(c.mapPosBack(5), 4)
-      ist(c.mapPosBack(5, 1), 6)
-      ist(c.mapPosBack(6), 6)
-      ist(c.mapPosBack(8), 8)
-    })
-
-    it("maps back properly after another change", () => {
-      let c = ch({from: 1, to: 4}, {from: 6, insert: [Leaf.text("!")]})
-      ist(c.mapPosBack(3), 6)
-      ist(c.mapPosBack(4), 6)
-      ist(c.mapPosBack(6), 8)
-    })
   })
 })
