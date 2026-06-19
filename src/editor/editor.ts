@@ -19,6 +19,8 @@ import {exceptionSink, logException} from "./util"
 
 const dirCompartment = GardState.Compartment.define()
 
+const enum Flush { No, Yes, Read }
+
 /// This class implements the editor's user interface. It wraps the
 /// editable DOM surface and possibly other elements such as panels.
 export class Wordgard {
@@ -86,8 +88,9 @@ export class Wordgard {
 
   /// @internal
   connected = false
-  private flushing = false
+  private flushing = Flush.No
   private willFlush = false
+  private flushFunc: () => void
   /// @internal
   lastFlush = Date.now()
   private defaultDarkTheme = false
@@ -101,7 +104,7 @@ export class Wordgard {
   domWriters: ((wg: Wordgard) => void)[] = []
 
   private constructor(spec: Wordgard.Spec) {
-    this.flush = this.flush.bind(this)
+    this.flushFunc = () => { if (this.willFlush) this.flush() }
     this.dispatch = this.dispatch.bind(this)
 
     this.dom = createWrapElement(this)
@@ -167,22 +170,23 @@ export class Wordgard {
   /// property, but updating the DOM will be deferred to the next
   /// display update.
   dispatch(tr: Transaction | Transaction.Spec): void {
-    if (this.flushing) throw new Error("Cannot dispatch new updates during the editor flush phase")
+    if (this.flushing != Flush.No) throw new Error("Cannot dispatch new updates during the editor flush phase")
     this.viewState.update(tr instanceof Transaction ? tr : this.state.update(tr))
     this.scheduleFlush()
   }
 
   /// @internal
   scheduleFlush() {
-    if (!this.willFlush && !this.flushing && this.connected) {
-      this.win.queueMicrotask(this.flush)
+    if (!this.willFlush && this.flushing == Flush.No && this.connected) {
+      this.win.requestAnimationFrame(this.flushFunc)
       this.willFlush = true
     }
   }
 
   /// @internal
-  flush(force = false) {
-    if ((!this.connected && !force) || this.inputState.pendingComposition) return
+  flush() {
+    // FIXME don't double-flush
+    if (!this.connected || this.inputState.pendingComposition) return
     this.observer.pollSelection()
     let {flushedState, state} = this.viewState
     let mainUpdate = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
@@ -193,7 +197,7 @@ export class Wordgard {
     }
 
     this.willFlush = false
-    this.flushing = true
+    this.flushing = Flush.Yes
     this.lastFlush = Date.now()
     let domChanges = this.observer.takeDirty()
     this.viewState.flush()
@@ -211,12 +215,14 @@ export class Wordgard {
         let flags = this.viewState.measure(this)
         let read = this.domReaders
         this.domReaders = []
+        this.flushing = Flush.Read
         for (let f of read) f(this)
+        this.flushing = Flush.Yes
         if (!flags && !this.domWriters.length) break
         mainUpdate.flags |= flags
         if (flags) this.runUpdate(Wordgard.Update.create(this, state, state, [], flags), null)
       }
-    } finally { this.flushing = false }
+    } finally { this.flushing = Flush.No }
     if (this.viewState.scrollTarget) {
       this.scrollTo(this.viewState.scrollTarget)
       this.viewState.scrollTarget = null
@@ -374,17 +380,23 @@ export class Wordgard {
     return known && known.update(this).value as T
   }
 
-  private checkFlushed() {
+  private ensureFlushed() {
     if (!this.connected)
       throw new Error("Editor is not connected to the DOM")
-    if (this.willFlush && (this.viewState.pending.some(tr => tr.docChanged) || this.observer.dirty))
-      throw new Error("Trying to read from unflushed editor DOM")
+    if (this.willFlush && (this.viewState.pending.some(tr => tr.docChanged) || this.observer.dirty)) {
+      if (this.flushing == Flush.Yes)
+        throw new Error("Trying to read from unflushed editor during flush")
+      if (this.inputState.pendingComposition)
+        throw new Error("Trying to read editor DOM between beforeinput and input for composition")
+      if (this.flushing == Flush.No)
+        this.flush()
+    }
   }
 
   /// Find the position at the end or start of the (wrapped) line. If
   /// the given position isn't in a textblock, this will return null.
   moveToLineBoundary(start: GardSelection, forward: boolean) {
-    this.checkFlushed()
+    this.ensureFlushed()
     return moveToLineBoundary(this, start, forward)
   }
 
@@ -401,7 +413,7 @@ export class Wordgard {
   /// used. If `allowNode` is true, this may return a node selection
   /// on a block node.
   moveVertically(start: GardSelection, forward: boolean, distance?: number, allowNode?: boolean) {
-    this.checkFlushed()
+    this.ensureFlushed()
     return moveVertically(this, start, forward, distance, allowNode)
   }
 
@@ -409,14 +421,14 @@ export class Wordgard {
   /// an element, character offset when it is a text node) at the
   /// given document position.
   domAtPos(pos: number, assoc: -1 | 1 = -1): {node: DOMNode, offset: number} {
-    this.checkFlushed()
+    this.ensureFlushed()
     let tilePos = this.docTile.resolve(pos, assoc)
     return {node: tilePos.tile.dom, offset: tilePos.offset}
   }
 
   /// Get the DOM element for the node at the given position, if any.
   nodeDOM(pos: number): Element | null {
-    this.checkFlushed()
+    this.ensureFlushed()
     let tile = this.docTile.nodeTile(pos)
     if (!tile || tile.dom.nodeType != 1) return null
     return tile.dom as Element
@@ -426,20 +438,21 @@ export class Wordgard {
   /// for associating positions with DOM events. Will raise an error
   /// when `node` isn't part of the editor content.
   posAtDOM(node: DOMNode, offset: number = 0) {
-    this.checkFlushed()
+    this.ensureFlushed()
     return this.docTile.posFromDOM(node, offset, 1)
   }
 
   /// Find the Wordgard node represented by the given DOM node, or one
   /// of its parent nodes, if any. Will not return the outer document node.
   nodeFromDOM(node: Element): {pos: number, node: Node} | null {
+    this.ensureFlushed()
     let tile = this.docTile.nearest(node, true)
     return tile && tile != this.docTile ? {pos: tile.posBefore, node: tile.node!} : null
   }
 
   /// Get the document position at the given screen coordinates.
   posAtCoords(coords: {x: number, y: number}): {pos: number, side: -1 | 1, target: number | null} {
-    this.checkFlushed()
+    this.ensureFlushed()
     let elt = ((this.root as any).elementFromPoint ? this.root : this.dom.ownerDocument)
                 .elementFromPoint(coords.x, coords.y)
     let tile = (elt && this.docTile.nearest(elt)) || this.docTile
@@ -452,7 +465,7 @@ export class Wordgard {
   /// available on the given side, the method will transparently use
   /// another strategy to get reasonable coordinates).
   coordsAtPos(pos: number, assoc: -1 | 1 = -1): DOMRect {
-    this.checkFlushed()
+    this.ensureFlushed()
     return coordsAtPos(this, pos, assoc)
   }
 
@@ -461,7 +474,7 @@ export class Wordgard {
   /// space characters that are a line wrap point, this will return
   /// the position before the line break.
   coordsForElement(pos: number) {
-    this.checkFlushed()
+    this.ensureFlushed()
     return this.docTile.coordsForElement(pos)
   }
 
@@ -477,8 +490,9 @@ export class Wordgard {
 
   /// Put focus on the editor.
   focus() {
-    this.observer.ignore(() => {
+    if (this.connected) this.observer.ignore(() => {
       this.contentDOM.focus({preventScroll: true})
+      if (this.willFlush && this.flushing == Flush.No) this.flush()
       setDOMSelection(this)
     })
   }

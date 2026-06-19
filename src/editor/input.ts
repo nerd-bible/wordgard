@@ -1,5 +1,5 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
-import {Plot, ChangeSet, Mark, Slice} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet, Mark, Slice} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
@@ -57,7 +57,7 @@ export class InputState {
   // Track the current composition. Count changes to determine whether
   // a given change is the first one, and track the text node that
   // composition is happening in.
-  composing: null | {changes: number, target: Text | null} = null
+  composing: null | {changes: number, target: Text | null, targetPos: number} = null
   // End time of the previous composition
   compositionEndedAt = 0
   // Used in a kludge to detect when an Enter keypress should be
@@ -155,11 +155,32 @@ export class InputState {
     if (this.mouseSelection) this.mouseSelection.update(update)
     if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state)
     if (update.transactions.length) this.lastKeyCode = this.lastSelectionTime = 0
+    if (this.composing) this.composing.targetPos = update.changes.mapPos(this.composing.targetPos, -1)
   }
 
-  compositionTarget() {
-    if (!this.composing) return null
-    return this.composing.target = findCompositionTarget(this.wg, this.composing.target)
+  findComposition(): {target: Text, targetPos: number} | null {
+    let comp = this.composing
+    if (!comp) return null
+    let {focusNode, focusOffset} = this.wg.observer.selectionRange
+    if (!focusNode) return null
+    let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
+    let newTarget: Text | null
+    if (!before || !after || before == after) {
+      newTarget = before || after
+    } else {
+      let tileBefore = Tile.get(before), tileAfter = Tile.get(after)
+      newTarget = !tileBefore || (tileBefore as any).text != before.nodeValue ? before
+        : !tileAfter || (tileAfter as any).text != after.nodeValue ? after
+        : comp.target == after ? after : before
+    }
+    if (!newTarget) return comp.target = null
+    if (newTarget != comp.target) {
+      let pos = this.wg.docTile.posBeforeDOM(newTarget)
+      if (pos == null) return comp.target = null
+      comp.target = newTarget
+      comp.targetPos = this.wg.viewState.mapPosPending(pos, -1)
+    }
+    return comp as {target: Text, targetPos: number}
   }
 
   connect() {
@@ -585,7 +606,7 @@ observers.blur = wg => {
 
 observers.compositionstart = observers.compositionupdate = (wg, event: CompositionEvent) => {
   if (!wg.inputState.composing) {
-    wg.inputState.composing = {changes: 0, target: null}
+    wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
 
     let wrap: Mark.Set | null = null
     if (!wg.inputState.composing.changes && !event.data) {
@@ -603,25 +624,13 @@ observers.compositionstart = observers.compositionupdate = (wg, event: Compositi
 }
 
 observers.compositionend = wg => {
-  let target = wg.inputState.composing?.target
+  let comp = wg.inputState.composing
   wg.inputState.composing = null
   wg.inputState.compositionEndedAt = Date.now()
-  if (target) {
-    let pos = wg.docTile.posBeforeDOM(target)
-    if (pos != null) wg.observer.addDirtyRange(pos, pos + target.nodeValue!.length)
+  if (comp && comp.target) {
+    wg.observer.addDirtyRange(comp.targetPos, comp.targetPos + comp.target.nodeValue!.length)
     wg.flush()
   }
-}
-
-function findCompositionTarget(wg: Wordgard, prev: Text | null) {
-  let {focusNode, focusOffset} = wg.observer.selectionRange
-  if (!focusNode) return null
-  let before = textNodeBefore(focusNode, focusOffset), after = textNodeAfter(focusNode, focusOffset)
-  if (!before || !after || before == after) return before || after
-  let tileBefore = Tile.get(before), tileAfter = Tile.get(after)
-  if (!tileBefore || (tileBefore as any).text != before.nodeValue) return before
-  if (!tileAfter || (tileAfter as any).text != after.nodeValue) return after
-  return prev == after ? after : before
 }
 
 export type CompositionInfo = {
@@ -632,8 +641,6 @@ export type CompositionInfo = {
 }
 
 export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
-  let target = wg.inputState.compositionTarget()
-
   let wrap = wg.inputState.wrappingComposition
   if (wrap) {
     let sel = wg.state.selection.head
@@ -645,18 +652,16 @@ export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
     }
   }
 
-  if (!target) return null
-  let from = wg.docTile.posBeforeDOM(target)
-  if (from == null) return null
-  for (let tr of wg.viewState.pending) from = tr.changes.mapPos(from, -1)
-  let value = target.nodeValue!
-  let oldTile = wg.docTile.nearest(target)
-  let oldLen = oldTile && oldTile.dom == target ? oldTile.length : 0
+  let comp = wg.inputState.findComposition()
+  if (!comp) return null
+  let value = comp.target.nodeValue!
+  let oldTile = wg.docTile.nearest(comp.target)
+  let oldLen = oldTile && oldTile.dom == comp.target ? oldTile.length : 0
 
   return {
-    fromA: from, toA: from + oldLen,
+    fromA: comp.targetPos, toA: comp.targetPos + oldLen,
     text: value,
-    target
+    target: comp.target
   }
 }
 
@@ -723,7 +728,7 @@ handlers.beforeinput = (wg, event: InputEvent) => {
     }
   } else if (type == "insertCompositionText") {
     if (!wg.inputState.composing)
-      wg.inputState.composing = {changes: 0, target: null}
+      wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
     wg.inputState.pendingComposition = {...inputEventRange(event, wg), text: event.data!}
   } else if (type == "formatSetBlockTextDirection") {
     if (event.data == "ltr" || event.data == "rtl")
@@ -741,24 +746,45 @@ handlers.input = (wg, event: InputEvent) => {
     wg.observer.readSelectionRange()
     let sel = wg.observer.selectionRange
     if (!sel.focusNode) return false
-    let anchor = -1, head = -1
-    let target = wg.inputState.compositionTarget(), targetPos = target && wg.docTile.posBeforeDOM(target)
-    if (targetPos != null && sel.focusNode) {
-      anchor = findCompositionSelection(sel.anchorNode!, sel.anchorOffset, target!, targetPos)
-      head = sel.empty ? anchor : findCompositionSelection(sel.focusNode, sel.focusOffset, target!, targetPos)
+    let comp = wg.inputState.findComposition()
+    let userEvent = "input.type.compose" + (start ? ".start" : "")
+    if (comp && sel.focusNode) {
+      let anchor = findCompositionSelection(sel.anchorNode!, sel.anchorOffset, comp.target, comp.targetPos)
+      let head = sel.empty ? anchor : findCompositionSelection(sel.focusNode, sel.focusOffset, comp.target, comp.targetPos)
+      if (head != anchor || head != from + text.length) {
+        let {selection} = wg.state
+        let marks = (from == selection.from && to == selection.to && wg.state.sel.activeMarks) ||
+          wg.state.doc.resolve(from).marks(wg.state.doc.resolve(to))
+        wg.dispatch({
+          changes: {from, to, insert: [Leaf.Text.of(text, marks)], fit: true},
+          selection: GardSelection.range(from, to),
+          userEvent
+        })
+        return false
+      }
     }
-    if (head < 0) anchor = -1
-    for (let tr of wg.viewState.pending) {
-      from = tr.changes.mapPos(from); to = tr.changes.mapPos(to)
-      if (anchor > -1) { anchor = tr.changes.mapPos(anchor); head = tr.changes.mapPos(head) }
-    }
-    Command.dispatch(wg, insertText, {from, to, insert: text, userEvent: "input.type.compose" + (start ? ".start" : "")})
+    Command.dispatch(wg, insertText, {from, to, insert: text, userEvent})
+    return false
   }
-  return false
+  return true
 }
 
 function inputEventRange(event: InputEvent, wg: Wordgard) {
   let range = event.getTargetRanges()[0]
-  return {from: wg.docTile.posFromDOM(range.startContainer, range.startOffset, -1),
-          to: wg.docTile.posFromDOM(range.endContainer, range.endOffset, 1)}
+  let from = wg.docTile.posFromDOM(range.startContainer, range.startOffset, -1)
+  let to = range.collapsed ? from : wg.docTile.posFromDOM(range.endContainer, range.endOffset, 1)
+  let {pending} = wg.viewState
+  if (pending.length) {
+    // If mapping the selection back to the DOM version matches these position, use the selection
+    let {from: selFrom, to: selTo} = wg.state.selection
+    for (let i = pending.length - 1; i >= 0; i--) {
+      selFrom = pending[i].changes.mapPosBack(selFrom, 1)
+      selTo = pending[i].changes.mapPosBack(selTo, 1)
+    }
+    if (from == selFrom && to == selTo) return {from: wg.state.selection.from, to: wg.state.selection.to}
+    // Otherwise, map through the pending changes with a forward bias
+    from = wg.viewState.mapPosPending(from, 1)
+    to = wg.viewState.mapPosPending(to, 1)
+  }
+  return {from, to}
 }

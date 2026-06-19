@@ -31,7 +31,7 @@ export function readDOMSelection(wg: Wordgard, range: SelectionRange) {
   let anchor = wg.docTile.posFromDOM(range.anchorNode!, range.anchorOffset, -1)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
     : wg.docTile.posFromDOM(range.focusNode!, range.focusOffset, -1)
-  return GardSelection.range(anchor, head)
+  return GardSelection.range(wg.viewState.mapPosPending(anchor, 1), wg.viewState.mapPosPending(head, 1))
 }
 
 const Y_STEP = 5

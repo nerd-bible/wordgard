@@ -27,7 +27,6 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
   return {
     changes,
     selection: cx => GardSelection.near(cx, changes.mapPos(to, 1), -1),
-    normalizeSelection: true,
     userEvent
   }
 }
@@ -72,8 +71,7 @@ export const enter: Command.Pure = ({state}) => {
     let placed = content.length ? changes.findInserted(t => t == content[0].tag) : null
     return {
       changes,
-      selection: placed != null ? GardSelection.cursor(placed + wrap.length, -1) : undefined,
-      normalizeSelection: true,
+      selection: placed != null ? (cx => GardSelection.near(cx, placed + wrap.length, -1)) : undefined,
       scrollIntoView: true,
       userEvent: "insert.textblock"
     }
