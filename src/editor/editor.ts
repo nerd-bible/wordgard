@@ -185,7 +185,6 @@ export class Wordgard {
 
   /// @internal
   flush() {
-    // FIXME don't double-flush
     if (!this.connected || this.inputState.pendingComposition) return
     this.observer.pollSelection()
     let {flushedState, state} = this.viewState

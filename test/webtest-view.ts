@@ -1,6 +1,6 @@
 import {Wordgard} from "wordgard/editor"
 import {Leaf} from "wordgard/doc"
-import {basicBuilders} from "./schema.ts"
+import {basicBuilders, eq} from "./schema.ts"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"
 
@@ -52,5 +52,35 @@ describe("Wordgard", () => {
     ;(wg.contentDOM.firstChild as HTMLElement).setAttribute("test", "test")
     wg.flush()
     ist(wg.contentDOM.innerHTML, "<p>abc</p>")
+  })
+
+  it("allows dispatches from beforeUpdate", () => {
+    let wg = tempEditor(doc(p("x")), Wordgard.beforeUpdate.of(u => {
+      if (u.state.doc.length == 4) wg.dispatch({changes: {from: 1, to: 2}})
+    }))
+    wg.dispatch({changes: {from: 2, insert: [Leaf.text("y")]}})
+    ist(wg.state.doc, doc(p("xy")), eq)
+    wg.flush()
+    ist(wg.state.doc, doc(p("y")), eq)
+  })
+
+  it("disallows dispatches from plugin update", () => {
+    let wg = tempEditor(doc(p("x")), Wordgard.Plugin.fromClass(class {
+      update(u: Wordgard.Update) {
+        if (u.state.doc.length == 4) ist.throws(() => {
+          wg.dispatch({changes: {from: 1, to: 2}})
+        }, /Cannot dispatch new updates/)
+      }
+    }))
+    wg.dispatch({changes: {from: 2, insert: [Leaf.text("y")]}})
+    wg.flush()
+  })
+
+  it("automatically flushes on DOM access", () => {
+    let wg = tempEditor(doc(p("abc")))
+    let c1 = wg.coordsAtPos(4)
+    wg.dispatch({changes: {from: 0, insert: [p()]}})
+    let c2 = wg.coordsAtPos(4)
+    ist(c2.top, c1.top, ">")
   })
 })
