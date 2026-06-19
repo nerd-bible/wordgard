@@ -634,7 +634,7 @@ observers.compositionend = wg => {
 }
 
 export type CompositionInfo = {
-  fromA: number, toA: number,
+  fromB: number, toB: number,
   text: string,
   target: Text | null,
   wrapCursor?: Mark.Set | null
@@ -645,7 +645,7 @@ export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
   if (wrap) {
     let sel = wg.state.selection.head
     return {
-      fromA: sel, toA: sel,
+      fromB: sel, toB: sel,
       text: "",
       target: null,
       wrapCursor: wrap
@@ -655,11 +655,8 @@ export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
   let comp = wg.inputState.findComposition()
   if (!comp) return null
   let value = comp.target.nodeValue!
-  let oldTile = wg.docTile.nearest(comp.target)
-  let oldLen = oldTile && oldTile.dom == comp.target ? oldTile.length : 0
-
   return {
-    fromA: comp.targetPos, toA: comp.targetPos + oldLen,
+    fromB: comp.targetPos, toB: comp.targetPos + value.length,
     text: value,
     target: comp.target
   }
@@ -778,16 +775,11 @@ function inputEventRange(event: InputEvent, wg: Wordgard) {
   let to = range.collapsed ? from : wg.docTile.posFromDOM(range.endContainer, range.endOffset, 1)
   let {pending} = wg.viewState
   if (pending.length) {
-    // If mapping the selection back to the DOM version matches these position, use the selection
-    let {from: selFrom, to: selTo} = wg.state.selection
-    for (let i = pending.length - 1; i >= 0; i--) {
-      selFrom = pending[i].changes.mapPosBack(selFrom, 1)
-      selTo = pending[i].changes.mapPosBack(selTo, 1)
-    }
-    if (from == selFrom && to == selTo) return {from: wg.state.selection.from, to: wg.state.selection.to}
-    // Otherwise, map through the pending changes with a forward bias
-    from = wg.viewState.mapPosPending(from, 1)
-    to = wg.viewState.mapPosPending(to, 1)
+    let comp = wg.inputState.composing
+    if (comp && comp.target == range.startContainer) from = comp.targetPos + range.startOffset
+    else from = wg.viewState.mapPosPending(from, 1)
+    if (comp && comp.target == range.endContainer) to = comp.targetPos + range.endOffset
+    else to = wg.viewState.mapPosPending(to, 1)
   }
   return {from, to}
 }

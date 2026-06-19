@@ -374,13 +374,13 @@ export class DocTile extends CompositeTile {
       else sections = separated
     }
     let builder = new ContentUpdate(state, this, new DecoIterator(state, decoSet), wrapper)
-    for (let i = 0, posA = 0, startCovered = false; i < sections.length;) {
+    for (let i = 0, posB = 0, startCovered = false; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
-      if (composition && posA == composition.fromA && ins >= 0) {
+      if (composition && posB == composition.fromB && ins >= 0) {
         LOG_update && console.log("(composition)")
         if (!startCovered) builder.update(0, false)
-        builder.composition(composition!)
+        builder.composition(composition!, len)
         if (ins && (startCovered = i == sections.length || sections[i + 1] == -1)) builder.update(0, false)
       } else if (ins == -1) {
         builder.keep(len, !startCovered, i == sections.length)
@@ -392,7 +392,7 @@ export class DocTile extends CompositeTile {
         builder.replace(len, ins, !startCovered)
         startCovered = true
       }
-      posA += len
+      posB += ins >= 0 ? ins : len
     }
     let result = builder.finish()
     result.sync()
@@ -872,7 +872,7 @@ class ContentUpdate {
     this.build(len, true, includeStart)
   }
 
-  composition(composition: CompositionInfo) {
+  composition(composition: CompositionInfo, lenA: number) {
     this.leaveWrappers()
     if (!composition.target) {
       for (let mark of composition.wrapCursor!) if (mark.type.element) {
@@ -908,7 +908,7 @@ class ContentUpdate {
       }
     }
     this.new.addChild(new TextTile(composition.text, composition.target, TileFlag.Composition))
-    this.old = this.old.walk(composition.toA - composition.fromA, 1)
+    this.old = this.old.walk(lenA, 1)
     this.posB += composition.text.length
   }
 
@@ -1162,27 +1162,31 @@ const imgHack = Widget.create({
   render() { return document.createElement("img") }
 })
 
+// Change the given sections to make sure that the composition gets
+// its replacement section, so that the tile update loop can handle it
+// separately from surrounding changes.
 function separateComposition(sections: ChangeSet.Sections, comp: CompositionInfo) {
-  let result: number[] = [], diff = 0
-  let {fromA, toA} = comp, compIns = comp.text.length
-  for (let posA = 0, done = false, i = 0; i < sections.length;) {
-    let len = sections[i++], ins = sections[i++], endA = posA + len
-    if (fromA > endA || toA < posA) {
+  let result: number[] = [], {fromB, toB} = comp
+  let lenI = 0, dLen = 0
+  for (let posB = 0, done = false, i = 0; i < sections.length;) {
+    let len = sections[i++], ins = sections[i++], endB = posB + (ins < 0 ? len : ins)
+    if (fromB > endB || toB < posB) {
       result.push(len, ins)
     } else {
       if (ins >= 0) {
-        if (posA < fromA || endA > toA) return null
-        diff += ins - len
+        if (posB < fromB || endB > toB) return null
+        dLen = len - ins
       }
-      if (posA < fromA) result.push(fromA - posA, ins)
+      if (posB < fromB) result.push(fromB - posB, ins)
       if (!done) {
-        result.push(toA - fromA, compIns)
+        lenI = result.length
+        result.push(0, comp.text.length)
         done = true
       }
-      if (endA > toA) result.push(endA - toA, ins)
+      if (endB > toB) result.push(endB - toB, ins)
     }
-    posA = endA
+    posB = endB
   }
-  if (diff != compIns - (toA - fromA)) return null
+  result[lenI] = comp.text.length + dLen
   return result
 }
