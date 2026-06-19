@@ -729,7 +729,8 @@ handlers.beforeinput = (wg, event: InputEvent) => {
   } else if (type == "insertCompositionText") {
     if (!wg.inputState.composing)
       wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
-    wg.inputState.pendingComposition = {...inputEventRange(event, wg), text: event.data!}
+    let range = inputEventRange(event, wg)
+    wg.inputState.pendingComposition = {from: range.from, to: range.to, text: event.data!}
   } else if (type == "formatSetBlockTextDirection") {
     if (event.data == "ltr" || event.data == "rtl")
       Command.dispatch(wg, setDirection, event.data)
@@ -755,9 +756,11 @@ handlers.input = (wg, event: InputEvent) => {
         let {selection} = wg.state
         let marks = (from == selection.from && to == selection.to && wg.state.sel.activeMarks) ||
           wg.state.doc.resolve(from).marks(wg.state.doc.resolve(to))
+        // FIXME give custom handlers a chance to handle this?
+        // FIXME selection may not be valid if change needs wrapping
         wg.dispatch({
           changes: {from, to, insert: [Leaf.Text.of(text, marks)], fit: true},
-          selection: GardSelection.range(from, to),
+          selection: GardSelection.range(anchor, head),
           userEvent
         })
         return false
