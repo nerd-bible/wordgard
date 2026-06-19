@@ -337,6 +337,27 @@ export class ChangeSet {
     return posB
   }
 
+  /// Map a position from the document as it is after this change back
+  /// to the document as it was before the change.
+  mapPosBack(pos: number, assoc: -1 | 1 = -1) {
+    let posA = 0, posB = 0
+    for (let i = 0; i < this.sections.length;) {
+      let len = this.sections[i++], type = this.sections[i++], endB: number
+      if (type < 0) {
+        endB = posB + len
+        if (endB > pos) return posA + (pos - posB)
+      } else {
+        endB = posB + type
+        if (endB > pos || endB == pos && assoc < 0 && !type)
+          return pos == posB || assoc < 0 ? posA : posA + len
+      }
+      posB = endB
+      posA += len
+    }
+    if (pos > posB) throw new RangeError(`Position ${pos} is out of range for changeset of end length ${posB}`)
+    return posA
+  }
+
   /// Scan through the content inserted by this change until a tag
   /// that matches the predicate is found. If successful, return the
   /// position (in the new document) of the tag. This can be useful
