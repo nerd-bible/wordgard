@@ -1,12 +1,13 @@
-import {Wordgard} from "wordgard/editor"
-import {GardState} from "wordgard/state"
+// FIXME move to /state
+
+import {GardState, Transaction} from "wordgard/state"
 import {history} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"
 import {findWrappable, wrapBlockRange, autoJoinBlocks} from "wordgard/command"
 
 const inputRule = GardState.Facet.define<InputRule>()
 
-const beforeUpdate = Wordgard.beforeUpdate.of(applyInputRules)
+const appender = Transaction.appender.of(applyInputRules)
 
 /// Objects of this type represent input rules.
 export class InputRule {
@@ -21,12 +22,12 @@ export class InputRule {
     /// @internal
     readonly expr: RegExp,
     /// @internal
-    readonly apply: (wg: Wordgard, match: InputRule.MatchArray) => boolean,
+    readonly apply: (state: GardState, match: InputRule.MatchArray) => Transaction.Spec | null,
     spec: InputRule.Spec
   ) {
     this.lookahead = spec.lookahead
     this.inCode = !!spec.inCode
-    this.extension = [inputRule.of(this), beforeUpdate]
+    this.extension = [inputRule.of(this), appender]
   }
 
   /// Define an input rule.
@@ -50,18 +51,17 @@ export class InputRule {
   ) {
     return InputRule.define({
       expr,
-      apply: (wg, match) => {
+      apply: (state, match) => {
         let wrapper = typeof tag == "function" ? tag(match) : tag
         let {from, to} = match[0]
         let changes: ChangeSet.Spec[] = [{from: from.pos, to: to.pos}]
         let range = findWrappable(from, from, wrapper)
-        if (!range) return false
+        if (!range) return null
         changes.push(wrapBlockRange(range, wrapper))
-        wg.dispatch(autoJoinBlocks(wg.state, {
+        return autoJoinBlocks(state, {
           changes,
           annotations: history.isolate.of(true)
-        }))
-        return true
+        })
       },
       lookahead: empty ? /^$/ : undefined
     })
@@ -80,16 +80,15 @@ export class InputRule {
   ) {
     return InputRule.define({
       expr,
-      apply: (wg, match) => {
+      apply: (state, match) => {
         let {from, to} = match[0]
         let block = typeof tag == "function" ? tag(match) : tag
         let outer = from.parent.parent
-        if (!outer || !wg.state.schema.canContain(outer.node.type, block.type)) return false
-        wg.dispatch({
+        if (!outer || !state.schema.canContain(outer.node.type, block.type)) return null
+        return {
           changes: [{from: from.pos - 1, to: to.pos, insert: [block]}],
           annotations: history.isolate.of(true)
-        })
-        return true
+        }
       },
       lookahead: empty ? /^$/ : undefined
     })
@@ -112,7 +111,7 @@ export namespace InputRule {
     ///
     /// When given as a string, the full match will be replaced by
     /// that string.
-    apply: ((wg: Wordgard, match: InputRule.MatchArray) => boolean) | string,
+    apply: ((state: GardState, match: InputRule.MatchArray) => Transaction.Spec | null) | string,
     /// Because the regular expression given in `expr` must end at the
     /// cursor, it is matched against a string that stops at the
     /// cursor, and cannot look beyond it. You can provide an
@@ -157,13 +156,10 @@ function ensureAnchor(regexp: RegExp) {
 }
 
 function applyString(text: string) {
-  return (wg: Wordgard, match: InputRule.MatchArray) => {
-    wg.dispatch({
-      changes: {from: match[0].from.pos, to: match[0].to.pos, insert: [Leaf.text(text)]},
-      annotations: history.isolate.of(true)
-    })
-    return true
-  }
+  return (state: GardState, match: InputRule.MatchArray) => ({
+    changes: {from: match[0].from.pos, to: match[0].to.pos, insert: [Leaf.text(text)]},
+    annotations: history.isolate.of(true)
+  })
 }
 
 function getGroupIndices(match: RegExpMatchArray): ([number, number] | undefined)[] {
@@ -176,18 +172,18 @@ function getGroupIndices(match: RegExpMatchArray): ([number, number] | undefined
   return result
 }
 
-function applyInputRules(update: Wordgard.Update) {
+function applyInputRules(trs: readonly Transaction[], state: GardState): Transaction.Spec | null {
   let typed = -1
-  for (let i = update.transactions.length - 1; i >= 0; i--) {
-    if (update.transactions[i].isUserEvent("input.type")) {
-      for (let j = i + 1; j < update.transactions.length; j++) if (update.transactions[j].selection) return
+  for (let i = trs.length - 1; i >= 0; i--) {
+    if (trs[i].isUserEvent("input.type")) {
+      for (let j = i + 1; j < trs.length; j++) if (trs[j].selection) return null
       typed = i
       break
     }
   }
-  if (typed < 0) return
-  let {state} = update, cursor = state.sel.head, block = cursor.textblockParent
-  if (!block) return
+  if (typed < 0) return null
+  let cursor = state.sel.head, block = cursor.textblockParent
+  if (!block) return null
   let map = state.textblockMap(block)
   let curIndex = map.toIndex(cursor.pos), textBefore = map.text.slice(0, curIndex), textAfter: string | undefined
   rules: for (let rule of state.facet(inputRule)) {
@@ -212,6 +208,8 @@ function applyInputRules(update: Wordgard.Update) {
         docMatch.push({from, to, text})
       }
     }
-    if (rule.apply(update.editor, docMatch as any as InputRule.MatchArray)) break
+    let spec = rule.apply(state, docMatch as any as InputRule.MatchArray)
+    if (spec) return spec
   }
+  return null
 }

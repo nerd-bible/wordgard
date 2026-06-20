@@ -337,21 +337,20 @@ export namespace horizontalRule {
   export const createOnDashes = InputRule.define({
     expr: /^---$/,
     lookahead: /^$/,
-    apply: (wg, m) => {
-      let changes = ChangeSet.create(wg.state.doc, {
+    apply: (state, m) => {
+      let changes = ChangeSet.create(state.doc, {
         from: m[0].from.pos, to: m[0].to.pos,
         insert: [HorizontalRule],
         fit: true
       })
       let hr = changes.findInserted(t => t == HorizontalRule)
-      if (hr == null) return false
-      wg.dispatch({
+      if (hr == null) return null
+      return {
         changes,
         selection: cx => GardSelection.near(cx, hr + 1, 1),
         annotations: history.isolate.of(true),
         userEvent: "insert.horizontalrule"
-      })
-      return true
+      }
     }
   })
 }
