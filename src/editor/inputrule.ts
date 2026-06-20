@@ -1,5 +1,3 @@
-// FIXME move to /state
-
 import {GardState, Transaction} from "wordgard/state"
 import {history} from "wordgard/history"
 import {Leaf, Plot, Node, Pos, ChangeSet} from "wordgard/doc"

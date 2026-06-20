@@ -55,16 +55,6 @@ describe("Wordgard", () => {
     ist(wg.contentDOM.innerHTML, "<p>abc</p>")
   })
 
-  it("allows dispatches from beforeUpdate", () => {
-    let wg = tempEditor(doc(p("x")), Wordgard.beforeUpdate.of(u => {
-      if (u.state.doc.length == 4) wg.dispatch({changes: {from: 1, to: 2}})
-    }))
-    wg.dispatch({changes: {from: 2, insert: [Leaf.text("y")]}})
-    ist(wg.state.doc, doc(p("xy")), eq)
-    wg.flush()
-    ist(wg.state.doc, doc(p("y")), eq)
-  })
-
   it("disallows dispatches from plugin update", () => {
     let wg = tempEditor(doc(p("x")), Wordgard.Plugin.fromClass(class {
       update(u: Wordgard.Update) {

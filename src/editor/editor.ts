@@ -193,12 +193,7 @@ export class Wordgard {
     if (!this.connected || this.inputState.pendingComposition) return
     this.observer.pollSelection()
     let {flushedState, state} = this.viewState
-    let mainUpdate = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
-    for (let hook of state.facet(Wordgard.beforeUpdate)) {
-      hook(mainUpdate)
-      if (mainUpdate.transactions.length != this.viewState.pending.length)
-        mainUpdate = Wordgard.Update.create(this, flushedState, state = this.viewState.state, this.viewState.pending)
-    }
+    let update = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
 
     this.willFlush = false
     this.flushing = Flush.Yes
@@ -206,7 +201,7 @@ export class Wordgard {
     let domChanges = this.observer.takeDirty()
     this.viewState.flush()
     try {
-      this.observer.ignore(() => this.runUpdate(mainUpdate, domChanges))
+      this.observer.ignore(() => this.runUpdate(update, domChanges))
       domChanges = null
       for (let i = 0;; i++) {
         if (i > 5) {
@@ -223,7 +218,7 @@ export class Wordgard {
         for (let f of read) f(this)
         this.flushing = Flush.Yes
         if (!flags && !this.domWriters.length) break
-        mainUpdate.flags |= flags
+        update.flags |= flags
         if (flags) this.runUpdate(Wordgard.Update.create(this, state, state, [], flags), null)
       }
     } finally { this.flushing = Flush.No }
@@ -231,8 +226,8 @@ export class Wordgard {
       this.scrollTo(this.viewState.scrollTarget)
       this.viewState.scrollTarget = null
     }
-    if (!mainUpdate.empty) for (let listener of this.state.facet(Wordgard.afterUpdate)) {
-      try { listener(mainUpdate) }
+    if (!update.empty) for (let listener of this.state.facet(Wordgard.updateListener)) {
+      try { listener(update) }
       catch (e) { logException(this.state, e, "update listener") }
     }
     this.checkDir()
@@ -619,19 +614,11 @@ export class Wordgard {
   /// debugging and logging. See {@link Wordgard.logException}.
   static exceptionSink = exceptionSink
 
-  // FIXME better names for these (distinguish from .update, use nouns
-  // for facet names)
-
-  /// A facet that can be used to register a function to be called
-  /// right before the editor updates. Any transactions dispatched by
-  /// such functions will be included in the update.
-  static beforeUpdate = GardState.Facet.define<(update: Wordgard.Update) => void>()
-
   /// A facet that can be used to register a function to be called
   /// after the editor updates. Dispatching transactions from such a
-  /// function is allowed, but will cause another, separate update to
+  /// function is allowed, but will cause a new, separate update to
   /// happen.
-  static afterUpdate = GardState.Facet.define<(update: Wordgard.Update) => void>()
+  static updateListener = GardState.Facet.define<(update: Wordgard.Update) => void>()
 
   /// Facet that controls whether the editor content DOM is editable.
   /// When its highest-precedence value is `false`, the element will
@@ -968,7 +955,7 @@ export namespace Wordgard {
   }
 
   /// Editor {@link Wordgard.Plugin plugins} and {@link
-  /// Wordgard.beforeUpdate update handlers} are given instances of
+  /// Wordgard.updateListener update listeners} are given instances of
   /// this class whenever the editor is updated.
   export class Update {
     /// The changes made to the document by this update.

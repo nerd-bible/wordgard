@@ -423,7 +423,7 @@ export namespace GardState {
   /// Examples of uses of facets are the {@link GardState.readOnly
   /// read-only configuration}, {@link
   /// editor.Wordgard.editorAttributes editor attributes}, and {@link
-  /// editor.Wordgard.afterUpdate update listeners}.
+  /// editor.Wordgard.updateListener update listeners}.
   ///
   /// Note that `Facet` instances can be used anywhere where {@link
   /// GardState.Facet.Reader} is expected.
