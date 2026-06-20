@@ -321,7 +321,7 @@ class HistoryState {
     // If possible, add the changes to the top event, otherwise start
     // a new event
     if (done && !done.changes.empty &&
-        (!userEvent || joinableUserEvent.test(userEvent)) &&
+        (!userEvent || joinableUserEvent.test(userEvent) || tr.annotation(Transaction.appended)) &&
         ((time - this.prevTime < config.newGroupDelay &&
           config.joinToEvent(tr, isAdjacent(done.changes, event.changes))) ||
          // For compose (but not compose.start) events, always join with previous event
