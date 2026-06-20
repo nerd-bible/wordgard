@@ -167,7 +167,7 @@ export class Transaction {
   declare static extender: GardState.Facet<(tr: Transaction) => Transaction.Spec | null>
 
   /// A transaction appender can create more transactions in response
-  /// to a transaction. {@link GardState.Transaction.append}, which is
+  /// to a transaction. {@link Transaction.append}, which is
   /// called by the {@link Wordgard editor} when dispatching a
   /// transaction, will call appenders on sets of transactions,
   /// allowing them to add another transaction. When another appender
