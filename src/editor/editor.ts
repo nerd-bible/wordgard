@@ -166,12 +166,17 @@ export class Wordgard {
   /// produced by that transaction. This function is bound to the editor
   /// instance, so it does not have to be called as a method.
   ///
+  /// Will apply {@link Transaction.appender transaction appenders}
+  /// and include any extra transactions they produce in the editor's
+  /// state.
+  ///
   /// Updates will be immediately be reflected in the object's `state`
   /// property, but updating the DOM will be deferred to the next
   /// display update.
   dispatch(tr: Transaction | Transaction.Spec): void {
     if (this.flushing != Flush.No) throw new Error("Cannot dispatch new updates during the editor flush phase")
-    this.viewState.update(tr instanceof Transaction ? tr : this.state.update(tr))
+    for (let t of Transaction.append(tr instanceof Transaction ? tr : this.state.update(tr)))
+      this.viewState.update(t)
     this.scheduleFlush()
   }
 

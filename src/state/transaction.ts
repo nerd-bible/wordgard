@@ -137,6 +137,10 @@ export class Transaction {
   /// collaborative editing.
   declare static remote: Transaction.Annotation.Type<boolean>
 
+  /// A flag set on transactions created by a {@link
+  /// Transaction.appender transaction appender}.
+  declare static appended: Transaction.Annotation.Type<boolean>
+
   /// Merge two transaction specs into a single one, combining the
   /// effect of both. Note that the {@link Transaction.Spec.sequential
   /// `sequential`} field will be interpreted *within* these
@@ -161,6 +165,16 @@ export class Transaction {
   /// modifying transaction is likely to break something or degrade
   /// the user experience.)
   declare static extender: GardState.Facet<(tr: Transaction) => Transaction.Spec | null>
+
+  /// A transaction appender can create more transactions in response
+  /// to a transaction. {@link GardState.Transaction.append}, which is
+  /// called by the {@link Wordgard editor} when dispatching a
+  /// transaction, will call appenders on sets of transactions,
+  /// allowing them to add another transaction. When another appender
+  /// adds a transaction, extenders that already ran will be called
+  /// again, but only with the transactions that were added after they
+  /// ran.
+  declare static appender: GardState.Facet<(trs: readonly Transaction[], state: GardState) => Transaction.Spec | null>
 }
 
 export namespace Transaction {
@@ -197,6 +211,31 @@ export namespace Transaction {
     /// taken to refer to the document created by the changes in the
     /// specs before it.
     sequential?: boolean
+  }
+
+  /// Apply {@link Transaction.appender transaction appenders}, return
+  /// an array of the original transaction plus any that were appended.
+  export function append(tr: Transaction): readonly Transaction[] {
+    let result = [tr], top = tr.state
+    let appenders = tr.startState.facet(Transaction.appender)
+    if (!appenders.length) return result
+    for (let seen = appenders.map(() => 0);;) {
+      let done = true
+      for (let i = 0; i < appenders.length; i++) {
+        let from = seen[i]
+        if (from < result.length) {
+          let add = appenders[i](from ? result.slice(from) : result, top)
+          if (add) {
+            let tr = top.update(add, {annotations: Transaction.appended.of(true)})
+            result.push(tr)
+            top = tr.state
+            done = false
+          }
+          seen[i] = result.length
+        }
+      }
+      if (done) return result
+    }
   }
 
   /// Annotations are tagged values that are used to add metadata to
@@ -307,13 +346,15 @@ export namespace Transaction {
   }
 }
 
-Transaction.time = Transaction.Annotation.define<number>()
+Transaction.time = Transaction.Annotation.define()
 
-Transaction.userEvent = Transaction.Annotation.define<string>()
+Transaction.appended = Transaction.Annotation.define()
 
-Transaction.addToHistory = Transaction.Annotation.define<boolean>()
+Transaction.userEvent = Transaction.Annotation.define()
 
-Transaction.remote = Transaction.Annotation.define<boolean>()
+Transaction.addToHistory = Transaction.Annotation.define()
+
+Transaction.remote = Transaction.Annotation.define()
 
 type ResolvedSpec = {
   changes: ChangeSet,

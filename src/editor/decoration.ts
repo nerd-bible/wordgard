@@ -362,7 +362,8 @@ export namespace Decoration {
       /// a number between 0 and 100, if given.
       rank?: number
       /// Whether this wrapper may span multiple sibling nodes.
-      /// Non-spanning wrappers will be created separately for each node.
+      /// Non-spanning wrappers will be created separately for each
+      /// node. Defaults to true.
       spanning?: boolean
     }
   }

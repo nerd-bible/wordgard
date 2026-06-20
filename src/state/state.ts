@@ -1067,3 +1067,5 @@ GardSelection.selectionType = GardState.Facet.define<SelectionType>({
 })
 
 Transaction.extender = GardState.Facet.define()
+
+Transaction.appender = GardState.Facet.define()

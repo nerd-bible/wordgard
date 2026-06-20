@@ -1,4 +1,5 @@
 import {Wordgard} from "wordgard/editor"
+import {Transaction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
 import {basicBuilders, eq} from "./schema.ts"
 import ist from "ist"
@@ -82,5 +83,13 @@ describe("Wordgard", () => {
     wg.dispatch({changes: {from: 0, insert: [p()]}})
     let c2 = wg.coordsAtPos(4)
     ist(c2.top, c1.top, ">")
+  })
+
+  it("applies transaction appenders", () => {
+    let wg = tempEditor(doc(p()), Transaction.appender.of((trs, state) => {
+      return state.doc.length >= 5 ? {changes: {from: 5, to: state.doc.length, fit: true}} : null
+    }))
+    wg.dispatch({changes: {from: 1, insert: [Leaf.text("more content")]}})
+    ist(wg.state.doc, doc(p("more")), eq)
   })
 })
