@@ -45,7 +45,7 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   },
 
   "&light": {
-    "--wg-panel-color": "#f3f3f5",
+    "--wg-panel-color": "white",
     "--wg-border-color": "#cacacb"
   },
   "&dark": {
@@ -150,21 +150,20 @@ export const baseTheme = buildTheme("." + baseThemeID, {
   },
   ".wg-dialog-button": {
     color: "inherit",
-    padding: ".1em .4em",
-    border: "1px solid var(--wg-border-color)",
+    padding: "3px 9px",
+    border: "none",
     borderRadius: "3px",
   },
   "&light .wg-dialog-button": {
-    backgroundImage: "linear-gradient(#eff1f5, #d9d9df)",
+    backgroundColor: "#eaeaea",
     "&:active": {
-      backgroundImage: "linear-gradient(#b4b4b4, #d0d3d6)"
+      backgroundColor: "#ddd"
     }
   },
   "&dark .wg-dialog-button": {
-    backgroundImage: "linear-gradient(#393939, #111)",
-    border: "1px solid #888",
+    backgroundColor: "#333",
     "&:active": {
-      backgroundImage: "linear-gradient(#111, #333)"
+      backgroundColor: "#222"
     }
   },
 }, lightDarkIDs)
