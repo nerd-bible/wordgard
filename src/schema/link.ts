@@ -90,9 +90,10 @@ const linkTooltipTheme = Wordgard.baseTheme({
 
 /// Extensions for a link mark—the {@link Link schema element}, a
 /// {@link link.keyBinding key binding}, a {@link link.button menu
-/// button}, and the {@link link.tooltip link tooltip}.
+/// button}, the {@link link.tooltip link tooltip}, and the {@link
+/// link.pasteOver paste-link handler}.
 export function link(): GardState.Extension {
-  return [GardState.schemaElement.of(Link), link.button, link.keyBinding, link.tooltip]
+  return [GardState.schemaElement.of(Link), link.button, link.keyBinding, link.tooltip, link.pasteOver]
 }
 
 export namespace link {
@@ -140,4 +141,23 @@ export namespace link {
     })),
     linkTooltipTheme
   ]
+
+  /// Registers a paste handler that, when a URI is pasted over a
+  /// selection, will add a link to the selection instead of replacing
+  /// it with the pasted text.
+  export const pasteOver: GardState.Extension = Wordgard.pasteHandler.of((wg, event) => {
+    let {selection} = wg.state, data = event.clipboardData
+    if (!data || selection.empty) return false
+    let text = data.getData("text/plain") || data.getData("Text") || data.getData("text/uri-list")
+    if (!text || !/^(https?|mailto|xmpp|data):[^ ]+$/.test(text)) return false
+    let link = Link.of(text)
+    let changes = ChangeSet.create(wg.state.doc, {from: selection.from, to: selection.to, add: link})
+    if (changes.empty) return false
+    wg.dispatch({
+      changes,
+      userEvent: "paste.link",
+      scrollIntoView: true
+    })
+    return true
+  })
 }
