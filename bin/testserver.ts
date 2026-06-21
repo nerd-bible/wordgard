@@ -25,6 +25,11 @@ ${files.map(f => `<script type=module src="/_m/${f.replace(/\.\.\//g, "__/")}"><
 
 let base = resolve(import.meta.dirname, ".."), root = join(base, "demo")
 
+function resp404(req: any, resp: any) {
+  resp.statusCode = 404
+  resp.end('Not found')
+}
+
 export function testServer(port: number, open = false) {
   let moduleserver = new ModuleServer({
     root,
@@ -32,6 +37,13 @@ export function testServer(port: number, open = false) {
     transform: (file: string, code: string) => /\.ts$/.test(file) ? transformSync(code).code : code
   })
   let staticserver = serveStatic(root)
+  let websiteRoot = join(base, "website", "output")
+  let websiteServer = fs.existsSync(websiteRoot) && serveStatic(websiteRoot, {
+    setHeaders(res: any, path: string) {
+      if (/modules\/|\/sandbox.js$/.test(path))
+        res.setHeader("Access-Control-Allow-Origin", "*")
+    }
+  })
 
   let server = createServer((req, resp) => {
     let m, url = req.url || "/"
@@ -46,11 +58,11 @@ export function testServer(port: number, open = false) {
       send(req, join(base, "node_modules", "mocha", "mocha." + m[1])).pipe(resp)
     } else if (m = /^\/test\/run-tests.js($|\?)/.exec(url)) {
       send(req, join(base, "bin", "run-tests.js")).pipe(resp)
+    } else if (websiteServer && (m = /^\/website(\/.*)$/.exec(url))) {
+      req.url = m[1]
+      websiteServer(req, resp, resp404)
     } else {
-      moduleserver.handleRequest(req, resp) || staticserver(req, resp, () => {
-        resp.statusCode = 404
-        resp.end('Not found')
-      })
+      moduleserver.handleRequest(req, resp) || staticserver(req, resp, resp404)
     }
   })
   server.listen(port, open ? undefined : "127.0.0.1")
