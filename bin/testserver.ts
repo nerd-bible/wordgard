@@ -25,7 +25,7 @@ ${files.map(f => `<script type=module src="/_m/${f.replace(/\.\.\//g, "__/")}"><
 
 let base = resolve(import.meta.dirname, ".."), root = join(base, "demo")
 
-function resp404(req: any, resp: any) {
+const resp404 = (resp: any) => () => {
   resp.statusCode = 404
   resp.end('Not found')
 }
@@ -60,9 +60,9 @@ export function testServer(port: number, open = false) {
       send(req, join(base, "bin", "run-tests.js")).pipe(resp)
     } else if (websiteServer && (m = /^\/website(\/.*)$/.exec(url))) {
       req.url = m[1]
-      websiteServer(req, resp, resp404)
+      websiteServer(req, resp, resp404(resp))
     } else {
-      moduleserver.handleRequest(req, resp) || staticserver(req, resp, resp404)
+      moduleserver.handleRequest(req, resp) || staticserver(req, resp, resp404(resp))
     }
   })
   server.listen(port, open ? undefined : "127.0.0.1")
