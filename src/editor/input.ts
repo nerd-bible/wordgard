@@ -715,7 +715,7 @@ handlers.beforeinput = (wg, event: InputEvent) => {
     // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
     if (browser.safari && wg.inputState.composing) observers.compositionend(wg, event)
     let insert = event.data!.replace(/\r\n?|\n/g, " ")
-    let {from, to} = inputEventRange(event, wg)
+    let {from, to} = inputEventRange(event, wg, true)
     Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
     return true
   } else if (type == "insertReplacementText" || type == "insertFromYank") {
@@ -771,13 +771,18 @@ handlers.input = (wg, event: InputEvent) => {
   return true
 }
 
-function inputEventRange(event: InputEvent, wg: Wordgard) {
+function inputEventRange(event: InputEvent, wg: Wordgard, preferSel = false) {
   let range = event.getTargetRanges()[0]
   let from = wg.docTile.posFromDOM(range.startContainer, range.startOffset, -1)
   let to = range.collapsed ? from : wg.docTile.posFromDOM(range.endContainer, range.endOffset, 1)
   let {pending} = wg.viewState
   if (pending.length) {
     let comp = wg.inputState.composing
+    if (preferSel && !comp && from == to) {
+      let fromMin = wg.viewState.mapPosPending(from, -1), fromMax = wg.viewState.mapPosPending(from, 1)
+      if (fromMin <= wg.state.selection.from && fromMax >= wg.state.selection.to)
+        return wg.state.selection
+    }
     if (comp && comp.target == range.startContainer) from = comp.targetPos + range.startOffset
     else from = wg.viewState.mapPosPending(from, 1)
     if (comp && comp.target == range.endContainer) to = comp.targetPos + range.endOffset
