@@ -3,7 +3,7 @@ import {join, dirname, resolve} from "node:path"
 import * as fs from "fs"
 import {rollup, type RollupBuild, type Plugin} from "rollup"
 import dts from "rollup-plugin-dts"
-import {parse, type AnyNode} from "acorn"
+import * as acorn from "acorn"
 import {recursive} from "acorn-walk"
 import {Package, packages} from "./packages.ts"
 
@@ -160,9 +160,21 @@ function outputPlugin(output: Output, ext: string, base: Plugin) {
 
 const pure = "/*@__PURE__*/"
 
+function isNamespace(node: acorn.AnyNode): node is acorn.CallExpression {
+  if (node.type != "CallExpression" || node.callee.type != "FunctionExpression" || node.arguments.length != 1)
+    return false
+  let arg = node.arguments[0]
+  return node.callee.params.length == 1 &&
+    arg.type == "LogicalExpression" && arg.operator == "||" && arg.left.type == "Identifier" &&
+    arg.right.type == "AssignmentExpression" && arg.right.right.type == "ObjectExpression" &&
+    arg.left.name == (node.callee.params[0] as acorn.Identifier).name
+}
+
+type Patch = {from: number, to?: number, insert: string}
+
 function processOutput(code: string) {
-  let patches: {from: number, to?: number, insert: string}[] = []
-  function walkCall(node: any, c: (node: AnyNode, state?: any) => void) {
+  let patches: Patch[] = []
+  function walkCall(node: any, c: (node: acorn.AnyNode, state?: any) => void) {
     node.arguments.forEach((n: any) => c(n))
     c(node.callee)
   }
@@ -180,23 +192,27 @@ function processOutput(code: string) {
     }
     patches.push({from, to, insert: ""})
   }
+  function patchNamespace(node: acorn.CallExpression) {
+    let func = node.callee as acorn.FunctionExpression
+    let name = ((node.arguments[0] as acorn.BinaryExpression).left as acorn.Identifier).name
+    let sliceFrom = Math.max(0, node.start - 100)
+    let varDef = /\bvar (\w+);\s*$/.exec(code.slice(sliceFrom, node.start))
+    if (varDef && varDef[1] != name) varDef = null
+    patches.push({from: func.body.end - 1, insert: ";return " + name})
+    patches.push({from: node.arguments[0].start, to: node.arguments[0].end, insert: varDef ? "{}" : name})
+    if (varDef)
+      patches.push({from: varDef.index + sliceFrom + 4 + varDef[1].length, to: node.start, insert: ` = ${pure}`})
+    else
+      patches.push({from: node.start, insert: `;${name} = ${pure}`})
+  }
 
-  let tree = parse(code, {ecmaVersion: "latest", sourceType: "module", onComment: delComment})
+  let tree = acorn.parse(code, {ecmaVersion: "latest", sourceType: "module", onComment: delComment})
   recursive(tree, null, {
     CallExpression(node: any, _s, c) {
       walkCall(node, c)
-      let m
       let iife = node.callee.type == "FunctionExpression"
-      let tsVarKludge = iife && node.callee.params.length == 1 &&
-        (m = /\bvar (\w+);\s*$/.exec(code.slice(node.start - 100, node.start))) &&
-        m[1] == node.callee.params[0].name && node.arguments.length == 1 &&
-        node.arguments[0].type == "LogicalExpression" && node.arguments[0].operator == "||"
-      if (!iife || tsVarKludge) addPure(node.start)
-      // TS-style enum
-      if (tsVarKludge) {
-        patches.push({from: m!.index + 4 + m![1].length + (node.start - 100), to: node.start, insert: " = "})
-        patches.push({from: node.callee.body.end - 1, insert: "return " + m![1]})
-      }
+      if (iife && isNamespace(node)) patchNamespace(node)
+      else if (!iife) addPure(node.start)
     },
     NewExpression(node, _s, c) {
       walkCall(node, c)
