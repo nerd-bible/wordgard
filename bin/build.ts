@@ -176,7 +176,9 @@ function processOutput(code: string) {
   // think there are side effects happening. Wrap the whole call in a
   // pure-declared immediately invoked function.
   function wrapPure(node: acorn.AnyNode) {
-    patches.push({from: node.start, insert: `${pure}(() => `}, {from: node.end, insert: `)()`})
+    let parens = node.type == "ObjectExpression"
+    patches.push({from: node.start, insert: `${pure}(() => ${parens ? "(" : ""}`},
+                 {from: node.end, insert: `${parens ? ")" : ""})()`})
   }
 
   function delComment(isBlock: boolean, text: string, from: number, to: number) {
@@ -235,7 +237,13 @@ function processOutput(code: string) {
         c(node.left, null)
         c(node.right, null)
       }
-    }
+    },
+    VariableDeclaration(node, _s, c) {
+      for (let decl of node.declarations) if (decl.init) {
+        if (decl.init.type != "CallExpression" && hasPotentialEffects(decl.init)) wrapPure(decl.init)
+        else c(decl.init, null)
+      }
+    },
   })
   patches.sort((a, b) => a.from - b.from)
   for (let pos = 0, i = 0, result = "";; i++) {
