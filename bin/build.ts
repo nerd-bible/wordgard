@@ -128,6 +128,8 @@ function outputPlugin(output: Output, ext: string, base: Plugin) {
 
 const pure = "/*@__PURE__*/"
 
+function prefix(name: string) { return /^[^_]*/.exec(name)![0] }
+
 function isNamespace(node: acorn.AnyNode): node is acorn.CallExpression {
   if (node.type != "CallExpression" || node.callee.type != "FunctionExpression" || node.arguments.length != 1)
     return false
@@ -135,7 +137,7 @@ function isNamespace(node: acorn.AnyNode): node is acorn.CallExpression {
   return node.callee.params.length == 1 &&
     arg.type == "LogicalExpression" && arg.operator == "||" && arg.left.type == "Identifier" &&
     arg.right.type == "AssignmentExpression" && arg.right.right.type == "ObjectExpression" &&
-    arg.left.name == (node.callee.params[0] as acorn.Identifier).name
+    prefix(arg.left.name) == (node.callee.params[0] as acorn.Identifier).name
 }
 
 type Patch = {from: number, to?: number, insert: string}
@@ -178,9 +180,8 @@ function processOutput(code: string) {
   recursive(tree, null, {
     CallExpression(node: any, _s, c) {
       walkCall(node, c)
-      let iife = node.callee.type == "FunctionExpression"
-      if (iife && isNamespace(node)) patchNamespace(node)
-      else if (!iife) addPure(node.start)
+      if (isNamespace(node)) patchNamespace(node)
+      else addPure(node.start)
     },
     NewExpression(node, _s, c) {
       walkCall(node, c)
