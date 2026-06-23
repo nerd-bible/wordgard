@@ -89,58 +89,6 @@ export class Transaction {
     return !!(e && (e == event || e.length > event.length && e.startsWith(event) && e[event.length] == "."))
   }
 
-  /// Annotation used to store transaction timestamps. Automatically
-  /// added to every transaction, holding `Date.now()`.
-  declare static time: Transaction.Annotation.Type<number>
-
-  /// Annotation used to associate a transaction with a user interface
-  /// event. Holds a string identifying the event, using a
-  /// dot-separated format to support attaching more specific
-  /// information. The events used by the core libraries are:
-  ///
-  ///  - `"input"` when content is entered
-  ///    - `"input.type"` for typed input
-  ///      - `"input.type.compose"` for composition
-  ///    - `"input.paste"` for pasted input
-  ///    - `"input.drop"` when adding content with drag-and-drop
-  ///  - `"delete"` when the user deletes content
-  ///    - `"delete.selection"` when deleting the selection
-  ///    - `"delete.forward"` when deleting forward from the selection
-  ///    - `"delete.backward"` when deleting backward from the selection
-  ///    - `"delete.cut"` when cutting to the clipboard
-  ///  - `"move"` when content is moved
-  ///    - `"move.drop"` when content is moved within the editor
-  ///      through drag-and-drop
-  ///  - `"select"` when explicitly changing the selection
-  ///    - `"select.pointer"` when selecting with a mouse or other pointing
-  ///      device
-  ///    - `"select.all"` when selecting the entire document
-  ///  - `"undo"` and `"redo"` for history actions
-  ///  - `"insert"` for actions that insert nodes
-  ///  - `"mark"` for actions that manipulate marks
-  ///    - `"mark.add"` when a command adds a mark
-  ///    - `"mark.remove"` when a command removes one
-  ///  - `"split"`, `"wrap"`, `"settype"`, `"wrap"`, `"unwrap"` for
-  ///    block manipulation actions
-  ///
-  /// Use {@link Transaction.isUserEvent `isUserEvent`} to check
-  /// whether the annotation matches a given event.
-  declare static userEvent: Transaction.Annotation.Type<string>
-
-  /// Annotation indicating whether a transaction should be added to
-  /// the undo history or not.
-  declare static addToHistory: Transaction.Annotation.Type<boolean>
-
-  /// Annotation indicating (when present and true) that a transaction
-  /// represents a change made by some other actor, not the user. This
-  /// is used, for example, to tag other people's changes in
-  /// collaborative editing.
-  declare static remote: Transaction.Annotation.Type<boolean>
-
-  /// A flag set on transactions created by a {@link
-  /// Transaction.appender transaction appender}.
-  declare static appended: Transaction.Annotation.Type<boolean>
-
   /// Merge two transaction specs into a single one, combining the
   /// effect of both. Note that the {@link Transaction.Spec.sequential
   /// `sequential`} field will be interpreted *within* these
@@ -270,6 +218,60 @@ export namespace Transaction {
     }
   }
 
+  export declare const foo: number
+
+  /// Annotation used to store transaction timestamps. Automatically
+  /// added to every transaction, holding `Date.now()`.
+  export const time = Transaction.Annotation.define<number>()
+
+  /// Annotation used to associate a transaction with a user interface
+  /// event. Holds a string identifying the event, using a
+  /// dot-separated format to support attaching more specific
+  /// information. The events used by the core libraries are:
+  ///
+  ///  - `"input"` when content is entered
+  ///    - `"input.type"` for typed input
+  ///      - `"input.type.compose"` for composition
+  ///    - `"input.paste"` for pasted input
+  ///    - `"input.drop"` when adding content with drag-and-drop
+  ///  - `"delete"` when the user deletes content
+  ///    - `"delete.selection"` when deleting the selection
+  ///    - `"delete.forward"` when deleting forward from the selection
+  ///    - `"delete.backward"` when deleting backward from the selection
+  ///    - `"delete.cut"` when cutting to the clipboard
+  ///  - `"move"` when content is moved
+  ///    - `"move.drop"` when content is moved within the editor
+  ///      through drag-and-drop
+  ///  - `"select"` when explicitly changing the selection
+  ///    - `"select.pointer"` when selecting with a mouse or other pointing
+  ///      device
+  ///    - `"select.all"` when selecting the entire document
+  ///  - `"undo"` and `"redo"` for history actions
+  ///  - `"insert"` for actions that insert nodes
+  ///  - `"mark"` for actions that manipulate marks
+  ///    - `"mark.add"` when a command adds a mark
+  ///    - `"mark.remove"` when a command removes one
+  ///  - `"split"`, `"wrap"`, `"settype"`, `"wrap"`, `"unwrap"` for
+  ///    block manipulation actions
+  ///
+  /// Use {@link Transaction.isUserEvent `isUserEvent`} to check
+  /// whether the annotation matches a given event.
+  export const userEvent = Annotation.define<string>()
+
+  /// Annotation indicating whether a transaction should be added to
+  /// the undo history or not.
+  export const addToHistory = Annotation.define<boolean>()
+
+  /// Annotation indicating (when present and true) that a transaction
+  /// represents a change made by some other actor, not the user. This
+  /// is used, for example, to tag other people's changes in
+  /// collaborative editing.
+  export const remote = Annotation.define<boolean>()
+
+  /// A flag set on transactions created by a {@link
+  /// Transaction.appender transaction appender}.
+  export const appended = Annotation.define<boolean>()
+
   /// Transaction effects can be used to represent additional effects
   /// associated with a {@link Transaction.effects transaction}. They
   /// are often useful to model changes to custom {@link
@@ -345,16 +347,6 @@ export namespace Transaction {
     }
   }
 }
-
-Transaction.time = Transaction.Annotation.define()
-
-Transaction.appended = Transaction.Annotation.define()
-
-Transaction.userEvent = Transaction.Annotation.define()
-
-Transaction.addToHistory = Transaction.Annotation.define()
-
-Transaction.remote = Transaction.Annotation.define()
 
 type ResolvedSpec = {
   changes: ChangeSet,

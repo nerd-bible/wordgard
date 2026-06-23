@@ -214,8 +214,8 @@ function computeHandlers(state: GardState) {
   let h = state.facet(eventHandler), o = state.facet(eventObserver)
   for (let type in h) for (let handler of h[type]) record(type).handlers.push(bindHandler(handler))
   for (let type in o) for (let observer of o[type]) record(type).observers.push(bindHandler(observer))
-  for (let type in handlers) record(type).handlers.push(handlers[type])
-  for (let type in observers) record(type).observers.push(observers[type])
+  for (let type in baseHandlers) record(type).handlers.push((baseHandlers as any)[type])
+  for (let type in baseObservers) record(type).observers.push((baseObservers as any)[type])
   return result
 }
 
@@ -374,58 +374,6 @@ function eventBelongsToEditor(wg: Wordgard, event: Event): boolean {
   return true
 }
 
-// FIXME use something less messy?
-const handlers: {[key: string]: (wg: Wordgard, event: any) => boolean} = Object.create(null)
-const observers: {[key: string]: (wg: Wordgard, event: any) => undefined} = Object.create(null)
-
-observers.scroll = wg => {
-  wg.inputState.lastScrollTop = wg.scrollDOM.scrollTop
-  wg.inputState.lastScrollLeft = wg.scrollDOM.scrollLeft
-}
-
-handlers.keydown = (wg, event: KeyboardEvent) => {
-  wg.inputState.setSelectionOrigin("select")
-  return KeyBinding.runScopeHandlers(wg, event, "editor")
-}
-
-// FIXME proper strategy for touch handling
-
-observers.touchstart = (wg, e) => {
-  wg.inputState.lastTouchTime = Date.now()
-  wg.inputState.setSelectionOrigin("select.pointer")
-}
-
-observers.touchmove = wg => {
-  wg.inputState.setSelectionOrigin("select.pointer")
-}
-
-handlers.mousedown = (wg, event: MouseEvent) => {
-  wg.inputState.shiftKey = event.shiftKey
-  if (wg.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
-  let style: Wordgard.MouseSelectionStyle | null = null
-  for (let makeStyle of wg.state.facet(mouseSelectionStyle)) {
-    style = makeStyle(wg, event)
-    if (style) break
-  }
-  if (!style && event.button == 0) style = basicMouseSelection(wg, event)
-  if (style) {
-    let mustFocus = !wg.hasFocus
-    wg.inputState.startMouseSelection(new MouseSelection(wg, event, style, mustFocus))
-    if (mustFocus) wg.observer.ignore(() => {
-      // FIXME on Firefox this somehow focuses the cell selection
-      wg.contentDOM.focus({preventScroll: true})
-      let active = wg.root.activeElement
-      if (active && !active.contains(wg.contentDOM)) (active as HTMLElement).blur()
-    })
-    let mouseSel = wg.inputState.mouseSelection
-    if (mouseSel) {
-      mouseSel.start(event)
-      return mouseSel.dragging === false
-    }
-  }
-  return false
-}
-
 function queryPos(wg: Wordgard, event: MouseEvent) {
   return wg.posAtCoords({x: event.clientX, y: event.clientY}) as CoordPos
 }
@@ -476,25 +424,6 @@ function basicMouseSelection(wg: Wordgard, event: MouseEvent) {
 
 // FIXME implement a dropcursor extension
 
-handlers.dragstart = (wg, event: DragEvent) => {
-  let {selection} = wg.state
-  let {inputState} = wg
-  if (inputState.mouseSelection) inputState.mouseSelection.dragging = true
-  inputState.draggedContent = selection
-
-  if (event.dataTransfer) {
-    let {slice, context} = selectionSlice(wg.state)
-    writeClipboard(wg.state, slice, context, event.dataTransfer)
-    event.dataTransfer.effectAllowed = "copyMove"
-  }
-  return false
-}
-
-handlers.dragend = wg => {
-  wg.inputState.draggedContent = null
-  return false
-}
-
 export const dropHandler = GardState.Facet.define<(
   wg: Wordgard,
   event: DragEvent,
@@ -504,59 +433,12 @@ export const dropHandler = GardState.Facet.define<(
   context: readonly Plot.Tag[]
 ) => boolean>()
 
-handlers.drop = (wg, event: DragEvent) => {
-  if (!event.dataTransfer || wg.state.readOnly) return true
-  let content = readClipboard(wg.state, event.dataTransfer, wg.state.sel.head, false)
-  if (!content) return false
-
-  let dropPos = wg.posAtCoords({x: event.clientX, y: event.clientY}).pos
-  let {draggedContent} = wg.inputState
-  let del = draggedContent && dragMovesSelection(wg, event)
-    ? {from: draggedContent.from, to: draggedContent.to} : null
-  if (wg.state.facet(dropHandler).some(f => f(wg, event, dropPos, del, content.slice, content.context)))
-    return true
-  let ins = {from: dropPos, insert: content.slice, fit: content.context}
-  let changes = ChangeSet.create(wg.state.doc, del ? [del, ins] : ins)
-  wg.focus()
-  wg.dispatch({
-    changes,
-    selection: GardSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
-    userEvent: del ? "move.drop" : "input.drop"
-  })
-  wg.inputState.draggedContent = null
-  return true
-}
-
 export const pasteHandler = GardState.Facet.define<(
   wg: Wordgard,
   event: ClipboardEvent,
   slice: Slice,
   context: readonly Plot.Tag[]
 ) => boolean>()
-
-handlers.paste = (wg: Wordgard, event: ClipboardEvent) => {
-  if (wg.state.readOnly || !event.clipboardData) return true
-  let {state} = wg
-  let content = readClipboard(state, event.clipboardData, state.sel.head, wg.inputState.shiftKey)
-  if (wg.state.facet(pasteHandler).some(h => h(wg, event, content ? content.slice : Slice.empty,
-                                               content ? content.context : [])))
-    return true
-  if (content) { // FIXME proper multi-selection pasting
-    let changes = ChangeSet.create(wg.state.doc, {
-      from: state.selection.from,
-      to: state.selection.to,
-      insert: content.slice,
-      fit: content.context
-    })
-    wg.dispatch({
-      changes,
-      selection: cx => GardSelection.near(cx, changes.mapPos(state.selection.to, 1), -1),
-      userEvent: "input.paste",
-      scrollIntoView: true
-    })
-  }
-  return true
-}
 
 function selectionSlice(state: GardState) { // FIXME smarter primitive?
   return {
@@ -565,7 +447,7 @@ function selectionSlice(state: GardState) { // FIXME smarter primitive?
   }
 }
 
-handlers.copy = handlers.cut = (wg, event: ClipboardEvent) => {
+function copy(wg: Wordgard, event: ClipboardEvent) {
   let {state} = wg
   if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
     let {slice, context} = selectionSlice(state)
@@ -590,49 +472,6 @@ function updateForFocusChange(wg: Wordgard) {
       wg.dispatch({annotations: isFocusChange.of(focus)})
     }
   }, 10)
-}
-
-observers.focus = wg => {
-  // When focusing reset the scroll position, move it back to where it was
-  if (!wg.scrollDOM.scrollTop && (wg.inputState.lastScrollTop || wg.inputState.lastScrollLeft)) {
-    wg.scrollDOM.scrollTop = wg.inputState.lastScrollTop
-    wg.scrollDOM.scrollLeft = wg.inputState.lastScrollLeft
-  }
-  updateForFocusChange(wg)
-}
-
-observers.blur = wg => {
-  wg.observer.clearSelectionRange()
-  updateForFocusChange(wg)
-}
-
-observers.compositionstart = observers.compositionupdate = (wg, event: CompositionEvent) => {
-  if (!wg.inputState.composing) {
-    wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
-
-    let wrap: Mark.Set | null = null
-    if (!wg.inputState.composing.changes && !event.data) {
-      let sel = wg.state.selection, rSel = wg.state.sel
-      if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
-          !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
-        wrap = rSel.activeMarks
-    }
-
-    if (wrap) try {
-      wg.inputState.wrappingComposition = wrap
-      wg.flush()
-    } finally { wg.inputState.wrappingComposition = null }
-  }
-}
-
-observers.compositionend = wg => {
-  let comp = wg.inputState.composing
-  wg.inputState.composing = null
-  wg.inputState.compositionEndedAt = Date.now()
-  if (comp && comp.target) {
-    wg.observer.addDirtyRange(comp.targetPos, comp.targetPos + comp.target.nodeValue!.length)
-    wg.flush()
-  }
 }
 
 export type CompositionInfo = {
@@ -670,8 +509,33 @@ function findCompositionSelection(node: DOMNode, offset: number, target: Text, t
   return targetPos
 }
 
-observers.contextmenu = wg => {
-  wg.inputState.lastContextMenu = Date.now()
+function compositionEnd(wg: Wordgard) {
+  let comp = wg.inputState.composing
+  wg.inputState.composing = null
+  wg.inputState.compositionEndedAt = Date.now()
+  if (comp && comp.target) {
+    wg.observer.addDirtyRange(comp.targetPos, comp.targetPos + comp.target.nodeValue!.length)
+    wg.flush()
+  }
+}
+
+function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
+  if (!wg.inputState.composing) {
+    wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
+
+    let wrap: Mark.Set | null = null
+    if (!wg.inputState.composing.changes && !event.data) {
+      let sel = wg.state.selection, rSel = wg.state.sel
+      if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
+        !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
+        wrap = rSel.activeMarks
+    }
+
+    if (wrap) try {
+      wg.inputState.wrappingComposition = wrap
+      wg.flush()
+    } finally { wg.inputState.wrappingComposition = null }
+  }
 }
 
 const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
@@ -702,75 +566,6 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   formatJustifyRight: Command.bind(setAlignment, "right")
 }
 
-handlers.beforeinput = (wg, event: InputEvent) => {
-  let type = event.inputType
-
-  let command = inputTypeCommands[type]
-  if (command) {
-    Command.dispatch(wg, command)
-    return true
-  }
-
-  if (type == "insertText") {
-    // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
-    if (browser.safari && wg.inputState.composing) observers.compositionend(wg, event)
-    let insert = event.data!.replace(/\r\n?|\n/g, " ")
-    let {from, to} = inputEventRange(event, wg, true)
-    Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
-    return true
-  } else if (type == "insertReplacementText" || type == "insertFromYank") {
-    let slice = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)?.slice
-    if (slice) {
-      let {from, to} = inputEventRange(event, wg)
-      wg.dispatch({changes: {from, to, insert: slice, fit: true}})
-      return true
-    }
-  } else if (type == "insertCompositionText") {
-    if (!wg.inputState.composing)
-      wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
-    let range = inputEventRange(event, wg)
-    wg.inputState.pendingComposition = {from: range.from, to: range.to, text: event.data!}
-  } else if (type == "formatSetBlockTextDirection") {
-    if (event.data == "ltr" || event.data == "rtl")
-      Command.dispatch(wg, setDirection, event.data)
-  }
-  return false
-}
-
-handlers.input = (wg, event: InputEvent) => {
-  if (event.inputType == "insertCompositionText" && wg.inputState.pendingComposition) {
-    let {from, to, text} = wg.inputState.pendingComposition
-    wg.inputState.pendingComposition = null
-    let start = !wg.inputState.composing!.changes
-    wg.inputState.composing!.changes++
-    wg.observer.readSelectionRange()
-    let sel = wg.observer.selectionRange
-    if (!sel.focusNode) return false
-    let comp = wg.inputState.findComposition()
-    let userEvent = "input.type.compose" + (start ? ".start" : "")
-    if (comp && sel.focusNode) {
-      let anchor = findCompositionSelection(sel.anchorNode!, sel.anchorOffset, comp.target, comp.targetPos)
-      let head = sel.empty ? anchor : findCompositionSelection(sel.focusNode, sel.focusOffset, comp.target, comp.targetPos)
-      if (head != anchor || head != from + text.length) {
-        let {selection} = wg.state
-        let marks = (from == selection.from && to == selection.to && wg.state.sel.activeMarks) ||
-          wg.state.doc.resolve(from).marks(wg.state.doc.resolve(to))
-        // FIXME give custom handlers a chance to handle this?
-        // FIXME selection may not be valid if change needs wrapping
-        wg.dispatch({
-          changes: {from, to, insert: [Leaf.Text.of(text, marks)], fit: true},
-          selection: GardSelection.range(anchor, head),
-          userEvent
-        })
-        return false
-      }
-    }
-    Command.dispatch(wg, insertText, {from, to, insert: text, userEvent})
-    return false
-  }
-  return true
-}
-
 function inputEventRange(event: InputEvent, wg: Wordgard, preferSel = false) {
   let range = event.getTargetRanges()[0]
   let from = wg.docTile.posFromDOM(range.startContainer, range.startOffset, -1)
@@ -789,4 +584,218 @@ function inputEventRange(event: InputEvent, wg: Wordgard, preferSel = false) {
     else to = wg.viewState.mapPosPending(to, 1)
   }
   return {from, to}
+}
+
+const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HTMLElementEventMap[e]) => boolean} = {
+  keydown(wg, event) {
+    wg.inputState.setSelectionOrigin("select")
+    return KeyBinding.runScopeHandlers(wg, event, "editor")
+  },
+
+  mousedown(wg, event) {
+    wg.inputState.shiftKey = event.shiftKey
+    if (wg.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
+    let style: Wordgard.MouseSelectionStyle | null = null
+    for (let makeStyle of wg.state.facet(mouseSelectionStyle)) {
+      style = makeStyle(wg, event)
+      if (style) break
+    }
+    if (!style && event.button == 0) style = basicMouseSelection(wg, event)
+    if (style) {
+      let mustFocus = !wg.hasFocus
+      wg.inputState.startMouseSelection(new MouseSelection(wg, event, style, mustFocus))
+      if (mustFocus) wg.observer.ignore(() => {
+        // FIXME on Firefox this somehow focuses the cell selection
+        wg.contentDOM.focus({preventScroll: true})
+        let active = wg.root.activeElement
+        if (active && !active.contains(wg.contentDOM)) (active as HTMLElement).blur()
+      })
+      let mouseSel = wg.inputState.mouseSelection
+      if (mouseSel) {
+        mouseSel.start(event)
+        return mouseSel.dragging === false
+      }
+    }
+    return false
+  },
+
+  dragstart(wg, event) {
+    let {selection} = wg.state
+    let {inputState} = wg
+    if (inputState.mouseSelection) inputState.mouseSelection.dragging = true
+    inputState.draggedContent = selection
+
+    if (event.dataTransfer) {
+      let {slice, context} = selectionSlice(wg.state)
+      writeClipboard(wg.state, slice, context, event.dataTransfer)
+      event.dataTransfer.effectAllowed = "copyMove"
+    }
+    return false
+  },
+
+  dragend(wg) {
+    wg.inputState.draggedContent = null
+    return false
+  },
+  
+  copy,
+  cut: copy,
+
+  drop(wg, event) {
+    if (!event.dataTransfer || wg.state.readOnly) return true
+    let content = readClipboard(wg.state, event.dataTransfer, wg.state.sel.head, false)
+    if (!content) return false
+
+    let dropPos = wg.posAtCoords({x: event.clientX, y: event.clientY}).pos
+    let {draggedContent} = wg.inputState
+    let del = draggedContent && dragMovesSelection(wg, event)
+      ? {from: draggedContent.from, to: draggedContent.to} : null
+    if (wg.state.facet(dropHandler).some(f => f(wg, event, dropPos, del, content.slice, content.context)))
+      return true
+    let ins = {from: dropPos, insert: content.slice, fit: content.context}
+    let changes = ChangeSet.create(wg.state.doc, del ? [del, ins] : ins)
+    wg.focus()
+    wg.dispatch({
+      changes,
+      selection: GardSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
+      userEvent: del ? "move.drop" : "input.drop"
+    })
+    wg.inputState.draggedContent = null
+    return true
+  },
+
+  paste(wg, event) {
+    if (wg.state.readOnly || !event.clipboardData) return true
+    let {state} = wg
+    let content = readClipboard(state, event.clipboardData, state.sel.head, wg.inputState.shiftKey)
+    if (wg.state.facet(pasteHandler).some(h => h(wg, event, content ? content.slice : Slice.empty,
+                                                 content ? content.context : [])))
+      return true
+    if (content) { // FIXME proper multi-selection pasting
+      let changes = ChangeSet.create(wg.state.doc, {
+        from: state.selection.from,
+        to: state.selection.to,
+        insert: content.slice,
+        fit: content.context
+      })
+      wg.dispatch({
+        changes,
+        selection: cx => GardSelection.near(cx, changes.mapPos(state.selection.to, 1), -1),
+        userEvent: "input.paste",
+        scrollIntoView: true
+      })
+    }
+    return true
+  },
+
+  beforeinput(wg, event) {
+    let type = event.inputType
+
+    let command = inputTypeCommands[type]
+    if (command) {
+      Command.dispatch(wg, command)
+      return true
+    }
+
+    if (type == "insertText") {
+      // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
+      if (browser.safari && wg.inputState.composing) compositionEnd(wg)
+      let insert = event.data!.replace(/\r\n?|\n/g, " ")
+      let {from, to} = inputEventRange(event, wg, true)
+      Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
+      return true
+    } else if (type == "insertReplacementText" || type == "insertFromYank") {
+      let slice = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)?.slice
+      if (slice) {
+        let {from, to} = inputEventRange(event, wg)
+        wg.dispatch({changes: {from, to, insert: slice, fit: true}})
+        return true
+      }
+    } else if (type == "insertCompositionText") {
+      if (!wg.inputState.composing)
+        wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
+      let range = inputEventRange(event, wg)
+      wg.inputState.pendingComposition = {from: range.from, to: range.to, text: event.data!}
+    } else if (type == "formatSetBlockTextDirection") {
+      if (event.data == "ltr" || event.data == "rtl")
+        Command.dispatch(wg, setDirection, event.data)
+    }
+    return false
+  },
+
+  input(wg, event) {
+    if (event.inputType == "insertCompositionText" && wg.inputState.pendingComposition) {
+      let {from, to, text} = wg.inputState.pendingComposition
+      wg.inputState.pendingComposition = null
+      let start = !wg.inputState.composing!.changes
+      wg.inputState.composing!.changes++
+      wg.observer.readSelectionRange()
+      let sel = wg.observer.selectionRange
+      if (!sel.focusNode) return false
+      let comp = wg.inputState.findComposition()
+      let userEvent = "input.type.compose" + (start ? ".start" : "")
+      if (comp && sel.focusNode) {
+        let anchor = findCompositionSelection(sel.anchorNode!, sel.anchorOffset, comp.target, comp.targetPos)
+        let head = sel.empty ? anchor : findCompositionSelection(sel.focusNode, sel.focusOffset, comp.target, comp.targetPos)
+        if (head != anchor || head != from + text.length) {
+          let {selection} = wg.state
+          let marks = (from == selection.from && to == selection.to && wg.state.sel.activeMarks) ||
+            wg.state.doc.resolve(from).marks(wg.state.doc.resolve(to))
+          // FIXME give custom handlers a chance to handle this?
+          // FIXME selection may not be valid if change needs wrapping
+          wg.dispatch({
+            changes: {from, to, insert: [Leaf.Text.of(text, marks)], fit: true},
+            selection: GardSelection.range(anchor, head),
+            userEvent
+          })
+          return false
+        }
+      }
+      Command.dispatch(wg, insertText, {from, to, insert: text, userEvent})
+      return false
+    }
+    return true
+  }
+}
+
+const baseObservers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HTMLElementEventMap[e]) => void} = {
+  scroll(wg) {
+    wg.inputState.lastScrollTop = wg.scrollDOM.scrollTop
+    wg.inputState.lastScrollLeft = wg.scrollDOM.scrollLeft
+  },
+
+// FIXME proper strategy for touch handling
+  touchstart(wg, e) {
+    wg.inputState.lastTouchTime = Date.now()
+    wg.inputState.setSelectionOrigin("select.pointer")
+  },
+
+  touchmove(wg) {
+    wg.inputState.setSelectionOrigin("select.pointer")
+  },
+
+  focus(wg) {
+    // When focusing reset the scroll position, move it back to where it was
+    if (!wg.scrollDOM.scrollTop && (wg.inputState.lastScrollTop || wg.inputState.lastScrollLeft)) {
+      wg.scrollDOM.scrollTop = wg.inputState.lastScrollTop
+      wg.scrollDOM.scrollLeft = wg.inputState.lastScrollLeft
+    }
+    updateForFocusChange(wg)
+  },
+
+  blur(wg) {
+    wg.observer.clearSelectionRange()
+    updateForFocusChange(wg)
+  },
+
+  compositionstart: compositionUpdate,
+  compositionupdate: compositionUpdate,
+
+  compositionend(wg) {
+    compositionEnd(wg)
+  },
+
+  contextmenu(wg) {
+    wg.inputState.lastContextMenu = Date.now()
+  }
 }

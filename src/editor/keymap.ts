@@ -366,10 +366,15 @@ function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard, scope: str
 
 function codePointSize(code: number): 1 | 2 { return code < 0x10000 ? 1 : 2 }
 
-const charKeyCodes: Record<number, string> = {
-  32: " ", 59: ";", 61: "=", 106: "*", 107: "+", 108: ",", 109: "-", 110: ".", 111: "/", 173: "-",
-  186: ";", 187: "=", 188: ",", 189: "-", 190: ".", 191: "/", 192: "`", 219: "[", 220: "\\", 221: "]", 222: "'"
+function buildCharKeyCodes() {
+  let result: Record<number, string> = {
+    32: " ", 59: ";", 61: "=", 106: "*", 107: "+", 108: ",", 109: "-", 110: ".", 111: "/", 173: "-",
+    186: ";", 187: "=", 188: ",", 189: "-", 190: ".", 191: "/", 192: "`", 219: "[", 220: "\\", 221: "]", 222: "'"
+  }
+  for (var i = 0; i < 10; i++) result[48 + i] = String(i) // Digits
+  for (var i = 1; i <= 24; i++) result[i + 111] = "F" + i // Function keys
+  for (var i = 65; i <= 90; i++) result[i] = String.fromCharCode(i + 32) // Letters
+  return result
 }
-for (var i = 0; i < 10; i++) charKeyCodes[48 + i] = String(i) // Digits
-for (var i = 1; i <= 24; i++) charKeyCodes[i + 111] = "F" + i // Function keys
-for (var i = 65; i <= 90; i++) charKeyCodes[i] = String.fromCharCode(i + 32) // Letters
+
+const charKeyCodes = buildCharKeyCodes()

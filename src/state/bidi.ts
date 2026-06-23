@@ -26,14 +26,19 @@ const LowTypes = dec("8888888888888888888888888888888888866688888878783333333333
 // Character types for codepoints 0x600 to 0x6f9
 const ArabicTypes = dec("4444448826627288999999999992222222222222222222222222222222222222222222222229999999999999999999994444444444644222822222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222999999949999999229989999223333333333")
 
-const Brackets = Object.create(null), BracketStack: number[] = []
-// There's a lot more in
-// https://www.unicode.org/Public/UCD/latest/ucd/BidiBrackets.txt,
-// which are left out to keep code size down.
-for (let p of ["()", "[]", "{}"]) {
-  let l = p.charCodeAt(0), r = p.charCodeAt(1)
-  Brackets[l] = r; Brackets[r] = -l
-}
+const Brackets = (() => {
+  let result = Object.create(null)
+  // There's a lot more in
+  // https://www.unicode.org/Public/UCD/latest/ucd/BidiBrackets.txt,
+  // which are left out to keep code size down.
+  for (let p of ["()", "[]", "{}"]) {
+    let l = p.charCodeAt(0), r = p.charCodeAt(1)
+    result[l] = r; result[r] = -l
+  }
+  return result
+})()
+
+const BracketStack: number[] = []
 
 // Tracks direction in and before bracketed ranges.
 const enum Bracketed {

@@ -776,7 +776,7 @@ function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: 
   return base
 }
 
-export const basePlugins: Wordgard.Plugin<any>[] = []
+export let basePlugins: Wordgard.Plugin<any>[] = []
 
 export const editorPlugin = GardState.Facet.define<Wordgard.Plugin<any>>({
   combine: plugins => basePlugins.concat(plugins)
