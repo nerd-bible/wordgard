@@ -1,13 +1,13 @@
 {
   "compilerOptions": {
-    "lib": ["es2021", "dom"],
+    "lib": ["es2022", "dom"],
     "typeRoots": ["./node_modules/@types"],
     "types": ["mocha"],
     "stripInternal": true,
     "noUnusedLocals": true,
     "strict": true,
-    "target": "es2021",
-    "module": "es2020",
+    "target": "es2022",
+    "module": "esnext",
     "newLine": "lf",
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

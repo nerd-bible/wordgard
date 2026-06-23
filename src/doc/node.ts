@@ -990,6 +990,7 @@ function joinText(nodes: readonly Node[]) {
   return joined || nodes
 }
 
+// FIXME Is this still needed?
 function checkTagName(name: string) {
   if (/[\s:]/.test(name)) throw new Error(`Tag names may not include space or colon characters (${name})`)
   if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
