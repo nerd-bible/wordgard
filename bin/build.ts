@@ -128,16 +128,34 @@ function outputPlugin(output: Output, ext: string, base: Plugin) {
 
 const pure = "/*@__PURE__*/"
 
-function prefix(name: string) { return /^[^_]*/.exec(name)![0] }
+function sameName(arg: string, base: string) {
+  return arg == base || arg.startsWith(base + "_")
+}
 
-function isNamespace(node: acorn.AnyNode): node is acorn.CallExpression {
+// Recognize the pattern emitted for TS namespace (immediately invoked
+// function expressions with a single parameter, an argument in the
+// form of `x || (x = {})`, and a match between the parameter and
+// argument name.
+function isNamespace(node: acorn.AnyNode) {
   if (node.type != "CallExpression" || node.callee.type != "FunctionExpression" || node.arguments.length != 1)
     return false
   let arg = node.arguments[0]
   return node.callee.params.length == 1 &&
     arg.type == "LogicalExpression" && arg.operator == "||" && arg.left.type == "Identifier" &&
     arg.right.type == "AssignmentExpression" && arg.right.right.type == "ObjectExpression" &&
-    prefix(arg.left.name) == (node.callee.params[0] as acorn.Identifier).name
+    sameName(arg.left.name, (node.callee.params[0] as acorn.Identifier).name)
+}
+
+function hasPotentialEffects(node: acorn.AnyNode) {
+  let has = false
+  recursive(node, null, {
+    CallExpression() { has = true },
+    NewExpression() { has = true },
+    AssignmentExpression() { has = true },
+    MemberExpression() { has = true },
+    UpdateExpression() { has = true }
+  })
+  return has
 }
 
 type Patch = {from: number, to?: number, insert: string}
@@ -148,12 +166,23 @@ function processOutput(code: string) {
     node.arguments.forEach((n: any) => c(n))
     c(node.callee)
   }
+
   function addPure(pos: number) {
     let last = patches.length ? patches[patches.length - 1] : null
     if (!last || last.from != pos || last.insert != pure)
       patches.push({from: pos, insert: pure})
   }
-  function delComment(isBlock: boolean, _text: string, from: number, to: number) {
+
+  // This call (generally something like Plot.define) takes arguments
+  // that will, even if we mark the call as pure, cause Rollup to
+  // think there are side effects happening. Wrap the whole call in a
+  // pure-declared immediately invoked function.
+  function wrapPure(node: acorn.AnyNode) {
+    patches.push({from: node.start, insert: `${pure}(() => `}, {from: node.end, insert: `)()`})
+  }
+
+  function delComment(isBlock: boolean, text: string, from: number, to: number) {
+    if (/@__PURE__/.test(text)) return
     if (!isBlock || code[to] == "\n") to++
     while (from) {
       let prev = code[from - 1]
@@ -162,25 +191,32 @@ function processOutput(code: string) {
     }
     patches.push({from, to, insert: ""})
   }
+
+  // To improve tree-shaking behavior, adjust the shape of namespace
+  // functions to actually return their arugment and assign to it, as
+  // well as marking them as pure. (This is of course only safe if you
+  // assume namespace content doesn't have side effects, which is the
+  // case in this system.)
   function patchNamespace(node: acorn.CallExpression) {
     let func = node.callee as acorn.FunctionExpression
     let name = ((node.arguments[0] as acorn.BinaryExpression).left as acorn.Identifier).name
     let sliceFrom = Math.max(0, node.start - 100)
-    let varDef = /\bvar (\w+);\s*$/.exec(code.slice(sliceFrom, node.start))
+    let varDef = /\bvar ([$\w]+);\s*$/.exec(code.slice(sliceFrom, node.start))
     if (varDef && varDef[1] != name) varDef = null
     patches.push({from: func.body.end - 1, insert: ";return " + name})
     patches.push({from: node.arguments[0].start, to: node.arguments[0].end, insert: varDef ? "{}" : name})
     if (varDef)
-      patches.push({from: varDef.index + sliceFrom + 4 + varDef[1].length, to: node.start, insert: ` = ${pure}`})
+      patches.push({from: varDef.index + sliceFrom, to: node.start, insert: `const ${varDef[1]} = ${pure}`})
     else
       patches.push({from: node.start, insert: `;${name} = ${pure}`})
   }
 
   let tree = acorn.parse(code, {ecmaVersion: "latest", sourceType: "module", onComment: delComment})
   recursive(tree, null, {
-    CallExpression(node: any, _s, c) {
+    CallExpression(node: acorn.CallExpression, _s, c) {
       walkCall(node, c)
       if (isNamespace(node)) patchNamespace(node)
+      else if (node.arguments.some(hasPotentialEffects)) wrapPure(node)
       else addPure(node.start)
     },
     NewExpression(node, _s, c) {
@@ -188,7 +224,12 @@ function processOutput(code: string) {
       addPure(node.start)
     },
     Function() {},
-    Class() {}
+    Class(node, _s, c) {
+      for (let member of node.body.body) {
+        if (member.type == "PropertyDefinition" && member.static && member.value) c(member.value, null)
+        else if (member.type == "StaticBlock") for (let s of member.body) c(s, null)
+      }
+    }
   })
   patches.sort((a, b) => a.from - b.from)
   for (let pos = 0, i = 0, result = "";; i++) {
