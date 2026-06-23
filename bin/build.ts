@@ -7,43 +7,18 @@ import * as acorn from "acorn"
 import {recursive} from "acorn-walk"
 import {Package, packages} from "./packages.ts"
 
-/// Options passed to `build` or `watch`.
-export interface BuildOptions {
-  /// Fail the build on type errors. defaults to false
-  typeCheck?: boolean
-  /// Additional compiler options to pass to TypeScript.
-  tsOptions?: any
-  /// When given, this is used to convert anchor links in the `///`
-  /// comments to full URLs.
-  expandLink?: (anchor: string) => string | null
-  /// When given, prefix this to links in the comments that start with
-  /// a `/`.
-  expandRootLink?: string
-  /// Adds a Rollup output plugin to use.
-  outputPlugin?: (dir: string) => Plugin | Promise<Plugin>
-  /// Adds an output plugin to use only for CommonJS bundles.
-  cjsOutputPlugin?: (root: string) => Plugin
-}
+const root = join(import.meta.dirname, "..")
+const dist = join(root, "dist")
 
-const tsDefaultOptions = {
-  lib: ["es2022", "dom"],
-  types: [],
-  stripInternal: true,
-  noUnusedLocals: true,
-  strict: true,
-  target: "es2022",
-  module: "esnext",
-  newLine: "lf",
-  declaration: true,
-  moduleResolution: "bundler",
-  paths: {
-    "wordgard/*": ["./src/*"],
-  }
-}
-
-function configFor(pkgs: readonly Package[], options: BuildOptions) {
+function configFor(pkgs: readonly Package[]) {
+  let file = join(root, "tsconfig.json")
+  let conf = ts.parseConfigFileTextToJson(file, fs.readFileSync(file, "utf8"))
   return {
-    compilerOptions: {...tsDefaultOptions, ...options.tsOptions},
+    compilerOptions: {
+      ...conf.config.compilerOptions,
+      declaration: true,
+      allowImportingTsExtensions: false
+    },
     include: pkgs.map(p => p.dir).map(normalize)
   }
 }
@@ -77,45 +52,33 @@ class Output {
   }
 }
 
-function readAndMangleComments(dirs: readonly string[], options: BuildOptions) {
+function readAndMangleComments(dirs: readonly string[]) {
   return (name: string) => {
     let file = ts.sys.readFile(name)
     if (file && dirs.includes(dirname(name)))
       file = file.replace(/(?<=^|\n)(?:([ \t]*)\/\/\/.*\n)+/g, (comment, space) => {
-        if (options.expandLink)
-          comment = comment.replace(/\]\(#((?:[^()]|\([^()]*\))+)\)/g, (m, anchor) => {
-            let result = options.expandLink!(anchor)
-            return result ? `](${result})` : m
-          })
-        if (options.expandRootLink)
-          comment = comment.replace(/\]\(\/((?:[^()]|\([^()]*\))+)\)/g, (_m, link) => {
-            return `](${options.expandRootLink}${link})`
-          })
         return `${space}/**\n${space}${comment.slice(space.length).replace(/\/\/\/ ?/g, "")}${space}*/\n`
       })
     return file
   }
 }
 
-function runTS(dirs: readonly string[], tsconfig: any, options: BuildOptions) {
-  let config = ts.parseJsonConfigFileContent(tsconfig, ts.sys, dirname(dirs[0]))
+function runTS(dirs: readonly string[], tsconfig: any) {
+  let config = ts.parseJsonConfigFileContent(tsconfig, ts.sys, join(dirs[0], "..", ".."))
   let host = ts.createCompilerHost(config.options)
-  host.readFile = readAndMangleComments(dirs, options)
+  host.readFile = readAndMangleComments(dirs)
   let program = ts.createProgram({rootNames: config.fileNames, options: config.options, host})
 
-  if (options.typeCheck) {
-    let diagnostics = ts.getPreEmitDiagnostics(program)
-    if (diagnostics.length > 0) {
-      console.error("Type checking failed:")
-      diagnostics.forEach(diag => console.error(ts.formatDiagnostic(diag, tsFormatHost)))
-      return null
-    }
+  let diagnostics = ts.getPreEmitDiagnostics(program)
+  if (diagnostics.length > 0) {
+    console.error("Type checking failed:")
+    diagnostics.forEach(diag => console.error(ts.formatDiagnostic(diag, tsFormatHost)))
+    return null
   }
 
   let out = new Output, result = program.emit(undefined, out.write)
   if (result.emitSkipped) {
     console.error("TypeScript failed to emit code")
-    ts.getPreEmitDiagnostics(program).forEach(diag => console.error(ts.formatDiagnostic(diag, tsFormatHost)))
     return null
   }
   return out
@@ -127,8 +90,8 @@ const tsFormatHost = {
   getNewLine: () => "\n"
 }
 
-function watchTS(dirs: readonly string[], tsconfig: any, options: BuildOptions) {
-  let out = new Output, mangle = readAndMangleComments(dirs, options)
+function watchTS(dirs: readonly string[], tsconfig: any) {
+  let out = new Output, mangle = readAndMangleComments(dirs)
   let dummyConf = join(dirname(dirname(dirs[0])), "TSCONFIG.json")
   ts.createWatchProgram(ts.createWatchCompilerHost(
     dummyConf,
@@ -252,10 +215,8 @@ function external(id: string) {
   return id != "tslib" && !/^(\.?\/|\w:)/.test(id)
 }
 
-const dist = join(import.meta.dirname, "..", "dist")
-
-async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
-  let base = await Promise.resolve(options.outputPlugin && options.outputPlugin(pkg.dir) || {name: "dummy"})
+async function bundle(pkg: Package, compiled: Output) {
+  let base = {name: "dummy"}
   let input = pkg.sources.find(s => /\bindex\.ts$/.test(s))
   if (!input) throw new Error("Could not determine entry point for package " + pkg.name)
   let bundle = await rollup({
@@ -289,17 +250,17 @@ async function bundle(pkg: Package, compiled: Output, options: BuildOptions) {
 /// written to the `dist` directory one level up from the entry file.
 /// Any TypeScript files in a `test` directory one level up from main
 /// files will be built in-place.
-export async function build(pkgs: readonly Package[], options: BuildOptions = {}): Promise<boolean> {
-  let compiled = runTS(pkgs.map(p => p.dir), configFor(pkgs, options), options)
+export async function build(pkgs: readonly Package[]): Promise<boolean> {
+  let compiled = runTS(pkgs.map(p => p.dir), configFor(pkgs))
   if (!compiled) return false
-  for (let pkg of pkgs) await bundle(pkg, compiled, options)
+  for (let pkg of pkgs) await bundle(pkg, compiled)
   return true
 }
 
 /// Build the given packages and keep rebuilding them every time an
 /// input file changes.
-export function watch(pkgs: readonly Package[], options: BuildOptions = {}): void {
-  let out = watchTS(pkgs.map(p => p.dir), configFor(pkgs, options), options)
+export function watch(pkgs: readonly Package[]): void {
+  let out = watchTS(pkgs.map(p => p.dir), configFor(pkgs))
   out.watchers.push(writeFor)
   writeFor(new Set(Object.keys(out.files)))
 
@@ -312,14 +273,12 @@ export function watch(pkgs: readonly Package[], options: BuildOptions = {}): voi
     }
     console.log("Rebuilding " + changedPkgs.map(p => p.name).join(", "))
     for (let pkg of changedPkgs) {
-      try { await bundle(pkg, out, options) }
+      try { await bundle(pkg, out) }
       catch(e) { console.error(`Failed to bundle ${pkg.name}:\n${e}`) }
     }
     console.log("Bundling done.")
   }
 }
 
-let options = {typeCheck: false}
-
-if (process.argv.includes("--watch")) watch(packages, options)
-else build(packages, options)
+if (process.argv.includes("--watch")) watch(packages)
+else build(packages)
