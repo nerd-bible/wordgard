@@ -153,7 +153,9 @@ function hasPotentialEffects(node: acorn.AnyNode) {
     NewExpression() { has = true },
     AssignmentExpression() { has = true },
     MemberExpression() { has = true },
-    UpdateExpression() { has = true }
+    UpdateExpression() { has = true },
+    Function() {},
+    MethodDefinition() {}
   })
   return has
 }
@@ -162,10 +164,6 @@ type Patch = {from: number, to?: number, insert: string}
 
 function processOutput(code: string) {
   let patches: Patch[] = []
-  function walkCall(node: any, c: (node: acorn.AnyNode, state?: any) => void) {
-    node.arguments.forEach((n: any) => c(n))
-    c(node.callee)
-  }
 
   function addPure(pos: number) {
     let last = patches.length ? patches[patches.length - 1] : null
@@ -214,13 +212,11 @@ function processOutput(code: string) {
   let tree = acorn.parse(code, {ecmaVersion: "latest", sourceType: "module", onComment: delComment})
   recursive(tree, null, {
     CallExpression(node: acorn.CallExpression, _s, c) {
-      walkCall(node, c)
       if (isNamespace(node)) patchNamespace(node)
       else if (node.arguments.some(hasPotentialEffects)) wrapPure(node)
       else addPure(node.start)
     },
     NewExpression(node, _s, c) {
-      walkCall(node, c)
       addPure(node.start)
     },
     Function() {},
@@ -228,6 +224,16 @@ function processOutput(code: string) {
       for (let member of node.body.body) {
         if (member.type == "PropertyDefinition" && member.static && member.value) c(member.value, null)
         else if (member.type == "StaticBlock") for (let s of member.body) c(s, null)
+      }
+    },
+    AssignmentExpression(node, _s, c) {
+      if (node.left.type == "MemberExpression" && node.left.object.type == "Identifier") {
+        let name = node.left.object.name
+        patches.push({from: node.start, insert: `${name} = ${pure}(${name} => {`})
+        patches.push({from: node.end, insert: `; return ${name}})(${name})`})
+      } else {
+        c(node.left, null)
+        c(node.right, null)
       }
     }
   })
