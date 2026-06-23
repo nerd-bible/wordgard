@@ -224,8 +224,14 @@ function processOutput(code: string) {
     Function() {},
     Class(node, _s, c) {
       for (let member of node.body.body) {
-        if (member.type == "PropertyDefinition" && member.static && member.value) c(member.value, null)
-        else if (member.type == "StaticBlock") for (let s of member.body) c(s, null)
+        if (member.type == "PropertyDefinition" && member.static && member.value) {
+          if (member.value.type != "CallExpression" && hasPotentialEffects(member.value))
+            wrapPure(member.value)
+          else
+            c(member.value, _s)
+        } else if (member.type == "StaticBlock") {
+          for (let s of member.body) c(s, null)
+        }
       }
     },
     AssignmentExpression(node, _s, c) {
@@ -234,14 +240,14 @@ function processOutput(code: string) {
         patches.push({from: node.start, insert: `${name} = ${pure}(${name} => {`})
         patches.push({from: node.end, insert: `; return ${name}})(${name})`})
       } else {
-        c(node.left, null)
-        c(node.right, null)
+        c(node.left, _s)
+        c(node.right, _s)
       }
     },
     VariableDeclaration(node, _s, c) {
       for (let decl of node.declarations) if (decl.init) {
         if (decl.init.type != "CallExpression" && hasPotentialEffects(decl.init)) wrapPure(decl.init)
-        else c(decl.init, null)
+        else c(decl.init, _s)
       }
     },
   })
