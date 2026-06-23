@@ -26,13 +26,13 @@ export interface BuildOptions {
 }
 
 const tsDefaultOptions = {
-  lib: ["es2021", "dom"],
+  lib: ["es2022", "dom"],
   types: [],
   stripInternal: true,
   noUnusedLocals: true,
   strict: true,
-  target: "es2021",
-  module: "es2020",
+  target: "es2022",
+  module: "esnext",
   newLine: "lf",
   declaration: true,
   moduleResolution: "bundler",
@@ -113,7 +113,12 @@ function runTS(dirs: readonly string[], tsconfig: any, options: BuildOptions) {
   }
 
   let out = new Output, result = program.emit(undefined, out.write)
-  return result.emitSkipped ? null : out
+  if (result.emitSkipped) {
+    console.error("TypeScript failed to emit code")
+    ts.getPreEmitDiagnostics(program).forEach(diag => console.error(ts.formatDiagnostic(diag, tsFormatHost)))
+    return null
+  }
+  return out
 }
 
 const tsFormatHost = {
@@ -314,7 +319,7 @@ export function watch(pkgs: readonly Package[], options: BuildOptions = {}): voi
   }
 }
 
-let options = {}
+let options = {typeCheck: false}
 
 if (process.argv.includes("--watch")) watch(packages, options)
 else build(packages, options)
