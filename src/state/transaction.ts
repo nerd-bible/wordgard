@@ -88,41 +88,6 @@ export class Transaction {
     let e = this.annotation(Transaction.userEvent)
     return !!(e && (e == event || e.length > event.length && e.startsWith(event) && e[event.length] == "."))
   }
-
-  /// Merge two transaction specs into a single one, combining the
-  /// effect of both. Note that the {@link Transaction.Spec.sequential
-  /// `sequential`} field will be interpreted *within* these
-  /// transactions, and the resulting spec will not have it.
-  static merge(state: GardState, a: Transaction.Spec, b: Transaction.Spec): Transaction.Spec {
-    let rA = resolveTransactionInner(state, null, a)
-    return mergeTransaction(state, rA, resolveTransactionInner(state, rA.changes, b))
-  }
-
-  /// Facet used to register a hook that gets a chance to add to
-  /// transactions before they are applied. If such a function returns
-  /// a transaction spec, it will be combined with the original
-  /// transaction (in the same way as the arguments to
-  /// {@link GardState.update}).
-  ///
-  /// When possible, it is recommended to avoid accessing {@link
-  /// Transaction.state} in an extender, since it will force creation
-  /// of a state that will then be discarded again, if the transaction
-  /// is actually extended.
-  ///
-  /// (This functionality should be used with care. Indiscriminately
-  /// modifying transaction is likely to break something or degrade
-  /// the user experience.)
-  declare static extender: GardState.Facet<(tr: Transaction) => Transaction.Spec | null>
-
-  /// A transaction appender can create more transactions in response
-  /// to a transaction. {@link Transaction.append}, which is
-  /// called by the {@link Wordgard editor} when dispatching a
-  /// transaction, will call appenders on sets of transactions,
-  /// allowing them to add another transaction. When another appender
-  /// adds a transaction, extenders that already ran will be called
-  /// again, but only with the transactions that were added after they
-  /// ran.
-  declare static appender: GardState.Facet<(trs: readonly Transaction[], state: GardState) => Transaction.Spec | null>
 }
 
 export namespace Transaction {
@@ -160,6 +125,42 @@ export namespace Transaction {
     /// specs before it.
     sequential?: boolean
   }
+
+
+  /// Merge two transaction specs into a single one, combining the
+  /// effect of both. Note that the {@link Transaction.Spec.sequential
+  /// `sequential`} field will be interpreted *within* these
+  /// transactions, and the resulting spec will not have it.
+  export function merge(state: GardState, a: Transaction.Spec, b: Transaction.Spec): Transaction.Spec {
+    let rA = resolveTransactionInner(state, null, a)
+    return mergeTransaction(state, rA, resolveTransactionInner(state, rA.changes, b))
+  }
+
+  /// Facet used to register a hook that gets a chance to add to
+  /// transactions before they are applied. If such a function returns
+  /// a transaction spec, it will be combined with the original
+  /// transaction (in the same way as the arguments to
+  /// {@link GardState.update}).
+  ///
+  /// When possible, it is recommended to avoid accessing {@link
+  /// Transaction.state} in an extender, since it will force creation
+  /// of a state that will then be discarded again, if the transaction
+  /// is actually extended.
+  ///
+  /// (This functionality should be used with care. Indiscriminately
+  /// modifying transaction is likely to break something or degrade
+  /// the user experience.)
+  export let extender: GardState.Facet<(tr: Transaction) => Transaction.Spec | null>
+
+  /// A transaction appender can create more transactions in response
+  /// to a transaction. {@link Transaction.append}, which is
+  /// called by the {@link Wordgard editor} when dispatching a
+  /// transaction, will call appenders on sets of transactions,
+  /// allowing them to add another transaction. When another appender
+  /// adds a transaction, extenders that already ran will be called
+  /// again, but only with the transactions that were added after they
+  /// ran.
+  export let appender: GardState.Facet<(trs: readonly Transaction[], state: GardState) => Transaction.Spec | null>
 
   /// Apply {@link Transaction.appender transaction appenders}, return
   /// an array of the original transaction plus any that were appended.
