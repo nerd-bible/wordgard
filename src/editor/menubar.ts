@@ -1,7 +1,8 @@
-import {Panel, Wordgard} from "wordgard/editor"
 import {GardState} from "wordgard/state"
 import {PhraseSet} from "wordgard/phrases"
 import {Command, Menu} from "wordgard/command"
+import {Panel} from "./panel"
+import {Wordgard} from "./editor"
 
 interface BarElement {
   dom: Element

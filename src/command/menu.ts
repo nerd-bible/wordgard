@@ -1,5 +1,5 @@
 import {type Wordgard} from "wordgard/editor"
-import {Command} from "wordgard/command"
+import {Command} from "./command"
 import {GardState, Transaction} from "wordgard/state"
 import {PhraseSet, phrases} from "wordgard/phrases"
 import {Mark} from "wordgard/doc"
