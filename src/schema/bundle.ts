@@ -13,17 +13,17 @@ export function lineBreak(): GardState.Extension {
   return GardState.schemaElement.of(LineBreak)
 }
 
-/// Enable the {@link strong}, {@link emphasis}, {@link code}, and
-/// {@link link} marks.
+/// Enable the {@link strong}, {@link emphasis}, and {@link link}
+/// marks.
 export function basicMarks(): GardState.Extension {
-  return [strong(), emphasis(), code(), link()]
+  return [strong(), emphasis(), link()]
 }
 
-/// Enable {@link strong}, {@link emphasis}, {@link code}, and {@link
+/// Enable {@link strong}, {@link emphasis}, {@link code}, {@link
 /// link}, {@link underline}, {@link strikethrough}, {@link
 /// superscript}, {@link color}, and {@link backgroundColor}.
 export function inlineMarks(): GardState.Extension {
-  return [basicMarks(), underline(), strikethrough(), superscript(), subscript(), color(), backgroundColor()]
+  return [basicMarks(), code(), underline(), strikethrough(), superscript(), subscript(), color(), backgroundColor()]
 }
 
 /// Add the elements of a simple rich text schema: {@link blockDoc},
