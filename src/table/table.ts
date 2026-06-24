@@ -6,7 +6,7 @@ import {tableCorrection} from "./correct"
 import {tablePasteHandler, tableDropHandler} from "./tablepaste"
 import {tableMenu} from "./menu"
 
-const tableTheme = Wordgard.baseTheme({
+const tableTheme = Wordgard.styles({
   table: {
     borderCollapse: "collapse",
     tableLayout: "fixed",

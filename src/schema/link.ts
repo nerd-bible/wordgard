@@ -71,7 +71,7 @@ function renderLinkTooltip(target: string) {
   return {dom}
 }
 
-const linkTooltipTheme = Wordgard.baseTheme({
+const linkTooltipTheme = Wordgard.styles({
   "wg-link-tooltip": {
     maxWidth: "30em",
     fontSize: "90%",

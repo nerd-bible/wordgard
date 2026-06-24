@@ -440,7 +440,7 @@ function defaultChild(children: readonly BarElement[]) {
   return children.length ? children.find(ch => ch.flags & F.Active) || children[0] : null
 }
 
-const theme = Wordgard.baseTheme({
+const theme = Wordgard.styles({
   "&": {
     "--wg-menu-item-size": "20px"
   },

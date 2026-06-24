@@ -5,7 +5,7 @@ export const theme = GardState.Facet.define<string, string>({combine: strs => st
 
 export const darkTheme = GardState.Facet.define<boolean, boolean | null>({combine: values => values.length ? values[0] : null})
 
-export const baseThemeID = StyleModule.newName(), baseLightID = StyleModule.newName(), baseDarkID = StyleModule.newName()
+export const styleID = StyleModule.newName(), baseLightID = StyleModule.newName(), baseDarkID = StyleModule.newName()
 
 export const lightDarkIDs = {"&light": "." + baseLightID, "&dark": "." + baseDarkID}
 
@@ -21,7 +21,7 @@ export function buildTheme(main: string, spec: {[name: string]: StyleSpec}, scop
   })
 }
 
-export const baseTheme = buildTheme("." + baseThemeID, {
+export const baseStyles = buildTheme("." + styleID, {
   "&": {
     "--wg-highlight-color": "#6af",
     "--wg-dialog-font": "90% sans-serif",

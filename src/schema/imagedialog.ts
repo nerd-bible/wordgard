@@ -208,7 +208,7 @@ export const insertImage: Command = wg => {
   return true
 }
 
-const imageDialogTheme = Wordgard.baseTheme({
+const imageDialogTheme = Wordgard.styles({
   ".wg-img-dialog": {
     borderBottom: "1px solid var(--wg-border-color)"
   },

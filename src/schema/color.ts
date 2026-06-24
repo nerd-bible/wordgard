@@ -233,7 +233,7 @@ export namespace ColorPicker {
   })
 
   /// Base theme for the color picker.
-  export const theme = Wordgard.baseTheme({
+  export const theme = Wordgard.styles({
     "wg-color-picker": {
       display: "grid",
       gap: "4px",

@@ -8,7 +8,7 @@ import {coordsAtPos} from "./coords"
 import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
         clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter,
         clipboardTextParser, clipboardTextSerializer} from "./clipboard"
-import {theme, darkTheme, buildTheme, baseThemeID, baseLightID, baseDarkID, lightDarkIDs, baseTheme} from "./theme"
+import {theme, darkTheme, buildTheme, styleID, baseLightID, baseDarkID, lightDarkIDs, baseStyles} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
         dragBehavior, pasteHandler, dropHandler, eventHandler, eventObserver} from "./input"
@@ -349,7 +349,7 @@ export class Wordgard {
   private mountStyles() {
     this.styleModules = this.state.facet(Wordgard.styleModule)
     let nonce = this.state.facet(Wordgard.cspNonce)
-    StyleModule.mount(this.root, this.styleModules.concat(baseTheme).reverse(), nonce ? {nonce} : undefined)
+    StyleModule.mount(this.root, this.styleModules.concat(baseStyles).reverse(), nonce ? {nonce} : undefined)
   }
 
   /// Schedule a function that needs to read from the (flushed) DOM.
@@ -500,7 +500,7 @@ export class Wordgard {
 
   /// Get the CSS classes for the currently active editor themes.
   get themeClasses() {
-    return baseThemeID + " " +
+    return styleID + " " +
       (this.state.facet(darkTheme) ?? this.defaultDarkTheme ? baseDarkID : baseLightID) + " " +
       this.state.facet(theme)
   }
@@ -690,7 +690,9 @@ export class Wordgard {
   /// `&:has(wg-content:focus)`.
   static theme(spec: Record<string, StyleSpec>): GardState.Extension {
     let prefix = StyleModule.newName()
-    return [theme.of(prefix), Wordgard.styleModule.of(buildTheme(`.${prefix}`, spec))]
+    return [theme.of(prefix), Wordgard.styleModule.of(buildTheme(`.${prefix}`, spec, {
+      "&dark": `.${prefix}.${baseDarkID}`, "&light": `.${prefix}.${baseLightID}`
+    }))]
   }
 
   /// This facet controls whether a dark theme is active, which
@@ -708,13 +710,13 @@ export class Wordgard {
       this.observer.ignore(() => this.updateAttrs())
   }
 
-  /// Create an extension that adds styles to the base theme. Like
+  /// Create an extension that loads a set of style rules. Like
   /// with {@link Wordgard.theme `theme`}, use `&` to indicate the
   /// place of the editor wrapper element when directly targeting
   /// that. You can also use `&dark` or `&light` instead to only
   /// target editors with a dark or light theme.
-  static baseTheme(spec: Record<string, StyleSpec>): GardState.Extension {
-    return GardState.prec.lowest(Wordgard.styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
+  static styles(spec: Record<string, StyleSpec>): GardState.Extension {
+    return GardState.prec.lowest(Wordgard.styleModule.of(buildTheme("." + styleID, spec, lightDarkIDs)))
   }
 
   /// Creates a simple theme that sets a height (given in pixels or,

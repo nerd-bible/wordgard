@@ -347,7 +347,7 @@ function setLeftStyle(elt: HTMLElement, value: number) {
   if (isNaN(current) || Math.abs(value - current) > 1) elt.style.left = value + "px"
 }
 
-const baseTheme = Wordgard.baseTheme({
+const styles = Wordgard.styles({
   ".wg-tooltip": {
     zIndex: 500,
     boxSizing: "border-box",
@@ -503,7 +503,7 @@ export namespace Tooltip {
 
   /// Facet to which an extension can add a value to show a tooltip.
   export const show = GardState.Facet.define<Tooltip | null>({
-    enables: [tooltipPlugin, baseTheme]
+    enables: [tooltipPlugin, styles]
   })
 
   /// Get the active tooltip view for a given tooltip, if available.
