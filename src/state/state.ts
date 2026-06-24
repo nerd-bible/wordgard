@@ -8,6 +8,8 @@ let nextID = 0
 const none: readonly any[] = []
 
 function readHTML(html: string): HTMLElement {
+  if (typeof document != "object" || !document.implementation)
+    throw new Error("Trying to parse an HTML string in a non-browser context.")
   let detachedDoc = document.implementation.createHTMLDocument("title")
   let trustedTypes = (window as any).trustedTypes
   if (trustedTypes) {
@@ -299,8 +301,12 @@ export namespace GardState {
     /// document).
     ///
     /// All other forms require a schema from the configuration. A
-    /// string or DOM structure will be parsed as HTML, a JSON node
-    /// deserialized, and a function called to produce the document.
+    /// string or DOM structure will be parsed as HTML. Passing a
+    /// string only works in the browser, where the library can use
+    /// the browser's HTML parser. In other environments, you'll need
+    /// to do the parsing yourself (for example with
+    /// [jsdom](https://jsdom.org/)). A JSON node deserialized, and a
+    /// function called to produce the document.
     doc: DocSource
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
