@@ -717,6 +717,21 @@ export class Wordgard {
     return GardState.prec.lowest(Wordgard.styleModule.of(buildTheme("." + baseThemeID, spec, lightDarkIDs)))
   }
 
+  /// Creates a simple theme that sets a height (given in pixels or,
+  /// if a string, a CSS number + unit) and automatic overflow
+  /// scrolling on the editor. (The default styling makes the editor
+  /// height fit its content.)
+  static scrolling(height: number | string) {
+    return Wordgard.theme({
+      "&": {
+        height: typeof height == "number" ? `${height}px` : height
+      },
+      "wg-scroller": {
+        overflowY: "auto"
+      }
+    })
+  }
+
   /// Provides a Content Security Policy nonce to use when creating
   /// the style sheets for the editor. Holds the empty string when no
   /// nonce has been provided.
