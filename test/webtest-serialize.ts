@@ -7,13 +7,13 @@ const {doc, blockquote, p, em, strong, code, img, $img, imgAlt, fig, capFig, olS
 
 function html(doc: Plot.Doc) {
   let wrap = document.createElement("div")
-  wrap.appendChild(Elt.dom(serialize(doc)))
+  wrap.appendChild(serialize(doc).toDOM())
   return wrap.innerHTML
 }
 
 function istHTML(doc: Plot.Doc, expected: string) {
   ist(html(doc), expected)
-  ist(Elt.html(serialize(doc)), expected)
+  ist(serialize(doc).toHTML(), expected)
 }
 
 function istSliceHTML(doc: Plot.Doc, expected: string, options?: serialize.slice.Options & {maxDepth?: number}) {
@@ -23,9 +23,9 @@ function istSliceHTML(doc: Plot.Doc, expected: string, options?: serialize.slice
     context: doc.contextAt(tag(doc, 0), options?.maxDepth)
   }
   let frag = serialize.slice(slice, opts)
-  wrap.appendChild(Elt.dom(frag))
+  wrap.appendChild(frag.toDOM())
   ist(wrap.innerHTML, expected)
-  ist(Elt.html(frag), expected)
+  ist(frag.toHTML(), expected)
 }
 
 describe("serialize", () => {

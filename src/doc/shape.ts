@@ -24,7 +24,7 @@ export class Elt<T = string> {
     /// strings}.
     readonly attrs: Attributes,
     /// The element's children.
-    readonly children: Elt.Fragment<T>
+    readonly children: readonly (T | Elt<T> | 0)[]
   ) {}
 
   /// Create an element. See also {@link Elt.mk} for a more ergonomic
@@ -32,7 +32,7 @@ export class Elt<T = string> {
   static create<T = string>(
     tagName: string,
     attrs: Attributes,
-    children: Elt.Fragment<T>
+    children: readonly (T | Elt<T> | 0)[]
   ): Elt<Exclude<T, Elt<any> | 0>> {
     return new Elt(tagName, attrs, children as any)
   }
@@ -42,14 +42,15 @@ export class Elt<T = string> {
   /// literal number 0 is used to indicate a content hole in the
   /// array of children.
   static mk<T = string>(name: string, children?: (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
-  static mk<T = string>(name: string, attrs: Record<string, string>, children?: Elt.Fragment<T>): Elt<Exclude<T, Elt<any> | 0>>
-  static mk<T>(name: string, arg1?: Record<string, string> | Elt.Fragment<T>, arg2?: Elt.Fragment<T>) {
-    let [attrs, children] = arg2 ? [Attributes.read(arg1 as Record<string, string>), arg2] :
-      !arg1 ? [Attributes.none, noChildren] : Array.isArray(arg1) ? [Attributes.none, arg1 as Elt.Fragment<T>]
-      : [Attributes.read(arg1 as Record<string, string>), noChildren]
-    if (children.length == 1 && children[0] === 0) children = Elt.hole
-    return new Elt<T>(name, attrs, children)
-  }
+    static mk<T = string>(name: string, attrs: Record<string, string>,
+                          children?: readonly (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
+  static mk<T>(name: string, arg1?: Record<string, string> | readonly (T | Elt<T> | 0)[], arg2?: readonly (T | Elt<T> | 0)[]) {
+      let [attrs, children] = arg2 ? [Attributes.read(arg1 as Record<string, string>), arg2] :
+        !arg1 ? [Attributes.none, noChildren] : Array.isArray(arg1) ? [Attributes.none, arg1 as readonly (T | Elt<T> | 0)[]]
+        : [Attributes.read(arg1 as Record<string, string>), noChildren]
+      if (children.length == 1 && children[0] === 0) children = Elt.hole
+      return new Elt<T>(name, attrs, children)
+    }
 
   /// True if this element or one of its children has a content hole.
   get hasContent(): boolean {
@@ -69,9 +70,9 @@ export class Elt<T = string> {
     for (let i = 0; i < this.children.length; i++) {
       let a = this.children[i], b = elt.children[i]
       if (a !== b && (
-          (!a || !b || typeof a != "object" || typeof b != "object" ||
-           (a as any).constructor != (b as any).constructor || !(a as any).eq ||
-           !(a as any).eq(b))))
+        (!a || !b || typeof a != "object" || typeof b != "object" ||
+          (a as any).constructor != (b as any).constructor || !(a as any).eq ||
+          !(a as any).eq(b))))
         return false
     }
     return true
@@ -112,7 +113,7 @@ export class Elt<T = string> {
   }
 
   /// @internal
-  fill(content: Elt.Fragment<T>) {
+  fill(content: readonly (0 | T | Elt<T>)[]) {
     let children: (0 | T | Elt<T>)[] = []
     for (let ch of this.children) {
       if (ch === 0) {
@@ -139,6 +140,12 @@ export class Elt<T = string> {
     return null
   }
 
+  /// Convert an element with string content to an HTML string.
+  toHTML(this: Elt<string>) { return toHTML(this) }
+
+  /// Convert an element (with only string content) to a DOM tree.
+  toDOM(this: Elt<string>, doc?: Document) { return toDOM(this, doc) }
+
   /// @internal
   static empty: readonly any[] = []
 
@@ -151,63 +158,20 @@ const selfClosing = new Set(["area", "base", "br", "col", "command", "embed", "f
                              "source", "track", "wbr", "menuitem"])
 
 export namespace Elt {
-  /// An element fragment is an array of leaf types, nested elements,
-  /// or a content hole.
-  export type Fragment<T = string> = readonly (0 | T | Elt<T>)[]
+  /// A collection of elements or other content values.
+  export class Fragment<T = string> {
+    private constructor(readonly content: readonly (T | Elt<T>)[]) {}
 
-  /// Convert an element, string, or fragment to an HTML string.
-  export function html(content: Elt | string | Elt.Fragment): string {
-    let html = ""
-    function scan(elt: Elt<string> | string | 0) {
-      if (typeof elt == "string") {
-        html += elt.replace(/[<&]/g, ch => ch == "<" ? "&lt;" : "&amp;")
-        return
-      } else if (elt === 0) {
-        return
-      }
-      let {tagName: name, attrs} = elt, svg, math
-      if (svg = /^svg:/.test(name)) name = name.slice(4)
-      if (math = /^math:/.test(name)) name = name.slice(5)
-      if (svg && name == "svg") html += `<svg xmlns="http://www.w3.org/2000/svg"`
-      if (math && name == "math") html += `<math xmlns="http://www.w3.org/1998/Math/MathML"`
-      else html += `<${name}`
-      for (let i = 0; i < attrs.length;) {
-        let name = attrs[i++], val = attrs[i++]
-        html += ` ${name}="${val.replace(/["&]/g, ch => ch == '"' ? "&quot;" : "&amp;")}"`
-      }
-      if ((math || svg) && !elt.children.length) {
-        html += "/>"
-      } else if (!math && !svg && selfClosing.has(name)) {
-        html += ">"
-      } else {
-        html += ">"
-        for (let ch of elt.children) scan(ch)
-        html += `</${name}>`
-      }
-    }
-    if (Array.isArray(content)) for (let elt of content) scan(elt)
-    else scan(content as Elt<string> | string)
-    return html
-  }
+    /// Create a fragment.
+    static create<T = string>(content: readonly (T | Elt<T>)[]) { return new Fragment(content) }
 
-  /// Convert an element, string, or fragment to a DOM tree.
-  export function dom(elt: Elt, doc?: Document): Element
-  export function dom(elt: string, doc?: Document): Text
-  export function dom(elt: Elt.Fragment, doc?: Document): DocumentFragment
-  export function dom(elt: Elt | string | Elt.Fragment, doc?: Document): Element | Text | DocumentFragment {
-    if (!doc) {
-      if (typeof document != "object" || !document.createElement) throw new Error("No document available")
-      doc = document
-    }
-    if (typeof elt == "string") {
-      return doc.createTextNode(elt)
-    } else if (elt instanceof Elt) {
-      let dom = elt.outerDOM(doc)
-      for (let ch of elt.children) if (ch !== 0) dom.appendChild(Elt.dom(ch as any, doc))
-      return dom
-    } else {
-      let frag = doc.createDocumentFragment()
-      for (let ch of elt) if (ch !== 0) frag.appendChild(Elt.dom(ch as any))
+    /// Convert this fragment to an HTML string.
+    toHTML(this: Fragment<string>) { return toHTML(this) }
+
+    /// Convert this fragment to a DOM fragment.
+    toDOM(this: Fragment<string>, doc?: Document): DocumentFragment {
+      let frag = getDoc(doc).createDocumentFragment()
+      for (let ch of this.content) frag.appendChild(toDOM(ch, doc))
       return frag
     }
   }
@@ -245,6 +209,57 @@ export namespace Elt {
       if (txt) throw new Error("Invalid element selector " + selector)
       return new Selector(tag, classes)
     }
+  }
+}
+
+function toHTML(content: Elt | Elt.Fragment): string {
+  let html = ""
+  function scan(elt: Elt<string> | string | 0) {
+    if (typeof elt == "string") {
+      html += elt.replace(/[<&]/g, ch => ch == "<" ? "&lt;" : "&amp;")
+      return
+    } else if (elt === 0) {
+      return
+    }
+    let {tagName: name, attrs} = elt, svg, math
+    if (svg = /^svg:/.test(name)) name = name.slice(4)
+    if (math = /^math:/.test(name)) name = name.slice(5)
+    if (svg && name == "svg") html += `<svg xmlns="http://www.w3.org/2000/svg"`
+    if (math && name == "math") html += `<math xmlns="http://www.w3.org/1998/Math/MathML"`
+    else html += `<${name}`
+    for (let i = 0; i < attrs.length;) {
+      let name = attrs[i++], val = attrs[i++]
+      html += ` ${name}="${val.replace(/["&]/g, ch => ch == '"' ? "&quot;" : "&amp;")}"`
+    }
+    if ((math || svg) && !elt.children.length) {
+      html += "/>"
+    } else if (!math && !svg && selfClosing.has(name)) {
+      html += ">"
+    } else {
+      html += ">"
+      for (let ch of elt.children) scan(ch)
+      html += `</${name}>`
+    }
+  }
+  if (content instanceof Elt.Fragment) for (let elt of content.content) scan(elt)
+  else scan(content)
+  return html
+}
+
+function getDoc(doc?: Document) {
+  if (doc) return doc
+  if (typeof document != "object" || !document.createElement) throw new Error("No document available")
+  return document
+}
+
+function toDOM(elt: Elt | string, doc?: Document): Element | Text {
+  doc = getDoc(doc)
+  if (typeof elt == "string") {
+    return doc.createTextNode(elt)
+  } else {
+    let dom = elt.outerDOM(doc)
+    for (let ch of elt.children) if (ch !== 0) dom.appendChild(toDOM(ch as any, doc))
+    return dom
   }
 }
 

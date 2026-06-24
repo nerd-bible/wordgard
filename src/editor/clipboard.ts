@@ -1,4 +1,4 @@
-import {Slice, Leaf, Plot, Node, Pos, serialize, parse, Token, Elt} from "wordgard/doc"
+import {Slice, Leaf, Plot, Node, Pos, serialize, parse, Token} from "wordgard/doc"
 import {GardState} from "wordgard/state"
 import browser from "./browser"
 
@@ -23,11 +23,11 @@ export function writeClipboard(state: GardState, slice: Slice, context: readonly
     if (next.type.defining && (!includeContext || next.type != context[includeContext - 1].type)) includeContext = i + 1
     else if (next.type.defining || !next.isTextblock) break
   }
-  let doc = detachedDoc(), dom = Elt.dom(serialize.slice(slice, {
+  let doc = detachedDoc(), dom = serialize.slice(slice, {
     context,
     includeContext,
     openAttr: "wg-open"
-  }))
+  }).toDOM()
 
   let needsWrap, wrappers = 0
   while (dom.firstChild && dom.firstChild.nodeType == 1 && (needsWrap = wrapMap[dom.firstChild.nodeName.toLowerCase()])) {

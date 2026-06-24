@@ -14,11 +14,12 @@ class SerializeContext {
 
 /// Serialize a document to an array of {@link Elt elements} and
 /// strings. These can be converted to a DOM structure with {@link
-/// Elt.dom} or an HTML string with {@link Elt.html}. Will use the
-/// shapes specified in the {@link Node.Spec.shape node specs}, unless
-/// {@link serialize.Options.override overridden}.
+/// Elt.Fragment.toDOM} or an HTML string with {@link
+/// Elt.Fragment.toHTML}. Will use the shapes specified in the {@link
+/// Node.Spec.shape node specs}, unless {@link
+/// serialize.Options.override overridden}.
 export function serialize(doc: Plot.Doc, options: serialize.Options = {}): Elt.Fragment {
-  return serializeChildren(doc.content, new SerializeContext(options))
+  return Elt.Fragment.create(serializeChildren(doc.content, new SerializeContext(options)))
 }
 
 export namespace serialize {
@@ -39,8 +40,9 @@ export namespace serialize {
 
   /// Serialize a slice.
   export function slice(slice: Slice, options: slice.Options): Elt.Fragment {
-    return serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, !!options.openAttr),
-                             new SerializeContext(options, options.openAttr))
+    return Elt.Fragment.create(
+      serializeChildren(flattenSlice(slice.content, options.context || [], options.includeContext || 0, !!options.openAttr),
+                        new SerializeContext(options, options.openAttr)))
   }
 
   export namespace slice {
