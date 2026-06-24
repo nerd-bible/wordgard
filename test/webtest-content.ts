@@ -193,24 +193,6 @@ describe("DocTile", () => {
     ist(def.nodeValue, "df")
   })
 
-  it("calls destroy on removed widgets", () => {
-    let log: string[] = []
-    const trackedWidget = Widget.define<string>({
-      render(v) { let s = document.createElement("span"); s.textContent = v; return s },
-      destroy(v) { log.push(v) }
-    })
-    const imgWidget = Decoration.Tag.shape(Image, t => trackedWidget.of(t.param))
-
-    let tile = update(render(doc(p("ab", img("a"), "cd")), imgWidget), {
-      changes: {from: 3, to: 4, insert: [img("b")]}
-    })
-    ist(log.join(), "a")
-    tile = update(tile, {changes: {from: tile.length, insert: [p("!", img("c"))]}})
-    ist(log.join(), "a")
-    tile = update(tile, {changes: {from: 0, to: tile.length, insert: [hr]}})
-    ist(log.join(), "a,b,c")
-  })
-
   it("can handle adding a mark to part of a textblock", () => {
     let tile = update(render(doc(p("one two"))), {changes: {from: 5, to: 8, add: Strong}})
     ist(tile.dom.innerHTML, "<p>one <strong>two</strong></p>")

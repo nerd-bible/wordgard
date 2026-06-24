@@ -159,14 +159,14 @@ export abstract class Tile {
 
   sync() {}
 
-  destroyDropped(reused: Map<Tile, Reused>) {
-    if (reused.get(this) != Reused.Full) {
-      this.destroy()
-      for (let ch of this.children) ch.destroyDropped(reused)
-    }
+  connect() {
+    for (let ch of this.children) ch.connect()
   }
 
-  destroy() {}
+  disconnect(reused?: Map<Tile, Reused>) {
+    if (!reused || reused.get(this) != Reused.Full)
+      for (let ch of this.children) ch.disconnect(reused)
+  }
 
   nearestNode() {
     let tile: Tile = this
@@ -349,20 +349,21 @@ export class DocTile extends CompositeTile {
 
   static create(state: GardState, dom: Element) {
     return new DocTile(state, dom, null, {points: new Map, ranges: new Map})
-      .updateRanges(state, getDecoSet(state), [0, state.doc.length])
+      .updateRanges(state, getDecoSet(state), [0, state.doc.length], false)
   }
 
   get isDoc() { return true }
 
   get node() { return this.state.doc }
 
-  update(state: GardState, changes: ChangeSet.Sections, composition?: CompositionInfo | null) {
+  update(state: GardState, changes: ChangeSet.Sections, connected = false, composition?: CompositionInfo | null) {
     let decoSet = getDecoSet(state)
     let changed = findChangedRanges(this.state, this.decoSet, state, decoSet, changes)
-    return this.updateRanges(state, decoSet, changed, composition)
+    return this.updateRanges(state, decoSet, changed, connected, composition)
   }
 
-  updateRanges(state: GardState, decoSet: DecoSet, sections: ChangeSet.Sections, composition?: CompositionInfo | null) {
+  updateRanges(state: GardState, decoSet: DecoSet, sections: ChangeSet.Sections,
+               connected: boolean, composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
     if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
       return this
@@ -396,7 +397,10 @@ export class DocTile extends CompositeTile {
     }
     let result = builder.finish()
     result.sync()
-    for (let ch of this.children) ch.destroyDropped(builder.reused)
+    if (connected) {
+      for (let ch of this.children) ch.disconnect(builder.reused)
+      for (let tile of builder.toConnect) tile.widget.type.connect!(tile.widget.value, tile.dom)
+    }
     LOG_update && console.log("/updateRanges " + result + " : " + result.dom.innerHTML)
     return result
   }
@@ -619,7 +623,14 @@ export class WidgetTile extends Tile {
 
   handleEvent(event: Event, wg: Wordgard) { return this.widget.type.handleEvent(event, wg) }
 
-  destroy() { this.widget.type.destroy(this.widget.value, this.dom) }
+  connect() {
+    this.widget.type.connect?.(this.widget.value, this.dom)
+  }
+
+  disconnect(reused?: Map<Tile, Reused>) {
+    if (!reused || reused.get(this) != Reused.Full)
+      this.widget.type.disconnect?.(this.widget.value, this.dom)
+  }
 
   toString() {
     return this.widget.type == Widget.EditableText || this.widget.type == Widget.Text
@@ -802,6 +813,7 @@ class ContentUpdate {
   posB = 0
   reused = new Map<Tile, Reused>()
   keepWalker: TileWalker
+  toConnect: WidgetTile[] = []
 
   constructor(readonly state: GardState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: Mark.Set | null) {
     this.old = new TilePointer(old, 0, null)
@@ -958,11 +970,15 @@ class ContentUpdate {
       },
       widget: (widget, side) => {
         let sideFlag = side < 0 ? TileFlag.PointBefore : side > 0 ? TileFlag.PointAfter : 0
-        let found = reuse ? this.old.matchingWidget(widget, sideFlag, this.reused)
+        let tile = reuse ? this.old.matchingWidget(widget, sideFlag, this.reused)
           : startOld && this.posB == start ? startOld.matchingWidget(widget, sideFlag, this.reused)
           : endOld && this.posB == end ? endOld.matchingWidget(widget, sideFlag, this.reused)
           : null
-        this.new.addChild(found || new WidgetTile(widget, null, TileFlag.Point | sideFlag, 0))
+        if (!tile) {
+          tile = new WidgetTile(widget, null, TileFlag.Point | sideFlag, 0)
+          if (widget.type.connect) this.toConnect.push(tile)
+        }
+        this.new.addChild(tile)
       }
     })
   }
@@ -1022,7 +1038,9 @@ class ContentUpdate {
         dom = reusable.dom
       }
       let flags = (node ? TileFlag.Atom : TileFlag.Point | TileFlag.NodeInner) | afterContent
-      return new WidgetTile(shape, node, flags, node ? node.length : 0, dom)
+      let tile = new WidgetTile(shape, node, flags, node ? node.length : 0, dom)
+      if (shape.type.connect) this.toConnect.push(tile)
+      return tile
     }
   }
 

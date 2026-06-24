@@ -152,13 +152,13 @@ export class Wordgard {
       this.observer.connect()
       if (this.viewState.pending.length || this.domReaders.length || this.domWriters.length)
         this.scheduleFlush()
+      this.docTile.connect()
     } else {
       this.root = document
       this.observer.disconnect()
       for (let plugin of this.plugins) plugin.disconnect(this)
       this.inputState.disconnect()
-      // FIXME this isn't correct
-      this.docTile.destroyDropped(new Map)
+      this.docTile.disconnect()
       clearScratchRange()
     }
   }
@@ -270,7 +270,7 @@ export class Wordgard {
       if (this.state.facet(Wordgard.styleModule) != this.styleModules) this.mountStyles()
       this.updateAttrs()
     }
-    this.docTile = prevDocTile.update(update.state, changes, composition)
+    this.docTile = prevDocTile.update(update.state, changes, this.connected, composition)
 
     if ((composition?.wrapCursor || !composition && (prevDocTile != this.docTile || update.selectionSet)) && this.hasFocus)
       setDOMSelection(this)

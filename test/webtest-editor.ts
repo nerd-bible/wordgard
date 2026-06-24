@@ -1,11 +1,12 @@
-import {Wordgard} from "wordgard/editor"
+import {Wordgard, Widget, Decoration} from "wordgard/editor"
 import {Transaction} from "wordgard/state"
 import {Leaf} from "wordgard/doc"
+import {Image} from "wordgard/types"
 import {basicBuilders, eq} from "./schema.ts"
 import ist from "ist"
 import {tempEditor} from "./tempview.ts"
 
-const {doc, p} = basicBuilders
+const {doc, p, img, hr} = basicBuilders
 
 describe("Wordgard", () => {
   it("calls update on plugins", () => {
@@ -81,5 +82,32 @@ describe("Wordgard", () => {
     }))
     wg.dispatch({changes: {from: 1, insert: [Leaf.text("more content")]}})
     ist(wg.state.doc, doc(p("more")), eq)
+  })
+
+  it("calls connect/disconnect on widgets", () => {
+    let log: string[] = []
+    const trackedWidget = Widget.define<string>({
+      render(v) { let s = document.createElement("span"); s.textContent = v; return s },
+      connect(v) { log.push("connect " + v) },
+      disconnect(v) { log.push("disconnect " + v) }
+    })
+    const imgWidget = Decoration.Tag.shape(Image, t => trackedWidget.of(t.param))
+
+    let wg = tempEditor(doc(p("ab", img("a"), "cd")), imgWidget)
+    ist(log.join("/"), "connect a")
+    let parent = wg.dom.parentNode!
+    parent.removeChild(wg.dom)
+    parent.appendChild(wg.dom)
+    ist(log.join("/"), "connect a/disconnect a/connect a")
+    log.length = 0
+    wg.dispatch({changes: {from: 3, to: 4, insert: [img("b")]}})
+    wg.flush()
+    ist(log.join("/"), "disconnect a/connect b")
+    wg.dispatch({changes: {from: wg.state.doc.length, insert: [p("!", img("c"))]}})
+    wg.flush()
+    ist(log.join("/"), "disconnect a/connect b/connect c")
+    wg.dispatch({changes: {from: 0, to: wg.state.doc.length, insert: [hr]}})
+    wg.flush()
+    ist(log.join("/"), "disconnect a/connect b/connect c/disconnect b/disconnect c")
   })
 })

@@ -49,8 +49,14 @@ export namespace Widget {
     render: (value: Param) => Element | Text
     /// Compare the widget value for equality. Will default to `===`.
     eq?: (a: Param, b: Param) => boolean
-    /// Called when the widget is removed from the document.
-    destroy?: (value: Param, dom: Element | Text) => void
+    /// Called when a widget of this type is added to an editor that
+    /// is connected to a DOM document, or an editor with the widget
+    /// in it is connected.
+    connect?: (value: Param, dom: Element | Text) => void
+    /// Called when a widget of this type is removed from an editor
+    /// that is connected to a document, or when the editor containing
+    /// the widget is disconnected.
+    disconnect?: (value: Param, dom: Element | Text) => void
     /// Called before the editor handles a DOM event that comes from
     /// inside the widget. May return true to indicate that no further
     /// handling of the event should happen.
@@ -68,14 +74,16 @@ export namespace Widget {
       /// @internal
       readonly handleEvent: (event: Event, wg: Wordgard) => boolean,
       /// @internal
-      readonly destroy: (value: Param, dom: Element | Text) => void
+      readonly connect: ((value: Param, dom: Element | Text) => void) | null,
+      /// @internal
+      readonly disconnect: ((value: Param, dom: Element | Text) => void) | null
     ) {}
 
     /// @internal
     static new<Param>(spec: Widget.Spec<Param>) {
       return new Type(spec.render, spec.eq || ((a, b) => a === b),
                       spec.handleEvent || (() => false),
-                      spec.destroy || (() => {})) 
+                      spec.connect ?? null, spec.disconnect ?? null) 
     }
 
     /// Create an instance of this widget type.
