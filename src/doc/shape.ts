@@ -194,7 +194,11 @@ export namespace Elt {
   export function dom(elt: Elt, doc?: Document): Element
   export function dom(elt: string, doc?: Document): Text
   export function dom(elt: Elt.Fragment, doc?: Document): DocumentFragment
-  export function dom(elt: Elt | string | Elt.Fragment, doc: Document = document): Element | Text | DocumentFragment {
+  export function dom(elt: Elt | string | Elt.Fragment, doc?: Document): Element | Text | DocumentFragment {
+    if (!doc) {
+      if (typeof document != "object" || !document.createElement) throw new Error("No document available")
+      doc = document
+    }
     if (typeof elt == "string") {
       return doc.createTextNode(elt)
     } else if (elt instanceof Elt) {
