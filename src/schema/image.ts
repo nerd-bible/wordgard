@@ -157,8 +157,8 @@ export namespace imageResizing {
   /// Binds `Ctrl-Alt-l` (`Ctrl-Cmd-l` on Mac) to grow an image by
   /// 10%, and `Ctrl-Alt-k` (`Ctrl-Cmd-k` on Mac) to shrink it by 10%.
   export const keyBindings = [
-    KeyBinding.define({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeCommand(1.1, true)}),
-    KeyBinding.define({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeCommand(0.9091, true)}),
+    KeyBinding.of({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeCommand(1.1, true)}),
+    KeyBinding.of({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeCommand(0.9091, true)}),
   ]
 
   /// Extension that displays a drag handle when the user hovers over
@@ -174,7 +174,7 @@ export namespace imageResizing {
 
 export namespace image {
   /// Binds `Ctrl-Alt-i` to open the image insert/update dialog.
-  export const keyBinding = KeyBinding.define({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
+  export const keyBinding = KeyBinding.of({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
 
   /// A menu button that opens a dialog to insert an image or figure,
   /// or to adjust the currently selected image or figure.

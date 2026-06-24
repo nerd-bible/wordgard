@@ -13,7 +13,7 @@ export function strong(): GardState.Extension {
 
 export namespace strong {
   /// Binds `Mod-b` to toggle strong emphasis.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-b",
     run: Command.bind(toggleMark, Strong),
   })
@@ -39,7 +39,7 @@ export function emphasis(): GardState.Extension {
 
 export namespace emphasis {
   /// Binds `Mod-i` to toggle emphasis.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-i",
     run: Command.bind(toggleMark, Emphasis),
   })
@@ -65,7 +65,7 @@ export function code(): GardState.Extension {
 
 export namespace code {
   /// Binds `` Mod-` `` to toggle the code font mark.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-`",
     run: Command.bind(toggleMark, Code),
   })
@@ -91,7 +91,7 @@ export function underline(): GardState.Extension {
 
 export namespace underline {
   /// Binds `Mod-u` to toggle the underline mark.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-u",
     run: Command.bind(toggleMark, Underline)
   })
@@ -117,7 +117,7 @@ export function strikethrough(): GardState.Extension {
 
 export namespace strikethrough {
   /// Binds `Mod-/` to toggle strikethrough.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-/",
     run: Command.bind(toggleMark, Strikethrough),
   })
@@ -143,7 +143,7 @@ export function superscript(): GardState.Extension {
 
 export namespace superscript {
   /// Binds `Mod-.` to toggle superscript.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-.",
     run: Command.bind(toggleMark, Superscript),
   })
@@ -169,7 +169,7 @@ export function subscript(): GardState.Extension {
 
 export namespace subscript {
   /// Binds `Mod-,` to toggle the subscript mark.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-,",
     run: Command.bind(toggleMark, Subscript),
   })

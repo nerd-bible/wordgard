@@ -54,7 +54,7 @@ export class KeyBinding {
   }
 
   /// Define a binding.
-  static define(spec: KeyBinding.Spec) { return new KeyBinding(spec) }
+  static of(spec: KeyBinding.Spec) { return new KeyBinding(spec) }
 }
 
 export namespace KeyBinding {
@@ -234,7 +234,7 @@ export namespace KeyBinding {
     {mac: "Ctrl-o", run: insertLineBreak},
     {mac: "Ctrl-t", run: transposeChars},
     {mac: "Ctrl-v", run: Command.bind(moveByPage, {dir: "down"})},
-  ] as KeyBinding.Spec[]).map(KeyBinding.define)
+  ] as KeyBinding.Spec[]).map(KeyBinding.of)
 }
 
 type PlatformName = "mac" | "win" | "linux" | "key"

@@ -98,7 +98,7 @@ export function link(): GardState.Extension {
 
 export namespace link {
   /// Binds `Mod-k` to toggle the link mark.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Mod-k",
     run: toggleLink,
   })
@@ -131,7 +131,7 @@ export namespace link {
   /// cursor when that is in a link.
   export const tooltip: GardState.Extension = [
     linkTooltipField,
-    GardState.prec.low(KeyBinding.define({
+    GardState.prec.low(KeyBinding.of({
       key: "Escape",
       run: wg => {
         if (!wg.state.field(linkTooltipField)) return false

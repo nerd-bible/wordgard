@@ -36,7 +36,7 @@ export function paragraph(): GardState.Extension {
 export namespace paragraph {
   /// Binds `Ctrl-Shift-0` to switching the selected textblocks to
   /// regular paragraphs.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Ctrl-Shift-0",
     run: Command.bind(setTextblockType, Paragraph)
   })
@@ -67,12 +67,12 @@ export namespace heading {
   /// Binds `Ctrl-Shift-1` through `Ctrl-Shift-6` to make the selected
   /// textblocks headings of the given level.
   export const keyBindings = [
-    KeyBinding.define({key: "Ctrl-Shift-1", run: Command.bind(setTextblockType, Heading.of(1))}),
-    KeyBinding.define({key: "Ctrl-Shift-2", run: Command.bind(setTextblockType, Heading.of(2))}),
-    KeyBinding.define({key: "Ctrl-Shift-3", run: Command.bind(setTextblockType, Heading.of(3))}),
-    KeyBinding.define({key: "Ctrl-Shift-4", run: Command.bind(setTextblockType, Heading.of(4))}),
-    KeyBinding.define({key: "Ctrl-Shift-5", run: Command.bind(setTextblockType, Heading.of(5))}),
-    KeyBinding.define({key: "Ctrl-Shift-6", run: Command.bind(setTextblockType, Heading.of(6))})
+    KeyBinding.of({key: "Ctrl-Shift-1", run: Command.bind(setTextblockType, Heading.of(1))}),
+    KeyBinding.of({key: "Ctrl-Shift-2", run: Command.bind(setTextblockType, Heading.of(2))}),
+    KeyBinding.of({key: "Ctrl-Shift-3", run: Command.bind(setTextblockType, Heading.of(3))}),
+    KeyBinding.of({key: "Ctrl-Shift-4", run: Command.bind(setTextblockType, Heading.of(4))}),
+    KeyBinding.of({key: "Ctrl-Shift-5", run: Command.bind(setTextblockType, Heading.of(5))}),
+    KeyBinding.of({key: "Ctrl-Shift-6", run: Command.bind(setTextblockType, Heading.of(6))})
   ]
 
   /// Button for the {@link Menu.Submenu.textblockStyle textblock
@@ -122,7 +122,7 @@ export function codeBlock(): GardState.Extension {
 export namespace codeBlock {
   /// Binds `Ctrl-Shift-\` to switch the selected textblocks to a code
   /// block.
-  export const keyBinding = KeyBinding.define({
+  export const keyBinding = KeyBinding.of({
     key: "Ctrl-Shift-\\",
     run: Command.bind(setTextblockType, CodeBlock)
   })
@@ -158,9 +158,9 @@ export namespace alignment {
   /// Bind `Mod-Shift-l` to left-align, `Mod-Shift-r` to right-align,
   /// and `Mod-Shift-e` to center.
   export const keyBindings = [
-    KeyBinding.define({key: "Mod-Shift-l", run: Command.bind(setAlignment, "left")}),
-    KeyBinding.define({key: "Mod-Shift-r", run: Command.bind(setAlignment, "right")}),
-    KeyBinding.define({key: "Mod-Shift-e", run: Command.bind(setAlignment, "center")})
+    KeyBinding.of({key: "Mod-Shift-l", run: Command.bind(setAlignment, "left")}),
+    KeyBinding.of({key: "Mod-Shift-r", run: Command.bind(setAlignment, "right")}),
+    KeyBinding.of({key: "Mod-Shift-e", run: Command.bind(setAlignment, "center")})
   ]
 
   /// A button that sets text alignments to start.
