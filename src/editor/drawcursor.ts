@@ -28,7 +28,7 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
     wg.scheduleDOMRead(this.positionCursor)
   }    
 
-  destroy() {
+  remove() {
     this.layer.remove()
   }
 

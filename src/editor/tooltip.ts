@@ -63,7 +63,7 @@ class TooltipViewManager {
     for (let t of this.tooltipViews) if (tooltipViews.indexOf(t) < 0) {
       this.removeTooltipView(t)
       if (update.editor.connected) t.disconnect?.(update.editor)
-      t.destroy?.(update.editor)
+      t.remove?.(update.editor)
     }
     if (above) {
       newAbove!.forEach((val, i) => above[i] = val)
@@ -128,7 +128,6 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
         this.measureSoon()
     }, {threshold: [1]}) : null
     this.observeIntersection()
-    wg.win.addEventListener("resize", this.measureSoon = this.measureSoon.bind(this))
     this.maybeMeasure()
   }
 
@@ -144,7 +143,7 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
   }
 
   observeIntersection() {
-    if (this.intersectionObserver) {
+    if (this.intersectionObserver && this.wg.connected) {
       this.intersectionObserver.disconnect()
       for (let tooltip of this.manager.tooltipViews)
         this.intersectionObserver.observe(tooltip.dom)
@@ -195,28 +194,35 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
     tooltipView.dom.style.left = "0px"
     this.container.insertBefore(tooltipView.dom, before)
     if (this.wg.connected) tooltipView.connect?.(this.wg)
-    if (this.resizeObserver) this.resizeObserver.observe(tooltipView.dom)
+    if (this.resizeObserver && this.wg.connected) this.resizeObserver.observe(tooltipView.dom)
     return tooltipView
   }
 
   connect(wg: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.connect?.(wg)
+    wg.win.addEventListener("resize", this.measureSoon = this.measureSoon.bind(this))
+    for (let t of this.manager.tooltipViews) {
+      t.connect?.(wg)
+      if (this.resizeObserver) this.resizeObserver.observe(t.dom)
+    }
+    this.observeIntersection()
   }
 
   disconnect(wg: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.disconnect?.(wg)
+    this.wg.win.removeEventListener("resize", this.measureSoon)
+    for (let t of this.manager.tooltipViews) {
+      t.disconnect?.(wg)
+      if (this.resizeObserver) this.resizeObserver.unobserve(t.dom)
+    }
+    if (this.intersectionObserver) this.intersectionObserver.disconnect()
   }
 
-  destroy() {
-    this.wg.win.removeEventListener("resize", this.measureSoon)
+  remove() {
     for (let tooltipView of this.manager.tooltipViews) {
       tooltipView.dom.remove()
       if (this.wg.connected) tooltipView.disconnect?.(this.wg)
-      tooltipView.destroy?.(this.wg)
+      tooltipView.remove?.(this.wg)
     }
     if (this.parent) this.container.remove()
-    this.resizeObserver?.disconnect()
-    this.intersectionObserver?.disconnect()
     clearTimeout(this.measureTimeout)
   }
 
@@ -483,9 +489,8 @@ export namespace Tooltip {
     /// Called when the editor containing the tooltip is disconnected,
     /// or before the tooltip is removed.
     disconnect?(wg: Wordgard): void
-    /// Called when the tooltip is removed from the editor or the editor
-    /// is destroyed.
-    destroy?(wg: Wordgard): void
+    /// Called when the tooltip is removed from the editor.
+    remove?(wg: Wordgard): void
     /// Called when the tooltip has been (re)positioned. The argument
     /// is the {@link Tooltip.configure.config.tooltipSpace space}
     /// available to the tooltip.
@@ -655,8 +660,8 @@ class HoverTooltipHost implements Tooltip.View {
     this.manager.update(update)
   }
 
-  destroy(wg: Wordgard) {
-    for (let t of this.manager.tooltipViews) t.destroy?.(wg)
+  remove(wg: Wordgard) {
+    for (let t of this.manager.tooltipViews) t.remove?.(wg)
   }
 
   passProp<Key extends keyof Tooltip.View>(name: Key): Tooltip.View[Key] | undefined {
@@ -801,7 +806,7 @@ class HoverPlugin {
     tooltip.addEventListener("mouseleave", watch)
   }
 
-  destroy() {
+  remove() {
     clearTimeout(this.hoverTimeout)
     this.wg.dom.removeEventListener("mouseleave", this.mouseleave)
     this.wg.dom.removeEventListener("mousemove", this.mousemove)

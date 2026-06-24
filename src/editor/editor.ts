@@ -157,6 +157,7 @@ export class Wordgard {
       this.observer.disconnect()
       for (let plugin of this.plugins) plugin.disconnect(this)
       this.inputState.disconnect()
+      // FIXME this isn't correct
       this.docTile.destroyDropped(new Map)
       clearScratchRange()
     }
@@ -294,7 +295,7 @@ export class Wordgard {
           newPlugins.push(plugin)
         }
       }
-      for (let plugin of this.plugins) if (!newPlugins.includes(plugin)) plugin.destroy(this)
+      for (let plugin of this.plugins) if (!newPlugins.includes(plugin)) plugin.remove(this)
       this.plugins = newPlugins
       this.pluginMap.clear()
     } else {
@@ -948,10 +949,6 @@ export namespace Wordgard {
       /// changes in the DOM representation of the document.
       docUpdate?(wg: Wordgard): void
 
-      /// Called when the plugin is removed from an editor. This should
-      /// clean up any changes it made to the editor itself.
-      destroy?(wg: Wordgard): void
-
       /// Called when the editor is attached to the DOM. If the plugin
       /// needs to allocate any resource that must be released, or modify
       /// something outside the editor, it should do it in this method,
@@ -961,6 +958,13 @@ export namespace Wordgard {
       /// Called when the editor is removed from the DOM, or the
       /// plugin is removed from the editor.
       disconnect?(wg: Wordgard): void
+
+      /// Called when the plugin is removed from an editor. This
+      /// should clean up any changes it made to the editor itself. If
+      /// the editor was connected to a document, {@link
+      /// Wordgard.Plugin.Value.disconnect `disconnect`} will be called
+      /// before this.
+      remove?(wg: Wordgard): void
     }
   }
 
@@ -1090,17 +1094,17 @@ class PluginInstance {
     }
   }
 
-  destroy(wg: Wordgard) {
+  remove(wg: Wordgard) {
     if (wg.connected) this.disconnect(wg)
-    if (this.value?.destroy) try {
-      this.value.destroy(wg)
+    if (this.value?.remove) try {
+      this.value.remove(wg)
     } catch(e) {
       logException(wg.state, e, "CodeMirror plugin crashed")
     }
   }
 
-  deactivate(destroy: Wordgard | null) {
-    if (destroy && this.value?.destroy) try { this.value.destroy(destroy) } catch {}
+  deactivate(remove: Wordgard | null) {
+    if (remove && this.value?.remove) try { this.value.remove(remove) } catch {}
     this.deactivated = true
     this.value = null
   }

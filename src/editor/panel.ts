@@ -38,7 +38,7 @@ export interface Panel {
   /// DOM, or the panel is removed from an editor.
   disconnect?(wg: Wordgard): void
   /// Called when the panel is removed from the editor.
-  destroy?(wg: Wordgard): void
+  remove?(wg: Wordgard): void
 }
 
 const panelPlugin = Wordgard.Plugin.fromClass(class {
@@ -109,7 +109,7 @@ const panelPlugin = Wordgard.Plugin.fromClass(class {
     for (let p of this.panels) p.disconnect?.(wg)
   }
 
-  destroy(wg: Wordgard) {
+  remove(wg: Wordgard) {
     this.top.sync([], wg)
     this.bottom.sync([], wg)
   }
@@ -156,7 +156,7 @@ class PanelGroup {
   sync(panels: Panel[], wg: Wordgard) {
     for (let p of this.panels) if (!panels.includes(p)) {
       if (wg.connected) p.disconnect?.(wg)
-      p.destroy?.(wg)
+      p.remove?.(wg)
     }
     this.panels = panels
     this.syncDOM()
