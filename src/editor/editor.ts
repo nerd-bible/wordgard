@@ -1,5 +1,6 @@
 import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ChangeSet, Node, Attributes} from "wordgard/doc"
+import {PhraseSet} from "wordgard/phrases"
 import {StyleModule, StyleSpec} from "style-mod"
 
 import {DocTile, updateAttributes} from "./tile"
@@ -513,6 +514,15 @@ export class Wordgard {
       y: options.y || "nearest", x: options.x || "nearest",
       yMargin: options.yMargin ?? 5, xMargin: options.xMargin ?? 5
     }))
+  }
+
+  /// Add an
+  /// [`aria-label`](https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA/Reference/Attributes/aria-label)
+  /// attribute to the editable element holding the given string or
+  /// phrase.
+  static label(label: string | PhraseSet.Ref) {
+    return Wordgard.editorAttributes.of(typeof label == "string" ? {"aria-label": label}
+      : (wg => ({"aria-label": label(wg.state)})))
   }
 
   /// Filter functions provided through this facet will be run on a
