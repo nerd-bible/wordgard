@@ -3,7 +3,9 @@ import {StyleModule, StyleSpec} from "style-mod"
 
 export const theme = GardState.Facet.define<string, string>({combine: strs => strs.join(" ")})
 
-export const darkTheme = GardState.Facet.define<boolean, boolean | null>({combine: values => values.length ? values[0] : null})
+export const colorScheme = GardState.Facet.define<"dark" | "light", "dark" | "light" | null>({
+  combine: values => values.length ? values[0] : null
+})
 
 export const styleID = StyleModule.newName(), baseLightID = StyleModule.newName(), baseDarkID = StyleModule.newName()
 

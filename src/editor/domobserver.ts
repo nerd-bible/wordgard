@@ -49,7 +49,7 @@ export class DOMObserver {
     this.pollSelection = this.pollSelection.bind(this)
     this.onResize = this.onResize.bind(this)
     this.onScroll = this.onScroll.bind(this)
-    this.onThemeChange = this.onThemeChange.bind(this)
+    this.onColorSchemeChange = this.onColorSchemeChange.bind(this)
 
     if (typeof ResizeObserver == "function") {
       let lastFlushSeen = 0
@@ -83,8 +83,8 @@ export class DOMObserver {
     win.document.addEventListener("selectionchange", this.pollSelection)
     if (typeof win.matchMedia == "function") {
       this.darkThemeQuery = win.matchMedia("(prefers-color-scheme: dark)")
-      this.onThemeChange()
-      this.darkThemeQuery.addEventListener("change", this.onThemeChange)
+      this.onColorSchemeChange()
+      this.darkThemeQuery.addEventListener("change", this.onColorSchemeChange)
     }
   }
 
@@ -101,7 +101,7 @@ export class DOMObserver {
       this.win = null
     }
     if (this.darkThemeQuery) {
-      this.darkThemeQuery.removeEventListener("change", this.onThemeChange)
+      this.darkThemeQuery.removeEventListener("change", this.onColorSchemeChange)
       this.darkThemeQuery = null
     }
   }
@@ -117,8 +117,8 @@ export class DOMObserver {
     }, 50)
   }
 
-  onThemeChange() {
-    this.wg.configureDarkTheme(this.darkThemeQuery!.matches)
+  onColorSchemeChange() {
+    this.wg.configureColorScheme(this.darkThemeQuery!.matches ? "dark" : "light")
   }
 
   pollSelection() {

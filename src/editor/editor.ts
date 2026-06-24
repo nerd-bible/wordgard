@@ -8,7 +8,7 @@ import {coordsAtPos} from "./coords"
 import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFilter,
         clipboardInputFilter, clipboardInputHTMLFilter, clipboardInputTextFilter,
         clipboardTextParser, clipboardTextSerializer} from "./clipboard"
-import {theme, darkTheme, buildTheme, styleID, baseLightID, baseDarkID, lightDarkIDs, baseStyles} from "./theme"
+import {theme, colorScheme, buildTheme, styleID, baseLightID, baseDarkID, lightDarkIDs, baseStyles} from "./theme"
 import {DOMObserver} from "./domobserver"
 import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
         dragBehavior, pasteHandler, dropHandler, eventHandler, eventObserver} from "./input"
@@ -94,7 +94,7 @@ export class Wordgard {
   private flushFunc: () => void
   /// @internal
   lastFlush = Date.now()
-  private defaultDarkTheme = false
+  private defaultColorScheme: "light" | "dark" = "light"
 
   /// @internal
   observer: DOMObserver
@@ -501,7 +501,7 @@ export class Wordgard {
   /// Get the CSS classes for the currently active editor themes.
   get themeClasses() {
     return styleID + " " +
-      (this.state.facet(darkTheme) ?? this.defaultDarkTheme ? baseDarkID : baseLightID) + " " +
+      ((this.state.facet(colorScheme) || this.defaultColorScheme) == "dark" ? baseDarkID : baseLightID) + " " +
       this.state.facet(theme)
   }
 
@@ -695,18 +695,26 @@ export class Wordgard {
     }))]
   }
 
-  /// This facet controls whether a dark theme is active, which
-  /// determines whether base theme rules with a `&dark` or `&light`
-  /// selector are applied. If not configured, the editor uses a CSS
-  /// `prefers-color-scheme: dark` query to determine whether to
-  /// enable light or dark mode.
-  static darkTheme = darkTheme
+  /// This facet controls whether a dark or light color scheme is
+  /// active, which determines whether style rules with a `&dark`
+  /// or `&light` selector are applied. If not configured, the editor
+  /// uses a CSS `prefers-color-scheme: dark` query to determine
+  /// whether to enable light or dark mode.
+  ///
+  /// Note that setting this to dark will not automatically make the
+  /// editor look dark. The default styling does not override the
+  /// inherited background and color of the editor. In case of a
+  /// page-wide `prefers-color-scheme` selection, those might already
+  /// be dark. But when setting an editor on a light background to
+  /// explicitly to use a dark theme, you'll need to make sure you
+  /// also load styles for that.
+  static colorScheme = colorScheme
 
   /// @internal
-  configureDarkTheme(dark: boolean) {
-    if (this.defaultDarkTheme == dark) return
-    this.defaultDarkTheme = dark
-    if (this.state.facet(darkTheme) == null)
+  configureColorScheme(scheme: "light" | "dark") {
+    if (this.defaultColorScheme == scheme) return
+    this.defaultColorScheme = scheme
+    if (!this.state.facet(colorScheme))
       this.observer.ignore(() => this.updateAttrs())
   }
 
@@ -714,7 +722,8 @@ export class Wordgard {
   /// with {@link Wordgard.theme `theme`}, use `&` to indicate the
   /// place of the editor wrapper element when directly targeting
   /// that. You can also use `&dark` or `&light` instead to only
-  /// target editors with a dark or light theme.
+  /// target editors with a dark or light {@link Wordgard.colorScheme
+  /// color scheme}.
   static styles(spec: Record<string, StyleSpec>): GardState.Extension {
     return GardState.prec.lowest(Wordgard.styleModule.of(buildTheme("." + styleID, spec, lightDarkIDs)))
   }
