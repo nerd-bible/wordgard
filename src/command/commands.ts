@@ -23,10 +23,9 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
   let {selection} = state
   let marks = (from == selection.from && to == selection.to && state.sel.activeMarks) ||
     state.doc.resolve(from).marks(state.doc.resolve(to))
-  let changes = ChangeSet.create(state.doc, {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true})
   return {
-    changes,
-    selection: cx => GardSelection.near(cx, changes.mapPos(to, 1), -1),
+    changes: {from, to, insert: [Leaf.Text.of(insert, marks)], fit: true},
+    selection: (cx, changes) => GardSelection.near(cx, changes.mapPos(to, 1), -1),
     userEvent
   }
 }

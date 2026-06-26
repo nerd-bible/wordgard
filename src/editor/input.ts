@@ -672,15 +672,14 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
                                                  content ? content.context : [])))
       return true
     if (content) { // FIXME proper multi-selection pasting
-      let changes = ChangeSet.create(wg.state.doc, {
-        from: state.selection.from,
-        to: state.selection.to,
-        insert: content.slice,
-        fit: content.context
-      })
       wg.dispatch({
-        changes,
-        selection: cx => GardSelection.near(cx, changes.mapPos(state.selection.to, 1), -1),
+        changes: {
+          from: state.selection.from,
+          to: state.selection.to,
+          insert: content.slice,
+          fit: content.context
+        },
+        selection: (cx, changes) => GardSelection.near(cx, changes.mapPos(state.selection.to, 1), -1),
         userEvent: "input.paste",
         scrollIntoView: true
       })

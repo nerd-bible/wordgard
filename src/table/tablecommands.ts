@@ -281,10 +281,9 @@ export const splitCell: Command.Pure = ({state}) => {
   }
   if (colSpan) changes.push({from: pos, remove: colSpan})
   if (rowSpan) changes.push({from: pos, remove: rowSpan})
-  let changeSet = ChangeSet.create(state.doc, changes)
   return {
-    changes: changeSet,
-    selection: cx => CellSelection.between(cx.doc, pos, changeSet.mapPos(lastInsert, 1))!,
+    changes,
+    selection: (cx, changes) => CellSelection.between(cx.doc, pos, changes.mapPos(lastInsert, 1))!,
     userEvent: "split.cell"
   }
 }

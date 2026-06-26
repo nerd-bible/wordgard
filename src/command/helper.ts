@@ -91,13 +91,12 @@ export function splitTextblock(state: GardState, splitListItem = true): Transact
 export function deleteSelection(state: GardState): Transaction.Spec | false {
   let {ranges} = state.selection
   if (ranges.every(r => r.from == r.to)) return false
-  let changes = ChangeSet.create(state.doc, {
-    correct: ranges.filter(r => r.from < r.to).map(r => ({from: r.from, to: r.to, fit: true})),
-    local: true
-  })
   return autoJoinBlocks(state, {
-    changes,
-    selection: cx => state.selection instanceof GardSelection.Text
+    changes: {
+      correct: ranges.filter(r => r.from < r.to).map(r => ({from: r.from, to: r.to, fit: true})),
+      local: true
+    },
+    selection: (cx, changes) => state.selection instanceof GardSelection.Text
       ? GardSelection.near(cx, changes.mapPos(state.selection.head, -1), 1)
       : state.selection.map(changes, cx),
     scrollIntoView: true,
@@ -112,10 +111,9 @@ export function deleteEmptyTextblock(state: GardState, dir: -1 | 1 = -1): Transa
   if (!state.selection.isCursor) return false
   let block = state.sel.head.textblockParent
   if (!block || block.start < block.end || block.before == 0 && block.after == state.doc.length) return false
-  let changes = ChangeSet.create(state.doc, {from: block.before, to: block.after, fit: true})
   return {
-    changes,
-    selection: cx => GardSelection.near(cx, changes.mapPos(state.selection.head), dir),
+    changes: {from: block.before, to: block.after, fit: true},
+    selection: (cx, changes) => GardSelection.near(cx, changes.mapPos(state.selection.head), dir),
     scrollIntoView: true,
     userEvent: dir < 0 ? "delete.backward" : "delete.forward"
   }
