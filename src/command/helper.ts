@@ -141,8 +141,10 @@ export function joinBackward(state: GardState): Transaction.Spec | false {
     pos--
   }
   let {schema} = state.doc
-  let changes = joinBlocks(state.doc.resolve(pos - 1).parent, block)
-    .concat(clearNonFitting(schema, block, before.type))
+  let changes = [
+    joinBlocks(state.doc.resolve(pos - 1).parent, block),
+    clearNonFitting(schema, block, before.type)
+  ]
   if (!before.content.length && !before.tag.eq(target.tag) && schema.canContain(parent.type, target.type))
     changes.push({
       from: pos - before.length, to: pos - before.length + 1,
@@ -204,8 +206,10 @@ export function joinForward(state: GardState): Transaction.Spec | false {
   }
   let blockAfter = state.doc.resolveNode(pos) as Pos.Plot
   let {schema} = state.doc
-  let changes = joinBlocks(block, blockAfter)
-    .concat(clearNonFitting(schema, blockAfter, target.type))
+  let changes = [
+    joinBlocks(block, blockAfter),
+    clearNonFitting(schema, blockAfter, target.type)
+  ]
   if (!target.content.length && !target.tag.eq(after.tag) && schema.canContain(parent.type, after.type))
     changes.push({
       from: block.before, to: block.start,
@@ -363,7 +367,7 @@ export function selectedTextblocks(state: GardState) {
 
 /// Remove all content in `node` that is not allowed to appear in
 /// `type`.
-export function clearNonFitting(schema: Schema, node: Pos.Plot, type: Plot.Type) {
+export function clearNonFitting(schema: Schema, node: Pos.Plot, type: Plot.Type): ChangeSet.Spec {
   let changes: ChangeSet.Spec[] = []
   for (let i = 0, pos = node.start; i < node.node.content.length; i++) {
     let child = node.node.content[i], end = pos + child.length
@@ -560,7 +564,7 @@ export function doUnwrapBlock(block: Pos.Plot, from?: number, to?: number): Chan
 
 /// Join two adjacent (only separated by first a sequence of block end
 /// tokens and then a sequence of block open tokens) block plots.
-export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec[] {
+export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec {
   let changes: ChangeSet.Spec[] = [{from: before.end, to: after.start}]
   let dBefore = before.depth, dAfter = after.depth
   let tokensAfter: Token[] = [], posAfter = after.after, end = posAfter

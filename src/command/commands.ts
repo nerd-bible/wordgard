@@ -156,7 +156,7 @@ export const setTextblockType: Command.Pure<Plot.Tag> = ({state}, tag) => {
   for (let block of selectedTextblocks(state)) {
     if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
       changes.push({from: block.before, to: block.before + 1, insert: [schema.withMarksFrom(block.node.tag, tag)]})
-      for (let ch of clearNonFitting(schema, block, tag.type)) changes.push(ch)
+      changes.push(clearNonFitting(schema, block, tag.type))
     }
   }
   if (!changes.length) return false
