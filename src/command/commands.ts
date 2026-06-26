@@ -39,7 +39,7 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
 export const insertLineBreak: Command.Pure = ({state}) => {
   let {doc, sel} = state
   let brk = doc.schema.lineBreak, parent = sel.from.parent.node.type
-  let {from, to} = state.selection.replacemenRange
+  let {from, to} = state.selection.replacementRange
   let insertBreak = brk && doc.schema.canContain(parent, brk.type)
   if (!(insertBreak || parent.preserveWhitespace && sel.to.parent.start == sel.from.parent.start)) return false
   let insert = insertBreak ? brk!.withMarks(state.sel.activeMarks) : Leaf.text("\n", state.sel.activeMarks)
@@ -435,7 +435,7 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: GardSt
 
 function asTextSel(sel: GardSelection, forward: boolean): GardSelection.Text {
   if (sel instanceof GardSelection.Text) return sel
-  let {from, to} = sel.replacemenRange
+  let {from, to} = sel.replacementRange
   return forward ? GardSelection.range(from, to) : GardSelection.range(to, from)
 }
 

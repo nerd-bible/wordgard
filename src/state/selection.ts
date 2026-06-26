@@ -50,7 +50,7 @@ export abstract class GardSelection {
   /// other content (for example when typing or pasting over it) or
   /// deleting it. The default implementation returns `this.from` to
   /// `this.to`.
-  get replacemenRange(): {from: number, to: number} { return this }
+  get replacementRange(): {from: number, to: number} { return this }
 
   /// This can be overridden to control the DOM selection created for
   /// a selection. The default is to just return the selection's own
@@ -405,7 +405,7 @@ export namespace GardSelection {
 
     /// The resolved replacement range.
     get replacementRange(): {from: Pos, to: Pos} {
-      let repl = this.selection.replacemenRange
+      let repl = this.selection.replacementRange
       if (repl.from == this.selection.from && repl.to == this.selection.to) return this
       return {from: this.doc.resolve(repl.from), to: this.doc.resolve(repl.to)}
     }

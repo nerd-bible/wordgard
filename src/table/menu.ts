@@ -99,7 +99,7 @@ function insertTable(wg: Wordgard, width: number, height: number) {
   for (let i = 0; i < width; i++) cells.push(cellNode)
   let row = TableRow.create(cells), rows: Plot[] = []
   for (let i = 0; i < height; i++) rows.push(row)
-  let table = Table.create(rows), {from, to} = state.selection.replacemenRange
+  let table = Table.create(rows), {from, to} = state.selection.replacementRange
   let changes = ChangeSet.create(state.doc, {from, to, insert: [table], fit: true})
   let tablePos = changes.findInserted(tag => tag.type == Table.type)
   wg.dispatch({

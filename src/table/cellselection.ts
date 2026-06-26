@@ -39,7 +39,7 @@ function cursorCommand(wg: Wordgard, {dir, extend}: {dir: Dir, extend?: boolean}
   if (!(selection instanceof CellSelection)) return false
   let newSel
   if (!extend) {
-    newSel = GardSelection.near(state, selection.replacemenRange.from, 1)
+    newSel = GardSelection.near(state, selection.replacementRange.from, 1)
   } else {
     if (dir == "left" || dir == "right") dir = resolveDir(dir, state)
     newSel = selection.moveHead(state.doc, dir)
@@ -117,10 +117,10 @@ export class CellSelection extends GardSelection {
 
   get ranges() { return this._ranges }
 
-  get replacemenRange() { return this._ranges[this.anchorRange] }
+  get replacementRange() { return this._ranges[this.anchorRange] }
 
   get domSelection() {
-    let {from, to} = this.replacemenRange
+    let {from, to} = this.replacementRange
     return {anchor: from, anchorSide: 1, head: to, headSide: -1} as const
   }
 
