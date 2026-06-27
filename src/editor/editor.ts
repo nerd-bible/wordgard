@@ -192,7 +192,7 @@ export class Wordgard {
 
   /// @internal
   flush() {
-    if (!this.connected || this.inputState.pendingComposition) return
+    if (!this.connected || this.inputState.pendingComposition || this.inputState.pendingDeletion) return
     this.observer.pollSelection()
     let {flushedState, state} = this.viewState
     let update = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
@@ -387,7 +387,7 @@ export class Wordgard {
     if (this.willFlush && (this.viewState.pending.some(tr => tr.docChanged) || this.observer.dirty)) {
       if (this.flushing == Flush.Yes)
         throw new Error("Trying to read from unflushed editor during flush")
-      if (this.inputState.pendingComposition)
+      if (this.inputState.pendingComposition || this.inputState.pendingDeletion)
         throw new Error("Trying to read editor DOM between beforeinput and input for composition")
       if (this.flushing == Flush.No)
         this.flush()

@@ -68,6 +68,8 @@ export class InputState {
   compositionPendingKey = false
   // Used to smuggle information from beforeinput to input
   pendingComposition: {from: number, to: number, text: string} | null = null
+  // Used in the hack to handle weird Chrome Android deletions
+  pendingDeletion: {from: number, to: number} | null = null
   wrappingComposition: Mark.Set | null = null
 
   mouseSelection: MouseSelection | null = null
@@ -696,6 +698,15 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
 
     let command = inputTypeCommands[type]
     if (command) {
+      // Chrome Android will fire uncancelable deleteContentBackward
+      // events (see https://issuetracker.google.com/issues/528500162)
+      // in many situations. Since we don't want to handle these
+      // twice, we defer handling to the input handler.
+      if (browser.android && browser.chrome && (type == "deleteContentBackward" || type == "deleteContentForward")) {
+        wg.inputState.pendingDeletion = inputEventRange(event, wg)
+        LOG_input && console.log("beforeinput", type, wg.inputState.pendingDeletion, "(chrome)")
+        return false
+      }
       LOG_input && console.log("beforeinput", type, "(command)")
       Command.dispatch(wg, command)
       return true
@@ -735,7 +746,8 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
   },
 
   input(wg, event) {
-    if (event.inputType == "insertCompositionText" && wg.inputState.pendingComposition) {
+    let type = event.inputType
+    if (type == "insertCompositionText" && wg.inputState.pendingComposition) {
       let {from, to, text} = wg.inputState.pendingComposition
       LOG_input && console.log("input", event.inputType, from, to, text)
       wg.inputState.pendingComposition = null
@@ -764,6 +776,15 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
         }
       }
       Command.dispatch(wg, insertText, {from, to, insert: text, userEvent})
+      return false
+    } else if (browser.android && browser.chrome && (type == "deleteContentBackward" || type == "deleteContentForward") &&
+               wg.inputState.pendingDeletion) {
+      let {from, to} = wg.inputState.pendingDeletion
+      wg.inputState.pendingDeletion = null
+      wg.dispatch({
+        changes: {from, to, fit: true},
+        userEvent: "delete"
+      })
       return false
     }
     LOG_input && console.log("input", event.inputType, "(unhandled)")
