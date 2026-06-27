@@ -94,7 +94,7 @@ export class Wordgard {
   private flushFunc: () => void
   /// @internal
   lastFlush = Date.now()
-  private defaultColorScheme: "light" | "dark" = "light"
+  private autoColorScheme: "light" | "dark" = "light"
 
   /// @internal
   observer: DOMObserver
@@ -500,9 +500,9 @@ export class Wordgard {
 
   /// Get the CSS classes for the currently active editor themes.
   get themeClasses() {
-    return styleID + " " +
-      ((this.state.facet(colorScheme) || this.defaultColorScheme) == "dark" ? baseDarkID : baseLightID) + " " +
-      this.state.facet(theme)
+    let scheme = this.state.facet(colorScheme)
+    if (scheme == "auto") scheme = this.autoColorScheme
+    return styleID + " " + (scheme == "dark" ? baseDarkID : baseLightID) + " " + this.state.facet(theme)
   }
 
   /// Returns an effect that can be {@link Transaction.Spec.effects
@@ -696,10 +696,10 @@ export class Wordgard {
   }
 
   /// This facet controls whether a dark or light color scheme is
-  /// active, which determines whether style rules with a `&dark`
-  /// or `&light` selector are applied. If not configured, the editor
-  /// uses a CSS `prefers-color-scheme: dark` query to determine
-  /// whether to enable light or dark mode.
+  /// active, which determines whether style rules with a `&dark` or
+  /// `&light` selector are applied. Defaults to `"light"`. If set to
+  /// `"auto"`, the editor uses a CSS `prefers-color-scheme: dark`
+  /// query to determine whether to enable light or dark mode.
   ///
   /// Note that setting this to dark will not automatically make the
   /// editor look dark. The default styling does not override the
@@ -712,8 +712,8 @@ export class Wordgard {
 
   /// @internal
   configureColorScheme(scheme: "light" | "dark") {
-    if (this.defaultColorScheme == scheme) return
-    this.defaultColorScheme = scheme
+    if (this.autoColorScheme == scheme) return
+    this.autoColorScheme = scheme
     if (!this.state.facet(colorScheme))
       this.observer.ignore(() => this.updateAttrs())
   }
