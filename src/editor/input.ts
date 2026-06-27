@@ -12,6 +12,8 @@ import {eqArray, logException} from "./util"
 import {Tile, CoordPos} from "./tile"
 import {KeyBinding} from "./keymap"
 
+const LOG_input = false
+
 export const eventHandler = GardState.Facet.define<
   {event: string, handler: (event: Event, wg: Wordgard) => boolean | void},
   Record<string, ((event: Event, wg: Wordgard) => boolean | void)[]>
@@ -123,6 +125,7 @@ export class InputState {
   }
 
   keydown(event: KeyboardEvent) {
+    LOG_input && console.log("keydown", event.key, ["shift", "alt", "ctrl", "meta"].filter(k => (event as any)[k + "Key"]).join())
     // Must always run, even if a custom handler handled the event
     this.lastKeyCode = event.keyCode
     this.lastKeyTime = Date.now()
@@ -520,6 +523,7 @@ function compositionEnd(wg: Wordgard) {
 }
 
 function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
+  LOG_input && console.log(event.type, !!wg.inputState.composing)
   if (!wg.inputState.composing) {
     wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
 
@@ -692,6 +696,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
 
     let command = inputTypeCommands[type]
     if (command) {
+      LOG_input && console.log("beforeinput", type, "(command)")
       Command.dispatch(wg, command)
       return true
     }
@@ -701,12 +706,14 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       if (browser.safari && wg.inputState.composing) compositionEnd(wg)
       let insert = event.data!.replace(/\r\n?|\n/g, " ")
       let {from, to} = inputEventRange(event, wg, true)
+      LOG_input && console.log("beforeinput", type, from, to, insert)
       Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
       return true
     } else if (type == "insertReplacementText" || type == "insertFromYank") {
       let slice = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)?.slice
       if (slice) {
         let {from, to} = inputEventRange(event, wg)
+        LOG_input && console.log("beforeinput", type, from, to, slice + "")
         wg.dispatch({changes: {from, to, insert: slice, fit: true}})
         return true
       }
@@ -714,17 +721,23 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       if (!wg.inputState.composing)
         wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
       let range = inputEventRange(event, wg)
+      LOG_input && console.log("beforeinput", type, range.from, range.to, event.data)
       wg.inputState.pendingComposition = {from: range.from, to: range.to, text: event.data!}
     } else if (type == "formatSetBlockTextDirection") {
-      if (event.data == "ltr" || event.data == "rtl")
+      if (event.data == "ltr" || event.data == "rtl") {
+        LOG_input && console.log("beforeinput", type, event.data)
         Command.dispatch(wg, setDirection, event.data)
+        return true
+      }
     }
+    LOG_input && console.log("beforeinput", type, "(unhandled)")
     return false
   },
 
   input(wg, event) {
     if (event.inputType == "insertCompositionText" && wg.inputState.pendingComposition) {
       let {from, to, text} = wg.inputState.pendingComposition
+      LOG_input && console.log("input", event.inputType, from, to, text)
       wg.inputState.pendingComposition = null
       let start = !wg.inputState.composing!.changes
       wg.inputState.composing!.changes++
@@ -753,6 +766,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       Command.dispatch(wg, insertText, {from, to, insert: text, userEvent})
       return false
     }
+    LOG_input && console.log("input", event.inputType, "(unhandled)")
     return true
   }
 }
@@ -791,6 +805,7 @@ const baseObservers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: H
   compositionupdate: compositionUpdate,
 
   compositionend(wg) {
+    LOG_input && console.log("compositionend", !!wg.inputState.composing)
     compositionEnd(wg)
   },
 
