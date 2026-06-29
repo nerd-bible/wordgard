@@ -151,19 +151,9 @@ export class GardState {
   }
 
   /// Create a {@link Transaction transaction} that updates this
-  /// state. Any number of {@link Transaction.Spec transaction specs}
-  /// can be passed. Unless {@link Transaction.Spec.sequential
-  /// `sequential`} is set, the {@link Transaction.Spec.changes
-  /// changes} (if any) of each spec are assumed to start in the
-  /// _current_ document (not the document produced by previous
-  /// specs), and its {@link Transaction.Spec.selection selection} and
-  /// {@link Transaction.Spec.effects effects} are assumed to refer to
-  /// the document created by its _own_ changes. The resulting
-  /// transaction contains the combined effect of all the different
-  /// specs. For {@link Transaction.Spec.selection selection}, later
-  /// specs take precedence over earlier ones.
-  update(...specs: readonly Transaction.Spec[]): Transaction {
-    return specs.length == 1 && specs[0] instanceof Transaction ? specs[0] : resolveTransaction(this, specs)
+  /// state.
+  update(spec: Transaction.Spec): Transaction {
+    return resolveTransaction(this, spec)
   }
 
   /// @internal

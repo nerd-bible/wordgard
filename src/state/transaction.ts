@@ -116,21 +116,20 @@ export namespace Transaction {
     /// When set to `true`, the transaction is marked as needing to
     /// scroll the current selection into view.
     scrollIntoView?: boolean,
-    /// Normally, when multiple specs are combined (for example by
-    /// {@link GardState.update `GardState.update`} or {@link
-    /// Transaction.merge}), the positions in `changes` are taken to
-    /// refer to the document positions in the initial document. When
-    /// a spec has `sequental` set to true, its positions will be
-    /// taken to refer to the document created by the changes in the
-    /// specs before it.
+    /// Only meaningful for specs that are combined with another
+    /// transaction spec (via {@link Transaction.merge or by being
+    /// returned from an {@link Transaction.extender extender}.
+    /// Normally, when specs are combined, the positions in `changes`
+    /// are taken to refer to the document positions in the initial
+    /// document. When a spec has `sequental` set to true, its
+    /// positions will be taken to refer to the document created by
+    /// the changes in the spec before it.
     sequential?: boolean
   }
 
 
   /// Merge two transaction specs into a single one, combining the
-  /// effect of both. Note that the {@link Transaction.Spec.sequential
-  /// `sequential`} field will be interpreted *within* these
-  /// transactions, and the resulting spec will not have it.
+  /// effect of both.
   export function merge(state: GardState, a: Transaction.Spec, b: Transaction.Spec): Transaction.Spec {
     let rA = resolveTransactionInner(state, null, a)
     return mergeTransaction(state, rA, resolveTransactionInner(state, rA.changes, b))
@@ -175,7 +174,7 @@ export namespace Transaction {
         if (from < result.length) {
           let add = appenders[i](from ? result.slice(from) : result, top)
           if (add) {
-            let tr = top.update(add, {annotations: Transaction.appended.of(true)})
+            let tr = top.update(Transaction.merge(top, add, {annotations: Transaction.appended.of(true)}))
             result.push(tr)
             top = tr.state
             done = false
@@ -397,11 +396,8 @@ export function resolveTransactionInner(state: GardState, after: ChangeSet | nul
   return {changes, selection, effects, annotations, scrollIntoView: !!spec.scrollIntoView}
 }
 
-export function resolveTransaction(state: GardState, specs: readonly Transaction.Spec[]): Transaction {
-  let s = resolveTransactionInner(state, null, specs.length ? specs[0] : {})
-  for (let i = 1; i < specs.length; i++) {
-    s = mergeTransaction(state, s, resolveTransactionInner(state, s.changes, specs[i]))
-  }
+export function resolveTransaction(state: GardState, spec: Transaction.Spec): Transaction {
+  let s = resolveTransactionInner(state, null, spec)
   let extenders = state.facet(Transaction.extender), tr = Transaction.create(state, s)
   for (let i = extenders.length - 1; i >= 0; i--) {
     let extension = extenders[i](tr)

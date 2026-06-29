@@ -255,7 +255,7 @@ export const tableDropHandler = Wordgard.dropHandler.of((wg, _event, pos, move, 
       if (wg.state.schema.matchNode(node.type, Node.Group.TableCell))
         clear.push({from: pos + 1, to: pos + node.length - 1, fit: true})
     })
-    let tr2 = wg.state.update(tr, {changes: clear})
+    let tr2 = wg.state.update(Transaction.merge(wg.state, tr, {changes: clear}))
     wg.dispatch(tr2)
   } else {
     wg.dispatch(tr)

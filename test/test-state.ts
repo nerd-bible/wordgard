@@ -22,79 +22,84 @@ describe("EditorState", () => {
       ist(state.doc, doc(p("-!")), eq)
     })
 
+    function updateMerged(start: GardState.Spec, trs: Transaction.Spec[]) {
+      let state = GardState.create(start)
+      return state.update(trs.reduce((a, b) => Transaction.merge(state, a, b)))
+    }
+
     it("merges changes from multiple specs", () => {
-      let {state} = GardState.create({doc: doc(p("-"))}).update(
+      let {state} = updateMerged({doc: doc(p("-"))}, [
         {changes: {from: 2, insert: [Leaf.text("a")]}},
         {changes: {from: 2, insert: [Leaf.text("b")]}}
-      )
+      ])
       ist(state.doc, doc(p("-ab")), eq)
     })
 
     it("can combine more than two changes", () => {
-      let {state} = GardState.create({doc: doc(p("abc"))}).update(
+      let {state} = updateMerged({doc: doc(p("abc"))}, [
         {changes: {from: 4, insert: [Leaf.text("d")]}},
         {changes: {from: 2, insert: [Leaf.text(".")]}},
         {changes: {from: 1, to: 3}}
-      )
+      ])
       ist(state.doc, doc(p(".cd")), eq)
     })
 
     it("can combine sequential changes", () => {
-      let {state} = GardState.create({doc: doc(p())}).update(
+      let {state} = updateMerged({doc: doc(p())}, [
         {changes: {from: 1, insert: [Leaf.text("ab")]}},
         {changes: {from: 2, insert: [Leaf.text(".")]}, sequential: true}
-      )
+      ])
       ist(state.doc, doc(p("a.b")), eq)
     })
 
     it("can have multiple sequential changes", () => {
-      let {state} = GardState.create({doc: doc(p())}).update(
+      let {state} = updateMerged({doc: doc(p())}, [
         {changes: {from: 1, insert: [Leaf.text("a")]}},
         {changes: {from: 2, insert: [Leaf.text("b")]}, sequential: true},
         {changes: {from: 3, insert: [Leaf.text("c")]}, sequential: true}
-      )
+      ])
       ist(state.doc, doc(p("abc")), eq)
     })
 
     it("can handle regular changes after sequential changes", () => {
-      let {state} = GardState.create({doc: doc(p())}).update(
+      let {state} = updateMerged({doc: doc(p())}, [
         {changes: {from: 1, insert: [Leaf.text("a")]}},
         {changes: {from: 2, insert: [Leaf.text("b")]}, sequential: true},
         {changes: {from: 1, insert: [Leaf.text("-")]}}
-      )
+      ])
       ist(state.doc, doc(p("ab-")), eq)
     })
 
     it("maps selection forward for sibling changes", () => {
-      let {state} = GardState.create({doc: doc(p("ab"))}).update(
+      let {state} = updateMerged({doc: doc(p("ab"))}, [
         {selection: {anchor: 2}},
         {changes: {from: 1, insert: [Leaf.text(".")]}}
-      )
+      ])
       ist(state.selection.head, 3)
     })
 
     it("maps selection forward in sibling changes", () => {
-      let {state} = GardState.create({doc: doc(p("ab"))}).update(
+      let {state} = updateMerged({doc: doc(p("ab"))}, [
         {changes: {from: 1, insert: [Leaf.text(".")]}},
         {selection: {anchor: 2}},
-      )
+      ])
       ist(state.selection.head, 3)
     })
 
     it("maps selection across sequential change", () => {
-      let {state} = GardState.create({doc: doc(p("ab"))}).update(
+      let {state} = updateMerged({doc: doc(p("ab"))}, [
         {changes: {from: 3, insert: [Leaf.text("c")]}, selection: {anchor: 4}},
         {changes: {from: 1, to: 2}, sequential: true}
-      )
+      ])
       ist(state.doc, doc(p("bc")), eq)
       ist(state.selection.head, 3)
     })
 
     it("doesn't map selection from a sequential change", () => {
-      let {state} = GardState.create({doc: doc(p("bc"))}).update(
+      let {state} = updateMerged({doc: doc(p("bc"))}, [
         {changes: {from: 1, insert: [Leaf.text("a")]}},
         {changes: {from: 2, to: 3}, selection: {anchor: 2}, sequential: true}
-      )
+      ])
       ist(state.doc, doc(p("ac")), eq)
       ist(state.selection.head, 2)
     })
@@ -102,18 +107,18 @@ describe("EditorState", () => {
     const posEffect = Transaction.Effect.define<number>({map: (val, mapping) => mapping.mapPos(val)})
 
     it("maps effects for sibling changes", () => {
-      let tr = GardState.create({doc: doc(p("abc"))}).update(
+      let tr = updateMerged({doc: doc(p("abc"))}, [
         {changes: {from: 1, to: 2}, effects: posEffect.of(3)},
         {changes: {from: 3, insert: [Leaf.text("-")]}, effects: posEffect.of(5)}
-      )
+      ])
       ist(tr.effects.map(e => e.value).join(), "4,4")
     })
 
     it("maps effects for sequential changes", () => {
-      let tr = GardState.create({doc: doc(p("abc"))}).update(
+      let tr = updateMerged({doc: doc(p("abc"))}, [
         {changes: {from: 1, to: 2}, effects: posEffect.of(3)},
         {changes: {from: 2, insert: [Leaf.text("-")]}, effects: posEffect.of(4), sequential: true}
-      )
+      ])
       ist(tr.effects.map(e => e.value).join(), "4,4")
     })
   })
