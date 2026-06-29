@@ -39,7 +39,7 @@ export namespace Menu {
       /// A description to associate with the item, used for hover
       /// tooltips and screen-reader text. If the item has a textual
       /// label, this will default to that label when not given.
-      description?: PhraseSet.Ref
+      description?: PhraseSet.Ref | string
     }
 
     /// Base class for menu items, storing the fields specified in
@@ -50,7 +50,7 @@ export namespace Menu {
       updateFor: ((tr: Transaction) => boolean) | undefined
       parent: Group | Submenu | undefined
       rank: number
-      description: PhraseSet.Ref | undefined
+      description: PhraseSet.Ref | string | undefined
       /// Menu items can be used as editor extensions to include them
       /// in a configuration.
       extension: GardState.Extension

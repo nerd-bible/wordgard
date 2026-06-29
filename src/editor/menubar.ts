@@ -66,8 +66,11 @@ class BarButton implements BarElement {
     this.dom.className = "wg-menu-button"
     this.dom.tabIndex = -1
     labelButton(wg, this.dom, item.label)
-    if (item.description)
-      this.dom.setAttribute("aria-label", this.dom.title = item.description(wg.state))
+    if (item.description) {
+      let desc = typeof item.description == "function" ? item.description(wg.state) : item.description
+      this.dom.title = desc
+      this.dom.setAttribute("aria-label", desc)
+    }
   }
 
   get focusDOM() { return this.dom }
@@ -152,8 +155,11 @@ class BarSubmenu implements BarElement {
     this.button.className = "wg-menu-button"
     this.button.setAttribute("aria-haspopup", "true")
     this.button.setAttribute("aria-expanded", "false")
-    if (item.description)
-      this.button.setAttribute("aria-label", this.button.title = item.description(wg.state))
+    if (item.description) {
+      let desc = typeof item.description == "function" ? item.description(wg.state) : item.description
+      this.dom.title = desc
+      this.dom.setAttribute("aria-label", desc)
+    }
     if (item.label) {
       labelButton(wg, this.button, item.label)
       this.activeChild = -2
