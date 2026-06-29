@@ -1,10 +1,11 @@
 {
   "name": "wordgard",
   "version": "0.0.2",
-  "description": "A rich text editor system",
+  "description": "Semantic rich text editor system",
   "type": "module",
-  "main": "dist/editor.js",
+  "main": "dist/index.js",
   "exports": {
+    ".": "./dist/index.js",
     "./doc": "./dist/doc.js",
     "./types": "./dist/types.js",
     "./schema": "./dist/schema.js",

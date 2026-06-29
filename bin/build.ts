@@ -273,6 +273,12 @@ async function emit(bundle: RollupBuild, conf: any, dts = false) {
   }
 }
 
+function emitIndex() {
+  let index = packages.map(p => `export * as ${p.name} from "wordgard/${p.name}"\n`).join("")
+  fs.writeFileSync(join(dist, "index.js"), index)
+  fs.writeFileSync(join(dist, "index.d.ts"), index)
+}
+
 function external(id: string) {
   return id != "tslib" && !/^(\.?\/|\w:)/.test(id)
 }
@@ -305,6 +311,7 @@ async function bundle(pkg: Package, compiled: Output) {
     format: "esm",
     file: join(dist, pkg.name + ".d.ts")
   }, true)
+  emitIndex()
 }
 
 /// Build the package with main entry point `main`, or the set of
