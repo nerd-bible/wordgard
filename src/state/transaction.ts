@@ -386,11 +386,11 @@ export function resolveTransactionInner(state: GardState, after: ChangeSet | nul
     : GardSelection.Text.create(spec.selection)
   if (after && !sequential) {
     if (selection) {
-      let {a, b} = ChangeSet.crossMap(after, changes, state.doc)
+      let {a, b} = ChangeSet.transform(state.doc, after, changes)
       selection = selection.map(a, selCx(state.config, doc, changes))
       changes = b
     } else {
-      changes = changes.map(after, state.doc)
+      changes = changes.transform(after, state.doc)
     }
     effects = Transaction.Effect.mapEffects(effects, after)
   }

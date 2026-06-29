@@ -279,7 +279,7 @@ describe("ChangeSet", () => {
       for (let order of permute(set)) {
         it(`correctly composes ${order.join("/")}`, () => {
           let ch = changes[order[0]]
-          for (let i = 1; i < order.length; i++) ch = ch.compose(changes[order[i]].map(ch, d))
+          for (let i = 1; i < order.length; i++) ch = ch.compose(changes[order[i]].transform(ch, d))
           ist(ch.apply(d), expect, eq)
         })
       }
@@ -363,7 +363,7 @@ describe("ChangeSet", () => {
       for (let i = 0; i < 250; i++) {
         let doc = rDoc(10), a = rChange(doc, 2), b = rChange(doc, 2)
         try {
-          let mapped = ChangeSet.crossMap(a, b, doc)
+          let mapped = ChangeSet.transform(doc, a, b)
           let docAB = mapped.b.apply(a.apply(doc))
           let docBA = mapped.a.apply(b.apply(doc))
           ist(docAB, docBA, eq)
@@ -384,7 +384,7 @@ describe("ChangeSet", () => {
               receiver.unconf = null
             } else if (receiver.unconf) {
               let {doc, unconf, syncedDoc} = receiver
-              let {a, b} = ChangeSet.crossMap(change, unconf, syncedDoc)
+              let {a, b} = ChangeSet.transform(syncedDoc, change, unconf)
               receiver.unconf = b
               receiver.doc = a.apply(doc)
             } else {
@@ -414,7 +414,7 @@ describe("ChangeSet", () => {
       let d = doc(0, pre(1, "a"))
       let a = mk(d, [{add: CodeBlockLanguage.of("x")}])
       let b = mk(d, [{add: CodeBlockLanguage.of("y")}])
-      let mapped = ChangeSet.crossMap(a, b, d)
+      let mapped = ChangeSet.transform(d, a, b)
       let docAB = mapped.b.apply(a.apply(d))
       let docBA = mapped.a.apply(b.apply(d))
       ist(docAB, docBA, eq)
@@ -423,7 +423,7 @@ describe("ChangeSet", () => {
     it("orders mark-adding modifications correctly", () => {
       let d = doc(p(0, "a", 1))
       let a = mk(d, [{add: Link.of("x")}]), b = mk(d, [{add: Link.of("y")}])
-      let mapped = ChangeSet.crossMap(a, b, d)
+      let mapped = ChangeSet.transform(d, a, b)
       let docAB = mapped.b.apply(a.apply(d))
       let docBA = mapped.a.apply(b.apply(d))
       ist(docAB, docBA, eq)
@@ -432,19 +432,19 @@ describe("ChangeSet", () => {
     it("handles overwritten open tokens", () => {
       let d = doc(p("x"), p("y"))
       let ch1 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(h1()))})
-      let ch2 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(pre()))}).map(ch1, d)
+      let ch2 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(pre()))}).transform(ch1, d)
       ist(ch2.apply(ch1.apply(d)), doc(h1("x"), p("y")), eq)
     })
 
     it("doesn't leak surplus opening nodes", () => {
       let d = doc(0, blockquote(1, p("x")), p("y")), ch = mk(d, [[open(blockquote())]])
-      let ch2 = ch.map(ch, d) // Both delete the same opening token. Deletion collapsed, insertion preserved.
+      let ch2 = ch.transform(ch, d) // Both delete the same opening token. Deletion collapsed, insertion preserved.
       ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x")), p("y")), eq)
     })
 
     it("doesn't leak surplus closing nodes", () => {
       let d = doc(blockquote(p("x", 0), 1, p("y"))), ch = mk(d, [[close]])
-      let ch2 = ch.map(ch, d) // Both delete the same closing token
+      let ch2 = ch.transform(ch, d) // Both delete the same closing token
       ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x"), p("y"))), eq)
     })
   })

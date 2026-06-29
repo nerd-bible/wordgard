@@ -136,7 +136,7 @@ export namespace collab {
     let newSyncedDoc = changes.apply(syncedDoc)
     if (unconfirmed.length) {
       let ours = collapseUpdates(unconfirmed)
-      let {a, b} = ChangeSet.crossMap(changes, ours.changes, syncedDoc)
+      let {a, b} = ChangeSet.transform(syncedDoc, changes, ours.changes)
       let oursMapped = new LocalUpdate(b, Transaction.Effect.mapEffects(ours.effects, a))
       unconfirmed = [oursMapped]
       changes = a

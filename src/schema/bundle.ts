@@ -41,7 +41,9 @@ export function inlineSchema(): GardState.Extension {
 }
 
 /// Returns an extension with all the schema elements included in this
-/// module, in a {@link blockDoc block document}.
+/// module, in a {@link blockDoc block document}. Note that new
+/// elements may appear in this schema as new versions of the library
+/// add new features.
 export function fullSchema(): GardState.Extension {
   return [
     blockDoc(), paragraph(), heading(), lineBreak(),

@@ -244,8 +244,8 @@ export class ChangeSet {
   /// last. You can set `before` to true to invert this, making `this`
   /// come before `other`. Setting this correctly is necessary to make
   /// the result of independently applied transformed changes converge.
-  map(other: ChangeSet, doc: Plot.Doc, before: boolean = false): ChangeSet {
-    let {set, fix} = map(this, other, doc, before, true)
+  transform(other: ChangeSet, doc: Plot.Doc, before: boolean = false): ChangeSet {
+    let {set, fix} = transform(this, other, doc, before, true)
     return fix ? set.compose(fix) : set
   }
 
@@ -470,18 +470,18 @@ export class ChangeSet {
     return compose(a, b).sections
   }
 
-  /// Map two change set starting from the same document over each
-  /// other, returning two mapped change sets. The returned `a` can be
-  /// applied after the `b` passed in, and the returned `b` can be
-  /// applied after the `a` passed in, resulting the same final
-  /// document on both sides. `a` is taken to happen before `b` in the
-  /// mapping.
+  /// Transform two change set starting from the same document over
+  /// each other, returning two transformed change sets. The returned
+  /// `a` can be applied after the `b` passed in, and the returned `b`
+  /// can be applied after the `a` passed in, resulting the same final
+  /// document on both sides. `a` is taken to happen before `b` when insertions
+  /// at the same position need to be merged.
   ///
-  /// This method is slightly more efficient than mapping both steps
+  /// This method is slightly more efficient than transforming both steps
   /// separately.
-  static crossMap(a: ChangeSet, b: ChangeSet, doc: Plot.Doc) {
-    let {set: mA, fix} = map(a, b, doc, true, true)
-    let mB = map(b, a, doc, false, false).set
+  static transform(doc: Plot.Doc, a: ChangeSet, b: ChangeSet) {
+    let {set: mA, fix} = transform(a, b, doc, true, true)
+    let mB = transform(b, a, doc, false, false).set
     return fix ? {a: mA.compose(fix), b: mB.compose(fix)} : {a: mA, b: mB}
   }
 }
@@ -586,7 +586,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
     }
   }
   let push = (set: ChangeSet) => {
-    accum = accum ? accum.compose(map(set, accum, doc, false, false).set) : set
+    accum = accum ? accum.compose(transform(set, accum, doc, false, false).set) : set
   }
   let section = (from: number, to: number, ins: number, value: SectionData) => {
     if (!cur || from < cur.pos) {
@@ -669,7 +669,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
   return !accum ? ChangeSet.empty(doc.length) : doCorrect && mayCorrect ? (accum as any).correct(doc) : accum
 }
 
-function map(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, fit: boolean) {
+function transform(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, fit: boolean) {
   if (setA.length != doc.length || setB.length != doc.length)
     throw new ValidationError("Mapping a change that doesn't match the start document")
   // Produce a copy of setA that applies to the document after setB
