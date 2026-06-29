@@ -102,7 +102,7 @@ export namespace Transaction {
     /// is _after_ the transaction. If a selection can only be
     /// computed after the new document is available, you can pass a
     /// function here.
-    selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context, changes: ChangeSet) => GardSelection)
+    selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context, changes: ChangeSet) => GardSelection | null)
     /// Attach {@link Transaction.Effect effects} to this transaction.
     /// Again, when they contain positions and this same spec makes
     /// changes, those positions should refer to positions in the
@@ -381,7 +381,7 @@ export function resolveTransactionInner(state: GardState, after: ChangeSet | nul
   if (spec.userEvent) annotations = annotations.concat(Transaction.userEvent.of(spec.userEvent))
   let selection = !spec.selection ? undefined
     : spec.selection instanceof GardSelection ? spec.selection
-    : typeof spec.selection == "function" ? spec.selection({doc: changes.apply(doc), config: state.config}, changes)
+    : typeof spec.selection == "function" ? spec.selection({doc: changes.apply(doc), config: state.config}, changes) ?? undefined
     : GardSelection.Text.create(spec.selection)
   if (after && !sequential) {
     if (selection) {
