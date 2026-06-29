@@ -63,7 +63,8 @@ export namespace Menu {
         this.parent = spec.parent
         this.rank = spec.rank == null ? 100 : Math.max(0, Math.min(100, spec.rank))
         this.description = spec.description
-        this.extension = Menu.Item.source.of(this as any)
+        let src = Menu.Item.source.of(this as any)
+        this.extension = this.parent ? [src, this.parent] : src
       }
     }
 
@@ -101,7 +102,6 @@ export namespace Menu {
       this.run = spec.run
       this.active = spec.active
       this.label = spec.label
-      if (this.parent) this.extension = [this.parent.extension, this.extension]
     }
 
     /// Define a menu button.
