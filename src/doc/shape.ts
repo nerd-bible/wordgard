@@ -373,8 +373,8 @@ export namespace Shape {
     /// Attributes to add to the element.
     attributes?: Record<string, string> | ((param: Param) => Record<string, string>)
     /// A helper to read a parameter value from the element. If this
-    /// returns {@link parse.Rule.Reject}, the parse rule will not apply.
-    readElement?: (element: DOMElement) => Param | typeof parse.Rule.Reject
+    /// returns {@link parse.Reject}, the parse rule will not apply.
+    readElement?: (element: DOMElement) => Param | typeof parse.Reject
     /// When specifying the shape of a plot, this indicates whether this
     /// node is an atom, meaning its content isn't editable through the
     /// editor.
@@ -408,7 +408,7 @@ export namespace Shape {
     value: (Param extends string ? 0 : never) | string | ((param: Param) => string | null)
     /// An optional function that converts the value of the attribute
     /// back into a parameter value. Used in the parse rule.
-    readAttribute?: (value: string) => Param | typeof parse.Rule.Reject
+    readAttribute?: (value: string) => Param | typeof parse.Reject
     /// If the target node may be a composite shape (rather than a
     /// single DOM element), you can provide a limited form of selector
     /// here to target a specific element in that shape. Node names and

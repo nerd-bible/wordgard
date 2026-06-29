@@ -209,6 +209,8 @@ export namespace GardSelection {
     return GardSelection.selectionType.of(new SelectionType(tag, cls, toJSON as any, fromJSON as any)) as any
   }
 
+  // FIXME implement undirectional text selections
+
   /// Text selections hold a single arbitrary range in the document.
   /// They represent a cursor when their anchor and head are the same
   /// position.

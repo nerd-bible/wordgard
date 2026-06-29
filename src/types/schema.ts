@@ -194,7 +194,7 @@ function validatePosInt(value: any) {
 
 function readPosInt(value: string) {
   let num = Number.parseInt(value)
-  if (Number.isNaN(num) || num < 1) return parse.Rule.Reject
+  if (Number.isNaN(num) || num < 1) return parse.Reject
   return num
 }
 
@@ -285,7 +285,7 @@ export const Alignment = Mark.Type.define<"end" | "center">("Alignment", {
   keepOnTypeChange: true,
   shape: {attribute: "style", value: align => `text-align: ${align}`},
   parseRules: [
-    {attribute: "style/text-align", readAttribute: value => /^(end|center)$/.test(value) ? value as any : parse.Rule.Reject}
+    {attribute: "style/text-align", readAttribute: value => /^(end|center)$/.test(value) ? value as any : parse.Reject}
   ]
 })
 
@@ -319,9 +319,9 @@ export const Strong = Mark.define("Strong", {
   shape: {element: "strong"},
   parseRules: [
     {attribute: "style/font-weight",
-     readAttribute: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value) ? null : parse.Rule.Reject},
+     readAttribute: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value) ? null : parse.Reject},
     {attribute: "style/font-weight",
-     readAttribute: value => /^(normal|lighter|[1-4]\d{2})$/.test(value) ? null : parse.Rule.Reject,
+     readAttribute: value => /^(normal|lighter|[1-4]\d{2})$/.test(value) ? null : parse.Reject,
      clearMark: p => p.name == "Strong"},
   ]
 })

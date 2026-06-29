@@ -94,9 +94,9 @@ export namespace parse {
       /// A parameter for the tag or mark type.
       param?: Param
       /// A function that reads the parameter from the matched
-      /// element. May return {@link parse.Rule.Reject} to indicate
+      /// element. May return {@link parse.Reject} to indicate
       /// that the rule should not be applied to this element.
-      readElement?: (element: DOMElement) => Param | typeof Rule.Reject
+      readElement?: (element: DOMElement) => Param | typeof Reject
       /// An optional CSS selector for finding an additional inner
       /// element to read marks from.
       marksFrom?: string
@@ -133,8 +133,8 @@ export namespace parse {
       /// parse.Rule.Attribute.mark}.
       param?: Param
       /// Read a parameter value from the attribute value. May return
-      /// {@link parse.Rule.Reject} to prevent the rule from matching.
-      readAttribute?: (value: string) => Param | typeof Rule.Reject
+      /// {@link parse.Reject} to prevent the rule from matching.
+      readAttribute?: (value: string) => Param | typeof Reject
       /// Controls whether other rules may match this attribute after
       /// this rule matches. Defaults to true.
       consuming?: boolean
@@ -142,10 +142,6 @@ export namespace parse {
       /// relative precedence of this rule. Defaults to 0.
       precedence?: number
     }
-
-    /// A special value that parse rule functions can return to block
-    /// the rule from matching.
-    export const Reject: unique symbol = Symbol("reject")
 
     const schemaCache = new WeakMap<Schema, Rule.Set>()
 
@@ -234,7 +230,7 @@ export namespace parse {
           if (elt.matches(rule.selector)) {
             if (!rule.readElement) return Object.prototype.hasOwnProperty.call(rule, "param") ? {rule, value: rule.param} : {rule}
             let result = rule.readElement(elt)
-            if (result === Rule.Reject) continue
+            if (result === Reject) continue
             return {rule, value: result}
           }
         }
@@ -242,6 +238,10 @@ export namespace parse {
       }
     }
   }
+
+  /// A special value that parse rule functions can return to block
+  /// the rule from matching.
+  export const Reject: unique symbol = Symbol("reject")
 }
 
 const enum CxFlag {
@@ -376,7 +376,7 @@ class ParseContext {
       if (rule.readAttribute) {
         param = rule.readAttribute(value)
         hasParam = true
-        if (param == parse.Rule.Reject) continue
+        if (param == parse.Reject) continue
       } else if (rule.value != null && rule.value != value) {
         continue
       }
