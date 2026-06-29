@@ -63,11 +63,11 @@ export class GardState {
   static create(spec: GardState.Spec): GardState {
     let config = spec.config instanceof GardState.Configuration ? spec.config
       : GardState.Configuration.resolve(spec.config || [], new Map)
-    let configSchema = config.staticFacet(GardState.schemaElement)
-    let configHasDoc = configSchema.some(elt => elt instanceof Plot.Type && elt.isDoc), schema
-    if (configHasDoc) schema = Schema.define(configSchema)
-    else if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
-    else throw new SchemaError(`No document plot provided, unable to create schema`)
+    let schema = config.schema
+    if (!schema) {
+      if (spec.doc instanceof Plot.Doc) schema = spec.doc.schema
+      else throw new SchemaError(`No document plot provided, unable to create schema`)
+    }
     let doc = readDoc(schema, spec.doc)
     let selection = !spec.selection ? cursorAtStart({doc, config})
       : typeof spec.selection == "function" ? spec.selection({doc, config})
@@ -181,10 +181,10 @@ export class GardState {
       let intermediateState = new GardState(conf, this.doc, this.selection, conf.dynamicSlots.map(() => null),
                                             (state, slot) => slot.reconfigure(state, this), null)
       startValues = intermediateState.values
-      let schemaElts = conf.staticFacet(GardState.schemaElement)
-      if (schemaElts != this.facet(GardState.schemaElement) &&
-        schemaElts.some(elt => elt instanceof Plot.Type && elt.isDoc))
-        doc = Schema.define(schemaElts).doc(doc.content)
+      if (conf.staticFacet(GardState.schemaElement) != this.facet(GardState.schemaElement)) {
+        let schema = conf.schema
+        if (schema) doc = schema.doc(doc.content)
+      }
     } else {
       startValues = tr.startState.values.slice()
     }
@@ -238,7 +238,8 @@ export class GardState {
       }
     }
     let config = GardState.Configuration.create([extensions, fieldInit])
-    let schema = Schema.define(config.staticFacet(GardState.schemaElement))
+    let schema = config.schema
+    if (!schema) throw new SchemaError("No document plot provided to GardState.fromJSON")
     let doc = schema.docFromJSON(json.doc)
     return GardState.fromConfig(config, doc, GardSelection.fromJSON({config, doc}, json.selection))
   }
@@ -665,6 +666,14 @@ export namespace GardState {
     /// Create a configuration from the given set of extensions.
     static create(extensions: GardState.Extension) {
       return GardState.Configuration.resolve(extensions, new Map)
+    }
+
+    /// Get the schema defined by this configuration. Will be null if
+    /// the schema does not contain a document plot type.
+    get schema(): Schema | null {
+      let elts = this.staticFacet(GardState.schemaElement)
+      if (!elts.some(elt => elt instanceof Plot.Type && elt.isDoc)) return null
+      return Schema.define(elts)
     }
 
     // Kludge to avoid cyclic dep with ./selection
