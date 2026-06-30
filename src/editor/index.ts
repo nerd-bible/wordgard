@@ -44,7 +44,7 @@ export {Dialog} from "./dialog"
 
 export {Tooltip} from "./tooltip"
 
-//- ### Input Rules
+//- ### Utilities
 
 //- Input rules are a way to respond to certain patterns of text input
 //- with an action, such as replacing sequences of dashes with emdash
@@ -53,3 +53,5 @@ export {Tooltip} from "./tooltip"
 
 export {InputRule} from "./inputrule"
 import "./drawcursor"
+
+export {placeholder} from "./placeholder"

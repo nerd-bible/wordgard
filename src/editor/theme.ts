@@ -112,6 +112,13 @@ export const baseStyles = buildTheme("." + styleID, {
     }
   },
 
+  "wg-placeholder": {
+    opacity: "0.6",
+    display: "inline-block",
+    verticalAlign: "top",
+    userSelect: "none"
+  },
+
   "wg-announced": {
     position: "fixed",
     top: "-10000px"
