@@ -23,7 +23,10 @@ function readHTML(html: string): HTMLElement {
   return elt
 }
 
-function readDoc(schema: Schema, doc: DocSource): Plot.Doc {
+function readDoc(schema: Schema, doc?: DocSource): Plot.Doc {
+  if (!doc) return schema.doc(schema.docTag.type.canBeEmpty ? [] : [
+    schema.createAndFill(schema.defaultContentTag(schema.docTag.type)!)
+  ])
   if (doc instanceof Plot.Doc)
     return doc.schema == schema ? doc : schema.doc(doc.content)
   if (typeof doc == "function") return doc(schema)
@@ -285,11 +288,11 @@ export namespace GardState {
   /// Options passed when {@link GardState.create creating} an editor
   /// state.
   export interface Spec {
-    /// The initial document. When passing in a document here, it is
-    /// not necessary to include a schema in your configuration
-    /// (though it is allowed, and the document content will be moved
-    /// into that schema if it differs from the one on the given
-    /// document).
+    /// The initial document. When passing in a {@link Plot.Doc
+    /// document node} here, it is not necessary to include a schema
+    /// in your configuration (though it is allowed, and the document
+    /// content will be moved into that schema if it differs from the
+    /// one on the given document).
     ///
     /// All other forms require a schema from the configuration. A
     /// string or DOM structure will be parsed as HTML. Passing a
@@ -298,7 +301,7 @@ export namespace GardState {
     /// to do the parsing yourself (for example with
     /// [jsdom](https://jsdom.org/)). A JSON node deserialized, and a
     /// function called to produce the document.
-    doc: DocSource
+    doc?: DocSource
     /// The starting selection. Defaults to a cursor at the start of the
     /// document.
     selection?: GardSelection | GardSelection.Text.Spec | ((cx: GardSelection.Context) => GardSelection)

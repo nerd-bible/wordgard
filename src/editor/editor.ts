@@ -122,8 +122,6 @@ export class Wordgard {
     this.dom.appendChild(this.announceDOM)
     this.dom.appendChild(this.scrollDOM)
 
-    if (!spec.state && spec.doc == null)
-      throw new Error("When Wordgard.Spec.state isn't given, the doc field must be present")
     this.viewState = new ViewState(spec.state || GardState.create(spec as GardState.Spec))
     if (spec.scrollTo && spec.scrollTo.is(scrollIntoView))
       this.viewState.scrollTarget = spec.scrollTo.value.clip(this.viewState.state)
