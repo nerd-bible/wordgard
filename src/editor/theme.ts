@@ -27,9 +27,9 @@ export const baseStyles = buildTheme("." + styleID, {
   "&": {
     "--wg-highlight-color": "#6af",
     "--wg-dialog-font": "90% sans-serif",
-    position: "relative !important",
+    position: "relative",
     boxSizing: "border-box",
-    display: "flex !important",
+    display: "flex",
     flexDirection: "column",
     border: "1px solid var(--wg-border-color)"
   },
