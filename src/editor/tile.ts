@@ -1044,7 +1044,7 @@ class ContentUpdate {
     }
   }
 
-  up() {
+  addBR() {
     let node = this.new.node
     if (node && node.isPlot && node.isTextblock) {
       let i = this.new.children.length - 1
@@ -1057,6 +1057,10 @@ class ContentUpdate {
         this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, 0))
       }
     }
+  }
+
+  up() {
+    this.addBR()
     this.new = this.new.parent!
   }
 
@@ -1137,6 +1141,7 @@ class ContentUpdate {
 
   finish() {
     while (!(this.new instanceof DocTile)) this.up()
+    this.addBR()
     return this.new
   }
 }
