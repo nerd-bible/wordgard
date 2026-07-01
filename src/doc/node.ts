@@ -342,7 +342,6 @@ export class Leaf<Param = unknown> extends BaseTag<Param> implements Node.Shared
   /// store a parameter value in each leaf of the type, use {@link
   /// Leaf.Type.define} instead.
   static define(name: string, spec: Leaf.Spec<null>): Leaf<null> {
-    checkTagName(name)
     return Leaf.Type.new<null>(name, flagsFor(spec) | NodeFlag.NullParam, spec).default!
   }
 
@@ -425,7 +424,6 @@ export namespace Leaf {
 
     /// Define a new leaf type.
     static define<T>(name: string, spec: Leaf.Spec<T>) {
-      checkTagName(name)
       return new Leaf.Type<T>(name, flagsFor(spec), spec)
     }
 
@@ -637,7 +635,6 @@ export class Plot implements Node.Shared {
   /// Define a singleton plot type. If the plot needs a parameter
   /// value, use {@link Plot.Type.define} instead.
   static define(name: string, spec: Plot.Spec<null>): Plot.Tag<null> {
-    checkTagName(name)
     return Plot.Type.new<null>(name, flagsFor(spec) | NodeFlag.NullParam, spec).default!
   }
 
@@ -765,7 +762,6 @@ export namespace Plot {
 
     /// Define a plot type.
     static define<T>(name: string, spec: Plot.Spec<T>) {
-      checkTagName(name)
       return new Plot.Type<T>(name, flagsFor(spec), spec)
     }
 
@@ -988,11 +984,4 @@ function joinText(nodes: readonly Node[]) {
     if (joined) joined.push(node)
   }
   return joined || nodes
-}
-
-// FIXME Is this still needed?
-function checkTagName(name: string) {
-  if (/[\s:]/.test(name)) throw new Error(`Tag names may not include space or colon characters (${name})`)
-  if (name == "Inline" || name == "Block" || name == "Text" || name == "Doc")
-    throw new Error(`Tag name ${name} is reserved`)
 }

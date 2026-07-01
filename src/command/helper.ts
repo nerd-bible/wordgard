@@ -2,8 +2,6 @@ import {Plot, Node, Mark, Pos, Leaf, Token, ChangeSet, Schema} from "wordgard/do
 import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
-// FIXME should these get their own module? or move them to Transaction?
-
 /// If the cursor is in an empty textblock that can be lifted out of a
 /// parent, return a transaction that does this.
 export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
