@@ -119,6 +119,19 @@ export const baseStyles = buildTheme("." + styleID, {
     userSelect: "none"
   },
 
+  "wg-dropcursor": {
+    pointerEvents: "none",
+    position: "absolute",
+    "&.wg-vertical": {
+      borderLeft: "1.2px solid black",
+      marginLeft: "-0.6px",
+    },
+    "&.wg-horizontal": {
+      borderTop: "1.2px solid black",
+      marginTop: "-0.6px",
+    },
+  },
+
   "wg-announced": {
     position: "fixed",
     top: "-10000px"

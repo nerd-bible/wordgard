@@ -54,3 +54,5 @@ export {Tooltip} from "./tooltip"
 export {InputRule} from "./inputrule"
 
 export {placeholder} from "./placeholder"
+
+export {dropCursor} from "./dropcursor"
