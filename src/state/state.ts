@@ -209,6 +209,9 @@ export class GardState {
     return TextblockMap.get(node.start, node.node, this.textblockLTR(node.node))
   }
 
+  // FIXME is this interface a good idea? Or should fields be able to
+  // provide their own prop names?
+
   /// Convert this state to a JSON-serializable object. When custom
   /// fields should be serialized, you can pass them in as an object
   /// mapping property names (in the resulting object, which should

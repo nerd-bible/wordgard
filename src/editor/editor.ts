@@ -191,7 +191,7 @@ export class Wordgard {
   /// @internal
   flush() {
     if (!this.connected || this.inputState.pendingComposition || this.inputState.pendingDeletion) return
-    this.observer.pollSelection()
+    if (!this.viewState.pending.some(tr => tr.selection)) this.observer.pollSelection()
     let {flushedState, state} = this.viewState
     let update = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
 
