@@ -1,9 +1,13 @@
 import {GardState} from "wordgard/state"
-import {Wordgard, basePlugins} from "./editor"
+import type {Wordgard} from "./editor"
+
+export const cursorBlinkRate = GardState.Facet.define<number, number>({
+  combine: inputs => inputs.length ? Math.min(...inputs) : 1200
+})
 
 type CursorPos = {left: number, top: number, size: number, horiz: boolean} | null
 
-export const cursorLayer = Wordgard.Plugin.fromClass(class {
+export class cursorLayer {
   readonly layer: HTMLElement
   pos: CursorPos = null
 
@@ -17,7 +21,7 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
   update(update: Wordgard.Update) {
     if (update.transactions.some(tr => tr.selection))
       this.layer.style.animationName = this.layer.style.animationName == "wg-blink" ? "wg-blink2" : "wg-blink"
-    if (update.state.facet(Wordgard.cursorBlinkRate) != update.startState.facet(Wordgard.cursorBlinkRate))
+    if (update.state.facet(cursorBlinkRate) != update.startState.facet(cursorBlinkRate))
       setBlinkRate(update.state, this.layer)
     if ((update.docChanged || update.selectionSet || update.geometryChanged) &&
         (update.startState.selection.isCursor || update.state.selection.isCursor))
@@ -52,14 +56,11 @@ export const cursorLayer = Wordgard.Plugin.fromClass(class {
       })
     }
   }
-})
-
-// FIXME awkward
-basePlugins[basePlugins.length] = cursorLayer
+}
 
 const VertWidth = 30, VertGap = 5
 
-export function cursorPos(wg: Wordgard): CursorPos {
+function cursorPos(wg: Wordgard): CursorPos {
   let {state} = wg
   if (!state.selection.isCursor) return null
   let {head, headSide} = state.selection
@@ -79,5 +80,5 @@ export function cursorPos(wg: Wordgard): CursorPos {
 }
 
 function setBlinkRate(state: GardState, dom: HTMLElement) {
-  dom.style.animationDuration = state.facet(Wordgard.cursorBlinkRate) + "ms"
+  dom.style.animationDuration = state.facet(cursorBlinkRate) + "ms"
 }

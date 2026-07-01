@@ -16,6 +16,7 @@ import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
 import {DOMNode, getRoot, clearScratchRange, scrollRectIntoView} from "./dom"
 import {setDOMSelection, moveVertically, moveToLineBoundary} from "./selection"
+import {cursorBlinkRate, cursorLayer} from "./drawcursor"
 import {exceptionSink, logException} from "./util"
 
 const dirCompartment = GardState.Compartment.define()
@@ -125,7 +126,7 @@ export class Wordgard {
     this.viewState = new ViewState(spec.state || GardState.create(spec as GardState.Spec))
     if (spec.scrollTo && spec.scrollTo.is(scrollIntoView))
       this.viewState.scrollTarget = spec.scrollTo.value.clip(this.viewState.state)
-    this.plugins = this.state.facet(editorPlugin).map(spec => new PluginInstance(spec))
+    this.plugins = [cursorPlugin, ...this.state.facet(editorPlugin)].map(spec => new PluginInstance(spec))
     for (let plugin of this.plugins) plugin.update(this)
     this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
@@ -281,7 +282,7 @@ export class Wordgard {
     let configChange = specs != update.startState.facet(editorPlugin)
     if (configChange) {
       let newPlugins: PluginInstance[] = []
-      for (let spec of specs) {
+      for (let spec of [cursorPlugin, ...specs]) {
         let found = this.plugins.findIndex(p => p.spec == spec)
         if (found < 0) {
           let plugin = new PluginInstance(spec)
@@ -643,9 +644,7 @@ export class Wordgard {
 
   /// Controls the length of a full cursor blink cycle, in milliseconds.
   /// Defaults to 1200. Can be set to 0 to disable blinking.
-  static cursorBlinkRate = GardState.Facet.define<number, number>({
-    combine: inputs => inputs.length ? Math.min(...inputs) : 1200
-  })
+  static cursorBlinkRate = cursorBlinkRate
 
   /// Allows you to influence the way mouse selection happens. The
   /// functions in this facet will be called for a `mousedown` event
@@ -810,12 +809,6 @@ function attrsFromFacet(wg: Wordgard, facet: GardState.Facet<AttrSource>, base: 
   }
   return base
 }
-
-export let basePlugins: Wordgard.Plugin<any>[] = []
-
-export const editorPlugin = GardState.Facet.define<Wordgard.Plugin<any>>({
-  combine: plugins => basePlugins.concat(plugins)
-})
 
 export namespace Wordgard {
   /// The type of object given to {@link Wordgard.create}.
@@ -1050,6 +1043,10 @@ export namespace Wordgard {
     get empty() { return this.flags == 0 && this.transactions.length == 0 }
   }
 }
+
+export const editorPlugin = GardState.Facet.define<Wordgard.Plugin<Wordgard.Plugin.Value>>()
+
+const cursorPlugin: Wordgard.Plugin<any> = Wordgard.Plugin.fromClass(cursorLayer)
 
 class PluginInstance {
   // When starting an update, all plugins have this field set to the

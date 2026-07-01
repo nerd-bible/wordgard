@@ -52,6 +52,5 @@ export {Tooltip} from "./tooltip"
 //- started with a number and a period.
 
 export {InputRule} from "./inputrule"
-import "./drawcursor"
 
 export {placeholder} from "./placeholder"
