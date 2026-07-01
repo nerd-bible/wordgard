@@ -47,6 +47,7 @@ export class ViewState {
   contentDOMWidth = 0 // contentDOM.getBoundingClientRect().width
   contentDOMHeight = 0 // contentDOM.getBoundingClientRect().height
   editorHeight = 0 // scrollDOM.clientHeight
+  editorOffset = 0 // scrollDOM.offsetTop
   editorWidth = 0 // scrollDOM.clientWidth
   // A scroll target that hasn't been scrolled to yet
   scrollTarget: ScrollTarget | null = null
@@ -92,9 +93,11 @@ export class ViewState {
     }
 
     let contentWidth = domRect.width
-    if (this.contentDOMWidth != contentWidth || this.editorHeight != wg.scrollDOM.clientHeight) {
+    if (this.contentDOMWidth != contentWidth || this.editorHeight != wg.scrollDOM.clientHeight ||
+        this.editorOffset != wg.scrollDOM.offsetTop) {
       this.contentDOMWidth = domRect.width
       this.editorHeight = wg.scrollDOM.clientHeight
+      this.editorOffset = wg.scrollDOM.offsetTop
       result |= UpdateFlag.Geometry
     }
     return result

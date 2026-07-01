@@ -157,7 +157,6 @@ const tooltipPlugin = Wordgard.Plugin.fromClass(class {
     }, 50)
   }
 
-  // FIXME doesn't seem to reposition when a panel opens
   update(update: Wordgard.Update) {
     if (update.transactions.length) this.lastTransaction = Date.now()
     let updated = this.manager.update(update, this.above)
