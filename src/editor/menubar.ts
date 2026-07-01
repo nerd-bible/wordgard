@@ -320,7 +320,6 @@ class MenuBar {
     if (focus && selection.length) selection[selection.length - 1].focusDOM.focus()
   }
 
-  // FIXME use scoped key bindings instead?
   key(event: KeyboardEvent) {
     if (event.ctrlKey || event.altKey || event.metaKey || event.defaultPrevented) return
     let sLen = this.selection.length

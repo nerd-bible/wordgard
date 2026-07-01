@@ -115,42 +115,6 @@ export abstract class Tile {
     return last < 0 ? null : this.children[last]
   }
 
-  // FIXME include side in output?
-  localPosFromDOM(dom: DOMNode, offset: number, bias: -1 | 1): number {
-    // If the DOM position is in the content, use the child desc after
-    // it to figure out a position.
-    if (this.dom.contains(dom)) {
-      let domBefore, elt: Tile | undefined
-      if (dom == this.dom) {
-        domBefore = dom.childNodes[offset - 1]
-      } else {
-        while (dom.parentNode != this.dom) dom = dom.parentNode!
-        domBefore = dom.previousSibling
-      }
-      while (domBefore && !((elt = domBefore.wgTile) && elt.parent == this as Tile))
-        domBefore = domBefore.previousSibling
-      return domBefore ? this.posBeforeChild(elt!) + elt!.length : this.posAtStart
-    }
-    // Otherwise, use various heuristics, falling back on the bias
-    // parameter, to determine whether to return the position at the
-    // start or at the end of this content element.
-    if (this.dom && this.dom != dom) {
-      let cmp = dom.compareDocumentPosition(this.dom)
-      if (cmp & 2) return this.posAtEnd
-      else if (cmp & 4) return this.posAtStart
-    } else if (this.dom.firstChild) {
-      if (offset == 0) for (let search = dom;; search = search.parentNode!) {
-        if (search == this.dom) return this.posAtStart
-        if (search.previousSibling) break
-      }
-      if (offset == dom.childNodes.length) for (let search = dom;; search = search.parentNode!) {
-        if (search == this.dom) return this.posAtEnd
-        if (search.nextSibling) break
-      }
-    }
-    return bias > 0 ? this.posAtEnd : this.posAtStart
-  }
-
   handleEvent(event: Event, wg: Wordgard) { return false }
 
   get ignoreMutations() { return false }
@@ -544,7 +508,19 @@ export class DocTile extends CompositeTile {
     let elt = this.nearest(dom)
     if (!elt)
       return this.dom.compareDocumentPosition(dom) & 4 /* following */ ? this.length : 0
-    return elt.localPosFromDOM(dom, offset, bias)
+    if (elt.isText) return elt.posAtStart + Math.min(offset, elt.length)
+    if (elt.isAtom) return elt.posAtStart + (bias > 0 ? elt.length : 0)
+
+    let domBefore, eltBefore: Tile | undefined
+    if (dom == elt.dom) {
+      domBefore = dom.childNodes[offset - 1]
+    } else {
+      while (dom.parentNode != elt.dom) dom = dom.parentNode!
+      domBefore = dom.previousSibling
+    }
+    while (domBefore && !((eltBefore = domBefore.wgTile) && eltBefore.parent == elt))
+      domBefore = domBefore.previousSibling
+    return domBefore ? elt.posBeforeChild(eltBefore!) + eltBefore!.length : elt.posAtStart
   }
 
   posBeforeDOM(dom: DOMNode) {
@@ -669,10 +645,6 @@ export class TextTile extends Tile {
   }
 
   toString() { return JSON.stringify(this.text) }
-
-  localPosFromDOM(dom: DOMNode, offset: number): number {
-    return this.posAtStart + Math.min(offset, this.length)
-  }
 
   posAtCoordsInner(start: number, state: GardState, x: number, y: number,
                    textblock: TextblockMap | null, orientation: Orientation): CoordPos {

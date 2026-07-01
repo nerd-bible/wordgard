@@ -445,7 +445,7 @@ export const pasteHandler = GardState.Facet.define<(
   context: readonly Plot.Tag[]
 ) => boolean>()
 
-function selectionSlice(state: GardState) { // FIXME smarter primitive?
+function selectionSlice(state: GardState) {
   return {
     slice: state.doc.slice(state.selection.from, state.selection.to),
     context: state.doc.contextAt(state.selection.from)
@@ -600,7 +600,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
 
   mousedown(wg, event) {
     wg.inputState.shiftKey = event.shiftKey
-    if (wg.inputState.lastTouchTime > Date.now() - 2000) return false // Ignore touch interaction
+    if (wg.inputState.lastTouchTime > Date.now() - 500) return false // Ignore touch interaction
     let style: Wordgard.MouseSelectionStyle | null = null
     for (let makeStyle of wg.state.facet(mouseSelectionStyle)) {
       style = makeStyle(wg, event)
@@ -806,13 +806,13 @@ const baseObservers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: H
     wg.inputState.lastScrollLeft = wg.scrollDOM.scrollLeft
   },
 
-// FIXME proper strategy for touch handling
   touchstart(wg, e) {
     wg.inputState.lastTouchTime = Date.now()
     wg.inputState.setSelectionOrigin("select.pointer")
   },
 
   touchmove(wg) {
+    wg.inputState.lastTouchTime = Date.now()
     wg.inputState.setSelectionOrigin("select.pointer")
   },
 
