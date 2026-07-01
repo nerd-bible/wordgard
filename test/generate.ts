@@ -42,6 +42,10 @@ function rWord(len = 2 + r(5)) {
   return word
 }
 
+export function randomImage() {
+  return `data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg"><text x="0" y="30">${rWord()}</text></svg>`
+}
+
 export function rDoc(minLength: number) {
   let stack: {tag: Plot.Tag, children: Node[]}[] = [{tag: schema.docTag, children: []}]
   let len = 0
@@ -78,7 +82,7 @@ export function rDoc(minLength: number) {
           let mark = r(2) ? (r(2) ? Emphasis : Strong) : (r(2) ? Code : Link.of("/" + rWord()))
           marks = mark.addToSet(marks)
         }
-        node = r(5) ? Leaf.text(rWord()) : r(2) ? br : img(rWord() + ".svg")
+        node = r(5) ? Leaf.text(rWord()) : r(2) ? br : img(randomImage())
         node = node.withMarks(marks)
       }
       len += node.length

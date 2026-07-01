@@ -4,11 +4,14 @@ import {Plot, Leaf, Node, Elt, Mark, Token} from "wordgard/doc"
 import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, HorizontalRule} from "wordgard/types"
 import ist from "ist"
 import {builder, basicBuilders, tableSchema} from "./schema.ts"
+import {rDoc, rChangeSpec} from "./generate.ts"
 
 const {DocTile} = Wordgard
 const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
 
-function render(doc: Plot.Doc, ...config: GardState.Extension[]): InstanceType<typeof DocTile> {
+type DocTile = InstanceType<typeof DocTile>
+
+function render(doc: Plot.Doc, ...config: GardState.Extension[]): DocTile {
   return DocTile.create(GardState.create({doc, config}), document.createElement("div"))
 }
 
@@ -24,6 +27,25 @@ function span(text: string) {
 }
 
 const inlineWidget = Widget.define<string>({render: span})
+
+function compareDOM(a: Element | Text, b: Element | Text) {
+  if (a instanceof Element) {
+    if (!(b instanceof Element) || b.childNodes.length != a.childNodes.length ||
+        b.attributes.length != a.attributes.length) return false
+    for (let i = 0; i < a.childNodes.length; i++) {
+      if (!compareDOM(a.childNodes[i] as any, b.childNodes[i] as any)) return false
+    }
+    for (let i = 0; i < a.attributes.length; i++) {
+      let attr = a.attributes[i]
+      if (b.getAttribute(attr.name) != attr.value) return false
+    }
+    return true
+  } else if (a instanceof Text) {
+    return b instanceof Text && a.nodeValue == b.nodeValue
+  } else {
+    return false
+  }
+}
 
 describe("DocTile", () => {
   it("can draw a simple document", () => {
@@ -217,7 +239,22 @@ describe("DocTile", () => {
     ist(tile.dom.innerHTML, "<p>x<strong>a</strong>b</p>")
   })
 
-  // FIXME test nodes with inner structure
+  it("can handle random changes", () => {
+    for (let i = 0; i < 100; i++) {
+      let start = rDoc(20), doc = start, tile = render(doc)
+      let log = []
+      for (let j = 0; j < 100; j++) {
+        let changes = rChangeSpec(doc)
+        log.push(changes)
+        tile = update(tile, {changes})
+        doc = tile.state.doc
+      }
+      if (!compareDOM(render(doc).dom, tile.dom)) {
+        console.log(start + "", log)
+        ist(render(doc).dom.innerHTML, tile.dom.innerHTML)
+      }
+    }
+  })
 
   describe("decoration", () => {
     it("can draw widgets around nodes", () => {
