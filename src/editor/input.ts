@@ -717,15 +717,23 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       if (browser.safari && wg.inputState.composing) compositionEnd(wg)
       let insert = event.data!.replace(/\r\n?|\n/g, " ")
       let {from, to} = inputEventRange(event, wg, true)
-      LOG_input && console.log("beforeinput", type, from, to, insert)
+      LOG_input && console.log("beforeinput", type, from, to, JSON.stringify(insert))
       Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
       return true
     } else if (type == "insertReplacementText" || type == "insertFromYank") {
       let slice = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)?.slice
       if (slice) {
         let {from, to} = inputEventRange(event, wg)
+        let sel = wg.state.selection, touchesSel = from <= sel.to && to >= sel.from
         LOG_input && console.log("beforeinput", type, from, to, slice + "")
-        wg.dispatch({changes: {from, to, insert: slice, fit: true}})
+        wg.dispatch({
+          changes: {from, to, insert: slice, fit: true},
+          selection: touchesSel ? (cx, changes) => {
+            return GardSelection.near(cx, changes.mapPos(to, 1), -1)
+          } : undefined,
+          scrollIntoView: touchesSel,
+          userEvent: "insert.replacementText"
+        })
         return true
       }
     } else if (type == "insertCompositionText") {
