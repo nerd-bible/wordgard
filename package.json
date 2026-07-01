@@ -24,6 +24,7 @@
     "watch": "node bin/build.ts --watch",
     "testserver": "node bin/run-testserver.ts"
   },
+  "files": ["/dist"],
   "author": "Marijn Haverbeke <marijn@haverbeke.berlin>",
   "license": "MIT",
   "dependencies": {
@@ -39,10 +40,10 @@
     "acorn-walk": "^8.3.5",
     "esmoduleserve": "^0.3.1",
     "ist": "^1.1.7",
-    "mocha": "^11.7.5",
+    "mocha": "^11.7.6",
     "rollup": "^4.60.1",
     "rollup-plugin-dts": "^6.4.1",
-    "send": "^0.18.0",
+    "send": "^1.2.1",
     "serve-static": "^1.15.0",
     "typescript": "^6.0.3"
   },

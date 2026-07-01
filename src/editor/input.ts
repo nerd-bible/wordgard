@@ -427,8 +427,6 @@ function basicMouseSelection(wg: Wordgard, event: MouseEvent) {
   } as Wordgard.MouseSelectionStyle
 }
 
-// FIXME implement a dropcursor extension
-
 export const dropHandler = GardState.Facet.define<(
   wg: Wordgard,
   event: DragEvent,
