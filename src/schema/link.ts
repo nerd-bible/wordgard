@@ -6,6 +6,13 @@ import {phrases} from "wordgard/phrases"
 import {Wordgard, Dialog, KeyBinding, Tooltip} from "wordgard/editor"
 
 function toggleLink(wg: Wordgard) {
+  let open = Dialog.get(wg, "wg-link-dialog")
+  if (open) {
+    if (open.dom.contains(wg.contentDOM.ownerDocument.activeElement))
+      wg.focus()
+    Dialog.close(wg, "wg-link-dialog")
+    return true
+  }
   let {selection, doc} = wg.state
   if (selection.empty) return false
   let remove: ChangeSet.Spec[] = []
@@ -20,6 +27,7 @@ function toggleLink(wg: Wordgard) {
       label: phrases.get(wg.state, "link_target"),
       input: {type: "text", name: "url"},
       submitLabel: phrases.get(wg.state, "create_link"),
+      class: "wg-link-dialog",
       focus: true
     }).result.then(form => {
       wg.focus()
