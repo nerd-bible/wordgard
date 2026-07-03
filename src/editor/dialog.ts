@@ -77,6 +77,19 @@ export namespace Dialog {
     }
     return null
   }
+
+  /// Close the {@link Panel} for an open dialog, by class name.
+  export function close(wg: Wordgard, className: string) {
+    let dialogs = wg.state.field(dialogField, false) || []
+    for (let open of dialogs) {
+      let panel = Panel.get(wg, open)
+      if (panel && panel.dom.classList.contains(className)) {
+        wg.dispatch({effects: closeDialogEffect.of(open)})
+        return true
+      }
+    }
+    return false
+  }
 }
 
 const dialogField = GardState.Field.define<readonly Panel.Constructor[]>({
