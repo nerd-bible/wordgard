@@ -727,7 +727,7 @@ export namespace GardState {
         if (ext.facet.extensions) inner(ext.facet.extensions, Prec.Default)
       } else {
         let content = (ext as any).extension
-        if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of @codemirror/state are loaded, breaking instanceof checks.`)
+        if (!content) throw new Error(`Unrecognized extension value in extension set (${ext}). This sometimes happens because multiple instances of wordgard/state are loaded, breaking instanceof checks.`)
         inner(content, prec)
       }
     }

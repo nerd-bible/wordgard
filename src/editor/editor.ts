@@ -1067,7 +1067,7 @@ class PluginInstance {
       if (!this.deactivated) {
         try { this.value = this.spec.create(wg) }
         catch (e) {
-          logException(wg.state, e, "CodeMirror plugin crashed")
+          logException(wg.state, e, "Wordgard plugin crashed")
           this.deactivate(null)
         }
       }
@@ -1078,7 +1078,7 @@ class PluginInstance {
         try {
           this.value.update(update)
         } catch (e) {
-          logException(update.state, e, "CodeMirror plugin crashed")
+          logException(update.state, e, "Wordgard plugin crashed")
           if (wg.connected && this.value.disconnect) try { this.value.disconnect(wg) } catch {}
           this.deactivate(wg)
         }
@@ -1099,7 +1099,7 @@ class PluginInstance {
       try {
         this.value.connect(wg)
       } catch (e) {
-        logException(wg.state, e, "CodeMirror plugin crashed")
+        logException(wg.state, e, "Wordgard plugin crashed")
         this.deactivate(wg)
       }
     }
@@ -1110,7 +1110,7 @@ class PluginInstance {
     try {
       this.value.disconnect(wg)
     } catch (e) {
-      logException(wg.state, e, "CodeMirror plugin crashed")
+      logException(wg.state, e, "Wordgard plugin crashed")
       this.deactivate(wg)
     }
   }
@@ -1120,7 +1120,7 @@ class PluginInstance {
     if (this.value?.remove) try {
       this.value.remove(wg)
     } catch(e) {
-      logException(wg.state, e, "CodeMirror plugin crashed")
+      logException(wg.state, e, "Wordgard plugin crashed")
     }
   }
 
