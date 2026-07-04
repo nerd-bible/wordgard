@@ -2,7 +2,7 @@ import {ChangeSet} from "wordgard/doc"
 import browser from "./browser"
 import {Wordgard} from "./editor"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
-import {Tile, TileFlag} from "./tile"
+import {Tile, TileFlag, WidgetTile} from "./tile"
 import {readDOMSelection} from "./selection"
 
 const observeOptions = {
@@ -27,6 +27,7 @@ export class DOMObserver {
   //  - By tracking this, we can ignore selectionchange events if we
   //    have already seen the 'new' selection
   selectionRange: DOMSelectionState = new DOMSelectionState
+  selectionChanged = false
 
   resizeTimeout = -1
   queue: MutationRecord[] = []
@@ -46,7 +47,7 @@ export class DOMObserver {
       this.wg.scheduleFlush()
     })
 
-    this.pollSelection = this.pollSelection.bind(this)
+    this.onSelectionChange = this.onSelectionChange.bind(this)
     this.onResize = this.onResize.bind(this)
     this.onScroll = this.onScroll.bind(this)
     this.onColorSchemeChange = this.onColorSchemeChange.bind(this)
@@ -80,7 +81,7 @@ export class DOMObserver {
     let win = this.win = this.wg.win
     win.addEventListener("resize", this.onResize)
     win.addEventListener("scroll", this.onScroll)
-    win.document.addEventListener("selectionchange", this.pollSelection)
+    win.document.addEventListener("selectionchange", this.onSelectionChange)
     if (typeof win.matchMedia == "function") {
       this.darkThemeQuery = win.matchMedia("(prefers-color-scheme: dark)")
       this.onColorSchemeChange()
@@ -97,7 +98,7 @@ export class DOMObserver {
     if (this.win) {
       this.win.removeEventListener("scroll", this.onScroll)
       this.win.removeEventListener("resize", this.onResize)
-      this.win.document.removeEventListener("selectionchange", this.pollSelection)
+      this.win.document.removeEventListener("selectionchange", this.onSelectionChange)
       this.win = null
     }
     if (this.darkThemeQuery) {
@@ -121,12 +122,19 @@ export class DOMObserver {
     this.wg.configureColorScheme(this.darkThemeQuery!.matches ? "dark" : "light")
   }
 
-  pollSelection() {
-    if (!this.wg.inputState.pendingComposition && this.readSelectionRange() &&
+  onSelectionChange() {
+    this.readSelectionRange()
+    if (this.selectionChanged && this.wg.inputState.lastTouchTime > Date.now() - 100)
+      this.pollSelection("select.pointer")
+  }
+
+  pollSelection(userEvent = "select") {
+    if (this.selectionChanged && !this.wg.inputState.pendingComposition &&
         this.wg.hasFocus && hasSelection(this.wg.contentDOM, this.selectionRange)) {
+      this.selectionChanged = false
       let sel = readDOMSelection(this.wg, this.selectionRange)
       if (!sel.eqPos(this.wg.state.selection))
-        this.wg.dispatch({selection: sel, userEvent: "select"})
+        this.wg.dispatch({selection: sel, userEvent})
     }
   }
 
@@ -143,16 +151,21 @@ export class DOMObserver {
       if (selRange) range = buildSelectionRangeFromRange(wg, selRange)
     }
     if (!range || this.selectionRange.eq(range)) return false
+    let context = range.anchorNode && wg.docTile.nearest(range.anchorNode)
+    if (context instanceof WidgetTile) return false
+
     this.selectionRange.setRange(range)
-    return true
+    return this.selectionChanged = true
   }
 
   setSelectionRange(anchor: {dom: DOMNode, offset: number}, head: {dom: DOMNode, offset: number}) {
     this.selectionRange.set(anchor.dom, anchor.offset, head.dom, head.offset)
+    this.selectionChanged = false
   }
 
   clearSelectionRange() {
     this.selectionRange.set(null, 0, null, 0)
+    this.selectionChanged = false
   }
 
   ignore<T>(f: () => T): T {
