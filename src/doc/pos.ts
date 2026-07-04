@@ -1,4 +1,4 @@
-import type {Node as _Node, Plot as _Plot, Leaf} from "./node"
+import type {Node, Plot, Leaf} from "./node"
 import {Mark} from "./mark"
 import {none} from "./helper"
 
@@ -53,7 +53,7 @@ export class Pos {
   /// Get the node directly after this position. If `inText` is
   /// non-zero, return only the part of the text node that's after the
   /// position.
-  get nodeAfter(): _Node | null {
+  get nodeAfter(): Node | null {
     if (this.index == this.parent.node.content.length) return null
     let node = this.parent.node.content[this.index]
     return this.inText ? (node as Leaf<string>).sliceText(this.inText) : node
@@ -62,7 +62,7 @@ export class Pos {
   /// Get the node directly before this position. If `inText` is
   /// non-zero, return only the part of the text node before the
   /// position.
-  get nodeBefore(): _Node | null {
+  get nodeBefore(): Node | null {
     if (this.inText) return (this.parent.node.content[this.index] as Leaf<string>).sliceText(0, this.inText)
     return this.index ? this.parent.node.content[this.index - 1] : null
   }
@@ -125,7 +125,7 @@ export class Pos {
   }
 
   /// @internal
-  static resolve(doc: _Plot.Doc, pos: number): Pos {
+  static resolve(doc: _Doc, pos: number): Pos {
     if (pos < 0 || pos > doc.length) throw new RangeError(`Resolving invalid position ${pos}`)
     let {top, cache} = cacheFor(doc), nearest: Pos | undefined, nearestDist = 0, result
     if (pos == 0) return Pos.create(top, 0, 0, 0)
@@ -148,7 +148,7 @@ export class Pos {
   }
 
   /// @internal
-  static resolveNode(doc: _Plot.Doc, pos: number) {
+  static resolveNode(doc: _Doc, pos: number) {
     let base = this.resolve(doc, pos)
     if (base.inText) return null
     let after = base.nodeAfter
@@ -156,6 +156,11 @@ export class Pos {
       : Pos.Plot.create(base.parent, after, pos, base.index)
   }
 }
+
+type _Node = Node
+type _Plot = Plot
+type _Doc = Plot.Doc
+type _Tag = Plot.Tag
 
 export namespace Pos {
   /// Interface for the walker object that can be passed to {@link
@@ -167,7 +172,7 @@ export namespace Pos {
     /// Called when a plot is entered.
     enterPlot(node: _Plot, pos: number, parent: Pos.Plot, index: number): void | boolean
     /// Called when leaving a plot.
-    leavePlot(tag: _Plot.Tag, pos: number, parent: Pos.Plot, index: number): void
+    leavePlot(tag: _Tag, pos: number, parent: Pos.Plot, index: number): void
   }
 
   /// Represents the position of a node, with information about its
@@ -212,11 +217,11 @@ export namespace Pos {
     }
 
     /// The document that this position points into.
-    get doc(): _Plot.Doc {
+    get doc(): _Doc {
       let n: Pos.Node = this
       while (n.parent) n = n.parent
       if (!((n as Pos.Plot).node.isDoc)) throw new Error("Outer parent not a document")
-      return n.node as _Plot.Doc
+      return n.node as _Doc
     }
 
     /// Returns true if this is either a document node or the first
@@ -255,13 +260,12 @@ export namespace Pos {
     /// The position at end of this plot's content.
     get end() { return this.pos + 1 + this.node.contentLength }
   }
-
 }
 
-const posCache = new Map<_Plot.Doc, {top: Pos.Plot, cache: Pos[]}>(), cacheSize = 8
+const posCache = new Map<Plot.Doc, {top: Pos.Plot, cache: Pos[]}>(), cacheSize = 8
 let cachePos = 0
 
-function cacheFor(doc: _Plot.Doc) {
+function cacheFor(doc: Plot.Doc) {
   let found = posCache.get(doc)
   if (!found) posCache.set(doc, found = {top: Pos.Plot.create(null, doc, -1, 0), cache: []})
   return found
