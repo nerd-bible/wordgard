@@ -697,6 +697,10 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
         LOG_input && console.log("beforeinput", type, wg.inputState.pendingDeletion, "(chrome)")
         return false
       }
+      // FIXME sometimes the browser will, at least for
+      // deleteContent*, use these to delete a specific range, which
+      // may not correspond to what our command does. Add some kind of
+      // don't-handle heuristic?
       LOG_input && console.log("beforeinput", type, "(command)")
       Command.dispatch(wg, command)
       return true
