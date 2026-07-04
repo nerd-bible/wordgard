@@ -124,8 +124,10 @@ export class DOMObserver {
 
   onSelectionChange() {
     this.readSelectionRange()
-    if (this.selectionChanged && this.wg.inputState.lastTouchTime > Date.now() - 100)
-      this.pollSelection("select.pointer")
+    if (this.selectionChanged) {
+      if (this.wg.inputState.lastTouchTime > Date.now() - 100) this.pollSelection("select.pointer")
+      else this.wg.scheduleFlush()
+    }
   }
 
   pollSelection(userEvent = "select") {
