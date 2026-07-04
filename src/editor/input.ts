@@ -46,8 +46,6 @@ export class InputState {
   lastScrollTop = 0
   lastScrollLeft = 0
 
-  lastSelectionOrigin: string | null = null
-  lastSelectionTime: number = 0
   lastContextMenu: number = 0
   scrollHandlers: ((event: Event) => boolean | void)[] = []
 
@@ -78,11 +76,6 @@ export class InputState {
   draggedContent: GardSelection | null = null
 
   notifiedFocused: boolean
-
-  setSelectionOrigin(origin: string) {
-    this.lastSelectionOrigin = origin
-    this.lastSelectionTime = Date.now()
-  }
 
   constructor(readonly wg: Wordgard) {
     this.handleEvent = this.handleEvent.bind(this)
@@ -159,7 +152,7 @@ export class InputState {
   update(update: Wordgard.Update) {
     if (this.mouseSelection) this.mouseSelection.update(update)
     if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state)
-    if (update.transactions.length) this.lastKeyCode = this.lastSelectionTime = 0
+    if (update.transactions.length) this.lastKeyCode = 0
     if (this.composing) this.composing.targetPos = update.changes.mapPos(this.composing.targetPos, -1)
   }
 
@@ -592,7 +585,6 @@ function inputEventRange(event: InputEvent, wg: Wordgard, preferSel = false) {
 
 const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HTMLElementEventMap[e]) => boolean} = {
   keydown(wg, event) {
-    wg.inputState.setSelectionOrigin("select")
     return KeyBinding.runScopeHandlers(wg, event, "editor")
   },
 
@@ -806,12 +798,10 @@ const baseObservers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: H
 
   touchstart(wg, e) {
     wg.inputState.lastTouchTime = Date.now()
-    wg.inputState.setSelectionOrigin("select.pointer")
   },
 
   touchmove(wg) {
     wg.inputState.lastTouchTime = Date.now()
-    wg.inputState.setSelectionOrigin("select.pointer")
   },
 
   focus(wg) {
