@@ -176,8 +176,9 @@ export class Wordgard {
   /// display update.
   dispatch(tr: Transaction | Transaction.Spec): void {
     if (this.flushing != Flush.No) throw new Error("Cannot dispatch new updates during the editor flush phase")
-    for (let t of Transaction.append(tr instanceof Transaction ? tr : this.state.update(tr)))
-      this.viewState.update(t)
+    if (!(tr instanceof Transaction)) tr = this.state.update(tr)
+    else if (tr.startState != this.state) throw new Error("Dispatching a transaction starting from the wrong state")
+    for (let t of Transaction.append(tr as Transaction)) this.viewState.update(t)
     this.scheduleFlush()
   }
 
