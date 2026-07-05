@@ -358,7 +358,7 @@ describe("ChangeSet", () => {
     })
   })
 
-  describe("map", () => {
+  describe("transform", () => {
     it("converges when mapping pairs of changes", () => {
       for (let i = 0; i < 250; i++) {
         let doc = rDoc(10), a = rChange(doc, 2), b = rChange(doc, 2)
