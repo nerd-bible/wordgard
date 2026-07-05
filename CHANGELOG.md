@@ -6,8 +6,6 @@ Clicking the link button when the link dialog is already open will now close it.
 
 Work around d.ts bundler issue that caused the types of some fields in the `Pos` namespace to be incorrect in the output.
 
-Work around d.ts bundler issue that caused the types of some fields in the `Pos` namespace to be incorrect in the output.
-
 Fix a bug that caused the definition of the `link` namespace to be incorrectly tree-shaken.
 
 ### New features
