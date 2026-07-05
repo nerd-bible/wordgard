@@ -129,7 +129,7 @@ function outputPlugin(output: Output, ext: string, base: Plugin) {
 const pure = "/*@__PURE__*/"
 
 function sameName(arg: string, base: string) {
-  return arg == base || arg.startsWith(base + "_")
+  return arg == base || base.startsWith(arg + "_")
 }
 
 // Recognize the pattern emitted for TS namespace (immediately invoked
