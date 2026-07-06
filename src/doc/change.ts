@@ -672,7 +672,7 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
 
 function transform(setA: ChangeSet, setB: ChangeSet, doc: Plot.Doc, before: boolean, fit: boolean) {
   if (setA.length != doc.length || setB.length != doc.length)
-    throw new ValidationError("Mapping a change that doesn't match the start document")
+    throw new ValidationError("Transforming a change that doesn't match the start document")
   // Produce a copy of setA that applies to the document after setB
   // has been applied. Assumes both start at the same document (`doc`).
   let sections: number[] = [], data: SectionData[] = []

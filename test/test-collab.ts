@@ -24,17 +24,17 @@ class DummyServer {
     let state = this.states[client], version = collab.getSyncedVersion(state)
     if (version != this.version) {
       let i = this.updates.length
-      while (i && this.updates[i - 1].versionBefore >= version) i--
+      while (i && this.updates[i - 1].version >= version) i--
       this.states[client] = collab.receive(state, this.updates.slice(i)).state
     }
   }
 
   send(client: number) {
     let state = this.states[client], sendable = collab.sendableUpdate(state)
-    if (sendable && sendable.versionBefore != this.version) return false
-    if (sendable) {
+    if (!sendable) return false
+    if (sendable.version == this.version) {
       this.updates = this.updates.concat(sendable)
-      this.version = sendable.versionAfter
+      this.version++
     }
     return true
   }
@@ -65,6 +65,15 @@ class DummyServer {
   redo(client: number) {
     let tr = redo({state: this.states[client]}, null)
     if (tr) this.update(client, () => tr)
+  }
+
+  syncAll() {
+    for (;;) {
+      let done = true
+      for (let c = 0; c < this.states.length; c++) if (this.send(c)) done = false
+      for (let c = 0; c < this.states.length; c++) this.sync(c)
+      if (done) break
+    }
   }
 
   conv(expect: string) {
@@ -291,18 +300,14 @@ describe("collab", () => {
         } else if (sel == 1) {
           s.sync(client)
         } else if (sel == 2) {
-          s.type(client, String.fromCharCode(65 + r(26)), 1 + r(len - 2))
+          let ch = String.fromCharCode(65 + r(26)), pos = 1 + r(len - 2)
+          s.type(client, ch, pos)
         } else if (len > 2) {
           let from = 1 + r(len - 3), to = from + 1 + r(len - 2 - from)
           s.update(client, s => s.update({changes: {from, to}}))
         }
       }
-      for (;;) {
-        let done = true
-        for (let c = 0; c < n; c++) if (!s.send(c)) done = false
-        for (let c = 0; c < n; c++) s.sync(c)
-        if (done) break
-      }
+      s.syncAll()
       for (let c = 1; c < n; c++) s.conv(s.states[0].doc.textContent())
     }
   })

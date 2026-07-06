@@ -8,15 +8,27 @@ class LocalUpdate {
   ) {}
 }
 
+function addUpdate(to: LocalUpdate | null, changes: ChangeSet, effects: readonly Transaction.Effect<unknown>[] = []) {
+  if (changes.empty && !effects.length) return to
+  if (!to) return new LocalUpdate(changes, effects)
+  return new LocalUpdate(to.changes.compose(changes),
+                         Transaction.Effect.mapEffects(to.effects, changes).concat(effects))
+}
+
 class CollabState {
   constructor(
     // The version up to which changes have been confirmed.
     readonly version: number,
     // The document at version `this.version`.
     readonly syncedDoc: Plot.Doc,
-    // The local updates that havent been successfully sent to the
-    // server yet.
-    readonly unconfirmed: readonly LocalUpdate[],
+    // A set of local unconfirmed changes that may have been sent to
+    // the server. Because we cannot compose these with other changes
+    // anymore once they may have been sent, reading these with
+    // `sendableUpdate` will, via a side effect, lock them.
+    public nextUpdate: LocalUpdate | null,
+    // Local unconfirmed changes that have not been locked yet. New
+    // transactions will be added to this.
+    public openUpdate: LocalUpdate | null
   ) {}
 }
 
@@ -35,13 +47,13 @@ const collabReceive = Transaction.Effect.define<CollabState>({
     // This is used to make sure changes added to collab receive
     // transactions by extenders still get stored as unconfirmed.
     return changes.empty ? state
-      : new CollabState(state.version, state.syncedDoc, state.unconfirmed.concat(new LocalUpdate(changes, [])))
+      : new CollabState(state.version, state.syncedDoc, state.nextUpdate, addUpdate(state.openUpdate, changes))
   }
 })
 
 const collabField = GardState.Field.define({
   create(state) {
-    return new CollabState(state.facet(collabConfig).startVersion, state.doc, [])
+    return new CollabState(state.facet(collabConfig).startVersion, state.doc, null, null)
   },
 
   update(collab: CollabState, tr: Transaction) {
@@ -49,7 +61,8 @@ const collabField = GardState.Field.define({
     let {sharedEffects} = tr.startState.facet(collabConfig)
     let effects = sharedEffects(tr)
     if (effects.length || !tr.changes.empty)
-      return new CollabState(collab.version, collab.syncedDoc, collab.unconfirmed.concat(new LocalUpdate(tr.changes, effects)))
+      return new CollabState(collab.version, collab.syncedDoc, collab.nextUpdate,
+                             addUpdate(collab.openUpdate, tr.changes, effects))
     return collab
   }
 })
@@ -57,17 +70,6 @@ const collabField = GardState.Field.define({
 /// Create an instance of the collaborative editing plugin.
 export function collab(config: collab.Config = {}): GardState.Extension {
   return [collabField, collabConfig.of({generatedID: Math.floor(Math.random() * 1e9).toString(36), ...config})]
-}
-
-function collapseUpdates(updates: readonly {changes: ChangeSet, effects?: readonly Transaction.Effect<unknown>[]}[]) {
-  let {changes, effects = []} = updates[0]
-  for (let i = 1; i < updates.length; i++) {
-    let next = updates[i]
-    effects = Transaction.Effect.mapEffects(effects, next.changes)
-    if (next.effects) effects = effects.concat(next.effects)
-    changes = changes.compose(next.changes)
-  }
-  return {changes, effects}
 }
 
 export namespace collab {
@@ -90,10 +92,7 @@ export namespace collab {
   /// An update is a set of changes and effects.
   export interface Update {
     /// The document version that this update starts from.
-    versionBefore: number,
-    /// The new version, as determined by the client creating the
-    /// update.
-    versionAfter: number,
+    version: number,
     /// The changes made by this update.
     changes: ChangeSet,
     /// The effects in this update. There'll only ever be effects here
@@ -111,42 +110,46 @@ export namespace collab {
   /// state, and for our own changes, drop them from the set of
   /// unconfirmed local changes.
   export function receive(state: GardState, updates: readonly collab.Update[]) {
-    let {version, syncedDoc, unconfirmed} = state.field(collabField)
+    let {version, syncedDoc, nextUpdate, openUpdate} = state.field(collabField)
     let {clientID} = state.facet(collabConfig)
 
-    for (let {versionBefore, versionAfter} of updates) {
-      if (versionBefore != version) throw new Error("Version mismatchin in received collab update")
-      version = versionAfter
-    }
+    let changes = ChangeSet.empty(state.doc.length)
+    let effects: readonly Transaction.Effect<unknown>[] = []
 
-    if (updates.length && updates[0].clientID == clientID) {
-      // First update is our own
-      let ours = updates[0], size = ours.versionAfter - ours.versionBefore
-      unconfirmed = unconfirmed.slice(size)
-      updates = updates.slice(1)
-      syncedDoc = unconfirmed.length ? ours.changes.apply(syncedDoc) : state.doc
+    for (let update of updates) {
+      if (update.version != version)
+        throw new Error("Version mismatch in in received collab update")
+      if (update.clientID == clientID) {
+        if (!nextUpdate || !nextUpdate.changes.eq(update.changes))
+          throw new Error("Received update with our client ID doesn't match our own local update")
+        nextUpdate = null
+        syncedDoc = openUpdate ? update.changes.apply(syncedDoc) : state.doc
+      } else {
+        let newChanges = update.changes, newEffects = update.effects || []
+        let baseDoc = syncedDoc
+        if (nextUpdate) {
+          let {a, b} = ChangeSet.transform(baseDoc, newChanges, nextUpdate.changes)
+          if (openUpdate) baseDoc = nextUpdate.changes.apply(baseDoc)
+          nextUpdate = new LocalUpdate(b, Transaction.Effect.mapEffects(nextUpdate.effects, a))
+          newChanges = a
+          newEffects = Transaction.Effect.mapEffects(newEffects, b)
+        }
+        if (openUpdate) {
+          let {a, b} = ChangeSet.transform(baseDoc, newChanges, openUpdate.changes)
+          openUpdate = new LocalUpdate(b, Transaction.Effect.mapEffects(openUpdate.effects, a))
+          newChanges = a
+          newEffects = Transaction.Effect.mapEffects(newEffects, b)
+        }
+        changes = changes.compose(newChanges)
+        effects = Transaction.Effect.mapEffects(effects, newChanges).concat(newEffects)
+        syncedDoc = update.changes.apply(syncedDoc)
+      }
+      version++
     }
-
-    if (!updates.length) return state.update({
-      annotations: Transaction.remote.of(true),
-      effects: collabReceive.of(new CollabState(version, syncedDoc, unconfirmed))
-    })
-
-    let {changes, effects} = collapseUpdates(updates)
-    let newSyncedDoc = changes.apply(syncedDoc)
-    if (unconfirmed.length) {
-      let ours = collapseUpdates(unconfirmed)
-      let {a, b} = ChangeSet.transform(syncedDoc, changes, ours.changes)
-      let oursMapped = new LocalUpdate(b, Transaction.Effect.mapEffects(ours.effects, a))
-      unconfirmed = [oursMapped]
-      changes = a
-      effects = Transaction.Effect.mapEffects(effects, oursMapped.changes)
-    }
-    syncedDoc = newSyncedDoc
 
     return state.update({
       changes,
-      effects: effects.concat(collabReceive.of(new CollabState(version, syncedDoc, unconfirmed))),
+      effects: effects.concat(collabReceive.of(new CollabState(version, syncedDoc, nextUpdate, openUpdate))),
       annotations: [Transaction.addToHistory.of(false), Transaction.remote.of(true)],
     })
   }
@@ -154,14 +157,17 @@ export namespace collab {
   /// If there are unconfirmed local changes that need to be sent to the
   /// server,return them as an `Update` object.
   export function sendableUpdate(state: GardState): collab.Update | null {
-    let {unconfirmed, version} = state.field(collabField)
-    if (!unconfirmed.length) return null
-    let {changes, effects} = collapseUpdates(unconfirmed)
+    let collab = state.field(collabField)
+    if (!collab.nextUpdate) {
+      if (!collab.openUpdate) return null
+      collab.nextUpdate = collab.openUpdate
+      collab.openUpdate = null
+    }
     return {
-      versionBefore: version,
-      versionAfter: version + unconfirmed.length,
-      changes, effects,
-      clientID: state.facet(collabConfig).clientID
+      version: collab.version,
+      clientID: getClientID(state),
+      changes: collab.nextUpdate.changes,
+      effects: collab.nextUpdate.effects
     }
   }
 
