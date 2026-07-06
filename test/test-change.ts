@@ -279,7 +279,7 @@ describe("ChangeSet", () => {
       for (let order of permute(set)) {
         it(`correctly composes ${order.join("/")}`, () => {
           let ch = changes[order[0]]
-          for (let i = 1; i < order.length; i++) ch = ch.compose(changes[order[i]].transform(ch, d))
+          for (let i = 1; i < order.length; i++) ch = ch.compose(changes[order[i]].transform(d, ch))
           ist(ch.apply(d), expect, eq)
         })
       }
@@ -432,19 +432,19 @@ describe("ChangeSet", () => {
     it("handles overwritten open tokens", () => {
       let d = doc(p("x"), p("y"))
       let ch1 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(h1()))})
-      let ch2 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(pre()))}).transform(ch1, d)
+      let ch2 = ChangeSet.create(d, {from: 0, to: 1, insert: slice(open(pre()))}).transform(d, ch1)
       ist(ch2.apply(ch1.apply(d)), doc(h1("x"), p("y")), eq)
     })
 
     it("doesn't leak surplus opening nodes", () => {
       let d = doc(0, blockquote(1, p("x")), p("y")), ch = mk(d, [[open(blockquote())]])
-      let ch2 = ch.transform(ch, d) // Both delete the same opening token. Deletion collapsed, insertion preserved.
+      let ch2 = ch.transform(d, ch) // Both delete the same opening token. Deletion collapsed, insertion preserved.
       ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x")), p("y")), eq)
     })
 
     it("doesn't leak surplus closing nodes", () => {
       let d = doc(blockquote(p("x", 0), 1, p("y"))), ch = mk(d, [[close]])
-      let ch2 = ch.transform(ch, d) // Both delete the same closing token
+      let ch2 = ch.transform(d, ch) // Both delete the same closing token
       ist(ch2.apply(ch.apply(d)), doc(blockquote(p("x"), p("y"))), eq)
     })
   })

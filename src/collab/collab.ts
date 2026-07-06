@@ -181,4 +181,27 @@ export namespace collab {
   export function getClientID(state: GardState) {
     return state.facet(collabConfig).clientID
   }
+
+  /// Transform an update that arrives on the server with an outdated
+  /// start version. Being able to do this requires tracking a
+  /// document history server-side. It is not necessary to do this,
+  /// but it helps a lot with “starvation” problems, where slower
+  /// clients or clients with a high ping can, in a busy document,
+  /// keep losing the race to submit their changes to other, faster
+  /// clients.
+  export function transformUpdate(
+    update: collab.Update,
+    over: readonly {doc: Plot.Doc, changes: ChangeSet, clientID: string}[]
+  ): collab.Update | null {
+    if (!over.length) return update
+    let {clientID, version, changes, effects} = update
+    for (let other of over) {
+      if (other.clientID == clientID) return null
+      if (effects && effects.length)
+        effects = Transaction.Effect.mapEffects(effects, other.changes.transform(other.doc, changes, true))
+      changes = changes.transform(other.doc, other.changes)
+      version++
+    }
+    return {clientID, version, changes, effects}
+  }
 }

@@ -245,7 +245,7 @@ export class ChangeSet {
   /// last. You can set `before` to true to invert this, making `this`
   /// come before `other`. Setting this correctly is necessary to make
   /// the result of independently applied transformed changes converge.
-  transform(other: ChangeSet, doc: Plot.Doc, before: boolean = false): ChangeSet {
+  transform(doc: Plot.Doc, other: ChangeSet, before: boolean = false): ChangeSet {
     let {set, fix} = transform(this, other, doc, before, true)
     return fix ? set.compose(fix) : set
   }

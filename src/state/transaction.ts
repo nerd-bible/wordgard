@@ -389,7 +389,7 @@ export function resolveTransactionInner(state: GardState, after: ChangeSet | nul
       selection = selection.map(a, selCx(state.config, doc, changes))
       changes = b
     } else {
-      changes = changes.transform(after, state.doc)
+      changes = changes.transform(state.doc, after)
     }
     effects = Transaction.Effect.mapEffects(effects, after)
   }
