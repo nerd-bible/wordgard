@@ -7,10 +7,11 @@ import {Table, ColSpan, RowSpan} from "wordgard/types"
 import {Correction} from "wordgard/state"
 import {TableMap} from "./tablemap"
 
-export const tableCorrection = Correction.onContent(Table, (pos, state) => {
+export const tableCorrection = Correction.onContent(Table, pos => {
   let map = TableMap.get(pos.node, pos.start)
   if (!map.data.problems) return null
 
+  let {schema} = pos.doc
   // Track which rows we must add cells to, so that we can adjust that
   // when fixing collisions.
   let mustAdd: number[] = [], changes: ChangeSet.Spec[] = []
@@ -29,7 +30,7 @@ export const tableCorrection = Correction.onContent(Table, (pos, state) => {
           } else if (map.cellAt(col, row) == pos) {
             let from = pos
             for (let scan = 0; from == pos; scan++) from = map.cellInsertionPos(col + scan, row)
-            changes.push({from, insert: [state.schema.createAndFill(cell.type.default!)]})
+            changes.push({from, insert: [schema.createAndFill(cell.type.default!)]})
           }
         }
       }
@@ -54,10 +55,10 @@ export const tableCorrection = Correction.onContent(Table, (pos, state) => {
     let row = pos.node.content[i] as Plot, end = curPos + row.length
     let add = mustAdd[i]
     if (add > 0) {
-      let cell = state.schema.defaultContentPlot(row.tag.type)!
+      let cell = schema.defaultContentPlot(row.tag.type)!
       let nodes = []
       for (let j = 0; j < add; j++)
-        nodes.push(state.schema.createAndFill(cell))
+        nodes.push(schema.createAndFill(cell))
       let side = (i == 0 || first == i - 1) && last == i ? curPos + 1 : end - 1
       changes.push({from: side, insert: nodes})
     }
