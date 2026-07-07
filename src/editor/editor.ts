@@ -128,12 +128,10 @@ export class Wordgard {
       this.viewState.scrollTarget = spec.scrollTo.value.clip(this.viewState.state)
     this.plugins = [cursorPlugin, ...this.state.facet(editorPlugin)].map(spec => new PluginInstance(spec))
     for (let plugin of this.plugins) plugin.update(this)
-    this.observer = new DOMObserver(this)
     this.inputState = new InputState(this)
-    this.observer.ignore(() => {
-      this.docTile = DocTile.create(this.state, this.contentDOM)
-      this.updateAttrs()
-    })
+    this.docTile = DocTile.create(this.state, this.contentDOM)
+    this.updateAttrs()
+    this.observer = new DOMObserver(this)
 
     if (spec.parent) spec.parent.appendChild(this.dom)
   }
