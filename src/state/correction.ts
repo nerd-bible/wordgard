@@ -101,7 +101,7 @@ export class Correction {
     /// @internal
     readonly query: Node.Query,
     /// @internal
-    readonly correct: (node: Pos.Node, state: GardState) => ChangeSet.Spec | null
+    readonly correct: (node: Pos.Node) => ChangeSet.Spec | null
   ) {
     this.extension = [
       corrections.of(this as any),
@@ -117,7 +117,7 @@ export class Correction {
       planCache.set(tr, plan = scanChanges(tr.changes, tr.newDoc, tr.startState.facet(corrections)))
     let changes: ChangeSet.Spec[] = []
     for (let elt of plan) if (elt.correction == this) {
-      let change = this.correct(elt.node, tr.startState)
+      let change = this.correct(elt.node)
       if (change) changes.push(change)
     }
     return changes.length ? {changes, sequential: true} : null
@@ -130,7 +130,7 @@ export class Correction {
     let changes: ChangeSet.Spec[] = []
     state.doc.iterate((node, pos) => {
       if (state.schema.matchNode(node.type, this.query) && (this.event == CorrectionEvent.Marks || node.isPlot)) {
-        let change = this.correct(state.doc.resolveNode(pos)!, state)
+        let change = this.correct(state.doc.resolveNode(pos)!)
         if (change) changes.push(change)
       }
     })
@@ -141,20 +141,35 @@ export class Correction {
   /// Create a correction that runs whenever the child list of a node
   /// that matches the given query changes, or such a node is inserted
   /// into the document.
-  static onChildList(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
+  static onChildList(query: Node.Query, correct: (node: Pos.Plot) => ChangeSet.Spec | null) {
     return new Correction(CorrectionEvent.ChildList, query, correct as any)
   }
 
   /// Create a correction that runs whenever any content inside a node
   /// that matches the given query changes, or such a node is inserted
   /// into the document.
-  static onContent(query: Node.Query, correct: (node: Pos.Plot, state: GardState) => ChangeSet.Spec | null) {
+  static onContent(query: Node.Query, correct: (node: Pos.Plot) => ChangeSet.Spec | null) {
     return new Correction(CorrectionEvent.Content, query, correct as any)
   }
 
   /// Define a correction that runs whenever the set of marks on a
   /// matching tag changes.
-  static onMarks(query: Node.Query, correct: (node: Pos.Node, state: GardState) => ChangeSet.Spec | null) {
+  static onMarks(query: Node.Query, correct: (node: Pos.Node) => ChangeSet.Spec | null) {
     return new Correction(CorrectionEvent.Marks, query, correct)
+  }
+
+  /// Check the ranges touched by the given change set against the
+  /// given list of corrections. Return a change set if any changes
+  /// need to be made. (This isn't how you normally use corrections,
+  /// but can be useful in a situation where you aren't working with
+  /// an editor state transaction.)
+  static check(changes: ChangeSet, doc: Plot.Doc, corrections: readonly Correction[]) {
+    if (!corrections.length || changes.empty) return null
+    let plan = scanChanges(changes, doc, corrections), changed: ChangeSet.Spec[] = []
+    for (let c of corrections) for (let elt of plan) if (elt.correction == c) {
+      let change = c.correct(elt.node)
+      if (change) changed.push(change)
+    }
+    return changed.length ? ChangeSet.create(doc, changed) : null
   }
 }
