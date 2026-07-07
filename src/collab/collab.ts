@@ -1,5 +1,5 @@
 import {GardState, Transaction} from "wordgard/state"
-import {ChangeSet, Plot} from "wordgard/doc"
+import {ChangeSet, Plot, Node} from "wordgard/doc"
 
 class LocalUpdate {
   constructor(
@@ -92,16 +92,16 @@ export namespace collab {
   /// An update is a set of changes and effects.
   export interface Update {
     /// The document version that this update starts from.
-    version: number,
+    version: number
+    /// The {@link collab.Config.clientID ID} of the client who
+    /// created this update.
+    clientID: string
     /// The changes made by this update.
-    changes: ChangeSet,
+    changes: ChangeSet
     /// The effects in this update. There'll only ever be effects here
     /// when you configure your collab extension with a {@link
     /// collab.Config.sharedEffects `sharedEffects`} option.
     effects?: readonly Transaction.Effect<unknown>[]
-    /// The {@link collab.Config.clientID ID} of the client who
-    /// created this update.
-    clientID: string
   }
 
   /// Create a transaction that represents a set of new updates received
@@ -204,4 +204,199 @@ export namespace collab {
     }
     return {clientID, version, changes, effects}
   }
+}
+
+/// An object of this type should be used to wrap whatever transport
+/// layer you use to talk to your language server. Messages should
+/// contain only the JSON messages, no LSP headers.
+export type Socket = {
+  /// Send a message over the transport.
+  send(message: string): void
+  /// If set to a function, call that function when a message comes
+  /// in.
+  onmessage: ((ev: {data: string}) => void) | null
+  /// If a function, call that function when the socket is closed.
+  onclose: (() => void) | null
+}
+
+function isNatNum(n: any): n is number {
+  return typeof n == "number" && Math.floor(n) == n && n >= 0
+}
+
+export class Server<EffectJSON = any> {
+  clients: {id: string, socket: Socket}[] = []
+
+  constructor(
+    public doc: Plot.Doc,
+    public version: number,
+    public updates: Server.Update[],
+    readonly serializeEffect: ((effect: Transaction.Effect<unknown>) => EffectJSON | null) | undefined,
+    readonly deserializeEffect: ((json: EffectJSON, doc: Plot.Doc) => Transaction.Effect<unknown>) | undefined
+  ) {
+  }
+
+  static create<EffectJSON = unknown>(config: {
+    doc: Plot.Doc,
+    version?: number,
+    updates?: Server.Update[],
+    serializeEffect?: (effect: Transaction.Effect<unknown>) => EffectJSON | null,
+    deserializeEffect?: (json: EffectJSON) => Transaction.Effect<unknown>
+  }) {
+    return new Server(config.doc, config.version ?? 0, config.updates ?? [],
+                      config.serializeEffect, config.deserializeEffect)
+  }
+
+  get startVersion() {
+    return this.version - this.updates.length
+  }
+
+  connect(socket: Socket) {
+    let client = {id: "", socket}
+    socket.onmessage = this.onMessage.bind(this, client)
+    socket.onclose = this.dropClient.bind(this, client)
+    this.clients.push(client)
+    socket.send(JSON.stringify({type: "connected"}))
+  }
+
+  send(client: {id: string, socket: Socket}, message: Server.Message<EffectJSON>) {
+    try {
+      client.socket.send(JSON.stringify(message))
+    } catch {
+      this.dropClient(client)
+    }
+  }
+
+  sendUpdate(client: {id: string, socket: Socket}, update: Server.Update) {
+    let effects: EffectJSON[] | undefined
+    if (update.effects && this.serializeEffect) {
+      for (let e of update.effects) {
+        let json = this.serializeEffect(e)
+        if (json) (effects || (effects = [])).push(json)
+      }
+    }
+    this.send(client, {
+      type: "update",
+      changes: update.changes.toJSON(),
+      effects,
+      clientID: update.clientID
+    })
+  }
+
+  onMessage(client: {id: string, socket: Socket}, message: {data: string}) {
+    let err = (error: string) => client.socket.send(JSON.stringify({type: "error", error}))
+
+    let msg: Client.Message<EffectJSON> | undefined
+    try { msg = JSON.parse(message.data) } catch {}
+    if (!msg) return err("Invalid JSON")
+    if (msg.type == "init") {
+      if (msg.clientID == "string") client.id = msg.clientID
+      if (isNatNum(msg.version) && msg.version <= this.version && msg.version >= this.startVersion) {
+        for (let v = msg.version; v < this.version; v++)
+          this.sendUpdate(client, this.updates[this.updates.length - (this.version - v)])
+      } else {
+        this.send(client, {type: "state", doc: this.doc.toJSON(), version: this.version})
+      }
+    } else if (msg.type == "update" && client.id) {
+      let changes: ChangeSet, effects: readonly Transaction.Effect<unknown>[] | undefined
+      try { changes = ChangeSet.fromJSON(this.doc.schema, msg.changes) }
+      catch { return err("Invalid change") }
+      if (!isNatNum(msg.version) || msg.version > this.version || msg.version < this.startVersion)
+        return err("Bad version")
+      if (Array.isArray(msg.effects) && this.deserializeEffect) {
+        let baseDoc = msg.version == this.version ? this.doc
+          : this.updates[this.updates.length - (this.version - msg.version)].doc
+        try { effects = msg.effects.map(e => this.deserializeEffect!(e, baseDoc)) }
+        catch(e) { return err(String(e)) }
+      }
+      this.receive(client, changes, effects, msg.version, client.id)
+    } else {
+      err("Invalid message")
+    }
+  }
+
+  dropClient(client: {id: string, socket: Socket}) {
+    let found = this.clients.indexOf(client)
+    if (found > -1) this.clients.splice(found, 1)
+  } 
+
+  receive(
+    client: {id: string, socket: Socket},
+    changes: ChangeSet,
+    effects: readonly Transaction.Effect<unknown>[] | undefined,
+    version: number,
+    clientID: string
+  ) {
+    if (this.version > version) {
+      let mapped: collab.Update | null
+      try {
+        mapped = collab.transformUpdate({changes, effects, version, clientID},
+                                        this.updates.slice(this.updates.length - (this.version - version)))
+      } catch (e) {
+        this.send(client, {type: "error", error: String(e)})
+        return
+      }
+      if (!mapped) return
+      ;({changes, effects, version, clientID} = mapped)
+    }
+    if (changes.length != this.doc.length) {
+      this.send(client, {type: "error", error: "Length mismatch"})
+      return
+    }
+    let update: Server.Update = {doc: this.doc, clientID, changes, effects}
+    this.updates.push(update)
+    this.doc = changes.apply(this.doc)
+    this.version++
+    for (let client of this.clients) if (client.id) this.sendUpdate(client, update)
+  }
+}
+
+export namespace Server {
+  export type Update = {
+    doc: Plot.Doc
+    changes: ChangeSet
+    effects: readonly Transaction.Effect<unknown>[] | undefined
+    clientID: string
+  }
+
+  export type Message<EffectJSON> = {type: "connected"} |
+    {type: "error", error: string} |
+    {type: "state", doc: Node.JSON, version: number} |
+    {type: "update", changes: ChangeSet.JSON, effects?: EffectJSON[], clientID: string}
+}
+
+export class Client<EffectJSON = unknown> {
+  socket: Socket | null = null
+
+  constructor(
+    readonly connection: (onevent: (type: "message" | "close", data: string) => void) => Socket,
+    readonly clientID: string,
+  ) {
+  }
+
+  connect() {
+    if (this.socket) {
+      // FIXME this.socket.close()
+      this.socket = null
+    }
+    let socket = this.connection((type, data) => {
+      if (type == "close") {
+        if (socket == this.socket) this.socket = null
+      } else {
+        let msg = JSON.parse(data) as Server.Message<EffectJSON>
+        if (msg.type == "connected") {
+          socket.send(JSON.stringify({type: "init", clientID: this.clientID}))
+        } else if (msg.type == "error") {
+          // FIXME
+        } else if (msg.type == "state") {
+        } else if (msg.type == "update") {
+          
+        }
+      }
+    })
+  }
+}
+
+export namespace Client {
+  export type Message<EffectJSON> = {type: "init", clientID: string, version?: string} |
+    {type: "update", changes: ChangeSet.JSON, effects: EffectJSON[], version: string}
 }
