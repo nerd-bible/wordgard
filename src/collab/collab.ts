@@ -1,5 +1,6 @@
 import {GardState, Transaction} from "wordgard/state"
 import {ChangeSet, Plot, Node} from "wordgard/doc"
+import {Wordgard} from "wordgard/editor"
 
 class LocalUpdate {
   constructor(
@@ -171,6 +172,11 @@ export namespace collab {
     }
   }
 
+  export function hasUnsentUpdate(state: GardState): boolean {
+    let collab = state.field(collabField)
+    return !!(collab.nextUpdate || collab.openUpdate)
+  }
+
   /// Get the version up to which the collab plugin has synced with the
   /// central authority.
   export function getSyncedVersion(state: GardState) {
@@ -212,53 +218,41 @@ export namespace collab {
 export type Socket = {
   /// Send a message over the transport.
   send(message: string): void
-  /// If set to a function, call that function when a message comes
-  /// in.
-  onmessage: ((ev: {data: string}) => void) | null
-  /// If a function, call that function when the socket is closed.
-  onclose: (() => void) | null
+  /// Close the socket.
+  close(): void
 }
 
 function isNatNum(n: any): n is number {
   return typeof n == "number" && Math.floor(n) == n && n >= 0
 }
 
-export class Server<EffectJSON = any> {
+export class Server {
   clients: {id: string, socket: Socket}[] = []
 
-  constructor(
+  private constructor(
     public doc: Plot.Doc,
     public version: number,
     public updates: Server.Update[],
-    readonly serializeEffect: ((effect: Transaction.Effect<unknown>) => EffectJSON | null) | undefined,
-    readonly deserializeEffect: ((json: EffectJSON, doc: Plot.Doc) => Transaction.Effect<unknown>) | undefined
-  ) {
-  }
+  ) {}
 
-  static create<EffectJSON = unknown>(config: {
+  static create(config: {
     doc: Plot.Doc,
     version?: number,
     updates?: Server.Update[],
-    serializeEffect?: (effect: Transaction.Effect<unknown>) => EffectJSON | null,
-    deserializeEffect?: (json: EffectJSON) => Transaction.Effect<unknown>
   }) {
-    return new Server(config.doc, config.version ?? 0, config.updates ?? [],
-                      config.serializeEffect, config.deserializeEffect)
+    return new Server(config.doc, config.version ?? 0, config.updates ?? [])
   }
 
   get startVersion() {
     return this.version - this.updates.length
   }
 
-  connect(socket: Socket) {
-    let client = {id: "", socket}
-    socket.onmessage = this.onMessage.bind(this, client)
-    socket.onclose = this.dropClient.bind(this, client)
+  connect(create: (event: (type: "message" | "close", data: string) => void) => Socket) {
+    let client = {id: "", socket: create((type, data) => this.socketEvent(client, type, data))}
     this.clients.push(client)
-    socket.send(JSON.stringify({type: "connected"}))
   }
 
-  send(client: {id: string, socket: Socket}, message: Server.Message<EffectJSON>) {
+  send(client: {id: string, socket: Socket}, message: Server.Message) {
     try {
       client.socket.send(JSON.stringify(message))
     } catch {
@@ -267,29 +261,24 @@ export class Server<EffectJSON = any> {
   }
 
   sendUpdate(client: {id: string, socket: Socket}, update: Server.Update) {
-    let effects: EffectJSON[] | undefined
-    if (update.effects && this.serializeEffect) {
-      for (let e of update.effects) {
-        let json = this.serializeEffect(e)
-        if (json) (effects || (effects = [])).push(json)
-      }
-    }
     this.send(client, {
       type: "update",
       changes: update.changes.toJSON(),
-      effects,
-      clientID: update.clientID
+      clientID: update.clientID,
+      version: update.version
     })
   }
 
-  onMessage(client: {id: string, socket: Socket}, message: {data: string}) {
+  socketEvent(client: {id: string, socket: Socket}, type: "message" | "close", data: string) {
+    if (type == "close") return this.dropClient(client)
+
     let err = (error: string) => client.socket.send(JSON.stringify({type: "error", error}))
 
-    let msg: Client.Message<EffectJSON> | undefined
-    try { msg = JSON.parse(message.data) } catch {}
+    let msg: Client.Message | undefined
+    try { msg = JSON.parse(data) } catch {}
     if (!msg) return err("Invalid JSON")
     if (msg.type == "init") {
-      if (msg.clientID == "string") client.id = msg.clientID
+      if (typeof msg.clientID == "string") client.id = msg.clientID
       if (isNatNum(msg.version) && msg.version <= this.version && msg.version >= this.startVersion) {
         for (let v = msg.version; v < this.version; v++)
           this.sendUpdate(client, this.updates[this.updates.length - (this.version - v)])
@@ -297,18 +286,12 @@ export class Server<EffectJSON = any> {
         this.send(client, {type: "state", doc: this.doc.toJSON(), version: this.version})
       }
     } else if (msg.type == "update" && client.id) {
-      let changes: ChangeSet, effects: readonly Transaction.Effect<unknown>[] | undefined
+      let changes: ChangeSet
       try { changes = ChangeSet.fromJSON(this.doc.schema, msg.changes) }
       catch { return err("Invalid change") }
       if (!isNatNum(msg.version) || msg.version > this.version || msg.version < this.startVersion)
         return err("Bad version")
-      if (Array.isArray(msg.effects) && this.deserializeEffect) {
-        let baseDoc = msg.version == this.version ? this.doc
-          : this.updates[this.updates.length - (this.version - msg.version)].doc
-        try { effects = msg.effects.map(e => this.deserializeEffect!(e, baseDoc)) }
-        catch(e) { return err(String(e)) }
-      }
-      this.receive(client, changes, effects, msg.version, client.id)
+      this.receive(client, changes, msg.version, client.id)
     } else {
       err("Invalid message")
     }
@@ -322,27 +305,26 @@ export class Server<EffectJSON = any> {
   receive(
     client: {id: string, socket: Socket},
     changes: ChangeSet,
-    effects: readonly Transaction.Effect<unknown>[] | undefined,
     version: number,
     clientID: string
   ) {
     if (this.version > version) {
       let mapped: collab.Update | null
       try {
-        mapped = collab.transformUpdate({changes, effects, version, clientID},
+        mapped = collab.transformUpdate({changes, version, clientID},
                                         this.updates.slice(this.updates.length - (this.version - version)))
       } catch (e) {
         this.send(client, {type: "error", error: String(e)})
         return
       }
       if (!mapped) return
-      ;({changes, effects, version, clientID} = mapped)
+      ;({changes, version, clientID} = mapped)
     }
     if (changes.length != this.doc.length) {
       this.send(client, {type: "error", error: "Length mismatch"})
       return
     }
-    let update: Server.Update = {doc: this.doc, clientID, changes, effects}
+    let update: Server.Update = {doc: this.doc, clientID, changes, version: this.version}
     this.updates.push(update)
     this.doc = changes.apply(this.doc)
     this.version++
@@ -354,49 +336,131 @@ export namespace Server {
   export type Update = {
     doc: Plot.Doc
     changes: ChangeSet
-    effects: readonly Transaction.Effect<unknown>[] | undefined
     clientID: string
+    version: number
   }
 
-  export type Message<EffectJSON> = {type: "connected"} |
-    {type: "error", error: string} |
+  export type Message = {type: "error", error: string} |
     {type: "state", doc: Node.JSON, version: number} |
-    {type: "update", changes: ChangeSet.JSON, effects?: EffectJSON[], clientID: string}
+    {type: "update", changes: ChangeSet.JSON, clientID: string, version: number}
 }
 
-export class Client<EffectJSON = unknown> {
+export class Client {
   socket: Socket | null = null
+  editor: Wordgard | null = null
+  pendingUpdate = -1
+  reconnecting = -1
 
   constructor(
-    readonly connection: (onevent: (type: "message" | "close", data: string) => void) => Socket,
     readonly clientID: string,
-  ) {
-  }
+    readonly connection: (onevent: (type: "message" | "close", data: string) => void) => Socket,
+    readonly config: Wordgard.Spec
+  ) {}
 
-  connect() {
+  connect(): Promise<Wordgard> {
     if (this.socket) {
-      // FIXME this.socket.close()
+      try { this.socket.close() } catch {}
       this.socket = null
     }
-    let socket = this.connection((type, data) => {
-      if (type == "close") {
-        if (socket == this.socket) this.socket = null
-      } else {
-        let msg = JSON.parse(data) as Server.Message<EffectJSON>
-        if (msg.type == "connected") {
-          socket.send(JSON.stringify({type: "init", clientID: this.clientID}))
-        } else if (msg.type == "error") {
-          // FIXME
-        } else if (msg.type == "state") {
-        } else if (msg.type == "update") {
-          
+    return new Promise<Wordgard>((resolve, reject) => {
+      let socket = this.socket = this.connection((type, data) => {
+        if (socket != this.socket) return
+        if (type == "close") {
+          this.socket = null
+          if (this.editor) this.disconnected()
+          else reject(data)
+          return
         }
-      }
+
+        try {
+          let msg = JSON.parse(data) as Server.Message
+          if (msg.type == "error") {
+            console.log("Protocol error:", msg.error)
+            reject(msg.error)
+          } else if (msg.type == "state" && !this.editor) {
+            this.editor = this.createEditor(msg.version, msg.doc)
+            resolve(this.editor)
+          } else if (msg.type == "update" && this.editor) {
+            if (version != null) {
+              resolve(this.editor)
+              version = undefined
+            }
+            this.receiveUpdate(ChangeSet.fromJSON(this.editor.state.schema, msg.changes),
+                               msg.clientID, msg.version)
+          }
+        } catch(e) {
+          reject(e)
+        }
+      })
+      let version = this.editor ? collab.getSyncedVersion(this.editor.state) : undefined
+      socket.send(JSON.stringify({type: "init", clientID: this.clientID, version}))
     })
+  }
+
+  createEditor(version: number, docJSON: Node.JSON) {
+    if (this.config.config instanceof GardState.Configuration)
+      throw new Error("Cannot pass a resolved configuration to Client.connect")
+    let conf = GardState.Configuration.create([
+      this.config.config || [],
+      collab({clientID: this.clientID, startVersion: version}),
+      Wordgard.updateListener.of(update => this.scheduleUpdate()),
+    ]), schema = conf.schema
+    if (!schema)
+      throw new Error("No schema declared in configuration")
+    let doc = schema.docFromJSON(docJSON)
+    return Wordgard.create({...this.config, config: conf, doc})
+  }
+
+  receiveUpdate(changes: ChangeSet, clientID: string, version: number) {
+    if (!this.editor) return
+    this.editor.dispatch(collab.receive(this.editor.state, [{changes, clientID, version}]))
+    if (collab.hasUnsentUpdate(this.editor.state)) this.scheduleUpdate()
+  }
+
+  scheduleUpdate() {
+    if (this.pendingUpdate == -1 && this.editor)
+      this.pendingUpdate = this.editor.win.setTimeout(() => this.sendUpdate(), 50)
+  }
+
+  sendUpdate() {
+    this.pendingUpdate = -1
+    if (this.editor && this.socket) {
+      let update = collab.sendableUpdate(this.editor.state)
+      if (update) try {
+        this.socket.send(JSON.stringify({
+          type: "update",
+          changes: update.changes.toJSON(),
+          version: update.version
+        }))
+        // In case these get dropped, schedule another attempt
+        this.editor.win.setTimeout(() => this.scheduleUpdate(), 5000)
+      } catch (e) {
+        this.disconnected()
+      }
+    }
+  }
+
+  disconnected() {
+    if (this.socket) {
+      try { this.socket.close() } catch {}
+      this.socket = null
+    }
+    this.scheduleReconnect(200)
+  }
+
+  scheduleReconnect(delay: number) {
+    if (this.editor && this.reconnecting < 0) {
+      this.reconnecting = this.editor.win.setTimeout(() => {
+        this.reconnecting = -1
+        this.connect().catch(() => {
+          this.scheduleReconnect(Math.min(5000, delay * 2))
+        })
+      }, delay)
+    }
   }
 }
 
 export namespace Client {
-  export type Message<EffectJSON> = {type: "init", clientID: string, version?: string} |
-    {type: "update", changes: ChangeSet.JSON, effects: EffectJSON[], version: string}
+  export type Message = {type: "init", clientID: string, version?: string} |
+    {type: "update", changes: ChangeSet.JSON, version: string}
 }
