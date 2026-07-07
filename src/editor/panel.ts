@@ -174,7 +174,6 @@ class PanelGroup {
     if (!this.dom) {
       this.dom = document.createElement("wg-panels")
       this.dom.className = this.top ? "wg-panels-top" : "wg-panels-bottom"
-      this.dom.style[this.top ? "top" : "bottom"] = "0"
       let parent = this.container || this.wg.dom
       parent.insertBefore(this.dom, this.top ? parent.firstChild : null)
     }
