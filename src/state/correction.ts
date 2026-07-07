@@ -1,4 +1,4 @@
-import {Node, Pos, ChangeSet} from "wordgard/doc"
+import {Node, Pos, ChangeSet, Plot} from "wordgard/doc"
 import {Transaction} from "./transaction"
 import {GardState} from "./state"
 
@@ -10,11 +10,13 @@ const enum CorrectionEvent {
 
 type PlanElt = {node: Pos.Node, correction: Correction}
 
-function scanTransaction(tr: Transaction) {
-  let [childList, content, marks] = tr.startState.facet(corrections)
+function scanChanges(changes: ChangeSet, doc: Plot.Doc, corrections: readonly Correction[]) {
+  let buckets: Correction[][] = [[], [], []], [childList, content, marks] = buckets
+  for (let c of corrections) buckets[c.event].push(c)
+
   let plan: PlanElt[] = []
   let queried: Set<number> = new Set, newNode = childList.concat(content)
-  let updateWalker: Pos.Walker | undefined, {schema} = tr.startState.doc
+  let updateWalker: Pos.Walker | undefined, {schema} = doc
   let checkMarks = (node: Node, pos: number, parent: Pos.Plot, index: number) => {
     for (let correction of marks) if (schema.matchNode(node.type, correction.query))
       plan.push({node: Pos.Node.create(parent, node, pos, index), correction})
@@ -51,50 +53,40 @@ function scanTransaction(tr: Transaction) {
     leavePlot() {}
   }
 
-  let posA = tr.startState.doc.resolve(0), posB = tr.newDoc.resolve(0)
-  for (let i = 0, {sections} = tr.changes; i < sections.length;) {
+  let pos = doc.resolve(0)
+  for (let i = 0, {sections} = changes; i < sections.length;) {
     let len = sections[i++], ins = sections[i++]
     if (ins == -1 || ins == -2 && !updateWalker) {
       if (i == sections.length) break
-      posA = posA.advance(len)
-      posB = posB.advance(len)
+      pos = pos.advance(len)
     } else if (ins == -2) {
       while (i < sections.length && sections[i + 1] == -2) { len += sections[i++]; i++ }
-      posA = posA.advance(len)
-      posB = posB.walk(len, updateWalker!)
+      pos = pos.walk(len, updateWalker!)
     } else {
       while (i < sections.length && sections[i + 1] >= 0) { len += sections[i++]; ins += sections[i++] }
-      for (let pA = posA.parent, pB = posB.parent;;) {
-        if (queried.has(pB.start - 1)) break
-        queried.add(pB.start - 1)
-        if (childList.some(c => schema.matchNode(pA.node.type, c.query))) {
-          let chA = pA.node.content, chB = pB.node.content
-          if (chA.length != chB.length || chA.some((ch, i) => !ch.tag.eq(chB[i].tag))) {
-            for (let correction of childList)
-              if (schema.matchNode(pA.node.type, correction.query)) plan.push({node: pB, correction})
-          }
+      let start = pos.pos, end = start + ins
+      for (let checkChildList = childList.length > 0, parent = pos.parent;;) {
+        if (queried.has(parent.start - 1)) break
+        queried.add(parent.start - 1)
+        if (checkChildList) {
+          for (let correction of childList)
+            if (schema.matchNode(parent.node.type, correction.query)) plan.push({node: parent, correction})
+          if (start >= parent.start && end <= parent.end) checkChildList = false
         }
         for (let correction of content)
-          if (schema.matchNode(pB.node.type, correction.query)) plan.push({node: pB, correction})
-        if (!pB.parent) break
-        pA = pA.parent!; pB = pB.parent
+          if (schema.matchNode(parent.node.type, correction.query)) plan.push({node: parent, correction})
+        if (!parent.parent || !content.length && !checkChildList) break
+        parent = parent.parent
       }
-      posB = posB.walk(ins, changeWalker)
-      posA = posA.advance(len)
+      pos = pos.walk(ins, changeWalker)
     }
   }
   return plan
 }
 
-const corrections = GardState.Facet.define<Correction, readonly (readonly Correction[])[]>({
-  combine(corrections) {
-    let buckets: Correction[][] = [[], [], []]
-    for (let c of corrections) buckets[c.event].push(c)
-    return buckets
-  }
-})
+const corrections = GardState.Facet.define<Correction>()
 
-const planCache = new WeakMap<Transaction, ReturnType<typeof scanTransaction>>()
+const planCache = new WeakMap<Transaction, PlanElt[]>()
 
 /// The class representing a correction. Counts as an editor
 /// extension.
@@ -121,7 +113,8 @@ export class Correction {
   extend(tr: Transaction) {
     if (!tr.docChanged) return null
     let plan = planCache.get(tr)
-    if (!plan) planCache.set(tr, plan = scanTransaction(tr))
+    if (!plan)
+      planCache.set(tr, plan = scanChanges(tr.changes, tr.newDoc, tr.startState.facet(corrections)))
     let changes: ChangeSet.Spec[] = []
     for (let elt of plan) if (elt.correction == this) {
       let change = this.correct(elt.node, tr.startState)
