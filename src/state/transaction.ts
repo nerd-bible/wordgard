@@ -146,9 +146,17 @@ export namespace Transaction {
   /// of a state that will then be discarded again, if the transaction
   /// is actually extended.
   ///
-  /// (This functionality should be used with care. Indiscriminately
+  /// This functionality should be used with care. Indiscriminately
   /// modifying transaction is likely to break something or degrade
-  /// the user experience.)
+  /// the user experience.
+  ///
+  /// Extenders that may add document changes should generally not do
+  /// anything for {@link Transaction.remote remote} transactions,
+  /// because doing so risks causing endlessly cascading changes or
+  /// other confusion. It is possible to define extenders that are
+  /// safe when activated on multiple peer (for example, duplicate
+  /// deletions of the same content tend to converge), but it requires
+  /// a lot of care.
   export let extender: GardState.Facet<(tr: Transaction) => Transaction.Spec | null>
 
   /// A transaction appender can create more transactions in response

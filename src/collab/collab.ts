@@ -177,13 +177,21 @@ export namespace collab {
       version++
     }
 
-    if (haveRemote && corrections.length && nextUpdate) {
-      let after = nextUpdate.changes.apply(syncedDoc)
-      let correct = Correction.check(nextUpdate.changes, after, corrections)
-      if (correct) {
-        nextUpdate = addUpdate(nextUpdate, correct)
-        if (openUpdate) [openUpdate, changes] = mapOpenUpdate(openUpdate, after, correct, changes)
-        else changes = changes.compose(correct)
+    if (haveRemote && corrections.length) {
+      let base = syncedDoc
+      if (nextUpdate) {
+        base = nextUpdate.changes.apply(base)
+        let correct = Correction.check(nextUpdate.changes, base, corrections)
+        if (correct) {
+          nextUpdate = addUpdate(nextUpdate, correct)
+          if (openUpdate) [openUpdate, changes] = mapOpenUpdate(openUpdate, base, correct, changes)
+          else changes = changes.compose(correct)
+        }
+      }
+      if (openUpdate) {
+        base = openUpdate.changes.apply(base)
+        let correct = Correction.check(openUpdate.changes, base, corrections)
+        if (correct) openUpdate = addUpdate(openUpdate, correct)
       }
     }
 

@@ -90,6 +90,22 @@ const planCache = new WeakMap<Transaction, PlanElt[]>()
 
 /// The class representing a correction. Counts as an editor
 /// extension.
+///
+/// Corrections install themselves as {@link Transaction.extender
+/// transaction extenders} that check modified nodes and, if
+/// necessary, apply fixes to enforce constraints. In normal
+/// operation, this means that they guarantee the constraints
+/// implemented in the transaction are enforced.
+///
+/// They do not activate for {@link Transaction.remote remote}
+/// transactions, because acting on those can cause collaborative
+/// editing setups to malfunction (for example, causing all peers to
+/// repeatedly try to correct the same issue, causing an endless loop
+/// of updates or other chaos). The collab module has special
+/// provisions for integrating corrections in the step transformation
+/// in a safe way, but that requires you to explicitly tell it to use
+/// them, both on the {@link collab.Options.corrections client} and
+/// the {@link collab.transformUpdate server}.
 export class Correction {
   /// To take effect, corrections must be included in an editor
   /// configuration.
@@ -111,7 +127,7 @@ export class Correction {
 
   /// @internal
   extend(tr: Transaction) {
-    if (!tr.docChanged) return null
+    if (!tr.docChanged || tr.annotation(Transaction.remote)) return null
     let plan = planCache.get(tr)
     if (!plan)
       planCache.set(tr, plan = scanChanges(tr.changes, tr.newDoc, tr.startState.facet(corrections)))
