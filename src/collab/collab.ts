@@ -399,7 +399,7 @@ export class Client {
   constructor(
     readonly clientID: string,
     readonly connection: (onevent: (type: "message" | "close", data: string) => void) => Socket,
-    readonly config: Wordgard.Spec
+    readonly editorConfig: Wordgard.Spec | ((collab: GardState.Extension, doc: Node.JSON) => Wordgard)
   ) {}
 
   connect(): Promise<Wordgard> {
@@ -443,17 +443,15 @@ export class Client {
   }
 
   createEditor(version: number, docJSON: Node.JSON) {
-    if (this.config.config instanceof GardState.Configuration)
-      throw new Error("Cannot pass a resolved configuration to Client.connect")
-    let conf = GardState.Configuration.create([
-      this.config.config || [],
+    let ext = [
       collab({clientID: this.clientID, startVersion: version}),
-      Wordgard.updateListener.of(update => this.scheduleUpdate()),
-    ]), schema = conf.schema
-    if (!schema)
-      throw new Error("No schema declared in configuration")
-    let doc = schema.docFromJSON(docJSON)
-    return Wordgard.create({...this.config, config: conf, doc})
+      Wordgard.updateListener.of(update => this.scheduleUpdate())
+    ]
+    let conf = this.editorConfig
+    if (typeof conf == "function") return conf(ext, docJSON)
+    if (conf.config instanceof GardState.Configuration)
+      throw new Error("Cannot pass a resolved configuration to collab Client")
+    return Wordgard.create({...this.editorConfig, config: [ext, conf.config || []], doc: docJSON})
   }
 
   receiveUpdate(changes: ChangeSet, clientID: string, version: number) {
