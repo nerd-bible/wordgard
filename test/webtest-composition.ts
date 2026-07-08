@@ -11,7 +11,12 @@ function compositionEvent(cm: Wordgard, type: string) {
 }
 
 function inputEvent(cm: Wordgard, type: string, init: InputEventInit) {
-  cm.contentDOM.dispatchEvent(new InputEvent(type, init))
+  let event = new InputEvent(type, init)
+  // Safari doesn't support the targetRanges option
+  if (init.targetRanges && !event.getTargetRanges().length) {
+    event.getTargetRanges = () => init.targetRanges!
+  }
+  cm.contentDOM.dispatchEvent(event)
 }
 
 type CompositionUpdate = [number, number, string, () => Text] | [number, number, string]
