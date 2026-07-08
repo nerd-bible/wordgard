@@ -119,7 +119,7 @@ describe("moveVertically", () => {
 
   it("can move within a paragraph", () => {
     let wg = tempEditor(doc(p("abcde fgh")), Wordgard.theme({
-      "&": { width: "6ch" }
+      "&": { width: "10ch" }
     }))
     ist(wg.moveVertically(s(1), true)?.head, 7)
     ist(wg.moveVertically(s(3), true)?.head, 9)

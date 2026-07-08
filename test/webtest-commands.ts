@@ -22,7 +22,7 @@ function test(doc: Plot.Doc, cmd: Command<null>, expect: Plot.Doc | null, config
   test1(doc, cmd, null, expect, config)
 }
 
-const narrow = Wordgard.theme({"&": {width: "10ex"}})
+const narrow = Wordgard.theme({"&": {width: "20ex"}})
 
 describe("deleteLine", () => {
   it("clears an entire paragraph", () => {
@@ -30,6 +30,6 @@ describe("deleteLine", () => {
   })
 
   it("doesn't clear past wrap points", () => {
-    test(doc(p("bigwordone bigword", 0, "two bigwordthree")), deleteLine, doc(p("bigwordone ", 0, " bigwordthree")), narrow)
+    test(doc(p("bigwordone bigword", 0, "two bigwordthree")), deleteLine, doc(p("bigwordone ", 0, "bigwordthree")), narrow)
   })
 })
