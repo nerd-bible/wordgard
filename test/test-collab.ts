@@ -15,21 +15,27 @@ class DummyServer {
   version = 0
   delayed: number[] = []
   transform: boolean
+  passive: boolean
+  corrections: readonly Correction[] | undefined
 
   constructor(d: string = "", config: {
     n?: number
-    extensions?: GardState.Extension[]
+    extension?: GardState.Extension
     collabConf?: any
     transform?: boolean
+    passive?: boolean
+    corrections?: readonly Correction[]
   } = {}) {
     this.doc = doc(p(d))
     this.transform = !!config.transform
-    let {n = 2, extensions = [], collabConf = {}} = config
+    this.passive = !!config.passive
+    this.corrections = config.corrections
+    let {n = 2, extension = [], collabConf = {}} = config
     for (let i = 0; i < n; i++) {
       this.states.push(GardState.create({doc: this.doc, config: [
         history(),
-        collab({clientID: "c-" + i, ...collabConf}),
-        ...extensions
+        collab({clientID: "c-" + i, corrections: this.corrections, ...collabConf}),
+        extension
       ]}))
     }
   }
@@ -45,7 +51,7 @@ class DummyServer {
     if (!sendable) return false
     if (sendable.version != this.version) {
       if (!this.transform) return true
-      sendable = collab.transformUpdate(sendable, this.updates.slice(sendable.version))
+      sendable = collab.transformUpdate(sendable, this.updates.slice(sendable.version), this.corrections)
       if (!sendable) return true
     }
     this.updates.push({...sendable, doc: this.doc})
@@ -55,7 +61,7 @@ class DummyServer {
   }
 
   broadcast(client: number) {
-    if (this.delayed.indexOf(client) > -1) return
+    if (this.passive || this.delayed.indexOf(client) > -1) return
     this.sync(client)
     this.send(client)
     for (let i = 0; i < this.states.length; i++) if (i != client) this.sync(i)
@@ -83,7 +89,9 @@ class DummyServer {
   }
 
   syncAll() {
+    let i = 0
     for (;;) {
+      if (i++ > 20) throw new Error("woah " + this.doc)
       let done = true
       for (let c = 0; c < this.states.length; c++) if (this.send(c)) done = false
       for (let c = 0; c < this.states.length; c++) this.sync(c)
@@ -285,7 +293,7 @@ describe("collab", () => {
     })
 
     let s = new DummyServer("hello", {
-      extensions: [marks],
+      extension: marks,
       collabConf: {sharedEffects(tr: Transaction) { return tr.effects.filter(e => e.is(addMark)) }}
     })
     s.delay(0, () => {
@@ -306,8 +314,7 @@ describe("collab", () => {
   it("holds up on random input", () => {
     let r = (n: number) => Math.floor(Math.random() * n)
     for (let i = 0; i < 100; i++) {
-      let n = 3, s = new DummyServer("abcd", {n, transform: !r(2)})
-      for (let c = 0; c < n; c++) s.delayed.push(c)
+      let n = 3, s = new DummyServer("abcd", {n, transform: !r(2), passive: true})
       for (let j = 0; j < 25; j++) {
         let client = r(n), sel = r(4), len = s.states[client].doc.length
         if (sel == 0) {
@@ -331,11 +338,25 @@ describe("collab", () => {
     let shortPara = Correction.onChildList(Paragraph, plot => {
       return plot.node.contentLength <= 5 ? null : {from: plot.start + 5, to: plot.end}
     })
-    let s = new DummyServer("abcd", {extensions: [shortPara]})
+    let s = new DummyServer("abcd", {extension: shortPara})
     s.delay(0, () => {
       s.type(0, "x", 5)
       s.type(1, "y", 5)
     })
     s.conv("abcdy")
+  })
+
+  it("can apply corrections eagerly", () => {
+    let evenPara = Correction.onChildList(Paragraph, pos => {
+      return pos.node.contentLength % 2 ? {from: pos.end, insert: [Leaf.text("-")]} : null
+    })
+    let s = new DummyServer("abcd", {n: 2, passive: true, corrections: [evenPara], extension: evenPara, transform: true})
+    s.type(0, "e", 5)
+    s.syncAll()
+    s.conv("abcde-")
+    s.update(0, s => s.update({changes: {from: 1, to: 2, insert: [Leaf.text("x")]}}))
+    s.update(1, s => s.update({changes: {from: 1, to: 2, insert: [Leaf.text("y")]}}))
+    s.syncAll()
+    s.conv("xybcde--")
   })
 })

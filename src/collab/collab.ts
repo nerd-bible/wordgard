@@ -16,9 +16,9 @@ function addUpdate(to: LocalUpdate | null, changes: ChangeSet, effects: readonly
                          Transaction.Effect.mapEffects(to.effects, changes).concat(effects))
 }
 
-function mapUpdate(update: LocalUpdate, doc: Plot.Doc, over: ChangeSet) {
+function mapOpenUpdate(update: LocalUpdate, doc: Plot.Doc, over: ChangeSet, accum: ChangeSet) {
   let {a, b} = ChangeSet.transform(doc, over, update.changes)
-  return new LocalUpdate(b, Transaction.Effect.mapEffects(update.effects, a))
+  return [new LocalUpdate(b, Transaction.Effect.mapEffects(update.effects, a)), accum.compose(a)] as const
 }
 
 class CollabState {
@@ -144,7 +144,8 @@ export namespace collab {
           if (haveRemote && nextUpdate && corrections.length) {
             let correct = Correction.check(nextUpdate.changes, syncedDoc, corrections)
             if (correct && nextUpdate.changes.compose(correct).eq(update.changes)) {
-              if (openUpdate) openUpdate = mapUpdate(openUpdate, syncedDoc, correct)
+              if (openUpdate) [openUpdate, changes] = mapOpenUpdate(openUpdate, syncedDoc, correct, changes)
+              else changes = changes.compose(correct)
               syncedDoc = correct.apply(syncedDoc)
               break mismatch
             }
@@ -177,11 +178,12 @@ export namespace collab {
     }
 
     if (haveRemote && corrections.length && nextUpdate) {
-      let after = openUpdate ? nextUpdate.changes.apply(syncedDoc) : state.doc
+      let after = nextUpdate.changes.apply(syncedDoc)
       let correct = Correction.check(nextUpdate.changes, after, corrections)
       if (correct) {
         nextUpdate = addUpdate(nextUpdate, correct)
-        if (openUpdate) openUpdate = mapUpdate(openUpdate, after, correct)
+        if (openUpdate) [openUpdate, changes] = mapOpenUpdate(openUpdate, after, correct, changes)
+        else changes = changes.compose(correct)
       }
     }
 
