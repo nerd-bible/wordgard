@@ -1,4 +1,4 @@
-import {GardState, Transaction} from "wordgard/state"
+import {GardState, Transaction, Correction} from "wordgard/state"
 import {ChangeSet, Plot, Node} from "wordgard/doc"
 import {Wordgard} from "wordgard/editor"
 
@@ -14,6 +14,11 @@ function addUpdate(to: LocalUpdate | null, changes: ChangeSet, effects: readonly
   if (!to) return new LocalUpdate(changes, effects)
   return new LocalUpdate(to.changes.compose(changes),
                          Transaction.Effect.mapEffects(to.effects, changes).concat(effects))
+}
+
+function mapUpdate(update: LocalUpdate, doc: Plot.Doc, over: ChangeSet) {
+  let {a, b} = ChangeSet.transform(doc, over, update.changes)
+  return new LocalUpdate(b, Transaction.Effect.mapEffects(update.effects, a))
 }
 
 class CollabState {
@@ -35,7 +40,12 @@ class CollabState {
 
 const collabConfig = GardState.Facet.define<collab.Config & {generatedID: string}, Required<collab.Config>>({
   combine(configs) {
-    let combined = GardState.Facet.combineConfig(configs, {startVersion: 0, clientID: null as any, sharedEffects: () => []}, {
+    let combined = GardState.Facet.combineConfig(configs, {
+      startVersion: 0,
+      clientID: null as any,
+      sharedEffects: () => [],
+      corrections: []
+    }, {
       generatedID: a => a
     })
     if (combined.clientID == null) combined.clientID = (configs.length && configs[0].generatedID) || ""
@@ -81,6 +91,11 @@ export namespace collab {
     /// This client's identifying {@link collab.getClientID ID}. Will be a
     /// randomly generated string if not provided.
     clientID?: string,
+    /// A set of corrections to apply to transformed changes. Can be
+    /// used to enforce document shapes even in merged changes.
+    /// Requires the exact same set, in the same order, to be used on
+    /// the server.
+    corrections?: readonly Correction[],
     /// It is possible to share information other than document changes
     /// through this extension. If you provide this option, your
     /// function will be called on each transaction, and the effects it
@@ -112,19 +127,31 @@ export namespace collab {
   /// unconfirmed local changes.
   export function receive(state: GardState, updates: readonly collab.Update[]) {
     let {version, syncedDoc, nextUpdate, openUpdate} = state.field(collabField)
-    let {clientID} = state.facet(collabConfig)
+    let {clientID, corrections} = state.facet(collabConfig)
 
     let changes = ChangeSet.empty(state.doc.length)
     let effects: readonly Transaction.Effect<unknown>[] = []
 
+    let transformed = false
     for (let update of updates) {
       if (update.version != version)
         throw new Error("Version mismatch in in received collab update")
       if (update.clientID == clientID) {
-        if (!nextUpdate || !nextUpdate.changes.eq(update.changes))
+        if (!nextUpdate)
+          throw new Error("Received unknown update with our client ID")
+        syncedDoc = openUpdate ? nextUpdate.changes.apply(syncedDoc) : state.doc
+        mismatch: if (!nextUpdate.changes.eq(update.changes)) {
+          if (transformed && nextUpdate && corrections.length) {
+            let correct = Correction.check(nextUpdate.changes, syncedDoc, corrections)
+            if (correct && nextUpdate.changes.compose(correct).eq(update.changes)) {
+              if (openUpdate) openUpdate = mapUpdate(openUpdate, syncedDoc, correct)
+              syncedDoc = correct.apply(syncedDoc)
+              break mismatch
+            }
+          }
           throw new Error("Received update with our client ID doesn't match our own local update")
+        }
         nextUpdate = null
-        syncedDoc = openUpdate ? update.changes.apply(syncedDoc) : state.doc
       } else {
         let newChanges = update.changes, newEffects = update.effects || []
         let baseDoc = syncedDoc
@@ -144,8 +171,18 @@ export namespace collab {
         changes = changes.compose(newChanges)
         effects = Transaction.Effect.mapEffects(effects, newChanges).concat(newEffects)
         syncedDoc = update.changes.apply(syncedDoc)
+        transformed = true
       }
       version++
+    }
+
+    if (transformed && corrections.length && nextUpdate) {
+      let after = openUpdate ? nextUpdate.changes.apply(syncedDoc) : state.doc
+      let correct = Correction.check(nextUpdate.changes, after, corrections)
+      if (correct) {
+        nextUpdate = addUpdate(nextUpdate, correct)
+        if (openUpdate) openUpdate = mapUpdate(openUpdate, after, correct)
+      }
     }
 
     return state.update({
@@ -197,7 +234,8 @@ export namespace collab {
   /// clients.
   export function transformUpdate(
     update: collab.Update,
-    over: readonly {doc: Plot.Doc, changes: ChangeSet, clientID: string}[]
+    over: readonly {doc: Plot.Doc, changes: ChangeSet, clientID: string}[],
+    corrections?: readonly Correction[]
   ): collab.Update | null {
     if (!over.length) return update
     let {clientID, version, changes, effects} = update
@@ -207,6 +245,13 @@ export namespace collab {
         effects = Transaction.Effect.mapEffects(effects, other.changes.transform(other.doc, changes, true))
       changes = changes.transform(other.doc, other.changes)
       version++
+    }
+    if (corrections && corrections.length) {
+      let corrected = Correction.check(changes, changes.apply(over[over.length - 1].doc), corrections)
+      if (corrected) {
+        changes = changes.compose(corrected)
+        if (effects) effects = Transaction.Effect.mapEffects(effects, corrected)
+      }
     }
     return {clientID, version, changes, effects}
   }
