@@ -132,16 +132,16 @@ export namespace collab {
     let changes = ChangeSet.empty(state.doc.length)
     let effects: readonly Transaction.Effect<unknown>[] = []
 
-    let transformed = false
+    let haveRemote = false
     for (let update of updates) {
       if (update.version != version)
         throw new Error("Version mismatch in in received collab update")
       if (update.clientID == clientID) {
         if (!nextUpdate)
           throw new Error("Received unknown update with our client ID")
-        syncedDoc = openUpdate ? nextUpdate.changes.apply(syncedDoc) : state.doc
+        syncedDoc = (openUpdate || haveRemote) ? nextUpdate.changes.apply(syncedDoc) : state.doc
         mismatch: if (!nextUpdate.changes.eq(update.changes)) {
-          if (transformed && nextUpdate && corrections.length) {
+          if (haveRemote && nextUpdate && corrections.length) {
             let correct = Correction.check(nextUpdate.changes, syncedDoc, corrections)
             if (correct && nextUpdate.changes.compose(correct).eq(update.changes)) {
               if (openUpdate) openUpdate = mapUpdate(openUpdate, syncedDoc, correct)
@@ -171,12 +171,12 @@ export namespace collab {
         changes = changes.compose(newChanges)
         effects = Transaction.Effect.mapEffects(effects, newChanges).concat(newEffects)
         syncedDoc = update.changes.apply(syncedDoc)
-        transformed = true
+        haveRemote = true
       }
       version++
     }
 
-    if (transformed && corrections.length && nextUpdate) {
+    if (haveRemote && corrections.length && nextUpdate) {
       let after = openUpdate ? nextUpdate.changes.apply(syncedDoc) : state.doc
       let correct = Correction.check(nextUpdate.changes, after, corrections)
       if (correct) {
@@ -420,7 +420,6 @@ export class Client {
         try {
           let msg = JSON.parse(data) as Server.Message
           if (msg.type == "error") {
-            console.log("Protocol error:", msg.error)
             reject(msg.error)
           } else if (msg.type == "state" && !this.editor) {
             this.editor = this.createEditor(msg.version, msg.doc)

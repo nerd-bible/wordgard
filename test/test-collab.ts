@@ -1,5 +1,5 @@
 import {GardState, Transaction, Correction} from "wordgard/state"
-import {Leaf, type ChangeSet} from "wordgard/doc"
+import {Leaf, type ChangeSet, Plot} from "wordgard/doc"
 import {Paragraph} from "wordgard/types"
 import {basicBuilders, eq} from "./schema.ts"
 import {history, undo, redo} from "wordgard/history"
@@ -10,32 +10,47 @@ let {doc, p} = basicBuilders
 
 class DummyServer {
   states: GardState[] = []
-  updates: collab.Update[] = []
+  updates: (collab.Update & {doc: Plot.Doc})[] = []
+  doc: Plot.Doc
   version = 0
   delayed: number[] = []
+  transform: boolean
 
-  constructor(d: string = "", config: {n?: number, extensions?: GardState.Extension[], collabConf?: any} = {}) {
+  constructor(d: string = "", config: {
+    n?: number
+    extensions?: GardState.Extension[]
+    collabConf?: any
+    transform?: boolean
+  } = {}) {
+    this.doc = doc(p(d))
+    this.transform = !!config.transform
     let {n = 2, extensions = [], collabConf = {}} = config
-    for (let i = 0; i < n; i++)
-      this.states.push(GardState.create({doc: doc(p(d)), config: [history(), collab(collabConf), ...extensions]}))
+    for (let i = 0; i < n; i++) {
+      this.states.push(GardState.create({doc: this.doc, config: [
+        history(),
+        collab({clientID: "c-" + i, ...collabConf}),
+        ...extensions
+      ]}))
+    }
   }
 
   sync(client: number) {
     let state = this.states[client], version = collab.getSyncedVersion(state)
-    if (version != this.version) {
-      let i = this.updates.length
-      while (i && this.updates[i - 1].version >= version) i--
-      this.states[client] = collab.receive(state, this.updates.slice(i)).state
-    }
+    if (version != this.version)
+      this.states[client] = collab.receive(state, this.updates.slice(version)).state
   }
 
   send(client: number) {
     let state = this.states[client], sendable = collab.sendableUpdate(state)
     if (!sendable) return false
-    if (sendable.version == this.version) {
-      this.updates = this.updates.concat(sendable)
-      this.version++
+    if (sendable.version != this.version) {
+      if (!this.transform) return true
+      sendable = collab.transformUpdate(sendable, this.updates.slice(sendable.version))
+      if (!sendable) return true
     }
+    this.updates.push({...sendable, doc: this.doc})
+    this.doc = sendable.changes.apply(this.doc)
+    this.version++
     return true
   }
 
@@ -291,7 +306,7 @@ describe("collab", () => {
   it("holds up on random input", () => {
     let r = (n: number) => Math.floor(Math.random() * n)
     for (let i = 0; i < 100; i++) {
-      let n = 3, s = new DummyServer("abcd", {n})
+      let n = 3, s = new DummyServer("abcd", {n, transform: !r(2)})
       for (let c = 0; c < n; c++) s.delayed.push(c)
       for (let j = 0; j < 25; j++) {
         let client = r(n), sel = r(4), len = s.states[client].doc.length
