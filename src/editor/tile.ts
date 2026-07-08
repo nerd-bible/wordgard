@@ -651,7 +651,7 @@ export class TextTile extends Tile {
     let {closest, rect} = rowScan<number>(x, y, add => {
       for (let i = 0; i < this.length;) {
         let end = findClusterBreak(this.text, i)
-        let rect = singleRect(textRange(this.dom, i, end), 1)
+        let rect = singleRect(textRange(this.dom, i, end), 1, true)
         if (rect.top == rect.bottom) continue
         if (add(rect, i)) break
         i = end

@@ -11,10 +11,10 @@ export function coordsAtPos(wg: Wordgard, pos: number, assoc: -1 | 1): DOMRect {
   if (node.nodeType == 3) {
     let len = node.nodeValue!.length
     if (!len) return singleRect(textRange(node as Text, 0, 0), 1)
-    let from = offset, to = offset, side = assoc < 0 && from || from == len ? 1 : -1
+    let from = offset, to = offset, side: -1 | 1 = assoc < 0 && from || from == len ? 1 : -1
     if (side < 0) to++
     else from--
-    return flattenV(singleRect(textRange(node as Text, from, to), side),
+    return flattenV(singleRect(textRange(node as Text, from, to), side, true),
                     (side < 0) == ltrAt(wg.state, pos, assoc))
   }
 
@@ -36,21 +36,22 @@ export function coordsAtPos(wg: Wordgard, pos: number, assoc: -1 | 1): DOMRect {
   // Inline, not in text node
   if (offset && (assoc < 0 || offset == maxOffset(node))) {
     let before = node.childNodes[offset - 1]
-    let target = before.nodeType == 3 ? textRange(before as Text, maxOffset(before))
+    let target = before.nodeType == 3 ? textRange(before as Text, Math.max(0, maxOffset(before)), maxOffset(before))
         // BR nodes tend to only return the rectangle before them.
         // Only use them if they are the last element in their parent
         : before.nodeType == 1 && (before.nodeName != "BR" || !before.nextSibling) ? before : null
-    if (target) return flattenV(singleRect(target as Range | Element, 1), !ltrAt(wg.state, pos, assoc))
+    if (target) return flattenV(singleRect(target as Range | Element, 1, true), !ltrAt(wg.state, pos, assoc))
   }
   if (offset < maxOffset(node)) {
     let after = node.childNodes[offset]
-    let target = !after ? null : after.nodeType == 3 ? textRange(after as Text, 0, 0)
+    let target = !after ? null : after.nodeType == 3 ? textRange(after as Text, 0, Math.min(1, maxOffset(after)))
         : after.nodeType == 1 ? after : null
-    if (target) return flattenV(singleRect(target as Range | Element, -1), ltrAt(wg.state, pos, assoc))
+    if (target) return flattenV(singleRect(target as Range | Element, -1, true), ltrAt(wg.state, pos, assoc))
   }
   // All else failed, just try to get a rectangle for the target node
-  return flattenV(singleRect(node.nodeType == 3 ? textRange(node as Text, 0, node.nodeValue!.length) : node as Element, -assoc),
-                  assoc > 0)
+  return flattenV(singleRect(node.nodeType == 3
+    ? textRange(node as Text, 0, node.nodeValue!.length)
+    : node as Element, -assoc as -1 | 1, true), assoc > 0)
 }
 
 function flattenV(rect: DOMRect, left: boolean) {

@@ -256,11 +256,11 @@ function nonZero(rect: DOMRect) {
   return rect.top < rect.bottom || rect.left < rect.right
 }
 
-export function singleRect(target: Element | Range, bias: number): DOMRect {
+export function singleRect(target: Element | Range, bias: -1 | 1, preferWide = false): DOMRect {
   let rects = target.getClientRects()
-  if (rects.length) {
-    let first = rects[bias < 0 ? 0 : rects.length - 1]
-    if (nonZero(first)) return first
+  for (let i = bias < 0 ? 0 : rects.length - 1; bias < 0 ? i < rects.length : i >= 0; i -= bias) {
+    let rect = rects[i]
+    if (nonZero(rect) && (!preferWide || rect.width)) return rect
   }
   return Array.prototype.find.call(rects, nonZero) || target.getBoundingClientRect()
 }
