@@ -223,9 +223,10 @@ export class ChangeSet {
         sections.push(length, slice.length)
         data.push(slice)
       } else {
-        sections.push(length, -1)
-        data.push(!Array.isArray(elt.modification) ? null :
-          elt.modification.map((m: ModificationJSON) => modificationFromJSON(schema, m)))
+        let mods = !Array.isArray(elt.modifications) ? null :
+          elt.modifications.map((m: ModificationJSON) => modificationFromJSON(schema, m))
+        sections.push(length, mods ? -2 : -1)
+        data.push(mods)
       }
     }
     return new ChangeSet(sections, data)

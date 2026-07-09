@@ -545,4 +545,30 @@ describe("ChangeSet", () => {
       ist(c.mapPos(8), 6)
     })
   })
+
+  describe("JSON", () => {
+    function test(change: ChangeSet.Spec, d = doc(p("abc"))) {
+      let ch = ChangeSet.create(d, change)
+      ist(ChangeSet.fromJSON(d.schema, ch.toJSON()), ch, eq)
+    }
+
+    it("handles insertion", () => test({from: 1, insert: [Leaf.text("+")]}))
+
+    it("handles deletion", () => test({from: 1, to: 4}))
+
+    it("handles adding a mark", () => test({from: 1, to: 2, add: Strong}))
+
+    it("handles removing a mark", () =>
+      test({from: 1, to: 3, remove: Strong}, doc(p(strong("abc")))))
+
+    it("handles removing a mark with parameter", () =>
+      test({from: 1, to: 3, remove: Link.of("/")}, doc(p(a("/", "abc")))))
+
+    it("can serialize random changes", () => {
+      for (let i = 0; i < 200; i++) {
+        let d = rDoc(20), ch = rChange(d, 5)
+        ist(ChangeSet.fromJSON(d.schema, ch.toJSON()), ch, eq)
+      }
+    })
+  })
 })
