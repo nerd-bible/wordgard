@@ -615,7 +615,7 @@ export class Plot implements Node.Shared {
 
   toJSON(): Node.JSON {
     let result = this.tag.toJSON()
-    if (this.content.length) result.content = this.content.map(c => c.toJSON())
+    result.content = this.content.map(c => c.toJSON())
     return result
   }
 

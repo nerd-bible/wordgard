@@ -120,25 +120,25 @@ export class Slice {
 
   /// Convert this slice to a JSON-serializeable representation.
   toJSON(): Slice.JSON {
-    return this.content.map(e => e.tokenType == Token.Type.Node ? {node: e.toJSON()}
-      : e.tokenType == Token.Type.Open ? {open: e.toJSON()} : {close: true})
+    return this.content.map(e => e.tokenType == Token.Type.Close ? "." : e.toJSON())
   }
 
   /// Build a slice from its JSON representation.
   static fromJSON(schema: Schema, json: Slice.JSON) {
     if (!Array.isArray(json)) throw new ValidationError("Invalid slice JSON")
     return new Slice(json.map(value => {
-      if (value.open) return schema.tagFromJSON(value.open)
-      if (value.close) return Token.End
-      if (value.node) return schema.nodeFromJSON(value.node)
-      throw new ValidationError("Invalid slice JSON")
+      if (value === ".") return Token.End
+      if (!value || typeof value.type != "string")
+        throw new ValidationError("Invalid slice JSON")
+      let type = schema.getNode(value.type)
+      return type?.isLeaf || ("content" in value) ? schema.nodeFromJSON(value) : schema.tagFromJSON(value)
     }))
   }
 }
 
 export namespace Slice {
   /// A slice's JSON representation.
-  export type JSON = readonly ({node: Node.JSON} | {open: Node.JSON} | {close: true})[]
+  export type JSON = readonly (Node.JSON | ".")[]
 }
 
 export interface SliceWalker {

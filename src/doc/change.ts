@@ -102,6 +102,10 @@ function compareModification(a: Modification, b: Modification) {
   return isAdd(a) ? isAdd(b) && a.add.eq(b.add) : isRemove(b) && a.remove.eq(b.remove)
 }
 
+function isNatNum(value: any): value is number {
+  return typeof value == "number" && Math.floor(value) == value && value >= 0
+}
+
 type SectionData = Slice | readonly Modification[] | null
 
 const applyCache = new WeakMap<ChangeSet, {a: Plot.Doc, b: Plot.Doc}>()
@@ -203,12 +207,17 @@ export class ChangeSet {
 
   /// Convert this change set to a JSON-serializeable representation.
   toJSON(): ChangeSet.JSON {
-    return this.data.map((data, i) => {
-      let length = this.sections[i << 1], type = this.sections[(i << 1) + 1]
-      return type >= 0 ? {length, replacement: (data as Slice).toJSON()}
-        : data ? {length, modifications: (data as readonly Modification[]).map(modificationToJSON)}
-        : {length}
-    })
+    let result: (number | [number, Slice.JSON | readonly ModificationJSON[]])[] = []
+    for (let i = 0; i < this.data.length; i++) {
+      let len = this.sections[i << 1], ins = this.sections[(i << 1) + 1]
+      if (ins == -1)
+        result.push(len)
+      else if (ins == -2)
+        result.push([len, (this.data[i] as readonly Modification[]).map(modificationToJSON)])
+      else
+        result.push([len, (this.data[i] as Slice).toJSON()])
+    }
+    return result
   }
 
   /// Parse a JSON representation into a change set.
@@ -216,17 +225,21 @@ export class ChangeSet {
     if (!Array.isArray(json)) throw new ValidationError("Invalid ChangeSet JSON")
     let sections: number[] = [], data: SectionData[] = []
     for (let elt of json) {
-      let {length} = elt
-      if (typeof length != "number") throw new ValidationError("Invalid ChangeSet JSON")
-      if (elt.replacement) {
-        let slice = Slice.fromJSON(schema, elt.replacement)
-        sections.push(length, slice.length)
-        data.push(slice)
+      if (isNatNum(elt)) {
+        sections.push(elt, -1)
+        data.push(null)
       } else {
-        let mods = !Array.isArray(elt.modifications) ? null :
-          elt.modifications.map((m: ModificationJSON) => modificationFromJSON(schema, m))
-        sections.push(length, mods ? -2 : -1)
-        data.push(mods)
+        if (!Array.isArray(elt) || elt.length != 2 || !isNatNum(elt[0]) || !Array.isArray(elt[1]))
+          throw new ValidationError("Invalid ChangeSet JSON")
+        let [len, val] = elt
+        if (val.length && ("add" in val[0] || "remove" in val[0])) {
+          sections.push(len, -2)
+          data.push(val.map(m => modificationFromJSON(schema, m)))
+        } else {
+          let slice = Slice.fromJSON(schema, val)
+          sections.push(len, slice.length)
+          data.push(slice)
+        }
       }
     }
     return new ChangeSet(sections, data)
@@ -552,13 +565,8 @@ export namespace ChangeSet {
   /// content) for replacements.
   export type Sections = readonly number[]
 
-  // FIXME make more compact
   /// The JSON representation of a change set.
-  export type JSON = readonly {
-    length: number
-    modifications?: readonly ModificationJSON[]
-    replacement?: Slice.JSON
-  }[]
+  export type JSON = readonly (number | [number, Slice.JSON | readonly ModificationJSON[]])[]
 
   /// Modes available in {@link ChangeSet.mapPos} to control whether
   /// `null` is returned on nearby deletions.
