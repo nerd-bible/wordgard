@@ -336,8 +336,7 @@ function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard, scope: str
   
   let key = event.key, charCode = key.codePointAt(0)!
   let altGr = event.getModifierState("AltGraph"), fromCode = charKeyCodes[event.keyCode]
-  let isChar = codePointSize(charCode) == key.length &&
-    (altGr || !(event.ctrlKey || event.altKey || event.metaKey))
+  let isChar = codePointSize(charCode) == key.length
   let char = isChar ? String.fromCodePoint(charCode) : null
   let base = modifiers(key, event)
   // If the key used (not the physical key, but the remapped base key)
@@ -348,7 +347,7 @@ function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard, scope: str
 
   let handled = false, didMatch = false, allowDefault = false
   for (let binding of handlers) {
-    let matched = ((binding.flags & BindingFlag.Char) && binding.name == char) ||
+    let matched = ((binding.flags & BindingFlag.Char) && (altGr || !event.ctrlKey && !event.metaKey) && binding.name == char) ||
       ((binding.flags & BindingFlag.Key) && (binding.name == base || binding.name == fallback)) ||
       (binding.flags & BindingFlag.Any)
     if (matched) {
