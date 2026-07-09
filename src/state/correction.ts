@@ -104,7 +104,7 @@ const planCache = new WeakMap<Transaction, PlanElt[]>()
 /// of updates or other chaos). The collab module has special
 /// provisions for integrating corrections in the step transformation
 /// in a safe way, but that requires you to explicitly tell it to use
-/// them, both on the {@link collab.Options.corrections client} and
+/// them, both on the {@link collab.Config.corrections client} and
 /// the {@link collab.transformUpdate server}.
 export class Correction {
   /// To take effect, corrections must be included in an editor

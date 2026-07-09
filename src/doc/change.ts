@@ -552,6 +552,7 @@ export namespace ChangeSet {
   /// content) for replacements.
   export type Sections = readonly number[]
 
+  // FIXME make more compact
   /// The JSON representation of a change set.
   export type JSON = readonly {
     length: number

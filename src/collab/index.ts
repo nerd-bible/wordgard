@@ -1,4 +1,4 @@
-//- An implementation of basic collaborative editing. Does not include
-//- server or communication logic.
+//- An implementation of basic collaborative editing. See the
+//- [example](../../examples/collab/) for more information.
 
-export {collab, Client, Server} from "./collab"
+export {collab} from "./collab"
