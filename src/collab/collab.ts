@@ -128,6 +128,7 @@ export namespace collab {
   export function receive(state: GardState, updates: readonly collab.Update[]) {
     let {version, syncedDoc, nextUpdate, openUpdate} = state.field(collabField)
     let {clientID, corrections} = state.facet(collabConfig)
+    console.log("actual receive", updates.map(u => u.version), "on", clientID)
 
     let changes = ChangeSet.empty(state.doc.length)
     let effects: readonly Transaction.Effect<unknown>[] = []
@@ -195,6 +196,7 @@ export namespace collab {
       }
     }
 
+    console.log("finish", clientID, " with", version, " " + syncedDoc, "/", changes.apply(state.doc) +"")
     return state.update({
       changes,
       effects: effects.concat(collabReceive.of(new CollabState(version, syncedDoc, nextUpdate, openUpdate))),
@@ -316,6 +318,7 @@ export class Server {
   }
 
   sendUpdate(client: {id: string, socket: Socket}, update: Server.Update) {
+    console.log("send", update.version, "to", client.id)
     this.send(client, {
       type: "update",
       changes: update.changes.toJSON(),
@@ -363,6 +366,7 @@ export class Server {
     version: number,
     clientID: string
   ) {
+    console.log("receive", version, "from", clientID)
     if (this.version > version) {
       let mapped: collab.Update | null
       try {
@@ -400,12 +404,15 @@ export namespace Server {
     {type: "update", changes: ChangeSet.JSON, clientID: string, version: number}
 }
 
+// FIXME error routing needs a lot of work
 export class Client {
   socket: Socket | null = null
   editor: Wordgard | null = null
   pendingUpdate = -1
   reconnecting = -1
 
+  // FIXME should server optionally provide the client ID? Makes it
+  // much easier to make them unique.
   constructor(
     readonly clientID: string,
     readonly connection: (onevent: (type: "message" | "close", data: string) => void) => Socket,

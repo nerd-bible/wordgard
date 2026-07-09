@@ -1,6 +1,6 @@
 import {GardState, Transaction, Correction} from "wordgard/state"
 import {Leaf, type ChangeSet, Plot} from "wordgard/doc"
-import {Paragraph} from "wordgard/types"
+import {Paragraph, Strong} from "wordgard/types"
 import {basicBuilders, eq} from "./schema.ts"
 import {history, undo, redo} from "wordgard/history"
 import ist from "ist"
@@ -225,6 +225,12 @@ describe("collab", () => {
     s.undo(0)
     s.conv("o!A")
     ist(s.states[0].selection.head, 4)
+  })
+
+  it("can distribute mark changes", () => {
+    let s = new DummyServer("xyz")
+    s.update(0, s => s.update({changes: {from: 1, to: 3, add: Strong}}))
+    ist(s.states[1].doc, s.states[0].doc, eq)
   })
 
   it("handles conflicting steps", () => {
