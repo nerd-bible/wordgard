@@ -344,7 +344,7 @@ describe("collab", () => {
     let shortPara = Correction.onChildList(Paragraph, plot => {
       return plot.node.contentLength <= 5 ? null : {from: plot.start + 5, to: plot.end}
     })
-    let s = new DummyServer("abcd", {extension: shortPara})
+    let s = new DummyServer("abcd", {extension: shortPara, corrections: [shortPara]})
     s.delay(0, () => {
       s.type(0, "x", 5)
       s.type(1, "y", 5)
