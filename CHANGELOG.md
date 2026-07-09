@@ -1,3 +1,19 @@
+## 0.2.0 (2026-07-09)
+
+### Breaking changes
+
+Flip the order of the first two arguments to `ChangeSet.transform` so that it aligns with the static `transform` function.
+
+Corrections no longer get access to the editor state.
+
+### New features
+
+`Correction.check` can now be used to directly apply corrections for a given set of changes.
+
+`collab.transformUpdate` can be used for server-side change transformation.
+
+wordgard/collab now includes support for applying corrections to changes it transforms.
+
 ## 0.1.2 (2026-07-09)
 
 ### Bug fixes
