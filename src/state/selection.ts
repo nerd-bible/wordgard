@@ -1,7 +1,9 @@
-import {Plot, Node as wgNode, Leaf, ChangeSet, Mark, Pos, ValidationError} from "wordgard/doc"
+import {Plot, Node, Leaf, ChangeSet, Mark, Pos, ValidationError} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import type {GardState} from "./state"
+
+type wgNode = Node
 
 export class SelectionType {
   constructor(
@@ -132,7 +134,7 @@ export abstract class GardSelection {
   }
 
   /// Create a node selection.
-  static node(pos: number, node: Leaf, goalColumn?: number) {
+  static node(pos: number, node: wgNode, goalColumn?: number) {
     return GardSelection.Node.create(pos, node, goalColumn)
   }
 
@@ -328,15 +330,15 @@ export namespace GardSelection {
     private constructor(
       from: number,
       to: number,
-      /// The selected leaf node.
-      readonly node: Leaf,
+      /// The selected node.
+      readonly node: wgNode,
       goalColumn?: number
     ) {
       super(from, to, goalColumn)
     }
 
     /// @internal
-    static create(pos: number, node: Leaf, goalColumn?: number) {
+    static create(pos: number, node: wgNode, goalColumn?: number) {
       return new Node(pos, pos + node.length, node, goalColumn)
     }
 
@@ -360,7 +362,7 @@ export namespace GardSelection {
     /// @internal
     export const type = new SelectionType("node", Node, (sel): JSON => ({pos: sel.anchor}), (doc, json: JSON) => {
       let node = json && typeof json.pos == "number" && doc.nodeAt(json.pos)
-      if (!node || node.isText || node.isPlot || !node.type.isSelectable)
+      if (!node || node.isText || !node.type.isSelectable)
         throw new ValidationError("Invalid GardSelection.Node JSON representation")
       return Node.create(json.pos, node)
     })

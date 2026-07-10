@@ -556,10 +556,8 @@ class WrapperDecoration extends Decoration.Point {
 const nodeSelectionDeco = Decoration.Point.attributes({class: "wg-selected-node"})
 
 function nodeSelection(state: GardState) {
-  if (state.selection instanceof GardSelection.Node) {
-    let {node, from} = state.selection
-    if (node.isLeaf && node.type.isSelectable) return PointSet.create([[from, nodeSelectionDeco]])
-  }
+  if (state.selection instanceof GardSelection.Node)
+    return PointSet.create([[state.selection.from, nodeSelectionDeco]])
   return PointSet.empty
 }
 

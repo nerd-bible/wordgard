@@ -379,7 +379,8 @@ function queryPos(wg: Wordgard, event: MouseEvent) {
 function rangeForClick(wg: Wordgard, pos: CoordPos, type: number): GardSelection {
   if (type < 3 && pos.target != null) {
     let target = wg.state.doc.nodeAt(pos.target)
-    if (target && target.isLeaf && target.type.isSelectable) return GardSelection.node(pos.target, target)
+    if (target && target.type.isSelectable && wg.state.isAtom(target.type))
+      return GardSelection.node(pos.target, target)
   }
   if (type == 1) { // Single click
     return GardSelection.near(wg.state, pos.pos, pos.side || -1)

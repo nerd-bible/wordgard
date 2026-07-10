@@ -461,8 +461,9 @@ export const moveByUnit: Command.Pure<{dir: "left" | "right" | "forward" | "back
     let next: GardSelection | null = selection.nextNormalCursor(state, forward)
     if (!next) return false
     if (!extend) state.doc.iterate(Math.min(selection.head, next.head), Math.max(selection.head, next.head), (node, pos) => {
+      if (node.type.isSelectable && state.isAtom(node.type))
+        next = GardSelection.node(pos, node)
       if (node.isPlot) return !node.type.isolating
-      if (node.type.isSelectable) next = GardSelection.node(pos, node)
     })
     return setSelection(extend ? extendSel(selection, next as GardSelection.Text) : next)
   }

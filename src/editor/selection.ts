@@ -96,7 +96,7 @@ function findTargetVertically(wg: Wordgard, from: number, forward: boolean, x: n
       let next = parent.node.content[index - (forward ? 0 : 1)]
       let nextPos = pos - (forward ? 0 : next.length)
       if (next.isLeaf || wg.state.isAtom(next.type)) {
-        if (allowNode && next.isLeaf && next.type.isSelectable)
+        if (allowNode && next.type.isSelectable && wg.state.isAtom(next.type))
           return Pos.Node.create(parent, next, nextPos, index - (forward ? 0 : 1))
         index += forward ? 1 : -1
         pos += (forward ? 1 : -1) * next.length

@@ -55,6 +55,9 @@ export abstract class BaseType<Param> {
   get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
   abstract isLeaf: boolean
   abstract isPlot: boolean
+
+  /// Whether this node is {@link Node.Spec.selectable selectable}.
+  get isSelectable() { return (this.flags & NodeFlag.Selectable) > 0 }
 }
 
 export abstract class BaseTag<Param> {
@@ -222,6 +225,10 @@ export namespace Node {
     shape: Shape.Element<Param> | Shape.Structure<Param>
     /// Extra parse rules to associate with this node type.
     parseRules?: readonly parse.Rule.Element<Param>[]
+    /// When set to `true`, nodes of this type, if they are a leaf or
+    /// atom, can be selected by clicking them or moving the selection
+    /// into them with the keyboard.
+    selectable?: boolean
   }
 
   /// The JSON representation for a node or tag.
@@ -437,19 +444,12 @@ export namespace Leaf {
 
     /// Leaves are not plots.
     get isPlot(): false { return false }
-
-    /// Whether this leaf is {@link Leaf.Spec.selectable selectable}.
-    get isSelectable() { return (this.flags & NodeFlag.Selectable) > 0 }
   }
 
   export interface Spec<Param> extends Node.Spec<Param> {
     /// Can be used to make leaves of this type show up in the output
     /// of {@link Plot.textContent}.
     toText?: (node: Leaf) => string
-    /// When set to `true`, nodes of this type can be selected by
-    /// clicking them or moving the selection into them with the
-    /// keyboard.
-    selectable?: boolean
   }
 
   /// The type of text leaves. Represents a series of characters with
@@ -934,7 +934,7 @@ function flagsFor(spec: Plot.Spec<any>) {
   if (spec.inlineContent && spec.blockContent) throw new SchemaError("A tag cannot have both block and inline content")
   if (spec.inlineContent) flags |= NodeFlag.InlineContent
   if (spec.inlineContent || spec.canBeEmpty) flags |= NodeFlag.CanBeEmpty
-  if ((spec as Leaf.Spec<any>).selectable) flags |= NodeFlag.Selectable
+  if (spec.selectable) flags |= NodeFlag.Selectable
   return flags
 }
 
