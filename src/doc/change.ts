@@ -232,7 +232,7 @@ export class ChangeSet {
         if (!Array.isArray(elt) || elt.length != 2 || !isNatNum(elt[0]) || !Array.isArray(elt[1]))
           throw new ValidationError("Invalid ChangeSet JSON")
         let [len, val] = elt
-        if (val.length && ("add" in val[0] || "remove" in val[0])) {
+        if (val.length && typeof val[0] == "object" && ("add" in val[0] || "remove" in val[0])) {
           sections.push(len, -2)
           data.push(val.map(m => modificationFromJSON(schema, m)))
         } else {
