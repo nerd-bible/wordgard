@@ -42,8 +42,8 @@ export class Elt<T = string> {
   /// literal number 0 is used to indicate a content hole in the
   /// array of children.
   static mk<T = string>(name: string, children?: (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
-    static mk<T = string>(name: string, attrs: Record<string, string>,
-                          children?: readonly (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
+  static mk<T = string>(name: string, attrs: Record<string, string>,
+                        children?: readonly (T | 0 | Elt<T>)[]): Elt<Exclude<T, Elt<any> | 0>>
   static mk<T>(name: string, arg1?: Record<string, string> | readonly (T | Elt<T> | 0)[], arg2?: readonly (T | Elt<T> | 0)[]) {
       let [attrs, children] = arg2 ? [Attributes.read(arg1 as Record<string, string>), arg2] :
         !arg1 ? [Attributes.none, noChildren] : Array.isArray(arg1) ? [Attributes.none, arg1 as readonly (T | Elt<T> | 0)[]]
