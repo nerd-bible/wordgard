@@ -118,15 +118,23 @@ export namespace Decoration {
     /// When providing a function for the shape, keep in mind that the
     /// result will be cached by tag, and you should make sure your
     /// function is pure.
+    ///
+    /// When providing a function that returns a shape that changes
+    /// whether the node is rendered as an atom, you need to provide
+    /// the `atom`.
     export function shape<T extends Node.Type.Ref<any>>(
       type: T,
-      shape: Shape | ((tag: Node.Tag.For<T>) => Shape)
+      shape: Shape | ((tag: Node.Tag.For<T>) => Shape),
+      config?: {atom?: boolean}
     ) {
       let tp = Node.Type.get(type)
       let shapeFunc: (tag: Node.Tag) => Shape = typeof shape == "function"
         ? tag => addMarkAttributes(shape(tag as any), tag)
         : tag => addMarkAttributes(shape, tag)
-      return tagShape.of({type: tp, shape: memo(shapeFunc)})
+      let atom = typeof shape == "function" ? config?.atom : !shape.hasContent
+      let ext: GardState.Extension = tagShape.of({type: tp, shape: memo(shapeFunc)})
+      if (tp.isPlot && atom != null) ext = [ext, GardState.isAtom.of([tp, atom])]
+      return ext
     }
 
     export namespace shape {
@@ -145,15 +153,22 @@ export namespace Decoration {
       /// because when the document is big, there's a non-trivial
       /// amount of work involved when a node shape changes (or may
       /// have changed).
-      export function dynamic<T extends Node.Type.Ref<any>>(
+      ///
+      /// When providing a shape for a plot that changes whether it is
+      /// rendered as an atom, provide the `atom` option.
+      export function dynamic<T extends Node.Type<any>>(
         type: T,
-        shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape)
+        shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape),
+        config?: {atom?: boolean}
       ) {
         let tp = Node.Type.get(type)
-        return tagShape.compute(state => {
+        let ext = tagShape.compute(state => {
           let s = shape(state)
           return {type: tp, shape: typeof s == "function" ? memo(s as any) : () => s}
         })
+        let atom = config?.atom
+        if (tp.isPlot && atom != null) ext = [ext, GardState.isAtom.of([tp, atom])]
+        return ext
       }
     }
 

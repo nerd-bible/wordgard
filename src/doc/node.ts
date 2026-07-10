@@ -51,8 +51,7 @@ export abstract class BaseType<Param> {
   get isInline() { return (this.flags & NodeFlag.Inline) > 0 }
   /// True when this is a block node type.
   get isBlock() { return (this.flags & NodeFlag.Inline) == 0 }
-  /// True when this node is a leaf or a plot whose default
-  /// shape is rendered as an atom.
+  /// @internal used by Configuration.isAtom
   get isAtom() { return (this.flags & NodeFlag.Atom) > 0 }
   abstract isLeaf: boolean
   abstract isPlot: boolean

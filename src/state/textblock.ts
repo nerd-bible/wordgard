@@ -1,5 +1,7 @@
 import {Plot, Leaf} from "wordgard/doc"
 import {BidiSpan, computeOrder} from "./bidi"
+import {type GardSelection} from "./selection"
+import {type GardState} from "./state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 
 const cache: WeakMap<Plot, TextblockMap> = new WeakMap
@@ -31,6 +33,7 @@ export class TextblockMap {
     /// in this string.
     readonly text: string,
     private _order: readonly BidiSpan[] | null,
+    private config: GardState.Configuration,
     // Describe the correspondence between the indices and document
     // positions. Each number starts with 2 bits holding a Section
     // flag, followed by the length of the section.
@@ -47,18 +50,18 @@ export class TextblockMap {
 
   /// Get the map for the given textblock. Will use a cache to reuse
   /// results for unchanged blocks.
-  static get(start: number, node: Plot, ltr: boolean) {
+  static get(cx: GardSelection.Context, start: number, node: Plot) {
     // FIXME handle isolates
     let cached = cache.get(node)
-    if (cached && cached.start == start && cached.ltr == ltr) return cached
-    let result = cached && cached.ltr == ltr
-      ? new TextblockMap(start, node, ltr, cached.text, cached._order, cached.sections)
-      : TextblockMap.create(start, node, ltr)
+    if (cached && cached.config == cx.config)
+      return cached.start == start ? cached
+        : new TextblockMap(start, node, cached.ltr, cached.text, cached._order, cx.config, cached.sections)
+    let result = TextblockMap.create(start, node, cx.config)
     cache.set(node, result)
     return result
   }
 
-  private static create(start: number, node: Plot, ltr: boolean) {
+  private static create(start: number, node: Plot, config: GardState.Configuration) {
     let text = "", sections: number[] = [], sectionPos = 0
     let flush = (upto: number) => {
       if (upto > sectionPos) sections.push((upto - sectionPos) << Section.Shift)
@@ -67,7 +70,7 @@ export class TextblockMap {
       for (let ch of node.content) {
         if (ch.is(Leaf.Text)) {
           text += ch.param
-        } else if (ch.isLeaf || !ch.inlineContent) {
+        } else if (ch.isLeaf || config.isAtom(ch.type)) {
           text += "\ufffc"
           if (ch.length > 1) {
             flush(pos)
@@ -91,7 +94,7 @@ export class TextblockMap {
     }
     scan(node, 0)
     flush(node.contentLength)
-    return new TextblockMap(start, node, ltr, text, null, sections)
+    return new TextblockMap(start, node, config.textblockLTR(node), text, null, config, sections)
   }
 
   /// Get the string index for a document position. Positions outside

@@ -185,8 +185,8 @@ export abstract class GardSelection {
   /// textblock.
   static atEnd(cx: GardSelection.Context, block?: Pos.Plot) {
     let found = block
-      ? TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node)).visualSide(false)
-      : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textLTR).visualSide(false)
+      ? TextblockMap.get(cx, block.start, block.node).visualSide(false)
+      : cx.doc.inlineContent ? TextblockMap.get(cx, 0, cx.doc).visualSide(false)
       : scanNormalFrom(cx, cx.doc.length, -1, false, false) ?? {pos: cx.doc.length, side: -1}
     return GardSelection.cursor(found.pos, found.side)
   }
@@ -432,17 +432,17 @@ export namespace GardSelection {
 
 export function cursorAtStart(cx: GardSelection.Context, block?: Pos.Plot) {
   let found = block
-    ? TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node)).visualSide(true)
-    : cx.doc.inlineContent ? TextblockMap.get(0, cx.doc, cx.config.textblockLTR(cx.doc)).visualSide(true)
+    ? TextblockMap.get(cx, block.start, block.node).visualSide(true)
+    : cx.doc.inlineContent ? TextblockMap.get(cx, 0, cx.doc).visualSide(true)
     : scanNormalFrom(cx, 0, 1, true, false) ?? {pos: 0, side: 1}
   return GardSelection.cursor(found.pos, found.side)
 }
 
-function isBarrier(node: wgNode) {
+function isBarrier(cx: GardSelection.Context, node: wgNode) {
   if (node.isLeaf) return node.type.isBlock
   let override = node.type.spec.cursorBarrier
   if (override != null) return override
-  return node.type.isolating || node.type.preserveWhitespace || node.type.isBlock && node.type.isAtom
+  return node.type.isolating || node.type.preserveWhitespace || node.type.isBlock && cx.config.isAtom(node.type)
 }
 
 // Find the next 'normal' cursor position from the given position. Any
@@ -457,17 +457,17 @@ function scanNormalFrom(
   if (pos.parent.node.inlineContent) {
     if (!mustMove) return {pos: pos.pos, side}
     let block = pos.textblockParent!
-    let map = TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node))
+    let map = TextblockMap.get(cx, block.start, block.node)
     let next = cx.config.visualCursorMotion ? map.moveVisually(pos.pos, side, forward) : map.moveLogically(pos.pos, forward)
     if (next != null) return next
     if (!block.parent) return null
     pos = Pos.create(block.parent, forward ? block.after : block.before, block.index + (forward ? 1 : 0), 0)
-    pastBarrier = isBarrier(block.node)
+    pastBarrier = isBarrier(cx, block.node)
   } else {
     pastBarrier = !pos.parent.parent && pos.index == (forward ? 0 : pos.parent.node.content.length)
     for (let {parent: {node}, index} = pos; !pastBarrier && (forward ? index : index < node.content.length);) {
       let next = node.content[forward ? index - 1 : index]
-      if (isBarrier(next)) pastBarrier = true
+      if (isBarrier(cx, next)) pastBarrier = true
       if (next.isLeaf) {
         index += forward ? 1 : -1
       } else {
@@ -483,11 +483,11 @@ function scanNormalFrom(
     let {node, parent: next} = parent
     if (node.inlineContent) {
       if (cx.config.visualCursorMotion)
-        return TextblockMap.get(parent.start, parent.node, cx.config.textblockLTR(parent.node)).visualSide(forward)
+        return TextblockMap.get(cx, parent.start, parent.node).visualSide(forward)
       return {pos: p, side: forward ? 1 : -1}
     }
     if (index == (forward ? node.content.length : 0)) {
-      let barrier = !next || isBarrier(node)
+      let barrier = !next || isBarrier(cx, node)
       if ((bottom != from || !mustMove) && pastBarrier && barrier) return {pos: bottom, side: forward ? -1 : 1}
       if (!next) return null
       index = parent.index + (forward ? 1 : 0)
@@ -497,9 +497,9 @@ function scanNormalFrom(
       if (barrier) pastBarrier = true
     } else {
       let nextNode = node.content[index - (forward ? 0 : 1)]
-      let barrier = isBarrier(nextNode)
+      let barrier = isBarrier(cx, nextNode)
       if (pastBarrier && (bottom != from || !mustMove) && barrier) return {pos: bottom, side: forward ? -1 : 1}
-      if (nextNode.isLeaf || nextNode.type.isAtom) {
+      if (nextNode.isLeaf || cx.config.isAtom(nextNode.type)) {
         index += step
         p += nextNode.length * step
       } else {
@@ -522,7 +522,7 @@ function skipWord(cx: GardSelection.Context, start: number, side: -1 | 1, forwar
       if (!next) return last
       ;({pos, side} = next)
     } else {
-      let map = TextblockMap.get(block.start, block.node, cx.config.textblockLTR(block.node))
+      let map = TextblockMap.get(cx, block.start, block.node)
       let next = map.skipWord(pos, side, forward, visually)
       if (next) return next
       if (!block.parent) return last

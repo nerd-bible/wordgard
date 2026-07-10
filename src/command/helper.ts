@@ -131,7 +131,7 @@ export function joinBackward(state: GardState): Transaction.Spec | false {
   }
   let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
   while (before.isLeaf || !before.isTextblock) {
-    if (before.isLeaf || before.type.isAtom || before.type.isolating || !before.type.isBlock) return false
+    if (before.isLeaf || state.isAtom(before.type) || before.type.isolating || !before.type.isBlock) return false
     let last = before.content.length - 1
     if (last < 0) return false
     parent = before
@@ -196,7 +196,7 @@ export function joinForward(state: GardState): Transaction.Spec | false {
   }
   let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
   while (after.isLeaf || !after.isTextblock) {
-    if (after.isLeaf || after.type.isolating || after.type.isAtom || !after.type.isBlock || !after.content.length)
+    if (after.isLeaf || after.type.isolating || state.isAtom(after.type) || !after.type.isBlock || !after.content.length)
       return false
     parent = after
     after = after.content[0]
@@ -236,7 +236,7 @@ export function deleteBackward(state: GardState, word = false): Transaction.Spec
   let next = sel.head.inText ? sel.head.nodeBefore! : scan.node.content[--index]
   for (;;) {
     if (next.isPlot && next.type.isolating) return false
-    if (next.isLeaf || next.type.isAtom) break
+    if (next.isLeaf || state.isAtom(next.type)) break
     let last = next.content.length - 1
     if (last < 0) return false
     next = next.content[last]
@@ -301,7 +301,7 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   let next = sel.head.inText ? sel.head.nodeAfter! : scan.node.content[index]
   for (;;) {
     if (next.isPlot && next.type.isolating) return false
-    if (next.isLeaf || next.type.isAtom) break
+    if (next.isLeaf || state.isAtom(next.type)) break
     if (!next.content.length) return false
     next = next.content[0]
     pos++

@@ -1,4 +1,4 @@
-import {Plot, Node, Mark, Leaf, Elt, ChangeSet, Attributes} from "wordgard/doc"
+import {Node, Mark, Leaf, Elt, ChangeSet, Attributes} from "wordgard/doc"
 import {GardState, TextblockMap, BidiSpan} from "wordgard/state"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Widget, DecoElt, Decoration, DecoIterator, findChangedRanges, WrapperSource,
@@ -197,11 +197,8 @@ export class CompositeTile extends Tile {
     let {node} = this, outerOrientation = orientation
     if (node && node.isPlot) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
-      if (node.isTextblock) {
-        textblock = TextblockMap.get(start, start ? state.doc.nodeAt(start - 1) as Plot : state.doc, state.textblockLTR(node))
-      } else if (node.type.isBlock) {
-        textblock = null
-      }
+      if (node.isTextblock) textblock = TextblockMap.get(state, start, node)
+      else if (node.type.isBlock) textblock = null
     } else if (node && node.isText) {
       orientation = Orientation.Row
     }
@@ -292,7 +289,7 @@ function rowScan<T>(
 export function ltrAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: TextblockMap | null) {
   if (textblock === undefined) {
     let {textblockParent: block} = state.doc.resolve(pos)
-    textblock = block ? TextblockMap.get(block.start, block.node, state.textblockLTR(block.node)) : null
+    textblock = block ? TextblockMap.get(state, block.start, block.node) : null
   }
   if (!textblock) return state.textLTR
   let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)

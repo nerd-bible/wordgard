@@ -206,7 +206,7 @@ export class GardState {
   /// Compute the textblock map for the given plot (which should be a
   /// textblock).
   textblockMap(node: Pos.Plot) {
-    return TextblockMap.get(node.start, node.node, this.textblockLTR(node.node))
+    return TextblockMap.get(this, node.start, node.node)
   }
 
   // FIXME is this interface a good idea? Or should fields be able to
@@ -269,6 +269,10 @@ export class GardState {
 
   /// Return the text direction in a given textblock (by tag).
   textblockLTR(plot: Plot) { return this.config.textblockLTR(plot) }
+
+  /// Tells you whether a node type is an atom (a leaf or a plot with
+  /// an atomic shape).
+  isAtom(type: Node.Type) { return this.config.isAtom(type) }
 
   /// Return the extent of the word around the given position, as a
   /// text selection.
@@ -695,6 +699,10 @@ export namespace GardState {
     }
     /// @internal
     get visualCursorMotion() { return this.staticFacet(GardState.visualCursorMotion) }
+    /// @internal
+    isAtom(type: Node.Type) {
+      return type.isLeaf || (this.staticFacet(GardState.isAtom).get(type) ?? type.isAtom)
+    }
   }
 
   function flatten(extension: GardState.Extension, compartments: Map<GardState.Compartment, GardState.Extension>, newCompartments: Map<GardState.Compartment, GardState.Extension>) {
@@ -859,6 +867,16 @@ export namespace GardState {
   export const visualCursorMotion = GardState.Facet.define<boolean, boolean>({
     combine(values) { return !values.length ? true : values[0] },
     static: true
+  })
+
+  /// @hidden FIXME expose this?
+  export const isAtom = GardState.Facet.define<[Plot.Type, boolean], Map<Plot.Type, boolean>>({
+    static: true,
+    combine(inputs) {
+      let map = new Map<Plot.Type, boolean>()
+      for (let i = inputs.length - 1; i >= 0; i--) map.set(inputs[i][0], inputs[i][1])
+      return map
+    }
   })
 }
 

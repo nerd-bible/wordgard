@@ -459,6 +459,12 @@ describe("DocTile", () => {
       ist(node.dom.querySelector("img"), img)
     })
 
+    it("makes isAtom aware of tag shapes", () => {
+      ist(GardState.create({doc: doc(p())}).isAtom(Paragraph.type), false)
+      let s = GardState.create({doc: doc(p()), config: Decoration.Tag.shape(Paragraph, Elt.mk("div"))})
+      ist(s.isAtom(Paragraph.type), true)
+    })
+
     it("can override shapes by tag", () => {
       ist(render(doc(p("a")), Decoration.Tag.shape(Paragraph, Elt.mk("div", {class: "para"}, [0]))).dom.innerHTML,
           "<div class=\"para\">a</div>")
