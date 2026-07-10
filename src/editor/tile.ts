@@ -292,7 +292,7 @@ export function ltrAt(state: GardState, pos: number, assoc: -1 | 1, textblock?: 
     textblock = block ? TextblockMap.get(state, block.start, block.node) : null
   }
   if (!textblock) return state.textLTR
-  let found = BidiSpan.find(textblock.order, pos - textblock.start, assoc)
+  let found = BidiSpan.find(textblock.order, textblock.toIndex(pos), assoc)
   return textblock.order[found].ltr
 }
 
