@@ -398,10 +398,26 @@ describe("DocTile", () => {
       })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
     })
 
-    it("can replace a non-leaf node with an atom shape", () => {
+    it("can give a plot with atomic shape", () => {
       ist(render(doc(p("ab", $img, "cd")), Decoration.Point.source.of(state => {
         return PointSet.create([[0, Decoration.Point.shape(Elt.mk("div", ["?"]))]])
       })).dom.innerHTML, "<div>?</div>")
+    })
+
+    it("can dynamically redraw a plot as an atom", () => {
+      let tile = render(doc(p("abc")))
+      tile = update(tile, {effects: GardState.appendConfig.of(Decoration.Point.source.of(state => {
+        return PointSet.create([[0, Decoration.Point.shape(Elt.mk("div", ["?"]))]])
+      }))})
+      ist(tile.dom.innerHTML, "<div>?</div>")
+    })
+
+    it("can dynamically redraw an atom plot as a regular plot", () => {
+      let tile = render(doc(p("abc")), Decoration.Point.source.of(state => {
+        return PointSet.create([[0, Decoration.Point.shape(Elt.mk("div", ["?"]))]])
+      }))
+      tile = update(tile, {effects: GardState.reconfigure.of([])})
+      ist(tile.dom.innerHTML, "<p>abc</p>")
     })
 
     it("can add attributes to a specific node", () => {
@@ -441,6 +457,25 @@ describe("DocTile", () => {
         effects: GardState.appendConfig.of(Decoration.Point.source.of(() => deco))
       })
       ist(node.dom.innerHTML, "<div><hr><p>x</p></div><p>y</p>")
+    })
+
+    it("can replace the shape of a node type", () => {
+      let tile = render(doc(p("a", $img, "b")), Decoration.Tag.shape(Image, Elt.mk("span", {"class": "img"})))
+      ist(tile.dom.innerHTML, `<p>a<span class="img"></span>b</p>`)
+    })
+
+    it("can handle changes inside atomic plots", () => {
+      let tile = render(doc(p("abcd")), Decoration.Tag.shape(Paragraph, Elt.mk("para")))
+      let para = tile.dom.querySelector("para")
+      tile = update(tile, {changes: {from: 1, insert: [Leaf.text("--")]}})
+      ist(tile.dom.innerHTML, `<para></para>`)
+      ist(tile.dom.querySelector("para"), para)
+    })
+
+    it("can handle changes covering parts of atomic plots", () => {
+      let tile = render(doc(p("ab"), p("cd")), Decoration.Tag.shape(Paragraph, Elt.mk("para")))
+      tile = update(tile, {changes: {from: 2, to: 6}})
+      ist(tile.dom.innerHTML, `<para></para>`)
     })
 
     it("supports selectors for wrapper decorations", () => {
