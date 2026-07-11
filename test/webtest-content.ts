@@ -383,6 +383,17 @@ describe("DocTile", () => {
       ist(tile.dom.innerHTML, `<p><span class="b">-</span></p>`)
     })
 
+    it("can handle changes from range and point decorations in a single transactions", () => {
+      let point = Decoration.Point.source.of(s => {
+        return PointSet.create([[2, Decoration.Point.widget(inlineWidget.of(s.selection.from == 1 ? "x" : "y"))]])
+      })
+      let range = Decoration.Range.source.of(s => {
+        return RangeSet.create([[5, 6, Decoration.Range.attribute("data-m", String(s.selection.from))]])
+      })
+      let tile = update(render(doc(p("abcdef")), [point, range]), {selection: {anchor: 2}})
+      ist(tile.dom.innerHTML, `<p>a<span>y</span>bcd<span data-m="2">e</span>f</p>`)
+    })
+
     it("can add attributes to tags", () => {
       ist(render(doc(p("?")), Decoration.Tag.attribute(Paragraph, "lang", "nl")).dom.innerHTML, "<p lang=\"nl\">?</p>")
     })

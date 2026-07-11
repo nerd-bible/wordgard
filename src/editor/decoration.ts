@@ -959,7 +959,7 @@ function joinRanges(ranges: number[][]) {
     for (let i = 0; i < ranges.length; i++) {
       let idx = index[i], set = ranges[i]
       if (idx < set.length && (minI < 0 || set[idx] < minFrom)) {
-        minI = idx
+        minI = i
         minFrom = set[idx]
       }
     }
@@ -1004,6 +1004,7 @@ export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
       let add = (from: number, to: number) => {
         if (from < curPos) { ranges.push(cur = []); curPos = 0 }
         addRange(cur, from, to)
+        curPos = to
       }
       compareDecoSet(prevDeco.ranges, deco.ranges, (a, b) => {
         (a || RangeSet.empty).compareRange(posA, b || RangeSet.empty, posB, len, add)
