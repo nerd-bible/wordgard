@@ -338,6 +338,22 @@ describe("DocTile", () => {
           "<p>x<span>-2</span><span>-1</span><span>1</span>y</p>")
     })
 
+    it("can redraw widgets at the end of the document", () => {
+      let widget = Widget.define({
+        render: v => Object.assign(document.createElement("b"), {textContent: v})
+      })
+      let flip = Transaction.Effect.define()
+      let field = GardState.Field.define({
+        create: s => PointSet.create([[s.doc.length, Decoration.Point.widget(widget.of("x"))]]),
+        update: (v, tr) => tr.effects.some(e => e.is(flip))
+          ? PointSet.create([[tr.state.doc.length, Decoration.Point.widget(widget.of("y"))]]) : v,
+        provide: f => Decoration.Point.source.of(s => s.field(f))
+      })
+
+      let tile = update(render(doc(p("ab")), field), {effects: flip.of(null)})
+      ist(tile.dom.innerHTML, "<p>ab</p><b>y</b>")
+    })
+
     it("doesn't duplicate widgets on section boundaries", () => {
       let node = render(doc(p(strong("a"), $img)),
                         Decoration.Tag.widget(Image, "before", inlineWidget.of("!")))
