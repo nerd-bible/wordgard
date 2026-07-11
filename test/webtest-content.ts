@@ -356,6 +356,17 @@ describe("DocTile", () => {
           "<div class=\"pwrap\"><p>a<image><img src=\"test.png\"></image></p></div>")
     })
 
+    it("updates wrappers when they change", () => {
+      let wA = Decoration.Range.wrapper("span",  {attributes: {class: "a"}})
+      let wB = Decoration.Range.wrapper("span",  {attributes: {class: "b"}})
+      let tile = render(doc(p("-")), Decoration.Range.source.of(s => {
+        return RangeSet.create([[1, 2, s.selection.from == 1 ? wA : wB]])
+      }))
+      ist(tile.dom.innerHTML, `<p><span class="a">-</span></p>`)
+      tile = update(tile, {selection: {anchor: 2}})
+      ist(tile.dom.innerHTML, `<p><span class="b">-</span></p>`)
+    })
+
     it("can add attributes to tags", () => {
       ist(render(doc(p("?")), Decoration.Tag.attribute(Paragraph, "lang", "nl")).dom.innerHTML, "<p lang=\"nl\">?</p>")
     })

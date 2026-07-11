@@ -497,7 +497,7 @@ class WrapperRangeDecoration extends Decoration.Range {
 
   eq(other: RangeSet.Value): boolean {
     return this == other ||
-      other instanceof WrapperRangeDecoration && other.elt.eq(other.elt) &&
+      other instanceof WrapperRangeDecoration && other.elt.eq(this.elt) &&
       other.rank == this.rank && other.spanning == this.spanning && other.inc == this.inc
   }
 }
