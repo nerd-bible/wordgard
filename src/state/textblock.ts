@@ -172,7 +172,7 @@ export class TextblockMap {
     let nextSpan = spanI == (forward ? order.length - 1 : 0) ? null : order[spanI + (forward ? 1 : -1)]
     if (nextSpan && nextIndex == spanEnd && nextSpan.level + (forward ? 0 : 1) < span.level)
       return {pos: this.fromIndex(nextSpan.side(!forward, ltr)), side: nextSpan.forward(forward, ltr) ? 1 : -1}
-    return {pos: this.fromIndex(nextIndex), side: span.forward(forward, ltr) ? -1 : 1}
+    return {pos: this.fromIndex(nextIndex), side: nextIndex != spanEnd ? 1 : span.forward(forward, ltr) ? -1 : 1}
   }
 
   /// @internal
@@ -223,6 +223,6 @@ export class TextblockMap {
   moveLogically(start: number, forward: boolean): {pos: number, side: -1 | 1} | null {
     let index = this.toIndex(start)
     let next = findClusterBreak(this.text, index, forward)
-    return next == index ? null : {pos: this.fromIndex(next), side: forward ? -1 : 1}
+    return next == index ? null : {pos: this.fromIndex(next), side: 1}
   }
 }
