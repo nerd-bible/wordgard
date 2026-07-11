@@ -49,7 +49,7 @@ export function moveVertically(
   for (let scan = start.head;;) {
     let pos = wg.state.doc.resolve(scan), block = pos.textblockParent
     if (block) {
-      let blockTile = wg.docTile.nodeTile(block.before)!
+      let blockTile = block.parent ? wg.docTile.nodeTile(block.before)! : wg.docTile
       let rect = (blockTile.dom as Element).getBoundingClientRect()
       if (forward ? y < rect.top : y > rect.bottom) y = forward ? rect.top : rect.bottom
       while (forward ? rect.bottom >= y : rect.top <= y) {
