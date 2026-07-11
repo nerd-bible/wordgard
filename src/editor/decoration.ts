@@ -1093,7 +1093,8 @@ function addSection(sections: number[], len: number, ins: number) {
 export interface DecoWalker {
   enter(node: Plot, shape: DecoElt, wrappers: readonly WrapperSource[]): void
   leave(): void
-  node(node: Node, shape: Decoration.Shape, wrappers: readonly WrapperSource[]): void
+  node(node: Node, shape: Decoration.Shape, wrappers: readonly WrapperSource[], partial: number | undefined): void
+  nodePart(node: Node, length: number, done: boolean): void
   widget(widget: Widget, side: number): void
 }
 
@@ -1295,6 +1296,12 @@ export class DecoIterator {
     let iter = new HeapIterator<Decoration.Range, Decoration.Point>(
       this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
+    let atomParent: Pos.Plot | undefined
+    for (let p: Pos.Plot | null = pos.parent; p; p = p.parent)
+      if (this.state.isAtom(p.node.type)) atomParent = p
+    if (atomParent) {
+      
+    }
 
     // Track points that may apply to the node at the start of the next range
     let pendingDeco: Decoration.Point[] = [], pendingPos = -1
@@ -1308,7 +1315,7 @@ export class DecoIterator {
         let shape = hasPending && pendingShape ? pendingShape.shape : this.tagShape(node.tag, iter.active)
         if (hasPending) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
-        walker.node(node, shape, nodeWrappers(this.schema, node.tag, iter.active, true))
+        walker.node(node, shape, nodeWrappers(this.schema, node.tag, iter.active, true), undefined)
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enterPlot: (node, pos) => {
@@ -1319,7 +1326,7 @@ export class DecoIterator {
         if (pendingPos == pos) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
         let wrappers = nodeWrappers(this.schema, node.tag, iter.active, !shape.hasContent)
         let atom = !shape.hasContent
-        if (atom) walker.node(node!, shape, wrappers)
+        if (atom) walker.node(node!, shape, wrappers, pos + node.length > to ? to - pos : undefined)
         else walker.enter(node!, shape as DecoElt, wrappers)
         this.widgets(node.tag, WidgetPlace.Start, walker)
         return !atom
@@ -1357,6 +1364,12 @@ export class DecoIterator {
             pendingDeco.push(value)
           }
         }
+      } else if (atomParent) {
+        let end = Math.min(to, atomParent.after), done = atomParent.after <= to
+        walker.nodePart(atomParent.node, end - pos.pos, done)
+        pos = pos.advance(end - pos.pos)
+        if (done) this.widgets(atomParent.node.tag, WidgetPlace.After, walker)
+        atomParent = undefined
       } else {
         pos = pos.walk(iter.to - iter.from, wrap)
       }

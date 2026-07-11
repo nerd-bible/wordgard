@@ -478,6 +478,21 @@ describe("DocTile", () => {
       ist(tile.dom.innerHTML, `<para></para>`)
     })
 
+    it("can handle changes covering parts of wrapped atomic plots", () => {
+      let tile = render(doc(p("ab"), p("cd")), [
+        Decoration.Tag.shape(Paragraph, Elt.mk("para")),
+        Decoration.Tag.wrapper(Paragraph, Elt.mk("outer", [0]))
+      ])
+      tile = update(tile, {changes: {from: 2, to: 6, insert: [Plot.End, Paragraph]}})
+      ist(tile.dom.innerHTML, `<outer><para></para></outer><outer><para></para></outer>`)
+    })
+
+    it("can handle changes covering the start of atomic plots", () => {
+      let tile = render(doc(h2("ab"), p("cd")), Decoration.Tag.shape(Paragraph, Elt.mk("para")))
+      tile = update(tile, {changes: {from: 2, to: 6, insert: [Plot.End, Paragraph]}})
+      ist(tile.dom.innerHTML, `<h2>a</h2><para></para>`)
+    })
+
     it("supports selectors for wrapper decorations", () => {
       let complexImg = Decoration.Tag.shape(Image, i => Elt.mk("span", {class: "my-image"}, [Elt.mk("img", {src: i.param})]))
       let deco = PointSet.create([[2, Decoration.Point.wrapper(Elt.mk("span", {class: "inner"}, [0]), {target: "img"})]])

@@ -675,13 +675,16 @@ interface TileWalker {
 
 // Used to track the previous tree during an update.
 class TilePointer {
+  // In most tiles, index is a child position. In text nodes, it is a
+  // character offset, and in atoms (with length > 1), a position
+  // offset.
   constructor(readonly tile: Tile, readonly index: number, readonly parent: TilePointer | null) {}
 
   walk(dist: number, side: -1 | 1, walker?: TileWalker) {
     let {tile, index, parent} = this, nodeBoundary = 0 // 1=entering, 2=leaving
     for (;;) {
       if (!dist && side < 0 && !nodeBoundary) break
-      if (tile.isText) {
+      if (tile.isAtom) {
         if (!dist) break
         nodeBoundary = 0
         let left = tile.length - index
@@ -715,8 +718,8 @@ class TilePointer {
           index++
           if (!next.isNodeInner) nodeBoundary = 0
         } else {
-          if (next.isNodeOuter && (!dist || next.isAtom && !next.isText)) break
-          if (walker && !next.isText) walker.enter(next as EltTile)
+          if (next.isNodeOuter && !dist) break
+          if (walker && !next.isAtom) walker.enter(next as EltTile)
           dist -= next.boundary
           parent = tile == this.tile && index == this.index ? this : new TilePointer(tile, index, parent)
           tile = next
@@ -783,6 +786,7 @@ class ContentUpdate {
   reused = new Map<Tile, Reused>()
   keepWalker: TileWalker
   toConnect: WidgetTile[] = []
+  partialNode: {node: Node, shape: Decoration.Shape, wrappers: number, reuse: Tile | null} | null = null
 
   constructor(readonly state: GardState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: Mark.Set | null) {
     this.old = new TilePointer(old, 0, null)
@@ -817,8 +821,23 @@ class ContentUpdate {
       },
       skip: (tile, from, to) => {
         if (!(tile instanceof TextTile)) {
-          this.reused.set(tile, Reused.Full)
-          this.new.addChild(tile)
+          if (!from && to == tile.length) {
+            this.reused.set(tile, Reused.Full)
+            this.new.addChild(tile)
+          } else if (from == 0) {
+            let wrappers = 0
+            for (let w: Tile | null = this.new; w && w.isWrapper; w = w.parent) wrappers++
+            let shape = tile instanceof EltTile ? tile.elt : tile instanceof WidgetTile ? tile.widget : null
+            if (!shape || !tile.node) throw new Error("Unexpected atom tile")
+            this.partialNode = {node: tile.node, reuse: tile, shape, wrappers}
+          } else {
+            if (!this.partialNode) throw new Error("Missing partial node")
+            if (to == tile.length) {
+              let {node, shape, reuse} = this.partialNode
+              this.partialNode = null
+              this.new.addChild(this.buildNodeShape(node, shape, reuse))
+            }
+          }
         } else if (this.new.lastChild instanceof TextTile && !this.new.lastChild.isComposition) {
           this.addText(tile.text.slice(from, to))
         } else if (!from && to == tile.text.length && !(tile.flags & TileFlag.Dirty) && !this.reused.has(tile)) {
@@ -911,7 +930,7 @@ class ContentUpdate {
         if (reuse) this.old = this.old.walk(1, 1)
         this.posB++
       },
-      node: (node, shape, wrappers) => {
+      node: (node, shape, wrappers, partial) => {
         this.openWrappers(wrappers, reuse)
         let wrapCount = wrappers.length
         if (node.is(Leaf.Text)) {
@@ -930,12 +949,29 @@ class ContentUpdate {
             this.reused.set(next, Reused.DOM)
             this.new.addChild(new TextTile(node.param, next.dom))
           }
+        } else if (partial != null) {
+          this.partialNode = {node, shape, wrappers: wrapCount, reuse: reuse ? this.old.tileAfter() : null}
+          if (reuse) this.old = this.old.walk(partial, 1)
+          this.posB += partial
+          return
         } else {
           this.new.addChild(this.buildNodeShape(node, shape, reuse ? this.old.tileAfter() : null))
         }
         for (let i = 0; i < wrapCount; i++) this.up()
         if (reuse) this.old = this.old.walk(node.length, 1)
         this.posB += node.length
+      },
+      nodePart: (node, length, done) => {
+        if (!this.partialNode) throw new Error("Continuing unknown partial node")
+        this.posB += length
+        this.partialNode.node = node
+        if (reuse) this.old = this.old.walk(length, 1)
+        if (done) {
+          let {node, shape, wrappers, reuse} = this.partialNode
+          this.partialNode = null
+          this.new.addChild(this.buildNodeShape(node, shape, reuse))
+          for (let i = 0; i < wrappers; i++) this.up()
+        }
       },
       widget: (widget, side) => {
         let sideFlag = side < 0 ? TileFlag.PointBefore : side > 0 ? TileFlag.PointAfter : 0
