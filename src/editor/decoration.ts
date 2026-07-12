@@ -1300,9 +1300,6 @@ export class DecoIterator {
     let atomParent: Pos.Plot | undefined
     for (let p: Pos.Plot | null = pos.parent; p; p = p.parent)
       if (this.state.isAtom(p.node.type)) atomParent = p
-    if (atomParent) {
-      
-    }
 
     // Track points that may apply to the node at the start of the next range
     let pendingDeco: Decoration.Point[] = [], pendingPos = -1
@@ -1347,7 +1344,14 @@ export class DecoIterator {
     }
 
     for (; !iter.next().done;) {
-      if (iter.point) {
+      if (atomParent) {
+        let end = Math.min(to, atomParent.after), done = atomParent.after <= to
+        walker.nodePart(atomParent.node, end - pos.pos, done)
+        pos = pos.advance(end - pos.pos)
+        if (done) this.widgets(atomParent.node.tag, WidgetPlace.After, walker)
+        atomParent = undefined
+        while (iter.point && iter.from < end) iter.next()
+      } else if (iter.point) {
         let value = iter.point.value!
         if (value instanceof WidgetDecoration) {
           walker.widget(value.widget, value.side)
@@ -1365,21 +1369,19 @@ export class DecoIterator {
             pendingDeco.push(value)
           }
         }
-      } else if (atomParent) {
-        let end = Math.min(to, atomParent.after), done = atomParent.after <= to
-        walker.nodePart(atomParent.node, end - pos.pos, done)
-        pos = pos.advance(end - pos.pos)
-        if (done) this.widgets(atomParent.node.tag, WidgetPlace.After, walker)
-        atomParent = undefined
       } else {
         pos = pos.walk(iter.to - iter.from, wrap)
       }
     }
     if (pos.pos < to) pos = pos.walk(to - pos.pos, wrap)
 
-    let after = pos.nodeAfter
-    if (after) this.widgets(after!.tag, WidgetPlace.Before, walker)
-    else this.widgets(pos.parent.node.tag, WidgetPlace.End, walker)
+    if (atomParent) {
+      walker.nodePart(atomParent.node, 0, atomParent.after == to)
+    } else {
+      let after = pos.nodeAfter
+      if (after) this.widgets(after!.tag, WidgetPlace.Before, walker)
+      else this.widgets(pos.parent.node.tag, WidgetPlace.End, walker)
+    }
     this.pos = pos
   }
 

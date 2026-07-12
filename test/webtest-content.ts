@@ -510,6 +510,13 @@ describe("DocTile", () => {
       ist(tile.dom.querySelector("para"), para)
     })
 
+    it("can handle deletion inside an atomic plot", () => {
+      let tile = render(doc(p("abcd")), Decoration.Tag.shape(Paragraph, Elt.mk("para")))
+      tile = update(tile, {changes: {from: 2, to: 4}})
+      ist(tile.dom.innerHTML, `<para></para>`)
+      ist(tile.children[0].length, 4)
+    })
+
     it("can handle changes covering parts of atomic plots", () => {
       let tile = render(doc(p("ab"), p("cd")), Decoration.Tag.shape(Paragraph, Elt.mk("para")))
       tile = update(tile, {changes: {from: 2, to: 6}})
