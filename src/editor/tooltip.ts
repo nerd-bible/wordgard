@@ -505,11 +505,15 @@ export namespace Tooltip {
     enables: [tooltipPlugin, styles]
   })
 
-  /// Get the active tooltip view for a given tooltip, if available.
-  export function get(wg: Wordgard, tooltip: Tooltip): Tooltip.View | null {
+  /// Get the active tooltip view for a given tooltip or tooltip
+  /// constructor, if available.
+  export function get<T extends Tooltip>(wg: Wordgard, tooltip: T): ReturnType<T["create"]> | null
+  export function get<T extends Tooltip.View>(wg: Wordgard, create: (wg: Wordgard) => T): T | null
+  export function get(wg: Wordgard, tooltip: Tooltip | ((wg: Wordgard) => Tooltip.View)): Tooltip.View | null {
     let plugin = wg.plugin(tooltipPlugin)
     if (!plugin) return null
-    let found = plugin.manager.tooltips.indexOf(tooltip)
+    let found = plugin.manager.tooltips.findIndex(
+      typeof tooltip == "function" ? p => p.create == tooltip : p => p == tooltip)
     return found < 0 ? null : plugin.manager.tooltipViews[found]
   }
 
