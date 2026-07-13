@@ -449,6 +449,51 @@ export class ChangeSet {
     }
   }
 
+  /// Add skipped sections before and after this change set, so that
+  /// it can apply to a larger document. Mostly useful when
+  /// propagating changes from an editor displaying a smaller part of
+  /// a document into the full document.
+  extend(before: number, after: number) {
+    if (this.empty) return ChangeSet.empty(this.length + before + after)
+    let sections = this.sections.slice(), data = this.data.slice()
+    if (before) {
+      if (sections[1] == -1) {
+        sections[0] += before
+      } else {
+        sections.splice(0, 0, before, -1)
+        data.splice(0, 0, null)
+      }
+    }
+    if (after) {
+      if (sections[sections.length - 1] == -1) {
+        sections[sections.length - 2] += after
+      } else {
+        sections.push(after, -1)
+        data.push(null)
+      }
+    }
+    return new ChangeSet(sections, data)
+  }
+
+  /// Clip the set to only a sub-region. This can fail, if there are
+  /// replacements across the region's sides, in which case the
+  /// method returns null
+  clip(from: number, to: number): ChangeSet | null {
+    let sections: number[] = [], data: SectionData[] = []
+    for (let i = 0, pos = 0; i < this.sections.length && pos <= to;) {
+      let value = this.data[i >> 1], len = this.sections[i++], ins = this.sections[i++]
+      let end = pos + len
+      if (ins > 0) {
+        if (pos >= from && end <= to) addSection(sections, data, end - pos, ins, value)
+        else if (end > from && pos < from) return null
+      } else if (pos < to && end > from) {
+        addSection(sections, data, Math.min(end, to) - Math.max(pos, from), ins, value)
+      }
+      pos = end
+    }
+    return new ChangeSet(sections, data)
+  }
+
   /// Create a change set. All positions in the given change
   /// description refer to positions in the starting document.
   static create(doc: Plot.Doc, spec: ChangeSet.Spec): ChangeSet {
