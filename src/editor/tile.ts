@@ -412,10 +412,10 @@ export class DocTile extends CompositeTile {
         }
         if (ch.isPlotContent && !ch.boundary ? pos >= off && pos <= end : pos > off && pos < end) {
           if (ch instanceof TextTile) return new TilePos(ch, pos - off, pos)
+          else if (ch.isAtom) { i = j; break search }
           scan = ch
           off += ch.boundary
           if (ch.isPlotContent || ch.isWrapper) parent = ch
-          else if (ch.isAtom) pos = end
           continue search
         }
         off = end
