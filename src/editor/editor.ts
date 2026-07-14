@@ -189,7 +189,8 @@ export class Wordgard {
     }
   }
 
-  /// @internal
+  /// Force a flush on the editor content, updating its DOM
+  /// representation for any pending changes.
   flush() {
     if (!this.connected || this.inputState.pendingComposition || this.inputState.pendingDeletion) return
     if (!this.viewState.pending.some(tr => tr.selection)) this.observer.pollSelection()

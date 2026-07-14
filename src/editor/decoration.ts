@@ -998,6 +998,7 @@ export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
     if (ins == -1 && globalChange) {
       addSection(result, len, -2)
     } else if (ins == -1) {
+      let endB = posB + len
       // Unchanged section. See which parts have potentially updated
       // decorations, and tag those as changed
       let cur: number[] = [], curPos = 0, ranges: number[][] = [cur]
@@ -1011,24 +1012,28 @@ export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
       })
       compareDecoSet(prevDeco.points, deco.points, (a, b) => {
         (a || PointSet.empty).compareRange(posA, b || PointSet.empty, posB, len, (pos, val) => {
-          add(pos, pos + (val instanceof WidgetDecoration ? 0 : 1))
-          if (val instanceof ShapeDecoration) {
-            if (!globalChange) shapeChanges.push(pos)
-          }
+          add(pos, Math.min(pos + (val instanceof WidgetDecoration ? 0 : 1), endB))
+          if (val instanceof ShapeDecoration && !globalChange) shapeChanges.push(pos)
         })
       })
-      let joined = joinRanges(ranges), pos = posB, end = pos + len
-      for (let i = 0; i < joined.length;) {
-        let from = Math.max(pos, joined[i++]), to = Math.min(end, joined[i++])
+      let joined = joinRanges(ranges), pos = posB, end = pos + len, j = 0
+      // Skip empty update if not after a preserved section.
+      if (joined.length && joined[0] == pos && joined[1] == pos && result.length && result[result.length - 1] != -1)
+        j = 2
+      for (; j < joined.length;) {
+        let from = Math.max(pos, joined[j++]), to = Math.min(end, joined[j++])
         if (from > pos) addSection(result, from - pos, -1)
         if (from <= to) addSection(result, to - from, -2)
         pos = to
       }
       if (pos < end) addSection(result, end - pos, -1)
-      posA += len; posB += len
+      posA += len; posB = endB
     } else {
       posA += len
       posB += ins < 0 ? len : ins
+      if (ins >= 0 && result.length && result[result.length - 2] == 0 && result[result.length - 1] == -2) {
+        result.pop(); result.pop()
+      }
       addSection(result, len, ins)
     }
   }

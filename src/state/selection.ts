@@ -324,7 +324,7 @@ export namespace GardSelection {
 
   /// Node selections select a single node. They are created, for
   /// example, when clicking on or moving into a {@link
-  /// doc.Leaf.Spec.selectable selectable} leaf node. Use {@link
+  /// Node.Spec.selectable selectable} leaf node. Use {@link
   /// GardSelection.node} to create one.
   export class Node extends GardSelection {
     private constructor(
