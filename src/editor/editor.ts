@@ -100,10 +100,9 @@ export class Wordgard {
   /// @internal
   observer: DOMObserver
 
-  /// @internal
-  domReaders: ((wg: Wordgard) => void)[] = []
-  /// @internal
-  domWriters: ((wg: Wordgard) => void)[] = []
+  private domReaders: ((wg: Wordgard) => void)[] = []
+  private domWriters: ((wg: Wordgard) => void)[] = []
+  private pendingTransactionListeners = new Map<(trs: readonly Transaction[], wg: Wordgard) => void, readonly Transaction[]>()
 
   private constructor(spec: Wordgard.Spec) {
     this.flushFunc = () => { if (this.willFlush) this.flush() }
@@ -176,7 +175,9 @@ export class Wordgard {
     if (this.flushing != Flush.No) throw new Error("Cannot dispatch new updates during the editor flush phase")
     if (!(tr instanceof Transaction)) tr = this.state.update(tr)
     else if (tr.startState != this.state) throw new Error("Dispatching a transaction starting from the wrong state")
-    for (let t of Transaction.append(tr as Transaction)) this.viewState.update(t)
+    let trs = Transaction.append(tr as Transaction)
+    for (let t of trs) this.viewState.update(t)
+    this.runTransactionListeners(trs)
     this.scheduleFlush()
   }
 
@@ -623,10 +624,29 @@ export class Wordgard {
   /// debugging and logging. See {@link Wordgard.logException}.
   static exceptionSink = exceptionSink
 
+  /// Registers a listener function to be called whenever a set of
+  /// transactions is applied to the editor. This function may
+  /// dispatch additional transactions, if needed.
+  static transactionListener = GardState.Facet.define<(trs: readonly Transaction[], wg: Wordgard) => void>()
+
+  private runTransactionListeners(trs: readonly Transaction[]) {
+    for (let l of this.state.facet(Wordgard.transactionListener)) {
+      let has = this.pendingTransactionListeners.get(l)
+      this.pendingTransactionListeners.set(l, has ? has.concat(trs) : trs)
+    }
+    for (;;) {
+      let next = this.pendingTransactionListeners.keys().next()
+      if (next.done) break
+      let trs = this.pendingTransactionListeners.get(next.value)!
+      this.pendingTransactionListeners.delete(next.value)
+      next.value(trs, this)
+    }
+  }
+
   /// A facet that can be used to register a function to be called
-  /// after the editor updates. Dispatching transactions from such a
-  /// function is allowed, but will cause a new, separate update to
-  /// happen.
+  /// after the editor flushes updates to the DOM. Dispatching
+  /// transactions from such a function is allowed, but will cause a
+  /// new, separate update to happen.
   static updateListener = GardState.Facet.define<(update: Wordgard.Update) => void>()
 
   /// Facet that controls whether the editor content DOM is editable.
