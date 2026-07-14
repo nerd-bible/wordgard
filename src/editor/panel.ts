@@ -132,10 +132,10 @@ export namespace Panel {
   /// Get the active panel created by the given constructor, if any.
   /// This can be useful when you need access to your panels' DOM
   /// structure.
-  export function get(wg: Wordgard, panel: Panel.Constructor) {
+  export function get<T extends Panel>(wg: Wordgard, constructor: (wg: Wordgard) => T): T | null {
     let plugin = wg.plugin(panelPlugin)
-    let index = plugin ? plugin.specs.indexOf(panel) : -1
-    return index > -1 ? plugin!.panels[index] : null
+    let index = plugin ? plugin.specs.indexOf(constructor) : -1
+    return index > -1 ? plugin!.panels[index] as T : null
   }
 
   /// Configures the panel-managing extension.

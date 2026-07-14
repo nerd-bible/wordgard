@@ -235,10 +235,6 @@ function instantiate(item: Menu.Item.Resolved, bar: MenuBar, flat: BarElement[])
   return elt
 }
 
-const menuBarPanel = Panel.show.of(wg => {
-  return new MenuBar(wg)
-})
-
 class MenuBar {
   dom: HTMLElement
   declare elts: readonly BarElement[]
@@ -257,6 +253,8 @@ class MenuBar {
     this.init()
     this.globalClick = this.globalClick.bind(this)
   }
+
+  static create(wg: Wordgard) { return new MenuBar(wg) }
 
   init() {
     let elts: BarElement[] = []
@@ -420,6 +418,8 @@ class MenuBar {
 
   get top() { return true }
 }
+
+const menuBarPanel = Panel.show.of(MenuBar.create)
 
 function findChild(children: readonly BarElement[], start: boolean) {
   for (let i = start ? 0 : children.length - 1; start ? i < children.length : i >= 0; start ? i++ : i--) {
