@@ -453,7 +453,7 @@ export class ChangeSet {
   /// it can apply to a larger document. Mostly useful when
   /// propagating changes from an editor displaying a smaller part of
   /// a document into the full document.
-  extend(before: number, after: number) {
+  pad(before: number, after: number) {
     if (this.empty) return ChangeSet.empty(this.length + before + after)
     let sections = this.sections.slice(), data = this.data.slice()
     if (before) {
