@@ -80,8 +80,8 @@ class BarButton implements BarElement {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
       if ((flags & F.Disabled) != (this.flags & F.Disabled)) {
-        if (!(flags & F.Disabled)) this.dom.removeAttribute("aria-disabled")
-        else this.dom.setAttribute("aria-disabled", "true")
+        if (flags & F.Disabled) this.dom.setAttribute("aria-disabled", "true")
+        else this.dom.removeAttribute("aria-disabled")
       }
       if ((flags & F.Selected) != (this.flags & F.Selected)) {
         if (flags & F.Selected) this.dom.setAttribute("aria-selected", "true")
@@ -187,8 +187,8 @@ class BarSubmenu implements BarElement {
       if ((flags & F.Hidden) != (this.flags & F.Hidden))
         this.dom.style.display = flags & F.Hidden ? "none" : ""
       if ((flags & F.Disabled) != (this.flags & F.Disabled)) {
-        if (flags & F.Disabled) this.button.removeAttribute("aria-disabled")
-        else this.button.setAttribute("aria-disabled", "true")
+        if (flags & F.Disabled) this.button.setAttribute("aria-disabled", "true")
+        else this.button.removeAttribute("aria-disabled")
       }
       if ((flags & F.Selected) != (this.flags & F.Selected)) {
         if (flags & F.Selected) this.button.setAttribute("aria-selected", "true")
