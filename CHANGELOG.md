@@ -1,3 +1,33 @@
+## 0.3.0 (2026-07-14)
+
+### Breaking changes
+
+Checking for plot atomicity should now be done with `state.isAtom`.
+
+### Bug fixes
+
+Fix an issue that broke the heading/paragraph block style key bindings.
+
+No longer crash when an update touches part of an atomic plot.
+
+Fix a bug that could prevent range wrapper decorations from properly redrawing.
+
+Fix an issue that caused widgets at the end of the document to not be updated properly.
+
+Fix a bug that broke updates when both point and range decorations changed.
+
+Fix a crash in vertical cursor motion in an inline document.
+
+Make forward cursor motion at line wrapping points eagerly go to the next line instead of first moving after the line-wrapped space.
+
+Properly disable a lot of commands and menu items when the editor is read-only.
+
+### New features
+
+Change sets now have `extend` and `clip` methods that can be used to grow or shrink their extent.
+
+`Wordgard.transactionListener` provides a way to listen in on transactions synchronously, as they are dispatched.
+
 ## 0.2.0 (2026-07-09)
 
 ### Breaking changes
