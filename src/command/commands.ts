@@ -20,6 +20,7 @@ import {findClusterBreak} from "@marijn/find-cluster-break"
 export const insertText: Command.Pure<{from: number, to: number, insert: string, userEvent: string}> = (
   {state}, {from, to, insert, userEvent}
 ) => {
+  if (state.readOnly) return false
   let {selection} = state
   let marks = (from == selection.from && to == selection.to && state.sel.activeMarks) ||
     state.doc.resolve(from).marks(state.doc.resolve(to))
@@ -38,6 +39,7 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
 /// {@link Plot.Spec.preserveWhitespace whitespace-preserving}, this
 /// will insert a line break.
 export const insertLineBreak: Command.Pure = ({state}) => {
+  if (state.readOnly) return false
   let {doc, sel} = state
   let brk = doc.schema.lineBreak, parent = sel.from.parent.node.type
   let {from, to} = state.selection.replacementRange
@@ -59,6 +61,7 @@ export const insertLineBreak: Command.Pure = ({state}) => {
 /// default textblock in its position. Otherwise it first tries
 /// `liftEmptyTextblock`, then `splitTextblock`.
 export const enter: Command.Pure = ({state}) => {
+  if (state.readOnly) return false
   let {sel, doc} = state
   // When not in an inline context, try to create new empty textblock
   if (!sel.head.parent.node.inlineContent || !sel.anchor.parent.node.inlineContent) {
@@ -89,6 +92,7 @@ export const enter: Command.Pure = ({state}) => {
 /// When deleting backward at the start of a list item that has a
 /// sibling before it, this command will try to join those list items.
 export const deleteUnit: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
+  if (state.readOnly) return false
   return deleteSelection(state) || (dir == "forward"
     ? joinForward(state) || deleteForward(state) || deleteEmptyTextblock(state, 1)
     : joinListItems(state) || joinBackward(state) || deleteBackward(state) || deleteEmptyTextblock(state, -1))
@@ -98,6 +102,7 @@ export const deleteUnit: Command.Pure<"forward" | "backward"> = ({state}, dir) =
 /// {@link deleteUnit}, except that, when deleting text, it will
 /// delete an entire word.
 export const deleteWord: Command.Pure<"forward" | "backward"> = ({state}, dir) => {
+  if (state.readOnly) return false
   return deleteSelection(state) || (dir == "forward"
     ? joinForward(state) || deleteForward(state, true) || deleteEmptyTextblock(state, 1)
     : joinListItems(state) || joinBackward(state) || deleteBackward(state, true) || deleteEmptyTextblock(state, -1))
@@ -106,6 +111,7 @@ export const deleteWord: Command.Pure<"forward" | "backward"> = ({state}, dir) =
 /// Delete to the end or start of the line. Stops at line wrapping
 /// points.
 export const deleteToLineEnd: Command<"forward" | "backward"> = (wg, dir) => {
+  if (wg.state.readOnly) return false
   let tr = deleteSelection(wg.state), {selection} = wg.state
   if (tr) return (wg.dispatch(tr), true)
   if (!(selection instanceof GardSelection.Text)) return false
@@ -121,6 +127,7 @@ export const deleteToLineEnd: Command<"forward" | "backward"> = (wg, dir) => {
 /// Delete the selection, or if that is empty, the line around the
 /// cursor.
 export const deleteLine: Command = wg => {
+  if (wg.state.readOnly) return false
   let tr = deleteSelection(wg.state), {selection} = wg.state
   if (tr) return (wg.dispatch(tr), true)
   if (!(selection instanceof GardSelection.Text)) return false
@@ -135,7 +142,7 @@ export const deleteLine: Command = wg => {
 
 /// Swap the characters before and after the cursor.
 export const transposeChars: Command.Pure = ({state}) => {
-  if (!state.selection.isCursor) return false
+  if (state.readOnly || !state.selection.isCursor) return false
   let {sel} = state, head = state.selection.head
   let before = sel.head.nodeBefore, after = sel.head.nodeAfter
   if (!before || !before.is(Leaf.Text) || !after || !after.is(Leaf.Text)) return false
@@ -153,6 +160,7 @@ export const transposeChars: Command.Pure = ({state}) => {
 /// Set the type of the textblock(s) around the selection to the given
 /// tag.
 export const setTextblockType: Command.Pure<Plot.Tag> = ({state}, tag) => {
+  if (state.readOnly) return false
   let changes: ChangeSet.Spec[] = [], {schema} = state.doc
   for (let block of selectedTextblocks(state)) {
     if (!block.node.tag.eq(tag) && block.parent && schema.canContain(block.parent.node.type, tag.type)) {
@@ -168,6 +176,7 @@ export const setTextblockType: Command.Pure<Plot.Tag> = ({state}, tag) => {
 /// given, indicates what kind of wrapping plots may be removed.
 /// Returns null when no unwrapping is possible.
 export const unwrapBlock: Command.Pure<Node.Query | null> = ({state}, query) => {
+  if (state.readOnly) return false
   let targets: Pos.Node[] = [], changes: ChangeSet.Spec[] = []
   for (let {from, to} of state.selection.ranges) {
     if (!targets.some(t => t.after > from && t.before < to)) {
@@ -189,6 +198,7 @@ export const unwrapBlock: Command.Pure<Node.Query | null> = ({state}, query) => 
 /// Try to wrap selected textblocks in the given wrapper. Will return
 /// null if no wrapping is possible.
 export const wrapBlock: Command.Pure<Plot.Tag> = ({state}, wrapper) => {
+  if (state.readOnly) return false
   let changes: ChangeSet.Spec[] = [], lastTo = -1
   for (let {from, to} of state.selection.ranges) {
     let range = findWrappable(state.doc.resolve(from), state.doc.resolve(to), wrapper)
@@ -211,6 +221,7 @@ export const toggleBlock: Command.Pure<Plot.Tag> = (target, tag) => {
 /// Otherwise, if any selected content allows for the mark to be
 /// added, it is added. If not, remove the mark from the selection.
 export const toggleMark: Command.Pure<Mark> = ({state}, mark) => {
+  if (state.readOnly) return false
   let {selection, doc} = state
   if (selection instanceof GardSelection.Text && selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks(), add = !mark.isInSet(selMarks)
@@ -251,7 +262,7 @@ export const toggleUnderline: Command.Pure = target => toggleMark(target, Underl
 /// {@link Alignment} mark.
 export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "left" | "right"> = ({state}, align) => {
   let {schema} = state.doc
-  if (!schema.has(Alignment)) return false
+  if (state.readOnly || !schema.has(Alignment)) return false
   if (align == "start") align = null
   if (align == "left" || align == "right") align = ltrAtCursor(state) == (align == "left") ? null : "end"
   let changes: ChangeSet.Spec[] = []
@@ -273,7 +284,7 @@ export const setAlignment: Command.Pure<null | "start" | "end" | "center" | "lef
 /// {@link Direction} mark.
 export const setDirection: Command.Pure<null | "ltr" | "rtl" | "auto"> = ({state}, dir) => {
   let {schema} = state.doc
-  if (!schema.has(Direction)) return false
+  if (state.readOnly || !schema.has(Direction)) return false
   let changes: ChangeSet.Spec[] = []
   for (let block of selectedTextblocks(state)) {
     let cur = block.node.tag.mark(Direction)
@@ -290,6 +301,7 @@ export const setDirection: Command.Pure<null | "ltr" | "rtl" | "auto"> = ({state
 /// Toggle list wrapping with the given list tag for the selected
 /// blocks.
 export const toggleList: Command.Pure<Plot.Tag> = ({state}, listTag) => {
+  if (state.readOnly) return false
   let blocks = selectedTextblocks(state)
   if (!blocks.length) return false
   return addList(state, blocks, listTag) || removeList(state, blocks, listTag)

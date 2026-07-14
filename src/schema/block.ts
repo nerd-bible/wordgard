@@ -48,6 +48,7 @@ export namespace paragraph {
     run: Command.bind(setTextblockType, Paragraph),
     active: selectionInType(Paragraph),
     label: phrases.ref("paragraph"),
+    enable: s => !s.readOnly,
     parent: Menu.Submenu.textblockStyle,
     rank: 10
   })
@@ -81,6 +82,7 @@ export namespace heading {
     run: Command.bind(setTextblockType, Heading.of(1)),
     active: selectionInType(Heading.of(1)),
     label: phrases.ref("heading_1"),
+    enable: s => !s.readOnly,
     parent: Menu.Submenu.textblockStyle,
     rank: 50
   })
@@ -90,6 +92,7 @@ export namespace heading {
     run: Command.bind(setTextblockType, Heading.of(2)),
     active: selectionInType(Heading.of(2)),
     label: phrases.ref("heading_2"),
+    enable: s => !s.readOnly,
     parent: Menu.Submenu.textblockStyle,
     rank: 51
   })
@@ -99,6 +102,7 @@ export namespace heading {
     run: Command.bind(setTextblockType, Heading.of(3)),
     active: selectionInType(Heading.of(3)),
     label: phrases.ref("heading_3"),
+    enable: s => !s.readOnly,
     parent: Menu.Submenu.textblockStyle,
     rank: 52
   })
@@ -133,6 +137,7 @@ export namespace codeBlock {
     run: Command.bind(setTextblockType, CodeBlock),
     active: selectionInType(CodeBlock),
     label: phrases.ref("code_block"),
+    enable: s => !s.readOnly,
     parent: Menu.Submenu.textblockStyle,
     rank: 30
   })
@@ -203,6 +208,7 @@ export namespace alignment {
     description: phrases.ref("alignment"),
     parent: Menu.Group.block,
     arrow: false,
+    enable: s => !s.readOnly,
     rank: 10,
     content: [buttonStart, buttonEnd, buttonCenter]
   })
@@ -279,6 +285,7 @@ export namespace direction {
     description: phrases.ref("text_dir"),
     parent: Menu.Group.block,
     arrow: false,
+    enable: s => !s.readOnly,
     rank: 20,
     content: [buttonLTR, buttonRTL, buttonAuto]
   })
@@ -305,6 +312,7 @@ export namespace blockquote {
       icon: "M75 75a6 6 0 0 0 6-6V53a6 6 0 0 0-6-6h-9q0-3 0-7 1-3 2-6t3-4q2-2 5-2V19q-5 0-9 2a21 21 0 0 0-7 6 31 31 0 0 0-4 9A48 48 0 0 0 56 47V69a5 5 0 0 0 6 6zm-37 0a6 6 0 0 0 6-6V53a6 6 0 0 0-6-6H29q0-3 0-7 1-3 2-6 1-3 3-4 2-2 5-2V19q-5 0-9 2a21 21 0 0 0-7 6 31 31 0 0 0-4 9A48 48 0 0 0 19 47V69a6 6 0 0 0 6 6z"
     },
     description: phrases.ref("toggle_quote"),
+    enable: s => !s.readOnly,
     parent: Menu.Group.block,
     rank: 40
   })

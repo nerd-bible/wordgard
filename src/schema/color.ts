@@ -7,6 +7,7 @@ import {Wordgard} from "wordgard/editor"
 
 function setColor(wg: Wordgard, mark: Mark.Type<string>, value: string) {
   let {state} = wg, {selection} = state
+  if (state.readOnly) return
   if (selection instanceof GardSelection.Text && selection.empty) {
     let selMarks = selection.marks || state.sel.head.marks()
     let newMarks = value ? mark.of(value).addToSet(selMarks) : mark.removeFromSet(selMarks)
@@ -285,6 +286,7 @@ export namespace color {
     description: phrases.ref("text_color"),
     arrow: false,
     parent: Menu.Group.inline,
+    enable: s => !s.readOnly,
     rank: 80,
     content: [colorPicker]
   })
@@ -318,6 +320,7 @@ export namespace backgroundColor {
     description: phrases.ref("background_color"),
     arrow: false,
     parent: Menu.Group.inline,
+    enable: s => !s.readOnly,
     rank: 85,
     content: [backgroundPicker]
   })

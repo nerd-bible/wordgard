@@ -219,6 +219,7 @@ export function insertCells(
 
 /// @hidden exported for testing
 export function handleTablePaste(state: GardState, slice: Slice, context: readonly Plot.Tag[], drop?: number) {
+  if (state.readOnly) return false
   let {schema} = state.doc
   if (drop == null && state.selection instanceof CellSelection) {
     let cells = pastedCells(schema, slice, context)
@@ -247,6 +248,7 @@ export const tablePasteHandler = Wordgard.pasteHandler.of((wg, _event, slice, co
 // FIXME is it ridiculously hard to grab a multi-cell selection for
 // dragging. May require completely custom handling.
 export const tableDropHandler = Wordgard.dropHandler.of((wg, _event, pos, move, slice, context) => {
+  if (wg.state.readOnly) return false
   let tr = handleTablePaste(wg.state, slice, context, pos)
   if (!tr) return false
   if (move) {

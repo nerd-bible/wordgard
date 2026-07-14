@@ -32,6 +32,7 @@ export namespace bulletList {
       directional: true
     },
     description: phrases.ref("toggle_bullet_list"),
+    enable: s => !s.readOnly,
     parent: Menu.Group.block,
     rank: 20
   })
@@ -62,6 +63,7 @@ export namespace orderedList {
       directional: true
     },
     description: phrases.ref("toggle_ordered_list"),
+    enable: s => !s.readOnly,
     parent: Menu.Group.block,
     rank: 30
   })

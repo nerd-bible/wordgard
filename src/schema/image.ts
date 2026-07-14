@@ -185,6 +185,7 @@ export namespace image {
       icon: "M38 34a9 9 0 1 1-19 0 9 9 0 0 1 19 0M9 13A9 9 0 0 0 0 22v56A9 9 0 0 0 9 88h81a9 9 0 0 0 9-9v-56A9 9 0 0 0 91 13zm81 6a3 3 0 0 1 3 3v38l-24-12a3 3 0 0 0-4 1l-23 23-17-11a3 3 0 0 0-4 0L6 75v3L6 78v-56a3 3 0 0 1 3-3z"
     },
     description: imagePhrases.ref("insert_image"),
+    enable: s => !s.readOnly,
     parent: Menu.Group.insert,
     rank: 30,
   })
@@ -196,7 +197,7 @@ export namespace image {
   export const dropHandler = GardState.prec.lowest(Wordgard.domEventHandler("drop", (event, wg) => {
     let {state} = wg, upload = state.facet(imageUploader)[0]
     const type = state.schema.has(Image) ? Image : state.schema.has(Figure) ? Figure : null
-    if (!type || !upload || !event.dataTransfer) return false
+    if (state.readOnly || !type || !upload || !event.dataTransfer) return false
     let files = event.dataTransfer.files, uploads: Promise<string>[] = []
     for (let i = 0; i < files.length; i++) {
       let file = files[i]

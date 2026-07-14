@@ -143,6 +143,7 @@ export namespace Menu {
           else
             return !selection.ranges.some(r => canAddMarkInRange(state.doc, r.from, r.to, mark))
         },
+        enable: s => !s.readOnly,
         parent,
         rank,
         description,

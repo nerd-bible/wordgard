@@ -362,7 +362,7 @@ export const undoButton = Menu.Button.define({
     icon: "M69 90c9-16 10-41-24-40v20l-30-30 30-30v19c42-1 46 37 24 61z"
   },
   description: phrases.ref("undo"),
-  enable: s => undoDepth(s) > 0,
+  enable: s => !s.readOnly && undoDepth(s) > 0,
   parent: Menu.Group.commands,
   rank: 10
 })
@@ -374,7 +374,7 @@ export const redoButton = Menu.Button.define({
     icon: "M55 29v-19l30 30-30 30v-20c-35-1-33 24-24 40-22-24-17-62 24-61z"
   },
   description: phrases.ref("redo"),
-  enable: s => redoDepth(s) > 0,
+  enable: s => !s.readOnly && redoDepth(s) > 0,
   parent: Menu.Group.commands,
   rank: 20
 })

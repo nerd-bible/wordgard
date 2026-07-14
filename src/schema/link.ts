@@ -6,6 +6,7 @@ import {phrases} from "wordgard/phrases"
 import {Wordgard, Dialog, KeyBinding, Tooltip} from "wordgard/editor"
 
 function toggleLink(wg: Wordgard) {
+  if (wg.state.readOnly) return false
   let open = Dialog.get(wg, "wg-link-dialog")
   if (open) {
     if (open.dom.contains(wg.contentDOM.ownerDocument.activeElement))
@@ -125,7 +126,7 @@ export namespace link {
       return found
     },
     enable(state) {
-      return !state.selection.empty
+      return !state.readOnly && !state.selection.empty
     },
     label: {
       icon: "M29 41 21 49a19 19 0 1 0 27 27l11-11A19 19 0 0 0 54 34L50 38a6 6 0 0 0-1 1 13 13 0 0 1 5 22L43 72a12 12 0 1 1-18-18l5-5a25 25 0 0 1-1-8zM41 29A19 19 0 0 0 46 59l5-5a13 13 0 0 1-6-21L57 22a12 12 0 1 1 18 18l-5 5c1 3 1 5 1 8l9-9a19 19 0 1 0-27-27z"

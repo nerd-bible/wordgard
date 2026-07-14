@@ -752,6 +752,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
   input(wg, event) {
     let type = event.inputType
     if (type == "insertCompositionText" && wg.inputState.pendingComposition) {
+      if (wg.state.readOnly) return true
       let {from, to, text} = wg.inputState.pendingComposition
       LOG_input && console.log("input", event.inputType, from, to, text)
       wg.inputState.pendingComposition = null
@@ -783,6 +784,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       return false
     } else if (browser.android && browser.chrome && (type == "deleteContentBackward" || type == "deleteContentForward") &&
                wg.inputState.pendingDeletion) {
+      if (wg.state.readOnly) return true
       let {from, to} = wg.inputState.pendingDeletion
       wg.inputState.pendingDeletion = null
       wg.dispatch({

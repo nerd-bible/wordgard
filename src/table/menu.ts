@@ -150,6 +150,7 @@ export namespace tableMenu {
     },
     label: tableIcon,
     description: tablePhrases.ref("insert_table"),
+    enable: s => !s.readOnly,
     parent: Menu.Group.insert,
     rank: 70,
     content: [dimensionPicker]
@@ -172,6 +173,7 @@ export namespace tableMenu {
     run: toggleHeaderCell,
     select: state => !!headerCellTag(state.schema),
     label: tablePhrases.ref("toggle_header"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 10
   })
@@ -180,6 +182,7 @@ export namespace tableMenu {
   export const addRowAbove = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "before"),
     label: tablePhrases.ref("add_row_above"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 20,
   })
@@ -188,6 +191,7 @@ export namespace tableMenu {
   export const addRowBelow = Menu.Button.define({
     run: wg => Command.dispatch(wg, addRow, "after"),
     label: tablePhrases.ref("add_row_below"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 21,
   })
@@ -196,6 +200,7 @@ export namespace tableMenu {
   export const deleteRow = Menu.Button.define({
     run: _deleteRow,
     label: tablePhrases.ref("delete_row"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 25
   })
@@ -204,6 +209,7 @@ export namespace tableMenu {
   export const addColumnBefore = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "before"),
     label: tablePhrases.ref("add_col_before"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 30,
   })
@@ -212,6 +218,7 @@ export namespace tableMenu {
   export const addColumnAfter = Menu.Button.define({
     run: wg => Command.dispatch(wg, addColumn, "after"),
     label: tablePhrases.ref("add_col_after"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 31,
   })
@@ -220,6 +227,7 @@ export namespace tableMenu {
   export const deleteColumn = Menu.Button.define({
     run: _deleteColumn,
     label: tablePhrases.ref("delete_col"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 35,
   })
@@ -233,6 +241,7 @@ export namespace tableMenu {
         state.schema.has(ColSpan) && state.schema.has(RowSpan)
     },
     label: tablePhrases.ref("merge_cells"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 40,
   })
@@ -248,6 +257,7 @@ export namespace tableMenu {
       return !!(cell && (cell.mark(ColSpan) || cell.mark(RowSpan)))
     },
     label: tablePhrases.ref("split_cell"),
+    enable: s => !s.readOnly,
     parent: modifyTable,
     rank: 41,
   })
