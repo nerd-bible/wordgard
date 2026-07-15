@@ -49,6 +49,14 @@ export class Wordgard {
   /// composition there.
   get compositionStarted() { return this.inputState.composing && this.inputState.composing.changes > 0 }
 
+  /// Queries whether the editor's DOM is {@link Wordgard#editable
+  /// editable}.
+  get editable() { return this.state.facet(Wordgard.editable) }
+
+  /// Returns true if the editor can be focused (is {@link
+  /// Wordgard.editable editable} or has a tabindex).
+  get focusable() { return this.editable || this.contentDOM.tabIndex > -1 }
+
   /// The document or shadow root that the editor lives in.
   root: DocumentOrShadowRoot = document
 

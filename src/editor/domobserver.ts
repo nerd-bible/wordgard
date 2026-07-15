@@ -125,14 +125,15 @@ export class DOMObserver {
   onSelectionChange() {
     this.readSelectionRange()
     if (this.selectionChanged) {
-      if (this.wg.inputState.lastTouchTime > Date.now() - 100) this.pollSelection("select.pointer")
+      if (this.wg.inputState.lastTouchTime > Date.now() - 100 || !this.wg.focusable)
+        this.pollSelection("select.pointer")
       else this.wg.scheduleFlush()
     }
   }
 
   pollSelection(userEvent = "select") {
     if (this.selectionChanged && !this.wg.inputState.pendingComposition &&
-        this.wg.hasFocus && hasSelection(this.wg.contentDOM, this.selectionRange)) {
+        (this.wg.hasFocus || !this.wg.focusable) && hasSelection(this.wg.contentDOM, this.selectionRange)) {
       this.selectionChanged = false
       let sel = readDOMSelection(this.wg, this.selectionRange)
       if (!sel.eqPos(this.wg.state.selection))

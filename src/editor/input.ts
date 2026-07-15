@@ -592,7 +592,8 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
 
   mousedown(wg, event) {
     wg.inputState.shiftKey = event.shiftKey
-    if (wg.inputState.lastTouchTime > Date.now() - 500) return false // Ignore touch interaction
+    if (wg.inputState.lastTouchTime > Date.now() - 500 || // Ignore touch interaction
+        !wg.focusable) return false
     let style: Wordgard.MouseSelectionStyle | null = null
     for (let makeStyle of wg.state.facet(mouseSelectionStyle)) {
       style = makeStyle(wg, event)
