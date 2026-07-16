@@ -1,3 +1,15 @@
+## 0.3.1 (2026-07-16)
+
+### Bug fixes
+
+Fix an issue where mouse selection on an uneditable instance would update the state selection but not the DOM selection.
+
+Avoid confusion about selection and deletion ranges when Android voice typing or a sloppy virtual keyboard fires a burst of input events.
+
+### New features
+
+Plots now have a `contentEq` method to compare only their content.
+
 ## 0.3.0 (2026-07-14)
 
 ### Breaking changes
