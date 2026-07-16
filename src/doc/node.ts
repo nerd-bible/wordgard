@@ -492,7 +492,13 @@ export class Plot implements Node.Shared {
   }
 
   eq(other: Node): boolean {
-    return this == other || other instanceof Plot && this.tag.eq(other.tag) && eqArray(this.content, other.content)
+    return this == other || other instanceof Plot && this.tag.eq(other.tag) && this.contentEq(other)
+  }
+
+  /// Compare the content of this plot to the content of the given
+  /// plot.
+  contentEq(other: Plot): boolean {
+    return eqArray(this.content, other.content)
   }
 
   /// @internal
