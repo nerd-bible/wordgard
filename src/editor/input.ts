@@ -6,10 +6,10 @@ import {Command, undo, redo, insertLineBreak, enter, insertText,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
 import {Wordgard} from "./editor"
 import browser from "./browser"
-import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter, domIndex} from "./dom"
+import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 import {eqArray, logException} from "./util"
-import {Tile, CoordPos} from "./tile"
+import {Tile, TextTile, CoordPos} from "./tile"
 import {KeyBinding} from "./keymap"
 
 const LOG_input = false
@@ -68,7 +68,6 @@ export class InputState {
   pendingComposition: {from: number, to: number, text: string} | null = null
   // Used in the hack to handle weird Chrome Android deletions
   pendingDeletion: {from: number, to: number} | null = null
-  modifiedTextNodes: Set<Node> = new Set
   wrappingComposition: Mark.Set | null = null
 
   mouseSelection: MouseSelection | null = null
@@ -154,11 +153,7 @@ export class InputState {
     if (this.mouseSelection) this.mouseSelection.update(update)
     if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state)
     if (update.transactions.length) this.lastKeyCode = 0
-    this.modifiedTextNodes.clear()
-    if (this.composing) {
-      this.composing.targetPos = update.changes.mapPos(this.composing.targetPos, -1)
-      if (this.composing.target) this.modifiedTextNodes.add(this.composing.target)
-    }
+    if (this.composing) this.composing.targetPos = update.changes.mapPos(this.composing.targetPos, -1)
   }
 
   findComposition(): {target: Text, targetPos: number} | null {
@@ -181,26 +176,9 @@ export class InputState {
       let pos = this.wg.docTile.posBeforeDOM(newTarget)
       if (pos == null) return comp.target = null
       comp.target = newTarget
-      this.modifiedTextNodes.add(newTarget)
       comp.targetPos = this.wg.viewState.mapPosPending(pos, -1)
     }
     return comp as {target: Text, targetPos: number}
-  }
-
-  markModifiedNodes(range: StaticRange) {
-    let {startContainer: start, startOffset: startOff, endContainer: end, endOffset: endOff} = range
-    for (;;) {
-      if (start.nodeType == 3 && !this.modifiedTextNodes.has(start))
-        this.modifiedTextNodes.add(start)
-      if (start == end && (start.nodeType != 1 || startOff == endOff)) break
-      if (start.nodeType != 1 || startOff == start.childNodes.length) {
-        startOff = domIndex(start) + 1
-        start = start.parentNode!
-      } else {
-        start = start.childNodes[startOff]
-        startOff = 0
-      }
-    }
   }
 
   connect() {
@@ -588,9 +566,9 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
 }
 
 function interpretDOMPosition(wg: Wordgard, node: Node, offset: number, bias: -1 | 1) {
-  if (node.nodeType == 3 && wg.viewState.pending.length && wg.inputState.modifiedTextNodes.has(node)) {
+  if (node.nodeType == 3 && wg.viewState.pending.length) {
     let parent = wg.docTile.nearest(node)
-    if (parent?.isText && parent.dom == node) {
+    if (parent instanceof TextTile && parent.dom == node && parent.text != node.nodeValue) {
       let start = parent.posAtStart
       return wg.viewState.mapPosPending(start, bias) + offset
     }
@@ -725,7 +703,6 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       // twice, we defer handling to the input handler.
       if (browser.android && browser.chrome && (type == "deleteContentBackward" || type == "deleteContentForward")) {
         wg.inputState.pendingDeletion = inputEventRange(event, wg)
-        wg.inputState.markModifiedNodes(event.getTargetRanges()[0])
         LOG_input && console.log("beforeinput", type, wg.inputState.pendingDeletion, "(chrome)")
         return false
       }
