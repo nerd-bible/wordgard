@@ -77,12 +77,28 @@ export class InputState {
 
   notifiedFocused: boolean
 
+  // Track a version of the document that's in the DOM. Usually equal
+  // to state.doc. If expectedChange is non-null, that isn't
+  // integrated into this yet.
+  domDoc: Plot.Doc
+  // Changes that have been made to the DOM since the last flush.
+  domChanges: ChangeSet | null = null
+  // When an input event sees a change to the DOM that we don't
+  // prevent, it is put here so that the next incoming transaction can
+  // be compared to it.
+  expectedChange: ChangeSet | null = null
+  // A change set describing the difference between the document in
+  // the DOM and the state document. Used to interpret DOM-based
+  // position.
+  domMapping: ChangeSet | null = null
+
   constructor(readonly wg: Wordgard) {
     this.handleEvent = this.handleEvent.bind(this)
     this.notifiedFocused = wg.hasFocus
     // On Safari adding an input event handler somehow prevents an
     // issue where the composition vanishes when you press enter.
     if (browser.safari) wg.contentDOM.addEventListener("input", () => null)
+    this.domDoc = wg.state.doc
   }
 
   handleEvent(event: Event) {
@@ -149,11 +165,66 @@ export class InputState {
     this.mouseSelection = mouseSelection
   }
 
+  addDOMChange(ch: ChangeSet) {
+    if (this.expectedChange)
+      this.domDoc = this.expectedChange.apply(this.domDoc)
+    this.expectedChange = ch
+    this.domChanges = this.domChanges ? this.domChanges.compose(ch) : ch
+  }
+
+  transaction(tr: Transaction) {
+    let domMapping = this.domMapping || ChangeSet.empty(this.domDoc.length)
+    if (this.expectedChange) {
+      let {a: mapping, b: expected} = ChangeSet.transform(this.domDoc, domMapping, this.expectedChange)
+      if (tr.changes.eq(expected))
+        this.domMapping = mapping
+      else
+        this.domMapping = this.expectedChange.invert(this.domDoc).compose(domMapping).compose(tr.changes)
+      this.domDoc = this.expectedChange.apply(this.domDoc)
+      this.expectedChange = null
+    } else {
+      this.domMapping = domMapping.compose(tr.changes)
+    }
+  }
+
+  domPos(node: Node, offset: number) {
+    if (node.nodeType == 3 && this.domChanges) {
+      let parent = this.wg.docTile.nearest(node)
+      if (parent instanceof TextTile && parent.dom == node && parent.text != node.nodeValue) {
+        let start = parent.posAtStart
+        return this.domChanges.mapPos(start, -1) + offset
+      }
+    }
+    let pos = this.wg.docTile.posFromDOM(node, offset)
+    return this.domChanges ? this.domChanges.mapPos(pos, offset ? 1 : -1) : pos
+  }
+
+  posFromDOM(node: Node, offset: number, bias: -1 | 1) {
+    if (node.nodeType != 3) {
+      let before = textNodeBefore(node, offset)
+      if (before) {
+        node = before
+        offset = node.nodeValue!.length
+      } else {
+        let after = textNodeAfter(node, offset)
+        if (after) {
+          node = after
+          offset = 0
+        }
+      }
+    }
+    let inDOM = this.domPos(node, offset)
+    return this.domMapping ? this.domMapping.mapPos(inDOM, bias) : inDOM
+  }
+
   update(update: Wordgard.Update) {
     if (this.mouseSelection) this.mouseSelection.update(update)
     if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state)
     if (update.transactions.length) this.lastKeyCode = 0
     if (this.composing) this.composing.targetPos = update.changes.mapPos(this.composing.targetPos, -1)
+
+    this.domDoc = update.state.doc
+    this.domChanges = this.domMapping = this.expectedChange = null
   }
 
   findComposition(): {target: Text, targetPos: number} | null {
@@ -565,26 +636,14 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   formatJustifyRight: Command.bind(setAlignment, "right")
 }
 
-function interpretDOMPosition(wg: Wordgard, node: Node, offset: number, bias: -1 | 1) {
-  if (node.nodeType == 3 && wg.viewState.pending.length) {
-    let parent = wg.docTile.nearest(node)
-    if (parent instanceof TextTile && parent.dom == node && parent.text != node.nodeValue) {
-      let start = parent.posAtStart
-      return wg.viewState.mapPosPending(start, bias) + offset
-    }
-  }
-  let pos = wg.docTile.posFromDOM(node, offset)
-  return wg.viewState.mapPosPending(pos, bias)
-}
-
 function inputEventRange(event: InputEvent, wg: Wordgard, preferSel = false) {
   let range = event.getTargetRanges()[0]
-  let from = interpretDOMPosition(wg, range.startContainer, range.startOffset, -1)
-  let to = interpretDOMPosition(wg, range.endContainer, range.endOffset, -1)
+  let from = wg.inputState.posFromDOM(range.startContainer, range.startOffset, -1)
+  let to = wg.inputState.posFromDOM(range.endContainer, range.endOffset, -1)
 
   let {pending} = wg.viewState
   if (pending.length && preferSel && !wg.inputState.composing && from == to) {
-    let fromMax = interpretDOMPosition(wg, range.startContainer, range.startOffset, 1)
+    let fromMax = wg.inputState.posFromDOM(range.startContainer, range.startOffset, 1)
     if (from <= wg.state.selection.from && fromMax >= wg.state.selection.to)
       return wg.state.selection
   }
@@ -770,6 +829,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       if (!sel.focusNode) return false
       let comp = wg.inputState.findComposition()
       let userEvent = "input.type.compose" + (start ? ".start" : "")
+      wg.inputState.addDOMChange(ChangeSet.create(wg.inputState.domDoc, {from, to, insert: [Leaf.text(text)]}))
       if (comp && sel.focusNode) {
         let anchor = findCompositionSelection(sel.anchorNode!, sel.anchorOffset, comp.target, comp.targetPos)
         let head = sel.empty ? anchor : findCompositionSelection(sel.focusNode, sel.focusOffset, comp.target, comp.targetPos)
@@ -794,6 +854,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       if (wg.state.readOnly) return true
       let {from, to} = wg.inputState.pendingDeletion
       wg.inputState.pendingDeletion = null
+      wg.inputState.addDOMChange(ChangeSet.create(wg.inputState.domDoc, {from, to}))
       wg.dispatch({
         changes: {from, to, fit: true},
         userEvent: "delete"

@@ -184,7 +184,10 @@ export class Wordgard {
     if (!(tr instanceof Transaction)) tr = this.state.update(tr)
     else if (tr.startState != this.state) throw new Error("Dispatching a transaction starting from the wrong state")
     let trs = Transaction.append(tr as Transaction)
-    for (let t of trs) this.viewState.update(t)
+    for (let t of trs) {
+      this.viewState.update(t)
+      this.inputState.transaction(t)
+    }
     this.runTransactionListeners(trs)
     this.scheduleFlush()
   }
