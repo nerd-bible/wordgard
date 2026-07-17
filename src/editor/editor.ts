@@ -184,10 +184,7 @@ export class Wordgard {
     if (!(tr instanceof Transaction)) tr = this.state.update(tr)
     else if (tr.startState != this.state) throw new Error("Dispatching a transaction starting from the wrong state")
     let trs = Transaction.append(tr as Transaction)
-    for (let t of trs) {
-      this.viewState.update(t)
-      this.inputState.transaction(t)
-    }
+    for (let t of trs) this.viewState.update(t)
     this.runTransactionListeners(trs)
     this.scheduleFlush()
   }
@@ -203,8 +200,9 @@ export class Wordgard {
   /// Force a flush on the editor content, updating its DOM
   /// representation for any pending changes.
   flush() {
-    if (!this.connected || this.inputState.pendingComposition || this.inputState.pendingDeletion) return
-    if (!this.viewState.pending.some(tr => tr.selection)) this.observer.pollSelection()
+    this.observer.readSelectionRange()
+    this.inputState.flushInputEvents()
+    if (!this.connected) return
     let {flushedState, state} = this.viewState
     let update = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
 
@@ -398,8 +396,6 @@ export class Wordgard {
     if (this.willFlush && (this.viewState.pending.some(tr => tr.docChanged) || this.observer.dirty)) {
       if (this.flushing == Flush.Yes)
         throw new Error("Trying to read from unflushed editor during flush")
-      if (this.inputState.pendingComposition || this.inputState.pendingDeletion)
-        throw new Error("Trying to read editor DOM between beforeinput and input for composition")
       if (this.flushing == Flush.No)
         this.flush()
     }

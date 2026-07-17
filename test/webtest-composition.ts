@@ -6,17 +6,17 @@ import {tempEditor, requireFocus} from "./tempview.ts"
 import {basicBuilders, eq} from "./schema.ts"
 const {doc, p, strong, em} = basicBuilders
 
-function compositionEvent(cm: Wordgard, type: string) {
-  cm.contentDOM.dispatchEvent(new CompositionEvent(type))
+function compositionEvent(wg: Wordgard, type: string) {
+  wg.contentDOM.dispatchEvent(new CompositionEvent(type))
 }
 
-function inputEvent(cm: Wordgard, type: string, init: InputEventInit) {
+function inputEvent(wg: Wordgard, type: string, init: InputEventInit) {
   let event = new InputEvent(type, init)
   // Safari doesn't support the targetRanges option
   if (init.targetRanges && !event.getTargetRanges().length) {
     event.getTargetRanges = () => init.targetRanges!
   }
-  cm.contentDOM.dispatchEvent(event)
+  wg.contentDOM.dispatchEvent(event)
 }
 
 type CompositionUpdate = [number, number, string, () => Text] | [number, number, string]
