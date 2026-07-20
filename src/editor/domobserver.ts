@@ -127,11 +127,11 @@ export class DOMObserver {
     if (this.selectionChanged) this.wg.scheduleFlush()
   }
 
-  pollSelection(readPos: (node: Node, offset: number) => number) {
+  pollSelection() {
     if (this.selectionChanged &&
         (this.wg.hasFocus || !this.wg.focusable) && hasSelection(this.wg.contentDOM, this.selectionRange)) {
       this.selectionChanged = false
-      let sel = readDOMSelection(this.wg, this.selectionRange, readPos)
+      let sel = readDOMSelection(this.wg, this.selectionRange)
       if (!sel.eqPos(this.wg.state.selection)) {
         let userEvent = this.wg.inputState.lastTouchTime > Date.now() - 100 ? "select.pointer" : "select"
         this.wg.dispatch({selection: sel, userEvent})

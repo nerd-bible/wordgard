@@ -201,8 +201,8 @@ export class Wordgard {
   /// representation for any pending changes.
   flush() {
     this.observer.readSelectionRange()
-    this.inputState.flushInputEvents()
     if (!this.connected) return
+    if (!this.viewState.pending.some(tr => tr.selection) || this.inputState.composing) this.observer.pollSelection()
     let {flushedState, state} = this.viewState
     let update = Wordgard.Update.create(this, flushedState, state, this.viewState.pending)
 
@@ -446,25 +446,25 @@ export class Wordgard {
   /// for associating positions with DOM events. Will raise an error
   /// when `node` isn't part of the editor content.
   posAtDOM(node: DOMNode, offset: number = 0) {
-    this.ensureFlushed()
-    return this.docTile.posFromDOM(node, offset, 1)
+    return this.inputState.posAtDOM(node, offset, 1)
   }
 
   /// Find the Wordgard node represented by the given DOM node, or one
   /// of its parent nodes, if any. Will not return the outer document node.
   nodeFromDOM(node: Element): {pos: number, node: Node} | null {
-    this.ensureFlushed()
     let tile = this.docTile.nearest(node, true)
     return tile && tile != this.docTile ? {pos: tile.posBefore, node: tile.node!} : null
   }
 
   /// Get the document position at the given screen coordinates.
   posAtCoords(coords: {x: number, y: number}): {pos: number, side: -1 | 1, target: number | null} {
-    this.ensureFlushed()
     let elt = ((this.root as any).elementFromPoint ? this.root : this.dom.ownerDocument)
                 .elementFromPoint(coords.x, coords.y)
     let tile = (elt && this.docTile.nearest(elt)) || this.docTile
-    return tile.posAtCoords(this.state, coords.x, coords.y)
+    let result = tile.posAtCoords(this.state, coords.x, coords.y)
+    // FIXME could make this more accurate by using info about DOM changes
+    for (let tr of this.viewState.pending) result = result.map(tr.changes)
+    return result
   }
 
   /// Get the screen coordinates at the given document position.

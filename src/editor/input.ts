@@ -41,13 +41,9 @@ export const eventObserver = GardState.Facet.define<
 
 // FIXME document input event handling
 type InputEventData = {
-  startDoc: Plot.Doc
   inputType: string
   data: string | null
-  range: {from: number, to: number} | null
-  slice: Slice | null
-  applied: ChangeSet | null
-  compositionStart: boolean
+  domRange: {from: number, to: number} | null
 }
 
 export class InputState {
@@ -69,7 +65,7 @@ export class InputState {
   // Track the current composition. Count changes to determine whether
   // a given change is the first one, and track the text node that
   // composition is happening in.
-  composing: null | {changes: number, target: Text | null, targetPos: number} = null
+  composing: null | {changes: number, target: Text | null} = null
   // End time of the previous composition
   compositionEndedAt = 0
   // Used in a kludge to detect when an Enter keypress should be
@@ -85,8 +81,11 @@ export class InputState {
 
   notifiedFocused: boolean
 
-  pendingInputEvents: InputEventData[] = []
+  pendingInputEvent: InputEventData | null = null
   domDoc: Plot.Doc
+  _domMapping: ChangeSet
+  domMappingIndex: number = 0
+  domChanges: ChangeSet | null = null
 
   constructor(readonly wg: Wordgard) {
     this.handleEvent = this.handleEvent.bind(this)
@@ -95,6 +94,7 @@ export class InputState {
     // issue where the composition vanishes when you press enter.
     if (browser.safari) wg.contentDOM.addEventListener("input", () => null)
     this.domDoc = wg.state.doc
+    this._domMapping = ChangeSet.empty(this.domDoc.length)
   }
 
   handleEvent(event: Event) {
@@ -165,125 +165,113 @@ export class InputState {
     if (this.mouseSelection) this.mouseSelection.update(update)
     if (this.draggedContent && update.docChanged) this.draggedContent = this.draggedContent.map(update.changes, update.state)
     if (update.transactions.length) this.lastKeyCode = 0
-    if (this.composing) this.composing.targetPos = update.changes.mapPos(this.composing.targetPos, -1)
     this.domDoc = update.state.doc
+    this._domMapping = ChangeSet.empty(this.domDoc.length)
+    this.domMappingIndex = 0
+    this.domChanges = null
   }
 
-  // Used to locate positions in the DOM (which has possibly be
-  // changed by input events)
-  domPos(node: Node, offset: number) {
-    if (node.nodeType != 3) {
-      let before = textNodeBefore(node, offset), after
-      if (before) {
-        node = before
-        offset = node.nodeValue!.length
-      } else if (after = textNodeAfter(node, offset)) {
-        node = after
-        offset = 0
-      }
+  getDOMPos(node: Node, offset: number) {
+    if (node.nodeType == 1 && offset && node.childNodes[offset - 1].nodeType == 3) {
+      node = node.childNodes[offset - 1]
+      offset = node.nodeValue!.length
     }
-    if (node.nodeType == 3 && this.pendingInputEvents.some(e => e.applied)) {
-      let tile = Tile.get(node)
-      let textBefore = textNodeBefore(node.parentNode!, domIndex(node))
-      let prev = textBefore && Tile.get(textBefore)
-      let dir: -1 | 1 = prev instanceof TextTile && prev.length < prev.dom.nodeValue!.length ? 1 : -1
-      let start = tile ? tile.posAtStart : this.wg.docTile.posFromDOM(node, 0)
-      for (let e of this.pendingInputEvents) if (e.applied) start = e.applied.mapPos(start, dir)
-      return start + offset
-    }
-    let pos = this.wg.docTile.posFromDOM(node, offset)
-    for (let e of this.pendingInputEvents) if (e.applied) pos = e.applied.mapPos(pos, offset ? 1 : -1)
-    return pos
+    let inText = node.nodeType == 3
+    let ref = this.wg.docTile.posFromDOM(node, inText ? 0 : offset)
+    let dir: -1 | 1 = -1
+    let textBefore = textNodeBefore(node.parentNode!, domIndex(node))
+    let prev = textBefore && Tile.get(textBefore)
+    if (prev instanceof TextTile && prev.length < prev.dom.nodeValue!.length) dir = 1
+    if (this.domChanges) ref = this.domChanges.mapPos(ref, dir)
+    return ref + (inText ? offset : 0)
   }
 
-  flushInputEvents() {
-    let {pendingInputEvents: events, wg} = this
-    this.pendingInputEvents = []
-    if (wg.state.readOnly) { // FIXME push this down into commands?
-      wg.observer.pollSelection((node, offset) => wg.docTile.posFromDOM(node, offset))
-      return
+  get domMapping() {
+    let {pending} = this.wg.viewState
+    while (this.domMappingIndex < pending.length)
+      this._domMapping = this._domMapping.compose(pending[this.domMappingIndex++].changes)
+    return this._domMapping
+  }
+
+  posAtDOM(node: Node, offset: number, assoc: -1 | 1 = -1) {
+    if (this.domMapping.empty && !this.domChanges)
+      return this.wg.docTile.posFromDOM(node, offset)
+    return this.mapFromDOM(this.getDOMPos(node, offset), assoc)
+  }
+
+  mapFromDOM(pos: number, assoc: -1 | 1 = -1) {
+    return this.domMapping.mapPos(pos, assoc)
+  }
+
+  beforeInput(event: InputEvent, data: InputEventData) {
+    let type = event.inputType, range: {from: number, to: number} | undefined
+    let {wg} = this
+    if (data.domRange) {
+      range = {from: this.mapFromDOM(data.domRange.from),
+               to: this.mapFromDOM(data.domRange.to)}
+      if (!this.domMapping.empty && type == "insertText" && !this.composing && range.from == range.to) {
+        let fromMax = this.mapFromDOM(data.domRange.from, 1)
+        if (range.from <= wg.state.selection.from && fromMax >= wg.state.selection.to)
+          range = wg.state.selection
+      }
     }
 
-    let domDoc = this.wg.viewState.flushedState.doc
-    let mapFromDOM = ChangeSet.empty(domDoc.length)
-    let trI = 0, expectedChange: ChangeSet | null = null
-    for (let i = 0;; i++) {
-      while (trI < wg.viewState.pending.length) {
-        let tr = wg.viewState.pending[trI++]
-        if (!tr.docChanged) continue
-        if (expectedChange) {
-          let {a: mapping, b: expected} = ChangeSet.transform(domDoc, mapFromDOM, expectedChange)
-          if (tr.changes.eq(expected))
-            mapFromDOM = mapping
-          else
-            mapFromDOM = expectedChange.invert(domDoc).compose(mapFromDOM).compose(tr.changes)
-          domDoc = expectedChange.apply(domDoc)
-          expectedChange = null
-        } else {
-          mapFromDOM = mapFromDOM.compose(tr.changes)
-        }
-      }
-      if (expectedChange) {
-        mapFromDOM = mapFromDOM.transform(domDoc, expectedChange, true)
-        domDoc = expectedChange.apply(domDoc)
-        expectedChange = null
-      }
-      if (i == events.length) break
-      let event = events[i]
-
-      let type = event.inputType, range: {from: number, to: number} | undefined
-      if (event.range) {
-        range = {from: mapFromDOM.mapPos(event.range.from),
-                 to: mapFromDOM.mapPos(event.range.to)}
-        if (!mapFromDOM.empty && type == "insertText" && !this.composing && range.from == range.to) {
-          let fromMax = mapFromDOM.mapPos(event.range.from, 1)
-          if (range.from <= wg.state.selection.from && fromMax >= wg.state.selection.to)
-            range = wg.state.selection
-        }
-      }
-
-      let command = inputTypeCommands[type]
-      if ((type == "deleteContentBackward" || type == "deleteContentForward") &&
-          range && !isSingleChar(event.startDoc, event.range!.from, event.range!.to)) {
-        // The browser is firing a deleteContent event to delete a
-        // random range. Bad browser. Dispatch it as-is.
-        wg.dispatch({changes: {from: range.from, to: range.to, fit: true}, userEvent: "delete"})
-      } else if (command) {
-        // FIXME check for problematic ranges on any of the other commands?
-        Command.dispatch(wg, command)
-      } else if (type == "insertText") {
-        let insert = event.data!.replace(/\r\n?|\n/g, " ")
-        Command.dispatch(wg, insertText, {from: range!.from, to: range!.to, insert, userEvent: "input.type"})
-      } else if ((type == "insertReplacementText" || type == "insertFromYank") && event.slice) {
-        let {from, to} = range!
-        let sel = wg.state.selection, touchesSel = from <= sel.to && to >= sel.from
-        wg.dispatch({
-          changes: {from, to, insert: event.slice, fit: true},
-          selection: touchesSel ? (cx, changes) => {
-            return GardSelection.near(cx, changes.mapPos(to, 1), -1)
-          } : undefined,
-          scrollIntoView: touchesSel,
-          userEvent: "insert.replacementText"
-        })
-      } else if (type == "insertCompositionText") {
-        let sel = wg.observer.selectionRange
-        if (!sel.focusNode) return false
-        let userEvent = "input.type.compose" + (event.compositionStart ? ".start" : "")
-        Command.dispatch(wg, insertText, {from: range!.from, to: range!.to, insert: event.data!, userEvent})
-      } else if (type == "formatSetBlockTextDirection") {
-        if (event.data == "ltr" || event.data == "rtl")
-          Command.dispatch(wg, setDirection, event.data)
-      }
-
-      if (event.applied) expectedChange = event.applied
+    let command = inputTypeCommands[type]
+    if ((type == "deleteContentBackward" || type == "deleteContentForward") &&
+        range && !isSingleChar(this.domDoc, data.domRange!.from, data.domRange!.to)) {
+      // The browser is firing a deleteContent event to delete a
+      // random range. Bad browser. Dispatch it as-is.
+      wg.dispatch({changes: {from: range.from, to: range.to, fit: true}, userEvent: "delete"})
+    } else if (command) {
+      // FIXME check for problematic ranges on any of the other commands?
+      Command.dispatch(wg, command)
+    } else if (type == "insertText") {
+      let insert = event.data!.replace(/\r\n?|\n/g, " ")
+      Command.dispatch(wg, insertText, {from: range!.from, to: range!.to, insert, userEvent: "input.type"})
+    } else if ((type == "insertReplacementText" || type == "insertFromYank")) {
+      let read = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)
+      let {from, to} = range!
+      let sel = wg.state.selection, touchesSel = from <= sel.to && to >= sel.from
+      if (read) wg.dispatch({
+        changes: {from, to, insert: read.slice, fit: read.context},
+        selection: touchesSel ? (cx, changes) => {
+          return GardSelection.near(cx, changes.mapPos(to, 1), -1)
+        } : undefined,
+        scrollIntoView: touchesSel,
+        userEvent: "insert.replacementText"
+      })
+    } else if (type == "insertCompositionText") {
+      let compositionStart = !wg.inputState.composing!.changes
+      wg.inputState.composing!.changes++
+      let sel = wg.observer.selectionRange
+      if (!sel.focusNode) return false
+      let userEvent = "input.type.compose" + (compositionStart ? ".start" : "")
+      Command.dispatch(wg, insertText, {from: range!.from, to: range!.to, insert: event.data!, userEvent})
+    } else if (type == "formatSetBlockTextDirection") {
+      if (event.data == "ltr" || event.data == "rtl")
+        Command.dispatch(wg, setDirection, event.data)
     }
+  }
 
-    let comp = this.composing
-    if (comp && (comp.target = this.findComposition(comp.target)))
-      comp.targetPos = mapFromDOM.mapPos(this.domPos(comp.target, 0), -1)
-
-    if (comp || !wg.viewState.pending.some(tr => tr.selection))
-      wg.observer.pollSelection((node: Node, offset: number) => mapFromDOM.mapPos(this.domPos(node, offset)))
+  domChange(change: ChangeSet) {
+    let {pending} = this.wg.viewState, {domDoc} = this
+    // FIXME could theoretically fail
+    this.domDoc = change.apply(domDoc)
+    while (this.domMappingIndex < pending.length) {
+      let next = pending[this.domMappingIndex]
+      if (!next.docChanged) {
+        this.domMappingIndex++
+      } else {
+        let {a: mapping, b: expected} = ChangeSet.transform(domDoc, this._domMapping, change)
+        if (next.changes.sections.length != expected.sections.length ||
+            next.changes.sections.some((v, i) => v != expected.sections[i]))
+          break
+        this.domMappingIndex++
+        this._domMapping = mapping
+        return
+      }
+    }
+    this._domMapping = change.invert(domDoc).compose(this._domMapping)
   }
 
   findComposition(prev: Text | null): Text | null {
@@ -624,8 +612,9 @@ export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
   let comp = wg.inputState.composing
   if (!comp?.target) return null
   let value = comp.target.nodeValue!
+  let pos = wg.inputState.posAtDOM(comp.target, 0)
   return {
-    fromB: comp.targetPos, toB: comp.targetPos + value.length,
+    fromB: pos, toB: pos + value.length,
     text: value,
     target: comp.target
   }
@@ -636,7 +625,8 @@ function compositionEnd(wg: Wordgard) {
   wg.inputState.composing = null
   wg.inputState.compositionEndedAt = Date.now()
   if (comp && comp.target) {
-    wg.observer.addDirtyRange(comp.targetPos, comp.targetPos + comp.target.nodeValue!.length)
+    let pos = wg.inputState.posAtDOM(comp.target, 0)
+    wg.observer.addDirtyRange(pos, pos + comp.target.nodeValue!.length)
     wg.flush()
   }
 }
@@ -644,7 +634,7 @@ function compositionEnd(wg: Wordgard) {
 function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
   LOG_input && console.log(event.type, !!wg.inputState.composing)
   if (!wg.inputState.composing) {
-    wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
+    wg.inputState.composing = {changes: 0, target: null}
 
     let wrap: Mark.Set | null = null
     if (!wg.inputState.composing.changes && !event.data) {
@@ -791,60 +781,50 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
   },
 
   beforeinput(wg, event) {
-    // FIXME restore logging
     let type = event.inputType
     // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
     if (browser.safari && type == "insertText" && wg.inputState.composing) compositionEnd(wg)
     if (type == "insertCompositionText" && !wg.inputState.composing)
-      wg.inputState.composing = {changes: 0, target: null, targetPos: 0}
+      wg.inputState.composing = {changes: 0, target: null}
 
     let data: InputEventData = {
-      startDoc: wg.inputState.domDoc,
       inputType: type,
       data: event.data,
-      slice: null,
-      range: null,
-      applied: null,
-      compositionStart: false
+      domRange: null,
     }
     let ranges = event.getTargetRanges()
     if (ranges.length) {
       let r = ranges[0]
-      data.range = {from: wg.inputState.domPos(r.startContainer, r.startOffset),
-                    to: wg.inputState.domPos(r.endContainer, r.endOffset)}
+      data.domRange = {from: wg.inputState.getDOMPos(r.startContainer, r.startOffset),
+                       to: wg.inputState.getDOMPos(r.endContainer, r.endOffset)}
     }
-    if (type == "insertReplacementText" || type == "insertFromYank") {
-      let read = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)
-      if (read) data.slice = read.slice
-    }
-    if (type == "insertCompositionText" && wg.inputState.composing) {
-      data.compositionStart = !wg.inputState.composing.changes
-      wg.inputState.composing.changes++
-    }
-    wg.inputState.pendingInputEvents.push(data)
+    wg.inputState.beforeInput(event, wg.inputState.pendingInputEvent = data)
     wg.scheduleFlush()
     // Composition cannot be canceled. Also let through simple
     // insertion and deletion to avoid confusing virtual keyboards and
     // Safari autocapitalize.
     let allow = type == "insertCompositionText" ||
-      (type == "insertText" || /^delete(Content|Word)/.test(type) && data.range && inlineContext(wg.inputState.domDoc, data.range))
+      (type == "insertText" || /^delete(Content|Word)/.test(type) &&
+       data.domRange && inlineContext(wg.inputState.domDoc, data.domRange))
+    LOG_input && console.log(`beforeinput ${data.inputType} ${data.domRange ? data.domRange.from + "-" + data.domRange.to : ""} ${
+      data.data ? JSON.stringify(data.data) : ""}, allow=${allow}`)
     return !allow
   },
 
   input(wg, event) {
-    let pending = wg.inputState.pendingInputEvents, last = pending.length ? pending[pending.length - 1] : null
-    if (!last || last.inputType != event.inputType || last.applied || !last.range) return false
+    let pending = wg.inputState.pendingInputEvent
+    LOG_input && console.log(`input ${event.inputType}${pending && pending.inputType == event.inputType ? "" : " (missing)"}`)
+    if (!pending || pending.inputType != event.inputType || !pending.domRange) return false
+    wg.inputState.pendingInputEvent = null
     let change: ChangeSet.Change | undefined
     if (event.inputType == "insertCompositionText" || event.inputType == "insertText") {
-      change = {from: last.range.from, to: last.range.to, insert: [Leaf.text(last.data!)]}
+      change = {from: pending.domRange.from, to: pending.domRange.to, insert: [Leaf.text(pending.data!)]}
     } else if (/^delete(Word|Content)/.test(event.inputType)) {
-      change = {from: last.range.from, to: last.range.to}
+      change = {from: pending.domRange.from, to: pending.domRange.to}
     } else {
-      console.warn(`Seeing ${event.inputType} input event`)
       return false
     }
-    last.applied = ChangeSet.create(wg.inputState.domDoc, change)
-    wg.inputState.domDoc = last.applied.apply(wg.inputState.domDoc)
+    wg.inputState.domChange(ChangeSet.create(wg.inputState.domDoc, change))
     return false
   }
 }

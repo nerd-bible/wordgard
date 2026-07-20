@@ -27,10 +27,10 @@ export function setDOMSelection(wg: Wordgard) {
   if (!failed) wg.observer.setSelectionRange(anchorDOM, headDOM)
 }
 
-export function readDOMSelection(wg: Wordgard, range: SelectionRange, readPos: (node: Node, offset: number) => number) {
-  let anchor = readPos(range.anchorNode!, range.anchorOffset)
+export function readDOMSelection(wg: Wordgard, range: SelectionRange) {
+  let anchor = wg.posAtDOM(range.anchorNode!, range.anchorOffset)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
-    : readPos(range.focusNode!, range.focusOffset)
+    : wg.posAtDOM(range.focusNode!, range.focusOffset)
   return GardSelection.range(wg.viewState.mapPosPending(anchor, 1), wg.viewState.mapPosPending(head, 1))
 }
 
