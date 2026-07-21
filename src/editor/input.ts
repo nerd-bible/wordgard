@@ -81,10 +81,19 @@ export class InputState {
 
   notifiedFocused: boolean
 
+  // Between beforeinput and input events, this holds information
+  // about the event (because input events no longer provide range
+  // information).
   pendingInputEvent: InputEventData | null = null
+  // When input events have changed the DOM, this holds the updated
+  // document, which we need for the mapping done in `addDOMChange`.
   domDoc: Plot.Doc
+  // Mapping between `domDoc` and `state.doc`. See getter.
   _domMapping: ChangeSet
+  // Tracks up to which index of `viewState.pending` `_domMapping` has
+  // been updated.
   domMappingIndex: number = 0
+  // Mapping between the doc at the last flush and `domDoc`.
   domChanges: ChangeSet | null = null
 
   constructor(readonly wg: Wordgard) {
@@ -171,6 +180,9 @@ export class InputState {
     this.domChanges = null
   }
 
+  // Create a position in `domDoc` from a DOM position. Needed in
+  // order to interpret `beforeinput` event ranges and other DOM
+  // positions when there are unflushed DOM changes.
   getDOMPos(node: Node, offset: number) {
     if (node.nodeType == 1 && offset && node.childNodes[offset - 1].nodeType == 3) {
       node = node.childNodes[offset - 1]
@@ -186,6 +198,9 @@ export class InputState {
     return ref + (inText ? offset : 0)
   }
 
+  // Get the current mapping from `domDoc` to `state.doc`. Updated
+  // lazily so that `addDOMChange` gets a chance to notice when DOM
+  // changes and transaction changes match.
   get domMapping() {
     let {pending} = this.wg.viewState
     while (this.domMappingIndex < pending.length)
@@ -193,24 +208,23 @@ export class InputState {
     return this._domMapping
   }
 
+  // Assign a position (in `state.doc`) to the given DOM position.
+  // Takes unflushed DOM changes into account.
   posAtDOM(node: Node, offset: number, assoc: -1 | 1 = -1) {
     if (this.domMapping.empty && !this.domChanges)
       return this.wg.docTile.posFromDOM(node, offset)
-    return this.mapFromDOM(this.getDOMPos(node, offset), assoc)
+    return this.domMapping.mapPos(this.getDOMPos(node, offset), assoc)
   }
 
-  mapFromDOM(pos: number, assoc: -1 | 1 = -1) {
-    return this.domMapping.mapPos(pos, assoc)
-  }
-
+  // Update the editor state for a beforeinput event.
   beforeInput(event: InputEvent, data: InputEventData) {
     let type = event.inputType, range: {from: number, to: number} | undefined
     let {wg} = this, sel = wg.state.selection
     if (data.domRange) {
-      range = {from: this.mapFromDOM(data.domRange.from),
-               to: this.mapFromDOM(data.domRange.to)}
+      range = {from: this.domMapping.mapPos(data.domRange.from),
+               to: this.domMapping.mapPos(data.domRange.to)}
       if (!this.domMapping.empty && type == "insertText" && !this.composing && range.from == range.to) {
-        let fromMax = this.mapFromDOM(data.domRange.from, 1)
+        let fromMax = this.domMapping.mapPos(data.domRange.from, 1)
         if (range.from <= sel.from && fromMax >= sel.to)
           range = sel
       }
@@ -255,7 +269,11 @@ export class InputState {
     }
   }
 
-  domChange(change: ChangeSet) {
+  // Add a given DOM change (as made by an input event) to the tracked
+  // DOM state. If there's a pending transaction that matches the
+  // change, map `this._domMapping` and drop both. Otherwise, put the
+  // inverse of this change at the start of `_domMapping`.
+  addDOMChange(change: ChangeSet) {
     let {pending} = this.wg.viewState, {domDoc} = this
     // FIXME could theoretically fail
     this.domDoc = change.apply(domDoc)
@@ -827,7 +845,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     } else {
       return false
     }
-    wg.inputState.domChange(ChangeSet.create(wg.inputState.domDoc, change))
+    wg.inputState.addDOMChange(ChangeSet.create(wg.inputState.domDoc, change))
     return false
   }
 }
