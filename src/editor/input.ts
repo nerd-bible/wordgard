@@ -205,22 +205,24 @@ export class InputState {
 
   beforeInput(event: InputEvent, data: InputEventData) {
     let type = event.inputType, range: {from: number, to: number} | undefined
-    let {wg} = this
+    let {wg} = this, sel = wg.state.selection
     if (data.domRange) {
       range = {from: this.mapFromDOM(data.domRange.from),
                to: this.mapFromDOM(data.domRange.to)}
       if (!this.domMapping.empty && type == "insertText" && !this.composing && range.from == range.to) {
         let fromMax = this.mapFromDOM(data.domRange.from, 1)
-        if (range.from <= wg.state.selection.from && fromMax >= wg.state.selection.to)
-          range = wg.state.selection
+        if (range.from <= sel.from && fromMax >= sel.to)
+          range = sel
       }
     }
 
     let command = inputTypeCommands[type]
-    if ((type == "deleteContentBackward" || type == "deleteContentForward") &&
-        range && !isSingleChar(this.domDoc, data.domRange!.from, data.domRange!.to)) {
-      // The browser is firing a deleteContent event to delete a
-      // random range. Bad browser. Dispatch it as-is.
+    if ((type == "deleteContentBackward" || type == "deleteContentForward") && range &&
+        (sel.empty
+          ? !isSingleChar(this.domDoc, data.domRange!.from, data.domRange!.to) ||
+            sel.head != (type == "deleteContentBackward" ? range.to : range.from)
+          : sel.from != range.from || sel.to != range.to)) {
+      // The browser is firing a deleteContent event to delete a random range.
       wg.dispatch({changes: {from: range.from, to: range.to, fit: true}, userEvent: "delete"})
     } else if (command) {
       // FIXME check for problematic ranges on any of the other commands?
@@ -257,6 +259,7 @@ export class InputState {
     let {pending} = this.wg.viewState, {domDoc} = this
     // FIXME could theoretically fail
     this.domDoc = change.apply(domDoc)
+    this.domChanges = this.domChanges ? this.domChanges.compose(change) : change
     while (this.domMappingIndex < pending.length) {
       let next = pending[this.domMappingIndex]
       if (!next.docChanged) {

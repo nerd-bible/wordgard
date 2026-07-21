@@ -34,9 +34,9 @@ export function permute<T>(array: readonly T[]): readonly (readonly T[])[] {
 
 export function r(n: number) { return Math.floor(Math.random() * n) }
 
-function rLetter() { return String.fromCharCode(97 + r(26)) }
+export function rLetter() { return String.fromCharCode(97 + r(26)) }
 
-function rWord(len = 2 + r(5)) {
+export function rWord(len = 2 + r(5)) {
   let word = ""
   for (let i = 0; i < len; i++) word += rLetter()
   return word
