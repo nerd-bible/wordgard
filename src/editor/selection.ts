@@ -31,7 +31,7 @@ export function readDOMSelection(wg: Wordgard, range: SelectionRange) {
   let anchor = wg.posAtDOM(range.anchorNode!, range.anchorOffset)
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
     : wg.posAtDOM(range.focusNode!, range.focusOffset)
-  return GardSelection.range(wg.viewState.mapPosPending(anchor, 1), wg.viewState.mapPosPending(head, 1))
+  return GardSelection.range(anchor, head)
 }
 
 const Y_STEP = 5

@@ -111,9 +111,4 @@ export class ViewState {
     this.editorHeight = wg.scrollDOM.clientHeight
     this.editorWidth = wg.scrollDOM.clientWidth
   }
-
-  mapPosPending(pos: number, assoc: -1 | 1) {
-    for (let tr of this.pending) pos = tr.changes.mapPos(pos, assoc)
-    return pos
-  }
 }

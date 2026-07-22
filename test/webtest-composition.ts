@@ -102,7 +102,7 @@ describe("composition", () => {
   it("supports composition on an empty line", () => {
     let wg = requireFocus(tempEditor(doc(p("."), p(0))))
     compose(wg,
-            [4, 4, "a", () => selEnd(wg.domAtPos(4).node.appendChild(document.createTextNode("a")))],
+            [4, 4, "a", () => selEnd(wg.contentDOM.querySelectorAll("p")[1].appendChild(document.createTextNode("a")))],
             [5, 5, "b"],
             [6, 6, "c"])
     ist(wg.state.doc, doc(p("."), p("abc")), eq)

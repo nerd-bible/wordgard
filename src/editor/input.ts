@@ -631,7 +631,7 @@ export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
   }
 
   let comp = wg.inputState.composing
-  if (!comp?.target) return null
+  if (!comp || !(comp.target = wg.inputState.findComposition(comp.target))) return null
   let value = comp.target.nodeValue!
   let pos = wg.inputState.posAtDOM(comp.target, 0)
   return {
