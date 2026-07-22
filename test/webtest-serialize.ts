@@ -124,7 +124,7 @@ function parseDoc(html: string, options: parse.Options & {schema?: Schema} = {})
   return parse(options.schema || basicSchema, wrap, options)
 }
 
-describe("parseDoc", () => {
+describe("parse", () => {
   it("can parse simple content", () => {
     ist(parseDoc("<p>Ok</p>"), doc(p("Ok")), eq)
   })
@@ -216,7 +216,7 @@ describe("parseDoc", () => {
   })
 })
 
-describe("parseSlice", () => {
+describe("parse.slice", () => {
   function parseSlice(html: string, options: parse.Options & {schema?: Schema} = {}) {
     let wrap = document.implementation.createHTMLDocument("").createElement("div")
     wrap.innerHTML = html
@@ -255,5 +255,9 @@ describe("parseSlice", () => {
   it("can query the DOM for open structure", () => {
     ist(parseSlice('<blockquote open-start=true open-end=true><p open-end=true>hi</p></blockquote>', {isOpen}).slice,
         slice([p().tag, "hi"]), eq)
+  })
+
+  it("creates a block parent when seeing multiple unmatched block elements", () => {
+    ist(parseSlice('<div>a</div><div>b</div>').slice, slice(["a", Plot.End, p("b")]), eq)
   })
 })

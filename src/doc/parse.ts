@@ -284,7 +284,7 @@ class ParseContext {
     } else if (!match || match.rule.ignore === "skip") {
       let sync, top = this.top
       if (blockTags.has(name)) {
-        if (top.children.length && top.children[0].type.isInline) this.close()
+        if (top.children.length && top.children[0].type.isInline && top.parent) this.close()
         sync = true
       }
       let innerMarks = match && match.rule.ignore ? marks : this.parseAttributes(elt, marks)
@@ -525,11 +525,12 @@ const blockTags = new Set(["address", "article", "aside", "blockquote", "canvas"
 
 function guessParent(content: DocumentFragment | Element, schema: Schema) {
   let rules = parse.Rule.Set.fromSchema(schema)
-  let tags: Node.Type[] = []
+  let tags: Node.Type[] = [], blocks = 0
   let explore = (node: DOMNode) => {
     if (node.nodeType == 3) {
       tags.push(Leaf.Text)
     } else if (node.nodeType == 1) {
+      if (blockTags.has(node.nodeName.toLowerCase())) blocks++
       let match = rules.matchElement(node as Element)
       if (match && match.rule.tag) {
         tags.push(Node.Type.get(match.rule.tag))
@@ -542,6 +543,7 @@ function guessParent(content: DocumentFragment | Element, schema: Schema) {
   let best: Plot.Tag | undefined, bestCost = 0
   for (let parent of schema.nodes) if (parent.isPlot && parent.default) {
     let cost = parent.isDoc ? -1 : 0
+    if (blocks > 1 && parent.inlineContent) cost += 5
     for (let child of tags) {
       let fit = schema.findWrapping(parent, child)
       cost += fit ? fit.length * 2 : 1000
