@@ -109,11 +109,11 @@ export class TextblockMap {
         off -= len
         idx += len
       } else if (flag == Section.Atom) {
-        off -= len
+        off = Math.max(0, off - len)
         if (off < 0) return idx
         idx++
       } else {
-        off--
+        if (off > 0) off--
       }
     }
     return idx
