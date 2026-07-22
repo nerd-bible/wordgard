@@ -1,5 +1,5 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
-import {Plot, Leaf, ChangeSet, Mark, Slice} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet, Mark, Slice, ValidationError} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
@@ -39,7 +39,6 @@ export const eventObserver = GardState.Facet.define<
   }
 })
 
-// FIXME document input event handling
 type InputEventData = {
   inputType: string
   data: string | null
@@ -239,7 +238,6 @@ export class InputState {
       // The browser is firing a deleteContent event to delete a random range.
       wg.dispatch({changes: {from: range.from, to: range.to, fit: true}, userEvent: "delete"})
     } else if (command) {
-      // FIXME check for problematic ranges on any of the other commands?
       Command.dispatch(wg, command)
     } else if (type == "insertText") {
       let insert = event.data!.replace(/\r\n?|\n/g, " ")
@@ -275,8 +273,15 @@ export class InputState {
   // inverse of this change at the start of `_domMapping`.
   addDOMChange(change: ChangeSet) {
     let {pending} = this.wg.viewState, {domDoc} = this
-    // FIXME could theoretically fail
-    this.domDoc = change.apply(domDoc)
+    try {
+      this.domDoc = change.apply(domDoc)
+    } catch (e) {
+      if (!(e instanceof ValidationError)) throw e
+      // Generated an invalid change from an input event. Force an
+      // early flush.
+      this.wg.flush()
+      return
+    }
     this.domChanges = this.domChanges ? this.domChanges.compose(change) : change
     while (this.domMappingIndex < pending.length) {
       let next = pending[this.domMappingIndex]
@@ -672,6 +677,8 @@ function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
   }
 }
 
+function isDeletionInputEvent(type: string) { return /^delete(Content|Word)/.test(type) }
+
 const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   historyUndo: undo,
   historyRedo: redo,
@@ -825,7 +832,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     // insertion and deletion to avoid confusing virtual keyboards and
     // Safari autocapitalize.
     let allow = type == "insertCompositionText" ||
-      (type == "insertText" || /^delete(Content|Word)/.test(type) &&
+      (type == "insertText" || isDeletionInputEvent(type) &&
        data.domRange && inlineContext(wg.inputState.domDoc, data.domRange))
     LOG_input && console.log(`beforeinput ${data.inputType} ${data.domRange ? data.domRange.from + "-" + data.domRange.to : ""} ${
       data.data ? JSON.stringify(data.data) : ""}, allow=${allow}`)
@@ -840,7 +847,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     let change: ChangeSet.Change | undefined
     if (event.inputType == "insertCompositionText" || event.inputType == "insertText") {
       change = {from: pending.domRange.from, to: pending.domRange.to, insert: [Leaf.text(pending.data!)]}
-    } else if (/^delete(Word|Content)/.test(event.inputType)) {
+    } else if (isDeletionInputEvent(event.inputType)) {
       change = {from: pending.domRange.from, to: pending.domRange.to}
     } else {
       return false
