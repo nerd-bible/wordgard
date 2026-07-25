@@ -7,8 +7,9 @@
 //- Extension bundle functions and individual extensions related to
 //- block-level document structure.
 
-export {paragraph, heading, codeBlock, alignment, direction, blockquote, horizontalRule} from "./block"
+export {paragraph, heading, alignment, direction, blockquote, horizontalRule} from "./block"
 export {bulletList, orderedList} from "./list"
+export {codeBlock, codeBlockLanguage} from "./code"
 export {blockDoc, inlineDoc} from "./block"
 
 //- ### Inline Structure

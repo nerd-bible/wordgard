@@ -1,6 +1,6 @@
 import {Plot, Leaf, Pos, ChangeSet} from "wordgard/doc"
 import {GardState, GardSelection, BidiSpan} from "wordgard/state"
-import {Doc, InlineDoc, Paragraph, Heading, CodeBlock,
+import {Doc, InlineDoc, Paragraph, Heading,
         Blockquote, Alignment, Direction, HorizontalRule} from "wordgard/types"
 import {phrases} from "wordgard/phrases"
 import {Command, Menu, setTextblockType, setAlignment, setDirection, toggleBlock} from "wordgard/command"
@@ -19,7 +19,7 @@ export function inlineDoc(): GardState.Extension {
   return GardState.schemaElement.of(InlineDoc)
 }
 
-function selectionInType(tag: Plot.Tag) {
+export function selectionInType(tag: Plot.Tag) {
   return (state: GardState) => {
     let {sel} = state, block = sel.head.textblockParent
     return !!block && block.start == sel.anchor.textblockParent?.start && block.node.tag.eq(tag)
@@ -112,39 +112,6 @@ export namespace heading {
   /// textblock, using the number of hash characters to determine the
   /// heading level.
   export const createOnHash = InputRule.textblockType(/^(#{1,6}) $/, m => Heading.of(m[1]!.to.pos - m[1]!.from.pos), true)
-}
-
-/// Extensions to add support for code blocks. Includes the {@link
-/// CodeBlock schema element}, a {@link codeBlock.keyBinding key
-/// binding}, a {@link codeBlock.button menu button}, and an {@link
-/// codeBlock.createOnBackticks input rule}.
-export function codeBlock(): GardState.Extension {
-  return [GardState.schemaElement.of(CodeBlock),
-          codeBlock.button, codeBlock.keyBinding, codeBlock.createOnBackticks]
-}
-
-export namespace codeBlock {
-  /// Binds `Ctrl-Shift-\` to switch the selected textblocks to a code
-  /// block.
-  export const keyBinding = KeyBinding.of({
-    key: "Ctrl-Shift-\\",
-    run: Command.bind(setTextblockType, CodeBlock)
-  })
-
-  /// Button for the {@link Menu.Submenu.textblockStyle textblock
-  /// style} menu that switches to a code block.
-  export const button = Menu.Button.define({
-    run: Command.bind(setTextblockType, CodeBlock),
-    active: selectionInType(CodeBlock),
-    label: phrases.ref("code_block"),
-    enable: s => !s.readOnly,
-    parent: Menu.Submenu.textblockStyle,
-    rank: 30
-  })
-
-  /// Input rule that switches the current textblock to a code block
-  /// when you type three backticks at its start.
-  export const createOnBackticks = InputRule.textblockType(/^```$/, CodeBlock)
 }
 
 /// Extensions that add support for text alignment—the {@link
