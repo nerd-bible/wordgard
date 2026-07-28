@@ -33,8 +33,25 @@ export namespace codeBlock {
     rank: 30
   })
 
-  /// Input rule that switches the current textblock to a code block
-  /// when you type three backticks at its start.
-  export const createOnBackticks = InputRule.textblockType(/^```$/, CodeBlock)
+  /// Enter command handler that, when activated at the end of a
+  /// textblock containing three backticks and an optional
+  /// language, converts the block into a code block.
+  export const createOnBackticks = GardState.prec.high(Command.handler(enter, wg => {
+    let {sel} = wg.state, parent = sel.head.parent
+    if (!sel.selection.isCursor || !parent.node.isTextblock || sel.head.pos != parent.end ||
+        parent.node.length > 20 || parent.node.type == CodeBlock.type || !parent.parent ||
+        !wg.state.doc.schema.canContain(parent.parent.node.type, CodeBlock.type)) return false
+    let text = wg.state.textblockMap(sel.head.parent)
+    let match = /^```\s*([^\s`]+\s*)?$/.exec(text.text)
+    if (!match) return false
+    let tag = CodeBlock
+    if (match[1] && wg.state.schema.has(CodeBlockLanguage))
+      tag = tag.withMarks([CodeBlockLanguage.of(match[1])])
+    return {
+      changes: {from: parent.before, to: parent.end, insert: [tag]},
+      selection: {anchor: parent.start},
+      scrollIntoView: true
+    }
+  }))
 }
 
