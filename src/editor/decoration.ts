@@ -156,7 +156,7 @@ export namespace Decoration {
       ///
       /// When providing a shape for a plot that changes whether it is
       /// rendered as an atom, provide the `atom` option.
-      export function dynamic<T extends Node.Type<any>>(
+      export function dynamic<T extends Node.Type<any>>( // FIXME find better name?
         type: T,
         shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape),
         config?: {atom?: boolean}

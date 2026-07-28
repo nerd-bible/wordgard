@@ -778,6 +778,10 @@ class TilePointer {
 
 const enum Reused { Full = 1, DOM = 2 }
 
+function needBRAfter(prev: Tile | null) {
+  return prev instanceof TextTile ? prev.text[prev.text.length - 1] == "\n" : true
+}
+
 class ContentUpdate {
   old: TilePointer
   new: CompositeTile
@@ -1049,23 +1053,22 @@ class ContentUpdate {
     }
   }
 
-  addBR() {
+  ensureBR() {
     let node = this.new.node
     if (node && node.isPlot && node.isTextblock) {
       let i = this.new.children.length - 1
       let last = i < 0 ? null : this.new.children[i]
       if (last instanceof WidgetTile && last.widget.type == brHack.type) {
-        let prev = i ? this.new.children[i - 1] : null
-        if (prev && prev.dom.nodeName != "BR")
+        if (!needBRAfter(i ? this.new.children[i - 1] : null))
           this.new.children.pop()
-      } else if (!last || last.dom.nodeName == "BR") {
+      } else if (needBRAfter(last)) {
         this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, 0))
       }
     }
   }
 
   up() {
-    this.addBR()
+    this.ensureBR()
     this.new = this.new.parent!
   }
 
@@ -1146,7 +1149,7 @@ class ContentUpdate {
 
   finish() {
     while (!(this.new instanceof DocTile)) this.up()
-    this.addBR()
+    this.ensureBR()
     return this.new
   }
 }
