@@ -1,15 +1,14 @@
-import {textRange, maxOffset, singleRect} from "./dom"
-import {ltrAt} from "./tile"
+import {textRange, singleRect} from "./dom"
+import {ltrAt, WidgetTile, TextTile} from "./tile"
 import {Wordgard} from "./editor"
 
 // Given a position in the document model, get a bounding box of the
 // character at that position, relative to the window.
 export function coordsAtPos(wg: Wordgard, pos: number, assoc: -1 | 1): DOMRect {
-  let tile = wg.docTile.resolve(pos, assoc)
-  let node = tile.dom, {offset} = tile
+  let {offset, tile, pos: tilePos} = wg.docTile.resolve(pos, assoc)
 
-  if (node.nodeType == 3) {
-    let len = node.nodeValue!.length
+  if (tile instanceof TextTile) {
+    let node = tile.dom, len = node.nodeValue!.length
     if (!len) return singleRect(textRange(node as Text, 0, 0), 1)
     let from = offset, to = offset, side: -1 | 1 = assoc < 0 && from || from == len ? 1 : -1
     if (side < 0) to++
@@ -18,40 +17,47 @@ export function coordsAtPos(wg: Wordgard, pos: number, assoc: -1 | 1): DOMRect {
                     (side < 0) == ltrAt(wg.state, pos, assoc))
   }
 
-  let tagTile = tile.tile
+  let tagTile = tile
   while (!tagTile.node) tagTile = tagTile.parent!
   // Return a horizontal line in block context
-  if (tagTile.node.isPlot && tagTile.node.type.orientation == "column") {
-    if (offset && (assoc < 0 || offset == maxOffset(node))) {
-      let before = node.childNodes[offset - 1]
-      if (before.nodeType == 1) return flattenH((before as Element).getBoundingClientRect(), false)
+  let horizontal = tagTile.node.isPlot && tagTile.node.type.orientation == "column"
+
+  if (tile instanceof WidgetTile) {
+    let after = pos > tilePos + tile.length / 2
+    if (tile.widget.type.inFlow) {
+      let rect = singleRect(tile.dom, after ? 1 : -1)
+      if (rect.width || rect.height)
+        return horizontal ? flattenH(rect, !after) : flattenV(rect, ltrAt(wg.state, pos, 1) == !after)
     }
-    if (offset < maxOffset(node)) {
-      let after = node.childNodes[offset]
-      if (after.nodeType == 1) return flattenH((after as Element).getBoundingClientRect(), true)
-    }
-    return flattenH((node as Element).getBoundingClientRect(), assoc > 0)
+    if (!tile.parent) return new DOMRect
+    offset = tile.parent.children.indexOf(tile) + (after ? 1 : 0)
+    tile = tile.parent
+    assoc = after ? 1 : -1
   }
 
-  // Inline, not in text node
-  if (offset && (assoc < 0 || offset == maxOffset(node))) {
-    let before = node.childNodes[offset - 1]
-    let target = before.nodeType == 3 ? textRange(before as Text, Math.max(0, maxOffset(before)), maxOffset(before))
-        // BR nodes tend to only return the rectangle before them.
-        // Only use them if they are the last element in their parent
-        : before.nodeType == 1 && (before.nodeName != "BR" || !before.nextSibling) ? before : null
-    if (target) return flattenV(singleRect(target as Range | Element, 1, true), !ltrAt(wg.state, pos, assoc))
-  }
-  if (offset < maxOffset(node)) {
-    let after = node.childNodes[offset]
-    let target = !after ? null : after.nodeType == 3 ? textRange(after as Text, 0, Math.min(1, maxOffset(after)))
-        : after.nodeType == 1 ? after : null
-    if (target) return flattenV(singleRect(target as Range | Element, -1, true), ltrAt(wg.state, pos, assoc))
+  // Scan through nearby nodes for a suitable target
+  for (let pass = 0; pass < 2; pass++) {
+    if (pass == (assoc < 0 ? 0 : 1)) { // Scan back
+      for (let i = offset; i > 0; i--) {
+        let before = tile.children[i - 1]
+        if (before instanceof WidgetTile && !before.widget.type.inFlow) continue
+        let rect = singleRect(before.dom, 1)
+        if (rect.width || rect.height)
+          return horizontal ? flattenH(rect, false) : flattenV(rect, !ltrAt(wg.state, pos, 1))
+      }
+    } else { // Scan forward
+      for (let i = offset; i < tile.children.length; i++) {
+        let after = tile.children[i]
+        if (after instanceof WidgetTile && !after.widget.type.inFlow) continue
+        let rect = singleRect(after.dom, -1)
+        if (rect.width || rect.height)
+          return horizontal ? flattenH(rect, true) : flattenV(rect, ltrAt(wg.state, pos, 1))
+      }
+    }
   }
   // All else failed, just try to get a rectangle for the target node
-  return flattenV(singleRect(node.nodeType == 3
-    ? textRange(node as Text, 0, node.nodeValue!.length)
-    : node as Element, -assoc as -1 | 1, true), assoc > 0)
+  let rect = singleRect(tile.dom, -assoc as -1 | 1)
+  return horizontal ? flattenH(rect, assoc < 0) : flattenV(rect, assoc < 0) 
 }
 
 function flattenV(rect: DOMRect, left: boolean) {

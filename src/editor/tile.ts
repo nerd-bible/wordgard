@@ -778,10 +778,6 @@ class TilePointer {
 
 const enum Reused { Full = 1, DOM = 2 }
 
-function needBRAfter(prev: Tile | null) {
-  return prev instanceof TextTile ? prev.text[prev.text.length - 1] == "\n" : true
-}
-
 class ContentUpdate {
   old: TilePointer
   new: CompositeTile
@@ -1054,16 +1050,40 @@ class ContentUpdate {
   }
 
   ensureBR() {
-    let node = this.new.node
-    if (node && node.isPlot && node.isTextblock) {
-      let i = this.new.children.length - 1
-      let last = i < 0 ? null : this.new.children[i]
-      if (last instanceof WidgetTile && last.widget.type == brHack.type) {
-        if (!needBRAfter(i ? this.new.children[i - 1] : null))
-          this.new.children.pop()
-      } else if (needBRAfter(last)) {
-        this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, 0))
+    let tile = this.new
+    if (!tile.isPlotContent) return
+    while (tile.isNodeInner) tile = tile.parent!
+    let node = tile.node
+    if (!node || !node.isPlot || !node.isTextblock) return
+
+    let hasHack = -1, needsHack = true
+    for (let parent = this.new, i = parent.children.length;;) {
+      if (i > 0) {
+        let next = parent.children[--i]
+        if (next.isNodeInner || next instanceof WidgetTile && !next.widget.type.inFlow) {
+        } else if (next instanceof WidgetTile && next.widget == brHack && parent == this.new) {
+          hasHack = i
+        } else if (next.dom.nodeName == "BR" || next instanceof TextTile && /\n$/.test(next.text)) {
+          break
+        } else if (next instanceof CompositeTile && !next.isAtom) {
+          parent = next
+          i = parent.children.length
+        } else {
+          needsHack = false
+          break
+        }
+      } else if (parent == this.new) {
+        break
+      } else {
+        i = parent.parent!.children.indexOf(parent)
+        parent = parent.parent!
       }
+    }
+
+    if (hasHack > -1) {
+      if (!needsHack) this.new.children.splice(hasHack, 1)
+    } else if (needsHack) {
+      this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, 0))
     }
   }
 

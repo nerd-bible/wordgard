@@ -256,13 +256,15 @@ function nonZero(rect: DOMRect) {
   return rect.top < rect.bottom || rect.left < rect.right
 }
 
-export function singleRect(target: Element | Range, bias: -1 | 1, preferWide = false): DOMRect {
-  let rects = target.getClientRects()
+export function singleRect(target: Element | Text | Range, bias: -1 | 1, preferWide = false): DOMRect {
+  if ((target as Text).nodeType == 3)
+    target = textRange(target as Text, 0, (target as Text).nodeValue!.length)
+  let rects = (target as Element | Range).getClientRects()
   for (let i = bias < 0 ? 0 : rects.length - 1; bias < 0 ? i < rects.length : i >= 0; i -= bias) {
     let rect = rects[i]
     if (nonZero(rect) && (!preferWide || rect.width)) return rect
   }
-  return Array.prototype.find.call(rects, nonZero) || target.getBoundingClientRect()
+  return Array.prototype.find.call(rects, nonZero) || (target as Element | Range).getBoundingClientRect()
 }
 
 export function getRoot(node: Node | null | undefined): DocumentOrShadowRoot | null {

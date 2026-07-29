@@ -61,6 +61,9 @@ export namespace Widget {
     /// inside the widget. May return true to indicate that no further
     /// handling of the event should happen.
     handleEvent?: (event: Event, wg: Wordgard) => boolean
+    /// Set this to false for widgets that either aren't visible or
+    /// are positioned outside of the regular document flow.
+    inFlow?: boolean
   }
 
   /// Each widget has an associated type that describes how it
@@ -76,14 +79,17 @@ export namespace Widget {
       /// @internal
       readonly connect: ((value: Param, dom: Element | Text) => void) | null,
       /// @internal
-      readonly disconnect: ((value: Param, dom: Element | Text) => void) | null
+      readonly disconnect: ((value: Param, dom: Element | Text) => void) | null,
+      /// @internal
+      readonly inFlow: boolean
     ) {}
 
     /// @internal
     static new<Param>(spec: Widget.Spec<Param>) {
       return new Type(spec.render, spec.eq || ((a, b) => a === b),
                       spec.handleEvent || (() => false),
-                      spec.connect ?? null, spec.disconnect ?? null) 
+                      spec.connect ?? null, spec.disconnect ?? null,
+                      spec.inFlow !== false)
     }
 
     /// Create an instance of this widget type.
