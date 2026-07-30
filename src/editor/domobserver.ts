@@ -207,7 +207,9 @@ export class DOMObserver {
     if (!tile || tile.ignoreMutations) return null
     tile.flags |= TileFlag.Dirty
     if (record.type == "attributes" || record.type == "characterData") {
-      if (tile.dom == record.target) {
+      if (tile == this.wg.docTile) {
+        return null
+      } else if (tile.dom == record.target) {
         return [tile.posBefore, tile.posAfter]
       } else {
         return childRange(tile, record)
