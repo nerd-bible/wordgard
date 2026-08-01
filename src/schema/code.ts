@@ -1,8 +1,8 @@
 import {GardState} from "wordgard/state"
-import {CodeBlock} from "wordgard/types"
+import {CodeBlock, CodeBlockLanguage} from "wordgard/types"
 import {phrases} from "wordgard/phrases"
-import {Command, Menu, setTextblockType} from "wordgard/command"
-import {KeyBinding, InputRule} from "wordgard/editor"
+import {Command, enter, Menu, setTextblockType} from "wordgard/command"
+import {KeyBinding} from "wordgard/editor"
 import {selectionInType} from "./block"
 
 /// Extensions to add support for code blocks. Includes the {@link
