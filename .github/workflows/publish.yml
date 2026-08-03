@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
-      - run: npm install
+      - run: npm install --force
       - run: npm test
       - run: npm run prepare
       - run: npx -p @nerd-bible/config pkgWrite
