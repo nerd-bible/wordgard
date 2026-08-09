@@ -842,8 +842,8 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
     })
     if (!deletions) return new RangeSet<T>(this.values, from, to)
     return new RangeSet<T>(applyDel(deleted, deletions, this.values),
-                               applyDel(deleted, deletions, from),
-                               applyDel(deleted, deletions, to))
+                           applyDel(deleted, deletions, from),
+                           applyDel(deleted, deletions, to))
   }
 
   /// @internal
@@ -855,8 +855,8 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
   compareRange(fromA: number, b: RangeSet<T>, fromB: number, len: number, change: (from: number, to: number) => void) {
     let a = this, toB = fromB + len
     if (a != b || fromA != fromB) {
-      let iA = findAbove(a.from, 0, fromA - 1), lA = a.from.length
-      let iB = findAbove(b.from, 0, fromB - 1), lB = b.from.length
+      let iA = findAbove(a.to, 0, fromA - 1), lA = a.from.length
+      let iB = findAbove(b.to, 0, fromB - 1), lB = b.from.length
       let off = fromB - fromA
       let sameVals = a.values == b.values
       for (;;) {

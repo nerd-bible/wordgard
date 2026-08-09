@@ -424,6 +424,15 @@ describe("DocTile", () => {
       })).dom.innerHTML, "<p>ab<img alt=\"a test\" src=\"test.png\">cd</p>")
     })
 
+    it("notices changes to spans that start before a preserved section", () => {
+      ist(update(render(doc(p("abcd")), Decoration.Range.source.of(s => {
+        let wrap = Decoration.Range.wrapper("span", {attributes: {class: s.doc.length % 2 ? "x" : "y"}})
+        return RangeSet.create([[1, s.doc.length - 1, wrap]])
+      })), {
+        changes: {from: 3, insert: [Leaf.text("/")]}
+      }).dom.innerHTML, `<p><span class="x">ab/cd</span></p>`)
+    })
+
     it("can override a specific leaf node's shape", () => {
       ist(render(doc(p("ab", $img, "cd")), Decoration.Point.source.of(state => {
         return PointSet.create([[3, Decoration.Point.shape(Elt.mk("span", ["!"]))]])
