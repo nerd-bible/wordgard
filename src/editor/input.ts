@@ -507,7 +507,7 @@ function isInPrimarySelection(wg: Wordgard, event: MouseEvent) {
   return false
 }
 
-const focusEvents = new Set(["input", "beforeinput", "keydown", "keyup", "keypress"])
+const focusEvents = new Set(["input", "beforeinput", "keydown", "keyup", "keypress", "copy", "cut", "paste"])
 
 function eventBelongsToEditor(wg: Wordgard, event: Event): boolean {
   if (event.defaultPrevented) return false
