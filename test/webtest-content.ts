@@ -412,6 +412,20 @@ describe("DocTile", () => {
       ist(node.dom.firstChild, para)
     })
 
+    it("doesn't drop point decorations directly after a change", () => {
+      let classes = Decoration.Point.source.of(s => {
+        return PointSet.create(add => {
+          let i = 0
+          s.doc.iterate((node, pos) => {
+            if (node.type == Paragraph.type)
+              add(pos, Decoration.Point.attributes({"class": `c${++i % 3}`}))
+          })
+        })
+      })
+      let node = update(render(doc(p("a"), p("b"), p("c")), classes), {changes: {from: 0, to: 3}})
+      ist(node.dom.innerHTML, `<p class="c1">b</p><p class="c2">c</p>`)
+    })
+
     it("can take wrappers from spans", () => {
       ist(render(doc(p("ab", $img, "cd")), Decoration.Range.source.of(s => {
         return RangeSet.create([[2, 5, Decoration.Range.wrapper("span", {attributes: {class: "a"}})]])

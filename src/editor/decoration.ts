@@ -508,6 +508,8 @@ class WrapperRangeDecoration extends Decoration.Range {
   }
 }
 
+const enum Side { After = 1e9 }
+
 class ShapeDecoration extends Decoration.Point {
   constructor(readonly shape: Decoration.Shape) { super() }
 
@@ -516,13 +518,13 @@ class ShapeDecoration extends Decoration.Point {
   }
 
   get trackMode() { return "after" as const }
-  get side() { return 1e9 }
+  get side() { return Side.After }
 }
 
 class WidgetDecoration extends Decoration.Point {
   constructor(readonly widget: Widget, readonly side: number, readonly trackMode: ChangeSet.TrackMode | undefined) {
     super()
-    if (side >= 1e9) throw new Error("Invalid widget side")
+    if (side >= Side.After) throw new Error("Invalid widget side")
   }
 
   eq(other: PointSet.Value): boolean {
@@ -544,7 +546,7 @@ class AttributeDecoration extends Decoration.Point {
   }
 
   get trackMode() { return "after" as const }
-  get side() { return 1e9 }
+  get side() { return Side.After }
 }
 
 class WrapperDecoration extends Decoration.Point {
@@ -556,7 +558,7 @@ class WrapperDecoration extends Decoration.Point {
   }
 
   get trackMode() { return "after" as const }
-  get side() { return 1e9 }
+  get side() { return Side.After }
 }
 
 const nodeSelectionDeco = Decoration.Point.attributes({class: "wg-selected-node"})
@@ -765,9 +767,13 @@ class PointIterator<T extends PointSet.Value> {
     return this.done ? 1 : this.value!.side
   }
 
-  goto(pos: number) {
+  goto(pos: number, inclusive: boolean) {
     this.done = false
-    this.fill(findAbove(this.set.positions, 0, pos - 1))
+    let i = findAbove(this.set.positions, 0, pos - 1)
+    if (!inclusive) {
+      while (i < this.set.values.length && this.set.values[i].side < Side.After) i++
+    }
+    this.fill(i)
   }
 }
 
@@ -1304,7 +1310,7 @@ export class DecoIterator {
 
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     for (let i of this.rangeIter) i.goto(from)
-    for (let i of this.pointIter) i.goto(inclusiveStart ? from : from + 1)
+    for (let i of this.pointIter) i.goto(from, inclusiveStart)
     let iter = new HeapIterator<Decoration.Range, Decoration.Point>(
       this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
