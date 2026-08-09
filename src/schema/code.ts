@@ -55,13 +55,21 @@ export namespace codeBlock {
   }))
 }
 
-export function codeBlockLanguage(options: {languages?: readonly string[]} = {}): GardState.Extension {
+/// Add support for the code block {@link CodeBlockLanguage language
+/// mark}.
+export function codeBlockLanguage(options: {
+  /// When given, show a drop-down menu in the corner of code blocks
+  /// that allows the user to choose a language for block from the
+  /// given list of strings. The actual mark value will be the
+  /// lower-case form of the selected language name.
+  languages?: readonly string[]
+} = {}): GardState.Extension {
   return [
     GardState.schemaElement.of(CodeBlockLanguage),
-    languageStyles,
     options.languages ? [
+      languageStyles,
       languageOptions.of(options.languages),
-      codeBlockLanguage.selection
+      languageSelect
     ] : []
   ]
 }
@@ -69,18 +77,17 @@ export function codeBlockLanguage(options: {languages?: readonly string[]} = {})
 const languageStyles = Wordgard.styles({
   pre: {
     position: "relative",
-    "& select.wg-code-language": { // FIXME make less obtrusive somehow
+    "& select.wg-code-language": {
       font: "var(--wg-dialog-font)",
       fontSize: "70%",
       position: "absolute",
       top: "2px",
       right: "4px",
       border: "none",
+      borderRadius: "4px"
     }
   }
 })
-
-// FIXME how do we handle capitalization?
 
 const languageOptions = GardState.Facet.define<readonly string[], readonly string[]>({
   combine: input => input.reduce((a, b) => a.concat(b), [])
@@ -101,7 +108,7 @@ const languageWidget = Widget.define<{options: readonly string[], value: string 
     sel.tabIndex = -1
     sel.appendChild(option("Plain", value == null, ""))
     if (value && !options.includes(value)) sel.appendChild(option(value, true))
-    for (let opt of options) sel.appendChild(option(opt, value == opt))
+    for (let opt of options) sel.appendChild(option(opt, value == opt.toLowerCase(), opt.toLowerCase()))
     return sel
   },
   handleEvent(event: Event, wg: Wordgard) {
@@ -132,9 +139,3 @@ const languageSelect = Decoration.Tag.widget.dynamic(CodeBlock, "end", state => 
     return languageWidget.of({options, value: tag.mark(CodeBlockLanguage)})
   }
 })
-
-export namespace codeBlockLanguage {
-  export const selection = [
-    languageSelect
-  ]
-}
