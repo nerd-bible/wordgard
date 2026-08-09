@@ -854,6 +854,48 @@ class ContentUpdate {
   }
 
   keep(len: number, includeStart: boolean, includeEnd: boolean) {
+    let cut: number[] = [], end = this.posB + len
+    // Compare this.old and this.new to find node tiles whose tag
+    // changed and who have end widgets and whose end is inside the
+    // kept range.
+    if (this.deco.endWidgets) for (let nw: CompositeTile = this.new, {tile, index, parent} = this.old, pos = this.posB; pos < end;) {
+      if (tile instanceof TextTile) {
+        pos += tile.length - index
+        ;({tile, index, parent} = parent!)
+        index++
+      } else if (index < tile.children.length) {
+        pos += tile.children[index].length
+        index++
+      } else {
+        if (tile.node) {
+          while (!nw.node && nw.parent) nw = nw.parent
+          if (!nw.parent) break
+          if (!nw.node!.tag.eq(tile.node.tag) &&
+              (this.deco.hasEndWidget(tile.node.type) || this.deco.hasEndWidget(nw.node!.type)))
+            cut.push(pos)
+          nw = nw.parent
+          if (!nw) break
+          pos++
+        }
+        if (!parent) break
+        ;({tile, index, parent} = parent)
+        index++
+      }
+    }
+    // Split the kept range at such points, emitting update calls for
+    // them, so that the widgets can be redrawn.
+    for (let i = cut.length; i;) {
+      let from = cut[--i], to = Math.min(from + 1, includeEnd ? end : end - 1)
+      while (i && cut[i - 1] == from - 1) { from--; i-- }
+      if (from > this.posB) this.keepInner(from - this.posB, includeStart, false)
+      this.update(to - from, true)
+      includeStart = false
+      len = end - to
+    }
+    if (len) this.keepInner(len, includeStart, includeEnd)
+  }
+
+  keepInner(len: number, includeStart: boolean, includeEnd: boolean) {
     if (!includeStart) {
       this.old = this.old.walk(0, 1)
       this.openOldWrappers()

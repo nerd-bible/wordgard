@@ -2,7 +2,7 @@ import {GardState} from "wordgard/state"
 import {CodeBlock, CodeBlockLanguage} from "wordgard/types"
 import {phrases} from "wordgard/phrases"
 import {Command, enter, Menu, setTextblockType} from "wordgard/command"
-import {KeyBinding} from "wordgard/editor"
+import {Wordgard, KeyBinding, Decoration, Widget} from "wordgard/editor"
 import {selectionInType} from "./block"
 
 /// Extensions to add support for code blocks. Includes the {@link
@@ -53,4 +53,88 @@ export namespace codeBlock {
       scrollIntoView: true
     }
   }))
+}
+
+export function codeBlockLanguage(options: {languages?: readonly string[]} = {}): GardState.Extension {
+  return [
+    GardState.schemaElement.of(CodeBlockLanguage),
+    languageStyles,
+    options.languages ? [
+      languageOptions.of(options.languages),
+      codeBlockLanguage.selection
+    ] : []
+  ]
+}
+
+const languageStyles = Wordgard.styles({
+  pre: {
+    position: "relative",
+    "& select.wg-code-language": { // FIXME make less obtrusive somehow
+      font: "var(--wg-dialog-font)",
+      fontSize: "70%",
+      position: "absolute",
+      top: "2px",
+      right: "4px",
+      border: "none",
+    }
+  }
+})
+
+// FIXME how do we handle capitalization?
+
+const languageOptions = GardState.Facet.define<readonly string[], readonly string[]>({
+  combine: input => input.reduce((a, b) => a.concat(b), [])
+})
+
+function option(text: string, selected: boolean, value = text) {
+  let node = document.createElement("option")
+  node.textContent = text
+  node.value = value
+  if (selected) node.selected = true
+  return node
+}
+
+const languageWidget = Widget.define<{options: readonly string[], value: string | undefined}>({
+  render({options, value}) {
+    let sel = document.createElement("select")
+    sel.className = "wg-code-language"
+    sel.tabIndex = -1
+    sel.appendChild(option("Plain", value == null, ""))
+    if (value && !options.includes(value)) sel.appendChild(option(value, true))
+    for (let opt of options) sel.appendChild(option(opt, value == opt))
+    return sel
+  },
+  handleEvent(event: Event, wg: Wordgard) {
+    if (event.type == "input") {
+      let target = event.target as HTMLSelectElement, value = target.value || undefined
+      let pos = wg.posAtDOM(target.parentNode!)
+      let block = pos > 0 && wg.state.doc.nodeAt(pos - 1)
+      if (block && block.type == CodeBlock.type && block.mark(CodeBlockLanguage) != value) {
+        wg.dispatch({
+          changes: value ? {from: pos - 1, add: CodeBlockLanguage.of(value)} :
+            {from: pos - 1, remove: CodeBlockLanguage.isInSet(block.tag.marks)!}
+        })
+        wg.focus()
+      }
+    }
+    return true
+  },
+  eq(a, b) {
+    return a.value == b.value && a.options.length == b.options.length &&
+      a.options.every((o, i) => o == b.options[i])
+  },
+  inFlow: false
+})
+
+const languageSelect = Decoration.Tag.widget.dynamic(CodeBlock, "end", state => {
+  let options = state.facet(languageOptions)
+  return tag => {
+    return languageWidget.of({options, value: tag.mark(CodeBlockLanguage)})
+  }
+})
+
+export namespace codeBlockLanguage {
+  export const selection = [
+    languageSelect
+  ]
 }

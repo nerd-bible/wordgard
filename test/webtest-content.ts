@@ -1,13 +1,13 @@
 import {Wordgard, Decoration, Widget, PointSet, RangeSet} from "wordgard/editor"
 import {GardState, Transaction} from "wordgard/state"
 import {Plot, Leaf, Node, Elt, Mark, Token} from "wordgard/doc"
-import {CodeBlock, Emphasis, Strong, Paragraph, Blockquote, Image, ImageAlt, HorizontalRule} from "wordgard/types"
+import {CodeBlock, Emphasis, Strong, Paragraph, Heading, Blockquote, Image, ImageAlt, HorizontalRule} from "wordgard/types"
 import ist from "ist"
 import {builder, basicBuilders, tableSchema} from "./schema.ts"
 import {rDoc, rChangeSpec} from "./generate.ts"
 
 const {DocTile} = Wordgard
-const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
+const {doc, p, blockquote, h1, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
 
 type DocTile = InstanceType<typeof DocTile>
 
@@ -250,7 +250,6 @@ describe("DocTile", () => {
         doc = tile.state.doc
       }
       if (!compareDOM(render(doc).dom, tile.dom)) {
-        console.log(start + "", log)
         ist(render(doc).dom.innerHTML, tile.dom.innerHTML)
       }
     }
@@ -284,6 +283,24 @@ describe("DocTile", () => {
       let newWidgets = node.dom.querySelectorAll("span")
       ist(newWidgets.length, 4)
       for (let i = 0; i < widgets.length; i++) ist(newWidgets[i], widgets[i])
+    })
+
+    it("updates tag widgets at the end of a changed plot", () => {
+      let node = render(doc(p("x"), h2("y")), [
+        Decoration.Tag.widget(Heading, "end", t => inlineWidget.of("E" + t.param)),
+        Decoration.Tag.widget(Heading, "after", t => inlineWidget.of("A" + t.param))
+      ])
+      ist(node.dom.innerHTML, `<p>x</p><h2>y<span>E2</span></h2><span>A2</span>`)
+      node = update(node, {changes: [
+        {from: 0, to: 1, insert: [Heading.of(2)]},
+        {from: 3, to: 4, insert: [Heading.of(3)]}
+      ]})
+      ist(node.dom.innerHTML, `<h2>x<span>E2</span></h2><span>A2</span><h3>y<span>E3</span></h3><span>A3</span>`)
+      node = update(node, {changes: [
+        {from: 0, to: 1, insert: [Paragraph]},
+        {from: 3, to: 4, insert: [Paragraph]}
+      ]})
+      ist(node.dom.innerHTML, `<p>x</p><p>y</p>`)
     })
 
     it("doesn't break spanning wrappers on widgets", () => {

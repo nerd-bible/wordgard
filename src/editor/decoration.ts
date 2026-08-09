@@ -216,7 +216,7 @@ export namespace Decoration {
       return tagWidget.of({
         type: Node.Type.get(type),
         place: getPlace(place),
-        widget: typeof widget == "function" ? memo(widget as any) : (() => widget)
+        widget: typeof widget == "function" ? memo(widget as any) : widget
       })
     }
 
@@ -236,7 +236,7 @@ export namespace Decoration {
           return {
             type: tp,
             place: p,
-            widget: typeof w == "function" ? memo(w as any) : (() => w)
+            widget: typeof w == "function" ? memo(w as any) : w
           }
         })
       }
@@ -408,7 +408,7 @@ const tagWrapper = GardState.Facet.define<TagWrapper>()
 
 const enum WidgetPlace { Before, After, Start, End }
 
-type TagWidget = {type: Node.Type, place: WidgetPlace, widget: (tag: Node.Tag) => Widget}
+type TagWidget = {type: Node.Type, place: WidgetPlace, widget: Widget | ((tag: Node.Tag) => Widget)}
 
 const tagWidget = GardState.Facet.define<TagWidget>()
 
@@ -1281,10 +1281,13 @@ export class DecoIterator {
   pos: Pos
   rangeIter: RangeIterator<Decoration.Range>[] = []
   pointIter: PointIterator<Decoration.Point>[] = []
+  endWidgets: boolean
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
     this.tagShapes = state.facet(tagShape)
     this.globalWidgets = state.facet(tagWidget)
+    this.endWidgets = this.globalWidgets
+      .some(w => (w.place == WidgetPlace.After || w.place == WidgetPlace.End) && typeof w.widget == "function")
     this.globalWrappers = state.facet(tagWrapper)
     this.globalAttrs = state.facet(tagAttribute)
     this.pos = state.doc.resolve(0)
@@ -1302,10 +1305,16 @@ export class DecoIterator {
   widgets(tag: Node.Tag, place: WidgetPlace, walker: DecoWalker) {
     for (let src of this.globalWidgets) {
       if (src.place == place && tag.type == src.type) {
-        let widget = src.widget(tag)
+        let widget = typeof src.widget == "function" ? src.widget(tag) : src.widget
         if (widget) walker.widget(widget, place == WidgetPlace.Before || place == WidgetPlace.End ? 1 : -1)
       }
     }
+  }
+
+  hasEndWidget(type: Node.Type) {
+    return this.globalWidgets.some(tw => tw.type == type &&
+      (tw.place == WidgetPlace.End || tw.place == WidgetPlace.After) &&
+      typeof tw.widget == "function")
   }
 
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
