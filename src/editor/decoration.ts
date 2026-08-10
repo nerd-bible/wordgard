@@ -70,6 +70,9 @@ export namespace Widget {
     /// Set this to false for widgets that either aren't visible or
     /// are positioned outside of the regular document flow.
     inFlow?: boolean
+    /// By default, widgets are set to be ineditable. Set this to
+    /// `true` to suppress that.
+    editable?: boolean
   }
 
   /// Each widget has an associated type that describes how it
@@ -87,7 +90,9 @@ export namespace Widget {
       /// @internal
       readonly disconnect: ((value: Param, dom: Element | Text) => void) | null,
       /// @internal
-      readonly inFlow: boolean
+      readonly inFlow: boolean,
+      /// @internal
+      readonly editable: boolean
     ) {}
 
     /// @internal
@@ -97,7 +102,8 @@ export namespace Widget {
       return new Type(spec.render, spec.eq || ((a, b) => a === b),
                       propEvent,
                       spec.connect ?? null, spec.disconnect ?? null,
-                      spec.inFlow !== false)
+                      spec.inFlow !== false,
+                      spec.editable === true)
     }
 
     /// Create an instance of this widget type.

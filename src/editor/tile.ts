@@ -138,7 +138,6 @@ export abstract class Tile {
     return tile
   }
 
-  // FIXME needs a lot of tests
   posAtCoords(state: GardState, x: number, y: number): CoordPos {
     let nodeTile = this.nearestNode()
     return nodeTile.posAtCoordsInner(nodeTile.posAtStart, state, x, y, null, Orientation.Col)
@@ -576,7 +575,6 @@ export class EltTile extends CompositeTile {
   }
 }
 
-// FIXME set contenteditable to false on these?
 export class WidgetTile extends Tile {
   constructor(
     readonly widget: Widget<any>,
@@ -587,6 +585,8 @@ export class WidgetTile extends Tile {
   ) {
     super(dom, flags)
     this.length = length
+    if (dom.nodeType == 1 && !widget.type.editable && (dom as HTMLElement).contentEditable == "inherit")
+      (dom as HTMLElement).contentEditable = "false"
   }
 
   get isNodeOuter() { return !!this._node }
@@ -1062,6 +1062,9 @@ class ContentUpdate {
   // node will be null when building inner structure
   buildNodeShape(node: Node | null, shape: Decoration.Shape, reuse: Tile | readonly Tile[] | null, afterContent = TileFlag.None) {
     if (shape instanceof Elt) {
+      if (node && !shape.hasContent && Attributes.get(shape.attrs, "contenteditable") == null &&
+          !/^(br|hr|img|input|wbr)$/i.test(shape.tagName))
+        shape = Elt.create(shape.tagName, Attributes.merge(shape.attrs, ["contenteditable", "false"]), shape.children)
       let reusable, dom: Element | undefined, strict = true
       if (reusable = this.findReusableTile(shape, reuse, strict) || this.findReusableTile(shape, reuse, strict = false)) {
         this.reused.set(reusable, Reused.DOM)
@@ -1255,11 +1258,13 @@ export function updateAttributes(dom: Element, a: Attributes, b: Attributes) {
 }
 
 const brHack = Widget.create({
-  render() { return document.createElement("br") }
+  render() { return document.createElement("br") },
+  editable: true
 })
 
 const imgHack = Widget.create({
-  render() { return document.createElement("img") }
+  render() { return document.createElement("img") },
+  editable: true
 })
 
 // Change the given sections to make sure that the composition gets
