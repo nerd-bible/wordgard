@@ -1,5 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
+import {type Wordgard} from "./editor"
 
 /// A widget describes a piece of DOM content that can be used to
 /// render a node, a part of a node, or an extra element added via a
@@ -38,6 +39,11 @@ export class Widget<Param = unknown> {
   readonly type: Widget.Type<unknown extends Param ? any : Param>
 
   /// @internal
+  render(wg: Wordgard) {
+    return this.type.render(this.value, wg)
+  }
+
+  /// @internal
   get hasContent() { return false }
 }
 
@@ -45,7 +51,7 @@ export namespace Widget {
   /// Specifies a widget type.
   export type Spec<Param> = {
     /// How to render the widget as DOM content.
-    render: (value: Param) => Element | Text
+    render: (value: Param, wg: Wordgard) => Element | Text
     /// Compare the widget value for equality. Will default to `===`.
     eq?: (a: Param, b: Param) => boolean
     /// Called when a widget of this type is added to an editor that
@@ -71,7 +77,7 @@ export namespace Widget {
   export class Type<Param> {
     private constructor(
       /// @internal
-      readonly render: (value: Param) => Element | Text,
+      readonly render: (value: Param, wg: Wordgard) => Element | Text,
       /// @internal
       readonly eq: (a: Param, b: Param) => boolean,
       /// @internal

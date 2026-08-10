@@ -7,17 +7,18 @@ import {builder, basicBuilders, tableSchema} from "./schema.ts"
 import {rDoc, rChangeSpec} from "./generate.ts"
 
 const {DocTile} = Wordgard
-const {doc, p, blockquote, h1, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
+const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
 
 type DocTile = InstanceType<typeof DocTile>
+const dummyEditor: Wordgard = {connected: false} as any
 
 function render(doc: Plot.Doc, ...config: GardState.Extension[]): DocTile {
-  return DocTile.create(GardState.create({doc, config}), document.createElement("div"))
+  return DocTile.create(GardState.create({doc, config}), document.createElement("div"), dummyEditor)
 }
 
 function update(node: InstanceType<typeof DocTile>, spec: Transaction.Spec) {
   let tr = node.state.update(spec)
-  return node.update(tr.state, tr.changes.sections)
+  return node.update(tr.state, tr.changes.sections, dummyEditor)
 }
 
 function span(text: string) {
@@ -314,7 +315,7 @@ describe("DocTile", () => {
       let elts = node.dom.querySelectorAll("*")
       let tr1 = node.state.update({changes: {from: 1, to: 12, remove: Strong}})
       let tr2 = tr1.state.update({changes: {from: 1, to: 12, add: Strong}})
-      node = node.update(tr2.state, tr1.changes.compose(tr2.changes).sections)
+      node = node.update(tr2.state, tr1.changes.compose(tr2.changes).sections, dummyEditor)
       let newElts = node.dom.querySelectorAll("*")
       ist(newElts.length, elts.length)
       for (let i = 0; i < elts.length; i++) ist(newElts[i], elts[i])

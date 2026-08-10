@@ -6,6 +6,7 @@ import {Widget, DecoElt, Decoration, DecoIterator, findChangedRanges, WrapperSou
 import {eqArray} from "./util"
 import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
 import {type CompositionInfo} from "./input"
+import {type Wordgard} from "./editor"
 
 const LOG_update = false
 
@@ -307,23 +308,23 @@ export class DocTile extends CompositeTile {
     super(dom, TileFlag.PlotContent)
   }
 
-  static create(state: GardState, dom: Element) {
+  static create(state: GardState, dom: Element, wg: Wordgard) {
     return new DocTile(state, dom, null, {points: new Map, ranges: new Map})
-      .updateRanges(state, getDecoSet(state), [0, state.doc.length], false)
+      .updateRanges(state, getDecoSet(state), [0, state.doc.length], wg)
   }
 
   get isDoc() { return true }
 
   get node() { return this.state.doc }
 
-  update(state: GardState, changes: ChangeSet.Sections, connected = false, composition?: CompositionInfo | null) {
+  update(state: GardState, changes: ChangeSet.Sections, wg: Wordgard, composition?: CompositionInfo | null) {
     let decoSet = getDecoSet(state)
     let changed = findChangedRanges(this.state, this.decoSet, state, decoSet, changes)
-    return this.updateRanges(state, decoSet, changed, connected, composition)
+    return this.updateRanges(state, decoSet, changed, wg, composition)
   }
 
-  updateRanges(state: GardState, decoSet: DecoSet, sections: ChangeSet.Sections,
-               connected: boolean, composition?: CompositionInfo | null) {
+  updateRanges(state: GardState, decoSet: DecoSet, sections: ChangeSet.Sections, wg: Wordgard,
+               composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
     if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
       return this
@@ -334,7 +335,7 @@ export class DocTile extends CompositeTile {
       if (!separated) composition = null
       else sections = separated
     }
-    let builder = new ContentUpdate(state, this, new DecoIterator(state, decoSet), wrapper)
+    let builder = new ContentUpdate(state, this, wg, new DecoIterator(state, decoSet), wrapper)
     for (let i = 0, posB = 0, startCovered = false; i < sections.length;) {
       let len = sections[i++], ins = sections[i++]
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
@@ -357,7 +358,7 @@ export class DocTile extends CompositeTile {
     }
     let result = builder.finish()
     result.sync()
-    if (connected) {
+    if (wg.connected) {
       for (let ch of this.children) ch.disconnect(builder.reused)
       for (let tile of builder.toConnect) tile.widget.type.connect!(tile.widget.value, tile.dom)
     }
@@ -581,10 +582,10 @@ export class WidgetTile extends Tile {
     readonly widget: Widget<any>,
     readonly _node: Node | null,
     flags: TileFlag,
-    length: number = 0,
-    dom?: Element | Text
+    dom: Element | Text,
+    length: number = 0
   ) {
-    super(dom || widget.type.render(widget.value), flags)
+    super(dom, flags)
     this.length = length
   }
 
@@ -788,7 +789,13 @@ class ContentUpdate {
   toConnect: WidgetTile[] = []
   partialNode: {node: Node, shape: Decoration.Shape, wrappers: number, reuse: Tile | null} | null = null
 
-  constructor(readonly state: GardState, old: DocTile, readonly deco: DecoIterator, cursorWrapper: Mark.Set | null) {
+  constructor(
+    readonly state: GardState,
+    old: DocTile,
+    readonly wg: Wordgard,
+    readonly deco: DecoIterator,
+    cursorWrapper: Mark.Set | null
+  ) {
     this.old = new TilePointer(old, 0, null)
     this.new = new DocTile(state, old.dom as Element, cursorWrapper, deco.decoSet)
     this.keepWalker = {
@@ -920,7 +927,7 @@ class ContentUpdate {
       for (let mark of composition.wrapCursor!) if (mark.type.element) {
         this.openWrapper(renderMarkWrapper(mark), mark.spanning, false)
       }
-      this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointBefore))
+      this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointBefore, imgHack.render(this.wg)))
       return
     }
     let found: EltTile[] = []
@@ -1022,7 +1029,7 @@ class ContentUpdate {
           : endOld && this.posB == end ? endOld.matchingWidget(widget, sideFlag, this.reused)
           : null
         if (!tile) {
-          tile = new WidgetTile(widget, null, TileFlag.Point | sideFlag, 0)
+          tile = new WidgetTile(widget, null, TileFlag.Point | sideFlag, widget.render(this.wg))
           if (widget.type.connect) this.toConnect.push(tile)
         }
         this.new.addChild(tile)
@@ -1085,7 +1092,7 @@ class ContentUpdate {
         dom = reusable.dom
       }
       let flags = (node ? TileFlag.Atom : TileFlag.Point | TileFlag.NodeInner) | afterContent
-      let tile = new WidgetTile(shape, node, flags, node ? node.length : 0, dom)
+      let tile = new WidgetTile(shape, node, flags, dom || shape.render(this.wg), node ? node.length : 0)
       if (shape.type.connect) this.toConnect.push(tile)
       return tile
     }
@@ -1125,7 +1132,7 @@ class ContentUpdate {
     if (hasHack > -1) {
       if (!needsHack) this.new.children.splice(hasHack, 1)
     } else if (needsHack) {
-      this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, 0))
+      this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, brHack.render(this.wg)))
     }
   }
 
