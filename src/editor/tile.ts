@@ -576,6 +576,7 @@ export class EltTile extends CompositeTile {
   }
 }
 
+// FIXME set contenteditable to false on these?
 export class WidgetTile extends Tile {
   constructor(
     readonly widget: Widget<any>,

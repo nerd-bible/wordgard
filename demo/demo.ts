@@ -14,7 +14,3 @@ import {tables} from "wordgard/table"
     tables(),
   ]
 })
-
-import {Attributes} from "wordgard/doc"
-
-console.log(Attributes.compare(["class", "x"], ["class", "x", "style", "color: red"]))
