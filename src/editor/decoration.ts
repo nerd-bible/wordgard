@@ -1,6 +1,5 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
-import {type Wordgard} from "./editor"
 
 /// A widget describes a piece of DOM content that can be used to
 /// render a node, a part of a node, or an extra element added via a
@@ -57,10 +56,11 @@ export namespace Widget {
     /// that is connected to a document, or when the editor containing
     /// the widget is disconnected.
     disconnect?: (value: Param, dom: Element | Text) => void
-    /// Called before the editor handles a DOM event that comes from
-    /// inside the widget. May return true to indicate that no further
-    /// handling of the event should happen.
-    handleEvent?: (event: Event, wg: Wordgard) => boolean
+    /// Used to determine whether events originating from the widget's
+    /// DOM should ignored by the editor. `false` or a function that
+    /// returns `false` for the event will prevent the editor's
+    /// regular event handling for the event.
+    propagateEvent?: boolean | ((event: Event) => boolean)
     /// Set this to false for widgets that either aren't visible or
     /// are positioned outside of the regular document flow.
     inFlow?: boolean
@@ -75,7 +75,7 @@ export namespace Widget {
       /// @internal
       readonly eq: (a: Param, b: Param) => boolean,
       /// @internal
-      readonly handleEvent: (event: Event, wg: Wordgard) => boolean,
+      readonly propagateEvent: (event: Event) => boolean,
       /// @internal
       readonly connect: ((value: Param, dom: Element | Text) => void) | null,
       /// @internal
@@ -86,8 +86,10 @@ export namespace Widget {
 
     /// @internal
     static new<Param>(spec: Widget.Spec<Param>) {
+      let prop = spec.propagateEvent
+      let propEvent = typeof prop == "function" ? prop : prop == null ? () => true : () => prop
       return new Type(spec.render, spec.eq || ((a, b) => a === b),
-                      spec.handleEvent || (() => false),
+                      propEvent,
                       spec.connect ?? null, spec.disconnect ?? null,
                       spec.inFlow !== false)
     }

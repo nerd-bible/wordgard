@@ -515,7 +515,7 @@ function eventBelongsToEditor(wg: Wordgard, event: Event): boolean {
   let active = wg.root.activeElement
   for (let node = event.target as DOMNode | null, tile; node != wg.contentDOM; node = node.parentNode)
     if (!node || node.nodeType == 11 ||
-        (tile = Tile.get(node)) && tile.handleEvent(event, wg) ||
+        (tile = Tile.get(node)) && tile.ignoreEvent(event) ||
         node == active && focusEvents.has(event.type))
       return false
   return true

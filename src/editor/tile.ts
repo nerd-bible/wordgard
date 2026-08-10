@@ -6,7 +6,6 @@ import {Widget, DecoElt, Decoration, DecoIterator, findChangedRanges, WrapperSou
 import {eqArray} from "./util"
 import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
 import {type CompositionInfo} from "./input"
-import {type Wordgard} from "./editor"
 
 const LOG_update = false
 
@@ -115,7 +114,7 @@ export abstract class Tile {
     return last < 0 ? null : this.children[last]
   }
 
-  handleEvent(event: Event, wg: Wordgard) { return false }
+  ignoreEvent(event: Event) { return false }
 
   get ignoreMutations() { return false }
 
@@ -595,7 +594,7 @@ export class WidgetTile extends Tile {
 
   get children() { return noChildren }
 
-  handleEvent(event: Event, wg: Wordgard) { return this.widget.type.handleEvent(event, wg) }
+  ignoreEvent(event: Event) { return !this.widget.type.propagateEvent(event) }
 
   connect() {
     this.widget.type.connect?.(this.widget.value, this.dom)
