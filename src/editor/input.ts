@@ -231,6 +231,7 @@ export class InputState {
 
     let command = inputTypeCommands[type]
     if ((type == "deleteContentBackward" || type == "deleteContentForward") && range &&
+        range.from != range.to && // Always run the command for empty ranges
         (sel.empty
           ? !isSingleChar(this.domDoc, data.domRange!.from, data.domRange!.to) ||
             sel.head != (type == "deleteContentBackward" ? range.to : range.from)
