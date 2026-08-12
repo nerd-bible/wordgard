@@ -220,8 +220,8 @@ export class InputState {
     let type = event.inputType, range: {from: number, to: number} | undefined
     let {wg} = this, sel = wg.state.selection
     if (data.domRange) {
-      range = {from: this.domMapping.mapPos(data.domRange.from),
-               to: this.domMapping.mapPos(data.domRange.to)}
+      range = {from: snapToSel(wg.state, this.domMapping.mapPos(data.domRange.from)),
+               to: snapToSel(wg.state, this.domMapping.mapPos(data.domRange.to))}
       if (!this.domMapping.empty && type == "insertText" && !this.composing && range.from == range.to) {
         let fromMax = this.domMapping.mapPos(data.domRange.from, 1)
         if (range.from <= sel.from && fromMax >= sel.to)
@@ -322,6 +322,14 @@ export class InputState {
   disconnect() {
     if (this.mouseSelection) this.mouseSelection.disconnect()
   }
+}
+
+function snapToSel(state: GardState, pos: number) {
+  let norm1 = GardSelection.near(state, pos, -1).head, norm2 = GardSelection.near(state, pos, 1).head
+  let {head, anchor} = state.selection
+  if (norm1 == head || norm2 == head) return head
+  if (norm1 == anchor || norm2 == anchor) return anchor
+  return pos
 }
 
 function isSingleChar(doc: Plot.Doc, from: number, to: number) {
