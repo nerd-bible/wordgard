@@ -3,7 +3,7 @@ import {GardState} from "wordgard/state"
 import type {Wordgard} from "./editor"
 import {TextTile} from "./tile"
 import {coordsAtPos} from "./coords"
-import {singleRect} from "./dom"
+import {textRange} from "./dom"
 // FIXME this is a bit sloppy
 import {renderMarks} from "./decoration"
 
@@ -94,11 +94,22 @@ export class CursorLayer {
   }
 }
 
+// Try to estimate a baseline (relative to the bottom of the height)
+// from a vertical-align value. Far from accurate, used to get a rough
+// correction on the cursor position.
+function alignOffset(align: string, height: number) {
+  if (align == "super") return height * 0.36
+  if (align == "sub") return height * -0.17
+  if (align.endsWith("px")) return +align.slice(0, align.length - 2)
+  if (align.endsWith("%")) return height * (+align.slice(0, align.length - 1)) * 100
+  return 0
+}
+
 const VertWidth = 30, VertGap = 5
 
 function getCursorInfo(wg: Wordgard, plugin: CursorLayer, cont: (info: CursorInfo) => void) {
   let {state} = wg
-  if (!state.selection.isCursor) return null
+  if (!state.selection.isCursor) return cont(null)
   let {head, headSide} = state.selection, {sel} = wg.state
   let {ref, rect} = coordsAtPos(wg, head, headSide)
   let doc = wg.contentDOM.getBoundingClientRect()
@@ -119,14 +130,24 @@ function getCursorInfo(wg: Wordgard, plugin: CursorLayer, cont: (info: CursorInf
     })
   }
 
-  let finish = (style: CursorStyle) => {
+  let finish = (style: CursorStyle | null, vertRect?: DOMRect) => {
     plugin.cachedStyle = style
     plugin.cachedFor = marks
-    // FIXME vertical alignment
+    let height = style ? style.height : rect.height
+    let bot = rect.bottom
+    if (vertRect && (vertRect.top < rect.bottom && vertRect.bottom > rect.top)) {
+      bot = vertRect.bottom
+    } else {
+      let win = ref.dom.ownerDocument.defaultView || window
+      let refAlign = win.getComputedStyle((ref.dom.nodeType == 1 ? ref.dom : ref.dom.parentNode) as Element).verticalAlign
+      if (style && refAlign != style.align) {
+        bot += alignOffset(refAlign, rect.height) - alignOffset(style.align, style.height)
+      }
+    }
     cont({
       left: rect.left - doc.left,
-      top: rect.top - doc.top,
-      size: style.height,
+      top: bot - height - doc.top,
+      size: height,
       horiz: false, style
     })
   }
@@ -136,23 +157,32 @@ function getCursorInfo(wg: Wordgard, plugin: CursorLayer, cont: (info: CursorInf
     let node = ref.posBefore < head ? state.sel.head.nodeBefore : state.sel.head.nodeAfter
     // Ref is text with matching style, use directly
     if (node && node.isText && Mark.sameSet(node.marks, marks))
-      return finish(CursorStyle.read(ref.dom, rect.height))
+      return finish(CursorStyle.read(ref.dom, rect.height), rect)
   }
+
+  // See if a sibling node has the same set of marks, read style from that
+  let pos = sel.head.parent.start, foundRect: DOMRect | undefined, foundNode: Text | undefined
+  for (let sibling of sel.head.parent.node.content) {
+    if (sibling.isText && Mark.sameSet(sibling.marks, marks)) {
+      let {tile} = wg.docTile.resolve(pos, 1)
+      if (tile instanceof TextTile) {
+        let rects = textRange(tile.dom, 0, tile.length).getClientRects()
+        foundNode = tile.dom
+        for (let i = 0; i < rects.length; i++) {
+          foundRect = rects[i]
+          if (foundRect.top < rect.bottom && foundRect.bottom > rect.top) break
+        }
+      }
+    }
+    pos += sibling.length
+  }
+  if (foundNode) return finish(CursorStyle.read(foundNode, foundRect!.height), foundRect)
 
   // Check cache
   if (plugin.cachedFor && Mark.sameSet(plugin.cachedFor, marks))
     return finish(plugin.cachedStyle!)
 
-  // See if a sibling node has the same set of marks, read style from that
-  let pos = sel.head.parent.start
-  for (let sibling of sel.head.parent.node.content) {
-    if (sibling.isText && Mark.sameSet(sibling.marks, marks)) {
-      let tile = wg.docTile.resolve(pos, 1)
-      if (tile instanceof TextTile)
-        return finish(CursorStyle.read(tile.dom, singleRect(tile.dom, -1, true).height))
-    }
-    pos += sibling.length
-  }
+  if (!marks.length) return finish(null)
 
   // Create a temporary node to measure
   let target = sel.head.parent.node.isDoc ? wg.contentDOM : wg.nodeDOM(sel.head.parent.before)!
@@ -164,7 +194,8 @@ function getCursorInfo(wg: Wordgard, plugin: CursorLayer, cont: (info: CursorInf
       wg.scheduleDOMWrite(() => wg.observer.ignore(() => temp.remove()))
       let inner = temp as Element | Text
       while (inner.firstChild) inner = inner.firstChild as Element | Text
-      finish(CursorStyle.read(inner, singleRect(inner, -1, true).height))
+      let r = textRange(inner as Text, 0, 1).getClientRects()[0]
+      finish(CursorStyle.read(inner, r.height), r)
     })
   })
 }
