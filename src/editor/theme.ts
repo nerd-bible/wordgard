@@ -121,6 +121,11 @@ export const baseStyles = buildTheme("." + styleID, {
     }
   },
 
+  ".wg-buffer": {
+    verticalAlign: "bottom",
+    height: "1em",
+  },
+
   "wg-placeholder": {
     opacity: "0.6",
     display: "inline-block",
