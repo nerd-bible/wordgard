@@ -1,4 +1,4 @@
-import {Mark} from "wordgard/doc"
+import {Mark, Node} from "wordgard/doc"
 import {GardState} from "wordgard/state"
 import type {Wordgard} from "./editor"
 import {TextTile} from "./tile"
@@ -26,9 +26,7 @@ class CursorStyle {
     let win = node.ownerDocument.defaultView || window
     let elt = node.nodeType == 1 ? node as Element : node.parentNode as Element
     let style = win.getComputedStyle(elt)
-    let color = style.color, bg = getBackgroundColor(elt)
-    if (!hasContrast(color, bg)) color = contrastColorSupported ? `contrast-color(${bg})` : "currentColor"
-    return new CursorStyle(height, style.verticalAlign, color, +style.fontWeight > 400, style.fontStyle == "italic")
+    return new CursorStyle(height, style.verticalAlign, style.color, +style.fontWeight > 400, style.fontStyle == "italic")
   }
 
   eq(other: CursorStyle | null) {
@@ -37,62 +35,10 @@ class CursorStyle {
   }
 }
 
-// This is not sound (a given element can change background color),
-// but we don't want to re-query the element stack on every update,
-// and the result is only used for the contrast heuristic.
-let backgroundColorCache = new WeakMap<Element, string>()
-function getBackgroundColor(elt: Element) {
-  let win = elt.ownerDocument.defaultView!, cur: Element | null = elt, color: string | undefined
-  for (; cur; cur = cur.parentElement) {
-    if (color = backgroundColorCache.get(cur)) break
-    let bg = win.getComputedStyle(cur).backgroundColor
-    if (!isTransparent(bg)) { color = bg; break }
-  }
-  if (!color) color = getCanvasColor(win)
-  for (let scan: Element = elt; scan != cur; scan = scan.parentElement!)
-    backgroundColorCache.set(scan, color)
-  return color
-}
-
-function brightness(color: string) {
-  let m = /^rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?(\d+))?\)$/.exec(color)
-  return !m ? null : (+m[1] * 213 + +m[2] * 715 + +m[3] * 72) / 255000
-}
-
-function isTransparent(color: string) {
-  if (color == "transparent") return true
-  let m = /^rgba\(\d+, ?\d+, ?\d+, ?(\d+)\)$/.exec(color)
-  return !!m && +m[1] < 40
-}
-
-let canvasColor: string | null = null
-function getCanvasColor(window: Window) {
-  if (canvasColor == null) {
-    let div = document.createElement("div")
-    div.style.backgroundColor = "Canvas"
-    window.document.body.appendChild(div)
-    canvasColor = window.getComputedStyle(div).backgroundColor
-    div.remove()
-  }
-  return canvasColor
-}
-
-let contrastColorSupported = (() => {
-  let div = document.createElement("div")
-  div.style.color = "contrast-color(red)"
-  return !!div.style.color
-})()
-
-function hasContrast(a: string, b: string) {
-  let brightA = brightness(a), brightB = brightness(b)
-  return brightA == null || brightB == null || Math.abs(brightA - brightB) > 0.2
-}
-
 export class CursorLayer {
   readonly layer: HTMLElement
   info: CursorInfo = null
-  cachedStyle: CursorStyle | null = null
-  cachedFor: Mark.Set | null = null
+  cached: {style: CursorStyle, marks: Mark.Set, parent: Node.Tag} | null = null
 
   constructor(wg: Wordgard) {
     this.layer = wg.scrollDOM.appendChild(document.createElement("wg-cursor-layer"))
@@ -137,8 +83,7 @@ export class CursorLayer {
             cursor.style.left = info.left + "px"
             cursor.style.width = info.horiz ? info.size + "px" : ""
             cursor.style.height = info.horiz ? "" : info.size + "px"
-            // FIXME ensure contrast
-            cursor.style.borderLeftColor = info.style ? info.style.color : "currentColor"
+            cursor.style.borderLeftColor = info.style ? info.style.color : ""
             cursor.classList.toggle("wg-cursor-bold", info.style?.bold ?? false)
             cursor.classList.toggle("wg-cursor-italic", info.style?.italic ?? false)
           }
@@ -185,8 +130,8 @@ function getCursorInfo(wg: Wordgard, plugin: CursorLayer, cont: (info: CursorInf
   }
 
   let finish = (style: CursorStyle | null, vertRect?: DOMRect) => {
-    plugin.cachedStyle = style
-    plugin.cachedFor = marks
+    if (style && (!plugin.cached || plugin.cached.style != style))
+      plugin.cached = {style, marks, parent: sel.head.parent.node.tag}
     let height = style ? style.height : rect.height
     let bot = rect.bottom
     if (vertRect && (vertRect.top < rect.bottom && vertRect.bottom > rect.top)) {
@@ -233,8 +178,8 @@ function getCursorInfo(wg: Wordgard, plugin: CursorLayer, cont: (info: CursorInf
   if (foundNode) return finish(CursorStyle.read(foundNode, foundRect!.height), foundRect)
 
   // Check cache
-  if (plugin.cachedFor && Mark.sameSet(plugin.cachedFor, marks))
-    return finish(plugin.cachedStyle!)
+  if (plugin.cached && Mark.sameSet(plugin.cached.marks, marks) && plugin.cached.parent.eq(sel.head.parent.node.tag))
+    return finish(plugin.cached.style)
 
   if (!marks.length) return finish(null)
 
