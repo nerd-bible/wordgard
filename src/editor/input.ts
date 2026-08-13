@@ -1,5 +1,5 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
-import {Plot, Leaf, ChangeSet, Mark, Slice, ValidationError} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet, Mark, Slice, ValidationError, Pos} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
@@ -325,11 +325,30 @@ export class InputState {
 }
 
 function snapToSel(state: GardState, pos: number) {
-  let norm1 = GardSelection.near(state, pos, -1).head, norm2 = GardSelection.near(state, pos, 1).head
   let {head, anchor} = state.selection
-  if (norm1 == head || norm2 == head) return head
-  if (norm1 == anchor || norm2 == anchor) return anchor
+  if (pos == head || pos == anchor) return pos
+  if (onlyInlineNodeBoundsBetween(state.doc, head, pos)) return head
+  if (head != anchor && onlyInlineNodeBoundsBetween(state.doc, head, pos)) return anchor
   return pos
+}
+
+function onlyInlineNodeBoundsBetween(doc: Plot.Doc, a: number, b: number) {
+  if (a > b) [a, b] = [b, a]
+  let {parent, index, inText} = doc.resolve(a)
+  if (inText) return false
+  for (; a < b; a++) {
+    if (index == parent.node.content.length) {
+      if (!parent.node.type.isInline) return false
+      index = parent.index + 1
+      parent = parent.parent!
+    } else {
+      let next = parent.node.content[index]
+      if (!next.isPlot || !next.type.isInline) return false
+      parent = Pos.Plot.create(parent, next, a, index)
+      index = 0
+    }
+  }
+  return true
 }
 
 function isSingleChar(doc: Plot.Doc, from: number, to: number) {
