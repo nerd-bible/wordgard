@@ -24,14 +24,68 @@ class CursorStyle {
 
   static read(node: Element | Text, height: number) {
     let win = node.ownerDocument.defaultView || window
-    let style = win.getComputedStyle((node.nodeType == 1 ? node : node.parentNode) as Element)
-    return new CursorStyle(height, style.verticalAlign, style.color, +style.fontWeight > 400, style.fontStyle == "italic")
+    let elt = node.nodeType == 1 ? node as Element : node.parentNode as Element
+    let style = win.getComputedStyle(elt)
+    let color = style.color, bg = getBackgroundColor(elt)
+    if (!hasContrast(color, bg)) color = contrastColorSupported ? `contrast-color(${bg})` : "currentColor"
+    return new CursorStyle(height, style.verticalAlign, color, +style.fontWeight > 400, style.fontStyle == "italic")
   }
 
   eq(other: CursorStyle | null) {
     return other && this.height == other.height && this.align == other.align &&
       this.color == other.color && this.bold == other.bold && this.italic == other.italic
   }
+}
+
+// This is not sound (a given element can change background color),
+// but we don't want to re-query the element stack on every update,
+// and the result is only used for the contrast heuristic.
+let backgroundColorCache = new WeakMap<Element, string>()
+function getBackgroundColor(elt: Element) {
+  let win = elt.ownerDocument.defaultView!, cur: Element | null = elt, color: string | undefined
+  for (; cur; cur = cur.parentElement) {
+    if (color = backgroundColorCache.get(cur)) break
+    let bg = win.getComputedStyle(cur).backgroundColor
+    if (!isTransparent(bg)) { color = bg; break }
+  }
+  if (!color) color = getCanvasColor(win)
+  for (let scan: Element = elt; scan != cur; scan = scan.parentElement!)
+    backgroundColorCache.set(scan, color)
+  return color
+}
+
+function brightness(color: string) {
+  let m = /^rgba?\((\d+), ?(\d+), ?(\d+)(?:, ?(\d+))?\)$/.exec(color)
+  return !m ? null : (+m[1] * 213 + +m[2] * 715 + +m[3] * 72) / 255000
+}
+
+function isTransparent(color: string) {
+  if (color == "transparent") return true
+  let m = /^rgba\(\d+, ?\d+, ?\d+, ?(\d+)\)$/.exec(color)
+  return !!m && +m[1] < 40
+}
+
+let canvasColor: string | null = null
+function getCanvasColor(window: Window) {
+  if (canvasColor == null) {
+    let div = document.createElement("div")
+    div.style.backgroundColor = "Canvas"
+    window.document.body.appendChild(div)
+    canvasColor = window.getComputedStyle(div).backgroundColor
+    div.remove()
+  }
+  return canvasColor
+}
+
+let contrastColorSupported = (() => {
+  let div = document.createElement("div")
+  div.style.color = "contrast-color(red)"
+  return !!div.style.color
+})()
+
+function hasContrast(a: string, b: string) {
+  let brightA = brightness(a), brightB = brightness(b)
+  return brightA == null || brightB == null || Math.abs(brightA - brightB) > 0.2
 }
 
 export class CursorLayer {

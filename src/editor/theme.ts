@@ -108,7 +108,7 @@ export const baseStyles = buildTheme("." + styleID, {
     marginLeft: "-1.2px",
   },
   ".wg-cursor-v.wg-cursor-italic": {
-    transform: "rotate(8deg)"
+    transform: "rotate(10deg)"
   },
   ".wg-cursor-h": {
     borderTop: "1.8px solid currentColor",
