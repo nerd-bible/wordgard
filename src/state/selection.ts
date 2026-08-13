@@ -524,10 +524,10 @@ function findNormalAt(cx: GardSelection.Context, pos: number, bias: -1 | 1): {po
     let dir = !pass ? bias : -bias, {parent, index} = res, curPos = pos
     for (;;) {
       if (parent.node.inlineContent &&
-          (parent.node.type.isBlock || curPos > parent.start && curPos < parent.end || parent.node.type.spec.cursorInsideBounds))
+          (parent.node.type.isBlock || curPos > parent.start && curPos < parent.end || parent.node.type.cursorInsideBounds))
         return {pos: curPos, side: bias}
       if (index == (dir > 0 ? parent.node.content.length : 0)) {
-        if ((parent.node.type.isInline ? parent.node.type.spec.cursorInsideBounds : isBarrier(cx, parent.node)) ||
+        if ((parent.node.type.isInline ? parent.node.type.cursorInsideBounds : isBarrier(cx, parent.node)) ||
             !parent.parent)
           break
         lowest = curPos = curPos + dir
