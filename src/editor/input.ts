@@ -190,7 +190,7 @@ export class InputState {
     let inText = node.nodeType == 3
     let ref = this.wg.docTile.posFromDOM(node, inText ? 0 : offset)
     let dir: -1 | 1 = -1
-    let textBefore = textNodeBefore(node.parentNode!, domIndex(node))
+    let textBefore = node.parentNode && textNodeBefore(node.parentNode, domIndex(node))
     let prev = textBefore && Tile.get(textBefore)
     if (prev instanceof TextTile && prev.length < prev.dom.nodeValue!.length) dir = 1
     if (this.domChanges) ref = this.domChanges.mapPos(ref, dir)
@@ -324,6 +324,7 @@ export class InputState {
   }
 }
 
+// FIXME this will affect composition
 function snapToSel(state: GardState, pos: number) {
   let {head, anchor} = state.selection
   if (pos == head || pos == anchor) return pos
