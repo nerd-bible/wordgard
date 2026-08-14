@@ -697,10 +697,13 @@ function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
     wg.inputState.composing = {changes: 0, target: null}
 
     let wrap: Mark.Set | null = null
-    if (!wg.inputState.composing.changes && !event.data) {
+    if (!event.data) {
       let sel = wg.state.selection, rSel = wg.state.sel
       if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
         !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
+        wrap = rSel.activeMarks
+      else if (sel.head > 0 && onlyInlineNodeBoundsBetween(wg.state.doc, sel.head - 1, sel.head) ||
+               sel.head < wg.state.doc.length && onlyInlineNodeBoundsBetween(wg.state.doc, sel.head, sel.head + 1))
         wrap = rSel.activeMarks
     }
 
