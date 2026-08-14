@@ -1,3 +1,33 @@
+## 0.5.0 (2026-08-14)
+
+### Breaking changes
+
+`deleteEmptyTextblock` is now called `deleteEmptyPlot` and can delete empty inline plots.
+
+Drop support for `Plot.Spec.cursorInsideBounds` (making it the default behavior).
+
+### Bug fixes
+
+Fix backspacing out leaf nodes on Chrome Android.
+
+Fix an issue where change fitting would sometimes move insertions out of parent plots for no reason.
+
+Fix a number of bugs in cursor position normalization.
+
+Snap input ranges reported by browser events to the selection if normalizing them yields a selection endpoint.
+
+Make sure typing into an empty inline plot doesn't replace the whole plot.
+
+Fix a bug that caused `domAtPos` to fail to properly enter plots with extra wrappers around their content.
+
+Support selection by touch in positions that the native browser selection doesn't handle.
+
+### New features
+
+Cursor height, color, slant, and thickness now tries to follow the style of the content that would be inserted when typing at the cursor position.
+
+Nodes now have direct `isInline`/`isBlock` getters.
+
 ## 0.4.0 (2026-08-10)
 
 ### Breaking changes
