@@ -409,7 +409,8 @@ export class DocTile extends CompositeTile {
           if (off == pos) i = j
           else if (pos == end) i = j + 1
         }
-        if (ch.isPlotContent && !ch.boundary ? pos >= off && pos <= end : pos > off && pos < end) {
+        if (!ch.isPoint &&
+            ((ch.isPlotContent || ch.isNodeInner) && !ch.boundary ? pos >= off && pos <= end : pos > off && pos < end)) {
           if (ch instanceof TextTile) return new TilePos(ch, pos - off, pos)
           else if (ch.isAtom) { i = j; break search }
           scan = ch
@@ -421,7 +422,6 @@ export class DocTile extends CompositeTile {
       }
       break
     }
-
 
     // Then make sure we're on the right side of nearby point and
     // node-inner structure

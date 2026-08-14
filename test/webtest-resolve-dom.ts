@@ -90,11 +90,25 @@ describe("DocTile.resolve", () => {
     isIn(node.resolve(4, 1), "d", 0)
   })
 
-  it("does not resolve into inner node structure", () => {
+  it("does not resolve into inner point structure", () => {
     Plot.Doc.noValidate(() => {
       let node = render(doc(p("a"), capFig("test.png", "Caption")))
       isIn(node.resolve(4, -1), "FIGCAPTION", 0)
       isIn(node.resolve(11, 1), "FIGCAPTION", 1)
+    })
+  })
+
+  it("does go into inner content wrappers", () => {
+    let Deep = Plot.define("Deep", {
+      inlineContent: true,
+      shape: {structure: Elt.mk("div", [Elt.mk("section", [Elt.mk("p", [0])])])}
+    })
+    Plot.Doc.noValidate(() => {
+      let node = render(doc(Deep.create([Leaf.text("abc")])))
+      isIn(node.resolve(1, -1), "P", 0)
+      isIn(node.resolve(1, 1), "abc", 0)
+      isIn(node.resolve(4, 1), "P", 1)
+      isIn(node.resolve(4, -1), "abc", 3)
     })
   })
 
