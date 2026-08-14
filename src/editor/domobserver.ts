@@ -1,9 +1,10 @@
 import {ChangeSet} from "wordgard/doc"
+import {GardSelection} from "wordgard/state"
 import browser from "./browser"
 import {Wordgard} from "./editor"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
 import {Tile, TileFlag, WidgetTile} from "./tile"
-import {readDOMSelection} from "./selection"
+import {readDOMSelection, selectionFromTouch} from "./selection"
 
 const observeOptions = {
   childList: true,
@@ -131,9 +132,15 @@ export class DOMObserver {
     if (this.selectionChanged &&
         (this.wg.hasFocus || !this.wg.focusable) && hasSelection(this.wg.contentDOM, this.selectionRange)) {
       this.selectionChanged = false
-      let sel = readDOMSelection(this.wg, this.selectionRange)
+      let sel: GardSelection = readDOMSelection(this.wg, this.selectionRange)
       if (!sel.eqPos(this.wg.state.selection)) {
-        let userEvent = this.wg.inputState.lastTouchTime > Date.now() - 100 ? "select.pointer" : "select"
+        let userEvent = "select"
+        if (this.wg.inputState.lastTouchTime > Date.now() - 100) {
+          userEvent = "select.pointer"
+          let event = this.wg.inputState.lastTouchEvent!
+          if (event.touches.length == 1 && sel.isCursor)
+            sel = selectionFromTouch(event, this.wg)
+        }
         this.wg.dispatch({selection: sel, userEvent})
       }
     }

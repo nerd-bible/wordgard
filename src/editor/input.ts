@@ -6,6 +6,7 @@ import {Command, undo, redo, insertLineBreak, enter, insertText,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Wordgard} from "./editor"
+import {rangeForClick} from "./selection"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter, domIndex} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -50,6 +51,7 @@ export class InputState {
   lastKeyCode: number = 0
   lastKeyTime: number = 0
   lastTouchTime = 0
+  lastTouchEvent: TouchEvent | null = null
   lastScrollTop = 0
   lastScrollLeft = 0
 
@@ -315,6 +317,11 @@ export class InputState {
     }
   }
 
+  recordTouch(e: TouchEvent) {
+    this.lastTouchTime = Date.now()
+    this.lastTouchEvent = e
+  }
+
   connect() {
     this.ensureHandlers(this.wg.state)
   }
@@ -552,23 +559,6 @@ function eventBelongsToEditor(wg: Wordgard, event: Event): boolean {
 
 function queryPos(wg: Wordgard, event: MouseEvent) {
   return wg.posAtCoords({x: event.clientX, y: event.clientY}) as CoordPos
-}
-
-function rangeForClick(wg: Wordgard, pos: CoordPos, type: number): GardSelection {
-  if (type < 3 && pos.target != null) {
-    let target = wg.state.doc.nodeAt(pos.target)
-    if (target && target.type.isSelectable && wg.state.isAtom(target.type))
-      return GardSelection.node(pos.target, target)
-  }
-  if (type == 1) { // Single click
-    return GardSelection.near(wg.state, pos.pos, pos.side || -1)
-  } else if (type == 2) { // Double click
-    return wg.state.wordAt(pos.pos, pos.side || 1)
-  } else { // Triple click
-    let cx = wg.state.doc.resolve(pos.pos), block = cx.textblockParent
-    if (block) return GardSelection.range(block.start, block.end)
-    else return GardSelection.near(wg.state, pos.pos, pos.side || -1)
-  }
 }
 
 function basicMouseSelection(wg: Wordgard, event: MouseEvent) {
@@ -901,13 +891,8 @@ const baseObservers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: H
     wg.inputState.lastScrollLeft = wg.scrollDOM.scrollLeft
   },
 
-  touchstart(wg, e) {
-    wg.inputState.lastTouchTime = Date.now()
-  },
-
-  touchmove(wg) {
-    wg.inputState.lastTouchTime = Date.now()
-  },
+  touchstart(wg, e) { wg.inputState.recordTouch(e) },
+  touchmove(wg, e) { wg.inputState.recordTouch(e) },
 
   focus(wg) {
     // When focusing reset the scroll position, move it back to where it was
