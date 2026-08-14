@@ -757,9 +757,6 @@ export namespace Plot {
     /// plots with block content unless explicitly {@link
     /// Plot.Spec.orientation set}.
     readonly orientation: "row" | "column"
-    /// True if this is an inline plot with {@link
-    /// Plot.Spec.cursorInsideBounds `cursorInsideBounds`} set.
-    readonly cursorInsideBounds: boolean
 
     /// The spec used to define this plot type.
     readonly spec: Plot.Spec<any>
@@ -778,7 +775,6 @@ export namespace Plot {
       this.neutral = spec.neutral ?? !this.defining
       this.preserveWhitespace = spec.preserveWhitespace ?? !!this.hasRole(Node.Role.Code)
       this.orientation = flags & NodeFlag.InlineContent ? "row" : spec.orientation || "column"
-      this.cursorInsideBounds = !!((flags & NodeFlag.Inline) && spec.cursorInsideBounds)
       this.default = "defaultParam" in spec ? Plot.Tag.new(this, spec.defaultParam!, none) :
         (flags & NodeFlag.NullParam) ? Plot.Tag.new(this, null as any, none) : null
       if (!this.shape.atom && this.isInline && !this.inlineContent)
@@ -881,11 +877,6 @@ export namespace Plot {
     /// block to the default type of textblock at that position. Setting
     /// this to true on a textblock type will prevent that behavior.
     preserveOnSplitAtEnd?: boolean
-    /// For inline nodes with inline content, this determines whether
-    /// there are normalized cursor positions directly inside the node.
-    /// The default is to only have cursor positions right outside the
-    /// node.
-    cursorInsideBounds?: boolean
   }
 
   let validate = true

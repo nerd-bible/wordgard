@@ -1274,7 +1274,7 @@ function splatContext(top: Token[], cx: BuildContext) {
 }
 
 function isFitBarrier(plot: Plot.Type) {
-  return plot.isolating || plot.cursorInsideBounds
+  return plot.isolating || plot.isInline
 }
 
 function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context: readonly Plot.Tag[]) {
