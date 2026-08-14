@@ -431,10 +431,10 @@ export function cursorAtStart(cx: GardSelection.Context, block?: Pos.Plot) {
 }
 
 function isBarrier(cx: GardSelection.Context, node: wgNode) {
-  if (node.isLeaf) return node.type.isBlock
+  if (node.isLeaf) return node.isBlock
   let override = node.type.spec.cursorBarrier
   if (override != null) return override
-  return node.type.isBlock && (node.type.isolating || node.type.preserveWhitespace || cx.config.isAtom(node.type))
+  return node.isBlock && (node.type.isolating || node.type.preserveWhitespace || cx.config.isAtom(node.type))
 }
 
 // Find the next 'normal' cursor position from the given position. Any

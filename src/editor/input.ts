@@ -346,12 +346,12 @@ function onlyInlineNodeBoundsBetween(doc: Plot.Doc, a: number, b: number) {
   if (inText) return false
   for (; a < b; a++) {
     if (index == parent.node.content.length) {
-      if (!parent.node.type.isInline) return false
+      if (!parent.node.isInline) return false
       index = parent.index + 1
       parent = parent.parent!
     } else {
       let next = parent.node.content[index]
-      if (!next.isPlot || !next.type.isInline) return false
+      if (!next.isPlot || !next.isInline) return false
       parent = Pos.Plot.create(parent, next, a, index)
       index = 0
     }

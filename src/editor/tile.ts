@@ -197,7 +197,7 @@ export class CompositeTile extends Tile {
     if (node && node.isPlot) {
       orientation = node.type.orientation == "row" ? Orientation.Row : Orientation.Col
       if (node.isTextblock) textblock = TextblockMap.get(state, start, node)
-      else if (node.type.isBlock) textblock = null
+      else if (node.isBlock) textblock = null
     } else if (node && node.isText) {
       orientation = Orientation.Row
     }
@@ -1106,10 +1106,10 @@ class ContentUpdate {
     if (!tile.isPlotContent) return
     while (tile.isNodeInner) tile = tile.parent!
     let node = tile.node
-    if (!node || !node.isPlot || !(node.isTextblock || node.type.isInline)) return
+    if (!node || !node.isPlot || !(node.isTextblock || node.isInline)) return
 
     // Empty inline plots get an image node
-    if (node.type.isInline) {
+    if (node.isInline) {
       if (!this.new.children.length)
         this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointAfter, imgHack.render(this.wg)))
       return
