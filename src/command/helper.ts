@@ -228,7 +228,8 @@ export function deleteBackward(state: GardState, word = false): Transaction.Spec
   let sel = state.sel
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (!index) {
-    if (scan.node.type.isolating || !scan.parent) return false
+    if (scan.node.type.isolating || !scan.parent || (!scan.node.contentLength && scan.node.type.isInline))
+      return false
     index = scan.index
     scan = scan.parent
     pos--
@@ -292,7 +293,7 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   let sel = state.sel
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (index == scan.node.content.length) {
-    if (scan.node.type.isolating || !scan.parent) return false
+    if (scan.node.type.isolating || !scan.parent || (!scan.node.contentLength && scan.node.type.isInline)) return false
     index = scan.index + 1
     scan = scan.parent
     pos++
