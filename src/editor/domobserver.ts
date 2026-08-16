@@ -4,7 +4,7 @@ import browser from "./browser"
 import {Wordgard} from "./editor"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
 import {Tile, TileFlag, WidgetTile} from "./tile"
-import {readDOMSelection, selectionFromTouch} from "./selection"
+import {readDOMSelection, selectionFromTouch, snapToSelection} from "./selection"
 
 const observeOptions = {
   childList: true,
@@ -129,19 +129,25 @@ export class DOMObserver {
   }
 
   pollSelection() {
+    let {wg} = this
     if (this.selectionChanged &&
-        (this.wg.hasFocus || !this.wg.focusable) && hasSelection(this.wg.contentDOM, this.selectionRange)) {
+        (wg.hasFocus || !wg.focusable) && hasSelection(wg.contentDOM, this.selectionRange)) {
       this.selectionChanged = false
-      let sel: GardSelection = readDOMSelection(this.wg, this.selectionRange)
-      if (!sel.eqPos(this.wg.state.selection)) {
+      let fromTouch = wg.inputState.lastTouchTime > Date.now() - 100
+      let sel: GardSelection = readDOMSelection(wg, this.selectionRange)
+      if (!fromTouch) {
+        let anchor = snapToSelection(wg.state, sel.anchor, "anchor")
+        sel = GardSelection.range(anchor, sel.empty ? anchor : snapToSelection(wg.state, sel.head, "head"))
+      }
+      if (!sel.eqPos(wg.state.selection)) {
         let userEvent = "select"
-        if (this.wg.inputState.lastTouchTime > Date.now() - 100) {
+        if (fromTouch) {
           userEvent = "select.pointer"
-          let event = this.wg.inputState.lastTouchEvent!
+          let event = wg.inputState.lastTouchEvent!
           if (event.touches.length == 1 && sel.isCursor)
-            sel = selectionFromTouch(event, this.wg)
+            sel = selectionFromTouch(event, wg)
         }
-        this.wg.dispatch({selection: sel, userEvent})
+        wg.dispatch({selection: sel, userEvent})
       }
     }
   }

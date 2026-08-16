@@ -1,12 +1,12 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
-import {Plot, Leaf, ChangeSet, Mark, Slice, ValidationError, Pos} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet, Mark, Slice, ValidationError} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Wordgard} from "./editor"
-import {rangeForClick} from "./selection"
+import {rangeForClick, snapToSelection, onlyInlineNodeBoundsBetween} from "./selection"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter, domIndex} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -222,8 +222,8 @@ export class InputState {
     let type = event.inputType, range: {from: number, to: number} | undefined
     let {wg} = this, sel = wg.state.selection
     if (data.domRange) {
-      range = {from: snapToSel(wg.state, this.domMapping.mapPos(data.domRange.from)),
-               to: snapToSel(wg.state, this.domMapping.mapPos(data.domRange.to))}
+      range = {from: snapToSelection(wg.state, this.domMapping.mapPos(data.domRange.from)),
+               to: snapToSelection(wg.state, this.domMapping.mapPos(data.domRange.to))}
       if (!this.domMapping.empty && type == "insertText" && !this.composing && range.from == range.to) {
         let fromMax = this.domMapping.mapPos(data.domRange.from, 1)
         if (range.from <= sel.from && fromMax >= sel.to)
@@ -329,34 +329,6 @@ export class InputState {
   disconnect() {
     if (this.mouseSelection) this.mouseSelection.disconnect()
   }
-}
-
-// FIXME this will affect composition
-function snapToSel(state: GardState, pos: number) {
-  let {head, anchor} = state.selection
-  if (pos == head || pos == anchor) return pos
-  if (onlyInlineNodeBoundsBetween(state.doc, head, pos)) return head
-  if (head != anchor && onlyInlineNodeBoundsBetween(state.doc, head, pos)) return anchor
-  return pos
-}
-
-function onlyInlineNodeBoundsBetween(doc: Plot.Doc, a: number, b: number) {
-  if (a > b) [a, b] = [b, a]
-  let {parent, index, inText} = doc.resolve(a)
-  if (inText) return false
-  for (; a < b; a++) {
-    if (index == parent.node.content.length) {
-      if (!parent.node.isInline) return false
-      index = parent.index + 1
-      parent = parent.parent!
-    } else {
-      let next = parent.node.content[index]
-      if (!next.isPlot || !next.isInline) return false
-      parent = Pos.Plot.create(parent, next, a, index)
-      index = 0
-    }
-  }
-  return true
 }
 
 function isSingleChar(doc: Plot.Doc, from: number, to: number) {
