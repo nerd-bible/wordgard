@@ -635,7 +635,7 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
         else i = nextI
         pos = end
       }
-    }, (_fromA, toA) => {
+    }, (_fromA, toA, fromB, toB) => {
       let nextI = findAbove(positions, i, toA + 1)
       for (; i < nextI; i++) {
         let mapped = changes.mapPos(positions[i], this.values[i].side < 0 ? -1 : 1, this.values[i].trackMode)
@@ -655,13 +655,10 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
     let posA = this.positions, posB = other.positions
     let pos: number[] = new Array(posA.length, posB.length), values: T[] = new Array(pos.length)
     for (let i = 0, a = 0, b = 0;;) {
-      let nextA = a < posA.length ? posA[a] : 1e9
-      let nextB = b < posB.length ? posB[b] : 1e9
-      let cmp = nextA - nextB || this.values[a].side - other.values[b].side
-      if (cmp < 0) {
+      if (a < posA.length && (b == posB.length || (posA[a] - posB[b] || this.values[a].side - other.values[b].side) < 0)) {
         pos[i] = posA[a]
         values[i++] = this.values[a++]
-      } else if (nextB < 1e9) {
+      } else if (b < posB.length) {
         pos[i] = posB[b]
         values[i++] = other.values[b++]
       } else {
@@ -725,8 +722,8 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
         for (let i = positions.length;;) {
           positions[i] = positions[i - 1]
           values[i] = values[i - 1]
-          if (--i < 0) break
-          if (!i-- || (positions[i] - pos || values[i].side - value.side) <= 0) {
+          --i
+          if (!i || (positions[i] - pos || values[i].side - value.side) <= 0) {
             positions[i] = pos
             values[i] = value
             break
