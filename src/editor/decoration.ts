@@ -875,6 +875,28 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
                            applyDel(deleted, deletions, to))
   }
 
+  /// Merge this set with another set.
+  merge(other: RangeSet<T>) {
+    if (!this.length) return other
+    if (!other.length) return this
+    let fromA = this.from, fromB = other.from
+    let from: number[] = new Array(fromA.length + fromB.length)
+    let to: number[] = new Array(from.length), values: T[] = new Array(from.length)
+    for (let i = 0, a = 0, b = 0, at = 0;;) {
+      if (a < fromA.length && (b == fromB.length || fromA[a] < fromB[b])) {
+        if ((from[i] = fromA[a]) < at) throw new Error("Overlapping ranges")
+        at = to[i] = this.to[a]
+        values[i++] = this.values[a++]
+      } else if (b < fromB.length) {
+        if ((from[i] = fromB[b]) < at) throw new Error("Overlapping ranges")
+        at = to[i] = other.to[b]
+        values[i++] = other.values[b++]
+      } else {
+        return new RangeSet<T>(values, from, to)
+      }
+    }
+  }
+
   /// @internal
   iter(): RangeIterator<T> {
     return new RangeIterator<T>(this)
