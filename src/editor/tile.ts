@@ -713,7 +713,7 @@ class TilePointer {
           if (side < 0 && !dist) break
         }
         if (!dist && next.isNodeInner && !nodeBoundary) break
-        if (next.length <= dist) {
+        if (next.length < dist || next.length == dist && (next.isPoint || next.boundary)) {
           if (walker) walker.skip(next, 0, next.length)
           dist -= next.length
           index++
