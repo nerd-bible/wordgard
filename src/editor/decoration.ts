@@ -946,6 +946,7 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
       if (f < curPos) throw new Error("Ranges must be added in order and cannot overlap")
       from.push(f)
       to.push(t)
+      curPos = t
       values.push(value)
     })
     return new RangeSet<T>(values, from, to)
