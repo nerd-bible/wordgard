@@ -853,13 +853,13 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
     changes.iterGaps((fromA, toA, fromB) => {
       let off = fromB - fromA, end = toA - 1
       if (end > pos) {
-        let nextI = findAbove(from, i, end)
+        let nextI = findAbove(to, i, end)
         if (off) for (; i < nextI; i++) { from[i] += off; to[i] += off }
         else i = nextI
         pos = end
       }
     }, (_fromA, toA) => {
-      let nextI = findAbove(to, i, toA + 1)
+      let nextI = findAbove(from, i, toA)
       for (; i < nextI; i++) {
         let value = this.values[i]
         let mappedFrom = changes.mapPos(from[i], value.inclusiveStart ? -1 : 1)
