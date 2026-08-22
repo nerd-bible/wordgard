@@ -740,7 +740,7 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
           positions[i] = positions[i - 1]
           values[i] = values[i - 1]
           --i
-          if (!i || (positions[i] - pos || values[i].side - value.side) <= 0) {
+          if (!i || (positions[i - 1] - pos || values[i - 1].side - value.side) <= 0) {
             positions[i] = pos
             values[i] = value
             break

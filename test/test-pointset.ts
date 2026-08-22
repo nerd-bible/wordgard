@@ -32,6 +32,7 @@ describe("PointSet", () => {
 
   it("corrects order on creation", () => {
     ist(str(PointSet.create([[2, V.a], [1, V.a], [0, V.b]])), "b@0 a@1 a@2")
+    ist(str(PointSet.create([[1, V.a], [5, V.b], [3, V.a]])), "a@1 a@3 b@5")
   })
 
   it("can merge", () => {
