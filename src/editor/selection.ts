@@ -1,5 +1,5 @@
-import {GardSelection, GardState} from "wordgard/state"
-import {Pos, Leaf, Plot} from "wordgard/doc"
+import {GardSelection} from "wordgard/state"
+import {Pos, Leaf} from "wordgard/doc"
 import {Wordgard} from "./editor"
 import {type CoordPos} from "./tile"
 import {isEquivalentPosition, getSelection, SelectionRange} from "./dom"
@@ -33,37 +33,6 @@ export function readDOMSelection(wg: Wordgard, range: SelectionRange) {
   let head = range.anchorNode == range.focusNode && range.anchorOffset == range.focusOffset ? anchor
     : wg.posAtDOM(range.focusNode!, range.focusOffset)
   return GardSelection.range(anchor, head)
-}
-
-export function snapToSelection(state: GardState, pos: number, side?: "anchor" | "head") {
-  let {head, anchor} = state.selection
-  if (side) {
-    if (side == "anchor") head = -1
-    else anchor = -1
-  }
-  if (pos == head || pos == anchor) return pos
-  if (head > -1 && onlyInlineNodeBoundsBetween(state.doc, head, pos)) return head
-  if (head != anchor && anchor > -1 && onlyInlineNodeBoundsBetween(state.doc, anchor, pos)) return anchor
-  return pos
-}
-
-export function onlyInlineNodeBoundsBetween(doc: Plot.Doc, a: number, b: number) {
-  if (a > b) [a, b] = [b, a]
-  let {parent, index, inText} = doc.resolve(a)
-  if (inText) return false
-  for (; a < b; a++) {
-    if (index == parent.node.content.length) {
-      if (!parent.node.isInline) return false
-      index = parent.index + 1
-      parent = parent.parent!
-    } else {
-      let next = parent.node.content[index]
-      if (!next.isPlot || !next.isInline) return false
-      parent = Pos.Plot.create(parent, next, a, index)
-      index = 0
-    }
-  }
-  return true
 }
 
 export function selectionFromTouch(event: TouchEvent, wg: Wordgard) {

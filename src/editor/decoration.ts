@@ -144,6 +144,7 @@ export namespace Decoration {
   /// contain widgets.
   export type Shape = Widget | DecoElt
 
+  // FIXME support mark shape overrides
   export namespace Tag {
     /// Override the way a given node type is drawn in the editor. By
     /// default, the {@link doc.Node.Spec.shape `shape`} field in the

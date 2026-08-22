@@ -115,6 +115,12 @@ export abstract class Tile {
     return last < 0 ? null : this.children[last]
   }
 
+  get nodeParent(): Tile {
+    let tile: Tile = this
+    while (!tile.node) tile = tile.parent!
+    return tile
+  }
+
   ignoreEvent(event: Event) { return false }
 
   get ignoreMutations() { return false }
@@ -504,6 +510,7 @@ export class DocTile extends CompositeTile {
     let elt = this.nearest(dom)
     if (!elt)
       return this.dom.compareDocumentPosition(dom) & 4 /* following */ ? this.length : 0
+
     if (elt.isText) return elt.posAtStart + Math.min(offset, elt.length)
     if (elt.isAtom) return elt.posAtStart + (bias > 0 ? elt.length : 0)
 
@@ -514,8 +521,13 @@ export class DocTile extends CompositeTile {
       while (dom.parentNode != elt.dom) dom = dom.parentNode!
       domBefore = dom.previousSibling
     }
+    // Move positions at the very start or end of inline plots out of them
+    if (elt.node && elt.node.isInline && elt.node.isPlot && (!domBefore || !domBefore.nextSibling))
+      return domBefore ? elt.posAfter : elt.posBefore
+
     while (domBefore && !((eltBefore = domBefore.wgTile) && eltBefore.parent == elt))
       domBefore = domBefore.previousSibling
+
     return domBefore ? elt.posBeforeChild(eltBefore!) + eltBefore!.length : elt.posAtStart
   }
 

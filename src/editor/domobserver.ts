@@ -4,7 +4,7 @@ import browser from "./browser"
 import {Wordgard} from "./editor"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
 import {Tile, TileFlag, WidgetTile} from "./tile"
-import {readDOMSelection, selectionFromTouch, snapToSelection} from "./selection"
+import {readDOMSelection, selectionFromTouch} from "./selection"
 
 const observeOptions = {
   childList: true,
@@ -135,10 +135,6 @@ export class DOMObserver {
       this.selectionChanged = false
       let fromTouch = wg.inputState.lastTouchTime > Date.now() - 100
       let sel: GardSelection = readDOMSelection(wg, this.selectionRange)
-      if (!fromTouch) {
-        let anchor = snapToSelection(wg.state, sel.anchor, "anchor")
-        sel = GardSelection.range(anchor, sel.empty ? anchor : snapToSelection(wg.state, sel.head, "head"))
-      }
       if (!sel.eqPos(wg.state.selection)) {
         let userEvent = "select"
         if (fromTouch) {

@@ -1,12 +1,12 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
-import {Plot, Leaf, ChangeSet, Mark, Slice, ValidationError} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet, Mark, Slice, Pos, ValidationError} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Wordgard} from "./editor"
-import {rangeForClick, snapToSelection} from "./selection"
+import {rangeForClick} from "./selection"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter, domIndex} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -222,8 +222,8 @@ export class InputState {
     let type = event.inputType, range: {from: number, to: number} | undefined
     let {wg} = this, sel = wg.state.selection
     if (data.domRange) {
-      range = {from: snapToSelection(wg.state, this.domMapping.mapPos(data.domRange.from)),
-               to: snapToSelection(wg.state, this.domMapping.mapPos(data.domRange.to))}
+      range = {from: this.domMapping.mapPos(data.domRange.from),
+               to: this.domMapping.mapPos(data.domRange.to)}
       if (!this.domMapping.empty && type == "insertText" && !this.composing && range.from == range.to) {
         let fromMax = this.domMapping.mapPos(data.domRange.from, 1)
         if (range.from <= sel.from && fromMax >= sel.to)
@@ -662,7 +662,9 @@ function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
     if (!event.data) {
       let sel = wg.state.selection, rSel = wg.state.sel
       if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
-        !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
+          !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
+        wrap = rSel.activeMarks
+      else if (sel.empty && inlineBoundNear(wg.state.sel.head))
         wrap = rSel.activeMarks
     }
 
@@ -671,6 +673,13 @@ function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
       wg.flush()
     } finally { wg.inputState.wrappingComposition = null }
   }
+}
+
+function inlineBoundNear(pos: Pos) {
+  let {parent, index, inText} = pos
+  if (inText || !parent.node.inlineContent) return false
+  return (index ? parent.node.content[index - 1].isPlot : parent.node.isInline) ||
+    (index < parent.node.content.length ? parent.node.content[index].isPlot : parent.node.isInline)
 }
 
 function isDeletionInputEvent(type: string) { return /^delete(Content|Word)/.test(type) }
