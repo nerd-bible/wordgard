@@ -644,8 +644,8 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
     let positions = this.positions.slice()
     let pos = 0, i = 0
     let deleted: number[] = [], deletions = 0
-    changes.iterGaps((fromA, toA, fromB) => {
-      let off = fromB - fromA, end = toA - 1
+    changes.iterGaps((fromA, toA, fromB, _toB, last) => {
+      let off = fromB - fromA, end = last ? toA : toA - 1
       if (end > pos) {
         let nextI = findAbove(positions, i, end)
         if (off) for (; i < nextI; i++) positions[i] += off
@@ -864,8 +864,8 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
     let from = this.from.slice(), to = this.to.slice()
     let pos = 0, i = 0
     let deleted: number[] = [], deletions = 0
-    changes.iterGaps((fromA, toA, fromB) => {
-      let off = fromB - fromA, end = toA - 1
+    changes.iterGaps((fromA, toA, fromB, _toB, last) => {
+      let off = fromB - fromA, end = last ? toA : toA - 1
       if (end > pos) {
         let nextI = findAbove(to, i, end)
         if (off) for (; i < nextI; i++) { from[i] += off; to[i] += off }

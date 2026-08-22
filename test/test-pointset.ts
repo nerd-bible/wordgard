@@ -52,4 +52,8 @@ describe("PointSet", () => {
     ps = ps.map(ChangeSet.new([2, -1, 0, 2, 2, -1], []))
     ist(str(ps), "x@2")
   })
+
+  it("properly maps ranges at the end of the document", () => {
+    ist(str(PointSet.create([[4, V.a]]).map(ChangeSet.new([0, 1, 4, -1], []))), "a@5")
+  })
 })

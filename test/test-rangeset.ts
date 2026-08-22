@@ -67,4 +67,8 @@ describe("RangeSet", () => {
     rs = rs.map(ChangeSet.new([2, -1, 0, 2, 2, -1, 0, 1, 20, -1], []))
     ist(str(rs), "v0@0-4 v1@6-9 v2@11-13")
   })
+
+  it("properly maps ranges at the end of the document", () => {
+    ist(str(RangeSet.create([[2, 4, V.a]]).map(ChangeSet.new([0, 1, 4, -1], []))), "a@3-5")
+  })
 })

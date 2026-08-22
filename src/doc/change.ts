@@ -405,7 +405,7 @@ export class ChangeSet {
   /// unchanged or which have only mark changes. `posA` provides the
   /// position of the range in the original document, `posB` the
   /// position in the changed document.
-  iterGaps(gap: (fromA: number, toA: number, fromB: number, toB: number) => void,
+  iterGaps(gap: (fromA: number, toA: number, fromB: number, toB: number, last: boolean) => void,
            change?: (fromA: number, toA: number, fromB: number, toB: number) => void) {
     for (let i = 0, posA = 0, posB = 0; i < this.sections.length;) {
       let len = this.sections[i++], ins = this.sections[i++]
@@ -414,7 +414,7 @@ export class ChangeSet {
           len += this.sections[i]
           i += 2
         }
-        gap(posA, posA + len, posB, posB + len)
+        gap(posA, posA + len, posB, posB + len, i == this.sections.length)
         posB += len
       } else {
         while (i < this.sections.length && this.sections[i + 1] >= 0) {
