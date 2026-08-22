@@ -1,3 +1,21 @@
+## 0.5.1 (2026-08-22)
+
+### Bug fixes
+
+Work around an issue where the browser moves the selection out of inline plots after the user inputs text.
+
+Fix bad handling of change boundaries in `RangeSet.map`.
+
+Fix a bug that caused the DOM to get corrupted when inserting content at the end of a plot rendered with multiple wrapper elements.
+
+Make sure browsers see an additional cursor position at inline plot boundaries, so that touch drag selection stops there.
+
+Fix a bug in `RangeSet` and `PointSet` where they wouldn't properly map positions at the very end of the document.
+
+### New features
+
+Range sets now have a `merge` method.
+
 ## 0.5.0 (2026-08-14)
 
 ### Breaking changes
