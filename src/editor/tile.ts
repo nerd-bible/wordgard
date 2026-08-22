@@ -233,6 +233,10 @@ export class CompositeTile extends Tile {
     if (!result) return null
     let {closest, rect} = result
     let pos = this.posBeforeChild(closest, start)
+    if (closest.node && closest.node.isPlot && closest.node.isInline) {
+      if (x > rect.right) return CoordPos.create(pos + closest.length, -1)
+      if (x < rect.left) return CoordPos.create(pos, 1)
+    }
     return closest.posAtCoordsInner(pos + closest.boundary, state,
                                     x, Math.max(rect!.top, Math.min(rect!.bottom, y)),
                                     textblock, Orientation.Row)
