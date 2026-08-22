@@ -6,7 +6,7 @@ import {Command, undo, redo, insertLineBreak, enter, insertText,
         transposeChars, deleteSelection, setAlignment, setDirection} from "wordgard/command"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {Wordgard} from "./editor"
-import {rangeForClick, snapToSelection, onlyInlineNodeBoundsBetween} from "./selection"
+import {rangeForClick, snapToSelection} from "./selection"
 import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter, domIndex} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
@@ -663,9 +663,6 @@ function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
       let sel = wg.state.selection, rSel = wg.state.sel
       if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
         !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
-        wrap = rSel.activeMarks
-      else if (sel.head > 0 && onlyInlineNodeBoundsBetween(wg.state.doc, sel.head - 1, sel.head) ||
-               sel.head < wg.state.doc.length && onlyInlineNodeBoundsBetween(wg.state.doc, sel.head, sel.head + 1))
         wrap = rSel.activeMarks
     }
 

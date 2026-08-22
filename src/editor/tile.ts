@@ -927,7 +927,7 @@ class ContentUpdate {
       for (let mark of composition.wrapCursor!) if (mark.type.element) {
         this.openWrapper(renderMarkWrapper(mark), mark.spanning, false)
       }
-      this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointBefore, imgHack.render(this.wg)))
+      this.new.addChild(new WidgetTile(Widget.img, null, TileFlag.Point | TileFlag.PointBefore, Widget.img.render(this.wg)))
       return
     }
     let found: EltTile[] = []
@@ -1108,20 +1108,13 @@ class ContentUpdate {
     let node = tile.node
     if (!node || !node.isPlot || !(node.isTextblock || node.isInline)) return
 
-    // Empty inline plots get an image node
-    if (node.isInline) {
-      if (!this.new.children.length)
-        this.new.addChild(new WidgetTile(imgHack, null, TileFlag.Point | TileFlag.PointAfter, imgHack.render(this.wg)))
-      return
-    }
-
     // Textblocks get a trailing <br> if necessary
     let hasHack = -1, needsHack = true
     for (let parent = this.new, i = parent.children.length;;) {
       if (i > 0) {
         let next = parent.children[--i]
         if (next.isNodeInner || next instanceof WidgetTile && !next.widget.type.inFlow) {
-        } else if (next instanceof WidgetTile && next.widget == brHack && parent == this.new) {
+        } else if (next instanceof WidgetTile && next.widget == Widget.br && parent == this.new) {
           hasHack = i
         } else if (next.dom.nodeName == "BR" || next instanceof TextTile && /\n$/.test(next.text)) {
           break
@@ -1143,7 +1136,7 @@ class ContentUpdate {
     if (hasHack > -1) {
       if (!needsHack) this.new.children.splice(hasHack, 1)
     } else if (needsHack) {
-      this.new.addChild(new WidgetTile(brHack, null, TileFlag.Point | TileFlag.PointAfter, brHack.render(this.wg)))
+      this.new.addChild(new WidgetTile(Widget.br, null, TileFlag.Point | TileFlag.PointAfter, Widget.br.render(this.wg)))
     }
   }
 
@@ -1264,20 +1257,6 @@ export function updateAttributes(dom: Element, a: Attributes, b: Attributes) {
   }
   return changed
 }
-
-const brHack = Widget.create({
-  render() { return document.createElement("br") },
-  editable: true
-})
-
-const imgHack = Widget.create({
-  render() {
-    let img = document.createElement("img")
-    img.className = "wg-buffer"
-    return img
-  },
-  editable: true
-})
 
 // Change the given sections to make sure that the composition gets
 // its replacement section, so that the tile update loop can handle it

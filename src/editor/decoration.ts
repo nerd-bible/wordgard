@@ -119,6 +119,22 @@ export namespace Widget {
   export const EditableText = Widget.define<string>({
     render: s => document.createTextNode(s)
   })
+
+  /// @internal
+  export const img = Widget.create({
+    render() {
+      let img = document.createElement("img")
+      img.className = "wg-buffer"
+      return img
+    },
+    editable: true
+  })
+
+  /// @internal
+  export const br = Widget.create({
+    render() { return document.createElement("br") },
+    editable: true
+  })
 }
 
 export type DecoElt = Elt<Widget | string>
@@ -1346,12 +1362,16 @@ export class DecoIterator {
   }
 
   widgets(tag: Node.Tag, place: WidgetPlace, walker: DecoWalker) {
+    if (place == WidgetPlace.Start && tag.type.isInline)
+      walker.widget(Widget.img, -1)
     for (let src of this.globalWidgets) {
       if (src.place == place && tag.type == src.type) {
         let widget = typeof src.widget == "function" ? src.widget(tag) : src.widget
         if (widget) walker.widget(widget, place == WidgetPlace.Before || place == WidgetPlace.End ? 1 : -1)
       }
     }
+    if (place == WidgetPlace.End && tag.type.isInline)
+      walker.widget(Widget.img, 1)
   }
 
   hasEndWidget(type: Node.Type) {
