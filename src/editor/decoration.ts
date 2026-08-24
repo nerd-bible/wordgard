@@ -1,6 +1,8 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
+import {addSection, Changes, addUpdated} from "./changes"
 import {type Wordgard} from "./editor"
+import {findAbove} from "./util"
 
 /// A widget describes a piece of DOM content that can be used to
 /// render a node, a part of a node, or an extra element added via a
@@ -609,16 +611,6 @@ function nodeSelection(state: GardState) {
   return PointSet.empty
 }
 
-function findAbove(array: readonly number[], start: number, n: number) {
-  let from = start, to = array.length
-  for (;;) {
-    if (from == to) return from
-    let mid = (from + to) >> 1
-    if (array[mid] > n) to = mid
-    else from = mid + 1
-  }
-}
-
 const none: readonly any[] = []
 
 /// Data structure used to store sets of points and then track them
@@ -1055,9 +1047,11 @@ function compareGlobal(stateA: GardState, stateB: GardState, facet: GardState.Fa
 // Compare ranges and points in decoration facets for unchanged ranges
 // in the given change desc. Returns an array using the section format
 // used in change descs.
-export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
-                                  state: GardState, deco: DecoSet,
-                                  sections: ChangeSet.Sections) {
+export function findChangedRanges(
+  prevState: GardState, prevDeco: DecoSet,
+  state: GardState, deco: DecoSet,
+  sections: ChangeSet.Sections
+): Changes {
   let result: number[] = []
   let globalChange = compareGlobal(prevState, state, tagShape) || compareGlobal(prevState, state, tagWidget) ||
     compareGlobal(prevState, state, tagWrapper) || compareGlobal(prevState, state, tagAttribute)
@@ -1114,17 +1108,17 @@ export function findChangedRanges(prevState: GardState, prevDeco: DecoSet,
 }
 
 function addAtomicityChanges(
-  sections: number[],
+  changes: Changes,
   prev: GardState,
-  changes: number[]
-): ChangeSet.Sections {
+  nodes: number[]
+): Changes {
   let added: number[] = []
   let scan = prev.doc.resolve(0), last = -1, sectionPos = 0, sectionI = 0, off = 0
-  for (let posB of changes.sort()) {
+  for (let posB of nodes.sort()) {
     if (posB == last) continue
     last = posB
     while (posB >= sectionPos) {
-      let len = sections[sectionI++], ins = sections[sectionI++]
+      let len = changes[sectionI++], ins = changes[sectionI++]
       if (ins < 0) {
         sectionPos += len
       } else {
@@ -1138,34 +1132,7 @@ function addAtomicityChanges(
     if (!node) continue
     added.push(posA, posA + node.length)
   }
-  if (!added.length) return sections
-
-  let changedSections = [], pos = 0
-  for (let i = 0; i < added.length;) {
-    let from = added[i++], to = added[i++]
-    if (from > pos) changedSections.push(from - pos, -1)
-    changedSections.push(to - from, to - from)
-    pos = to
-  }
-  if (pos < prev.doc.length) changedSections.push(prev.doc.length - pos, -1)
-  return ChangeSet.composeSections(changedSections, sections)
-}
-
-function addSection(sections: number[], len: number, ins: number) {
-  let last = sections.length - 1
-  if (last >= 0) {
-    let lastIns = sections[last]
-    if (lastIns >= 0 && ins >= 0) {
-      sections[last - 1] += len
-      sections[last] += ins
-      return
-    }
-    if (lastIns < 0 && lastIns == ins) {
-      sections[last - 1] += len
-      return
-    }
-  }
-  sections.push(len, ins)
+  return added.length ? addUpdated(changes, added) : changes
 }
 
 export interface DecoWalker {

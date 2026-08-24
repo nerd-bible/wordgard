@@ -5,6 +5,7 @@ import {Widget, DecoElt, Decoration, DecoIterator, findChangedRanges, WrapperSou
         renderWrapper, renderMarkWrapper, DecoSet, getDecoSet} from "./decoration"
 import {eqArray} from "./util"
 import {textRange, singleRect, DOMNode, rmDOM} from "./dom"
+import {separateChange, Changes, isEmpty} from "./changes"
 import {type CompositionInfo} from "./input"
 import {type Wordgard} from "./editor"
 
@@ -326,35 +327,35 @@ export class DocTile extends CompositeTile {
 
   get node() { return this.state.doc }
 
-  update(state: GardState, changes: ChangeSet.Sections, wg: Wordgard, composition?: CompositionInfo | null) {
+  update(state: GardState, changes: Changes, wg: Wordgard, composition?: CompositionInfo | null) {
     let decoSet = getDecoSet(state)
     let changed = findChangedRanges(this.state, this.decoSet, state, decoSet, changes)
     return this.updateRanges(state, decoSet, changed, wg, composition)
   }
 
-  updateRanges(state: GardState, decoSet: DecoSet, sections: ChangeSet.Sections, wg: Wordgard,
+  updateRanges(state: GardState, decoSet: DecoSet, changes: Changes, wg: Wordgard,
                composition?: CompositionInfo | null) {
     let wrapper = composition?.wrapCursor || null
-    if ((!sections.length || sections.length == 2 && sections[1] == -1) && eqArray(wrapper, this.cursorWrapper))
+    if (isEmpty(changes) && eqArray(wrapper, this.cursorWrapper))
       return this
-    LOG_update && console.log(`updateRanges(${state.doc},`, sections, ",", composition, ")")
+    LOG_update && console.log(`updateRanges(${state.doc},`, changes, ",", composition, ")")
     if (composition) {
-      let separated = separateComposition(sections, composition)
+      let separated = separateChange(changes, composition.fromB, composition.toB)
       LOG_update && !separated && console.log("separateComposition failed")
       if (!separated) composition = null
-      else sections = separated
+      else changes = separated
     }
     let builder = new ContentUpdate(state, this, wg, new DecoIterator(state, decoSet), wrapper)
-    for (let i = 0, posB = 0, startCovered = false; i < sections.length;) {
-      let len = sections[i++], ins = sections[i++]
+    for (let i = 0, posB = 0, startCovered = false; i < changes.length;) {
+      let len = changes[i++], ins = changes[i++]
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
       if (composition && posB == composition.fromB && ins >= 0) {
         LOG_update && console.log("(composition)")
         if (!startCovered) builder.update(0, false)
         builder.composition(composition!, len)
-        if (ins && (startCovered = i == sections.length || sections[i + 1] == -1)) builder.update(0, false)
+        if (ins && (startCovered = i == changes.length || changes[i + 1] == -1)) builder.update(0, false)
       } else if (ins == -1) {
-        builder.keep(len, !startCovered, i == sections.length)
+        builder.keep(len, !startCovered, i == changes.length)
         startCovered = false
       } else if (ins == -2) {
         builder.update(len, !startCovered)
@@ -1272,33 +1273,4 @@ export function updateAttributes(dom: Element, a: Attributes, b: Attributes) {
     if (!match) changed = true
   }
   return changed
-}
-
-// Change the given sections to make sure that the composition gets
-// its replacement section, so that the tile update loop can handle it
-// separately from surrounding changes.
-function separateComposition(sections: ChangeSet.Sections, comp: CompositionInfo) {
-  let result: number[] = [], {fromB, toB} = comp
-  let lenI = 0, dLen = 0
-  for (let posB = 0, done = false, i = 0; i < sections.length;) {
-    let len = sections[i++], ins = sections[i++], endB = posB + (ins < 0 ? len : ins)
-    if (fromB > endB || toB < posB) {
-      result.push(len, ins)
-    } else {
-      if (ins >= 0) {
-        if (posB < fromB || endB > toB) return null
-        dLen = len - ins
-      }
-      if (posB < fromB) result.push(fromB - posB, ins)
-      if (!done) {
-        lenI = result.length
-        result.push(0, comp.text.length)
-        done = true
-      }
-      if (endB > toB) result.push(endB - toB, ins)
-    }
-    posB = endB
-  }
-  result[lenI] = comp.text.length + dLen
-  return result
 }

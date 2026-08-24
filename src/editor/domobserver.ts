@@ -1,10 +1,10 @@
-import {ChangeSet} from "wordgard/doc"
 import {GardSelection} from "wordgard/state"
 import browser from "./browser"
 import {Wordgard} from "./editor"
 import {DOMNode, hasSelection, getSelection, DOMSelectionState, SelectionRange, isEquivalentPosition} from "./dom"
 import {Tile, TileFlag, WidgetTile} from "./tile"
 import {readDOMSelection, selectionFromTouch} from "./selection"
+import {addRange} from "./changes"
 
 const observeOptions = {
   childList: true,
@@ -35,7 +35,7 @@ export class DOMObserver {
 
   // Ranges (refering to positions in the flushed document) that need
   // to be re-checked because their DOM changed, if any are known.
-  dirty: ChangeSet.Sections | null = null
+  dirty: number[] | null = null
 
   scrollTargets: HTMLElement[] = []
   resizeScroll: ResizeObserver | null = null
@@ -198,10 +198,7 @@ export class DOMObserver {
   }
 
   addDirtyRange(from: number, to: number) {
-    let sections = from ? [from, -1] : [], len = this.wg.flushedState.doc.length
-    sections.push(to - from, -2)
-    if (to < len) sections.push(len - to, -1)
-    this.dirty = this.dirty ? ChangeSet.composeSections(this.dirty, sections) : sections
+    addRange(this.dirty || (this.dirty = []), from, to)
   }
 
   processRecords(records: readonly MutationRecord[]) {
@@ -244,7 +241,6 @@ function childRange(tile: Tile, record: MutationRecord): [number, number] {
   return [childBefore ? tile.posBeforeChild(childBefore) + childBefore.length : tile.posAtStart,
           childAfter ? tile.posBeforeChild(childAfter) : tile.posAtEnd]
 }
-
 
 function findChild(elt: Tile, dom: Node | null, dir: number): Tile | null {
   while (dom) {
