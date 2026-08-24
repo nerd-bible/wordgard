@@ -46,6 +46,11 @@ describe("RangeSet", () => {
         "a@0-1 b@2-3 a@3-4")
   })
 
+  it("can merge masked", () => {
+    ist(str(RangeSet.create([[0, 1, V.a], [3, 4, V.a], [4, 6, V.a]]).merge(RangeSet.create([[2, 3, V.b]]), 1, 5)),
+        "a@0-1 b@2-3")
+  })
+
   it("checks overlap during merge", () => {
     ist.throws(() => {
       RangeSet.create([[0, 2, V.a]]).merge(RangeSet.create([[1, 3, V.b]]))

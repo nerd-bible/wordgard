@@ -40,6 +40,11 @@ describe("PointSet", () => {
         "a@0 b@2 a@3")
   })
 
+  it("can merge masked", () => {
+    ist(str(PointSet.create([[0, V.a], [3, V.a]]).merge(PointSet.create([[2, V.b]]), 0, 2)),
+        "b@2 a@3")
+  })
+
   it("can be mapped", () => {
     let ps = PointSet.create<V>(add => {
       for (let i = 0; i < 12; i += 2) add(i, new V("v" + (i / 2), 1))

@@ -657,16 +657,21 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
     return new PointSet<T>(applyDel(deleted, deletions, this.values), applyDel(deleted, deletions, positions))
   }
 
-  /// Returns the union of this set and the given set.
-  merge(other: PointSet<T>) {
+  /// Returns the union of this set and the given set. If
+  /// `maskFrom`/`maskTo` are given, drop any points from `this`
+  /// between or at those positions.
+  merge(other: PointSet<T>, maskFrom?: number, maskTo = maskFrom) {
     if (!this.length) return other
     if (!other.length) return this
     let posA = this.positions, posB = other.positions
-    let pos: number[] = new Array(posA.length, posB.length), values: T[] = new Array(pos.length)
+    let pos: number[] = new Array((maskFrom == null ? posA.length : 0) + posB.length), values: T[] = new Array(pos.length)
     for (let i = 0, a = 0, b = 0;;) {
       if (a < posA.length && (b == posB.length || (posA[a] - posB[b] || this.values[a].side - other.values[b].side) < 0)) {
-        pos[i] = posA[a]
-        values[i++] = this.values[a++]
+        if (maskFrom == null || maskFrom > posA[a] || maskTo! < posA[a]) {
+          pos[i] = posA[a]
+          values[i++] = this.values[a]
+        }
+        a++
       } else if (b < posB.length) {
         pos[i] = posB[b]
         values[i++] = other.values[b++]
@@ -881,18 +886,23 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
                            applyDel(deleted, deletions, to))
   }
 
-  /// Merge this set with another set.
-  merge(other: RangeSet<T>) {
+  /// Merge this set with another set. If `maskFrom`/`maskTo` are
+  /// given, any ranges overlapping the masked range in `this` are
+  /// not included in the merged set.
+  merge(other: RangeSet<T>, maskFrom?: number, maskTo = maskFrom) {
     if (!this.length) return other
     if (!other.length) return this
     let fromA = this.from, fromB = other.from
-    let from: number[] = new Array(fromA.length + fromB.length)
+    let from: number[] = new Array((maskFrom == null ? fromA.length : 0) + fromB.length)
     let to: number[] = new Array(from.length), values: T[] = new Array(from.length)
     for (let i = 0, a = 0, b = 0, at = 0;;) {
       if (a < fromA.length && (b == fromB.length || fromA[a] < fromB[b])) {
-        if ((from[i] = fromA[a]) < at) throw new Error("Overlapping ranges")
-        at = to[i] = this.to[a]
-        values[i++] = this.values[a++]
+        if (maskFrom == null || maskFrom >= this.to[a] || maskTo! <= this.from[a]) {
+          if ((from[i] = fromA[a]) < at) throw new Error("Overlapping ranges")
+          at = to[i] = this.to[a]
+          values[i++] = this.values[a]
+        }
+        a++
       } else if (b < fromB.length) {
         if ((from[i] = fromB[b]) < at) throw new Error("Overlapping ranges")
         at = to[i] = other.to[b]
