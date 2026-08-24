@@ -662,7 +662,7 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
   /// between or at those positions.
   merge(other: PointSet<T>, maskFrom?: number, maskTo = maskFrom) {
     if (!this.length) return other
-    if (!other.length) return this
+    if (!other.length && maskFrom == null) return this
     let posA = this.positions, posB = other.positions
     let pos: number[] = new Array((maskFrom == null ? posA.length : 0) + posB.length), values: T[] = new Array(pos.length)
     for (let i = 0, a = 0, b = 0;;) {
@@ -891,7 +891,7 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
   /// not included in the merged set.
   merge(other: RangeSet<T>, maskFrom?: number, maskTo = maskFrom) {
     if (!this.length) return other
-    if (!other.length) return this
+    if (!other.length && maskFrom == null) return this
     let fromA = this.from, fromB = other.from
     let from: number[] = new Array((maskFrom == null ? fromA.length : 0) + fromB.length)
     let to: number[] = new Array(from.length), values: T[] = new Array(from.length)
