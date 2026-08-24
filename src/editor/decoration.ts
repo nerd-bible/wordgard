@@ -1,6 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
-import {addSection, Changes, addUpdated} from "./changes"
+import {addSection, Changes, addUpdated, addRange, joinRanges} from "./changes"
 import {type Wordgard} from "./editor"
 import {findAbove} from "./util"
 
@@ -628,28 +628,31 @@ export class PointSet<T extends PointSet.Value = PointSet.Value> {
   /// The number of points in this set.
   get length() { return this.positions.length }
 
+  /// @internal
+  get size() { return this.positions.length ? this.positions[this.positions.length - 1] : 0 }
+
   /// Adjust the points for a set of document changes. Returns a new
   /// set with the adjusted points. May delete points when the content
   /// around them was deleted.
-  map(changes: ChangeSet) {
+  map(changes: ChangeSet, start = 0) {
     if (changes.empty) return this
     let positions = this.positions.slice()
-    let pos = 0, i = 0
+    let pos = start, i = 0, startB = start && changes.mapPos(start, -1)
     let deleted: number[] = [], deletions = 0
     changes.iterGaps((fromA, toA, fromB, _toB, last) => {
       let off = fromB - fromA, end = last ? toA : toA - 1
       if (end > pos) {
-        let nextI = findAbove(positions, i, end)
+        let nextI = findAbove(positions, i, end - start)
         if (off) for (; i < nextI; i++) positions[i] += off
         else i = nextI
         pos = end
       }
-    }, (_fromA, toA, fromB, toB) => {
-      let nextI = findAbove(positions, i, toA + 1)
+    }, (_fromA, toA) => {
+      let nextI = findAbove(positions, i, toA + 1 + start)
       for (; i < nextI; i++) {
-        let mapped = changes.mapPos(positions[i], this.values[i].side < 0 ? -1 : 1, this.values[i].trackMode)
+        let mapped = changes.mapPos(positions[i] + start, this.values[i].side < 0 ? -1 : 1, this.values[i].trackMode)
         if (mapped == null) { addDel(deleted, i); deletions++ }
-        else positions[i] = mapped
+        else positions[i] = mapped - startB
       }
       pos = toA + 1
     })
@@ -771,23 +774,34 @@ export namespace PointSet {
   }
 }
 
-class PointIterator<T extends PointSet.Value> {
+interface SetIterator<T> {
+  value: T | null
+  done: boolean
+  from: number
+  to: number
+  next(): void
+  goto(pos: number, inclusive: boolean): void
+}
+
+class PointIterator<T extends PointSet.Value> implements SetIterator<T> {
   declare value: T | null
   done = false
-  declare pos: number
+  declare from: number
   declare i: number
 
   constructor(readonly set: PointSet<T>) {
     this.fill(0)
   }
 
+  get to() { return this.from }
+
   private fill(i: number) {
     this.i = i
     if (i < this.set.positions.length) {
-      this.pos = this.set.positions[i]
+      this.from = this.set.positions[i]
       this.value = this.set.values[i]
     } else {
-      this.pos = 1e8
+      this.from = 1e8
       this.value = null
       this.done = true
     }
@@ -854,29 +868,32 @@ export class RangeSet<T extends RangeSet.Value = RangeSet.Value> {
   /// The number of ranges stored in this set.
   get length() { return this.from.length }
 
+  /// @internal
+  get size() { return this.to.length ? this.to[this.to.length - 1] : 0 }
+
   /// Adjust the positions of the ranges for the given change set.
   /// Returns a set with the updated ranges.
-  map(changes: ChangeSet) {
+  map(changes: ChangeSet, start = 0) {
     if (changes.empty || !this.length) return this
     let from = this.from.slice(), to = this.to.slice()
-    let pos = 0, i = 0
+    let pos = start, i = 0, startB = start && changes.mapPos(start, -1)
     let deleted: number[] = [], deletions = 0
     changes.iterGaps((fromA, toA, fromB, _toB, last) => {
       let off = fromB - fromA, end = last ? toA : toA - 1
       if (end > pos) {
-        let nextI = findAbove(to, i, end)
+        let nextI = findAbove(to, i, end - start)
         if (off) for (; i < nextI; i++) { from[i] += off; to[i] += off }
         else i = nextI
         pos = end
       }
     }, (_fromA, toA) => {
-      let nextI = findAbove(from, i, toA)
+      let nextI = findAbove(from, i, toA - start)
       for (; i < nextI; i++) {
         let value = this.values[i]
-        let mappedFrom = changes.mapPos(from[i], value.inclusiveStart ? -1 : 1)
-        let mappedTo = changes.mapPos(to[i], value.inclusiveEnd ? 1 : -1)
+        let mappedFrom = changes.mapPos(from[i] + start, value.inclusiveStart ? -1 : 1)
+        let mappedTo = changes.mapPos(to[i] + start, value.inclusiveEnd ? 1 : -1)
         if (mappedFrom >= mappedTo) { addDel(deleted, i); deletions++ }
-        else { from[i] = mappedFrom; to[i] = mappedTo }
+        else { from[i] = mappedFrom - startB; to[i] = mappedTo - startB }
       }
       pos = toA + 1
     })
@@ -985,7 +1002,7 @@ export namespace RangeSet {
   }
 }
 
-class RangeIterator<T extends RangeSet.Value> {
+class RangeIterator<T extends RangeSet.Value> implements SetIterator<T> {
   declare value: T | null
   declare from: number
   declare to: number
@@ -1019,28 +1036,92 @@ class RangeIterator<T extends RangeSet.Value> {
   }
 }
 
-function addRange(ranges: number[], from: number, to: number) {
-  let last = ranges.length - 1
-  if (last < 0 || ranges[last] < from) ranges.push(from, to)
-  else ranges[last] = Math.max(to, ranges[last])
+export class MultiSet<Set extends MultiSet.Member> {
+  private constructor(readonly sets: readonly Set[], readonly pos: readonly number[]) {}
+
+  map(changes: ChangeSet) {
+    if (changes.empty) return this
+    let pos = this.pos.slice(), sets = this.sets.slice(), i = 0
+    changes.iterGaps((fromA, toA, fromB, _toB, last) => {
+      while (i < sets.length && (last || pos[i] + sets[i].length < fromA)) {
+        pos[i++] += fromB - fromA
+      }
+    }, (_fromA, toA) => {
+      while (i < sets.length && pos[i] <= toA) {
+        sets[i] = sets[i].map(changes, pos[i]) as Set
+        pos[i] = changes.mapPos(pos[i], -1)
+        i++
+      }
+    })
+    return new MultiSet<Set>(sets, pos)
+  }
+
+  iter(): SetIterator<Set["values"][0]> {
+    return new MultiIterator<Set["values"][0]>(this)
+  }
+
+  static empty = new MultiSet<any>([], [])
+
+  static create<Set extends MultiSet.Member>(f: (add: (pos: number, set: Set) => void) => void) {
+    let sets: Set[] = [], pos: number[] = [], at = 0
+    f((p, set) => {
+      if (p < at) throw new Error("Overlapping sets in MultiSet.create")
+      sets.push(set)
+      pos.push(p)
+      at = p + set.size
+    })
+    return sets.length ? new MultiSet(sets, pos) : MultiSet.empty
+  }
 }
 
-function joinRanges(ranges: number[][]) {
-  if (ranges.length == 1) return ranges[0]
-  let result: number[] = [], index = ranges.map(() => 0)
-  for (;;) {
-    let minI = -1, minFrom = -1
-    for (let i = 0; i < ranges.length; i++) {
-      let idx = index[i], set = ranges[i]
-      if (idx < set.length && (minI < 0 || set[idx] < minFrom)) {
-        minI = i
-        minFrom = set[idx]
-      }
+export namespace MultiSet {
+  export type Member = RangeSet<any> | PointSet<any>
+}
+
+const empty: SetIterator<any> = {
+  from: 1e9, to: 1e9,
+  value: null,
+  done: true,
+  next() {},
+  goto() {}
+}
+
+class MultiIterator<T> implements SetIterator<T> {
+  declare offset: number
+  declare cur: SetIterator<T>
+
+  get value(): T | null { return this.cur.value }
+  get done() { return this.cur.done }
+  get from() { return this.cur.from + this.offset }
+  get to() { return this.cur.to + this.offset }
+  i = 0
+
+  constructor(readonly set: MultiSet<MultiSet.Member>) {
+    this.nextSet()
+  }
+
+  next() {
+    this.cur.next()
+    while (this.cur != empty && this.cur.done) this.nextSet()
+  }
+
+  nextSet() {
+    if (this.i == this.set.sets.length) {
+      this.offset = 0
+      this.cur = empty
+    } else {
+      this.offset = this.set.pos[this.i]
+      this.cur = this.set.sets[this.i].iter()
+      this.i++
     }
-    if (minI < 0) return result
-    let idx = index[minI], set = ranges[minI]
-    addRange(result, set[idx], set[idx + 1])
-    index[minI] += 2
+  }
+
+  goto(pos: number, inclusive = false) {
+    let i = 0
+    while (i < this.set.pos.length && this.set.pos[i] + this.set.sets[i].size) i++
+    this.i = i
+    this.nextSet()
+    this.cur.goto(pos - this.offset, inclusive)
   }
 }
 
@@ -1184,7 +1265,7 @@ class HeapIterator<R extends RangeSet.Value, P extends PointSet.Value> {
         ? [rangeHeap[0].from, rangeHeap[0].value!.inclusiveStart ? -1 : 1]
         : [1e9, 0]
       let [endPos, endSide] = active.length ? [active[0].to, active[0].value!.inclusiveEnd ? 1 : -1] : [1e9, 0]
-      let {pos: pointPos, side: pointSide} = pointHeap.length ? pointHeap[0] : {pos: 1e9, side: 1}
+      let {from: pointPos, side: pointSide} = pointHeap.length ? pointHeap[0] : {from: 1e9, side: 1}
       let nextPos = Math.min(startPos, endPos, pointPos)
       if (this.to == this.end && nextPos > this.to) {
         this.done = true
@@ -1261,7 +1342,7 @@ function cmpRangeTo(a: RangeIterator<RangeSet.Value>, b: RangeIterator<RangeSet.
 }
 
 function cmpPoint(a: PointIterator<PointSet.Value>, b: PointIterator<PointSet.Value>) {
-  return a.pos - b.pos || a.side - b.side
+  return a.from - b.from || a.side - b.side
 }
 
 export type WrapperSource = Mark<any> | WrapperRangeDecoration
