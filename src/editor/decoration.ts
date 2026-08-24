@@ -1079,7 +1079,10 @@ export function findChangedRanges(
       compareDecoSet(prevDeco.points, deco.points, (a, b) => {
         (a || PointSet.empty).compareRange(posA, b || PointSet.empty, posB, len, (pos, val) => {
           add(pos, Math.min(pos + (val instanceof WidgetDecoration ? 0 : 1), endB))
-          if (val instanceof ShapeDecoration && !globalChange) shapeChanges.push(pos)
+          if (val instanceof ShapeDecoration && !globalChange) {
+            let idx = findAbove(shapeChanges, 0, pos - 1)
+            if (idx == shapeChanges.length || shapeChanges[idx] != pos) shapeChanges.splice(idx, 0, pos)
+          }
         })
       })
       let joined = joinRanges(ranges), pos = posB, end = pos + len, j = 0
@@ -1113,10 +1116,8 @@ function addAtomicityChanges(
   nodes: number[]
 ): Changes {
   let added: number[] = []
-  let scan = prev.doc.resolve(0), last = -1, sectionPos = 0, sectionI = 0, off = 0
-  for (let posB of nodes.sort()) {
-    if (posB == last) continue
-    last = posB
+  let scan = prev.doc.resolve(0), sectionPos = 0, sectionI = 0, off = 0
+  for (let posB of nodes) {
     while (posB >= sectionPos) {
       let len = changes[sectionI++], ins = changes[sectionI++]
       if (ins < 0) {
