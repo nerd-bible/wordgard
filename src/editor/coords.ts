@@ -45,6 +45,7 @@ export function coordsAtPos(wg: Wordgard, pos: number, assoc: -1 | 1): Coords {
       for (let i = offset; i > 0; i--) {
         let before = tile.children[i - 1]
         if (before instanceof WidgetTile && !before.widget.type.inFlow) continue
+        if (before.dom.nodeName == "BR") break
         let rect = singleRect(before.dom, 1)
         if (rect.width || rect.height)
           return new Coords(before, horizontal ? flattenH(rect, false) : flattenV(rect, !ltrAt(wg.state, pos, 1)))
