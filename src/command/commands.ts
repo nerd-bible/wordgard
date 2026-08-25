@@ -540,8 +540,11 @@ export const moveByPage: Command<{dir: "up" | "down", extend?: boolean}> = (wg, 
 export const moveToLineSide: Command<{
   dir: "left" | "right" | "forward" | "backward", extend?: boolean,
 }> = (wg, {dir, extend}) => {
-  let pos = wg.moveToLineBoundary(wg.state.selection, isForward(dir, wg.state))
-  return pos ? setSelection(extend ? extendSel(wg.state.selection, pos) : pos) : false
+  let forward = isForward(dir, wg.state), {selection} = wg.state
+  let pos = wg.moveToLineBoundary(selection, forward)
+  return pos ? setSelection(extend ? extendSel(selection, pos) : pos)
+    : extend || selection.empty ? false
+    : setSelection(GardSelection.near(wg.state, forward ? selection.to : selection.from))
 }
 
 /// Move to the start or end of the textblock that has the selection
