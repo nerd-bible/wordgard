@@ -105,11 +105,13 @@ describe("coordsAtPos", () => {
     ist(wg.coordsAtPos(2, 1).top, c2.top)
     let c3 = wg.coordsAtPos(3, -1)
     ist(c3.top, c2.top, ">")
+    ist(P(wg, c3.left + 20, c3.top + 2), "3>")
     ist(wg.coordsAtPos(3, 1).top, c3.top)
     let c4 = wg.coordsAtPos(4, 1)
     ist(c4.top, c3.top, ">")
     let c6 = wg.coordsAtPos(6, -1)
     ist(c6.top, c4.top, ">")
+    ist(P(wg, c6.left + 2, c6.top + 2), "6>")
   })
 })
 

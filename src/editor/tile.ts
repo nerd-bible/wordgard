@@ -223,7 +223,7 @@ export class CompositeTile extends Tile {
   posAtCoordsRow(start: number, state: GardState, x: number, y: number, textblock: TextblockMap | null): CoordPos | null {
     let result = rowScan<Tile>(x, y, add => {
       for (let child of this.children) {
-        if (child.isPoint) continue
+        if (child instanceof WidgetTile && !child.widget.type.inFlow) continue
         let rects, {dom} = child
         if (dom.nodeType == 1) rects = (dom as Element).getClientRects()
         else if (dom.nodeType == 3) rects = textRange(dom as Text, 0, dom.nodeValue!.length).getClientRects()
@@ -234,6 +234,7 @@ export class CompositeTile extends Tile {
     if (!result) return null
     let {closest, rect} = result
     let pos = this.posBeforeChild(closest, start)
+    if (closest.dom.nodeName == "BR") return CoordPos.create(pos, 1)
     if (closest.node && closest.node.isPlot && closest.node.isInline) {
       if (x > rect.right) return CoordPos.create(pos + closest.length, -1)
       if (x < rect.left) return CoordPos.create(pos, 1)
