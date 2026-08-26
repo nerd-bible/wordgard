@@ -19,7 +19,7 @@ export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
       scrollIntoView: true,
       userEvent: "unwrap.empty"
     }
-    if (level.node.type.isInline || level.node.type.isolating) break
+    if (level.node.isInline || level.node.type.isolating) break
     if (index) atStart = false
     if (atStart) start--
     else before.push(Plot.End)
@@ -28,6 +28,45 @@ export function liftEmptyBlock(state: GardState): Transaction.Spec | false {
     else after.unshift(level.node.tag.split(false))
   }
   return false
+}
+
+/// If the selection is in a {@link Plot.Spec.preserveWhitespace
+/// `preserveWhitespace`} textblock, replace the selected content with
+/// a {@link Schema.lineBreak line break}.
+///
+/// If the selection additionally is a cursor on an otherwise empty
+/// line after a blank line, split or trunctate (if at end) the parent
+/// textblock and create a blank default text block in place of the
+/// empty line.
+export function enterInCode(state: GardState): Transaction.Spec | false {
+  let {sel} = state, {head} = sel
+  if (!head.parent.node.inlineContent || !head.parent.node.type.preserveWhitespace ||
+      head.parent.start != sel.anchor.parent.start || !state.schema.lineBreak) return false
+
+  // If on empty line after two line breaks, split or truncate the block
+  if (sel.selection.empty && head.parent.parent && !head.inText && head.index > 1 &&
+      head.nodeBefore!.type == state.schema.lineBreak.type &&
+      (head.pos == head.parent.end || head.nodeAfter!.type == state.schema.lineBreak.type) &&
+      head.parent.node.content[head.index - 2].type == state.schema.lineBreak.type) {
+    let textblock = state.schema.defaultContentPlot(head.parent.parent.node.type)
+    if (textblock?.type.inlineContent) return {
+      changes: {
+        from: head.pos - 2, to: head.pos + 1,
+        insert: head.pos == head.parent.end ? [Plot.End, textblock, Plot.End]
+          : [Plot.End, textblock, Plot.End, head.parent.node.tag]
+      },
+      selection: GardSelection.cursor(head.pos, -1),
+      scrollIntoView: true,
+      userEvent: "split.textblock"
+    }
+  }
+
+  return {
+    changes: {from: sel.from.pos, to: sel.to.pos, insert: [state.schema.lineBreak]},
+    selection: GardSelection.cursor(sel.from.pos + 1, -1),
+    scrollIntoView: true,
+    userEvent: "input"
+  }
 }
 
 /// Split the textblock at the cursor position, if any. If the
@@ -127,11 +166,11 @@ export function joinBackward(state: GardState): Transaction.Spec | false {
   while (!scan.index) {
     if (!scan.parent) return false
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.type.isBlock) return false
+    if (scan.node.type.isolating || !scan.node.isBlock) return false
   }
   let before = scan.previousSibling!, parent = scan.parent!.node, pos = scan.start - 1
   while (before.isLeaf || !before.isTextblock) {
-    if (before.isLeaf || state.isAtom(before.type) || before.type.isolating || !before.type.isBlock) return false
+    if (before.isLeaf || state.isAtom(before.type) || before.type.isolating || !before.isBlock) return false
     let last = before.content.length - 1
     if (last < 0) return false
     parent = before
@@ -166,7 +205,7 @@ export function joinListItems(state: GardState): Transaction.Spec | false {
   for (let scan = head.parent;;) {
     let next = scan.parent
     if (!next) return false
-    if (scan.node.type.isBlock && next.node.type.hasRole(Node.Role.List)) {
+    if (scan.node.isBlock && next.node.type.hasRole(Node.Role.List)) {
       const prev = scan.previousSibling
       if (!prev || !prev.isLeaf && scan.node.content.some(ch => !state.schema.canContain(prev.type, ch.type))) return false
       return {
@@ -192,11 +231,11 @@ export function joinForward(state: GardState): Transaction.Spec | false {
     if (!scan.parent) return false
     if (scan.index < scan.parent.node.content.length - 1) break
     scan = scan.parent
-    if (scan.node.type.isolating || !scan.node.type.isBlock) return false
+    if (scan.node.type.isolating || !scan.node.isBlock) return false
   }
   let after = scan.nextSibling!, parent = scan.parent.node, pos = scan.after
   while (after.isLeaf || !after.isTextblock) {
-    if (after.isLeaf || after.type.isolating || state.isAtom(after.type) || !after.type.isBlock || !after.content.length)
+    if (after.isLeaf || after.type.isolating || state.isAtom(after.type) || !after.isBlock || !after.content.length)
       return false
     parent = after
     after = after.content[0]
@@ -228,7 +267,8 @@ export function deleteBackward(state: GardState, word = false): Transaction.Spec
   let sel = state.sel
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (!index) {
-    if (scan.node.type.isolating || !scan.parent) return false
+    if (scan.node.type.isolating || !scan.parent || (!scan.node.contentLength && scan.node.isInline))
+      return false
     index = scan.index
     scan = scan.parent
     pos--
@@ -272,7 +312,7 @@ export function deleteBackward(state: GardState, word = false): Transaction.Spec
   // Delete the next node, plus, if it's a block, all parents that contain only it.
   let from = pos - next.length, to = pos
   let parent: Pos.Plot | null = state.doc.resolve(pos).parent
-  if (next.type.isBlock) while (parent && parent.node.type.isBlock && parent.node.content.length == 1) {
+  if (next.isBlock) while (parent && parent.node.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -292,7 +332,7 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   let sel = state.sel
   let {parent: scan, index, pos} = sel.head
   if (!sel.head.inText) while (index == scan.node.content.length) {
-    if (scan.node.type.isolating || !scan.parent) return false
+    if (scan.node.type.isolating || !scan.parent || (!scan.node.contentLength && scan.node.isInline)) return false
     index = scan.index + 1
     scan = scan.parent
     pos++
@@ -336,7 +376,7 @@ export function deleteForward(state: GardState, word = false): Transaction.Spec 
   // Delete the node ahead, plus all parents that it completely fills
   let from = pos, to = pos + next.length
   let parent: Pos.Plot | null = state.doc.resolve(pos).parent
-  if (next.type.isBlock) while (parent && parent.node.type.isBlock && parent.node.content.length == 1) {
+  if (next.isBlock) while (parent && parent.node.isBlock && parent.node.content.length == 1) {
     if (!parent.parent) return false
     parent = parent.parent
     from--; to++
@@ -440,7 +480,7 @@ export function findUnwrappable(schema: Schema, from: Pos, to: Pos, query?: Node
   let outerCandidates: Pos.Plot[] = []
   let {doc} = from
   doc.iterate(fromStart, toEnd, (node, p, parent) => {
-    if (node.type.isBlock && node.isPlot && !node.inlineContent && parent &&
+    if (node.isBlock && node.isPlot && !node.inlineContent && parent &&
         (fromTextblock ? doc.schema.canContain(parent.type, fromTextblock) : textblockChild(doc.schema, parent.type)) &&
         (!query || schema.matchNode(node.type, query))) {
       let pos = doc.resolveNode(p) as Pos.Plot, depth = pos.depth
@@ -614,13 +654,13 @@ export function autoJoinBlocks(state: GardState, tr: Transaction.Spec): Transact
   let cursor = doc.resolve(0), check = (pos: number) => {
     cursor = cursor.advance(pos - cursor.pos)
     let before = cursor.nodeBefore, after = cursor.nodeAfter
-    if (before && after && before.isPlot && before.type.isBlock && after.isPlot && after.type == before.type) {
+    if (before && after && before.isPlot && before.isBlock && after.isPlot && after.type == before.type) {
       let {autoJoin} = after.type.spec
       if (autoJoin && (typeof autoJoin != "function" || autoJoin(before.tag, after.tag))) {
         let from = pos - 1, to = pos + 1
         for (;;) {
           let last: Node | null = before!.lastChild, first: Node | null = after!.firstChild
-          if (!first || !last || first.isLeaf || last.isLeaf || first.type != last.type || first.type.isInline) break
+          if (!first || !last || first.isLeaf || last.isLeaf || first.type != last.type || first.isInline) break
           autoJoin = last.type.spec.autoJoin
           if (!autoJoin || (typeof autoJoin == "function" && !autoJoin(last.tag, first.tag))) break
           from--, to++
