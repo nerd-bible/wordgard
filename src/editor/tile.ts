@@ -1133,7 +1133,7 @@ class ContentUpdate {
         if (next.isNodeInner || next instanceof WidgetTile && !next.widget.type.inFlow) {
         } else if (next instanceof WidgetTile && next.widget == Widget.br && parent == this.new) {
           hasHack = i
-        } else if (next.dom.nodeName == "BR" || next instanceof TextTile && /\n$/.test(next.text)) {
+        } else if (next.dom.nodeName == "BR") {
           break
         } else if (next instanceof CompositeTile && !next.isAtom) {
           parent = next
