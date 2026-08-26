@@ -3,7 +3,8 @@ import {GardSelection, GardState, Transaction} from "wordgard/state"
 import {type Wordgard} from "wordgard/editor"
 import {Alignment, Direction, Emphasis, Strong, Underline} from "wordgard/types"
 import {Command} from "./command"
-import {joinForward, joinBackward, liftEmptyBlock, clearNonFitting, autoJoinBlocks,
+import {joinForward, joinBackward, liftEmptyBlock, enterInCode,
+        clearNonFitting, autoJoinBlocks,
         deleteSelection, deleteEmptyPlot, deleteForward, deleteBackward,
         splitTextblock, joinListItems, findUnwrappable, doUnwrapBlock,
         findWrappable, wrapBlockRange,
@@ -58,11 +59,13 @@ export const insertLineBreak: Command.Pure = ({state}) => {
 
 /// The command that handles enter presses. The default handler will,
 /// if the selection is not in an inline context, insert an empty
-/// default textblock in its position. Otherwise it first tries
-/// `liftEmptyBlock`, then `splitTextblock`.
+/// default textblock in its position. Otherwise it first tries {@link
+/// enterInCode}, then {@link liftEmptyBlock}, and finally {@link
+/// splitTextblock}.
 export const enter: Command.Pure = ({state}) => {
   if (state.readOnly) return false
   let {sel, doc} = state
+
   // When not in an inline context, try to create new empty textblock
   if (!sel.head.parent.node.inlineContent || !sel.anchor.parent.node.inlineContent) {
     let {from, to} = sel.replacementRange
@@ -79,7 +82,8 @@ export const enter: Command.Pure = ({state}) => {
       userEvent: "insert.textblock"
     }
   }
-  return liftEmptyBlock(state) || splitTextblock(state)
+
+  return enterInCode(state) || liftEmptyBlock(state) || splitTextblock(state)
 }
 
 /// Delete the selection, or the unit after or before the selection.

@@ -93,6 +93,7 @@ export {
 export {
   liftEmptyBlock,
   splitTextblock,
+  enterInCode,
   deleteSelection,
   deleteBackward,
   deleteForward,
