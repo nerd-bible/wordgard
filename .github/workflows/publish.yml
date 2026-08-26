@@ -24,8 +24,4 @@ jobs:
       - run: npm test
       - run: npm run prepare
       - run: npx -p @nerd-bible/config pkgWrite
-      - run: |
-          TAG=$(echo $TAG_NAME | grep -oe '-.*$' | cut -c 2-)
-          npm publish --verbose --access public --tag ${TAG:-latest}
-        env:
-          TAG_NAME: ${{ github.event.release.tag_name }}
+      - run: npm publish --verbose --access public --tag latest
