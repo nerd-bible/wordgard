@@ -189,7 +189,7 @@ export class InputState {
       node = node.childNodes[offset - 1]
       offset = node.nodeValue!.length
     }
-    let inText = node.nodeType == 3
+    let inText = node.nodeType == 3 && !this.wg.docTile.nearest(node)?.isPoint
     let ref = this.wg.docTile.posFromDOM(node, inText ? 0 : offset)
     let dir: -1 | 1 = -1
     let textBefore = node.parentNode && textNodeBefore(node.parentNode, domIndex(node))
