@@ -312,9 +312,9 @@ export class InputState {
       return before || after
     } else {
       let tileBefore = Tile.get(before), tileAfter = Tile.get(after)
-      return !tileBefore || (tileBefore as any).text != before.nodeValue ? before
-        : !tileAfter || (tileAfter as any).text != after.nodeValue ? after
-        : prev == after ? after : before
+      if (tileBefore instanceof TextTile && tileBefore.text != before.nodeValue) return before
+      if (tileAfter instanceof TextTile && tileAfter.text != after.nodeValue) return after
+      return !tileBefore ? before : !tileAfter ? after : prev == after ? after : before
     }
   }
 
