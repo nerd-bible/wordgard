@@ -185,6 +185,7 @@ export class InputState {
   // order to interpret `beforeinput` event ranges and other DOM
   // positions when there are unflushed DOM changes.
   getDOMPos(node: Node, offset: number) {
+    if (!this.domChanges) return this.wg.docTile.posFromDOM(node, offset)
     if (node.nodeType == 1 && offset && node.childNodes[offset - 1].nodeType == 3) {
       node = node.childNodes[offset - 1]
       offset = node.nodeValue!.length
