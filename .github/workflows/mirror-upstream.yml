@@ -1,0 +1,24 @@
+name: Mirror upstream
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  mirror-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Merge upstream
+        run: |
+      - name: Maybe convert, push, and publish
+        run: |
+          git config user.name ci
+          git config user.email ci@nerd.bible
+          git remote add upstream https://code.haverbeke.berlin/wordgard/wordgard.git
+          git fetch upstream
+          git merge --no-edit upstream/main 
+          git push origin master
