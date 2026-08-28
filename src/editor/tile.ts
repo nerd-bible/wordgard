@@ -352,9 +352,9 @@ export class DocTile extends CompositeTile {
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)
       if (composition && posB == composition.fromB && ins >= 0) {
         LOG_update && console.log("(composition)")
-        if (!startCovered) builder.update(0, false)
+        if (!startCovered) builder.update(0, true)
         builder.composition(composition!, len)
-        if (ins && (startCovered = i == changes.length || changes[i + 1] == -1)) builder.update(0, false)
+        if (ins && (startCovered = i == changes.length || changes[i + 1] == -1)) builder.update(0, true)
       } else if (ins == -1) {
         builder.keep(len, !startCovered, i == changes.length)
         startCovered = false

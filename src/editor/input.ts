@@ -185,11 +185,12 @@ export class InputState {
   // order to interpret `beforeinput` event ranges and other DOM
   // positions when there are unflushed DOM changes.
   getDOMPos(node: Node, offset: number) {
+    if (!this.domChanges) return this.wg.docTile.posFromDOM(node, offset)
     if (node.nodeType == 1 && offset && node.childNodes[offset - 1].nodeType == 3) {
       node = node.childNodes[offset - 1]
       offset = node.nodeValue!.length
     }
-    let inText = node.nodeType == 3
+    let inText = node.nodeType == 3 && !this.wg.docTile.nearest(node)?.isPoint
     let ref = this.wg.docTile.posFromDOM(node, inText ? 0 : offset)
     let dir: -1 | 1 = -1
     let textBefore = node.parentNode && textNodeBefore(node.parentNode, domIndex(node))
@@ -311,9 +312,9 @@ export class InputState {
       return before || after
     } else {
       let tileBefore = Tile.get(before), tileAfter = Tile.get(after)
-      return !tileBefore || (tileBefore as any).text != before.nodeValue ? before
-        : !tileAfter || (tileAfter as any).text != after.nodeValue ? after
-        : prev == after ? after : before
+      if (tileBefore instanceof TextTile && tileBefore.text != before.nodeValue) return before
+      if (tileAfter instanceof TextTile && tileAfter.text != after.nodeValue) return after
+      return !tileBefore ? before : !tileAfter ? after : prev == after ? after : before
     }
   }
 
