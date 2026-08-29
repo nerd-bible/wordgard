@@ -11,7 +11,7 @@ import browser from "./browser"
 import {getSelection, scrollableParents, DOMNode, textNodeBefore, textNodeAfter, domIndex} from "./dom"
 import {readClipboard, writeClipboard} from "./clipboard"
 import {eqArray, logException} from "./util"
-import {Tile, TextTile, CoordPos} from "./tile"
+import {Tile, TextTile, WidgetTile, CoordPos} from "./tile"
 import {KeyBinding} from "./keymap"
 
 const LOG_input = false
@@ -683,6 +683,11 @@ function inlineBoundNear(pos: Pos) {
     (index < parent.node.content.length ? parent.node.content[index].isPlot : parent.node.isInline)
 }
 
+function inEditableDOM(wg: Wordgard, node: DOMNode) {
+  let tile = wg.docTile.nearest(node)
+  return tile ? !(tile.isPoint || tile instanceof WidgetTile) : false
+}
+
 function isDeletionInputEvent(type: string) { return /^delete(Content|Word)/.test(type) }
 
 const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
@@ -827,11 +832,12 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       data: event.data,
       domRange: null,
     }
-    let ranges = event.getTargetRanges()
+    let ranges = event.getTargetRanges(), editable = true
     if (ranges.length) {
-      let r = ranges[0]
-      data.domRange = {from: wg.inputState.getDOMPos(r.startContainer, r.startOffset),
-                       to: wg.inputState.getDOMPos(r.endContainer, r.endOffset)}
+      let r = ranges[0], empty = r.collapsed
+      let from = wg.inputState.getDOMPos(r.startContainer, r.startOffset)
+      data.domRange = {from, to: empty ? from : wg.inputState.getDOMPos(r.endContainer, r.endOffset)}
+      editable = inEditableDOM(wg, r.startContainer) && (empty || inEditableDOM(wg, r.endContainer))
     }
     wg.inputState.beforeInput(event, wg.inputState.pendingInputEvent = data)
     wg.scheduleFlush()
@@ -839,8 +845,8 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     // insertion and deletion to avoid confusing virtual keyboards and
     // Safari autocapitalize.
     let allow = type == "insertCompositionText" ||
-      (type == "insertText" || isDeletionInputEvent(type) &&
-       data.domRange && inlineContext(wg.inputState.domDoc, data.domRange))
+      editable && (type == "insertText" || isDeletionInputEvent(type) &&
+        data.domRange && inlineContext(wg.inputState.domDoc, data.domRange))
     LOG_input && console.log(`beforeinput ${data.inputType} ${data.domRange ? data.domRange.from + "-" + data.domRange.to : ""} ${
       data.data ? JSON.stringify(data.data) : ""}, allow=${allow}`)
     return !allow
