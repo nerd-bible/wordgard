@@ -124,7 +124,6 @@ export abstract class Tile {
 
   ignoreEvent(event: Event) { return false }
 
-  // FIXME Actually do something with this for widgets
   get ignoreMutations() { return false }
 
   toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
@@ -636,6 +635,8 @@ export class WidgetTile extends Tile {
 
   ignoreEvent(event: Event) { return !this.widget.type.propagateEvent(event) }
 
+  get ignoreMutations() { return !this.widget.type.editable }
+
   sync() { checkSync(this) }
 
   connect() {
@@ -648,7 +649,7 @@ export class WidgetTile extends Tile {
   }
 
   toString() {
-    return this.widget.type == Widget.EditableText || this.widget.type == Widget.Text
+    return this.widget.type == Widget.editableText || this.widget.type == Widget.text
       ? JSON.stringify(this.widget.value) : super.toString()
   }
 
@@ -1123,7 +1124,7 @@ class ContentUpdate {
           afterContentInner = TileFlag.AfterContent
           tile.flags |= TileFlag.PlotContent
         } else {
-          tile.addChild(this.buildNodeShape(null, typeof ch == "string" ? Widget.Text.of(ch) : ch,
+          tile.addChild(this.buildNodeShape(null, typeof ch == "string" ? Widget.text.of(ch) : ch,
                                             reusable ? reusable.children : reuse, afterContentInner))
         }
       }

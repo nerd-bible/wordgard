@@ -113,12 +113,12 @@ export namespace Widget {
   }
 
   /// @internal
-  export const Text = Widget.define<string>({
+  export const text = Widget.define<string>({
     render: s => document.createTextNode(s)
   })
 
   /// @internal
-  export const EditableText = Widget.define<string>({
+  export const editableText = Widget.define<string>({
     render: s => document.createTextNode(s)
   })
 
@@ -493,7 +493,7 @@ function applyDeco(shape: Decoration.Shape, deco: Decoration.Point, tag: Node.Ta
 }
 
 const baseTagShape = memo((tag: Node.Tag): Decoration.Shape => {
-  return addMarkAttributes(tag.is(Leaf.Text) ? Widget.EditableText.of(tag.param as string)
+  return addMarkAttributes(tag.is(Leaf.Text) ? Widget.editableText.of(tag.param as string)
     : tag.type.shape.create(tag.param), tag)
 })
 
