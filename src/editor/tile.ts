@@ -124,11 +124,12 @@ export abstract class Tile {
 
   ignoreEvent(event: Event) { return false }
 
+  // FIXME Actually do something with this for widgets
   get ignoreMutations() { return false }
 
   toString() { return this.dom.nodeName + (this.children.length ? `(${this.children})` : "") }
 
-  sync() {}
+  abstract sync(): void
 
   connect() {
     for (let ch of this.children) ch.connect()
@@ -145,6 +146,13 @@ export abstract class Tile {
     return tile
   }
 
+  markDirty() {
+    if (!(this.flags & TileFlag.Dirty)) {
+      this.flags |= TileFlag.Dirty
+      this.parent?.markDirty()
+    }
+  }
+
   posAtCoords(state: GardState, x: number, y: number): CoordPos {
     let nodeTile = this.nearestNode()
     return nodeTile.posAtCoordsInner(nodeTile.posAtStart, state, x, y, null, Orientation.Col)
@@ -154,6 +162,13 @@ export abstract class Tile {
                             orientation: Orientation): CoordPos
 
   static get(node: DOMNode) { return node.wgTile }
+}
+
+function checkSync(tile: Tile) {
+  if ((tile.flags & TileFlag.Synced) && !(tile.flags & TileFlag.Dirty)) return false
+  tile.flags |= TileFlag.Synced
+  tile.flags &= ~TileFlag.Dirty
+  return true
 }
 
 export class CompositeTile extends Tile {
@@ -173,8 +188,7 @@ export class CompositeTile extends Tile {
   }
 
   sync() {
-    if (this.flags & TileFlag.Synced) return
-    this.flags |= TileFlag.Synced
+    if (!checkSync(this)) return
     let len = this.boundary * 2
     for (let ch of this.children) {
       ch.sync()
@@ -601,10 +615,17 @@ export class WidgetTile extends Tile {
     dom: Element | Text,
     length: number = 0
   ) {
+    if (!widget.type.editable) {
+      if (dom.nodeType != 1) {
+        let span = document.createElement("span")
+        span.appendChild(dom)
+        dom = span
+      }
+      if ((dom as HTMLElement).contentEditable == "inherit")
+        (dom as HTMLElement).contentEditable = "false"
+    }
     super(dom, flags)
     this.length = length
-    if (dom.nodeType == 1 && !widget.type.editable && (dom as HTMLElement).contentEditable == "inherit")
-      (dom as HTMLElement).contentEditable = "false"
   }
 
   get isNodeOuter() { return !!this._node }
@@ -614,6 +635,8 @@ export class WidgetTile extends Tile {
   get children() { return noChildren }
 
   ignoreEvent(event: Event) { return !this.widget.type.propagateEvent(event) }
+
+  sync() { checkSync(this) }
 
   connect() {
     this.widget.type.connect?.(this.widget.value, this.dom)
@@ -655,8 +678,7 @@ export class TextTile extends Tile {
   get isAtom() { return true }
 
   sync() {
-    if (this.flags & TileFlag.Synced) return
-    this.flags |= TileFlag.Synced
+    if (!checkSync(this)) return
     if (this.dom.nodeValue != this.text) this.dom.nodeValue = this.text
   }
 
