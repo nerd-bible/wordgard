@@ -663,9 +663,9 @@ function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
     if (!event.data) {
       let sel = wg.state.selection, rSel = wg.state.sel
       if (sel.empty && (sel instanceof GardSelection.Text && sel.marks || !rSel.head.inText && rSel.head.index) &&
-          !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks))
-        wrap = rSel.activeMarks
-      else if (sel.empty && inlineBoundNear(wg.state.sel.head))
+          !eqArray(rSel.head.nodeBefore?.tag.marks, rSel.activeMarks) ||
+          sel.empty && inlineBoundNear(wg.state.sel.head) ||
+          !inEditableDOM(wg, wg.observer.selectionRange.focusNode))
         wrap = rSel.activeMarks
     }
 
@@ -683,7 +683,8 @@ function inlineBoundNear(pos: Pos) {
     (index < parent.node.content.length ? parent.node.content[index].isPlot : parent.node.isInline)
 }
 
-function inEditableDOM(wg: Wordgard, node: DOMNode) {
+function inEditableDOM(wg: Wordgard, node: DOMNode | null) {
+  if (!node) return false
   let tile = wg.docTile.nearest(node)
   return tile ? !(tile.isPoint || tile instanceof WidgetTile) : false
 }
