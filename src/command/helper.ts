@@ -622,7 +622,7 @@ export function joinBlocks(before: Pos.Plot, after: Pos.Plot): ChangeSet.Spec {
     for (let i = dAfter - dBefore, level = after, atEnd = true; i > 0; i--, level = level.parent!) {
       if (level.nextSibling) atEnd = false
       if (atEnd) end++
-      else tokensAfter.push(level.parent!.node.tag)
+      else tokensAfter.unshift(level.parent!.node.tag)
     }
   }
   if (tokensAfter.length || end > posAfter)
