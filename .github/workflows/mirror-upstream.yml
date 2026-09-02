@@ -24,7 +24,7 @@ jobs:
           git config user.email ci@nerd.bible
           git remote add upstream https://code.haverbeke.berlin/wordgard/wordgard.git
           git fetch upstream
-          if [ "$(git rev-parse HEAD)" != "$(git rev-parse upstream)" ];
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse upstream)" ]; then
             git merge --no-edit upstream/main 
             npx -p @nerd-bible/config gitBump
             git push --tags origin master
