@@ -14,19 +14,21 @@ jobs:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Merge upstream
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+          registry-url: "https://registry.npmjs.org"
+      - name: merge
         run: |
           git config user.name ci
           git config user.email ci@nerd.bible
           git remote add upstream https://code.haverbeke.berlin/wordgard/wordgard.git
           git fetch upstream
-          git merge --no-edit upstream/main 
-          git push origin master
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "lts/*"
-          registry-url: "https://registry.npmjs.org"
-      - run: npm install --force
-      - run: npx -p @nerd-bible/config gitBump
-      - run: git push --tags origin master
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse upstream)" ];
+            git merge --no-edit upstream/main 
+            npx -p @nerd-bible/config gitBump
+            git push --tags origin master
+            echo "deploy=true" >> $GITHUB_OUTPUT
+          fi
       - uses: ./publish.yml
+        if: steps.merge.deploy == 'true'
