@@ -25,9 +25,8 @@ jobs:
           git config user.email ci@nerd.bible
           git remote add upstream https://code.haverbeke.berlin/wordgard/wordgard.git
           git fetch upstream
-          git merge --no-commit upstream/main
-          if git diff | grep --quiet .; then
-            git commit -m 'merge upstream/main'
+          if ! git merge-base --is-ancestor upstream/main HEAD; then
+            git merge --no-edit upstream/main
             npx -p @nerd-bible/config gitBump
             git push --tags origin master
             echo "deploy=true" >> "$GITHUB_OUTPUT"
