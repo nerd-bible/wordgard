@@ -29,6 +29,9 @@ jobs:
             exit 1
           else
             git merge --no-edit upstream/main
-            npx -p @nerd-bible/config gitBump
+            # prefer upstream tags
+            if ! git describe --exact-match --tags HEAD;
+              npx -p @nerd-bible/config gitBump
+            fi
             git push --tags origin master
           fi
