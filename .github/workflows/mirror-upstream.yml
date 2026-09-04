@@ -32,4 +32,4 @@ jobs:
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
       - uses: ./publish.yml
-        if: steps.merge.deploy == 'true'
+        if: steps.merge.outputs.deploy == 'true'
