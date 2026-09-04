@@ -56,6 +56,8 @@ export {
   deleteWord,
   deleteToLineEnd,
   deleteLine,
+  killToLineEnd,
+  yankKilled
 } from "./commands"
 
 //- ### Block Manipulation Commands
