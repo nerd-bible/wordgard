@@ -31,5 +31,5 @@ jobs:
             git push --tags origin master
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: ./publish.yml
+      - uses: ./.github/workflows/publish.yml
         if: steps.merge.outputs.deploy == 'true'
