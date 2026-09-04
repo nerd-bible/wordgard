@@ -25,11 +25,10 @@ jobs:
           git config user.email ci@nerd.bible
           git remote add upstream https://code.haverbeke.berlin/wordgard/wordgard.git
           git fetch upstream
-          if ! git merge-base --is-ancestor upstream/main HEAD; then
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            exit 1
+          else
             git merge --no-edit upstream/main
             npx -p @nerd-bible/config gitBump
             git push --tags origin master
-            echo "deploy=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: ./.github/workflows/publish.yml
-        if: steps.merge.outputs.deploy == 'true'

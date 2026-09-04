@@ -4,6 +4,10 @@ on:
     tags:
       - v[0-9]+.[0-9]+.[0-9]+**
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Mirror upstream"]
+    types: [completed]
+    branches: [master]
 
 permissions:
   contents: read
