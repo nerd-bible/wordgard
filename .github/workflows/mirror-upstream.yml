@@ -31,7 +31,7 @@ jobs:
             git merge --no-edit upstream/main
             # prefer upstream tags
             if ! git describe --exact-match --tags HEAD;
-              npx -p @nerd-bible/config gitBump
+              npx -p @nerd-bible/config gitBump beta
             fi
             git push --tags origin master
           fi
