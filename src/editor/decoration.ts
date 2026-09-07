@@ -776,7 +776,6 @@ export namespace PointSet {
 
 interface SetIterator<T> {
   value: T | null
-  done: boolean
   from: number
   to: number
   next(): void
@@ -785,7 +784,6 @@ interface SetIterator<T> {
 
 class PointIterator<T extends PointSet.Value> implements SetIterator<T> {
   declare value: T | null
-  done = false
   declare from: number
   declare i: number
 
@@ -803,20 +801,18 @@ class PointIterator<T extends PointSet.Value> implements SetIterator<T> {
     } else {
       this.from = 1e8
       this.value = null
-      this.done = true
     }
   }
 
   next() {
-    if (!this.done) this.fill(this.i + 1)
+    if (this.value) this.fill(this.i + 1)
   }
 
   get side() {
-    return this.done ? 1 : this.value!.side
+    return this.value ? this.value!.side : 1
   }
 
   goto(pos: number, inclusive: boolean) {
-    this.done = false
     let i = findAbove(this.set.positions, 0, pos - 1)
     if (!inclusive) {
       while (i < this.set.values.length && this.set.values[i].side < Side.After) i++
@@ -1006,7 +1002,6 @@ class RangeIterator<T extends RangeSet.Value> implements SetIterator<T> {
   declare value: T | null
   declare from: number
   declare to: number
-  done = false
   declare i: number
 
   constructor(readonly set: RangeSet<T>) {
@@ -1022,106 +1017,15 @@ class RangeIterator<T extends RangeSet.Value> implements SetIterator<T> {
     } else {
       this.from = this.to = 1e8
       this.value = null
-      this.done = true
     }
   }
 
   next() {
-    if (!this.done) this.fill(this.i + 1)
+    if (this.value) this.fill(this.i + 1)
   }
 
   goto(pos: number) {
-    this.done = false
     this.fill(findAbove(this.set.to, 0, pos))
-  }
-}
-
-export class MultiSet<Set extends MultiSet.Member> {
-  private constructor(readonly sets: readonly Set[], readonly pos: readonly number[]) {}
-
-  map(changes: ChangeSet) {
-    if (changes.empty) return this
-    let pos = this.pos.slice(), sets = this.sets.slice(), i = 0
-    changes.iterGaps((fromA, toA, fromB, _toB, last) => {
-      while (i < sets.length && (last || pos[i] + sets[i].length < fromA)) {
-        pos[i++] += fromB - fromA
-      }
-    }, (_fromA, toA) => {
-      while (i < sets.length && pos[i] <= toA) {
-        sets[i] = sets[i].map(changes, pos[i]) as Set
-        pos[i] = changes.mapPos(pos[i], -1)
-        i++
-      }
-    })
-    return new MultiSet<Set>(sets, pos)
-  }
-
-  iter(): SetIterator<Set["values"][0]> {
-    return new MultiIterator<Set["values"][0]>(this)
-  }
-
-  static empty = new MultiSet<any>([], [])
-
-  static create<Set extends MultiSet.Member>(f: (add: (pos: number, set: Set) => void) => void) {
-    let sets: Set[] = [], pos: number[] = [], at = 0
-    f((p, set) => {
-      if (p < at) throw new Error("Overlapping sets in MultiSet.create")
-      sets.push(set)
-      pos.push(p)
-      at = p + set.size
-    })
-    return sets.length ? new MultiSet(sets, pos) : MultiSet.empty
-  }
-}
-
-export namespace MultiSet {
-  export type Member = RangeSet<any> | PointSet<any>
-}
-
-const empty: SetIterator<any> = {
-  from: 1e9, to: 1e9,
-  value: null,
-  done: true,
-  next() {},
-  goto() {}
-}
-
-class MultiIterator<T> implements SetIterator<T> {
-  declare offset: number
-  declare cur: SetIterator<T>
-
-  get value(): T | null { return this.cur.value }
-  get done() { return this.cur.done }
-  get from() { return this.cur.from + this.offset }
-  get to() { return this.cur.to + this.offset }
-  i = 0
-
-  constructor(readonly set: MultiSet<MultiSet.Member>) {
-    this.nextSet()
-  }
-
-  next() {
-    this.cur.next()
-    while (this.cur != empty && this.cur.done) this.nextSet()
-  }
-
-  nextSet() {
-    if (this.i == this.set.sets.length) {
-      this.offset = 0
-      this.cur = empty
-    } else {
-      this.offset = this.set.pos[this.i]
-      this.cur = this.set.sets[this.i].iter()
-      this.i++
-    }
-  }
-
-  goto(pos: number, inclusive = false) {
-    let i = 0
-    while (i < this.set.pos.length && this.set.pos[i] + this.set.sets[i].size) i++
-    this.i = i
-    this.nextSet()
-    this.cur.goto(pos - this.offset, inclusive)
   }
 }
 
@@ -1255,7 +1159,7 @@ class HeapIterator<R extends RangeSet.Value, P extends PointSet.Value> {
     if (this.done) return this
     if (this.point) {
       this.point.next()
-      if (this.point.done) popHeap(this.pointHeap, cmpPoint)
+      if (!this.point.value) popHeap(this.pointHeap, cmpPoint)
       else bubble(this.pointHeap, 0, cmpPoint)
       this.point = null
     }
@@ -1285,7 +1189,7 @@ class HeapIterator<R extends RangeSet.Value, P extends PointSet.Value> {
       } else {
         let first = active[0]
         first.next()
-        if (!first.done)
+        if (first.value)
           sink(rangeHeap, rangeHeap.push(first) - 1, cmpRangeFrom)
         popHeap(active, cmpRangeTo)
       }
@@ -1444,7 +1348,7 @@ export class DecoIterator {
     for (let i of this.rangeIter) i.goto(from)
     for (let i of this.pointIter) i.goto(from, inclusiveStart)
     let iter = new HeapIterator<Decoration.Range, Decoration.Point>(
-      this.rangeIter.filter(i => !i.done), this.pointIter.filter(i => !i.done), from, to)
+      this.rangeIter.filter(i => i.value), this.pointIter.filter(i => i.value), from, to)
     let pos = this.pos.advance(from - this.pos.pos), started = inclusiveStart
     let atomParent: Pos.Plot | undefined
     for (let p: Pos.Plot | null = pos.parent; p; p = p.parent)
