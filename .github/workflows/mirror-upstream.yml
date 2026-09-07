@@ -18,20 +18,8 @@ jobs:
         with:
           node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
-      - name: Merge
-        id: merge
+      - name: merge
         run: |
           git config user.name ci
           git config user.email ci@nerd.bible
-          git remote add upstream https://code.haverbeke.berlin/wordgard/wordgard.git
-          git fetch upstream
-          if git merge-base --is-ancestor upstream/main HEAD; then
-            exit 1
-          else
-            git merge --no-edit upstream/main
-            # prefer upstream tags
-            if ! git describe --exact-match --tags HEAD; then
-              npx -p @nerd-bible/config gitBump beta
-            fi
-            git push --tags origin master
-          fi
+          ./.github/workflows/merge-upstream.sh
