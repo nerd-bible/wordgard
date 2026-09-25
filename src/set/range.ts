@@ -1,0 +1,367 @@
+import {ChangeSet} from "wordgard/doc"
+import {findAbove, heapSink, heapBubble, heapPop} from "./util"
+
+const enum ChunkSize { Max = 512 }
+
+class Chunk<T extends RangeSet.Value> {
+  constructor(
+    readonly start: number,
+    readonly from: number[],
+    readonly to: number[],
+    readonly value: T[]
+  ) {}
+
+  get end() {
+    return this.start + this.to[this.to.length - 1]
+  }
+
+  move(start: number) {
+    return start == this.start ? this : new Chunk(start, this.from, this.to, this.value)
+  }
+}
+
+class SetBuilder<T extends RangeSet.Value> {
+  chunks: Chunk<T>[] = []
+  spilled: SetBuilder<T> | null = null
+  lastTo = -1
+  lastFrom = -1
+
+  get next() {
+    return this.spilled || (this.spilled = new SetBuilder<T>())
+  }
+
+  addChunk(chunk: Chunk<T>) {
+    if (chunk.start < this.lastTo) {
+      this.next.addChunk(chunk)
+    } else {
+      this.chunks.push(chunk)
+      this.lastTo = chunk.end
+    }
+  }
+
+  add(source: RangeSet.Source<T>, pre?: (from: number, to: number) => void) {
+    if (typeof source != "function") {
+      let array = source
+      source = add => { for (let [from, to, value] of array) add(from, to, value) }
+    }
+    source((from, to, value) => {
+      if (pre) pre(from, to)
+      this.addRange(from, to, value)
+    })
+  }
+
+  addRange(from: number, to: number, value: T) {
+    if (from >= to) throw new Error("Ranges cannot be empty")
+    ;(this.lastTo <= from ? this : this.next).addInner(from, to, value)
+  }
+
+  addInner(from: number, to: number, value: T) {
+    let chunk: Chunk<T> | undefined
+    if (this.chunks.length) {
+      chunk = this.chunks[this.chunks.length - 1]
+      if (chunk.value.length >= ChunkSize.Max) chunk = undefined
+    }
+    if (!chunk) {
+      this.chunks.push(chunk = new Chunk(from, [], [], []))
+    }
+    chunk.from.push(from - chunk.start)
+    chunk.to.push(to - chunk.start)
+    chunk.value.push(value)
+    this.lastFrom = from
+    this.lastTo = to
+  }
+
+  finish(plus: RangeSet<T> | null = null): RangeSet<T> {
+    let next = this.spilled ? this.spilled.finish(plus) : plus
+    if (!this.chunks.length) return next || RangeSet.empty
+    return new RangeSet(this.chunks, next)
+  }
+}
+
+export class RangeSet<T extends RangeSet.Value> {
+  constructor(
+    readonly chunks: readonly Chunk<T>[],
+    readonly next: RangeSet<T> | null
+  ) {}
+
+  static create<T extends RangeSet.Value>(
+    source: RangeSet.Source<T>
+  ): RangeSet<T> {
+    let build = new SetBuilder<T>()
+    build.add(source, from => {
+      if (from < build.lastFrom) throw new Error("Ranges must be added in order")
+    })
+    return build.finish()
+  }
+
+  get length(): number {
+    return Math.max(this.chunks.length ? this.chunks[this.chunks.length - 1].end : 0, this.next ? this.next.length : 0)
+  }
+
+  get empty() {
+    return this == RangeSet.empty
+  }
+
+  cursor(from = 0): RangeSet.Cursor<T> {
+    if (!this.next) return new LayerCursor(this.chunks, from)
+    let cursors: LayerCursor<T>[] = []
+    for (let layer: RangeSet<T> | null = this; layer; layer = layer.next)
+      cursors.push(new LayerCursor(layer.chunks, from))
+    return new HeapCursor(cursors)
+  }
+
+  map(map: ChangeSet, replace: readonly RangeSet.Replacement<T>[] = []) {
+    let {sections} = map
+    if (replace.length) {
+      let add: number[] = [], at = 0, len = map.newLength
+      for (let repl of replace) {
+        if (repl.from < at) throw new Error("Replacing ranges must be ordered and non-overlapping")
+        if (repl.to > len) throw new Error("Replacing range out of bounds")
+        if (repl.from > at) add.push(repl.from - at, -1)
+        add.push(repl.to - repl.from, repl.to - repl.from)
+        at = repl.to
+      }        
+      if (len > at) add.push(len - at, -1)
+      sections = ChangeSet.composeSections(sections, add)
+    } else if (map.empty) {
+      return this
+    }
+    return this.mapInner(sections, map, replace)
+  }
+
+  /// @internal
+  mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly RangeSet.Replacement<T>[]): RangeSet<T> {
+    let cursor = new LayerCursor(this.chunks, 0)
+    let replI = 0, posA = 0, posB = 0
+    let build = new SetBuilder<T>()
+    for (let i = 0; i < sections.length;) {
+      let len = sections[i++], ins = sections[i++]
+      if (ins < 0) {
+        while (i < sections.length && sections[i + 1] < 0) {
+          len += sections[i]
+          i += 2
+        }
+        let upto = i == sections.length ? 1e9 : posA + len, off = posB - posA
+        // Unchanged range. Copy over ranges and chunks entirely inside.
+        while (cursor.cur) {
+          let chunk = cursor.cur
+          if (cursor.rangeI == 0 && chunk.end < upto) {
+            build.addChunk(chunk.move(chunk.start + off))
+            cursor.next(true)
+          } else if (cursor.to < upto) {
+            build.addRange(cursor.from + off, cursor.to + off, cursor.value!)
+            cursor.next()
+          } else {
+            break
+          }
+        }
+        posB += len
+      } else {
+        // Iterate over replacements in this change's range, copy over
+        // mapped version of ranges covering its start and end before
+        // and after.
+        let replStartI = replI, endB = posB + ins
+        copyMappedUpto(cursor, posA, map, build, replace, replStartI)
+        while (replI < replace.length && replace[replI].from < endB) {
+          let repl = replace[replI++]
+          if (repl.add) build.add(repl.add)
+        }
+        if (len) cursor.goto(posA + len - 1)
+        copyMappedUpto(cursor, posA + len, map, build, replace, replStartI)
+        posB = endB
+      }
+      posA += len
+    }
+    return build.finish(this.next && this.next.mapInner(sections, map, replace))
+  }
+
+
+  modify(spec: {
+    replace?: readonly RangeSet.Replacement<T>[],
+    add?: RangeSet.Source<T>,
+    filter?: (from: number, to: number, value: T) => boolean
+  }) {
+    let {replace, add, filter} = spec
+    let result: RangeSet<T> = this
+    if (replace && replace.length) {
+      result = result.map(ChangeSet.empty(Math.max(result.length, replace[replace.length - 1].to)), replace)
+    }
+    return add || filter ? result.modifyInner(add, filter) : result
+  }
+
+  modifyInner(add: RangeSet.Source<T> | undefined, filter?: (from: number, to: number, value: T) => boolean): RangeSet<T> {
+    let build = new SetBuilder<T>()
+    let cursor = new LayerCursor(this.chunks, 0)
+    let advance = (pos: number) => {
+      for (;;) {
+        let {cur} = cursor
+        if (!cur) return
+        if (cursor.rangeI == 0 && cur.end <= pos && !filter) {
+          build.addChunk(cur)
+          cursor.next(true)
+        } else if (cursor.from > pos) {
+          break
+        } else {
+          if (!filter || filter(cursor.from, cursor.to, cursor.value!))
+            build.addRange(cursor.from, cursor.to, cursor.value!)
+          cursor.next()
+        }
+      }
+    }
+    if (add) build.add(add, advance)
+    advance(1e9)
+    return build.finish(this.next && this.next.modifyInner(add, filter))
+  }
+
+  static empty = new RangeSet<any>([], null)
+}
+
+function copyMappedUpto<T extends RangeSet.Value>(
+  cursor: RangeSet.Cursor<T>, upto: number,
+  map: ChangeSet, build: SetBuilder<T>,
+  replace: readonly RangeSet.Replacement<T>[], replI: number
+) {
+  while (cursor.value && cursor.from <= upto) {
+    let value = cursor.value!
+    let from = map.mapPos(cursor.from, value.inclusiveStart ? -1 : 1)
+    let to = map.mapPos(cursor.to, value.inclusiveEnd ? 1 : -1)
+    let filtered = from >= to
+    for (let i = replI; !filtered && i < replace.length && replace[i].from < to; i++) {
+      if (replace[i].to > from) filtered = true
+    }
+    if (!filtered) build.addRange(from, to, value)
+    cursor.next()
+  }
+}
+
+export class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
+  chunkI = 0
+  rangeI = 0
+
+  declare cur: Chunk<T> | null
+  from = 0
+  declare to: number
+  declare value: T | null
+
+  constructor(readonly chunks: readonly Chunk<T>[], start: number) {
+    this.goto(start)
+  }
+
+  goto(pos: number) {
+    let {chunks} = this
+    if (pos < this.from) this.chunkI = this.rangeI = 0
+    while (this.chunkI < chunks.length && chunks[this.chunkI].end <= pos) {
+      this.chunkI++
+      this.rangeI = 0
+    }
+    if (this.chunkI == chunks.length) {
+      this.rangeI = 0
+      this.from = this.to = 1e8
+      this.cur = this.value = null
+    } else {
+      let chunk = this.cur = chunks[this.chunkI]
+      let i = this.rangeI = findAbove(chunk.to, this.rangeI, pos - chunk.start)
+      this.from = chunk.from[i] + chunk.start
+      this.to = chunk.to[i] + chunk.start
+      this.value = chunk.value[i]
+    }
+  }
+
+  next(chunk?: boolean) {
+    let {cur} = this
+    if (!cur) return
+    if (!chunk && this.rangeI < cur.value.length - 1) {
+      this.rangeI++
+    } else {
+      this.chunkI++
+      this.rangeI = 0
+      if (this.chunkI == this.chunks.length) {
+        this.value = this.cur = null
+        return
+      } else {
+        cur = this.cur = this.chunks[this.chunkI]
+      }
+    }
+    this.from = cur.from[this.rangeI] + cur.start
+    this.to = cur.to[this.rangeI] + cur.start
+    this.value = cur.value[this.rangeI]
+  }
+}
+
+let cmpCursor = (a: RangeSet.Cursor<RangeSet.Value>, b: RangeSet.Cursor<RangeSet.Value>): number => {
+  return (a.from - b.from) || (a.value!.inclusiveStart ? (b.value!.inclusiveStart ? 0 : 1) : -1) || (a.to - b.to)
+}
+
+export class HeapCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
+  heap: RangeSet.Cursor<T>[] = []
+  declare from: number
+  declare to: number
+  declare value: T | null
+
+  constructor(readonly cursors: readonly RangeSet.Cursor<T>[]) {
+    for (let cur of cursors) if (cur.value) {
+      this.heap.push(cur)
+      heapSink(this.heap, this.heap.length - 1, cmpCursor)
+    }
+    this.fill()
+  }
+
+  fill() {
+    if (this.heap.length) {
+      ;({from: this.from, to: this.to, value: this.value} = this.heap[0])
+    } else {
+      this.from = this.to = 1e9
+      this.value = null
+    }
+  }
+
+  goto(pos: number) {
+    if (pos < this.from) {
+      this.heap = []
+      for (let cur of this.cursors) {
+        cur.goto(pos)
+        if (cur.value) this.heap.push(cur)
+      }
+    } else {
+      for (let cur of this.heap) cur.goto(pos)
+    }
+    for (let i = 0; i < this.heap.length; i++) heapSink(this.heap, i, cmpCursor)
+  }
+
+  next() {
+    if (this.heap.length) {
+      this.heap[0].next()
+      if (this.heap[0].value) heapBubble(this.heap, 0, cmpCursor)
+      else heapPop(this.heap, cmpCursor)
+      this.fill()
+    }
+  }
+}
+
+export namespace RangeSet {
+  export interface Value {
+    /// Whether content inserted at the start of this value's range is
+    /// included in the range.
+    inclusiveStart: boolean
+    /// Whether content inserted at the end is included.
+    inclusiveEnd: boolean
+    /// Compare this value to another.
+    eq(other: RangeSet.Value): boolean
+  }
+
+  export type Source<T extends RangeSet.Value> = Iterable<[number, number, T]> | ((add: (from: number, to: number, value: T) => void) => void)
+
+  export type Replacement<T extends RangeSet.Value> = {
+    from: number,
+    to: number,
+    add?: RangeSet.Source<T>
+  }
+
+  export interface Cursor<T extends RangeSet.Value> {
+    from: number
+    to: number
+    value: T | null
+    goto(pos: number): void
+    next(): void
+  }
+}
