@@ -1348,9 +1348,11 @@ function fitReplacement(doc: Plot.Doc, from: Pos, to: Pos, slice: Slice, context
     }
   }
 
-  for (let i = 0; i < context.length; i++) {
-    if (doc.schema.canContain(from.parent.node.type, context[i].type)) {
-      slice = closeSlice(doc.schema, slice, context, i + 1, true)
+  for (let i = -1; i < context.length; i++) {
+    if (i == preferredContext) continue
+    let depth = i < 0 ? preferredContext : i
+    if (doc.schema.canContain(from.parent.node.type, context[depth].type)) {
+      slice = closeSlice(doc.schema, slice, context, depth + 1, true)
       break
     }
   }
