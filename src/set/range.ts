@@ -163,7 +163,6 @@ export class RangeSet<T extends RangeSet.Value> {
     return build.finish(this.next && this.next.mapInner(sections, map, replace))
   }
 
-
   modify(spec: {
     replace?: readonly RangeSet.Replacement<T>[],
     add?: RangeSet.Source<T>,
@@ -177,6 +176,7 @@ export class RangeSet<T extends RangeSet.Value> {
     return add || filter ? result.modifyInner(add, filter) : result
   }
 
+  /// @internal
   modifyInner(add: RangeSet.Source<T> | undefined, filter?: (from: number, to: number, value: T) => boolean): RangeSet<T> {
     let build = new SetBuilder<T>()
     let cursor = new LayerCursor(this.chunks, 0)
@@ -199,6 +199,40 @@ export class RangeSet<T extends RangeSet.Value> {
     if (add) build.add(add, advance)
     advance(1e9)
     return build.finish(this.next && this.next.modifyInner(add, filter))
+  }
+
+  compareRange(fromA: number, b: RangeSet<T>, fromB: number, len: number, change: (from: number, to: number) => void) {
+    if (this == b) return
+    let curA = new LayerCursor(this.chunks, fromA), curB = new LayerCursor(b.chunks, fromB), off = fromB - fromA
+    let end = fromB + len, startA = -1, endA = -1, startB = -1, endB = -1
+    for (;;) {
+      if (startA >= endA)
+        [startA, endA] = curA.value ? [Math.max(fromB, curA.from + off), Math.min(end, curA.to + off)] : [1e9, 1e9]
+      if (startB >= endB)
+        [startB, endB] = curB.value ? [Math.max(fromB, curB.from), Math.min(end, curB.to)] : [1e9, 1e9]
+      let start = Math.min(startA, startB), upto
+      if (start >= end) break
+      if (startA < startB) {
+        change(startA, upto = Math.min(endA, startB))
+        startA = upto
+      } else if (startB < startA) {
+        change(startB, upto = Math.min(endB, startA))
+        startB = upto
+      } else if (curA.cur!.value == curB.cur!.value) {
+        // Identical chunks. Skip
+        curA.next(true)
+        curB.next(true)
+        startA = startB = 1e9
+      } else {
+        upto = Math.min(endA, endB)
+        if (!curA.value!.eq(curB.value!)) change(startA, upto)
+        startA = startB = upto
+      }
+      if (startA >= endA) curA.next()
+      if (startB >= endB) curB.next()
+    }
+    if (this.next || b.next)
+      (this.next || RangeSet.empty).compareRange(fromA, b.next || RangeSet.empty, fromB, len, change)
   }
 
   static empty = new RangeSet<any>([], null)

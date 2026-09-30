@@ -90,4 +90,24 @@ describe("RangeSet", () => {
   it("properly maps ranges at the end of the document", () => {
     ist(str(RangeSet.create([[2, 4, V.a]]).map(ChangeSet.new([0, 1, 4, -1], []))), "a@3-5")
   })
+
+  it("can compare sets", () => {
+    let diff: number[] = []
+    RangeSet.create([[0, 3, V.a], [4, 7, V.b]]).compareRange(
+      0, RangeSet.create([[1, 5, V.a], [5, 6, V.c], [6, 9, V.b]]), 1, 20, (f, t) => diff.push(f, t))
+    ist(diff.join(), "4,5,5,6,8,9")
+  })
+
+  it("cheaply compares identical chunks", () => {
+    let setA = RangeSet.create<V>(add => {
+      for (let i = 0; i < chunkSize * 3; i++) add(i, i + 1, V.a)
+    })
+    let setB = setA.map(ChangeSet.new([0, 1, chunkSize * 3, -1], []))
+    let target = setB.chunks[1], values = target.value, accessCount = 0
+    Object.defineProperty(target, "value", {
+      get() { accessCount++; return values }
+    })
+    setA.compareRange(0, setB, 1, chunkSize * 3, () => ist(false))
+    ist(accessCount, 10, "<")
+  })
 })
