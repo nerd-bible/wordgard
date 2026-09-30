@@ -19,6 +19,7 @@ class V implements PointSet.Value {
 
   static a = new V("a")
   static b = new V("b")
+  static c = new V("c")
 }
 
 function str(set: PointSet<V>) {
@@ -86,5 +87,25 @@ describe("PointSet", () => {
   it("can handle order change during mapping", () => {
     let set = PointSet.create<V>([[0, new V("a", 1)], [1, new V("b", -1)]])
     ist(str(set.map(ChangeSet.new([1, 0], []))), "b@0 a@0")
+  })
+
+  it("can compare sets", () => {
+    let diff: number[] = []
+    PointSet.create([[0, V.a], [2, V.b], [4, V.c]]).compareRange(
+      0, PointSet.create([[1, V.a], [3, V.b], [3, V.a], [6, V.c]]), 1, 20, p => diff.push(p))
+    ist(diff.join(), "3,5,6")
+  })
+
+  it("cheaply compares identical chunks", () => {
+    let setA = PointSet.create<V>(add => {
+      for (let i = 0; i < chunkSize * 3; i++) add(i, V.a)
+    })
+    let setB = setA.map(ChangeSet.new([0, 1, chunkSize * 3, -1], []))
+    let target = setB.chunks[1], values = target.value, accessCount = 0
+    Object.defineProperty(target, "value", {
+      get() { accessCount++; return values }
+    })
+    setA.compareRange(0, setB, 1, chunkSize * 3, () => ist(false))
+    ist(accessCount, 10, "<")
   })
 })

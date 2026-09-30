@@ -205,6 +205,30 @@ export class PointSet<T extends PointSet.Value> {
     return build.finish()
   }
 
+  compareRange(fromA: number, b: PointSet<T>, fromB: number, len: number, change: (pos: number) => void) {
+    if (this == b) return
+    let curA = new PointCursor(this.chunks, fromA), curB = new PointCursor(b.chunks, fromB)
+    let off = fromB - fromA, endB = fromB + len, reported = -1
+    for (;;) {
+      let nextA = curA.value ? curA.pos + off : 1e9, nextB = curB.value ? curB.pos : 1e9
+      if (Math.min(nextA, nextB) > endB) break
+      let cmp = nextA - nextB || curA.side - curB.side
+      if (cmp == 0 && curA.cur!.value == curB.cur!.value) { // Identical chunk. Skip
+        curA.next(true)
+        curB.next(true)
+      } else if (cmp == 0 && curA.value!.eq(curB.value!)) {
+        curA.next()
+        curB.next()
+      } else if (cmp < 0) {
+        if (reported < nextA) change(reported = nextA)
+        curA.next()
+      } else {
+        if (reported < nextB) change(reported = nextB)
+        curB.next()
+      }
+    }
+  }
+
   static empty = new PointSet<any>([])
 }
 
