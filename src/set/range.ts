@@ -1,5 +1,5 @@
 import {ChangeSet} from "wordgard/doc"
-import {findAbove, heapSink, heapBubble, heapPop} from "./util"
+import {findAbove, heapSink, heapBubble, heapPop, addReplacements} from "./util"
 
 const enum ChunkSize { Max = 512 }
 
@@ -112,20 +112,8 @@ export class RangeSet<T extends RangeSet.Value> {
 
   map(map: ChangeSet, replace: readonly RangeSet.Replacement<T>[] = []) {
     let {sections} = map
-    if (replace.length) {
-      let add: number[] = [], at = 0, len = map.newLength
-      for (let repl of replace) {
-        if (repl.from < at) throw new Error("Replacing ranges must be ordered and non-overlapping")
-        if (repl.to > len) throw new Error("Replacing range out of bounds")
-        if (repl.from > at) add.push(repl.from - at, -1)
-        add.push(repl.to - repl.from, repl.to - repl.from)
-        at = repl.to
-      }        
-      if (len > at) add.push(len - at, -1)
-      sections = ChangeSet.composeSections(sections, add)
-    } else if (map.empty) {
-      return this
-    }
+    if (replace.length) sections = addReplacements(map, replace)
+    else if (map.empty) return this
     return this.mapInner(sections, map, replace)
   }
 
@@ -234,7 +222,7 @@ function copyMappedUpto<T extends RangeSet.Value>(
   }
 }
 
-export class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
+class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
   chunkI = 0
   rangeI = 0
 
@@ -292,7 +280,7 @@ let cmpCursor = (a: RangeSet.Cursor<RangeSet.Value>, b: RangeSet.Cursor<RangeSet
   return (a.from - b.from) || (a.value!.inclusiveStart ? (b.value!.inclusiveStart ? 0 : 1) : -1) || (a.to - b.to)
 }
 
-export class HeapCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
+class HeapCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
   heap: RangeSet.Cursor<T>[] = []
   declare from: number
   declare to: number
@@ -316,16 +304,14 @@ export class HeapCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> 
   }
 
   goto(pos: number) {
-    if (pos < this.from) {
-      this.heap = []
-      for (let cur of this.cursors) {
-        cur.goto(pos)
-        if (cur.value) this.heap.push(cur)
+    this.heap = []
+    for (let cur of this.cursors) {
+      cur.goto(pos)
+      if (cur.value) {
+        this.heap.push(cur)
+        heapSink(this.heap, this.heap.length - 1, cmpCursor)
       }
-    } else {
-      for (let cur of this.heap) cur.goto(pos)
     }
-    for (let i = 0; i < this.heap.length; i++) heapSink(this.heap, i, cmpCursor)
   }
 
   next() {
@@ -346,18 +332,18 @@ export namespace RangeSet {
     /// Whether content inserted at the end is included.
     inclusiveEnd: boolean
     /// Compare this value to another.
-    eq(other: RangeSet.Value): boolean
+    eq(other: Value): boolean
   }
 
-  export type Source<T extends RangeSet.Value> = Iterable<[number, number, T]> | ((add: (from: number, to: number, value: T) => void) => void)
+  export type Source<T extends Value> = Iterable<[number, number, T]> | ((add: (from: number, to: number, value: T) => void) => void)
 
-  export type Replacement<T extends RangeSet.Value> = {
+  export type Replacement<T extends Value> = {
     from: number,
     to: number,
-    add?: RangeSet.Source<T>
+    add?: Source<T>
   }
 
-  export interface Cursor<T extends RangeSet.Value> {
+  export interface Cursor<T extends Value> {
     from: number
     to: number
     value: T | null
