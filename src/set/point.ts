@@ -110,8 +110,12 @@ export class PointSet<T extends PointSet.Value> {
     return this == PointSet.empty
   }
 
-  cursor(from = 0): PointSet.Cursor<T> {
-    return new PointCursor(this.chunks, from)
+  cursor(from = 0, side = -1e9): PointSet.Cursor<T> {
+    return new PointCursor(this.chunks, from, side)
+  }
+
+  static cursor<T extends PointSet.Value>(sets: readonly PointSet<T>[]) {
+    return new HeapCursor(sets.map(s => s.cursor()))
   }
 
   map(map: ChangeSet, replace: readonly PointSet.Replacement<T>[] = []) {
@@ -123,7 +127,7 @@ export class PointSet<T extends PointSet.Value> {
 
   /// @internal
   mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly PointSet.Replacement<T>[]): PointSet<T> {
-    let cursor = new PointCursor(this.chunks, 0)
+    let cursor = new PointCursor(this.chunks, 0, -1e9)
     let replI = 0, posA = 0, posB = 0
     let build = new SetBuilder<T>()
     for (let i = 0; i < sections.length;) {
@@ -158,7 +162,7 @@ export class PointSet<T extends PointSet.Value> {
           let repl = replace[replI++]
           if (repl.add) build.add(repl.add)
         }
-        if (len) cursor.goto(posA + len)
+        if (len) cursor.goto(posA + len, -1e9)
         copyMappedUpto(cursor, posA + len, map, build, replace, replStartI)
         posB = endB
       }
@@ -183,7 +187,7 @@ export class PointSet<T extends PointSet.Value> {
 
   modifyInner(add: PointSet.Source<T> | undefined, filter?: (pos: number, value: T) => boolean): PointSet<T> {
     let build = new SetBuilder<T>()
-    let cursor = new PointCursor(this.chunks, 0)
+    let cursor = new PointCursor(this.chunks, 0, -1e9)
     let advance = (pos: number) => {
       for (;;) {
         let {cur} = cursor
@@ -205,10 +209,10 @@ export class PointSet<T extends PointSet.Value> {
     return build.finish()
   }
 
-  compareRange(fromA: number, b: PointSet<T>, fromB: number, len: number, change: (pos: number) => void) {
+  compareRange(fromA: number, b: PointSet<T>, fromB: number, len: number, change: (pos: number, value: T) => void) {
     if (this == b) return
-    let curA = new PointCursor(this.chunks, fromA), curB = new PointCursor(b.chunks, fromB)
-    let off = fromB - fromA, endB = fromB + len, reported = -1
+    let curA = new PointCursor(this.chunks, fromA, -1e9), curB = new PointCursor(b.chunks, fromB, -1e9)
+    let off = fromB - fromA, endB = fromB + len
     for (;;) {
       let nextA = curA.value ? curA.pos + off : 1e9, nextB = curB.value ? curB.pos : 1e9
       if (Math.min(nextA, nextB) > endB) break
@@ -220,10 +224,10 @@ export class PointSet<T extends PointSet.Value> {
         curA.next()
         curB.next()
       } else if (cmp < 0) {
-        if (reported < nextA) change(reported = nextA)
+        change(nextA, curA.value!)
         curA.next()
       } else {
-        if (reported < nextB) change(reported = nextB)
+        change(nextB, curB.value!)
         curB.next()
       }
     }
@@ -259,27 +263,35 @@ class PointCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
   pos = -1
   declare value: T | null
 
-  constructor(readonly chunks: readonly Chunk<T>[], start: number) {
-    this.goto(start)
+  constructor(readonly chunks: readonly Chunk<T>[], start: number, side: number) {
+    this.goto(start, side)
   }
 
   get side() { return this.value ? this.value.side : 1e8 }
 
-  goto(pos: number) {
-    let {chunks} = this
+  goto(pos: number, side: number) {
     if (pos <= this.pos) this.chunkI = this.rangeI = 0
-    for (;; this.chunkI++, this.rangeI = 0) {
-      if (this.chunkI == chunks.length) {
+    for (let first = true;;) {
+      if (this.chunkI == this.chunks.length) {
         this.pos = 1e9
         this.cur = this.value = null
-        return
+        break
       }
-      if (this.chunks[this.chunkI].end >= pos) break
+      let chunk = this.chunks[this.chunkI]
+      if (chunk.end < pos || this.rangeI == chunk.value.length) {
+        this.chunkI++; this.rangeI = 0
+      } else if (first) {
+        this.rangeI = findAbove(chunk.pos, this.rangeI, pos - chunk.start - 1)
+        first = false
+      } else if ((pos - (chunk.start + chunk.pos[this.rangeI]) || side - chunk.value[this.rangeI].side) > 0) {
+        this.rangeI++
+      } else {
+        this.cur = chunk
+        this.pos = chunk.pos[this.rangeI] + chunk.start
+        this.value = chunk.value[this.rangeI]
+        break
+      }
     }
-    let chunk = this.cur = chunks[this.chunkI]
-    let i = this.rangeI = findAbove(chunk.pos, this.rangeI, pos - chunk.start - 1)
-    this.pos = chunk.pos[i] + chunk.start
-    this.value = chunk.value[i]
   }
 
   next(chunk?: boolean) {
@@ -306,7 +318,7 @@ let cmpCursor = (a: PointSet.Cursor<PointSet.Value>, b: PointSet.Cursor<PointSet
   return a.pos - b.pos || a.value!.side - b.value!.side
 }
 
-export class HeapCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
+class HeapCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
   heap: PointSet.Cursor<T>[] = []
   declare pos: number
   declare value: T | null
@@ -332,10 +344,10 @@ export class HeapCursor<T extends PointSet.Value> implements PointSet.Cursor<T> 
     }
   }
 
-  goto(pos: number) {
+  goto(pos: number, side: number) {
     this.heap = []
     for (let cur of this.cursors) {
-      cur.goto(pos)
+      cur.goto(pos, side)
       if (cur.value) {
         this.heap.push(cur)
         heapSink(this.heap, this.heap.length - 1, cmpCursor)
@@ -382,7 +394,7 @@ export namespace PointSet {
     pos: number
     side: number
     value: T | null
-    goto(pos: number): void
+    goto(pos: number, side: number): void
     next(): void
   }
 }
