@@ -1,8 +1,8 @@
 import {ChangeSet} from "wordgard/doc"
 
-// Perform a binary search on the given array (starting at start) and
-// return the index of the first element > n (or the length if no such
-// element exists).
+/// Perform a binary search on the given array (starting at start) and
+/// return the index of the first element > n (or the length if no
+/// such element exists) @hidden
 export function findAbove(array: readonly number[], start: number, n: number) {
   let from = start, to = array.length
   for (;;) {

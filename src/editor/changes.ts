@@ -1,4 +1,4 @@
-import {findAbove} from "./util"
+import {findAbove} from "wordgard/set"
 
 // To represent changed ranges for tile tree updates, we use a format
 // similar to the sections arrays used by ChangeSet, except that:
