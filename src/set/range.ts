@@ -110,6 +110,15 @@ export class RangeSet<T extends RangeSet.Value> {
     return new HeapCursor(cursors)
   }
 
+  static cursor<T extends RangeSet.Value>(sets: readonly RangeSet<T>[], from = 0) {
+    let cursors: LayerCursor<T>[] = []
+    for (let set of sets) if (!set.empty) {
+      for (let layer: RangeSet<T> | null = set; layer; layer = layer.next)
+        cursors.push(new LayerCursor(layer.chunks, from))
+    }
+    return cursors.length == 0 ? RangeSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cursors)
+  }
+
   map(map: ChangeSet, replace: readonly RangeSet.Replacement<T>[] = []) {
     let {sections} = map
     if (replace.length) sections = addReplacements(map, replace)
@@ -133,7 +142,7 @@ export class RangeSet<T extends RangeSet.Value> {
         // Unchanged range. Copy over ranges and chunks entirely inside.
         while (cursor.cur) {
           let chunk = cursor.cur
-          if (cursor.rangeI == 0 && chunk.end < upto) {
+          if (cursor.i == 0 && chunk.end < upto) {
             build.addChunk(chunk.move(chunk.start + off))
             cursor.next(true)
           } else if (cursor.to < upto) {
@@ -184,7 +193,7 @@ export class RangeSet<T extends RangeSet.Value> {
       for (;;) {
         let {cur} = cursor
         if (!cur) return
-        if (cursor.rangeI == 0 && cur.end <= pos && !filter) {
+        if (cursor.i == 0 && cur.end <= pos && !filter) {
           build.addChunk(cur)
           cursor.next(true)
         } else if (cursor.from > pos) {
@@ -258,7 +267,7 @@ function copyMappedUpto<T extends RangeSet.Value>(
 
 class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
   chunkI = 0
-  rangeI = 0
+  i = 0
 
   declare cur: Chunk<T> | null
   from = 0
@@ -270,19 +279,20 @@ class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
   }
 
   goto(pos: number) {
+    if (pos < this.from) this.chunkI = this.i = 0
+    else if (pos < this.to) return
     let {chunks} = this
-    if (pos < this.from) this.chunkI = this.rangeI = 0
     while (this.chunkI < chunks.length && chunks[this.chunkI].end <= pos) {
       this.chunkI++
-      this.rangeI = 0
+      this.i = 0
     }
     if (this.chunkI == chunks.length) {
-      this.rangeI = 0
-      this.from = this.to = 1e8
+      this.i = 0
+      this.from = this.to = 1e9
       this.cur = this.value = null
     } else {
       let chunk = this.cur = chunks[this.chunkI]
-      let i = this.rangeI = findAbove(chunk.to, this.rangeI, pos - chunk.start)
+      let i = this.i = findAbove(chunk.to, this.i, pos - chunk.start)
       this.from = chunk.from[i] + chunk.start
       this.to = chunk.to[i] + chunk.start
       this.value = chunk.value[i]
@@ -292,21 +302,22 @@ class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
   next(chunk?: boolean) {
     let {cur} = this
     if (!cur) return
-    if (!chunk && this.rangeI < cur.value.length - 1) {
-      this.rangeI++
+    if (!chunk && this.i < cur.value.length - 1) {
+      this.i++
     } else {
       this.chunkI++
-      this.rangeI = 0
+      this.i = 0
       if (this.chunkI == this.chunks.length) {
+        this.from = this.to = 1e9
         this.value = this.cur = null
         return
       } else {
         cur = this.cur = this.chunks[this.chunkI]
       }
     }
-    this.from = cur.from[this.rangeI] + cur.start
-    this.to = cur.to[this.rangeI] + cur.start
-    this.value = cur.value[this.rangeI]
+    this.from = cur.from[this.i] + cur.start
+    this.to = cur.to[this.i] + cur.start
+    this.value = cur.value[this.i]
   }
 }
 
