@@ -84,13 +84,26 @@ class SetBuilder<T extends PointSet.Value> {
   }
 
   finish(): PointSet<T> {
-    return this.chunks.length ? new PointSet(this.chunks) : PointSet.empty
+    return this.chunks.length ? PointSet.new(this.chunks) : PointSet.empty
   }
 }
 
+/// Data structure used to store sets of points and then track them
+/// across document changes. Mostly used for {@link Decoration.Point
+/// point decorations}, but can also track your own types, if you make
+/// sure they implement the {@link PointSet.Value} interface.
 export class PointSet<T extends PointSet.Value> {
-  constructor(readonly chunks: readonly Chunk<T>[]) {}
+  private constructor(
+    /// @internal
+    readonly chunks: readonly Chunk<T>[]
+  ) {}
 
+  /// @internal
+  static new<T extends PointSet.Value>(chunks: readonly Chunk<T>[]) { return new PointSet(chunks) }
+
+  /// Create a point set from an iterable of `[position, value]`
+  /// tuples, or a function that calls its argument for every point to
+  /// add.
   static create<T extends PointSet.Value>(
     source: PointSet.Source<T>
   ): PointSet<T> {
@@ -102,24 +115,46 @@ export class PointSet<T extends PointSet.Value> {
     return build.finish()
   }
 
+  /// The number of points in this set.
   get length(): number {
     return this.chunks.length ? this.chunks[this.chunks.length - 1].end : 0
   }
 
+  /// Returns `true` when this set is empty.
   get empty() {
     return this == PointSet.empty
   }
 
+  /// Create a cursor over this point set, starting at the given
+  /// position and side.
   cursor(from = 0, side = -1e9): PointSet.Cursor<T> {
     return new PointCursor(this, from, side)
   }
 
-  static cursor<T extends PointSet.Value>(sets: readonly PointSet<T>[], from = 0, side = -1e9) {
+  /// Create a cursor over a collection of point sets.
+  static cursor<T extends PointSet.Value>(sets: readonly PointSet<T>[], from = 0, side = -1e9): PointSet.Cursor<T> {
     let cursors: PointSet.Cursor<T>[] = []
     for (let set of sets) if (!set.empty) cursors.push(set.cursor(from, side))
     return cursors.length == 0 ? PointSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cursors)
   }
 
+  /// Get the value at the given position, if any. If there's multiple
+  /// values at that position, the one with the lowest side is
+  /// returned.
+  at(pos: number): T | undefined {
+    for (let chunk of this.chunks) {
+      if (chunk.end > pos) break
+      if (chunk.start > pos) continue
+      let index = findAbove(chunk.pos, 0, pos - 1)
+      if (index < chunk.pos.length && chunk.pos[index] == pos) return chunk.value[index]
+    }
+    return undefined
+  }
+
+  /// Adjust the points for a set of document changes. Returns a new
+  /// set with the adjusted points. May delete points when the content
+  /// around them was deleted. Optionally accepts an ordered sequence
+  /// of replacements.
   map(map: ChangeSet, replace: readonly PointSet.Replacement<T>[] = []) {
     let {sections} = map
     if (replace.length) sections = addReplacements(map, replace)
@@ -127,8 +162,7 @@ export class PointSet<T extends PointSet.Value> {
     return this.mapInner(sections, map, replace)
   }
 
-  /// @internal
-  mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly PointSet.Replacement<T>[]): PointSet<T> {
+  private mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly PointSet.Replacement<T>[]): PointSet<T> {
     let cursor = new PointCursor(this, 0, -1e9)
     let replI = 0, posA = 0, posB = 0
     let build = new SetBuilder<T>()
@@ -173,10 +207,14 @@ export class PointSet<T extends PointSet.Value> {
     return build.finish()
   }
 
-
+  /// Create an updated copy of this set.
   modify(spec: {
+    /// If given, replace all points in these ranges.
     replace?: readonly PointSet.Replacement<T>[],
+    /// Add the points from this source.
     add?: PointSet.Source<T>,
+    /// Optionally filter out any point where this predicate returns
+    /// false.
     filter?: (pos: number, value: T) => boolean
   }) {
     let {replace, add, filter} = spec
@@ -187,7 +225,7 @@ export class PointSet<T extends PointSet.Value> {
     return add || filter ? result.modifyInner(add, filter) : result
   }
 
-  modifyInner(add: PointSet.Source<T> | undefined, filter?: (pos: number, value: T) => boolean): PointSet<T> {
+  private modifyInner(add: PointSet.Source<T> | undefined, filter?: (pos: number, value: T) => boolean): PointSet<T> {
     let build = new SetBuilder<T>()
     let cursor = new PointCursor(this, 0, -1e9)
     let advance = (pos: number) => {
@@ -211,6 +249,8 @@ export class PointSet<T extends PointSet.Value> {
     return build.finish()
   }
 
+  /// Compare a range in this set with a range in another set. Call
+  /// `change` for every point that exists in one but not the other.
   compareRange(fromA: number, b: PointSet<T>, fromB: number, len: number, change: (pos: number, value: T) => void) {
     if (this == b) return
     let curA = new PointCursor(this, fromA, -1e9), curB = new PointCursor(b, fromB, -1e9)
@@ -235,6 +275,7 @@ export class PointSet<T extends PointSet.Value> {
     }
   }
 
+  /// The empty point set.
   static empty = new PointSet<any>([])
 }
 
@@ -399,20 +440,36 @@ export namespace PointSet {
     eq(other: Value): boolean
   }
 
+  /// A point source, used to create or extend a point set, is either
+  /// an array of `[pos, value]` tuples, or a function that calls its
+  /// argument to add a point. Point sources must provide their points
+  /// ordered by position and {@link PointSet.Value.side side}.
   export type Source<T extends Value> = Iterable<[number, T]> | ((add: (pos: number, value: T) => void) => void)
 
+  /// Represents a replaced section in a point set.
   export type Replacement<T extends Value> = {
+    /// The start of the replacement.
     from: number,
+    /// The end of the replaced range.
     to: number,
+    /// An optional source of points to to this section.
     add?: PointSet.Source<T>
   }
 
+  /// A cursor over a point set.
   export interface Cursor<T extends Value> {
-    pos: number
-    side: number
+    /// The value of the current point, or `null` when there are no
+    /// more points.
     value: T | null
+    /// The position of the current point.
+    pos: number
+    /// The side value of the current point.
+    side: number
+    /// Move the cursor to a given position and side.
     goto(pos: number, side: number): void
+    /// Continue to the next point, if any.
     next(): void
+    /// The set object that the current point belongs to.
     set: PointSet<T>
   }
 }

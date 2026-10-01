@@ -74,16 +74,29 @@ class SetBuilder<T extends RangeSet.Value> {
   finish(plus: RangeSet<T> | null = null): RangeSet<T> {
     let next = this.spilled ? this.spilled.finish(plus) : plus
     if (!this.chunks.length) return next || RangeSet.empty
-    return new RangeSet(this.chunks, next)
+    return RangeSet.new(this.chunks, next)
   }
 }
 
+/// Data structure that stores sets of ranges, for use with {@link
+/// Decoration.Range range decorations} or other data types
+/// implementing {@link RangeSet.Value}.
 export class RangeSet<T extends RangeSet.Value> {
-  constructor(
+  private constructor(
+    /// @internal
     readonly chunks: readonly Chunk<T>[],
+    /// @internal
     readonly next: RangeSet<T> | null
   ) {}
 
+  /// @internal
+  static new<T extends RangeSet.Value>(chunks: readonly Chunk<T>[], next: RangeSet<T> | null) {
+    return new RangeSet(chunks, next)
+  }
+
+  /// Create a range set from an iterable of `[from, to, value]`
+  /// tuples, or a function that calls its argument for every range to
+  /// add.
   static create<T extends RangeSet.Value>(
     source: RangeSet.Source<T>
   ): RangeSet<T> {
@@ -94,14 +107,17 @@ export class RangeSet<T extends RangeSet.Value> {
     return build.finish()
   }
 
+  /// The number of ranges stored in this set.
   get length(): number {
     return Math.max(this.chunks.length ? this.chunks[this.chunks.length - 1].end : 0, this.next ? this.next.length : 0)
   }
 
+  /// Returns true when this set is empty.
   get empty() {
     return this == RangeSet.empty
   }
 
+  /// Create a cursor over this set, starting at the given position.
   cursor(from = 0): RangeSet.Cursor<T> {
     if (!this.next) return new LayerCursor(this.chunks, from)
     let cursors: LayerCursor<T>[] = []
@@ -110,7 +126,8 @@ export class RangeSet<T extends RangeSet.Value> {
     return new HeapCursor(cursors)
   }
 
-  static cursor<T extends RangeSet.Value>(sets: readonly RangeSet<T>[], from = 0) {
+  /// Create a cursor over a collection of range sets.
+  static cursor<T extends RangeSet.Value>(sets: readonly RangeSet<T>[], from = 0): RangeSet.Cursor<T> {
     let cursors: LayerCursor<T>[] = []
     for (let set of sets) if (!set.empty) {
       for (let layer: RangeSet<T> | null = set; layer; layer = layer.next)
@@ -119,6 +136,11 @@ export class RangeSet<T extends RangeSet.Value> {
     return cursors.length == 0 ? RangeSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cursors)
   }
 
+  /// Adjust the positions of the ranges for the given change set.
+  /// Returns a set with the updated ranges. Optionally takes an array
+  /// of replacement ranges. Any ranges overlapping such a replacement
+  /// will be dropped, and new ranges provided by their `add`
+  /// properties will be added to the new set.
   map(map: ChangeSet, replace: readonly RangeSet.Replacement<T>[] = []) {
     let {sections} = map
     if (replace.length) sections = addReplacements(map, replace)
@@ -126,8 +148,7 @@ export class RangeSet<T extends RangeSet.Value> {
     return this.mapInner(sections, map, replace)
   }
 
-  /// @internal
-  mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly RangeSet.Replacement<T>[]): RangeSet<T> {
+  private mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly RangeSet.Replacement<T>[]): RangeSet<T> {
     let cursor = new LayerCursor(this.chunks, 0)
     let replI = 0, posA = 0, posB = 0
     let build = new SetBuilder<T>()
@@ -172,9 +193,15 @@ export class RangeSet<T extends RangeSet.Value> {
     return build.finish(this.next && this.next.mapInner(sections, map, replace))
   }
 
+  /// Modify this set.
   modify(spec: {
+    /// Drop any ranges inside the given replacement ranges,
+    /// optionally add new ranges provided by their `add` property.
     replace?: readonly RangeSet.Replacement<T>[],
+    /// Add new ranges to the set.
     add?: RangeSet.Source<T>,
+    /// Drop any range for which this predicate function returns
+    /// `false`.
     filter?: (from: number, to: number, value: T) => boolean
   }) {
     let {replace, add, filter} = spec
@@ -185,8 +212,7 @@ export class RangeSet<T extends RangeSet.Value> {
     return add || filter ? result.modifyInner(add, filter) : result
   }
 
-  /// @internal
-  modifyInner(add: RangeSet.Source<T> | undefined, filter?: (from: number, to: number, value: T) => boolean): RangeSet<T> {
+  private modifyInner(add: RangeSet.Source<T> | undefined, filter?: (from: number, to: number, value: T) => boolean): RangeSet<T> {
     let build = new SetBuilder<T>()
     let cursor = new LayerCursor(this.chunks, 0)
     let advance = (pos: number) => {
@@ -210,6 +236,9 @@ export class RangeSet<T extends RangeSet.Value> {
     return build.finish(this.next && this.next.modifyInner(add, filter))
   }
 
+  /// Compare a section of this set with a section of the same length
+  /// in another set. Calls `change` for any range where the two do
+  /// not contain identical ranges.
   compareRange(fromA: number, b: RangeSet<T>, fromB: number, len: number, change: (from: number, to: number) => void) {
     if (this == b) return
     let curA = new LayerCursor(this.chunks, fromA), curB = new LayerCursor(b.chunks, fromB), off = fromB - fromA
@@ -244,6 +273,7 @@ export class RangeSet<T extends RangeSet.Value> {
       (this.next || RangeSet.empty).compareRange(fromA, b.next || RangeSet.empty, fromB, len, change)
   }
 
+  /// The empty range set.
   static empty = new RangeSet<any>([], null)
 }
 
@@ -370,6 +400,7 @@ class HeapCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
 }
 
 export namespace RangeSet {
+  /// Values stored in a range set must conform to this interface.
   export interface Value {
     /// Whether content inserted at the start of this value's range is
     /// included in the range.
@@ -380,19 +411,35 @@ export namespace RangeSet {
     eq(other: Value): boolean
   }
 
+  /// A range source, used to construct or extend a range set, must
+  /// either be an array of `[from, to, value]` tuples, or a function
+  /// that calls its argument for each range to add. Ranges must be
+  /// provided ordered by their `from` position.
   export type Source<T extends Value> = Iterable<[number, number, T]> | ((add: (from: number, to: number, value: T) => void) => void)
 
+  /// Represents a replaced section in a range set.
   export type Replacement<T extends Value> = {
+    /// The start of the section.
     from: number,
+    /// The end of the section.
     to: number,
+    /// An optional collection of ranges to replace the section with.
+    /// Must fall within `from` and `to`.
     add?: Source<T>
   }
 
+  /// A cursor over a range set.
   export interface Cursor<T extends Value> {
-    from: number
-    to: number
+    /// The current range's value, or `null` if the end of the set has
+    /// been reached.
     value: T | null
+    /// The start position of the current range.
+    from: number
+    /// The end position of the current range.
+    to: number
+    /// Move the cursor to a new position.
     goto(pos: number): void
+    /// Move to the next range, if any.
     next(): void
   }
 }
