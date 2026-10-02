@@ -179,7 +179,7 @@ export namespace Decoration {
     export namespace shape {
       /// This function allows you to define a {@link Decoration.Tag.shape
       /// custom node shape} that depends on the editor state. It will
-      /// automatically track what slots (see {@link
+      /// automatically track which state slots (see {@link
       /// GardState.Facet.compute}) you use, and make sure the nodes
       /// are redrawn when those change.
       ///
