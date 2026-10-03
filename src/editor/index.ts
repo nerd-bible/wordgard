@@ -25,7 +25,7 @@ export {KeyBinding} from "./keymap"
 //- editing controls directly in the editable content.
 
 export {Decoration, Widget} from "./decoration"
-export {decorateByPlot} from "./plotdeco"
+export {decoratePlots} from "./plotdeco"
 
 //- ### Panels
 
