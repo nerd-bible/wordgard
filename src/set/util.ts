@@ -13,41 +13,6 @@ export function findAbove(array: readonly number[], start: number, n: number) {
   }
 }
 
-export function heapBubble<T>(heap: T[], index: number, cmp: (a: T, b: T) => number) {
-  for (let cur = heap[index];;) {
-    let childIndex = (index << 1) + 1
-    if (childIndex >= heap.length) break
-    let child = heap[childIndex]
-    if (childIndex + 1 < heap.length && cmp(child, heap[childIndex + 1]) >= 0) {
-      child = heap[childIndex + 1]
-      childIndex++
-    }
-    if (cmp(cur, child) < 0) break
-    heap[childIndex] = cur
-    heap[index] = child
-    index = childIndex
-  }
-}
-
-export function heapSink<T>(heap: T[], index: number, cmp: (a: T, b: T) => number) {
-  let elt = heap[index]
-  while (index > 0) {
-    let parent = (index - 1) >> 1
-    if (cmp(heap[parent], elt) < 0) break
-    heap[index] = heap[parent]
-    heap[parent] = elt
-    index = parent
-  }
-}
-
-export function heapPop<T>(heap: T[], cmp: (a: T, b: T) => number) {
-  let last = heap.pop()!
-  if (heap.length) {
-    heap[0] = last
-    heapBubble(heap, 0, cmp)
-  }
-}
-
 export function addReplacements(changes: ChangeSet, replace: readonly {from: number, to: number}[]) {
   let add: number[] = [], at = 0, len = changes.newLength
   for (let repl of replace) {

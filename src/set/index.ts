@@ -5,4 +5,5 @@
 
 export {RangeSet} from "./range"
 export {PointSet} from "./point"
+export {Cursor} from "./cursor"
 export {findAbove} from "./util"

@@ -1,5 +1,6 @@
 import {ChangeSet} from "wordgard/doc"
-import {findAbove, heapSink, heapBubble, heapPop, addReplacements} from "./util"
+import {findAbove, addReplacements} from "./util"
+import {Cursor, HeapCursor} from "./cursor"
 
 const enum ChunkSize { Max = 512 }
 
@@ -38,18 +39,18 @@ class SetBuilder<T extends PointSet.Value> {
     this.lastSide = chunk.endSide
   }
 
-  add(source: PointSet.Source<T>, pre?: (pos: number, value: T) => void) {
+  add(source: PointSet.Source<T>, pre?: (value: T, pos: number) => void) {
     if (typeof source != "function") {
       let array = source
       source = add => { for (let [pos, value] of array) add(pos, value) }
     }
-    source((pos, value) => {
-      if (pre) pre(pos, value)
-      this.addPoint(pos, value)
+    source((value, pos) => {
+      if (pre) pre(value, pos)
+      this.addPoint(value, pos)
     })
   }
 
-  addPoint(pos: number, value: T) {
+  addPoint(value: T, pos: number) {
     let chunk: Chunk<T> | undefined
     if (this.chunks.length) {
       chunk = this.chunks[this.chunks.length - 1]
@@ -108,7 +109,7 @@ export class PointSet<T extends PointSet.Value> {
     source: PointSet.Source<T>
   ): PointSet<T> {
     let build = new SetBuilder<T>()
-    build.add(source, (from, value) => {
+    build.add(source, (value, from) => {
       if ((from - build.lastPos || value.side - build.lastSide) < 0)
         throw new Error("Points must be added in order")
     })
@@ -127,15 +128,15 @@ export class PointSet<T extends PointSet.Value> {
 
   /// Create a cursor over this point set, starting at the given
   /// position and side.
-  cursor(from = 0, side = -1e9): PointSet.Cursor<T> {
+  cursor(from = 0, side = -1e9): Cursor<T> {
     return new PointCursor(this, from, side)
   }
 
   /// Create a cursor over a collection of point sets.
-  static cursor<T extends PointSet.Value>(sets: readonly PointSet<T>[], from = 0, side = -1e9): PointSet.Cursor<T> {
-    let cursors: PointSet.Cursor<T>[] = []
+  static cursor<T extends PointSet.Value>(sets: readonly PointSet<T>[], from = 0, side = -1e9): Cursor<T> {
+    let cursors: Cursor<T>[] = []
     for (let set of sets) if (!set.empty) cursors.push(set.cursor(from, side))
-    return cursors.length == 0 ? PointSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cursors)
+    return cursors.length == 0 ? PointSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cmpCursor, cursors)
   }
 
   /// Get the value at the given position, if any. If there's multiple
@@ -180,8 +181,8 @@ export class PointSet<T extends PointSet.Value> {
           if (cursor.i == 0 && chunk.end < upto) {
             build.addChunk(chunk.move(chunk.start + off))
             cursor.next(true)
-          } else if (cursor.pos < upto) {
-            build.addPoint(cursor.pos + off, cursor.value!)
+          } else if (cursor.from < upto) {
+            build.addPoint(cursor.value!, cursor.from + off)
             cursor.next()
           } else {
             break
@@ -228,24 +229,24 @@ export class PointSet<T extends PointSet.Value> {
   private modifyInner(add: PointSet.Source<T> | undefined, filter?: (pos: number, value: T) => boolean): PointSet<T> {
     let build = new SetBuilder<T>()
     let cursor = new PointCursor(this, 0, -1e9)
-    let advance = (pos: number) => {
+    let advance = (_: any, pos: number) => {
       for (;;) {
         let {cur} = cursor
         if (!cur) return
         if (cursor.i == 0 && cur.end <= pos && !filter) {
           build.addChunk(cur)
           cursor.next(true)
-        } else if (cursor.pos >= pos) {
+        } else if (cursor.from >= pos) {
           break
         } else {
-          if (!filter || filter(cursor.pos, cursor.value!))
-            build.addPoint(cursor.pos, cursor.value!)
+          if (!filter || filter(cursor.from, cursor.value!))
+            build.addPoint(cursor.value!, cursor.from)
           cursor.next()
         }
       }
     }
     if (add) build.add(add, advance)
-    advance(1e9)
+    advance(null, 1e9)
     return build.finish()
   }
 
@@ -256,7 +257,7 @@ export class PointSet<T extends PointSet.Value> {
     let curA = new PointCursor(this, fromA, -1e9), curB = new PointCursor(b, fromB, -1e9)
     let off = fromB - fromA, endB = fromB + len
     for (;;) {
-      let nextA = curA.value ? curA.pos + off : 1e9, nextB = curB.value ? curB.pos : 1e9
+      let nextA = curA.value ? curA.from + off : 1e9, nextB = curB.value ? curB.from : 1e9
       if (Math.min(nextA, nextB) > endB) break
       let cmp = nextA - nextB || curA.side - curB.side
       if (cmp == 0 && curA.cur!.value == curB.cur!.value) { // Identical chunk. Skip
@@ -280,40 +281,43 @@ export class PointSet<T extends PointSet.Value> {
 }
 
 function copyMappedUpto<T extends PointSet.Value>(
-  cursor: PointSet.Cursor<T>, upto: number,
+  cursor: Cursor<T>, upto: number,
   map: ChangeSet, build: SetBuilder<T>,
   replace: readonly PointSet.Replacement<T>[], replI: number
 ) {
-  while (cursor.value && cursor.pos <= upto) {
+  while (cursor.value && cursor.from <= upto) {
     let value = cursor.value
-    let pos = map.mapPos(cursor.pos, value.side < 0 ? -1 : 1, value.trackMode)
+    let pos = map.mapPos(cursor.from, value.side < 0 ? -1 : 1, value.trackMode)
     if (pos != null) {
       let filtered = false
       for (let i = replI; !filtered && i < replace.length && replace[i].from <= pos; i++) {
         if (replace[i].to >= pos) filtered = true
       }
-      if (!filtered) build.addPoint(pos, value)
+      if (!filtered) build.addPoint(value, pos)
     }
     cursor.next()
   }
 }
 
-class PointCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
+class PointCursor<T extends PointSet.Value> implements Cursor<T> {
   chunkI = 0
   i = 0
 
   declare cur: Chunk<T> | null
-  pos = -1
+  from = -1
   declare value: T | null
 
   constructor(readonly set: PointSet<T>, start: number, side: number) {
     this.goto(start, side)
   }
 
+  /// @hidden
+  get to() { return this.from }
+
   get side() { return this.value ? this.value.side : 1e9 }
 
   goto(pos: number, side: number) {
-    let diff = pos - this.pos || side - this.side
+    let diff = pos - this.from || side - this.side
     if (diff < 0) {
       this.chunkI = this.i = 0
     } else if (diff == 0 && this.cur) {
@@ -329,7 +333,7 @@ class PointCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
     }
     for (let first = true;;) {
       if (this.chunkI == this.set.chunks.length) {
-        this.pos = 1e9
+        this.from = 1e9
         this.cur = this.value = null
         break
       }
@@ -343,7 +347,7 @@ class PointCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
         this.i++
       } else {
         this.cur = chunk
-        this.pos = chunk.pos[this.i] + chunk.start
+        this.from = chunk.pos[this.i] + chunk.start
         this.value = chunk.value[this.i]
         break
       }
@@ -365,62 +369,13 @@ class PointCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
         cur = this.cur = this.set.chunks[this.chunkI]
       }
     }
-    this.pos = cur.pos[this.i] + cur.start
+    this.from = cur.pos[this.i] + cur.start
     this.value = cur.value[this.i]
   }
 }
 
-function cmpCursor<T extends PointSet.Value>(a: PointSet.Cursor<T>, b: PointSet.Cursor<T>): number {
-  return a.pos - b.pos || a.value!.side - b.value!.side
-}
-
-class HeapCursor<T extends PointSet.Value> implements PointSet.Cursor<T> {
-  heap: PointSet.Cursor<T>[] = []
-  declare pos: number
-  declare value: T | null
-
-  constructor(readonly cursors: readonly PointSet.Cursor<T>[]) {
-    for (let cur of cursors) if (cur.value) {
-      this.heap.push(cur)
-      heapSink(this.heap, this.heap.length - 1, cmpCursor)
-    }
-    this.fill()
-  }
-
-  get side() {
-    return this.value ? this.value.side : 1e9
-  }
-
-  fill() {
-    if (this.heap.length) {
-      ;({pos: this.pos, value: this.value} = this.heap[0])
-    } else {
-      this.pos = 1e9
-      this.value = null
-    }
-  }
-
-  goto(pos: number, side: number) {
-    this.heap = []
-    for (let cur of this.cursors) {
-      cur.goto(pos, side)
-      if (cur.value) {
-        this.heap.push(cur)
-        heapSink(this.heap, this.heap.length - 1, cmpCursor)
-      }
-    }
-  }
-
-  next() {
-    if (this.heap.length) {
-      this.heap[0].next()
-      if (this.heap[0].value) heapBubble(this.heap, 0, cmpCursor)
-      else heapPop(this.heap, cmpCursor)
-      this.fill()
-    }
-  }
-
-  get set() { return this.heap.length ? this.heap[0].set : PointSet.empty }
+function cmpCursor<T extends PointSet.Value>(a: Cursor<T>, b: Cursor<T>): number {
+  return a.from - b.from || a.value!.side - b.value!.side
 }
 
 export namespace PointSet {
@@ -441,10 +396,11 @@ export namespace PointSet {
   }
 
   /// A point source, used to create or extend a point set, is either
-  /// an array of `[pos, value]` tuples, or a function that calls its
+  /// an array of `[value, pos]` tuples, or a function that calls its
   /// argument to add a point. Point sources must provide their points
   /// ordered by position and {@link PointSet.Value.side side}.
-  export type Source<T extends Value> = Iterable<[number, T]> | ((add: (pos: number, value: T) => void) => void)
+  export type Source<T extends Value> = Iterable<[T, number, number?]>
+    | ((add: (value: T, pos: number, to?: number) => void) => void)
 
   /// Represents a replaced section in a point set.
   export type Replacement<T extends Value> = {
@@ -454,22 +410,5 @@ export namespace PointSet {
     to: number,
     /// An optional source of points to to this section.
     add?: PointSet.Source<T>
-  }
-
-  /// A cursor over a point set.
-  export interface Cursor<T extends Value> {
-    /// The value of the current point, or `null` when there are no
-    /// more points.
-    value: T | null
-    /// The position of the current point.
-    pos: number
-    /// The side value of the current point.
-    side: number
-    /// Move the cursor to a given position and side.
-    goto(pos: number, side: number): void
-    /// Continue to the next point, if any.
-    next(): void
-    /// The set object that the current point belongs to.
-    set: PointSet<T>
   }
 }

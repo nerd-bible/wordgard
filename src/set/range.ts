@@ -1,9 +1,10 @@
 import {ChangeSet} from "wordgard/doc"
-import {findAbove, heapSink, heapBubble, heapPop, addReplacements} from "./util"
+import {findAbove, addReplacements} from "./util"
+import {Cursor, HeapCursor} from "./cursor"
 
 const enum ChunkSize { Max = 512 }
 
-class Chunk<T extends RangeSet.Value> {
+class Chunk<T> {
   constructor(
     readonly start: number,
     readonly from: number[],
@@ -44,18 +45,18 @@ class SetBuilder<T extends RangeSet.Value> {
       let array = source
       source = add => { for (let [from, to, value] of array) add(from, to, value) }
     }
-    source((from, to, value) => {
+    source((value, from, to = from) => {
       if (pre) pre(from, to)
-      this.addRange(from, to, value)
+      this.addRange(value, from, to)
     })
   }
 
-  addRange(from: number, to: number, value: T) {
+  addRange(value: T, from: number, to: number) {
     if (from >= to) throw new Error("Ranges cannot be empty")
-    ;(this.lastTo <= from ? this : this.next).addInner(from, to, value)
+    ;(this.lastTo <= from ? this : this.next).addInner(value, from, to)
   }
 
-  addInner(from: number, to: number, value: T) {
+  addInner(value: T, from: number, to: number) {
     let chunk: Chunk<T> | undefined
     if (this.chunks.length) {
       chunk = this.chunks[this.chunks.length - 1]
@@ -118,22 +119,22 @@ export class RangeSet<T extends RangeSet.Value> {
   }
 
   /// Create a cursor over this set, starting at the given position.
-  cursor(from = 0): RangeSet.Cursor<T> {
-    if (!this.next) return new LayerCursor(this.chunks, from)
+  cursor(from = 0): Cursor<T> {
+    if (!this.next) return new LayerCursor(this, this.chunks, from)
     let cursors: LayerCursor<T>[] = []
     for (let layer: RangeSet<T> | null = this; layer; layer = layer.next)
-      cursors.push(new LayerCursor(layer.chunks, from))
-    return new HeapCursor(cursors)
+      cursors.push(new LayerCursor(this, layer.chunks, from))
+    return new HeapCursor(cmpCursor, cursors)
   }
 
   /// Create a cursor over a collection of range sets.
-  static cursor<T extends RangeSet.Value>(sets: readonly RangeSet<T>[], from = 0): RangeSet.Cursor<T> {
+  static cursor<T extends RangeSet.Value>(sets: readonly RangeSet<T>[], from = 0): Cursor<T> {
     let cursors: LayerCursor<T>[] = []
     for (let set of sets) if (!set.empty) {
       for (let layer: RangeSet<T> | null = set; layer; layer = layer.next)
-        cursors.push(new LayerCursor(layer.chunks, from))
+        cursors.push(new LayerCursor(set, layer.chunks, from))
     }
-    return cursors.length == 0 ? RangeSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cursors)
+    return cursors.length == 0 ? RangeSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cmpCursor, cursors)
   }
 
   /// Adjust the positions of the ranges for the given change set.
@@ -149,7 +150,7 @@ export class RangeSet<T extends RangeSet.Value> {
   }
 
   private mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly RangeSet.Replacement<T>[]): RangeSet<T> {
-    let cursor = new LayerCursor(this.chunks, 0)
+    let cursor = new LayerCursor(this, this.chunks, 0)
     let replI = 0, posA = 0, posB = 0
     let build = new SetBuilder<T>()
     for (let i = 0; i < sections.length;) {
@@ -167,7 +168,7 @@ export class RangeSet<T extends RangeSet.Value> {
             build.addChunk(chunk.move(chunk.start + off))
             cursor.next(true)
           } else if (cursor.to < upto) {
-            build.addRange(cursor.from + off, cursor.to + off, cursor.value!)
+            build.addRange(cursor.value!, cursor.from + off, cursor.to + off)
             cursor.next()
           } else {
             break
@@ -214,7 +215,7 @@ export class RangeSet<T extends RangeSet.Value> {
 
   private modifyInner(add: RangeSet.Source<T> | undefined, filter?: (from: number, to: number, value: T) => boolean): RangeSet<T> {
     let build = new SetBuilder<T>()
-    let cursor = new LayerCursor(this.chunks, 0)
+    let cursor = new LayerCursor(this, this.chunks, 0)
     let advance = (pos: number) => {
       for (;;) {
         let {cur} = cursor
@@ -226,7 +227,7 @@ export class RangeSet<T extends RangeSet.Value> {
           break
         } else {
           if (!filter || filter(cursor.from, cursor.to, cursor.value!))
-            build.addRange(cursor.from, cursor.to, cursor.value!)
+            build.addRange(cursor.value!, cursor.from, cursor.to)
           cursor.next()
         }
       }
@@ -241,7 +242,7 @@ export class RangeSet<T extends RangeSet.Value> {
   /// not contain identical ranges.
   compareRange(fromA: number, b: RangeSet<T>, fromB: number, len: number, change: (from: number, to: number) => void) {
     if (this == b) return
-    let curA = new LayerCursor(this.chunks, fromA), curB = new LayerCursor(b.chunks, fromB), off = fromB - fromA
+    let curA = new LayerCursor(this, this.chunks, fromA), curB = new LayerCursor(b, b.chunks, fromB), off = fromB - fromA
     let end = fromB + len, startA = -1, endA = -1, startB = -1, endB = -1
     for (;;) {
       if (startA >= endA)
@@ -278,7 +279,7 @@ export class RangeSet<T extends RangeSet.Value> {
 }
 
 function copyMappedUpto<T extends RangeSet.Value>(
-  cursor: RangeSet.Cursor<T>, upto: number,
+  cursor: Cursor<T>, upto: number,
   map: ChangeSet, build: SetBuilder<T>,
   replace: readonly RangeSet.Replacement<T>[], replI: number
 ) {
@@ -290,12 +291,12 @@ function copyMappedUpto<T extends RangeSet.Value>(
     for (let i = replI; !filtered && i < replace.length && replace[i].from < to; i++) {
       if (replace[i].to > from) filtered = true
     }
-    if (!filtered) build.addRange(from, to, value)
+    if (!filtered) build.addRange(value, from, to)
     cursor.next()
   }
 }
 
-class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
+class LayerCursor<T extends RangeSet.Value> implements Cursor<T> {
   chunkI = 0
   i = 0
 
@@ -304,7 +305,7 @@ class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
   declare to: number
   declare value: T | null
 
-  constructor(readonly chunks: readonly Chunk<T>[], start: number) {
+  constructor(readonly set: RangeSet<T>, readonly chunks: readonly Chunk<T>[], start: number) {
     this.goto(start)
   }
 
@@ -351,52 +352,8 @@ class LayerCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
   }
 }
 
-let cmpCursor = (a: RangeSet.Cursor<RangeSet.Value>, b: RangeSet.Cursor<RangeSet.Value>): number => {
+let cmpCursor = (a: Cursor<RangeSet.Value>, b: Cursor<RangeSet.Value>): number => {
   return (a.from - b.from) || (a.value!.inclusiveStart ? (b.value!.inclusiveStart ? 0 : 1) : -1) || (a.to - b.to)
-}
-
-class HeapCursor<T extends RangeSet.Value> implements RangeSet.Cursor<T> {
-  heap: RangeSet.Cursor<T>[] = []
-  declare from: number
-  declare to: number
-  declare value: T | null
-
-  constructor(readonly cursors: readonly RangeSet.Cursor<T>[]) {
-    for (let cur of cursors) if (cur.value) {
-      this.heap.push(cur)
-      heapSink(this.heap, this.heap.length - 1, cmpCursor)
-    }
-    this.fill()
-  }
-
-  fill() {
-    if (this.heap.length) {
-      ;({from: this.from, to: this.to, value: this.value} = this.heap[0])
-    } else {
-      this.from = this.to = 1e9
-      this.value = null
-    }
-  }
-
-  goto(pos: number) {
-    this.heap = []
-    for (let cur of this.cursors) {
-      cur.goto(pos)
-      if (cur.value) {
-        this.heap.push(cur)
-        heapSink(this.heap, this.heap.length - 1, cmpCursor)
-      }
-    }
-  }
-
-  next() {
-    if (this.heap.length) {
-      this.heap[0].next()
-      if (this.heap[0].value) heapBubble(this.heap, 0, cmpCursor)
-      else heapPop(this.heap, cmpCursor)
-      this.fill()
-    }
-  }
 }
 
 export namespace RangeSet {
@@ -412,10 +369,15 @@ export namespace RangeSet {
   }
 
   /// A range source, used to construct or extend a range set, must
-  /// either be an array of `[from, to, value]` tuples, or a function
+  /// either be an array of `[value, from, to]` tuples, or a function
   /// that calls its argument for each range to add. Ranges must be
   /// provided ordered by their `from` position.
-  export type Source<T extends Value> = Iterable<[number, number, T]> | ((add: (from: number, to: number, value: T) => void) => void)
+  ///
+  /// Note that while `to` is marked optional to align with {@link
+  /// PointSet.Source} it is actually required for ranges, which
+  /// cannot be zero length.
+  export type Source<T extends Value> = Iterable<[T, number, number?]>
+    | ((add: (value: T, from: number, to?: number) => void) => void)
 
   /// Represents a replaced section in a range set.
   export type Replacement<T extends Value> = {
@@ -426,20 +388,5 @@ export namespace RangeSet {
     /// An optional collection of ranges to replace the section with.
     /// Must fall within `from` and `to`.
     add?: Source<T>
-  }
-
-  /// A cursor over a range set.
-  export interface Cursor<T extends Value> {
-    /// The current range's value, or `null` if the end of the set has
-    /// been reached.
-    value: T | null
-    /// The start position of the current range.
-    from: number
-    /// The end position of the current range.
-    to: number
-    /// Move the cursor to a new position.
-    goto(pos: number): void
-    /// Move to the next range, if any.
-    next(): void
   }
 }

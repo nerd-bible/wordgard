@@ -1,6 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
-import {RangeSet, PointSet, findAbove} from "wordgard/set"
+import {RangeSet, PointSet, Cursor, findAbove} from "wordgard/set"
 import {addSection, Changes, addUpdated, addRange, joinRanges} from "./changes"
 import {type Wordgard} from "./editor"
 
@@ -629,7 +629,7 @@ const nodeSelectionDeco = Decoration.Point.attributes({class: "wg-selected-node"
 
 function nodeSelection(state: GardState) {
   if (state.selection instanceof GardSelection.Node)
-    return PointSet.create([[state.selection.from, nodeSelectionDeco]])
+    return PointSet.create([[nodeSelectionDeco, state.selection.from]])
   return PointSet.empty
 }
 
@@ -764,8 +764,8 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXM
   pointSource: PointSet<P> | null = null
   done = false
 
-  constructor(readonly ranges: RangeSet.Cursor<R>,
-              readonly points: PointSet.Cursor<P>,
+  constructor(readonly ranges: Cursor<R>,
+              readonly points: Cursor<P>,
               start: number,
               readonly end: number) {
     this.from = this.to = start
@@ -788,7 +788,7 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXM
           nextActive = i
         }
       }
-      let {pos: pointPos, side: pointSide} = points.value ? points : {pos: 1e9, side: 1}
+      let [pointPos, pointSide] = points.value ? [points.from, points.value.side] : [1e9, 1]
       let nextPos = Math.min(startPos, endPos, pointPos)
       if (this.to == this.end && nextPos > this.to) {
         this.done = true
@@ -800,7 +800,7 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXM
       } else if (pointPos == nextPos && (startPos > pointPos || pointSide < 0) && (endPos > pointPos || pointSide < 0)) {
         this.point = this.points.value!
         this.pointSource = this.points.set
-        this.from = this.to = this.points.pos
+        this.from = this.to = this.points.from
         this.points.next()
         break
       } else if ((startPos - endPos || startSide - endSide) < 0) {
@@ -868,9 +868,9 @@ export class DecoIterator {
   globalAttrs: readonly TagAttribute[]
   schema: Schema
   pos: Pos
-  rangeCursor: RangeSet.Cursor<Decoration.Range>
+  rangeCursor: Cursor<Decoration.Range>
   pointSets: readonly Decoration.Point.Set[]
-  pointCursor: PointSet.Cursor<Decoration.Point>
+  pointCursor: Cursor<Decoration.Point>
   endWidgets: boolean
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
