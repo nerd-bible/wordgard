@@ -1,6 +1,7 @@
 import {ChangeSet} from "wordgard/doc"
 import {findAbove, addReplacements} from "./util"
-import {Cursor, HeapCursor} from "./cursor"
+import {Set} from "./set"
+import {HeapCursor} from "./heapcursor"
 
 const enum ChunkSize { Max = 512 }
 
@@ -39,14 +40,15 @@ class SetBuilder<T extends PointSet.Value> {
     this.lastSide = chunk.endSide
   }
 
-  add(source: PointSet.Source<T>, pre?: (value: T, pos: number) => void) {
+  add(source: Set.Source<T>, pre?: (value: T, pos: number) => void) {
     if (typeof source != "function") {
       let array = source
-      source = add => { for (let [pos, value] of array) add(pos, value) }
+      source = add => { for (let [value, from, to] of array) add(value, from, to) }
     }
-    source((value, pos) => {
-      if (pre) pre(value, pos)
-      this.addPoint(value, pos)
+    source((value, from, to) => {
+      if (to != null && from != to) throw new Error("Points cannot cover content")
+      if (pre) pre(value, from)
+      this.addPoint(value, from)
     })
   }
 
@@ -93,7 +95,7 @@ class SetBuilder<T extends PointSet.Value> {
 /// across document changes. Mostly used for {@link Decoration.Point
 /// point decorations}, but can also track your own types, if you make
 /// sure they implement the {@link PointSet.Value} interface.
-export class PointSet<T extends PointSet.Value> {
+export class PointSet<T extends PointSet.Value> implements Set<T> {
   private constructor(
     /// @internal
     readonly chunks: readonly Chunk<T>[]
@@ -106,7 +108,7 @@ export class PointSet<T extends PointSet.Value> {
   /// tuples, or a function that calls its argument for every point to
   /// add.
   static create<T extends PointSet.Value>(
-    source: PointSet.Source<T>
+    source: Set.Source<T>
   ): PointSet<T> {
     let build = new SetBuilder<T>()
     build.add(source, (value, from) => {
@@ -116,25 +118,23 @@ export class PointSet<T extends PointSet.Value> {
     return build.finish()
   }
 
-  /// The number of points in this set.
   get length(): number {
     return this.chunks.length ? this.chunks[this.chunks.length - 1].end : 0
   }
 
-  /// Returns `true` when this set is empty.
   get empty() {
     return this == PointSet.empty
   }
 
   /// Create a cursor over this point set, starting at the given
   /// position and side.
-  cursor(from = 0, side = -1e9): Cursor<T> {
+  cursor(from = 0, side = -1e9): Set.Cursor<T> {
     return new PointCursor(this, from, side)
   }
 
   /// Create a cursor over a collection of point sets.
-  static cursor<T extends PointSet.Value>(sets: readonly PointSet<T>[], from = 0, side = -1e9): Cursor<T> {
-    let cursors: Cursor<T>[] = []
+  static cursor<T extends PointSet.Value>(sets: readonly PointSet<T>[], from = 0, side = -1e9): Set.Cursor<T> {
+    let cursors: Set.Cursor<T>[] = []
     for (let set of sets) if (!set.empty) cursors.push(set.cursor(from, side))
     return cursors.length == 0 ? PointSet.empty.cursor() : cursors.length == 1 ? cursors[0] : new HeapCursor(cmpCursor, cursors)
   }
@@ -156,14 +156,14 @@ export class PointSet<T extends PointSet.Value> {
   /// set with the adjusted points. May delete points when the content
   /// around them was deleted. Optionally accepts an ordered sequence
   /// of replacements.
-  map(map: ChangeSet, replace: readonly PointSet.Replacement<T>[] = []): PointSet<T> {
+  map(map: ChangeSet, replace: readonly Set.Replacement<T>[] = []): this {
     let {sections} = map
     if (replace.length) sections = addReplacements(map, replace)
     else if (map.empty) return this
-    return this.mapInner(sections, map, replace)
+    return this.mapInner(sections, map, replace) as any as this
   }
 
-  private mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly PointSet.Replacement<T>[]): PointSet<T> {
+  private mapInner(sections: ChangeSet.Sections, map: ChangeSet, replace: readonly Set.Replacement<T>[]): PointSet<T> {
     let cursor = new PointCursor(this, 0, -1e9)
     let replI = 0, posA = 0, posB = 0
     let build = new SetBuilder<T>()
@@ -208,25 +208,20 @@ export class PointSet<T extends PointSet.Value> {
     return build.finish()
   }
 
-  /// Create an updated copy of this set.
   modify(spec: {
-    /// If given, replace all points in these ranges.
-    replace?: readonly PointSet.Replacement<T>[],
-    /// Add the points from this source.
-    add?: PointSet.Source<T>,
-    /// Optionally filter out any point where this predicate returns
-    /// false.
+    replace?: readonly Set.Replacement<T>[]
+    add?: Set.Source<T>
     filter?: (value: T, from: number, to: number) => boolean
-  }): PointSet<T> {
+  }): this {
     let {replace, add, filter} = spec
-    let result: PointSet<T> = this
+    let result = this
     if (replace && replace.length) {
       result = result.map(ChangeSet.empty(Math.max(result.length, replace[replace.length - 1].to)), replace)
     }
-    return add || filter ? result.modifyInner(add, filter) : result
+    return add || filter ? result.modifyInner(add, filter) as any as this : result
   }
 
-  private modifyInner(add: PointSet.Source<T> | undefined, filter?: (value: T, from: number, to: number) => boolean): PointSet<T> {
+  private modifyInner(add: Set.Source<T> | undefined, filter?: (value: T, from: number, to: number) => boolean): PointSet<T> {
     let build = new SetBuilder<T>()
     let cursor = new PointCursor(this, 0, -1e9)
     let advance = (_: any, pos: number) => {
@@ -281,9 +276,9 @@ export class PointSet<T extends PointSet.Value> {
 }
 
 function copyMappedUpto<T extends PointSet.Value>(
-  cursor: Cursor<T>, upto: number,
+  cursor: Set.Cursor<T>, upto: number,
   map: ChangeSet, build: SetBuilder<T>,
-  replace: readonly PointSet.Replacement<T>[], replI: number
+  replace: readonly Set.Replacement<T>[], replI: number
 ) {
   while (cursor.value && cursor.from <= upto) {
     let value = cursor.value
@@ -299,7 +294,7 @@ function copyMappedUpto<T extends PointSet.Value>(
   }
 }
 
-class PointCursor<T extends PointSet.Value> implements Cursor<T> {
+class PointCursor<T extends PointSet.Value> implements Set.Cursor<T> {
   chunkI = 0
   i = 0
 
@@ -374,7 +369,7 @@ class PointCursor<T extends PointSet.Value> implements Cursor<T> {
   }
 }
 
-function cmpCursor<T extends PointSet.Value>(a: Cursor<T>, b: Cursor<T>): number {
+function cmpCursor<T extends PointSet.Value>(a: Set.Cursor<T>, b: Set.Cursor<T>): number {
   return a.from - b.from || a.value!.side - b.value!.side
 }
 
@@ -393,22 +388,5 @@ export namespace PointSet {
     trackMode: ChangeSet.TrackMode | undefined
     /// Method to compare this value to another.
     eq(other: Value): boolean
-  }
-
-  /// A point source, used to create or extend a point set, is either
-  /// an array of `[value, pos]` tuples, or a function that calls its
-  /// argument to add a point. Point sources must provide their points
-  /// ordered by position and {@link PointSet.Value.side side}.
-  export type Source<T extends Value> = Iterable<[T, number, number?]>
-    | ((add: (value: T, pos: number, to?: number) => void) => void)
-
-  /// Represents a replaced section in a point set.
-  export type Replacement<T extends Value> = {
-    /// The start of the replacement.
-    from: number,
-    /// The end of the replaced range.
-    to: number,
-    /// An optional source of points to to this section.
-    add?: PointSet.Source<T>
   }
 }

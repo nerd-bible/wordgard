@@ -1,20 +1,4 @@
-/// A cursor over a point or range set.
-export interface Cursor<T> {
-  /// The value of the current range or point, or `null` when there
-  /// are no more values.
-  value: T | null
-  /// The start position of the current range or point.
-  from: number
-  /// The end position of the current range. Will be equal to `from`
-  /// for points.
-  to: number
-  /// Move the cursor to a given position.
-  goto(pos: number, side?: number): void
-  /// Continue to the next value, if any.
-  next(): void
-  /// The set object that the current value points at, if any.
-  set: any
-}
+import {Set} from "./set"
 
 function heapBubble<T>(heap: T[], index: number, cmp: (a: T, b: T) => number) {
   for (let cur = heap[index];;) {
@@ -51,15 +35,15 @@ function heapPop<T>(heap: T[], cmp: (a: T, b: T) => number) {
   }
 }
 
-export class HeapCursor<T> implements Cursor<T> {
-  heap: Cursor<T>[] = []
+export class HeapCursor<T> implements Set.Cursor<T> {
+  heap: Set.Cursor<T>[] = []
   declare from: number
   declare to: number
   declare value: T | null
 
   constructor(
-    readonly cmp: (a: Cursor<T>, b: Cursor<T>) => number,
-    readonly cursors: readonly Cursor<T>[]
+    readonly cmp: (a: Set.Cursor<T>, b: Set.Cursor<T>) => number,
+    readonly cursors: readonly Set.Cursor<T>[]
   ) {
     for (let cur of cursors) if (cur.value) {
       this.heap.push(cur)

@@ -1,6 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
-import {RangeSet, PointSet, Cursor, findAbove} from "wordgard/set"
+import {RangeSet, PointSet, Set, findAbove} from "wordgard/set"
 import {addSection, Changes, addUpdated, addRange, joinRanges} from "./changes"
 import {type Wordgard} from "./editor"
 
@@ -358,7 +358,7 @@ export namespace Decoration {
 
     /// Create a {@link PointSet} from an array or source function of
     /// point decorations.
-    static set(source: PointSet.Source<Point>): Point.Set { return PointSet.create<Point>(source) }
+    static set(source: Set.Source<Point>): Point.Set { return PointSet.create<Point>(source) }
 
     /// The empty set of point decorations.
     static none: Point.Set = PointSet.empty
@@ -414,7 +414,7 @@ export namespace Decoration {
 
     /// Create a {@link RangeSet} from an array or source function of
     /// range decorations.
-    static set(source: RangeSet.Source<Range>): Range.Set { return RangeSet.create<Range>(source) }
+    static set(source: Set.Source<Range>): Range.Set { return RangeSet.create<Range>(source) }
 
     /// The empty set of range decorations.
     static none: Range.Set = RangeSet.empty
@@ -755,7 +755,7 @@ export interface DecoWalker {
   widget(widget: Widget, side: number): void
 }
 
-class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXME name
+class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> {
   active: R[] = []
   activeEnd: number[] = []
   from: number
@@ -764,8 +764,8 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXM
   pointSource: PointSet<P> | null = null
   done = false
 
-  constructor(readonly ranges: Cursor<R>,
-              readonly points: Cursor<P>,
+  constructor(readonly ranges: Set.Cursor<R>,
+              readonly points: Set.Cursor<P>,
               start: number,
               readonly end: number) {
     this.from = this.to = start
@@ -868,9 +868,9 @@ export class DecoIterator {
   globalAttrs: readonly TagAttribute[]
   schema: Schema
   pos: Pos
-  rangeCursor: Cursor<Decoration.Range>
+  rangeCursor: Set.Cursor<Decoration.Range>
   pointSets: readonly Decoration.Point.Set[]
-  pointCursor: Cursor<Decoration.Point>
+  pointCursor: Set.Cursor<Decoration.Point>
   endWidgets: boolean
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {

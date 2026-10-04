@@ -3,7 +3,7 @@
 //- hold {@link Decoration decorations} associated with a given
 //- document position, but they can also be used for other data.
 
+export {Set} from "./set"
 export {RangeSet} from "./range"
 export {PointSet} from "./point"
-export {Cursor} from "./cursor"
 export {findAbove} from "./util"
