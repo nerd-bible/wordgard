@@ -642,7 +642,7 @@ export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
   let comp = wg.inputState.composing
   if (!comp || !(comp.target = wg.inputState.findComposition(comp.target))) return null
   let value = comp.target.nodeValue!
-  let pos = wg.inputState.posAtDOM(comp.target, 0)
+  let pos = wg.inputState.posAtDOM(comp.target, 0, 1)
   return {
     fromB: pos, toB: pos + value.length,
     text: value,
@@ -655,7 +655,7 @@ function compositionEnd(wg: Wordgard) {
   wg.inputState.composing = null
   wg.inputState.compositionEndedAt = Date.now()
   if (comp && comp.target) {
-    let pos = wg.inputState.posAtDOM(comp.target, 0)
+    let pos = wg.inputState.posAtDOM(comp.target, 0, 1)
     wg.observer.addDirtyRange(pos, pos + comp.target.nodeValue!.length)
     wg.flush()
   }

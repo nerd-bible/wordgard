@@ -212,8 +212,8 @@ export class Wordgard {
     this.lastFlush = Date.now()
     try {
       let domChanges = this.observer.takeDirty()
-      this.viewState.flush()
       this.observer.ignore(() => this.runUpdate(update, domChanges))
+      this.viewState.flush()
       domChanges = null
       for (let i = 0;; i++) {
         if (i > 5) {
