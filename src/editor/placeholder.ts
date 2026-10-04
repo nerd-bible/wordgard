@@ -18,7 +18,7 @@ function showPlaceholder(state: GardState): Decoration.Point.Set {
   else return Decoration.Point.none
   let shape = state.facet(placeholderShape)
   if (!shape.length) return Decoration.Point.none
-  return Decoration.Point.set([[pos, Decoration.Point.widget(placeholderWidget.of(shape[0]), {side: 1})]])
+  return Decoration.Point.set([[Decoration.Point.widget(placeholderWidget.of(shape[0]), {side: 1}), pos]])
 }
 
 const placeholderField = GardState.Field.define<Decoration.Point.Set>({

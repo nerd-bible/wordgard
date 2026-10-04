@@ -74,9 +74,9 @@ const resizeState = GardState.Field.define<{target: number, resizing: number, de
         let {target, resizing} = e.value
         if (target < 0)
           return {target: -1, resizing: -1, deco: Decoration.Point.none}
-        let deco: [number, Decoration.Point][] = [[target, resizeWrapper]]
+        let deco: [Decoration.Point, number][] = [[resizeWrapper, target]]
         if (resizing > -1)
-          deco.push([target, Decoration.Point.attributes({style: `width: ${resizing}px`}, {target: "img"})])
+          deco.push([Decoration.Point.attributes({style: `width: ${resizing}px`}, {target: "img"}), target])
         return {target, resizing, deco: Decoration.Point.set(deco)}
       }
     }

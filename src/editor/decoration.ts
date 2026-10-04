@@ -1,6 +1,6 @@
 import {GardState, GardSelection} from "wordgard/state"
 import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
-import {RangeSet, PointSet, findAbove} from "wordgard/set"
+import {RangeSet, PointSet, Set, findAbove} from "wordgard/set"
 import {addSection, Changes, addUpdated, addRange, joinRanges} from "./changes"
 import {type Wordgard} from "./editor"
 
@@ -179,7 +179,7 @@ export namespace Decoration {
     export namespace shape {
       /// This function allows you to define a {@link Decoration.Tag.shape
       /// custom node shape} that depends on the editor state. It will
-      /// automatically track what slots (see {@link
+      /// automatically track which state slots (see {@link
       /// GardState.Facet.compute}) you use, and make sure the nodes
       /// are redrawn when those change.
       ///
@@ -358,7 +358,7 @@ export namespace Decoration {
 
     /// Create a {@link PointSet} from an array or source function of
     /// point decorations.
-    static set(source: PointSet.Source<Point>): Point.Set { return PointSet.create<Point>(source) }
+    static set(source: Set.Source<Point>): Point.Set { return PointSet.create<Point>(source) }
 
     /// The empty set of point decorations.
     static none: Point.Set = PointSet.empty
@@ -414,7 +414,7 @@ export namespace Decoration {
 
     /// Create a {@link RangeSet} from an array or source function of
     /// range decorations.
-    static set(source: RangeSet.Source<Range>): Range.Set { return RangeSet.create<Range>(source) }
+    static set(source: Set.Source<Range>): Range.Set { return RangeSet.create<Range>(source) }
 
     /// The empty set of range decorations.
     static none: Range.Set = RangeSet.empty
@@ -629,7 +629,7 @@ const nodeSelectionDeco = Decoration.Point.attributes({class: "wg-selected-node"
 
 function nodeSelection(state: GardState) {
   if (state.selection instanceof GardSelection.Node)
-    return PointSet.create([[state.selection.from, nodeSelectionDeco]])
+    return PointSet.create([[nodeSelectionDeco, state.selection.from]])
   return PointSet.empty
 }
 
@@ -755,7 +755,7 @@ export interface DecoWalker {
   widget(widget: Widget, side: number): void
 }
 
-class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXME name
+class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> {
   active: R[] = []
   activeEnd: number[] = []
   from: number
@@ -764,8 +764,8 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXM
   pointSource: PointSet<P> | null = null
   done = false
 
-  constructor(readonly ranges: RangeSet.Cursor<R>,
-              readonly points: PointSet.Cursor<P>,
+  constructor(readonly ranges: Set.Cursor<R>,
+              readonly points: Set.Cursor<P>,
               start: number,
               readonly end: number) {
     this.from = this.to = start
@@ -788,7 +788,7 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXM
           nextActive = i
         }
       }
-      let {pos: pointPos, side: pointSide} = points.value ? points : {pos: 1e9, side: 1}
+      let [pointPos, pointSide] = points.value ? [points.from, points.value.side] : [1e9, 1]
       let nextPos = Math.min(startPos, endPos, pointPos)
       if (this.to == this.end && nextPos > this.to) {
         this.done = true
@@ -800,7 +800,7 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> { // FIXM
       } else if (pointPos == nextPos && (startPos > pointPos || pointSide < 0) && (endPos > pointPos || pointSide < 0)) {
         this.point = this.points.value!
         this.pointSource = this.points.set
-        this.from = this.to = this.points.pos
+        this.from = this.to = this.points.from
         this.points.next()
         break
       } else if ((startPos - endPos || startSide - endSide) < 0) {
@@ -868,9 +868,9 @@ export class DecoIterator {
   globalAttrs: readonly TagAttribute[]
   schema: Schema
   pos: Pos
-  rangeCursor: RangeSet.Cursor<Decoration.Range>
+  rangeCursor: Set.Cursor<Decoration.Range>
   pointSets: readonly Decoration.Point.Set[]
-  pointCursor: PointSet.Cursor<Decoration.Point>
+  pointCursor: Set.Cursor<Decoration.Point>
   endWidgets: boolean
 
   constructor(readonly state: GardState, readonly decoSet: DecoSet) {
