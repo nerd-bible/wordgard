@@ -142,7 +142,7 @@ export class RangeSet<T extends RangeSet.Value> {
   /// of replacement ranges. Any ranges overlapping such a replacement
   /// will be dropped, and new ranges provided by their `add`
   /// properties will be added to the new set.
-  map(map: ChangeSet, replace: readonly RangeSet.Replacement<T>[] = []) {
+  map(map: ChangeSet, replace: readonly RangeSet.Replacement<T>[] = []): RangeSet<T> {
     let {sections} = map
     if (replace.length) sections = addReplacements(map, replace)
     else if (map.empty) return this
@@ -203,8 +203,8 @@ export class RangeSet<T extends RangeSet.Value> {
     add?: RangeSet.Source<T>,
     /// Drop any range for which this predicate function returns
     /// `false`.
-    filter?: (from: number, to: number, value: T) => boolean
-  }) {
+    filter?: (value: T, from: number, to: number) => boolean
+  }): RangeSet<T> {
     let {replace, add, filter} = spec
     let result: RangeSet<T> = this
     if (replace && replace.length) {
@@ -213,7 +213,7 @@ export class RangeSet<T extends RangeSet.Value> {
     return add || filter ? result.modifyInner(add, filter) : result
   }
 
-  private modifyInner(add: RangeSet.Source<T> | undefined, filter?: (from: number, to: number, value: T) => boolean): RangeSet<T> {
+  private modifyInner(add: RangeSet.Source<T> | undefined, filter?: (value: T, from: number, to: number) => boolean): RangeSet<T> {
     let build = new SetBuilder<T>()
     let cursor = new LayerCursor(this, this.chunks, 0)
     let advance = (pos: number) => {
@@ -226,7 +226,7 @@ export class RangeSet<T extends RangeSet.Value> {
         } else if (cursor.from > pos) {
           break
         } else {
-          if (!filter || filter(cursor.from, cursor.to, cursor.value!))
+          if (!filter || filter(cursor.value!, cursor.from, cursor.to))
             build.addRange(cursor.value!, cursor.from, cursor.to)
           cursor.next()
         }

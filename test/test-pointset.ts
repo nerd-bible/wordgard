@@ -44,7 +44,7 @@ describe("PointSet", () => {
   })
 
   it("can filter", () => {
-    ist(str(PointSet.create([[V.a, 0], [V.b, 1], [V.a, 3], [V.b, 4]]).modify({filter: p => !(p % 2)})),
+    ist(str(PointSet.create([[V.a, 0], [V.b, 1], [V.a, 3], [V.b, 4]]).modify({filter: (v, p) => !(p % 2)})),
         "a@0 b@4")
   })
 

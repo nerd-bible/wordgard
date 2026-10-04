@@ -83,7 +83,7 @@ describe("RangeSet", () => {
 
   it("can filter out ranges", () => {
     let rs = RangeSet.create<V>([[V.a, 0, 2], [V.a, 3, 5], [V.a, 6, 8]])
-      .modify({filter: (f, t) => t % 2 == 0})
+      .modify({filter: (v, f, t) => t % 2 == 0})
     ist(str(rs), "a@0-2 a@6-8")
   })
 

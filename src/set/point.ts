@@ -156,7 +156,7 @@ export class PointSet<T extends PointSet.Value> {
   /// set with the adjusted points. May delete points when the content
   /// around them was deleted. Optionally accepts an ordered sequence
   /// of replacements.
-  map(map: ChangeSet, replace: readonly PointSet.Replacement<T>[] = []) {
+  map(map: ChangeSet, replace: readonly PointSet.Replacement<T>[] = []): PointSet<T> {
     let {sections} = map
     if (replace.length) sections = addReplacements(map, replace)
     else if (map.empty) return this
@@ -216,8 +216,8 @@ export class PointSet<T extends PointSet.Value> {
     add?: PointSet.Source<T>,
     /// Optionally filter out any point where this predicate returns
     /// false.
-    filter?: (pos: number, value: T) => boolean
-  }) {
+    filter?: (value: T, from: number, to: number) => boolean
+  }): PointSet<T> {
     let {replace, add, filter} = spec
     let result: PointSet<T> = this
     if (replace && replace.length) {
@@ -226,7 +226,7 @@ export class PointSet<T extends PointSet.Value> {
     return add || filter ? result.modifyInner(add, filter) : result
   }
 
-  private modifyInner(add: PointSet.Source<T> | undefined, filter?: (pos: number, value: T) => boolean): PointSet<T> {
+  private modifyInner(add: PointSet.Source<T> | undefined, filter?: (value: T, from: number, to: number) => boolean): PointSet<T> {
     let build = new SetBuilder<T>()
     let cursor = new PointCursor(this, 0, -1e9)
     let advance = (_: any, pos: number) => {
@@ -239,7 +239,7 @@ export class PointSet<T extends PointSet.Value> {
         } else if (cursor.from >= pos) {
           break
         } else {
-          if (!filter || filter(cursor.from, cursor.value!))
+          if (!filter || filter(cursor.value!, cursor.from, cursor.to))
             build.addPoint(cursor.value!, cursor.from)
           cursor.next()
         }
