@@ -503,7 +503,8 @@ export class Wordgard {
   focus() {
     if (this.connected) this.observer.ignore(() => {
       this.contentDOM.focus({preventScroll: true})
-      if (this.willFlush && this.flushing == Flush.No) this.flush()
+      if (this.willFlush && this.flushing == Flush.No && this.viewState.pending.some(tr => tr.docChanged))
+        this.flush()
       setDOMSelection(this)
     })
   }
