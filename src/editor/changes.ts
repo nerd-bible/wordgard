@@ -65,7 +65,7 @@ export function separateChange(changes: Changes, fromB: number, toB: number) {
   let lenI = 0, dLen = 0
   for (let posB = 0, done = false, i = 0; i < changes.length;) {
     let len = changes[i++], ins = changes[i++], endB = posB + (ins < 0 ? len : ins)
-    if (fromB > endB || toB < posB) {
+    if (fromB >= endB || toB <= posB) {
       result.push(len, ins)
     } else {
       if (ins >= 0) {
