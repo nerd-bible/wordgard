@@ -628,7 +628,7 @@ export type CompositionInfo = {
 }
 
 export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
-  let wrap = wg.inputState.wrappingComposition
+  let input = wg.inputState, wrap = input.wrappingComposition
   if (wrap) {
     let sel = wg.state.selection.head
     return {
@@ -639,15 +639,15 @@ export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
     }
   }
 
-  let comp = wg.inputState.composing
-  if (!comp || !(comp.target = wg.inputState.findComposition(comp.target))) return null
+  let comp = input.composing
+  if (!comp || !(comp.target = input.findComposition(comp.target))) return null
   let value = comp.target.nodeValue!
-  let pos = wg.inputState.posAtDOM(comp.target, 0, 1)
-  return {
-    fromB: pos, toB: pos + value.length,
-    text: value,
-    target: comp.target
-  }
+  let fromB = input.posAtDOM(comp.target, 0, 1), toB = fromB + value.length
+  let disrupted = false
+  input.domMapping.iterChanges((fA, tA, fB, tB) => {
+    if (fB < toB && tB > fromB) disrupted = true
+  })
+  return disrupted ? null : {fromB, toB, text: value, target: comp.target}
 }
 
 function compositionEnd(wg: Wordgard) {

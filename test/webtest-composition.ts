@@ -32,7 +32,7 @@ function selEnd(node: Node) {
 function compose(wg: Wordgard, start: UpdateArg | (() => Text),
                  ...args: (UpdateArg | {end?: (node: Text) => void, cancel?: boolean})[]) {
   let last = args[args.length - 1]
-  let [updates, options] = Array.isArray(last) || typeof last == "function"
+  let [updates, options] = Array.isArray(last) || "run" in last
     ? [args as UpdateArg[], {}]
     : [args.slice(0, args.length - 1) as UpdateArg[], last as any]
 
@@ -196,6 +196,23 @@ describe("composition", () => {
             [3, 4, "⇒"])
     ist(wg.state.doc, doc(p("!a⇒b?")), eq)
     ist(wg.contentDOM.innerHTML, "<p>!a⇒b?</p>")
+  })
+
+  it("gracefully handles API-produced changes inside the composition", () => {
+    let wg = requireFocus(tempEditor(doc(p("ab", 0, "c"))))
+    compose(wg, [3, 3, "-"], {run: () => {
+      wg.dispatch({changes: {from: 2, insert: [Leaf.text("!")]}})
+      wg.flush()
+      ist(wg.contentDOM.innerHTML, "<p>a!b-c</p>")
+    }})
+    ist(wg.state.doc, doc(p("a!b-c")), eq)
+  })
+
+  it("gracefully handles starting a composition in a modified text node", () => {
+    let wg = requireFocus(tempEditor(doc(p("ab", 0, "c"))))
+    wg.dispatch({changes: {from: 2, insert: [Leaf.text("/")]}})
+    compose(wg, [4, 4, "-"], [4, 5, "×"])
+    ist(wg.state.doc, doc(p("a/b×c")), eq)
   })
 
   // FIXME text composition next to widgets
