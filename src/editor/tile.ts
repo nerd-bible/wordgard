@@ -363,6 +363,8 @@ export class DocTile extends CompositeTile {
       else changes = separated
     }
     let builder = new ContentUpdate(state, this, wg, new DecoIterator(state, decoSet), wrapper)
+    if (composition?.target && Tile.get(composition.target))
+      builder.reused.set(Tile.get(composition.target)!, Reused.DOM)
     for (let i = 0, posB = 0, startCovered = false; i < changes.length;) {
       let len = changes[i++], ins = changes[i++]
       LOG_update && console.log("section", len, ins, "new=" + builder.new, "old=" + builder.old.tile, "@", builder.old.index)

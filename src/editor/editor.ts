@@ -11,7 +11,7 @@ import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFil
         clipboardTextParser, clipboardTextSerializer} from "./clipboard"
 import {theme, colorScheme, buildTheme, styleID, baseLightID, baseDarkID, lightDarkIDs, baseStyles} from "./theme"
 import {DOMObserver} from "./domobserver"
-import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
+import {InputState, isFocusChange, mouseSelectionStyle,
         dragBehavior, pasteHandler, dropHandler, eventHandler, eventObserver} from "./input"
 import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
@@ -212,8 +212,8 @@ export class Wordgard {
     this.lastFlush = Date.now()
     try {
       let domChanges = this.observer.takeDirty()
-      this.viewState.flush()
       this.observer.ignore(() => this.runUpdate(update, domChanges))
+      this.viewState.flush()
       domChanges = null
       for (let i = 0;; i++) {
         if (i > 5) {
@@ -270,7 +270,8 @@ export class Wordgard {
   }
 
   private runUpdate(update: Wordgard.Update, domChanges: readonly number[] | null) {
-    let composition = this.composing ? getCompositionInfo(this) : null
+    let composition = this.composing ? this.inputState.getCompositionInfo(this) : null
+    if (this.composing && !composition) this.inputState.abortComposition()
     let changes = domChanges ? addUpdated(update.changes.sections, domChanges) : update.changes.sections
     let prevDocTile = this.docTile
     if (!update.empty) {
@@ -503,7 +504,8 @@ export class Wordgard {
   focus() {
     if (this.connected) this.observer.ignore(() => {
       this.contentDOM.focus({preventScroll: true})
-      if (this.willFlush && this.flushing == Flush.No) this.flush()
+      if (this.willFlush && this.flushing == Flush.No && this.viewState.pending.some(tr => tr.docChanged))
+        this.flush()
       setDOMSelection(this)
     })
   }

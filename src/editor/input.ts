@@ -81,6 +81,7 @@ export class InputState {
   draggedContent: GardSelection | null = null
 
   notifiedFocused: boolean
+  suppressEvents = false
 
   // Between beforeinput and input events, this holds information
   // about the event (because input events no longer provide range
@@ -108,6 +109,7 @@ export class InputState {
   }
 
   handleEvent(event: Event) {
+    if (this.suppressEvents) return
     if (!eventBelongsToEditor(this.wg, event) || this.ignoreDuringComposition(event)) return
     if (event.type == "keydown" && this.keydown(event as KeyboardEvent)) return
     if (event.type == "keyup" && (event as KeyboardEvent).keyCode == 16) this.shiftKey = false
@@ -266,8 +268,11 @@ export class InputState {
         userEvent: "insert.replacementText"
       })
     } else if (type == "insertCompositionText") {
-      let compositionStart = !wg.inputState.composing!.changes
-      wg.inputState.composing!.changes++
+      let compositionStart = true
+      if (wg.inputState.composing) {
+        compositionStart = !wg.inputState.composing!.changes
+        wg.inputState.composing!.changes++
+      }
       let sel = wg.observer.selectionRange
       if (!sel.focusNode) return false
       let userEvent = "input.type.compose" + (compositionStart ? ".start" : "")
@@ -323,6 +328,56 @@ export class InputState {
       if (tileAfter instanceof TextTile && tileAfter.text != after.nodeValue) return after
       return !tileBefore ? before : !tileAfter ? after : prev == after ? after : before
     }
+  }
+
+  getCompositionInfo(wg: Wordgard): CompositionInfo | null {
+    let wrap = this.wrappingComposition
+    if (wrap) {
+      let sel = wg.state.selection.head
+      return {
+        fromB: sel, toB: sel,
+        text: "",
+        target: null,
+        wrapCursor: wrap
+      }
+    }
+
+    let comp = this.composing
+    if (!comp || !(comp.target = this.findComposition(comp.target))) return null
+    let value = comp.target.nodeValue!
+    let fromB = this.posAtDOM(comp.target, 0, 1), toB = fromB + value.length
+    let disrupted = false
+    this.domMapping.iterChanges((fA, tA, fB, tB) => {
+      if (fB < toB && tB > fromB) disrupted = true
+    })
+    return disrupted ? null : {fromB, toB, text: value, target: comp.target}
+  }
+
+  clearComposition() {
+    let comp = this.composing!
+    this.composing = null
+    this.compositionEndedAt = Date.now()
+    if (!comp.target) return false
+    let pos = this.posAtDOM(comp.target, 0, 1)
+    this.wg.observer.addDirtyRange(pos, pos + comp.target.nodeValue!.length)
+    return true
+  }
+
+  abortComposition() {
+    if (!this.composing || !this.wg.hasFocus) return
+    this.clearComposition()
+    this.wg.win.setTimeout(() => {
+      this.suppressEvents = true
+      try {
+	getSelection(this.wg.root)?.collapse(document.body, 0)
+        let dummy = this.wg.win.document.body.appendChild(document.createElement("input"))
+        dummy.focus()
+        dummy.remove()
+        this.wg.focus()
+      } finally {
+        this.suppressEvents = false
+      }
+    }, 0)
   }
 
   recordTouch(e: TouchEvent) {
@@ -627,38 +682,8 @@ export type CompositionInfo = {
   wrapCursor?: Mark.Set | null
 }
 
-export function getCompositionInfo(wg: Wordgard): CompositionInfo | null {
-  let wrap = wg.inputState.wrappingComposition
-  if (wrap) {
-    let sel = wg.state.selection.head
-    return {
-      fromB: sel, toB: sel,
-      text: "",
-      target: null,
-      wrapCursor: wrap
-    }
-  }
-
-  let comp = wg.inputState.composing
-  if (!comp || !(comp.target = wg.inputState.findComposition(comp.target))) return null
-  let value = comp.target.nodeValue!
-  let pos = wg.inputState.posAtDOM(comp.target, 0)
-  return {
-    fromB: pos, toB: pos + value.length,
-    text: value,
-    target: comp.target
-  }
-}
-
 function compositionEnd(wg: Wordgard) {
-  let comp = wg.inputState.composing
-  wg.inputState.composing = null
-  wg.inputState.compositionEndedAt = Date.now()
-  if (comp && comp.target) {
-    let pos = wg.inputState.posAtDOM(comp.target, 0)
-    wg.observer.addDirtyRange(pos, pos + comp.target.nodeValue!.length)
-    wg.flush()
-  }
+  if (wg.inputState.composing && wg.inputState.clearComposition()) wg.flush()
 }
 
 function compositionUpdate(wg: Wordgard, event: CompositionEvent) {
@@ -778,7 +803,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     wg.inputState.draggedContent = null
     return false
   },
-  
+
   copy,
   cut: copy,
 
