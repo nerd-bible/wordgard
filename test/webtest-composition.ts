@@ -82,7 +82,7 @@ function compose(wg: Wordgard, start: UpdateArg | (() => Text),
     wg.flush()
 
     if (options.cancel && i == updates.length - 1) {
-      // FIXME verify a canceled composition
+      ist(!wg.composing)
     } else {
       for (let p = node.parentNode, i = 0; p && p != wg.contentDOM && i < stack.length; p = p.parentNode, i++)
         ist(p, stack[i])
@@ -204,7 +204,7 @@ describe("composition", () => {
       wg.dispatch({changes: {from: 2, insert: [Leaf.text("!")]}})
       wg.flush()
       ist(wg.contentDOM.innerHTML, "<p>a!b-c</p>")
-    }})
+    }}, {cancel: true})
     ist(wg.state.doc, doc(p("a!b-c")), eq)
   })
 

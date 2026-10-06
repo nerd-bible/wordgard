@@ -11,7 +11,7 @@ import {clipboardOutputFilter, clipboardOutputHTMLFilter, clipboardOutputTextFil
         clipboardTextParser, clipboardTextSerializer} from "./clipboard"
 import {theme, colorScheme, buildTheme, styleID, baseLightID, baseDarkID, lightDarkIDs, baseStyles} from "./theme"
 import {DOMObserver} from "./domobserver"
-import {InputState, getCompositionInfo, isFocusChange, mouseSelectionStyle,
+import {InputState, isFocusChange, mouseSelectionStyle,
         dragBehavior, pasteHandler, dropHandler, eventHandler, eventObserver} from "./input"
 import {ViewState, scrollIntoView, ScrollTarget} from "./viewstate"
 import browser from "./browser"
@@ -270,7 +270,8 @@ export class Wordgard {
   }
 
   private runUpdate(update: Wordgard.Update, domChanges: readonly number[] | null) {
-    let composition = this.composing ? getCompositionInfo(this) : null
+    let composition = this.composing ? this.inputState.getCompositionInfo(this) : null
+    if (this.composing && !composition) this.inputState.abortComposition()
     let changes = domChanges ? addUpdated(update.changes.sections, domChanges) : update.changes.sections
     let prevDocTile = this.docTile
     if (!update.empty) {
