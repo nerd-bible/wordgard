@@ -91,7 +91,11 @@ const languageStyles = Wordgard.styles({
 })
 
 const languageOptions = GardState.Facet.define<readonly string[], readonly string[]>({
-  combine: input => input.reduce((a, b) => a.concat(b), [])
+  combine: input => {
+    let options: string[] = []
+    for (let arr of input) for (let opt of arr) if (!options.includes(opt)) options.push(opt)
+    return options
+  }
 })
 
 function option(text: string, selected: boolean, value: string) {
@@ -160,4 +164,8 @@ export namespace codeBlockLanguage {
     key: "Shift-Mod-l",
     run: codeBlockLanguage.selectLanguage
   })
+
+  /// A facet that allows you to add options to the language selection
+  /// drop-down.
+  export const options = languageOptions
 }
