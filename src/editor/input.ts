@@ -255,6 +255,21 @@ export class InputState {
       let insert = event.data!.replace(/\r\n?|\n/g, " ")
       let {from, to} = this.unflushedSelection ? wg.state.selection : range!
       Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
+    } else if (type == "insertFromPaste") {
+      let {from, to} = this.unflushedSelection ? wg.state.selection.replacementRange : range!
+      let content = readClipboard(wg.state, event.dataTransfer!, wg.state.doc.resolve(from), wg.inputState.shiftKey)
+      let isSel = from == wg.state.selection.replacementRange.from && to == wg.state.selection.replacementRange.to
+      if (isSel && wg.state.facet(pasteHandler).some(
+            h => h(wg, event, content ? content.slice : Slice.empty, content ? content.context : [])))
+        return
+      if (content) { // FIXME proper multi-selection pasting
+        wg.dispatch({
+          changes: {from, to, insert: content.slice, fit: content.context},
+          selection: isSel ? (cx, changes) => GardSelection.near(cx, changes.mapPos(to, 1), -1) : undefined,
+          userEvent: "input.paste",
+          scrollIntoView: isSel
+        })
+      }
     } else if ((type == "insertReplacementText" || type == "insertFromYank")) {
       let read = readClipboard(wg.state, event.dataTransfer!, wg.state.sel.head, true)
       let {from, to} = this.unflushedSelection ? wg.state.selection : range!
@@ -635,7 +650,7 @@ export const dropHandler = GardState.Facet.define<(
 
 export const pasteHandler = GardState.Facet.define<(
   wg: Wordgard,
-  event: ClipboardEvent,
+  event: InputEvent,
   slice: Slice,
   context: readonly Plot.Tag[]
 ) => boolean>()
@@ -827,29 +842,6 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       userEvent: del ? "move.drop" : "input.drop"
     })
     wg.inputState.draggedContent = null
-    return true
-  },
-
-  paste(wg, event) {
-    if (wg.state.readOnly || !event.clipboardData) return true
-    let {state} = wg
-    let content = readClipboard(state, event.clipboardData, state.sel.head, wg.inputState.shiftKey)
-    if (wg.state.facet(pasteHandler).some(h => h(wg, event, content ? content.slice : Slice.empty,
-                                                 content ? content.context : [])))
-      return true
-    if (content) { // FIXME proper multi-selection pasting
-      wg.dispatch({
-        changes: {
-          from: state.selection.from,
-          to: state.selection.to,
-          insert: content.slice,
-          fit: content.context
-        },
-        selection: (cx, changes) => GardSelection.near(cx, changes.mapPos(state.selection.to, 1), -1),
-        userEvent: "input.paste",
-        scrollIntoView: true
-      })
-    }
     return true
   },
 
