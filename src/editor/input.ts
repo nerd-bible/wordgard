@@ -46,6 +46,15 @@ type InputEventData = {
   domRange: {from: number, to: number} | null
 }
 
+// These are all covered by insertCompositionText in the post-2017
+// spec, but Safari hasn't quite caught up to that cutting-edge change
+// yet, and still fires the old types
+const compositionInputTypes = new Set([
+  "insertCompositionText",
+  "deleteCompositionText",
+  "insertFromComposition"
+])
+
 export class InputState {
   shiftKey = false
   lastKeyCode: number = 0
@@ -240,13 +249,14 @@ export class InputState {
     }
 
     let command = inputTypeCommands[type]
-    if ((type == "deleteContentBackward" || type == "deleteContentForward") && range &&
-        range.from != range.to && // Always run the command for empty ranges
-        !this.unflushedSelection && // Or if there is a selection-setting pending transaction
-        (sel.empty
-          ? !isSingleChar(this.domDoc, data.domRange!.from, data.domRange!.to) ||
-            sel.head != (type == "deleteContentBackward" ? range.to : range.from)
-          : sel.from != range.from || sel.to != range.to)) {
+    if (isDeletionInputEvent(type) && range &&
+        (!command ||
+         (range.from != range.to && // Always run the command for empty ranges
+          !this.unflushedSelection && // Or if there is a selection-setting pending transaction
+          (sel.empty
+            ? !isSingleChar(this.domDoc, data.domRange!.from, data.domRange!.to) ||
+              sel.head != (type == "deleteContentBackward" ? range.to : range.from)
+            : sel.from != range.from || sel.to != range.to)))) {
       // The browser is firing a deleteContent event to delete a random range.
       wg.dispatch({changes: {from: range.from, to: range.to, fit: true}, userEvent: "delete"})
     } else if (command) {
@@ -282,7 +292,7 @@ export class InputState {
         scrollIntoView: touchesSel,
         userEvent: "insert.replacementText"
       })
-    } else if (type == "insertCompositionText") {
+    } else if (compositionInputTypes.has(type)) {
       let compositionStart = true
       if (wg.inputState.composing) {
         compositionStart = !wg.inputState.composing!.changes
@@ -291,7 +301,7 @@ export class InputState {
       let sel = wg.observer.selectionRange
       if (!sel.focusNode) return false
       let userEvent = "input.type.compose" + (compositionStart ? ".start" : "")
-      Command.dispatch(wg, insertText, {from: range!.from, to: range!.to, insert: event.data!, userEvent})
+      Command.dispatch(wg, insertText, {from: range!.from, to: range!.to, insert: event.data || "", userEvent})
     } else if (type == "formatSetBlockTextDirection") {
       if (event.data == "ltr" || event.data == "rtl")
         Command.dispatch(wg, setDirection, event.data)
@@ -736,7 +746,7 @@ function inEditableDOM(wg: Wordgard, node: DOMNode | null) {
   return tile ? !(tile.isPoint || tile instanceof WidgetTile) : false
 }
 
-function isDeletionInputEvent(type: string) { return /^delete(Content|Word)/.test(type) }
+function isDeletionInputEvent(type: string) { return /^delete(Content|Word|ByComposition)/.test(type) }
 
 const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
   historyUndo: undo,
@@ -849,7 +859,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     let type = event.inputType
     // Safari will occasionally forget to fire compositionend at the end of a dead-key composition
     if (browser.safari && type == "insertText" && wg.inputState.composing) compositionEnd(wg)
-    if (type == "insertCompositionText" && !wg.inputState.composing)
+    if (compositionInputTypes.has(type) && !wg.inputState.composing)
       wg.inputState.composing = {changes: 0, target: null}
 
     let data: InputEventData = {
@@ -869,7 +879,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     // Composition cannot be canceled. Also let through simple
     // insertion and deletion to avoid confusing virtual keyboards and
     // Safari autocapitalize.
-    let allow = type == "insertCompositionText" ||
+    let allow = compositionInputTypes.has(type) ||
       editable && (type == "insertText" || isDeletionInputEvent(type) &&
         data.domRange && inlineContext(wg.inputState.domDoc, data.domRange))
     LOG_input && console.log(`beforeinput ${data.inputType} ${data.domRange ? data.domRange.from + "-" + data.domRange.to : ""} ${
@@ -883,8 +893,8 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     if (!pending || pending.inputType != event.inputType || !pending.domRange) return false
     wg.inputState.pendingInputEvent = null
     let change: ChangeSet.Change | undefined
-    if (event.inputType == "insertCompositionText" || event.inputType == "insertText") {
-      change = {from: pending.domRange.from, to: pending.domRange.to, insert: [Leaf.text(pending.data!)]}
+    if (compositionInputTypes.has(event.inputType) || event.inputType == "insertText") {
+      change = {from: pending.domRange.from, to: pending.domRange.to, insert: [Leaf.text(pending.data || "")]}
     } else if (isDeletionInputEvent(event.inputType)) {
       change = {from: pending.domRange.from, to: pending.domRange.to}
     } else {

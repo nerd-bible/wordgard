@@ -12,14 +12,14 @@ type TokenClass = "keyword" | "atom" | "bool" | "label" | "literal" |
 
 const theme = Wordgard.styles({
   ".wg-t-keyword": {color: "#708"},
-  ".wg-t-atom .wg-t-bool .wg-t-label": {color: "#219"},
-  ".wg-t-literal .wg-t-number": {color: "#164"},
+  ".wg-t-atom, .wg-t-bool, .wg-t-label": {color: "#219"},
+  ".wg-t-literal, .wg-t-number": {color: "#164"},
   ".wg-t-string": {color: "#a11"},
-  ".wg-t-name .wg-t-prop": {},
+  ".wg-t-name, .wg-t-prop": {},
   ".wg-t-local": {color: "#30a"},
   ".wg-t-def": {color: "#00f"},
-  ".wg-t-type .wg-t-namespace .wg-t-class": {color: "#085"},
-  ".wg-t-macro .wg-t-special": {color: "#256"},
+  ".wg-t-type, .wg-t-namespace, .wg-t-class": {color: "#085"},
+  ".wg-t-macro, .wg-t-special": {color: "#256"},
   ".wg-t-comment": {color: "#940"},
   ".wg-t-error": {color: "#f00"}
 })
