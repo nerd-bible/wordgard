@@ -924,7 +924,6 @@ const baseObservers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: H
   },
 
   blur(wg) {
-    wg.observer.clearSelectionRange()
     updateForFocusChange(wg)
   },
 
