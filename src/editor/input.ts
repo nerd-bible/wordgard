@@ -381,6 +381,7 @@ export class InputState {
   clearComposition() {
     let comp = this.composing!
     this.composing = null
+    this.compositionPendingKey = true
     this.compositionEndedAt = Date.now()
     if (!comp.target) return false
     let pos = this.posAtDOM(comp.target, 0, 1)
