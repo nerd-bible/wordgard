@@ -1,5 +1,5 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
-import {Plot, Leaf, ChangeSet, Mark, Slice, Pos, ValidationError} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet, Mark, Slice, Token, Pos, ValidationError} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
@@ -667,10 +667,13 @@ export const pasteHandler = GardState.Facet.define<(
 ) => boolean>()
 
 function selectionSlice(state: GardState) {
-  return {
-    slice: state.doc.slice(state.selection.from, state.selection.to),
-    context: state.doc.contextAt(state.selection.from)
+  let tokens: Token[] = [], context: readonly Plot.Tag[] = []
+  for (let range of state.selection.ranges) {
+    let slice = state.doc.slice(range.from, range.to)
+    tokens = tokens.concat(slice.content)
+    if (!context.length) context = state.doc.contextAt(range.from)
   }
+  return {slice: Slice.of(tokens), context}
 }
 
 function copy(wg: Wordgard, event: ClipboardEvent) {
