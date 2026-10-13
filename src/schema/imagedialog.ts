@@ -187,7 +187,7 @@ export const imageDialogTheme = Wordgard.styles({
     alignItems: "center",
     gridTemplateColumns: "max-content auto",
     "& label, & .wg-label": {
-      textAlign: "right"
+      textAlign: "end"
     }
   },
   ".wg-dialog-title": {
