@@ -209,9 +209,9 @@ const renderDialogs = Wordgard.Plugin.fromClass(class {
   }
 
   update(update: Wordgard.Update) {
-    let active = update.state.field(dialogs)
-    if (this.active != active) this.updateTo(update.editor, active)
-    if (update.geometryChanged && this.mustPosition) update.editor.scheduleDOMRead(this.positionDialogs)
+    let active = update.state.field(dialogs), changed = this.active != active
+    if (changed) this.updateTo(update.editor, active)
+    if ((update.geometryChanged || changed) && this.mustPosition) update.editor.scheduleDOMRead(this.positionDialogs)
   }
 
   updateTo(wg: Wordgard, active: readonly OpenDialog[]) {
