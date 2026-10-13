@@ -166,14 +166,24 @@ export const baseStyles = buildTheme("." + styleID, {
   ".wg-panels-top": { top: "0" },
   ".wg-panels-bottom": { bottom: "0" },
 
-  "wg-dialog": {
-    display: "block",
-    padding: "5px 19px 5px 6px",
-    position: "relative",
-    "& label, & .wg-label": {
-      fontSize: "90%"
+  dialog: {
+    padding: "7px 22px 7px 8px",
+    minWidth: "120px",
+    border: "1px solid var(--wg-border-color)",
+    borderRadius: "5px",
+    boxShadow: "0 0 8px 0 rgba(128, 128, 128, 0.2)",
+    "&.wg-tooltip": {
+      inset: "unset"
     },
-    borderBottom: "1px solid var(--wg-border-color)"
+    "&.wg-free-dialog": {
+      position: "absolute",
+      top: "30px", // FIXME wrong
+      margin: "auto",
+    }
+  },
+
+  "dialog label, dialog .wg-label": {
+    fontSize: "90%"
   },
   ".wg-dialog-close": {
     position: "absolute",
