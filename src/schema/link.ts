@@ -7,10 +7,9 @@ import {Wordgard, Dialog, KeyBinding, Tooltip} from "wordgard/editor"
 
 function toggleLink(wg: Wordgard) {
   if (wg.state.readOnly) return false
-  let open = Dialog.get(wg, "wg-link-dialog")
+  let open = wg.dom.querySelector(".wg-link-dialog")
   if (open) {
-    if (open.dom.contains(wg.contentDOM.ownerDocument.activeElement))
-      wg.focus()
+    if (open.contains(wg.contentDOM.ownerDocument.activeElement)) wg.focus()
     Dialog.close(wg, "wg-link-dialog")
     return true
   }
@@ -29,7 +28,9 @@ function toggleLink(wg: Wordgard) {
       input: {type: "text", name: "url"},
       submitLabel: phrases.get(wg.state, "create_link"),
       class: "wg-link-dialog",
-      focus: true
+      focus: true,
+      closedBy: tr => !!tr.selection,
+      tooltip: {pos: wg.state.selection.from}
     }).result.then(form => {
       wg.focus()
       let url = form && (form.elements.namedItem("url") as HTMLInputElement)?.value
