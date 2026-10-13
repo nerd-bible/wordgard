@@ -1,6 +1,6 @@
 import {GardState, GardSelection, Transaction} from "wordgard/state"
 import {Decoration, Wordgard} from "wordgard/editor"
-import {Node, Plot, Pos, ChangeSet, ValidationError} from "wordgard/doc"
+import {Node, Plot, Pos, Slice, ChangeSet, ValidationError} from "wordgard/doc"
 import {Table, TableRow} from "wordgard/types"
 import {Command, moveByUnit, moveByLine, moveByWord, moveToLineSide} from "wordgard/command"
 
@@ -122,6 +122,24 @@ export class CellSelection extends GardSelection {
   get domSelection() {
     let {from, to} = this.replacementRange
     return {anchor: from, anchorSide: 1, head: to, headSide: -1} as const
+  }
+
+  toSlice(doc: Plot.Doc) {
+    let base = doc.resolve(this.anchorCell), table = base.parent!.parent!
+    let map = TableMap.get(table.node, table.start)
+    let rect = map.rectBetween(this.anchorCell, this.headCell)
+    let rows: Plot[] = [], added = new Set<number>()
+    for (let row = rect.startRow; row < rect.endRow; row++) {
+      let rowContent: Plot[] = []
+      for (let col = rect.startCol; col < rect.endCol; col++) {
+        let cell = map.cellAt(col, row)!
+        if (added.has(cell)) continue
+        added.add(cell)
+        rowContent.push(map.getCell(cell))
+      }
+      rows.push((table.node.content[row] as Plot).tag.create(rowContent))
+    }
+    return {slice: Slice.of(rows), context: [table.node.tag]}
   }
 
   eq(other: GardSelection) {
