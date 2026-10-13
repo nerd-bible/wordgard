@@ -4,10 +4,10 @@ import {GardState, Transaction, GardSelection} from "wordgard/state"
 import {ImageSize, ImageAlt, Image, Figure, CaptionedFigure} from "wordgard/types"
 import {Command, Menu} from "wordgard/command"
 import {imagePhrases} from "wordgard/phrases"
-import {imageDialog, insertImage, activeImage, imageUploader} from "./imagedialog"
+import {imageDialogTheme, insertImage, activeImage, imageUploader} from "./imagedialog"
 
 function baseSupport(): GardState.Extension {
-  return [GardState.schemaElement.of(ImageAlt), image.button, imageDialog, image.keyBinding, image.dropHandler]
+  return [GardState.schemaElement.of(ImageAlt), image.button, imageDialogTheme, image.keyBinding, image.dropHandler]
 }
 
 /// Returns extensions that add support for inline images. That
