@@ -70,7 +70,6 @@ export const baseStyles = buildTheme("." + styleID, {
     overflowWrap: "anywhere",
     wordBreak: "break-word", // For Safari, which doesn't support overflow-wrap: anywhere
     boxSizing: "border-box",
-    minHeight: "100%",
     padding: "4px 12px",
     outline: "none",
     caretColor: "transparent",

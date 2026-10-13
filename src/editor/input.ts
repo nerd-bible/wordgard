@@ -666,17 +666,10 @@ export const pasteHandler = GardState.Facet.define<(
   context: readonly Plot.Tag[]
 ) => boolean>()
 
-function selectionSlice(state: GardState) {
-  return {
-    slice: state.doc.slice(state.selection.from, state.selection.to),
-    context: state.doc.contextAt(state.selection.from)
-  }
-}
-
 function copy(wg: Wordgard, event: ClipboardEvent) {
   let {state} = wg
   if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
-    let {slice, context} = selectionSlice(state)
+    let {slice, context} = state.selection.toSlice(state.doc)
     writeClipboard(state, slice, context, event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
       wg.dispatch({
@@ -818,7 +811,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     inputState.draggedContent = selection
 
     if (event.dataTransfer) {
-      let {slice, context} = selectionSlice(wg.state)
+      let {slice, context} = wg.state.selection.toSlice(wg.state.doc)
       writeClipboard(wg.state, slice, context, event.dataTransfer)
       event.dataTransfer.effectAllowed = "copyMove"
     }
