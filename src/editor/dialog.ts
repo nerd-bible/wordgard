@@ -36,6 +36,10 @@ export interface Dialog {
   /// Provide this option to position this dialog like a tooltip,
   /// relative to some document position.
   tooltip?: Omit<Tooltip, "create">
+  /// If given, for a non-tooltip dialog, try to align the left top
+  /// (or right top, in a right-to-left layout) with a position offset
+  /// by this distance from the editor's left (or right) top corner.
+  offset?: {x: number, y: number}
 }
 
 export namespace Dialog {
@@ -247,11 +251,20 @@ const renderDialogs = Wordgard.Plugin.fromClass(class {
     let windowWidth = wg.win.innerWidth, windowHeight = wg.win.innerHeight
     let midX = (Math.max(0, editor.left) + Math.min(windowWidth, editor.right)) / 2
     let midY = (Math.max(0, editor.top) + Math.min(windowHeight, editor.bottom)) / 2
+    let ltr = wg.state.textLTR
     wg.scheduleDOMWrite(() => {
       for (let i = 0; i < sizes.length; i++) {
         let size = sizes[i]
         if (!size) continue
-        let baseX = midX - size.width / 2, baseY = midY - size.height / 2
+        let offset = this.active[i].spec.offset
+        let baseX: number, baseY: number
+        if (!offset) {
+          baseX = midX - size.width / 2
+          baseY = midY - size.height / 2
+        } else {
+          baseY = editor.top + offset.y
+          baseX = ltr ? editor.left + offset.x : editor.right - offset.x - size.width
+        }
         if (baseX < 0) baseX = 0
         else if (baseX + size.width > windowWidth && size.width < windowWidth) baseX = windowWidth - size.width
         if (baseY < 0) baseY = 0
