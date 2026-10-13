@@ -1,5 +1,5 @@
 import {GardSelection, GardState, Transaction} from "wordgard/state"
-import {Plot, Leaf, ChangeSet, Mark, Slice, Token, Pos, ValidationError} from "wordgard/doc"
+import {Plot, Leaf, ChangeSet, Mark, Slice, Pos, ValidationError} from "wordgard/doc"
 import {Command, undo, redo, insertLineBreak, enter, insertText,
         deleteWord, deleteUnit, deleteToLineEnd, deleteLine,
         toggleEmphasis, toggleStrong, toggleUnderline,
@@ -666,20 +666,10 @@ export const pasteHandler = GardState.Facet.define<(
   context: readonly Plot.Tag[]
 ) => boolean>()
 
-function selectionSlice(state: GardState) {
-  let tokens: Token[] = [], context: readonly Plot.Tag[] = []
-  for (let range of state.selection.ranges) {
-    let slice = state.doc.slice(range.from, range.to)
-    tokens = tokens.concat(slice.content)
-    if (!context.length) context = state.doc.contextAt(range.from)
-  }
-  return {slice: Slice.of(tokens), context}
-}
-
 function copy(wg: Wordgard, event: ClipboardEvent) {
   let {state} = wg
   if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
-    let {slice, context} = selectionSlice(state)
+    let {slice, context} = state.selection.toSlice(state.doc)
     writeClipboard(state, slice, context, event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
       wg.dispatch({
@@ -821,7 +811,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     inputState.draggedContent = selection
 
     if (event.dataTransfer) {
-      let {slice, context} = selectionSlice(wg.state)
+      let {slice, context} = wg.state.selection.toSlice(wg.state.doc)
       writeClipboard(wg.state, slice, context, event.dataTransfer)
       event.dataTransfer.effectAllowed = "copyMove"
     }

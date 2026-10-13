@@ -1,4 +1,4 @@
-import {Plot, Node, Leaf, ChangeSet, Mark, Pos, ValidationError} from "wordgard/doc"
+import {Plot, Node, Leaf, ChangeSet, Mark, Pos, ValidationError, Slice} from "wordgard/doc"
 import {findClusterBreak} from "@marijn/find-cluster-break"
 import {TextblockMap} from "./textblock"
 import type {GardState} from "./state"
@@ -58,6 +58,19 @@ export abstract class GardSelection {
   /// a selection. The default is to just return the selection's own
   /// head and anchor.
   get domSelection(): {head: number, headSide: -1 | 1, anchor: number, anchorSide: -1 | 1} { return this }
+
+  /// Create a content slice and context from this selection. The
+  /// default implementation concatenates the slices for the
+  /// selection's `ranges`.
+  toSlice(doc: Plot.Doc) {
+    let slice = Slice.empty, context: readonly Plot.Tag[] = []
+    for (let range of this.ranges) {
+      let cur = doc.slice(range.from, range.to)
+      slice = slice.concat(cur)
+      if (!context.length) context = doc.contextAt(range.from)
+    }
+    return {slice, context}
+  }
 
   /// The side that the selection head is associated with. -1 means it
   /// is after the element before its position, 1 means it is before
