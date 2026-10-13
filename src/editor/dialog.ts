@@ -30,6 +30,8 @@ export interface Dialog {
   /// `<input>` or `<button>` element in the form. When set to
   /// `false`, focus is not moved into the dialog.
   focus?: string | boolean
+  /// Provide this option to position this dialog like a tooltip,
+  /// relative to some document position.
   tooltip?: Omit<Tooltip, "create">
 }
 
@@ -226,12 +228,15 @@ const renderFreeDialogs = Wordgard.Plugin.fromClass(class {
   elements: HTMLElement[] = []
 
   constructor(wg: Wordgard) {
+    this.positionDialogs = this.positionDialogs.bind(this)
     this.updateTo(wg, wg.state.field(freeDialogs))
+    if (this.active.length) wg.scheduleDOMRead(this.positionDialogs)
   }
 
   update(update: Wordgard.Update) {
     let dialogs = update.state.field(freeDialogs)
     if (this.active != dialogs) this.updateTo(update.editor, dialogs)
+    if (update.geometryChanged && dialogs.length) update.editor.scheduleDOMRead(this.positionDialogs)
   }
 
   updateTo(wg: Wordgard, dialogs: readonly OpenDialog[]) {
@@ -254,6 +259,26 @@ const renderFreeDialogs = Wordgard.Plugin.fromClass(class {
       return panel
     })
     this.active = dialogs
+  }
+
+  positionDialogs(wg: Wordgard) {
+    let sizes = this.elements.map(e => e.getBoundingClientRect())
+    let editor = wg.dom.getBoundingClientRect()
+    let windowWidth = wg.win.innerWidth, windowHeight = wg.win.innerHeight
+    let midX = (Math.max(0, editor.left) + Math.min(windowWidth, editor.right)) / 2
+    let midY = (Math.max(0, editor.top) + Math.min(windowHeight, editor.bottom)) / 2
+    wg.scheduleDOMWrite(() => {
+      for (let i = 0; i < sizes.length; i++) {
+        let size = sizes[i], elt = this.elements[i]
+        let baseX = midX - size.width / 2, baseY = midY - size.height / 2
+        if (baseX < 0) baseX = 0
+        else if (baseX + size.width > windowWidth && size.width < windowWidth) baseX = windowWidth - size.width
+        if (baseY < 0) baseY = 0
+        else if (baseY + size.height > windowHeight && size.height < windowHeight) baseY = windowHeight - size.height
+        elt.style.left = baseX + "px"
+        elt.style.top = baseY + "px"
+      }
+    })
   }
 
   destroy() {

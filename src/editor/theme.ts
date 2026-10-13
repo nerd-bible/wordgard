@@ -172,13 +172,9 @@ export const baseStyles = buildTheme("." + styleID, {
     border: "1px solid var(--wg-border-color)",
     borderRadius: "5px",
     boxShadow: "0 0 8px 0 rgba(128, 128, 128, 0.2)",
-    "&.wg-tooltip": {
-      inset: "unset"
-    },
+    inset: "unset",
     "&.wg-free-dialog": {
-      position: "absolute",
-      top: "30px", // FIXME wrong
-      margin: "auto",
+      position: "fixed"
     }
   },
 
