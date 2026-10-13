@@ -1,10 +1,11 @@
 import {Transaction, GardState} from "wordgard/state"
 import {phrases} from "wordgard/phrases"
-import {Panel} from "./panel"
+import {Tooltip} from "./tooltip"
 import {Wordgard} from "./editor"
 
-/// Dialogs are {@link Panel panels} opened as a side-effect, and
-/// closed by user action. This interface is used to describe them.
+/// Dialogs are UI elements opened as a side-effect and closed by user
+/// action. They may be either placed near some document position (as
+/// a {@link Tooltip tooltip}), or centered.
 export interface Dialog {
   /// A function to render the content of the dialog. The result
   /// should contain at least one `<form>` element. Submit handlers
@@ -12,7 +13,7 @@ export interface Dialog {
   ///
   /// If this is not given, the `label`, `input`, and `submitLabel`
   /// fields will be used to create a simple form for you.
-  content?: (wg: Wordgard, close: () => void) => Element
+  content?: (wg: Wordgard, close: () => void) => Element | DocumentFragment
   /// When `content` isn't given, this provides the text shown in the
   /// dialog.
   label?: string
@@ -22,16 +23,14 @@ export interface Dialog {
   /// The label for the button that submits the form. Defaults to
   /// `"OK"`.
   submitLabel?: string,
-  /// Extra classes to add to the panel.
+  /// Extra classes to add to the element.
   class?: string
   /// A query selector to find the field that should be focused when
   /// the dialog is opened. When set to true, this picks the first
   /// `<input>` or `<button>` element in the form. When set to
   /// `false`, focus is not moved into the dialog.
   focus?: string | boolean
-  /// By default, dialogs are shown above the editor. Set this to
-  /// `false` to have it show up at the bottom.
-  top?: boolean
+  tooltip: Omit<Tooltip, "create">
 }
 
 export namespace Dialog {
@@ -50,41 +49,45 @@ export namespace Dialog {
   } {
     let resolve: (form: HTMLFormElement | null) => void
     let promise = new Promise<HTMLFormElement | null>(r => resolve = r)
-    let panelCtor = (wg: Wordgard) => createDialog(wg, config, resolve)
-    if (wg.state.field(dialogField, false)) {
-      wg.dispatch({effects: openDialogEffect.of(panelCtor)})
+    if (config.tooltip) {
+      let tooltip: Tooltip = {...config.tooltip, create: (wg: Wordgard) => createDialog(wg, config, resolve)}
+      if (wg.state.field(dialogTooltips, false)) {
+        wg.dispatch({effects: openTooltipDialogEffect.of(tooltip)})
+      } else {
+        wg.dispatch({effects: GardState.appendConfig.of(dialogTooltips.init(() => [tooltip]))})
+      }
+      let close = closeTooltipDialogEffect.of(tooltip)
+      return {close, result: promise.then(form => {
+        let queue = wg.win.queueMicrotask || ((f: () => void) => wg.win.setTimeout(f, 10))
+        queue(() => {
+          if (wg.state.field(dialogTooltips).indexOf(tooltip) > -1)
+            wg.dispatch({effects: close})
+        })
+        return form
+      })}
     } else {
-      wg.dispatch({effects: GardState.appendConfig.of(dialogField.init(() => [panelCtor]))})
+      throw new Error("TODO")
     }
-    let close = closeDialogEffect.of(panelCtor)
-    return {close, result: promise.then(form => {
-      let queue = wg.win.queueMicrotask || ((f: () => void) => wg.win.setTimeout(f, 10))
-      queue(() => {
-        if (wg.state.field(dialogField).indexOf(panelCtor) > -1)
-          wg.dispatch({effects: close})
-      })
-      return form
-    })}
   }
 
   /// Find the {@link Panel} for an open dialog, using a class name as
   /// identifier.
   export function get(wg: Wordgard, className: string) {
-    let dialogs = wg.state.field(dialogField, false) || []
+    let dialogs = wg.state.field(dialogTooltips, false) || []
     for (let open of dialogs) {
-      let panel = Panel.get(wg, open)
-      if (panel && panel.dom.classList.contains(className)) return panel
+      let tooltip = Tooltip.get(wg, open)
+      if (tooltip && tooltip.dom.classList.contains(className)) return tooltip
     }
     return null
   }
 
-  /// Close the {@link Panel} for an open dialog, by class name.
+  /// Close an open dialog by class name.
   export function close(wg: Wordgard, className: string) {
-    let dialogs = wg.state.field(dialogField, false) || []
+    let dialogs = wg.state.field(dialogTooltips, false) || []
     for (let open of dialogs) {
-      let panel = Panel.get(wg, open)
-      if (panel && panel.dom.classList.contains(className)) {
-        wg.dispatch({effects: closeDialogEffect.of(open)})
+      let tooltip = Tooltip.get(wg, open)
+      if (tooltip && tooltip.dom.classList.contains(className)) {
+        wg.dispatch({effects: closeTooltipDialogEffect.of(open)})
         return true
       }
     }
@@ -92,22 +95,22 @@ export namespace Dialog {
   }
 }
 
-const dialogField = GardState.Field.define<readonly Panel.Constructor[]>({
+const dialogTooltips = GardState.Field.define<readonly Tooltip[]>({
   create() { return [] },
   update(dialogs, tr) {
     for (let e of tr.effects) {
-      if (e.is(openDialogEffect)) dialogs = [e.value].concat(dialogs)
-      else if (e.is(closeDialogEffect)) dialogs = dialogs.filter(d => d != e.value)
+      if (e.is(openTooltipDialogEffect)) dialogs = [e.value].concat(dialogs)
+      else if (e.is(closeTooltipDialogEffect)) dialogs = dialogs.filter(d => d != e.value)
     }
     return dialogs
   },
-  provide: f => Panel.show.computeN(state => state.field(f))
+  provide: f => Tooltip.show.computeN(state => state.field(f))
 })
 
-const openDialogEffect = Transaction.Effect.define<Panel.Constructor>()
-const closeDialogEffect = Transaction.Effect.define<Panel.Constructor>()
+const openTooltipDialogEffect = Transaction.Effect.define<Tooltip>()
+const closeTooltipDialogEffect = Transaction.Effect.define<Tooltip>()
 
-function createDialog(wg: Wordgard, config: Dialog, result: (form: HTMLFormElement | null) => void): Panel {
+function createDialog(wg: Wordgard, config: Dialog, result: (form: HTMLFormElement | null) => void): Tooltip.View {
   let content = config.content ? config.content(wg, () => done(null)) : null
   if (!content) {
     content = document.createElement("form")
@@ -168,7 +171,6 @@ function createDialog(wg: Wordgard, config: Dialog, result: (form: HTMLFormEleme
   let mustFocus = config.focus
   return {
     dom: panel,
-    top: config.top !== false,
     connect: () => {
       if (mustFocus) {
         mustFocus = false
