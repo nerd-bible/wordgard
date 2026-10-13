@@ -20,6 +20,8 @@ export namespace Token {
   } as {tokenType: Token.Type.Close}
 }
 
+// FIXME consider storing context with these
+
 /// A slice represents a part of a document. It is used to represent
 /// inserted content in {@link ChangeSet change sets}, or things like
 /// clipboard content.
