@@ -30,6 +30,9 @@ export interface Dialog {
   /// `<input>` or `<button>` element in the form. When set to
   /// `false`, focus is not moved into the dialog.
   focus?: string | boolean
+  /// If given, a transaction for which the predicate returns true
+  /// will automatically close the dialog.
+  closedBy?: (tr: Transaction) => boolean
   /// Provide this option to position this dialog like a tooltip,
   /// relative to some document position.
   tooltip?: Omit<Tooltip, "create">
@@ -50,84 +53,40 @@ export namespace Dialog {
     result: Promise<HTMLFormElement | null>
   } {
     let resolve: (form: HTMLFormElement | null) => void
-    let promise = new Promise<HTMLFormElement | null>(r => resolve = r)
-    let tooltip: Tooltip | null = config.tooltip
-      ? {...config.tooltip, create: (wg: Wordgard) => createDialog(wg, config, resolve)}
-      : null
-    let close: Transaction.Effect<unknown>
-    let result = (form: HTMLFormElement | null) => {
-      let queue = wg.win.queueMicrotask || ((f: () => void) => wg.win.setTimeout(f, 10))
-      queue(() => {
-        if (tooltip ? wg.state.field(dialogTooltips).includes(tooltip) :
-            wg.state.field(freeDialogs).some(t => t.spec == config))
-          wg.dispatch({effects: close})
-      })
-      return form
-    }
+    let result = new Promise<HTMLFormElement | null>(r => resolve = r)
+    let dialog: OpenDialog = new OpenDialog(config, resolve!, config.tooltip ? {
+      ...config.tooltip,
+      create: (wg: Wordgard) => createDialog(wg, dialog),
+    } : null)
 
-    if (tooltip) {
-      if (wg.state.field(dialogTooltips, false)) {
-        wg.dispatch({effects: openTooltipDialog.of(tooltip)})
-      } else {
-        wg.dispatch({effects: GardState.appendConfig.of(dialogTooltips.init(() => [tooltip]))})
-      }
-      close = closeTooltipDialog.of(tooltip)
-    } else {
-      let dialog = new OpenDialog(config, result)
-      if (wg.state.field(freeDialogs, false)) {
-        wg.dispatch({effects: openFreeDialog.of(dialog)})
-      } else {
-        wg.dispatch({effects: GardState.appendConfig.of([freeDialogs.init(() => [dialog]), renderFreeDialogs])})
-      }
-      close = closeFreeDialog.of(dialog)
-    }
-    return {close, result: promise.then(result)}
-  }
+    let effects: Transaction.Effect<unknown>[] = [openDialog.of(dialog)]
+    if (!wg.state.field(dialogs, false))
+      effects.push(GardState.appendConfig.of([dialogs, renderDialogs]))
+    wg.dispatch({effects})
+    // Make sure this dialog gets resolved even if it never makes it to the plugin
+    wg.scheduleDOMRead(() => {
+      if (!wg.state.field(dialogs).includes(dialog)) dialog.resolve(null)
+    })
 
-  /// Find the {@link Panel} for an open dialog, using a class name as
-  /// identifier.
-  export function get(wg: Wordgard, className: string) {
-    let dialogs = wg.state.field(dialogTooltips, false) || []
-    for (let open of dialogs) {
-      let tooltip = Tooltip.get(wg, open)
-      if (tooltip && tooltip.dom.classList.contains(className)) return tooltip
-    }
-    return null
+    return {close: closeDialog.of(dialog), result}
   }
 
   /// Close an open dialog by class name.
   export function close(wg: Wordgard, className: string) {
-    let dialogs = wg.state.field(dialogTooltips, false) || []
-    for (let open of dialogs) {
-      let tooltip = Tooltip.get(wg, open)
-      if (tooltip && tooltip.dom.classList.contains(className)) {
-        wg.dispatch({effects: closeTooltipDialog.of(open)})
-        return true
-      }
-    }
-    return false
+    let active = wg.state.field(dialogs, false)
+    if (!active) return false
+    let found = active.find(d => d.spec.class == className)
+    if (!found) return false
+    wg.dispatch({effects: closeDialog.of(found)})
+    return true
   }
 }
 
-const dialogTooltips = GardState.Field.define<readonly Tooltip[]>({
-  create() { return [] },
-  update(dialogs, tr) {
-    for (let e of tr.effects) {
-      if (e.is(openTooltipDialog)) dialogs = [e.value].concat(dialogs)
-      else if (e.is(closeTooltipDialog)) dialogs = dialogs.filter(d => d != e.value)
-    }
-    return dialogs
-  },
-  provide: f => Tooltip.show.computeN(state => state.field(f))
-})
-
-const openTooltipDialog = Transaction.Effect.define<Tooltip>()
-const closeTooltipDialog = Transaction.Effect.define<Tooltip>()
-
-function createDialog(wg: Wordgard, config: Dialog, result: (form: HTMLFormElement | null) => void): {
+function createDialog(wg: Wordgard, dialog: OpenDialog): {
   dom: HTMLElement,
   connect: () => void
 } {
+  let config = dialog.spec
   let content = config.content ? config.content(wg, () => done(null)) : null
   if (!content) {
     content = document.createElement("form")
@@ -176,20 +135,19 @@ function createDialog(wg: Wordgard, config: Dialog, result: (form: HTMLFormEleme
   close.className = "wg-dialog-close"
   close.type = "button"
   close.append("×")
-  let dialog = document.createElement("dialog")
-  dialog.open = true
-  dialog.closedBy = "closerequest"
-  dialog.append(content, close)
-  if (config.class) dialog.className = config.class
+  let dom = document.createElement("dialog")
+  dom.open = true
+  dom.append(content, close)
+  if (config.class) dom.className = config.class
 
   function done(form: HTMLFormElement | null) {
-    if (dialog.contains(dialog.ownerDocument.activeElement))
-      wg.focus()
-    result(form)
+    if (dom.contains(wg.win.document.activeElement)) wg.focus()
+    dialog.resolve(form)
+    wg.dispatch({effects: closeDialog.of(dialog)})
   }
   let mustFocus = config.focus
   return {
-    dom: dialog,
+    dom,
     connect: () => {
       if (mustFocus) {
         mustFocus = false
@@ -206,50 +164,72 @@ function createDialog(wg: Wordgard, config: Dialog, result: (form: HTMLFormEleme
 }
 
 class OpenDialog {
-  constructor(readonly spec: Dialog, readonly result: (form: HTMLFormElement | null) => void) {}
+  constructor(
+    readonly spec: Dialog,
+    readonly resolve: (form: HTMLFormElement | null) => void,
+    readonly tooltip: Tooltip | null,
+  ) {}
 }
 
-const openFreeDialog = Transaction.Effect.define<OpenDialog>()
-const closeFreeDialog = Transaction.Effect.define<OpenDialog>()
+const openDialog = Transaction.Effect.define<OpenDialog>()
+const closeDialog = Transaction.Effect.define<OpenDialog>()
 
-const freeDialogs = GardState.Field.define<readonly OpenDialog[]>({
+const dialogs = GardState.Field.define<readonly OpenDialog[]>({
   create: () => [],
   update: (value, tr) => {
     for (let e of tr.effects) {
-      if (e.is(openFreeDialog)) value = value.concat(e.value)
-      else if (e.is(closeFreeDialog)) value = value.filter(d => d != e.value)
+      if (e.is(openDialog)) value = value.concat(e.value)
+      else if (e.is(closeDialog)) value = value.filter(d => d != e.value)
+    }
+    for (let i = 0; i < value.length; i++) {
+      let {closedBy} = value[i].spec
+      if (closedBy && closedBy(tr)) {
+        value = value.slice(0, i).concat(value.slice(i + 1))
+        i--
+      }
     }
     return value
-  }
+  },
+  provide: f => Tooltip.show.computeN(state => {
+    let tooltips: Tooltip[] = []
+    for (let d of state.field(f)) if (d.tooltip) tooltips.push(d.tooltip)
+    return tooltips
+  })
 })
 
-const renderFreeDialogs = Wordgard.Plugin.fromClass(class {
+const renderDialogs = Wordgard.Plugin.fromClass(class {
   active: readonly OpenDialog[] = []
-  elements: HTMLElement[] = []
+  elements: (HTMLElement | null)[] = []
+  mustPosition = false
 
   constructor(wg: Wordgard) {
     this.positionDialogs = this.positionDialogs.bind(this)
-    this.updateTo(wg, wg.state.field(freeDialogs))
-    if (this.active.length) wg.scheduleDOMRead(this.positionDialogs)
+    this.updateTo(wg, wg.state.field(dialogs))
+    if (this.mustPosition) wg.scheduleDOMRead(this.positionDialogs)
   }
 
   update(update: Wordgard.Update) {
-    let dialogs = update.state.field(freeDialogs)
-    if (this.active != dialogs) this.updateTo(update.editor, dialogs)
-    if (update.geometryChanged && dialogs.length) update.editor.scheduleDOMRead(this.positionDialogs)
+    let active = update.state.field(dialogs)
+    if (this.active != active) this.updateTo(update.editor, active)
+    if (update.geometryChanged && this.mustPosition) update.editor.scheduleDOMRead(this.positionDialogs)
   }
 
-  updateTo(wg: Wordgard, dialogs: readonly OpenDialog[]) {
-    for (let i = 0; i < this.active.length; i++) {
-      if (!dialogs.includes(this.active[i])) this.elements[i].remove()
+  updateTo(wg: Wordgard, active: readonly OpenDialog[]) {
+    for (let i = 0; i < this.active.length; i++) if (!active.includes(this.active[i])) {
+      let elt = this.elements[i], dialog = this.active[i]
+      if (elt) elt.remove()
+      dialog.resolve(null)
     }
-    this.elements = dialogs.map((dialog, i) => {
+    this.mustPosition = false
+    this.elements = active.map((dialog, i) => {
+      if (dialog.tooltip) return null
+      this.mustPosition = true
       let panel: HTMLElement | undefined
       let found = this.active.indexOf(dialog)
       if (found > -1) {
-        panel = this.elements[found]
+        panel = this.elements[found]!
       } else {
-        let {dom, connect} = createDialog(wg, dialog.spec, dialog.result)
+        let {dom, connect} = createDialog(wg, dialog)
         dom.classList.add("wg-free-dialog")
         wg.dom.appendChild(dom)
         connect()
@@ -258,23 +238,25 @@ const renderFreeDialogs = Wordgard.Plugin.fromClass(class {
       panel.style.zIndex = String(400 + i)
       return panel
     })
-    this.active = dialogs
+    this.active = active
   }
 
   positionDialogs(wg: Wordgard) {
-    let sizes = this.elements.map(e => e.getBoundingClientRect())
+    let sizes = this.elements.map(e => e && e.getBoundingClientRect())
     let editor = wg.dom.getBoundingClientRect()
     let windowWidth = wg.win.innerWidth, windowHeight = wg.win.innerHeight
     let midX = (Math.max(0, editor.left) + Math.min(windowWidth, editor.right)) / 2
     let midY = (Math.max(0, editor.top) + Math.min(windowHeight, editor.bottom)) / 2
     wg.scheduleDOMWrite(() => {
       for (let i = 0; i < sizes.length; i++) {
-        let size = sizes[i], elt = this.elements[i]
+        let size = sizes[i]
+        if (!size) continue
         let baseX = midX - size.width / 2, baseY = midY - size.height / 2
         if (baseX < 0) baseX = 0
         else if (baseX + size.width > windowWidth && size.width < windowWidth) baseX = windowWidth - size.width
         if (baseY < 0) baseY = 0
         else if (baseY + size.height > windowHeight && size.height < windowHeight) baseY = windowHeight - size.height
+        let elt = this.elements[i]!
         elt.style.left = baseX + "px"
         elt.style.top = baseY + "px"
       }
@@ -282,6 +264,6 @@ const renderFreeDialogs = Wordgard.Plugin.fromClass(class {
   }
 
   destroy() {
-    for (let elt of this.elements) elt.remove()
+    for (let elt of this.elements) if (elt) elt.remove()
   }
 })
