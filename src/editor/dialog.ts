@@ -279,4 +279,6 @@ const renderDialogs = Wordgard.Plugin.fromClass(class {
   destroy() {
     for (let elt of this.elements) if (elt) elt.remove()
   }
-})
+}, plugin => plugin.eventHandler("scroll", (event, wg, val) => {
+  if (val.mustPosition) wg.scheduleDOMRead(val.positionDialogs)
+}))
