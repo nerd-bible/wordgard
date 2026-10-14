@@ -3,12 +3,13 @@ import {phrases} from "wordgard/phrases"
 import {Tooltip} from "./tooltip"
 import {Wordgard} from "./editor"
 
-// FIXME define a facet that allows the dialog implementation to be overridden?
-
 /// Dialogs are UI elements opened as a side-effect and closed by user
 /// action. They may be either placed near some document position (as
 /// a {@link Tooltip tooltip}), or free-floating.
 export interface Dialog {
+  /// An arbitrary value used to identify this dialog. Used to query
+  /// for it via {@link Dialog.get}.
+  key?: any
   /// A function to render the content of the dialog. The result
   /// should contain at least one `<form>` element. Submit handlers
   /// and a handler for the Escape key will be added to the form.
@@ -81,23 +82,36 @@ export namespace Dialog {
     })
 
     return {
-      close: () => {
-        let ds = wg.state.field(dialogs, false)
-        if (ds && ds.includes(dialog))
-          wg.dispatch({effects: closeDialog.of(dialog)})
-      },
+      close: () => doCloseDialog(wg, dialog),
       result
     }
   }
 
-  /// Close an open dialog by class name.
-  export function close(wg: Wordgard, className: string) {
+  /// See whether a dialog with the given key is present in the
+  /// editor, and if so return its DOM representation and a functionto
+  /// close it. Note that `dom` may be `null` if the dialog is present
+  /// but not yet rendered.
+  export function get(wg: Wordgard, key: any): {dom: HTMLElement | null, close: () => void} | null {
     let active = wg.state.field(dialogs, false)
-    if (!active) return false
-    let found = active.find(d => d.spec.class == className)
-    if (!found) return false
-    wg.dispatch({effects: closeDialog.of(found)})
-    return true
+    let found = active && active.find(d => d.spec.key === key)
+    if (!found) return null
+    return {dom: dialogDOM(wg, found), close: () => doCloseDialog(wg, found)}
+  }
+}
+
+function dialogDOM(wg: Wordgard, dialog: OpenDialog) {
+  let plugin = wg.plugin(renderDialogs)
+  let index = plugin ? plugin.active.indexOf(dialog) : -1
+  return index > -1 ? plugin!.elements[index] : null
+}
+
+function doCloseDialog(wg: Wordgard, dialog: OpenDialog) {
+  let active = wg.state.field(dialogs, false)
+  if (active && active.includes(dialog)) {
+    let dom = dialogDOM(wg, dialog)
+    if (dom && dom.contains(wg.win.document.activeElement))
+      wg.focus()
+    wg.dispatch({effects: closeDialog.of(dialog)})
   }
 }
 
@@ -160,9 +174,8 @@ function createDialog(wg: Wordgard, dialog: OpenDialog): {
   if (config.class) dom.className = config.class
 
   function done(form: HTMLFormElement | null) {
-    if (dom.contains(wg.win.document.activeElement)) wg.focus()
     dialog.resolve(form)
-    wg.dispatch({effects: closeDialog.of(dialog)})
+    doCloseDialog(wg, dialog)
   }
   let mustFocus = config.focus
   return {

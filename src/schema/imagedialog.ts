@@ -163,11 +163,12 @@ function finishInsertImage(wg: Wordgard, form: HTMLFormElement | null) {
 }
 
 export const insertImage: Command = wg => {
-  let open = wg.dom.querySelector(".wg-img-dialog")
+  let open = Dialog.get(wg, insertImage)
   if (open) {
-    Dialog.close(wg, "wg-img-dialog")
+    open.close()
   } else {
     Dialog.show(wg, {
+      key: insertImage,
       content: buildImageDialog,
       closedBy: tr => !!tr.selection,
       focus: "input[name=src]",
