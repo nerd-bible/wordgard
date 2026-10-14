@@ -3,6 +3,7 @@ import {PhraseSet} from "wordgard/phrases"
 import {Command, Menu} from "wordgard/command"
 import {Panel} from "./panel"
 import {Wordgard} from "./editor"
+import {PositioningHint} from "./dialog"
 
 interface BarElement {
   dom: Element
@@ -100,7 +101,9 @@ class BarButton implements BarElement {
   get children() { return null }
 
   run(wg: Wordgard) {
-    Command.dispatch(wg, this.item.run)
+    PositioningHint.runWith(() => this.dom.getBoundingClientRect(), () => {
+      Command.dispatch(wg, this.item.run)
+    })
   }
 }
 

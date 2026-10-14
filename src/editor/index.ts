@@ -36,7 +36,6 @@ export {decoratePlots} from "./plotdeco"
 
 export {Panel} from "./panel"
 export {menuBar} from "./menubar"
-export {Dialog} from "./dialog"
 
 //- ### Tooltips
 
@@ -44,6 +43,21 @@ export {Dialog} from "./dialog"
 //- specific document position.
 
 export {Tooltip} from "./tooltip"
+
+//- ### Dialogs
+
+//- Dialogs are temporary UI elements used to display a message or
+//- request input from the user.
+
+export {Dialog} from "./dialog"
+
+//- It is sometimes useful to position a dialog (or other floating UI
+//- element) based on the position of the element that the user is
+//- currently interacting with. Positioning make it possible for
+//- things like menu buttons to provide their position to the commands
+//- they call, using dynamic scope.
+
+export {PositioningHint} from "./dialog"
 
 //- ### Utilities
 

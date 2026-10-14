@@ -171,7 +171,9 @@ export const insertImage: Command = wg => {
       content: buildImageDialog,
       closedBy: tr => !!tr.selection,
       focus: "input[name=src]",
-      class: "wg-img-dialog"
+      class: "wg-img-dialog",
+      tooltip: {pos: wg.state.selection.from},
+      positioningHint: true
     }).result.then(form => finishInsertImage(wg, form))
   }
   return true

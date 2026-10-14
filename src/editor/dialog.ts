@@ -3,6 +3,9 @@ import {phrases} from "wordgard/phrases"
 import {Tooltip} from "./tooltip"
 import {Wordgard} from "./editor"
 
+// FIXME replace effect-returning interface with a `close` function?
+// FIXME define a facet that allows the dialog implementation to be overridden?
+
 /// Dialogs are UI elements opened as a side-effect and closed by user
 /// action. They may be either placed near some document position (as
 /// a {@link Tooltip tooltip}), or free-floating.
@@ -36,10 +39,12 @@ export interface Dialog {
   /// Provide this option to position this dialog like a tooltip,
   /// relative to some document position.
   tooltip?: Omit<Tooltip, "create">
-  /// If given, for a non-tooltip dialog, try to align the left top
-  /// (or right top, in a right-to-left layout) with a position offset
-  /// by this distance from the editor's left (or right) top corner.
-  offset?: {x: number, y: number}
+  /// If given try to align the left top (or right top, in a
+  /// right-to-left layout) with the corner of this rectangle. If set
+  /// to `true`, call {@link PositioningHint.get} to try and get a
+  /// rectangle. When available, this will override the `tooltip`
+  /// option.
+  positioningHint?: DOMRect | true
 }
 
 export namespace Dialog {
@@ -58,10 +63,19 @@ export namespace Dialog {
   } {
     let resolve: (form: HTMLFormElement | null) => void
     let result = new Promise<HTMLFormElement | null>(r => resolve = r)
-    let dialog: OpenDialog = new OpenDialog(config, resolve!, config.tooltip ? {
+    let hint = config.positioningHint === true ? PositioningHint.get() : config.positioningHint
+    let tooltip = hint || !config.tooltip ? null : {
       ...config.tooltip,
       create: (wg: Wordgard) => createDialog(wg, dialog),
-    } : null)
+    }, offset = null
+    if (hint) {
+      let editorRect = wg.dom.getBoundingClientRect()
+      offset = {
+        x: wg.state.textLTR ? hint.left - editorRect.left : editorRect.right - hint.right,
+        y: hint.bottom - editorRect.top
+      }
+    }
+    let dialog: OpenDialog = new OpenDialog(config, resolve!, tooltip, offset)
 
     let effects: Transaction.Effect<unknown>[] = [openDialog.of(dialog)]
     if (!wg.state.field(dialogs, false))
@@ -172,6 +186,7 @@ class OpenDialog {
     readonly spec: Dialog,
     readonly resolve: (form: HTMLFormElement | null) => void,
     readonly tooltip: Tooltip | null,
+    readonly offset: {x: number, y: number} | null
   ) {}
 }
 
@@ -256,14 +271,14 @@ const renderDialogs = Wordgard.Plugin.fromClass(class {
       for (let i = 0; i < sizes.length; i++) {
         let size = sizes[i]
         if (!size) continue
-        let offset = this.active[i].spec.offset
+        let {offset} = this.active[i]
         let baseX: number, baseY: number
-        if (!offset) {
-          baseX = midX - size.width / 2
-          baseY = midY - size.height / 2
-        } else {
+        if (offset) {
           baseY = editor.top + offset.y
           baseX = ltr ? editor.left + offset.x : editor.right - offset.x - size.width
+        } else {
+          baseX = midX - size.width / 2
+          baseY = midY - size.height / 2
         }
         if (baseX < 0) baseX = 0
         else if (baseX + size.width > windowWidth && size.width < windowWidth) baseX = windowWidth - size.width
@@ -282,3 +297,23 @@ const renderDialogs = Wordgard.Plugin.fromClass(class {
 }, plugin => plugin.eventHandler("scroll", (event, wg, val) => {
   if (val.mustPosition) wg.scheduleDOMRead(val.positionDialogs)
 }))
+
+export namespace PositioningHint {
+  let currentHint: (() => DOMRect) | null = null
+
+  /// Run function `run` with the positioning hint provided by `hint`
+  /// available. Until that function returns, {@link
+  /// PositioningHint.get} will return this rectangle, unless a nested
+  /// call to `runWith` shadows it.
+  export function runWith<T>(hint: () => DOMRect, run: () => T): T {
+    let prev = currentHint
+    currentHint = hint
+    try { return run() }
+    finally { currentHint = prev }
+  }
+
+  /// Get the current positioning hint, if available.
+  export function get(): DOMRect | null {
+    return currentHint ? currentHint() : null
+  }
+}
