@@ -139,7 +139,7 @@ export class CellSelection extends GardSelection {
       }
       rows.push((table.node.content[row] as Plot).tag.create(rowContent))
     }
-    return {slice: Slice.of(rows), context: [table.node.tag]}
+    return Slice.of(rows, [table.node.tag])
   }
 
   eq(other: GardSelection) {

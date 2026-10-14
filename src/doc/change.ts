@@ -560,15 +560,13 @@ export namespace ChangeSet {
     /// replacement changes, and `from + 1` for changes that add or
     /// remove marks.
     to?: number
-    /// Replace the given range with this slice.
+    /// Replace the given range with this slice. If `fit` is `true`
+    /// and a {@link Slice} is given here, its context will be used to
+    /// do the fitting.
     insert?: Slice | readonly Token[]
     /// For deletions or insertions where it isn't obvious that the
-    /// replacement will produce a valid document, set this to `true`
-    /// or a stack of context tags to make the library process the
-    /// replacement to make sure it fits. Context tags (passed with
-    /// the innermost tag first, as in {@link Plot.Doc.contextAt} may
-    /// be used as wrappers when fitting the slice.
-    fit?: boolean | readonly Plot.Tag[]
+    /// replacement will produce a valid document, set this to `true`.
+    fit?: boolean
     /// Add the given mark to this change's range. Cannot be combined
     /// with `insert`.
     add?: Mark
@@ -714,12 +712,13 @@ function createChangeSet(doc: Plot.Doc, spec: ChangeSet.Spec, mayCorrect = true)
         }
       } else {
         if (to == null) to = from
+        let context = insert instanceof Slice ? insert.context : Slice.empty.context
         insert = !insert ? noTokens : insert instanceof Slice ? insert.content : insert
         if (to <= from) to = from
         if (fit) {
           doCorrect = true
           ;({from, to, tokens: insert} =
-            fitReplacement(doc, doc.resolve(from), doc.resolve(to), insert, fit === true ? [] : fit))
+            fitReplacement(doc, doc.resolve(from), doc.resolve(to), insert, context))
         }
         if (insert.length || to != from)
           section(from, to, sliceLen(insert), insert)

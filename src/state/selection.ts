@@ -63,13 +63,12 @@ export abstract class GardSelection {
   /// default implementation concatenates the slices for the
   /// selection's `ranges`.
   toSlice(doc: Plot.Doc) {
-    let slice: Slice | undefined, context: readonly Plot.Tag[] = []
+    let slice: Slice | undefined
     for (let range of this.ranges) {
-      let cur = Slice.of(doc.slice(range.from, range.to))
+      let cur = Slice.get(doc, range.from, range.to)
       slice = slice ? slice.concat(cur) : cur
-      if (!context.length) context = doc.contextAt(range.from)
     }
-    return {slice: slice!, context}
+    return slice!
   }
 
   /// The side that the selection head is associated with. -1 means it

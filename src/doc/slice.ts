@@ -35,31 +35,35 @@ export namespace Token {
 
 // FIXME consider storing context with these
 
-/// A slice represents a part of a document. It is used to represent
-/// inserted content in {@link ChangeSet change sets}, or things like
-/// clipboard content.
+/// A slice represents a part of a document, as an array of tokens
+/// plus a context. It is used to represent things like clipboard
+/// content and insertions given when building a {@link ChangeSet
+/// change set}.
 export class Slice {
   /// The length of the slice's content.
   readonly length: number
 
-  private constructor(readonly content: readonly Token[]) {
+  private constructor(
+    /// The tokens contained in this slice.
+    readonly content: readonly Token[],
+    /// This slice's context, an array of tags that can be used as a
+    /// hint when the slice's content needs to be wrapped in
+    /// additional content to fit somewhere, ordered with the
+    /// innermost nodes in front. May be empty when there
+    /// is no context available.
+    readonly context: readonly Plot.Tag[]
+  ) {
     this.length = content.reduce((l, e) => l + (e.tokenType == Token.Type.Node ? e.length : 1), 0)
   }
 
   /// Create a slice.
-  static of(content: readonly Token[]) { return content.length ? new Slice(content) : Slice.empty }
-
-  /// Compare a slice to another one.
-  eq(other: Slice) { return Slice.eq(this.content, other.content) }
-
-  /// Create a sub-slice of this slice.
-  slice(from: number, to = this.length) {
-    return Slice.of(Slice.slice(this.content, from, to))
+  static of(content: readonly Token[], context?: readonly Plot.Tag[]) {
+    return content.length || context && context.length ? new Slice(content, context || Slice.empty.context) : Slice.empty
   }
 
   /// Concatenate this slice to another slice.
   concat(other: Slice) {
-    return new Slice(Slice.concat(this.content, other.content))
+    return new Slice(Slice.concat(this.content, other.content), this.context)
   }
 
   /// Get the text content of the slice's tokens.
@@ -81,11 +85,17 @@ export class Slice {
   }
 
   /// The empty slice.
-  static empty = new Slice([])
+  static empty = new Slice([], [])
 
   /// @internal
   toString() {
     return `<${this.content.join()}>`
+  }
+
+  /// Create a slice (with context) from the given range of document
+  /// content. `to` defaults to the end of the document.
+  static get(doc: Plot.Doc, from: number, to?: number) {
+    return new Slice(doc.slice(from, to), doc.contextAt(from))
   }
 
   /// @internal
