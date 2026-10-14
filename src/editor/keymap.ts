@@ -85,13 +85,6 @@ export namespace KeyBinding {
     /// When this property is present, the function is called for every
     /// key, and may return true to indicate the key was handled.
     any?: (wg: Wordgard, event: KeyboardEvent) => boolean
-    /// By default, key bindings apply when focus is on the editor
-    /// content (the `"editor"` scope). Some extensions, mostly those
-    /// that define their own panels, might want to allow registering
-    /// bindings local to that panel. Such bindings should use a custom
-    /// scope name. You may also assign multiple scope names to a
-    /// binding, separating them by spaces.
-    scope?: string
     /// By default, all keys events for which a handler exists have
     /// their `preventDefault` called, even if no handler returns
     /// true. You can set this to true to disable that behavior.
@@ -107,12 +100,10 @@ export namespace KeyBinding {
     group?: Group
   }
 
-  /// Run the key handlers registered for a given scope. The event
-  /// object should be a `"keydown"` event. Returns true if any of the
-  /// handlers handled it.
-  export function runScopeHandlers(wg: Wordgard, event: KeyboardEvent, scope: string) {
+  /// @internal
+  export function handle(wg: Wordgard, event: KeyboardEvent) {
     let map = getKeymap(wg.state.facet(KeyBinding.source), wg.state.facet(useDefaultKeymap))
-    return runHandlers(map, event, wg, scope)
+    return runHandlers(map, event, wg)
   }
 
   /// Facet used for registering key bindings. Extension precedence
@@ -324,7 +315,7 @@ class NormalizedBinding {
   ) {}
 }
 
-type Keymap = Record<string, NormalizedBinding[]>
+type Keymap = NormalizedBinding[]
 
 const keymapCache = new WeakMap<readonly KeyBinding[], {map: Keymap, deflt: boolean}>()
 
@@ -344,34 +335,28 @@ function bind(run: Command.Bound | Command): (wg: Wordgard) => boolean {
   return (wg: Wordgard) => Command.dispatch(wg, run)
 }
 
-function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName) {
-  let scopes: Keymap = Object.create(null)
+function buildKeymap(bindings: readonly KeyBinding[], platform: PlatformName): Keymap {
+  let map: Keymap = []
 
   for (let {spec: b} of bindings) {
     let baseFlags = (b.allowDefault ? BindingFlag.AllowDefault : 0)
-    for (let scope of b.scope ? b.scope.split(" ") : ["editor"]) {
-      let array = scopes[scope] || (scopes[scope] = [])
-      let key = b[platform] || b.key
-      if (b.char) {
-        if (key) throw new Error("A key binding may not provide both a char and a key field")
-        if (b.shift) throw new Error("Shift-modified bindings are not supported for char bindings")
-        array.push(new NormalizedBinding(baseFlags | BindingFlag.Char, b.char, bind(b.run)))
-      }
-      if (key)
-        array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName(key, platform), bind(b.run)))
-      if (key && b.shift)
-        array.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName("Shift-" + key, platform), bind(b.shift)))
-      if (b.any)
-        array.push(new NormalizedBinding(BindingFlag.Any, "", b.any))
+    let key = b[platform] || b.key
+    if (b.char) {
+      if (key) throw new Error("A key binding may not provide both a char and a key field")
+      if (b.shift) throw new Error("Shift-modified bindings are not supported for char bindings")
+      map.push(new NormalizedBinding(baseFlags | BindingFlag.Char, b.char, bind(b.run)))
     }
+    if (key)
+      map.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName(key, platform), bind(b.run)))
+    if (key && b.shift)
+      map.push(new NormalizedBinding(baseFlags | BindingFlag.Key, normalizeKeyName("Shift-" + key, platform), bind(b.shift)))
+    if (b.any)
+      map.push(new NormalizedBinding(BindingFlag.Any, "", b.any))
   }
-  return scopes
+  return map
 }
 
-function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard, scope: string): boolean {
-  let handlers = map[scope]
-  if (!handlers) return false
-  
+function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard): boolean {
   let key = event.key, charCode = key.codePointAt(0)!
   let altGr = event.getModifierState("AltGraph"), fromCode = charKeyCodes[event.keyCode]
   let isChar = codePointSize(charCode) == key.length
@@ -384,7 +369,7 @@ function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard, scope: str
   let fallback = isChar && !altGr && fromCode && fromCode != base ? modifiers(fromCode, event) : null
 
   let handled = false, didMatch = false, allowDefault = false
-  for (let binding of handlers) {
+  for (let binding of map) {
     let matched = ((binding.flags & BindingFlag.Char) && (altGr || !event.ctrlKey && !event.metaKey) && binding.name == char) ||
       ((binding.flags & BindingFlag.Key) && (binding.name == base || binding.name == fallback)) ||
       (binding.flags & BindingFlag.Any)
