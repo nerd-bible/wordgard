@@ -3,7 +3,6 @@ import {phrases} from "wordgard/phrases"
 import {Tooltip} from "./tooltip"
 import {Wordgard} from "./editor"
 
-// FIXME replace effect-returning interface with a `close` function?
 // FIXME define a facet that allows the dialog implementation to be overridden?
 
 /// Dialogs are UI elements opened as a side-effect and closed by user
@@ -49,16 +48,11 @@ export interface Dialog {
 
 export namespace Dialog {
   /// Show a dialog to display a message or prompt the user for input.
-  /// Returns an effect that can be dispatched to close the dialog,
-  /// and a promise that resolves when the dialog is closed or a form
-  /// inside of it is submitted.
-  ///
-  /// You are encouraged, if your handling of the result of the promise
-  /// dispatches a transaction, to include the `close` effect in it. If
-  /// you don't, this function will automatically dispatch a separate
-  /// transaction right after.
+  /// Returns a function that closes the dialog and a promise that
+  /// resolves when the dialog is closed or a form inside of it is
+  /// submitted.
   export function show(wg: Wordgard, config: Dialog): {
-    close: Transaction.Effect<unknown>,
+    close: () => void,
     result: Promise<HTMLFormElement | null>
   } {
     let resolve: (form: HTMLFormElement | null) => void
@@ -86,7 +80,14 @@ export namespace Dialog {
       if (!wg.state.field(dialogs).includes(dialog)) dialog.resolve(null)
     })
 
-    return {close: closeDialog.of(dialog), result}
+    return {
+      close: () => {
+        let ds = wg.state.field(dialogs, false)
+        if (ds && ds.includes(dialog))
+          wg.dispatch({effects: closeDialog.of(dialog)})
+      },
+      result
+    }
   }
 
   /// Close an open dialog by class name.
