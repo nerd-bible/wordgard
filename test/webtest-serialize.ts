@@ -18,7 +18,7 @@ function istHTML(doc: Plot.Doc, expected: string) {
 
 function istSliceHTML(doc: Plot.Doc, expected: string, options?: serialize.slice.Options & {maxDepth?: number}) {
   let wrap = document.createElement("div")
-  let slice = doc.slice(tag(doc, 0), tag(doc, 1)), opts = {
+  let slice = Slice.of(doc.slice(tag(doc, 0), tag(doc, 1))), opts = {
     ...options,
     context: doc.contextAt(tag(doc, 0), options?.maxDepth)
   }

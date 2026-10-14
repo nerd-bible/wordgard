@@ -121,7 +121,7 @@ export class Slice {
       if (off <= from) continue
       if (start < from || off > to) {
         let inner = (elt as Node).sliceInner(Math.max(0, from - start), Math.min((elt as Plot).length, to - start))
-        for (let elt of inner.content) result.push(elt)
+        for (let elt of inner) result.push(elt)
       } else {
         result.push(elt)
       }

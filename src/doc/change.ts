@@ -281,7 +281,7 @@ export class ChangeSet {
     for (let i = 0, iS = 0, pos = 0; iS < this.sections.length; iS += 2, i++) {
       let len = this.sections[iS], ins = this.sections[iS + 1]
       if (ins >= 0) {
-        addSection(sections, data, ins, len, doc.slice(pos, pos + len).content)
+        addSection(sections, data, ins, len, doc.slice(pos, pos + len))
       } else {
         let mods = this.data[i] as readonly Modification[] | null
         let at = pos, end = pos + len
