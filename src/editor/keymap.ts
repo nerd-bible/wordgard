@@ -3,6 +3,7 @@ import {Command, enter, deleteUnit, deleteWord, deleteToLineEnd, killToLineEnd, 
         moveByUnit, moveToLineSide, moveToTextblockSide, moveToDocSide, moveByWord, moveByLine, moveByPage,
         selectAll, undo, redo} from "wordgard/command"
 import {GardState} from "wordgard/state"
+import {PhraseSet, phrases} from "wordgard/phrases"
 import {type Wordgard} from "./editor"
 import browser from "./browser"
 
@@ -95,6 +96,15 @@ export namespace KeyBinding {
     /// their `preventDefault` called, even if no handler returns
     /// true. You can set this to true to disable that behavior.
     allowDefault?: boolean
+    /// A textual description of what this key does. Will be used by
+    /// {@link showKeyBindings} to create a list of active bindings.
+    description?: PhraseSet.Ref | string
+    /// A textual description of what the shifted variant of this key
+    /// does.
+    shiftDescription?: PhraseSet.Ref | string
+    /// The group under which the description of this key should be
+    /// organized in the list of bindings.
+    group?: Group
   }
 
   /// Run the key handlers registered for a given scope. The event
@@ -117,6 +127,30 @@ export namespace KeyBinding {
   export const useDefaultKeymap = GardState.Facet.define<boolean, boolean>({
     combine: input => input.length ? input[0] : true
   })
+
+  /// Key binding groups are used to {@link KeyBinding.Spec.group
+  /// organize} key bindings in the user-presented {@link
+  /// showKeyBindings list} of bindings.
+  export class Group {
+    private constructor(
+      /// The description given for this group.
+      readonly description: PhraseSet.Ref | string,
+      /// A sorting rank.
+      readonly rank: number
+    ) {}
+
+    /// Define a key binding group.
+    static define(spec: {
+      description: PhraseSet.Ref | string,
+      rank?: number
+    }) {
+      return new Group(spec.description, spec.rank || 1000)
+    }
+
+    static Inline = new Group(phrases.ref("group_inline"), 20)
+    static Block = new Group(phrases.ref("group_block"), 30)
+    static History = new Group(phrases.ref("group_history"), 70)
+  }
 
   /// The editor's set of default key bindings. Binds the following
   /// keys. Most cursor motion bindings include a `Shift-` variant
@@ -169,7 +203,8 @@ export namespace KeyBinding {
   ///  - `Ctrl-y` to {@link command.yankKilled}
   export const defaultKeymap: readonly KeyBinding[] = ([
     {key: "Enter", run: enter},
-    {key: "Shift-Enter", run: insertLineBreak},
+    {key: "Shift-Enter", run: insertLineBreak,
+     description: phrases.ref("insert_break"), group: Group.Inline},
     {key: "Backspace", run: Command.bind(deleteUnit, "backward")},
     {key: "Delete", run: Command.bind(deleteUnit, "forward")},
     {key: "Ctrl-Backspace", mac: "Alt-Backspace", run: Command.bind(deleteWord, "backward")},
@@ -213,9 +248,9 @@ export namespace KeyBinding {
     {key: "Mod-End", run: Command.bind(moveToDocSide, {side: "end"}),
      shift: Command.bind(moveToDocSide, {side: "end", extend: true})},
     {key: "Mod-a", run: selectAll},
-    {key: "Mod-z", run: undo},
-    {key: "Mod-y", mac: "Mod-Shift-z", run: redo},
-    {linux: "Ctrl-Shift-z", run: redo},
+    {key: "Mod-z", run: undo, description: phrases.ref("undo"), group: Group.History},
+    {key: "Mod-y", mac: "Mod-Shift-z", run: redo, description: phrases.ref("redo"), group: Group.History},
+    {linux: "Ctrl-Shift-z", run: redo, description: phrases.ref("redo"), group: Group.History},
     // MacOS Emacs-ish bindings
     {mac: "Ctrl-b", run: Command.bind(moveByUnit, {dir: "backward"}),
      shift: Command.bind(moveByUnit, {dir: "backward", extend: true})},

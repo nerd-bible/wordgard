@@ -10,6 +10,8 @@ function baseSupport(): GardState.Extension {
   return [GardState.schemaElement.of(ImageAlt), image.button, imageDialogTheme, image.keyBinding, image.dropHandler]
 }
 
+const ImageGroup = KeyBinding.Group.define({description: imagePhrases.ref("group_image"), rank: 90})
+
 /// Returns extensions that add support for inline images. That
 /// includes the {@link Image schema element}, the {@link ImageAlt
 /// alt text mark}, the {@link image.button menu button}, a {@link
@@ -157,8 +159,18 @@ export namespace imageResizing {
   /// Binds `Ctrl-Alt-l` (`Ctrl-Cmd-l` on Mac) to grow an image by
   /// 10%, and `Ctrl-Alt-k` (`Ctrl-Cmd-k` on Mac) to shrink it by 10%.
   export const keyBindings = [
-    KeyBinding.of({key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l", run: resizeCommand(1.1, true)}),
-    KeyBinding.of({key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k", run: resizeCommand(0.9091, true)}),
+    KeyBinding.of({
+      key: "Ctrl-Alt-l", mac: "Ctrl-Cmd-l",
+      run: resizeCommand(1.1, true),
+      description: imagePhrases.ref("resize_up"),
+      group: ImageGroup
+    }),
+    KeyBinding.of({
+      key: "Ctrl-Alt-k", mac: "Ctrl-Cmd-k",
+      run: resizeCommand(0.9091, true),
+      description: imagePhrases.ref("resize_down"),
+      group: ImageGroup
+    }),
   ]
 
   /// Extension that displays a drag handle when the user hovers over
@@ -174,7 +186,12 @@ export namespace imageResizing {
 
 export namespace image {
   /// Binds `Ctrl-Alt-i` to open the image insert/update dialog.
-  export const keyBinding = KeyBinding.of({key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i", run: insertImage})
+  export const keyBinding = KeyBinding.of({
+    key: "Ctrl-Alt-i", mac: "Ctrl-Cmd-i",
+    run: insertImage,
+    description: imagePhrases.ref("insert_image"),
+    group: ImageGroup
+  })
 
   /// A menu button that opens a dialog to insert an image or figure,
   /// or to adjust the currently selected image or figure.
