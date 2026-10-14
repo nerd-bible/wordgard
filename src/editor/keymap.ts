@@ -27,9 +27,8 @@ import browser from "./browser"
 /// Use lowercase letters to refer to letter keys. You can use
 /// `"Space"` as an alias for the `" "` name.
 ///
-/// Modifiers can be given in any order. `Shift-` (or `s-`), `Alt-` (or
-/// `a-`), `Ctrl-` (or `c-` or `Control-`) and `Cmd-` (or `m-` or
-/// `Meta-`) are recognized.
+/// Modifiers can be given in any order. `Shift-`, `Alt-`, `Ctrl-` and
+/// `Cmd-` (or `Meta-`) are recognized.
 ///
 /// You can use `Mod-` as a shorthand for `Cmd-` on Mac and `Ctrl-` on
 /// other platforms. So `Mod-b` is `Ctrl-b` on Linux but `Cmd-b` on
@@ -278,24 +277,24 @@ function normalizeKeyName(name: string, platform: PlatformName): string {
   let alt, ctrl, shift, meta
   for (let i = 0; i < parts.length - 1; ++i) {
     const mod = parts[i]
-    if (/^(cmd|meta|m)$/i.test(mod)) meta = true
-    else if (/^a(lt)?$/i.test(mod)) alt = true
-    else if (/^(c|ctrl|control)$/i.test(mod)) ctrl = true
-    else if (/^s(hift)?$/i.test(mod)) shift = true
-    else if (/^mod$/i.test(mod)) { if (platform == "mac") meta = true; else ctrl = true }
+    if (mod == "Cmd" || mod == "Meta") meta = true
+    else if (mod == "Alt") alt = true
+    else if (mod == "Ctrl") ctrl = true
+    else if (mod == "Shift") shift = true
+    else if (mod == "Mod") { if (platform == "mac") meta = true; else ctrl = true }
     else throw new Error("Unrecognized modifier name: " + mod)
   }
   if (alt) result = "Alt-" + result
   if (ctrl) result = "Ctrl-" + result
-  if (meta) result = "Meta-" + result
+  if (meta) result = (platform == "mac" ? "Meta-" : "Cmd-") + result
   if (shift) result = "Shift-" + result
   return result
 }
 
-function modifiers(name: string, event: KeyboardEvent) {
+function modifiers(name: string, event: KeyboardEvent, platform: PlatformName) {
   if (event.altKey) name = "Alt-" + name
   if (event.ctrlKey) name = "Ctrl-" + name
-  if (event.metaKey) name = "Meta-" + name
+  if (event.metaKey) name = (platform == "mac" ? "Cmd-" : "Meta-") + name
   if (event.shiftKey) name = "Shift-" + name
   return name
 }
@@ -361,12 +360,12 @@ function runHandlers(map: Keymap, event: KeyboardEvent, wg: Wordgard): boolean {
   let altGr = event.getModifierState("AltGraph"), fromCode = charKeyCodes[event.keyCode]
   let isChar = codePointSize(charCode) == key.length
   let char = isChar ? String.fromCodePoint(charCode) : null
-  let base = modifiers(key, event)
+  let base = modifiers(key, event, currentPlatform)
   // If the key used (not the physical key, but the remapped base key)
   // doesn't match the character put in event.key (due to remapping in
   // an international keyboard, or shift status), match against that
   // as well.
-  let fallback = isChar && !altGr && fromCode && fromCode != base ? modifiers(fromCode, event) : null
+  let fallback = isChar && !altGr && fromCode && fromCode != base ? modifiers(fromCode, event, currentPlatform) : null
 
   let handled = false, didMatch = false, allowDefault = false
   for (let binding of map) {
