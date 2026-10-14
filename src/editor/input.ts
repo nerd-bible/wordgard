@@ -267,14 +267,13 @@ export class InputState {
       Command.dispatch(wg, insertText, {from, to, insert, userEvent: "input.type"})
     } else if (type == "insertFromPaste") {
       let {from, to} = this.unflushedSelection ? wg.state.selection.replacementRange : range!
-      let content = readClipboard(wg.state, event.dataTransfer!, wg.state.doc.resolve(from), wg.inputState.shiftKey)
+      let slice = readClipboard(wg.state, event.dataTransfer!, wg.state.doc.resolve(from), wg.inputState.shiftKey)
       let isSel = from == wg.state.selection.replacementRange.from && to == wg.state.selection.replacementRange.to
-      if (isSel && wg.state.facet(pasteHandler).some(
-            h => h(wg, event, content ? content.slice : Slice.empty, content ? content.context : [])))
+      if (isSel && wg.state.facet(pasteHandler).some(h => h(wg, event, slice || Slice.empty)))
         return
-      if (content) { // FIXME proper multi-selection pasting
+      if (slice) { // FIXME proper multi-selection pasting
         wg.dispatch({
-          changes: {from, to, insert: content.slice, fit: content.context},
+          changes: {from, to, insert: slice, fit: true},
           selection: isSel ? (cx, changes) => GardSelection.near(cx, changes.mapPos(to, 1), -1) : undefined,
           userEvent: "input.paste",
           scrollIntoView: isSel
@@ -285,7 +284,7 @@ export class InputState {
       let {from, to} = this.unflushedSelection ? wg.state.selection : range!
       let sel = wg.state.selection, touchesSel = from <= sel.to && to >= sel.from
       if (read) wg.dispatch({
-        changes: {from, to, insert: read.slice, fit: read.context},
+        changes: {from, to, insert: read, fit: true},
         selection: touchesSel ? (cx, changes) => {
           return GardSelection.near(cx, changes.mapPos(to, 1), -1)
         } : undefined,
@@ -655,22 +654,20 @@ export const dropHandler = GardState.Facet.define<(
   event: DragEvent,
   pos: number,
   move: {from: number, to: number} | null,
-  slice: Slice,
-  context: readonly Plot.Tag[]
+  slice: Slice
 ) => boolean>()
 
 export const pasteHandler = GardState.Facet.define<(
   wg: Wordgard,
   event: InputEvent,
-  slice: Slice,
-  context: readonly Plot.Tag[]
+  slice: Slice
 ) => boolean>()
 
 function copy(wg: Wordgard, event: ClipboardEvent) {
   let {state} = wg
   if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
-    let {slice, context} = state.selection.toSlice(state.doc)
-    writeClipboard(state, slice, context, event.clipboardData)
+    let slice = state.selection.toSlice(state.doc)
+    writeClipboard(state, slice, event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
       wg.dispatch({
         changes: state.selection.ranges.map(r => ({from: r.from, to: r.to, fit: true})),
@@ -811,8 +808,8 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     inputState.draggedContent = selection
 
     if (event.dataTransfer) {
-      let {slice, context} = wg.state.selection.toSlice(wg.state.doc)
-      writeClipboard(wg.state, slice, context, event.dataTransfer)
+      let slice = wg.state.selection.toSlice(wg.state.doc)
+      writeClipboard(wg.state, slice, event.dataTransfer)
       event.dataTransfer.effectAllowed = "copyMove"
     }
     return false
@@ -828,16 +825,16 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
 
   drop(wg, event) {
     if (!event.dataTransfer || wg.state.readOnly) return true
-    let content = readClipboard(wg.state, event.dataTransfer, wg.state.sel.head, false)
-    if (!content) return false
+    let slice = readClipboard(wg.state, event.dataTransfer, wg.state.sel.head, false)
+    if (!slice) return false
 
     let dropPos = wg.posAtCoords({x: event.clientX, y: event.clientY}).pos
     let {draggedContent} = wg.inputState
     let del = draggedContent && dragMovesSelection(wg, event)
       ? {from: draggedContent.from, to: draggedContent.to} : null
-    if (wg.state.facet(dropHandler).some(f => f(wg, event, dropPos, del, content.slice, content.context)))
+    if (wg.state.facet(dropHandler).some(f => f(wg, event, dropPos, del, slice)))
       return true
-    let ins = {from: dropPos, insert: content.slice, fit: content.context}
+    let ins = {from: dropPos, insert: slice, fit: true}
     let changes = ChangeSet.create(wg.state.doc, del ? [del, ins] : ins)
     wg.focus()
     wg.dispatch({
