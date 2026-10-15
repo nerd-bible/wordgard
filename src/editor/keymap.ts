@@ -101,7 +101,7 @@ export namespace KeyBinding {
 
   /// @internal
   export function handle(wg: Wordgard, event: KeyboardEvent) {
-    let map = getKeymap(wg.state.facet(KeyBinding.source), wg.state.facet(useDefaultKeymap))
+    let map = getKeymap(wg.state)
     return runHandlers(map, event, wg)
   }
 
@@ -140,6 +140,13 @@ export namespace KeyBinding {
     static Inline = new Group(phrases.ref("group_inline"), 20)
     static Block = new Group(phrases.ref("group_block"), 30)
     static History = new Group(phrases.ref("group_history"), 70)
+  }
+
+  /// Look for a key associated with the given description in the
+  /// state's key bindings, and if found, return its key name as a
+  /// string.
+  export function lookupByDescription(state: GardState, desc: string | PhraseSet.Ref) {
+    return getDescMap(state).get(desc) || null
   }
 
   /// The editor's set of default key bindings. Binds the following
@@ -318,7 +325,9 @@ type Keymap = NormalizedBinding[]
 
 const keymapCache = new WeakMap<readonly KeyBinding[], {map: Keymap, deflt: boolean}>()
 
-function getKeymap(bindings: readonly KeyBinding[], addDefault: boolean) {
+function getKeymap(state: GardState) {
+  let bindings = state.facet(KeyBinding.source)
+  let addDefault = state.facet(KeyBinding.useDefaultKeymap)
   let found = keymapCache.get(bindings)
   if (!found || found.deflt != addDefault) {
     found = {
@@ -328,6 +337,27 @@ function getKeymap(bindings: readonly KeyBinding[], addDefault: boolean) {
     keymapCache.set(bindings, found)
   }
   return found.map
+}
+
+const lookupCache = new WeakMap<readonly KeyBinding[], Map<string | PhraseSet.Ref, string>>()
+
+function getDescMap(state: GardState) {
+  let bindings = state.facet(KeyBinding.source)
+  let map = lookupCache.get(bindings)
+  if (!map) {
+    lookupCache.set(bindings, map = new Map)
+    for (let binding of bindings.concat(state.facet(KeyBinding.useDefaultKeymap) ? KeyBinding.defaultKeymap : [])) {
+      let {description, shiftDescription} = binding.spec
+      if (description || shiftDescription) {
+        let name = binding.spec[currentPlatform] || binding.spec.key
+        if (name && description)
+          map.set(description, normalizeKeyName(name, currentPlatform))
+        if (name && shiftDescription)
+          map.set(shiftDescription, "Shift-" + normalizeKeyName(name, currentPlatform))
+      }
+    }
+  }
+  return map
 }
 
 function bind(run: Command.Bound | Command): (wg: Wordgard) => boolean {

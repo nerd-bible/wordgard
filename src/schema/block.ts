@@ -38,6 +38,8 @@ export namespace paragraph {
   /// regular paragraphs.
   export const keyBinding = KeyBinding.of({
     key: "Ctrl-Shift-0",
+    description: phrases.ref("paragraph"),
+    group: KeyBinding.Group.Block,
     run: Command.bind(setTextblockType, Paragraph)
   })
 

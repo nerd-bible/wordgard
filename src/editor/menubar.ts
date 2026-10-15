@@ -3,6 +3,7 @@ import {PhraseSet} from "wordgard/phrases"
 import {Command, Menu} from "wordgard/command"
 import {Panel} from "./panel"
 import {Wordgard} from "./editor"
+import {KeyBinding} from "./keymap"
 import {PositioningHint} from "./dialog"
 
 interface BarElement {
@@ -68,11 +69,12 @@ class BarButton implements BarElement {
     this.dom.type = "button"
     this.dom.tabIndex = -1
     labelButton(wg, this.dom, item.label)
-    if (item.description) {
-      let desc = typeof item.description == "function" ? item.description(wg.state) : item.description
-      this.dom.title = desc
-      this.dom.setAttribute("aria-label", desc)
-    }
+    let someDesc = item.description || (typeof item.label == "string" || typeof item.label == "function" ? item.label : null)
+    let key = someDesc ? KeyBinding.lookupByDescription(wg.state, someDesc) : null
+    let desc = typeof someDesc == "function" ? someDesc(wg.state) : someDesc
+    if (item.description) this.dom.setAttribute("aria-label", desc!)
+    if (key) this.dom.setAttribute("aria-keyshortcuts", key)
+    if (desc || key) this.dom.title = desc ? desc + (key ? ` (${key})` : "") : key!
   }
 
   get focusDOM() { return this.dom }
