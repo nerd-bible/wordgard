@@ -16,6 +16,7 @@ export {Wordgard} from "./editor"
 //- Functionality used for binding keys to editing commands.
 
 export {KeyBinding} from "./keymap"
+export {keyBindingHelp} from "./showkeys"
 
 //- ### Decoration
 

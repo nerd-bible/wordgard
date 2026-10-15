@@ -167,6 +167,7 @@ export const baseStyles = buildTheme("." + styleID, {
   ".wg-panels-bottom": { bottom: "0" },
 
   dialog: {
+    font: "var(--wg-dialog-font)",
     padding: "7px 22px 7px 8px",
     minWidth: "120px",
     border: "1px solid var(--wg-border-color)",
@@ -176,6 +177,12 @@ export const baseStyles = buildTheme("." + styleID, {
     "&.wg-free-dialog": {
       position: "fixed"
     }
+  },
+  "h3.wg-dialog-title": {
+    fontSize: "90%",
+    fontWeight: "bold",
+    textAlign: "center",
+    margin: "0 0 0.8em"
   },
 
   "dialog label, dialog .wg-label": {
@@ -209,4 +216,23 @@ export const baseStyles = buildTheme("." + styleID, {
       backgroundColor: "#222"
     }
   },
+
+  ".wg-key-help": {
+    padding: "15px",
+    maxWidth: "350px"
+  },
+  ".wg-key-list": {
+    outline: "none",
+    maxHeight: "calc(min(70vh, 300px))",
+    overflowY: "auto",
+    display: "grid",
+    gridTemplateColumns: "max-content auto",
+    gap: "8px 15px",
+    margin: "0 0 0.5em",
+    "& h4": {
+      gridColumn: "span 2",
+      margin: "0.5em 0",
+      fontSize: "110%"
+    }
+  }
 }, lightDarkIDs)

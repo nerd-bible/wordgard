@@ -113,7 +113,7 @@ function buildImageDialog(wg: Wordgard, close: () => void) {
 
   return cr(
     "form", {class: "wg-img-form", onkeydown},
-    cr("div", {class: "wg-dialog-title"}, imagePhrases.get(state, active ? "update_image" : "insert_image")),
+    cr("h3", {class: "wg-dialog-title"}, imagePhrases.get(state, active ? "update_image" : "insert_image")),
     cr("label", {for: "wg-img-src"}, imagePhrases.get(state, "image_source"), ":"),
     cr("span", {class: "wg-img-src-line"}, src, file),
     cr("label", {for: "wg-img-alt"}, imagePhrases.get(state, "alt_text"), ":"),
@@ -193,11 +193,9 @@ export const imageDialogTheme = Wordgard.styles({
       textAlign: "end"
     }
   },
-  ".wg-dialog-title": {
+  ".wg-img-form .wg-dialog-title": {
     gridColumn: "span 2",
-    fontSize: "90%",
-    fontWeight: "bold",
-    textAlign: "center"
+    margin: "0"
   },
   ".wg-img-buttons": {
     gridColumn: "2"

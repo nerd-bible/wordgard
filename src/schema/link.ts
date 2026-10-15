@@ -111,6 +111,8 @@ export namespace link {
   export const keyBinding = KeyBinding.of({
     key: "Mod-k",
     run: toggleLink,
+    description: phrases.ref("create_link"),
+    group: KeyBinding.Group.Inline
   })
 
   /// Menu button that will remove the link mark from the selection if

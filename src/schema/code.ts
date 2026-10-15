@@ -24,7 +24,9 @@ export namespace codeBlock {
   /// block.
   export const keyBinding = KeyBinding.of({
     key: "Ctrl-Shift-\\",
-    run: Command.bind(setTextblockType, CodeBlock)
+    run: Command.bind(setTextblockType, CodeBlock),
+    description: phrases.ref("code_block"),
+    group: KeyBinding.Group.Block
   })
 
   /// Button for the {@link Menu.Submenu.textblockStyle textblock
@@ -178,7 +180,9 @@ export namespace codeBlockLanguage {
   /// {@link codeBlockLanguage.selectLanguage `selectLanguage`}.
   export const selectLanguageBinding = KeyBinding.of({
     key: "Shift-Mod-l",
-    run: codeBlockLanguage.selectLanguage
+    run: codeBlockLanguage.selectLanguage,
+    description: phrases.ref("code_block_language"),
+    group: KeyBinding.Group.Block
   })
 
   /// A facet that allows you to add options to the language selection

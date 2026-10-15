@@ -149,10 +149,7 @@ function createDialog(wg: Wordgard, dialog: OpenDialog): {
   for (let i = 0; i < forms.length; i++) {
     let form = forms[i] as HTMLFormElement
     form.addEventListener("keydown", (event: KeyboardEvent) => {
-      if (event.keyCode == 27) { // Escape
-        event.preventDefault()
-        done(null)
-      } else if (event.keyCode == 13) { // Enter
+      if (event.keyCode == 13) { // Enter
         event.preventDefault()
         done(form)
       }
@@ -171,25 +168,32 @@ function createDialog(wg: Wordgard, dialog: OpenDialog): {
   let dom = document.createElement("dialog")
   dom.open = true
   dom.append(content, close)
+  dom.addEventListener("keydown", event => {
+    if (event.keyCode == 27) { // Escape
+      event.preventDefault()
+      done(null)
+    }
+  })
   if (config.class) dom.className = config.class
 
   function done(form: HTMLFormElement | null) {
     dialog.resolve(form)
     doCloseDialog(wg, dialog)
   }
-  let mustFocus = config.focus
+  let focus: HTMLInputElement | HTMLButtonElement | null = null
+  if (config.focus) {
+    if (typeof config.focus == "string")
+      focus = dom.querySelector(config.focus) as any
+    else
+      focus = content.querySelector("input") || content.querySelector("button")
+  }
   return {
     dom,
     connect: () => {
-      if (mustFocus) {
-        mustFocus = false
-        let focus: HTMLInputElement | HTMLButtonElement | undefined | null
-        if (typeof config.focus == "string")
-          focus = content!.querySelector(config.focus) as any
-        else
-          focus = content!.querySelector("input") || content!.querySelector("button")
-        if (focus && "select" in focus) focus.select()
-        else if (focus && "focus" in focus) focus.focus()
+      if (focus) {
+        if ("select" in focus) focus.select()
+        else if ("focus" in focus) focus.focus()
+        focus = null
       }
     }
   }
@@ -307,6 +311,7 @@ const renderDialogs = Wordgard.Plugin.fromClass(class {
 
   destroy() {
     for (let elt of this.elements) if (elt) elt.remove()
+    for (let dialog of this.active) dialog.resolve(null)
   }
 }, plugin => plugin.eventHandler("scroll", (event, wg, val) => {
   if (val.mustPosition) wg.scheduleDOMRead(val.positionDialogs)

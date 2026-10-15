@@ -770,7 +770,7 @@ const inputTypeCommands: {[inputType: string]: Command.Bound | Command} = {
 const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HTMLElementEventMap[e]) => boolean} = {
   keydown(wg, event) {
     if ((browser.ios || browser.android) && (event.key == "Backspace" || event.key == "Enter")) return false
-    return KeyBinding.runScopeHandlers(wg, event, "editor")
+    return KeyBinding.handle(wg, event)
   },
 
   mousedown(wg, event) {
