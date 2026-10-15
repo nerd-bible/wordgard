@@ -267,9 +267,9 @@ export namespace KeyBinding {
 
 type PlatformName = "mac" | "win" | "linux" | "key"
 
-const currentPlatform: PlatformName = browser.mac ? "mac" : browser.windows ? "win" : browser.linux ? "linux" : "key"
+export const currentPlatform: PlatformName = browser.mac ? "mac" : browser.windows ? "win" : browser.linux ? "linux" : "key"
 
-function normalizeKeyName(name: string, platform: PlatformName): string {
+export function normalizeKeyName(name: string, platform: PlatformName): string {
   const parts = name.split(/-(?!$)/)
   let result = parts[parts.length - 1]
   if (result == "Space") result = " "

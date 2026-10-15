@@ -9,6 +9,9 @@ export const phrases = PhraseSet.define({
   group_inline: "Inline editing",
   group_history: "Undo history",
 
+  key_bindings: "Keyboard Shortcuts",
+  show_keys: "Show keyboard shortcuts",
+
   // Menu/key labels
   overflow_more: "More",
   block_style: "Block style",
