@@ -69,12 +69,19 @@ class BarButton implements BarElement {
     this.dom.type = "button"
     this.dom.tabIndex = -1
     labelButton(wg, this.dom, item.label)
-    let someDesc = item.description || (typeof item.label == "string" || typeof item.label == "function" ? item.label : null)
+    this.setDesc(wg)
+  }
+
+  setDesc(wg: Wordgard) {
+    let {item: {label, description}} = this
+    let someDesc = description || (typeof label == "string" || typeof label == "function" ? label : null)
     let key = someDesc ? KeyBinding.lookupByDescription(wg.state, someDesc) : null
     let desc = typeof someDesc == "function" ? someDesc(wg.state) : someDesc
-    if (item.description) this.dom.setAttribute("aria-label", desc!)
+    if (description) this.dom.setAttribute("aria-label", desc!)
+    else this.dom.removeAttribute("aria-label")
     if (key) this.dom.setAttribute("aria-keyshortcuts", key)
-    if (desc || key) this.dom.title = desc ? desc + (key ? ` (${key})` : "") : key!
+    else this.dom.removeAttribute("aria-keyshortcuts")
+    this.dom.title = desc ? desc + (key ? ` (${key})` : "") : key || ""
   }
 
   get focusDOM() { return this.dom }
@@ -283,6 +290,9 @@ class MenuBar {
       this.init()
     } else {
       this.updateElts(update, this.selection)
+      if (update.startState.facet(KeyBinding.source) != update.state.facet(KeyBinding.source)) {
+        for (let elt of this.elts) if (elt instanceof BarButton) elt.setDesc(update.editor)
+      }
     }
   }
 
