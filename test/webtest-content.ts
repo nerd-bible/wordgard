@@ -662,7 +662,7 @@ describe("DocTile", () => {
     })
 
     it("can change the shape of element marks", () => {
-      ist(render(doc(p(strong("ab"))), Decoration.Mark.shape(Strong.type, {element: "b"})).dom.innerHTML,
+      ist(render(doc(p(strong("ab"))), Decoration.Mark.shape(Strong, {element: "b"})).dom.innerHTML,
           "<p><b>ab</b></p>")
     })
 

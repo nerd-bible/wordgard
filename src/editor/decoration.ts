@@ -299,10 +299,19 @@ export namespace Decoration {
     export function shape<V>(
       type: Mark_.Type<V>,
       shape: Shape_.Element<V> | Shape_.Attribute<V> | Shape_.Attributes<V>
+    ): GardState.Extension
+    export function shape(
+      mark: Mark_<null>,
+      shape: Shape_.Element<null> | Shape_.Attribute<null> | Shape_.Attributes<null>
+    ): GardState.Extension
+    export function shape(
+      type: Mark_.Type<any> | Mark_<null>,
+      shape: Shape_.Element<any> | Shape_.Attribute<any> | Shape_.Attributes<any>
     ) {
+      if (type instanceof Mark_) type = type.type
       if (type.spanning && !("element" in shape))
         throw new Error("Spanning marks must have an element shape")
-      return markShape.of({type, modified: Mark_.Type.define<V>(type.name, {...type.spec, shape} as any)})
+      return markShape.of({type, modified: Mark_.Type.define(type.name, {...type.spec, shape} as any)})
     }
   }
 
