@@ -155,7 +155,7 @@ const languageWidget = Widget.define<{options: readonly string[], value: string 
   inFlow: false
 })
 
-const languageSelect = Decoration.Tag.widget.dynamic(CodeBlock, "end", state => {
+const languageSelect = Decoration.Tag.widget.derived(CodeBlock, "end", state => {
   let options = state.facet(languageOptions)
   return tag => {
     return languageWidget.of({options, value: tag.mark(CodeBlockLanguage)})

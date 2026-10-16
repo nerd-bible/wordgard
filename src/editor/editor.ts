@@ -466,7 +466,6 @@ export class Wordgard {
                 .elementFromPoint(coords.x, coords.y)
     let tile = (elt && this.docTile.nearest(elt)) || this.docTile
     let result = tile.posAtCoords(this.state, coords.x, coords.y)
-    // FIXME could make this more accurate by using info about DOM changes
     for (let tr of this.viewState.pending) result = result.map(tr.changes)
     return result
   }

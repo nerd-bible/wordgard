@@ -271,7 +271,7 @@ export class InputState {
       let isSel = from == wg.state.selection.replacementRange.from && to == wg.state.selection.replacementRange.to
       if (isSel && wg.state.facet(pasteHandler).some(h => h(wg, event, slice || Slice.empty)))
         return
-      if (slice) { // FIXME proper multi-selection pasting
+      if (slice) {
         wg.dispatch({
           changes: {from, to, insert: slice, fit: true},
           selection: isSel ? (cx, changes) => GardSelection.near(cx, changes.mapPos(to, 1), -1) : undefined,
@@ -665,7 +665,7 @@ export const pasteHandler = GardState.Facet.define<(
 
 function copy(wg: Wordgard, event: ClipboardEvent) {
   let {state} = wg
-  if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
+  if (!state.selection.empty && event.clipboardData) {
     let slice = state.selection.toSlice(state.doc)
     writeClipboard(state, slice, event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
@@ -787,7 +787,6 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       let mustFocus = !wg.hasFocus
       wg.inputState.startMouseSelection(new MouseSelection(wg, event, style, mustFocus))
       if (mustFocus) wg.observer.ignore(() => {
-        // FIXME on Firefox this somehow focuses the cell selection
         wg.contentDOM.focus({preventScroll: true})
         let active = wg.root.activeElement
         if (active && !active.contains(wg.contentDOM)) (active as HTMLElement).blur()

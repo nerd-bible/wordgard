@@ -195,7 +195,7 @@ export namespace Decoration {
       ///
       /// When providing a shape for a plot that changes whether it is
       /// rendered as an atom, provide the `atom` option.
-      export function dynamic<T extends Node.Type<any>>( // FIXME find better name?
+      export function derived<T extends Node.Type<any>>(
         type: T,
         shape: (state: GardState) => Shape | ((tag: Node.Tag.For<T>) => Shape),
         config?: {atom?: boolean}
@@ -256,8 +256,8 @@ export namespace Decoration {
     export namespace widget {
       /// Define a node widget decoration that depends on some aspect
       /// of the editor state. See the notes for {@link
-      /// Decoration.Tag.shape.dynamic}.
-      export function dynamic<T extends Node.Type.Ref<any>>(
+      /// Decoration.Tag.shape.derived}.
+      export function derived<T extends Node.Type.Ref<any>>(
         type: T,
         place: "before" | "after" | "start" | "end",
         widget: (state: GardState) => Widget | ((tag: Node.Tag.For<T>) => Widget)

@@ -648,7 +648,7 @@ describe("DocTile", () => {
     it("supports dynamic shapes", () => {
       let cls = GardState.Facet.define<string>(), called = 0
       let tile = render(doc(hr), [
-        Decoration.Tag.shape.dynamic(HorizontalRule.type, state => {
+        Decoration.Tag.shape.derived(HorizontalRule.type, state => {
           called++
           return Elt.mk("hr", {class: state.facet(cls)[0]})
         }),

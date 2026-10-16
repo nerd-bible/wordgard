@@ -33,8 +33,6 @@ export namespace Token {
   }
 }
 
-// FIXME consider storing context with these
-
 /// A slice represents a part of a document, as an array of tokens
 /// plus a context. It is used to represent things like clipboard
 /// content and insertions given when building a {@link ChangeSet
