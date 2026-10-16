@@ -475,7 +475,9 @@ export namespace Decoration {
 
 type TagShape = {type: Node.Type, shape: (tag: Node.Tag) => Decoration.Shape}
 
-const tagShape = GardState.Facet.define<TagShape>()
+const tagShape = GardState.Facet.define<TagShape, Map<Node.Type, (tag: Node.Tag) => Decoration.Shape>>({
+  combine: shapes => new Map(shapes.map(s => [s.type, s.shape] as const).reverse())
+})
 
 type TagWrapper = {type: Node.Type, elt: DecoElt, target: Elt.Selector | null}
 
@@ -502,7 +504,7 @@ type MarkShape = {
 }
 
 const markShape = GardState.Facet.define<MarkShape, Map<Mark.Type, Mark.Type>>({
-  combine: shapes => new Map(shapes.map(s => [s.type, s.modified] as [Mark.Type, Mark.Type]).reverse())
+  combine: shapes => new Map(shapes.map(s => [s.type, s.modified] as const).reverse())
 })
 
 function memo<T, A extends Object>(f: (arg: A) => T) {
@@ -866,7 +868,7 @@ export const renderMarkWrapper = memo((mark: Mark<any>): DecoElt => {
 })
 
 export class DecoIterator {
-  tagShapes: readonly TagShape[]
+  tagShapes: Map<Node.Type, (tag: Node.Tag) => Decoration.Shape>
   globalWidgets: readonly TagWidget[]
   globalWrappers: readonly TagWrapper[]
   globalAttrs: readonly TagAttribute[]
@@ -1036,12 +1038,8 @@ export class DecoIterator {
   }
 
   tagShape(tag: Node.Tag, active: Decoration.Range[]) {
-    let shape
-    if (!tag.is(Leaf.Text)) for (let src of this.tagShapes) if (src.type == tag.type) {
-      shape = src.shape(tag)
-      break
-    }
-    if (!shape) shape = baseTagShape(tag)
+    let override = this.tagShapes.get(tag.type)
+    let shape = override ? override(tag) : baseTagShape(tag)
     if (tag.marks.length) shape = addMarkAttributes(this.markShapes, shape, tag)
     let add: string[] | undefined
     for (let src of this.globalAttrs) if (tag.type == src.type) {
