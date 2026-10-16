@@ -660,5 +660,16 @@ describe("DocTile", () => {
       tile = update(tile, {effects: GardState.appendConfig.of(GardState.prec.high(cls.of("b")))})
       ist(tile.dom.innerHTML, `<hr class="b">`)
     })
+
+    it("can change the shape of element marks", () => {
+      ist(render(doc(p(strong("ab"))), Decoration.Mark.shape(Strong.type, {element: "b"})).dom.innerHTML,
+          "<p><b>ab</b></p>")
+    })
+
+    it("can change the shape of attribute marks", () => {
+      let deco = Decoration.Mark.shape(ImageAlt, {attribute: "aria-description", value: 0})
+      ist(render(doc(p(imgAlt("p", $img))), deco).dom.innerHTML,
+          `<p><img aria-description="p" src="test.png"></p>`)
+    })
   })
 })

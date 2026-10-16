@@ -1,5 +1,5 @@
 import {GardState, GardSelection} from "wordgard/state"
-import {Mark, Pos, Plot, Leaf, Node, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
+import {Mark, Mark as Mark_, Pos, Plot, Leaf, Node, Shape as Shape_, ChangeSet, Schema, Elt, Attributes} from "wordgard/doc"
 import {RangeSet, PointSet, Set, findAbove} from "wordgard/set"
 import {addSection, Changes, addUpdated, addRange, joinRanges} from "./changes"
 import {type Wordgard} from "./editor"
@@ -146,7 +146,6 @@ export namespace Decoration {
   /// contain widgets.
   export type Shape = Widget | DecoElt
 
-  // FIXME support mark shape overrides
   export namespace Tag {
     /// Override the way a given node type is drawn in the editor. By
     /// default, the {@link doc.Node.Spec.shape `shape`} field in the
@@ -168,10 +167,10 @@ export namespace Decoration {
     ) {
       let tp = Node.Type.get(type)
       let shapeFunc: (tag: Node.Tag) => Shape = typeof shape == "function"
-        ? tag => addMarkAttributes(shape(tag as any), tag)
-        : tag => addMarkAttributes(shape, tag)
+        ? memo(tag => shape(tag as any))
+        : () => shape
       let atom = typeof shape == "function" ? config?.atom : !shape.hasContent
-      let ext: GardState.Extension = tagShape.of({type: tp, shape: memo(shapeFunc)})
+      let ext: GardState.Extension = tagShape.of({type: tp, shape: shapeFunc})
       if (tp.isPlot && atom != null) ext = [ext, GardState.isAtom.of([tp, atom])]
       return ext
     }
@@ -292,6 +291,18 @@ export namespace Decoration {
       let tp = Node.Type.get(type)
       return tagAttribute.of({type: tp, attr, value: typeof value == "string" ? () => value : value as any,
                               target: options?.target ? Elt.Selector.parse(options.target) : null})
+    }
+  }
+
+  export namespace Mark {
+    /// Override the shape used for a given mark inside the editor.
+    export function shape<V>(
+      type: Mark_.Type<V>,
+      shape: Shape_.Element<V> | Shape_.Attribute<V> | Shape_.Attributes<V>
+    ) {
+      if (type.spanning && !("element" in shape))
+        throw new Error("Spanning marks must have an element shape")
+      return markShape.of({type, modified: Mark_.Type.define<V>(type.name, {...type.spec, shape} as any)})
     }
   }
 
@@ -476,6 +487,15 @@ type TagAttribute = {
 
 const tagAttribute = GardState.Facet.define<TagAttribute>()
 
+type MarkShape = {
+  type: Mark.Type,
+  modified: Mark.Type
+}
+
+const markShape = GardState.Facet.define<MarkShape, Map<Mark.Type, Mark.Type>>({
+  combine: shapes => new Map(shapes.map(s => [s.type, s.modified] as [Mark.Type, Mark.Type]).reverse())
+})
+
 function memo<T, A extends Object>(f: (arg: A) => T) {
   let map = new WeakMap<A, T>()
   return (arg: A) => {
@@ -485,11 +505,12 @@ function memo<T, A extends Object>(f: (arg: A) => T) {
   }
 }
 
-function addMarkAttributes(shape: Decoration.Shape, tag: Node.Tag) {
+function addMarkAttributes(overrides: Map<Mark.Type, Mark.Type>, shape: Decoration.Shape, tag: Node.Tag) {
   let attrs: readonly string[] | undefined
   for (let mark of tag.marks) {
-    if (mark.type.attribute && (mark.spanning || !tag.isText)) {
-      let {get, target} = mark.type.attribute
+    let type = overrides.get(mark.type) || mark.type
+    if (type.attribute && (mark.spanning || !tag.isText)) {
+      let {get, target} = type.attribute
       let markAttrs = get(mark.value)
       if (markAttrs.length) {
         if (target && shape instanceof Elt) shape = shape.addAttrs(markAttrs, target)
@@ -515,14 +536,15 @@ function applyDeco(shape: Decoration.Shape, deco: Decoration.Point, tag: Node.Ta
 }
 
 const baseTagShape = memo((tag: Node.Tag): Decoration.Shape => {
-  return addMarkAttributes(tag.is(Leaf.Text) ? Widget.editableText.of(tag.param as string)
-    : tag.type.shape.create(tag.param), tag)
+  return tag.is(Leaf.Text) ? Widget.editableText.of(tag.param as string) : tag.type.shape.create(tag.param)
 })
 
-export function renderMarks(marks: Mark.Set, around: string) {
-  let result = addMarkAttributes(Elt.create("span", Attributes.none, [around]), Leaf.text(around, marks))
+export function renderMarks(state: GardState, marks: Mark.Set, around: string) {
+  let markShapes = state.facet(markShape)
+  let result = addMarkAttributes(markShapes, Elt.create("span", Attributes.none, [around]), Leaf.text(around, marks))
   for (let i = marks.length - 1; i >= 0; i--) {
-    let mark = marks[i]
+    let mark = marks[i], shape = markShapes.get(mark.type)
+    if (shape) mark = shape.of(mark.value)
     if (mark.type.element) result = renderMarkWrapper(mark).fill([result])
   }
   return (result as Elt<string>).toDOM()
@@ -651,7 +673,7 @@ function compareDecoSet<T>(setA: Map<(state: GardState) => T, T>, setB: Map<(sta
   for (let [srcB, valB] of setB) if (!setA.has(srcB)) cmp(null, valB)
 }
 
-function compareGlobal(stateA: GardState, stateB: GardState, facet: GardState.Facet<any>) {
+function compareGlobal(stateA: GardState, stateB: GardState, facet: GardState.Facet<any, any>) {
   return stateA.facet(facet) != stateB.facet(facet)
 }
 
@@ -665,7 +687,8 @@ export function findChangedRanges(
 ): Changes {
   let result: number[] = []
   let globalChange = compareGlobal(prevState, state, tagShape) || compareGlobal(prevState, state, tagWidget) ||
-    compareGlobal(prevState, state, tagWrapper) || compareGlobal(prevState, state, tagAttribute)
+    compareGlobal(prevState, state, tagWrapper) || compareGlobal(prevState, state, tagAttribute) ||
+    compareGlobal(prevState, state, markShape)
   // When node shapes change, we need a separate pass to see whether
   // their atomicity changed, and mark a replace for the whole node if
   // it did.
@@ -818,34 +841,6 @@ class SpanIterator<R extends RangeSet.Value, P extends PointSet.Value> {
 
 export type WrapperSource = Mark<any> | WrapperRangeDecoration
 
-// Enumerate all wrapper elements for a given node. Spanning wrappers
-// are always moved to the front of the result. Within the
-// spanning/non-spanning wrappers, the ordering is determined by rank.
-//
-// Note that the return value contains range iterators, and those will
-// become invalid as soon as they are advanced further.
-function nodeWrappers(
-  schema: Schema,
-  tag: Node.Tag,
-  active: readonly Decoration.Range[],
-  atom: boolean
-): readonly WrapperSource[] {
-  let wrappers: WrapperSource[] | undefined
-
-  for (let mark of tag.marks) if (mark.type.element) (wrappers || (wrappers = [])).push(mark)
-  if (active.length) {
-    for (let val of active) {
-      if (val instanceof WrapperRangeDecoration && (tagScope(tag, atom) & val.scope) &&
-          (!val.query || schema.matchNode(tag.type, val.query)))
-        (wrappers || (wrappers = [])).push(val)
-    }
-  }
-
-  if (!wrappers) return none
-  if (wrappers.length > 1) wrappers.sort((a, b) => (a.spanning == b.spanning ? 0 : a.spanning ? -1 : 1) || a.rank - b.rank)
-  return wrappers
-}
-
 function tagScope(tag: Node.Tag, atom: boolean): DecorationScope {
   return DecorationScope.All |
     (atom ? DecorationScope.Atom | (tag.type.isInline ? DecorationScope.InlineAtom : 0) : 0)
@@ -866,6 +861,7 @@ export class DecoIterator {
   globalWidgets: readonly TagWidget[]
   globalWrappers: readonly TagWrapper[]
   globalAttrs: readonly TagAttribute[]
+  markShapes: Map<Mark.Type, Mark.Type>
   schema: Schema
   pos: Pos
   rangeCursor: Set.Cursor<Decoration.Range>
@@ -880,6 +876,7 @@ export class DecoIterator {
       .some(w => (w.place == WidgetPlace.After || w.place == WidgetPlace.End) && typeof w.widget == "function")
     this.globalWrappers = state.facet(tagWrapper)
     this.globalAttrs = state.facet(tagAttribute)
+    this.markShapes = state.facet(markShape)
     this.pos = state.doc.resolve(0)
     this.schema = state.schema
     this.rangeCursor = RangeSet.cursor(state.facet(Decoration.Range.source).map(s => s(state)))
@@ -906,6 +903,36 @@ export class DecoIterator {
       typeof tw.widget == "function")
   }
 
+  // Enumerate all wrapper elements for a given node. Spanning wrappers
+  // are always moved to the front of the result. Within the
+  // spanning/non-spanning wrappers, the ordering is determined by rank.
+  //
+  // Note that the return value contains range iterators, and those will
+  // become invalid as soon as they are advanced further.
+  nodeWrappers(
+    tag: Node.Tag,
+    active: readonly Decoration.Range[],
+    atom: boolean
+  ): readonly WrapperSource[] {
+    let wrappers: WrapperSource[] | undefined
+
+    for (let mark of tag.marks) {
+      let shape = this.markShapes.get(mark.type) || mark.type
+      if (shape.element) (wrappers || (wrappers = [])).push(shape == mark.type ? mark : shape.of(mark.value))
+    }
+    if (active.length) {
+      for (let val of active) {
+        if (val instanceof WrapperRangeDecoration && (tagScope(tag, atom) & val.scope) &&
+          (!val.query || this.schema.matchNode(tag.type, val.query)))
+          (wrappers || (wrappers = [])).push(val)
+      }
+    }
+
+    if (!wrappers) return none
+    if (wrappers.length > 1) wrappers.sort((a, b) => (a.spanning == b.spanning ? 0 : a.spanning ? -1 : 1) || a.rank - b.rank)
+    return wrappers
+  }
+
   walk(from: number, inclusiveStart: boolean, to: number, walker: DecoWalker) {
     this.rangeCursor.goto(from)
     this.pointCursor.goto(from, inclusiveStart ? -1e9 : Side.After)
@@ -927,7 +954,7 @@ export class DecoIterator {
         let shape = hasPending && pendingShape ? pendingShape.shape : this.tagShape(node.tag, iter.active)
         if (hasPending) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
         if (shape.hasContent) throw new Error("Leaf nodes shapes shouldn't have a content hole")
-        walker.node(node, shape, nodeWrappers(this.schema, node.tag, iter.active, true), undefined)
+        walker.node(node, shape, this.nodeWrappers(node.tag, iter.active, true), undefined)
         this.widgets(node.tag, WidgetPlace.After, walker)
       },
       enterPlot: (node, pos) => {
@@ -936,7 +963,7 @@ export class DecoIterator {
         let shape = pendingShape && pendingPos == pos ? pendingShape.shape
           : this.tagShape(node.tag, iter.active)
         if (pendingPos == pos) for (let deco of pendingDeco) shape = applyDeco(shape, deco, node.tag)
-        let wrappers = nodeWrappers(this.schema, node.tag, iter.active, !shape.hasContent)
+        let wrappers = this.nodeWrappers(node.tag, iter.active, !shape.hasContent)
         let atom = !shape.hasContent
         if (atom) walker.node(node!, shape, wrappers, pos + node.length > to ? to - pos : undefined)
         else walker.enter(node!, shape as DecoElt, wrappers)
@@ -1006,6 +1033,7 @@ export class DecoIterator {
       break
     }
     if (!shape) shape = baseTagShape(tag)
+    if (tag.marks.length) shape = addMarkAttributes(this.markShapes, shape, tag)
     let add: string[] | undefined
     for (let src of this.globalAttrs) if (tag.type == src.type) {
       if (src.target && shape instanceof Elt) shape = shape.addAttrs([src.attr, src.value(tag)], src.target)
