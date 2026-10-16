@@ -57,7 +57,7 @@ export function rangeForClick(wg: Wordgard, pos: CoordPos, type: number): GardSe
     return wg.state.wordAt(pos.pos, pos.side || 1)
   } else { // Triple click
     let cx = wg.state.doc.resolve(pos.pos), block = cx.textblockParent
-    if (block) return GardSelection.range(block.start, block.end)
+    if (block) return GardSelection.undirectionalRange(block.start, block.end)
     else return GardSelection.near(wg.state, pos.pos, pos.side || -1)
   }
 }

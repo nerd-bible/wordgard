@@ -137,7 +137,7 @@ export abstract class GardSelection {
 
   /// Create a cursor text selection at the given position.
   static cursor(pos: number, side?: -1 | 1, goalColumn?: number) {
-    return GardSelection.Text.createInner(pos, pos, side, goalColumn)
+    return GardSelection.Text.createInner(pos, pos, side, true, goalColumn)
   }
 
   /// Find a normal cursor near the given position.
@@ -148,7 +148,12 @@ export abstract class GardSelection {
 
   /// Create a text selection.
   static range(anchor: number, head?: number, headSide?: -1 | 1, goalColumn?: number) {
-    return GardSelection.Text.createInner(anchor, head ?? anchor, headSide, goalColumn)
+    return GardSelection.Text.createInner(anchor, head ?? anchor, headSide, true, goalColumn)
+  }
+
+  /// Create a text selection.
+  static undirectionalRange(from: number, to: number) {
+    return GardSelection.Text.createInner(from, to, 1, false)
   }
 
   /// Create a node selection.
@@ -213,8 +218,6 @@ export namespace GardSelection {
     return GardSelection.selectionType.of(new SelectionType(tag, cls, toJSON as any, fromJSON as any)) as any
   }
 
-  // FIXME implement undirectional text selections
-
   /// Text selections hold a single arbitrary range in the document.
   /// They represent a cursor when their anchor and head are the same
   /// position.
@@ -223,6 +226,11 @@ export namespace GardSelection {
       anchor: number,
       head: number,
       private _headSide: -1 | 1,
+      /// When `false`, indicates that this selection may swap `head`
+      /// and `anchor` when extended. Used for things like selections
+      /// created by double-clicking, which don't have a clearly
+      /// defined anchor.
+      readonly directional: boolean,
       goalColumn: number | undefined,
       /// A set of active marks that should be applied to content
       /// inserted at this selection (replacing the contextual marks).
@@ -235,9 +243,9 @@ export namespace GardSelection {
     }
 
     /// @internal
-    static createInner(anchor: number, head: number, side?: -1 | 1,
+    static createInner(anchor: number, head: number, side: -1 | 1 | undefined, directional: boolean,
                        goalColumn?: number, marks?: Mark.Set) {
-      return new Text(anchor, head, side ?? (head > anchor ? -1 : 1), goalColumn, marks)
+      return new Text(anchor, head, side ?? (head > anchor ? -1 : 1), directional, goalColumn, marks)
     }
 
     get headSide() {
@@ -251,7 +259,7 @@ export namespace GardSelection {
     /// Create a text selection.
     static create(spec: GardSelection.Text.Spec) {
       let {anchor, head = anchor} = spec
-      return Text.createInner(anchor, head, spec.headSide, spec.goalColumn, spec.marks)
+      return Text.createInner(anchor, head, spec.headSide, spec.directional !== false, spec.goalColumn, spec.marks)
     }
 
     map(change: ChangeSet, cx: GardSelection.Context, assoc: -1 | 1 = -1): GardSelection {
@@ -262,7 +270,7 @@ export namespace GardSelection {
         from = change.mapPos(this.from, 1)
         to = Math.max(from, change.mapPos(this.to, -1))
       }
-      return Text.createInner(from, to, this.headSide, this.goalColumn, this.marks)
+      return Text.createInner(from, to, this.headSide, this.directional, this.goalColumn, this.marks)
     }
 
     eq(other: GardSelection) {
@@ -295,6 +303,9 @@ export namespace GardSelection {
       /// the marks of inline content inserted at that selection. This is
       /// used for things like toggling emphasis on a cursor selection.
       marks?: Mark.Set
+      /// Set to `false` to indicate that this selection isn't {@link
+      /// GardSelection.Text.directional directional}.
+      directional?: boolean
     }
 
     /// The representation of a text selection when serialized to JSON.
@@ -302,6 +313,7 @@ export namespace GardSelection {
       anchor: number
       head?: number
       side?: -1 | 1
+      directional?: boolean
       marks?: Record<string, any>
     }
 
@@ -320,7 +332,8 @@ export namespace GardSelection {
         throw new ValidationError("Invalid JSON representation for GardSelection.Text")
       let anchor = json.anchor, head = typeof json.head == "number" ? json.head : anchor
       let marks = json.marks ? doc.schema.marksFromJSON(json.marks) : undefined
-      return Text.createInner(anchor, head, json.side == 1 || json.side == -1 ? json.side : undefined, undefined, marks)
+      return Text.createInner(anchor, head, json.side == 1 || json.side == -1 ? json.side : undefined,
+                              json.directional !== false, undefined, marks)
     }) as any)
   }
 
@@ -606,11 +619,12 @@ export function wordAt(state: GardState, pos: number, bias: -1 | 1) {
     if (i == res.parent.node.content.length) break
     cur = res.parent.node.content[i++]
   }
-  if (!(Intl as any).Segmenter) return GardSelection.range(start, end)
+  if (!(Intl as any).Segmenter) return GardSelection.undirectionalRange(start, end)
   let best: any = null, local = pos - start
   for (let segment of new (Intl as any).Segmenter(undefined, {granularity: "word"}).segment(text)) {
     if (segment.isWordLike && segment.index <= local && segment.index + segment.segment.length >= local && (!best || bias > 0))
       best = segment
   }
-  return best ? GardSelection.range(start + best.index, start + best.index + best.segment.length) : GardSelection.cursor(pos, bias)
+  return best ? GardSelection.undirectionalRange(start + best.index, start + best.index + best.segment.length)
+    : GardSelection.cursor(pos, bias)
 }
