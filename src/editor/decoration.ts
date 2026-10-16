@@ -684,9 +684,8 @@ function compareDecoSet<T>(setA: Map<(state: GardState) => T, T>, setB: Map<(sta
   for (let [srcB, valB] of setB) if (!setA.has(srcB)) cmp(null, valB)
 }
 
-function compareGlobal(stateA: GardState, stateB: GardState, facet: GardState.Facet<any, any>) {
-  return stateA.facet(facet) != stateB.facet(facet)
-}
+const globalDecoFacets: readonly GardState.Facet<any, any>[] =
+  [tagShape, tagWidget, tagWrapper, tagAttribute, markShape]
 
 // Compare ranges and points in decoration facets for unchanged ranges
 // in the given change desc. Returns an array using the section format
@@ -697,9 +696,7 @@ export function findChangedRanges(
   sections: ChangeSet.Sections
 ): Changes {
   let result: number[] = []
-  let globalChange = compareGlobal(prevState, state, tagShape) || compareGlobal(prevState, state, tagWidget) ||
-    compareGlobal(prevState, state, tagWrapper) || compareGlobal(prevState, state, tagAttribute) ||
-    compareGlobal(prevState, state, markShape)
+  let globalChange = globalDecoFacets.some(facet => prevState.facet(facet) !== state.facet(facet))
   // When node shapes change, we need a separate pass to see whether
   // their atomicity changed, and mark a replace for the whole node if
   // it did.
