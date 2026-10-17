@@ -89,7 +89,7 @@ export namespace KeyBinding {
     /// true. You can set this to true to disable that behavior.
     allowDefault?: boolean
     /// A textual description of what this key does. Will be used by
-    /// {@link showKeyBindings} to create a list of active bindings.
+    /// {@link keyBindingHelp} to create a list of active bindings.
     description?: PhraseSet.Ref | string
     /// A textual description of what the shifted variant of this key
     /// does.
@@ -128,7 +128,7 @@ export namespace KeyBinding {
 
   /// Key binding groups are used to {@link KeyBinding.Spec.group
   /// organize} key bindings in the user-presented {@link
-  /// showKeyBindings list} of bindings.
+  /// keyBindingHelp list} of bindings.
   export class Group {
     private constructor(
       /// The description given for this group.
