@@ -193,9 +193,8 @@ export abstract class GardSelection {
   /// Find a normal selection at the end of the document or the given
   /// textblock.
   static atEnd(cx: GardSelection.Context, block?: Pos.Plot) {
-    let found = block
-      ? TextblockMap.get(cx, block.start, block.node).visualSide(false)
-      : cx.doc.inlineContent ? TextblockMap.get(cx, 0, cx.doc).visualSide(false)
+    let found = block ? {pos: block.end, side: 1} as const
+      : cx.doc.inlineContent ? {pos: cx.doc.length, side: 1} as const
       : findNormalAt(cx, cx.doc.length, -1)
     return GardSelection.cursor(found.pos, found.side)
   }
@@ -449,8 +448,8 @@ export namespace GardSelection {
 
 export function cursorAtStart(cx: GardSelection.Context, block?: Pos.Plot) {
   let found = block
-    ? TextblockMap.get(cx, block.start, block.node).visualSide(true)
-    : cx.doc.inlineContent ? TextblockMap.get(cx, 0, cx.doc).visualSide(true)
+    ? {pos: block.start, side: -1} as const
+    : cx.doc.inlineContent ? {pos: 0, side: -1} as const
     : findNormalAt(cx, 0, 1)
   return GardSelection.cursor(found.pos, found.side)
 }
@@ -498,11 +497,7 @@ function scanNormalFrom(
   let bottom = pos.pos, step = forward ? 1 : -1
   for (let {parent, index} = pos, p = pos.pos;;) {
     let {node, parent: next} = parent
-    if (node.inlineContent) {
-      if (cx.config.visualCursorMotion)
-        return TextblockMap.get(cx, parent.start, parent.node).visualSide(forward)
-      return {pos: p, side: forward ? 1 : -1}
-    }
+    if (node.inlineContent) return {pos: p, side: forward ? -1 : 1}
     if (index == (forward ? node.content.length : 0)) {
       let barrier = !next || isBarrier(cx, node)
       if ((bottom != from) && pastBarrier && barrier) return {pos: bottom, side: forward ? -1 : 1}
@@ -544,7 +539,7 @@ function findNormalAt(cx: GardSelection.Context, pos: number, bias: -1 | 1): {po
   // valid inline position, and tracking the lowest block pos between
   // the nearest barriers as fallback.
   for (let pass = 0; pass < 2; pass++) {
-    let dir = !pass ? bias : -bias, {parent, index} = res, curPos = pos
+    let dir: -1 | 1 = !pass ? bias : -bias as -1 | 1, {parent, index} = res, curPos = pos
     for (;;) {
       if (parent.node.inlineContent) return {pos: curPos, side: bias}
       if (index == (dir > 0 ? parent.node.content.length : 0)) {
@@ -555,10 +550,8 @@ function findNormalAt(cx: GardSelection.Context, pos: number, bias: -1 | 1): {po
       } else {
         let nextIndex = index + (dir > 0 ? 0 : -1), next = parent.node.content[nextIndex]
         if (next.isLeaf || isBarrier(cx, next)) break
-        if (!parent.node.inlineContent && next.inlineContent && cx.config.visualCursorMotion) {
-          let startPos = curPos - (dir > 0 ? 0 : next.length) + 1
-          return TextblockMap.get(cx, startPos, next).visualSide(dir > 0)
-        }
+        if (!parent.node.inlineContent && next.inlineContent)
+          return {pos: curPos + dir, side: -dir as -1 | 1}
         parent = Pos.Plot.create(parent, next, curPos, nextIndex)
         index = dir > 0 ? 0 : next.content.length
         curPos += dir
@@ -581,8 +574,7 @@ function skipWord(cx: GardSelection.Context, start: number, side: -1 | 1, forwar
       let next = map.skipWord(pos, side, forward, visually)
       if (next) return next
       if (!block.parent) return last
-      let end: {pos: number, side: -1 | 1} = visually ? map.visualSide(!forward)
-        : forward ? {pos: block.end, side: -1} : {pos: block.start, side: 1}
+      let end: {pos: number, side: -1 | 1} = forward ? {pos: block.end, side: 1} : {pos: block.start, side: -1}
       if (end.pos != start) last = end
       pos = forward ? block.after : block.before
     }

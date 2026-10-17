@@ -869,7 +869,7 @@ export namespace GardState {
     static: true
   })
 
-  /// @hidden FIXME expose this?
+  /// @hidden
   export const isAtom = GardState.Facet.define<[Plot.Type, boolean], Map<Plot.Type, boolean>>({
     static: true,
     combine(inputs) {
@@ -915,6 +915,10 @@ const enum SlotStatus {
   Computed = 2,
   Computing = 4
 }
+
+// FIXME see if I can separate derived values (from computed facet
+// sources) as its own feature. Useful for, for example, deriving a
+// full key map from keymap and useDefaultKeymap facets.
 
 class DependencySet {
   doc: boolean = false
