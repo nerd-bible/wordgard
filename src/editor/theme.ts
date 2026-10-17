@@ -218,17 +218,17 @@ export const baseStyles = buildTheme("." + styleID, {
   },
 
   ".wg-key-help": {
-    padding: "15px",
+    padding: "15px 4px 4px",
     maxWidth: "350px"
   },
   ".wg-key-list": {
+    padding: "11px",
     outline: "none",
     maxHeight: "calc(min(70vh, 300px))",
     overflowY: "auto",
     display: "grid",
     gridTemplateColumns: "max-content auto",
     gap: "8px 15px",
-    margin: "0 0 0.5em",
     "& h4": {
       gridColumn: "span 2",
       margin: "0.5em 0",

@@ -179,7 +179,7 @@ export namespace Decoration {
       /// This function allows you to define a {@link Decoration.Tag.shape
       /// custom node shape} that depends on the editor state. It will
       /// automatically track which state slots (see {@link
-      /// GardState.Facet.compute}) you use, and make sure the nodes
+      /// GardState.Facet.derive}) you use, and make sure the nodes
       /// are redrawn when those change.
       ///
       /// If your shape function returns a function from a tag, you
@@ -200,7 +200,7 @@ export namespace Decoration {
         config?: {atom?: boolean}
       ) {
         let tp = Node.Type.get(type)
-        let ext = tagShape.compute(state => {
+        let ext = tagShape.derive(state => {
           let s = shape(state)
           return {type: tp, shape: typeof s == "function" ? memo(s as any) : () => s}
         })
@@ -263,7 +263,7 @@ export namespace Decoration {
       ) {
         let tp = Node.Type.get(type)
         let p = getPlace(place)
-        return tagWidget.compute(state => {
+        return tagWidget.derive(state => {
           let w = widget(state)
           return {
             type: tp,

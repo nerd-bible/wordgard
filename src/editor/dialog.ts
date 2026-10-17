@@ -227,7 +227,7 @@ const dialogs = GardState.Field.define<readonly OpenDialog[]>({
     }
     return value
   },
-  provide: f => Tooltip.show.computeN(state => {
+  provide: f => Tooltip.show.deriveN(state => {
     let tooltips: Tooltip[] = []
     for (let d of state.field(f)) if (d.tooltip) tooltips.push(d.tooltip)
     return tooltips

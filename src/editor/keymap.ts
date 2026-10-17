@@ -89,7 +89,7 @@ export namespace KeyBinding {
     /// true. You can set this to true to disable that behavior.
     allowDefault?: boolean
     /// A textual description of what this key does. Will be used by
-    /// {@link showKeyBindings} to create a list of active bindings.
+    /// {@link keyBindingHelp} to create a list of active bindings.
     description?: PhraseSet.Ref | string
     /// A textual description of what the shifted variant of this key
     /// does.
@@ -105,11 +105,19 @@ export namespace KeyBinding {
     return runHandlers(map, event, wg)
   }
 
+  /// @internal
+  export const keymap = GardState.Field.Derived.define(s => {
+    let bindings: readonly KeyBinding[] = s.facet(source)
+    return s.facet(useDefaultKeymap) ? bindings.concat(defaultKeymap) : bindings
+  })
+
   /// Facet used for registering key bindings. Extension precedence
   /// determines the order in which bindings that match the same key
   /// are called. When a handler has returned `true` for a given key,
   /// no further handlers are called.
-  export const source = GardState.Facet.define<KeyBinding>()
+  export const source = GardState.Facet.define<KeyBinding>({
+    enables: keymap
+  })
 
   /// By default, the {@link KeyBinding.defaultKeymap default keymap}
   /// is automatically active. You can configure this to false if you
@@ -120,7 +128,7 @@ export namespace KeyBinding {
 
   /// Key binding groups are used to {@link KeyBinding.Spec.group
   /// organize} key bindings in the user-presented {@link
-  /// showKeyBindings list} of bindings.
+  /// keyBindingHelp list} of bindings.
   export class Group {
     private constructor(
       /// The description given for this group.
@@ -323,30 +331,24 @@ class NormalizedBinding {
 
 type Keymap = NormalizedBinding[]
 
-const keymapCache = new WeakMap<readonly KeyBinding[], {map: Keymap, deflt: boolean}>()
+const keymapCache = new WeakMap<readonly KeyBinding[], Keymap>()
 
 function getKeymap(state: GardState) {
-  let bindings = state.facet(KeyBinding.source)
-  let addDefault = state.facet(KeyBinding.useDefaultKeymap)
+  let bindings = state.field(KeyBinding.keymap)
   let found = keymapCache.get(bindings)
-  if (!found || found.deflt != addDefault) {
-    found = {
-      map: buildKeymap(addDefault ? bindings.concat(KeyBinding.defaultKeymap) : bindings, currentPlatform),
-      deflt: addDefault
-    }
-    keymapCache.set(bindings, found)
-  }
-  return found.map
+  if (!found)
+    keymapCache.set(bindings, found = buildKeymap(bindings, currentPlatform),)
+  return found
 }
 
 const lookupCache = new WeakMap<readonly KeyBinding[], Map<string | PhraseSet.Ref, string>>()
 
 function getDescMap(state: GardState) {
-  let bindings = state.facet(KeyBinding.source)
+  let bindings = state.field(KeyBinding.keymap)
   let map = lookupCache.get(bindings)
   if (!map) {
     lookupCache.set(bindings, map = new Map)
-    for (let binding of bindings.concat(state.facet(KeyBinding.useDefaultKeymap) ? KeyBinding.defaultKeymap : [])) {
+    for (let binding of bindings) {
       let {description, shiftDescription} = binding.spec
       if (description || shiftDescription) {
         let name = binding.spec[currentPlatform] || binding.spec.key
