@@ -58,8 +58,7 @@ export namespace keyBindingHelp {
       open.close()
       return true
     }
-    let descs = collectKeyDescs(wg.state.facet(KeyBinding.source)
-      .concat(wg.state.facet(KeyBinding.useDefaultKeymap) ? KeyBinding.defaultKeymap : []))
+    let descs = collectKeyDescs(wg.state.field(KeyBinding.keymap))
     if (!descs.length) return false
     Dialog.show(wg, {
       key: showKeyBindings,
