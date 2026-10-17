@@ -648,7 +648,7 @@ describe("DocTile", () => {
     it("supports dynamic shapes", () => {
       let cls = GardState.Facet.define<string>(), called = 0
       let tile = render(doc(hr), [
-        Decoration.Tag.shape.dynamic(HorizontalRule.type, state => {
+        Decoration.Tag.shape.derived(HorizontalRule.type, state => {
           called++
           return Elt.mk("hr", {class: state.facet(cls)[0]})
         }),
@@ -659,6 +659,17 @@ describe("DocTile", () => {
       ist(called, 1)
       tile = update(tile, {effects: GardState.appendConfig.of(GardState.prec.high(cls.of("b")))})
       ist(tile.dom.innerHTML, `<hr class="b">`)
+    })
+
+    it("can change the shape of element marks", () => {
+      ist(render(doc(p(strong("ab"))), Decoration.Mark.shape(Strong, {element: "b"})).dom.innerHTML,
+          "<p><b>ab</b></p>")
+    })
+
+    it("can change the shape of attribute marks", () => {
+      let deco = Decoration.Mark.shape(ImageAlt, {attribute: "aria-description", value: 0})
+      ist(render(doc(p(imgAlt("p", $img))), deco).dom.innerHTML,
+          `<p><img aria-description="p" src="test.png"></p>`)
     })
   })
 })

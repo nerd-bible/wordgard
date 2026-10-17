@@ -271,7 +271,7 @@ export class InputState {
       let isSel = from == wg.state.selection.replacementRange.from && to == wg.state.selection.replacementRange.to
       if (isSel && wg.state.facet(pasteHandler).some(h => h(wg, event, slice || Slice.empty)))
         return
-      if (slice) { // FIXME proper multi-selection pasting
+      if (slice) {
         wg.dispatch({
           changes: {from, to, insert: slice, fit: true},
           selection: isSel ? (cx, changes) => GardSelection.near(cx, changes.mapPos(to, 1), -1) : undefined,
@@ -621,7 +621,7 @@ function queryPos(wg: Wordgard, event: MouseEvent) {
   return wg.posAtCoords({x: event.clientX, y: event.clientY}) as CoordPos
 }
 
-function basicMouseSelection(wg: Wordgard, event: MouseEvent) {
+function basicMouseSelection(wg: Wordgard, event: MouseEvent): Wordgard.MouseSelectionStyle {
   let start = queryPos(wg, event), type = event.detail
   let startSel = wg.state.selection
   return {
@@ -634,19 +634,24 @@ function basicMouseSelection(wg: Wordgard, event: MouseEvent) {
     get(event, extend) {
       let cur = queryPos(wg, event), range = rangeForClick(wg, cur, type), {from, to} = range
       if (extend) {
+        let startAnchor = !(startSel instanceof GardSelection.Text) || startSel.directional ? startSel.anchor
+          : from < startSel.from ? startSel.to : startSel.from
         if (from < startSel.anchor)
-          return GardSelection.range(startSel.anchor, from, from < to ? 1 : cur.side)
+          return GardSelection.range(startAnchor, from, from < to ? 1 : cur.side)
         else
-          return GardSelection.range(startSel.anchor, to, from < to ? -1 : cur.side)
+          return GardSelection.range(startAnchor, to, from < to ? -1 : cur.side)
       }
+      let {anchor, head} = range
       if (start.pos != cur.pos) {
         let startRange = rangeForClick(wg, start, type)
-        from = Math.min(startRange.from, from)
-        to = Math.max(startRange.to, to)
+        let from = Math.min(range.from, startRange.from), to = Math.max(range.to, startRange.to)
+        if (startRange.from < range.from) { anchor = from; head = to }
+        else { anchor = to; head = from }
       }
-      return from == range.from && to == range.to ? range : GardSelection.range(from, to, cur.side)
+      return anchor == range.anchor && head == range.head ? range
+        : GardSelection.range(anchor, head, head == cur.pos ? cur.side : undefined)
     }
-  } as Wordgard.MouseSelectionStyle
+  }
 }
 
 export const dropHandler = GardState.Facet.define<(
@@ -665,7 +670,7 @@ export const pasteHandler = GardState.Facet.define<(
 
 function copy(wg: Wordgard, event: ClipboardEvent) {
   let {state} = wg
-  if (!state.selection.empty && event.clipboardData) { // FIXME block-wise copying
+  if (!state.selection.empty && event.clipboardData) {
     let slice = state.selection.toSlice(state.doc)
     writeClipboard(state, slice, event.clipboardData)
     if (event.type == "cut" && !state.readOnly)
@@ -787,7 +792,6 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
       let mustFocus = !wg.hasFocus
       wg.inputState.startMouseSelection(new MouseSelection(wg, event, style, mustFocus))
       if (mustFocus) wg.observer.ignore(() => {
-        // FIXME on Firefox this somehow focuses the cell selection
         wg.contentDOM.focus({preventScroll: true})
         let active = wg.root.activeElement
         if (active && !active.contains(wg.contentDOM)) (active as HTMLElement).blur()
@@ -839,7 +843,7 @@ const baseHandlers: {[e in keyof HTMLElementEventMap]?: (wg: Wordgard, event: HT
     wg.focus()
     wg.dispatch({
       changes,
-      selection: GardSelection.range(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
+      selection: GardSelection.undirectionalRange(changes.mapPos(dropPos, -1), changes.mapPos(dropPos, 1)),
       userEvent: del ? "move.drop" : "input.drop"
     })
     wg.inputState.draggedContent = null

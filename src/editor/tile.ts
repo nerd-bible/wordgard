@@ -225,6 +225,7 @@ export class CompositeTile extends Tile {
       : orientation == Orientation.Col ? this.posAtCoordsCol(start, state, x, y, textblock)
       : this.posAtCoordsRow(start, state, x, y, textblock)
     if (result) return result
+
     let rect = this.dom.getBoundingClientRect()
     let after = outerOrientation == Orientation.Row ? x > (rect.left + rect.right) / 2 : y > (rect.top + rect.bottom) / 2
     let target = this.tag && this.tag.type.isSelectable &&
@@ -247,6 +248,16 @@ export class CompositeTile extends Tile {
     if (!result) return null
     let {closest, rect} = result
     let pos = this.posBeforeChild(closest, start)
+    // Special case when querying a position after/before the
+    // first/last child in a textblock
+    if (textblock && textblock.start == start && (x < rect.left || x > rect.right)) {
+      let start = (x < rect.left) == textblock.ltr
+      let span = start ? textblock.order[0] : textblock.order[textblock.order.length - 1]
+      if (span.ltr != textblock.ltr && pos >= span.from + textblock.start && pos <= span.to + textblock.start)
+        return start ? CoordPos.create(textblock.start, -1)
+          : CoordPos.create(textblock.start + textblock.node.contentLength, 1)
+    }
+
     if (closest.dom.nodeName == "BR") return CoordPos.create(pos, 1)
     if (closest.tag && closest.tag.isPlot && closest.tag.type.isInline) {
       if (x > rect.right) return CoordPos.create(pos + closest.length, -1)
