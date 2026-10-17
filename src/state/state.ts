@@ -123,16 +123,20 @@ export class GardState {
     return this.resolvedSel || (this.resolvedSel = this.selection.resolve(this.doc))
   }
 
-  /// Retrieve the value of a {@link GardState.Field state field}.
-  /// Throws an error when the state doesn't have that field, unless
-  /// you pass `false` as second parameter.
+  /// Retrieve the value of a {@link GardState.Field state field} or
+  /// {@link GardState.Field.Derived derived field}. Throws an error
+  /// when the state doesn't have that field, unless you pass `false`
+  /// as second parameter, in which case you'll get `undefined` for a
+  /// regular field, or the value will be eagerly computed for a
+  /// derived field.
   field<T>(field: GardState.Field<T> | GardState.Field.Derived<T>): T
-  field<T>(field: GardState.Field<T> | GardState.Field.Derived<T>, require: false): T | undefined
+  field<T>(field: GardState.Field<T>, require: false): T | undefined
+  field<T>(field: GardState.Field.Derived<T>, require: false): T
   field<T>(field: GardState.Field<T> | GardState.Field.Derived<T>, require: boolean = true): T | undefined {
     let addr = this.config.address[field.id]
     if (addr == null) {
       if (require) throw new RangeError("Field is not present in this state")
-      return undefined
+      return field instanceof GardState.Field ? undefined : field.value(this)
     }
     let track = this.trackAccess
     if (track) {
@@ -434,7 +438,8 @@ export namespace GardState {
       dependencies: Slot[] = []
 
       private constructor(
-        private value: (state: GardState) => Value,
+        /// @internal
+        readonly value: (state: GardState) => Value,
         private compareF: (a: Value, b: Value) => boolean
       ) {}
 
