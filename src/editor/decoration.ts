@@ -200,7 +200,7 @@ export namespace Decoration {
         config?: {atom?: boolean}
       ) {
         let tp = Node.Type.get(type)
-        let ext = tagShape.compute(state => {
+        let ext = tagShape.derive(state => {
           let s = shape(state)
           return {type: tp, shape: typeof s == "function" ? memo(s as any) : () => s}
         })
@@ -263,7 +263,7 @@ export namespace Decoration {
       ) {
         let tp = Node.Type.get(type)
         let p = getPlace(place)
-        return tagWidget.compute(state => {
+        return tagWidget.derive(state => {
           let w = widget(state)
           return {
             type: tp,
