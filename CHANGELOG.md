@@ -1,3 +1,13 @@
+## 0.6.1 (2026-10-20)
+
+### Bug fixes
+
+Fix a bug that made `PointSet.at` return undefined when it shouldn't.
+
+Fix a bug that would cause confused decoration handling when updating part of the document with multiple decoration sources.
+
+Fix cursor positioning at the sides of bidirectional textblocks on Chrome.
+
 ## 0.6.0 (2026-10-17)
 
 ### Breaking changes
