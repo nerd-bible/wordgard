@@ -1,3 +1,11 @@
+## 0.6.2 (2026-10-20)
+
+### Bug fixes
+
+Fix a regression breaking all key bindings involving the Cmd/Meta key.
+
+Fix a crash when updating the presentation of an atomically-rendered plot.
+
 ## 0.6.1 (2026-10-20)
 
 ### Bug fixes
