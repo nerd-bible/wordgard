@@ -19,7 +19,7 @@ else
 
 	# make a beta release if HEAD isn't tagged
 	if ! git describe --exact-match --tags HEAD; then
-		npx -p @nerd-bible/config gitBump beta
+		npx -y -p @nerd-bible/config gitBump beta
 	fi
 
 	git push --tags origin master
