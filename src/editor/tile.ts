@@ -385,8 +385,7 @@ export class DocTile extends CompositeTile {
         builder.composition(composition!, len)
         if (ins && (startCovered = i == changes.length || changes[i + 1] == -1)) builder.update(0, true)
       } else if (ins == -1) {
-        builder.keep(len, !startCovered, i == changes.length)
-        startCovered = false
+        startCovered = builder.keep(len, !startCovered, i == changes.length)
       } else if (ins == -2) {
         builder.update(len, !startCovered)
         startCovered = true
@@ -945,6 +944,21 @@ class ContentUpdate {
   }
 
   keep(len: number, includeStart: boolean, includeEnd: boolean) {
+    // Update has changed the atomicity of the we're starting in
+    if (!!this.partialNode != (this.old.tile.isAtom && !this.old.tile.isText)) {
+      let dist = Math.min(len, this.partialNode
+        ? this.state.doc.nodeAt(this.posB - this.partialNode.length)!.length - this.partialNode.length
+        : this.old.tile.length - this.old.index)
+      this.replace(dist, dist, includeStart)
+      if (dist == len) return true
+      includeStart = false
+      len -= dist
+    }
+    this.keepCheckEnd(len, includeStart, includeEnd)
+    return includeEnd
+  }
+
+  keepCheckEnd(len: number, includeStart: boolean, includeEnd: boolean) {
     let cut: number[] = [], end = this.posB + len
     // Compare this.old and this.new to find node tiles whose tag
     // changed and who have end widgets and whose end is inside the

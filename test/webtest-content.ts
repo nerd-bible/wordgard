@@ -7,7 +7,7 @@ import {builder, basicBuilders, tableSchema} from "./schema.ts"
 import {rDoc, rChangeSpec} from "./generate.ts"
 
 const {DocTile} = Wordgard
-const {doc, p, blockquote, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
+const {doc, p, blockquote, h1, h2, ul, li, br, $img, img, imgAlt, hr, strong, em, table, tr, td} = basicBuilders
 
 type DocTile = InstanceType<typeof DocTile>
 const dummyEditor: Wordgard = {connected: false} as any
@@ -480,7 +480,7 @@ describe("DocTile", () => {
       })).dom.innerHTML, "<div>ab<img src=\"test.png\">cd</div>")
     })
 
-    it("can give a plot with atomic shape", () => {
+    it("can give a plot an atomic shape", () => {
       ist(render(doc(p("ab", $img, "cd")), Decoration.Point.source.of(state => {
         return Decoration.Point.set([[Decoration.Point.shape(Elt.mk("div", ["?"])), 0]])
       })).dom.innerHTML, `<div${uned}>?</div>`)
@@ -500,6 +500,14 @@ describe("DocTile", () => {
       }))
       tile = update(tile, {effects: GardState.reconfigure.of([])})
       ist(tile.dom.innerHTML, "<p>abc</p>")
+    })
+
+    it("can change between normal plot and atom plot", () => {
+      let atomH = Decoration.Tag.shape(Heading, Elt.mk("h1", ["H"]))
+      let tile = update(render(doc(h1("abcd")), atomH), {changes: {from: 0, to: 1, insert: [Paragraph]}})
+      ist(tile.dom.innerHTML, "<p>abcd</p>")
+      tile = update(tile, {changes: {from: 0, to: 1, insert: [Heading.of(1)]}})
+      ist(tile.dom.innerHTML, `<h1${uned}>H</h1>`)
     })
 
     it("can add attributes to a specific node", () => {
