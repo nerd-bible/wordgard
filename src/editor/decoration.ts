@@ -1024,8 +1024,15 @@ export class DecoIterator {
     return shape
   }
 
+  atomCache = new Map<number, boolean>()
+
   hasAtomShape(pos: number) {
-    return this.pointSets.some(s => s.at(pos, d => d instanceof ShapeDecoration && !d.shape.hasContent))
+    let has = this.atomCache.get(pos)
+    if (has == null) {
+      has = this.pointSets.some(s => s.at(pos, d => d instanceof ShapeDecoration && !d.shape.hasContent))
+      this.atomCache.set(pos, has)
+    }
+    return has
   }
 }
 
