@@ -837,6 +837,32 @@ class TilePointer {
 
 const enum Reused { Full = 1, DOM = 2 }
 
+// Tile tree updates are driven by the document changes + detected
+// decoration-initiated changes. The map for an update is in the shape
+// of a series of sections (see changes.ts) similar, but not
+// identical, to the sections kept in change sets.
+//
+// A given range is either redrawn entirely (when replaced), updated
+// (when changed somehow, but still having the same structure), or
+// kept (entirely unchanged). The former two work similarly, except
+// that updates walk the old tile tree along with the newly generated
+// content, and try to reuse DOM nodes when possible. The latter just
+// walks the old tile tree and adds parts of it to the new one. The
+// initial draw is treated as a replace of the entire document
+// starting with an empty tile tree.
+//
+// The way content for a given replaced or updated range is created is
+// determined by `DecoIterator` from decoration.ts, which walks the
+// content tree along with the provided decorations, and emits
+// information about the shape of the content.
+//
+// A node's "inner structure" (any additional elements or widgets that
+// are part of its shape) is handled by the drawing of the node's
+// opening token. The replace/update code eagerly draws it when
+// drawing the start of the node, the keep code eagerly copies it when
+// entering such a node, and ignores it in the rest of the walk
+// through the old tree.
+
 class ContentUpdate {
   old: TilePointer
   new: CompositeTile
@@ -861,11 +887,10 @@ class ContentUpdate {
         let span = tile.isSpanning && this.enterSpanning(tile.elt)
         if (span) {
           this.new = span
-        } else {
-          this.reused.set(tile, Reused.DOM)
-          let inner = EltTile.of(tile.elt, tile.tag, tile.flags, tile.boundary * 2, tile.dom)
-          this.new.addChild(inner)
-          this.new = inner
+        } else if (!tile.isNodeInner) { // Ignore node inner structure
+          let copy = this.copyEltStructure(tile)
+          this.new.addChild(copy)
+          this.new = copy.contentTile!
         }
       },
       leave: tile => {
@@ -885,7 +910,8 @@ class ContentUpdate {
         }
       },
       skip: (tile, from, to) => {
-        if (!(tile instanceof TextTile)) {
+        if (tile.isNodeInner) { // Node inner structure is handled when the node is entered
+        } else if (!(tile instanceof TextTile)) {
           if (!from && to == tile.length) {
             this.reused.set(tile, Reused.Full)
             this.new.addChild(tile)
@@ -1166,6 +1192,15 @@ class ContentUpdate {
       if (shape.type.connect) this.toConnect.push(tile)
       return tile
     }
+  }
+
+  copyEltStructure(tile: EltTile) {
+    this.reused.set(tile, Reused.DOM)
+    let copy = EltTile.of(tile.elt, tile.tag, tile.flags, tile.boundary * 2, tile.dom)
+    if (tile.isNodeOuter) for (let child of tile.children) if (child.isNodeInner) {
+      copy.addChild((child.flags & TileFlag.HasContent) ? this.copyEltStructure(child as EltTile) : child)
+    }
+    return copy
   }
 
   ensureHackNode() {

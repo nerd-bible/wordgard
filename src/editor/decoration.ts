@@ -752,6 +752,7 @@ export function findChangedRanges(
   return result
 }
 
+// FIXME also used for shape changes
 function addAtomicityChanges(
   changes: Changes,
   prev: GardState,

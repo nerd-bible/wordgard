@@ -645,6 +645,23 @@ describe("DocTile", () => {
       ist(tile.dom.innerHTML, `<para${uned}></para>`)
     })
 
+    it("renders shape atoms at the end of a positional shape change", () => {
+      let tile = render(doc(p("a")))
+      tile = update(tile, {
+        effects: GardState.appendConfig.of(Decoration.Point.source.of(state => {
+          return Decoration.Point.set([[Decoration.Point.shape(Elt.mk("div", [Elt.mk("p", [0]), Elt.mk("after")])), 0]])
+        }))
+      })
+      ist(tile.dom.innerHTML, `<div><p>a</p><after${uned}></after></div>`)
+    })
+
+    it("keeps to-the-side node structure in place when the node's content changes", () => {
+      let paraShape = Decoration.Tag.shape(Paragraph, Elt.mk("div", [Elt.mk("before"), Elt.mk("p", [0]), Elt.mk("after")]))
+      let tile = update(render(doc(p("abc")), paraShape), {changes: {from: 2, to: 3}})
+      ist(tile.dom.innerHTML,
+          `<div><before${uned}></before><p>ac</p><after${uned}></after></div>`)
+    })
+
     it("supports dynamic shapes", () => {
       let cls = GardState.Facet.define<string>(), called = 0
       let tile = render(doc(hr), [
