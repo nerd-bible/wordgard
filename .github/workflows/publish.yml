@@ -27,5 +27,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
       - run: npm install
       - run: npm test
+      # temporary tag for pkgWrite script
+      - run: git tag $(git describe)
       - run: npx -p @nerd-bible/config pkgWrite
       - run: npm publish --verbose --access public --tag latest
