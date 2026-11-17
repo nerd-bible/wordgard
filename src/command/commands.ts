@@ -23,10 +23,11 @@ export const insertText: Command.Pure<{from: number, to: number, insert: string,
 ) => {
   if (state.readOnly) return false
   let {selection} = state
-  let marks = (from == selection.from && to == selection.to && state.sel.activeMarks) ||
-    state.doc.resolve(from).marks(state.doc.resolve(to))
+  let isSel = from == selection.from && to == selection.to
+  let marks = (isSel && state.sel.activeMarks) || state.doc.resolve(from).marks(state.doc.resolve(to))
   return {
-    changes: {from, to, insert: insert ? [Leaf.text(insert, marks)] : undefined, fit: true},
+    changes: isSel ? selection.replaceWith(insert ? Leaf.text(insert, marks) : [])
+      : {from, to, insert: insert ? [Leaf.text(insert, marks)] : undefined, fit: true},
     scrollIntoView: true,
     selection: (cx, changes) => GardSelection.near(cx, changes.mapPos(to, 1), -1),
     userEvent
@@ -43,15 +44,15 @@ export const insertLineBreak: Command.Pure = ({state}) => {
   if (state.readOnly) return false
   let {doc, sel} = state
   let brk = doc.schema.lineBreak, parent = sel.from.parent.node.type
-  let {from, to} = state.selection.replacementRange
   let insertBreak = brk && doc.schema.canContain(parent, brk.type)
   if (!(insertBreak || parent.preserveWhitespace && sel.to.parent.start == sel.from.parent.start)) return false
   let insert = insertBreak ? brk!.withMarks(state.sel.activeMarks) : Leaf.text("\n", state.sel.activeMarks)
-  let changes = ChangeSet.create(state.doc, {from, to, insert: [insert], fit: true})
-  let pos = changes.findInserted(t => insertBreak ? t.type == brk!.type : t.isText)
   return {
-    changes,
-    selection: GardSelection.cursor(pos == null ? from : pos + 1, -1),
+    changes: state.selection.replaceWith(insert),
+    selection: (cx, changes) => {
+      let pos = changes.findInserted(t => insertBreak ? t.type == brk!.type : t.isText)
+      return pos == null ? null : GardSelection.cursor(pos + 1, -1)
+    },
     scrollIntoView: true,
     userEvent: insertBreak ? "insert.linebreak" : "input"
   }
@@ -68,7 +69,7 @@ export const enter: Command.Pure = ({state}) => {
 
   // When not in an inline context, try to create new empty textblock
   if (!sel.head.parent.node.inlineContent || !sel.anchor.parent.node.inlineContent) {
-    let {from, to} = sel.replacementRange
+    let {from, to} = sel
     let wrap = doc.schema.findWrapping(from.parent.node.type, Leaf.Text)
     if (!wrap) return false
     let content: Plot[] = []
@@ -195,7 +196,7 @@ export const yankKilled: Command = wg => {
   if (!buffer || !buffer.content.length || !(state.selection instanceof GardSelection.Text)) return false
   let {selection} = state
   return {
-    changes: {correct: {from: selection.from, to: selection.to, insert: buffer.content}},
+    changes: state.selection.replaceWith(buffer.content),
     scrollIntoView: true,
     selection: (cx, changes) => GardSelection.near(cx, changes.mapPos(selection.from, 1)),
     userEvent: "input.yank"
@@ -527,7 +528,7 @@ function isForward(dir: "left" | "right" | "forward" | "backward", state: GardSt
 function asTextSel(sel: GardSelection, forward: boolean): GardSelection.Text {
   if (sel instanceof GardSelection.Text)
     return sel.directional ? sel : forward ? GardSelection.range(sel.from, sel.to) : GardSelection.range(sel.to, sel.from)
-  let {from, to} = sel.replacementRange
+  let {from, to} = sel
   return forward ? GardSelection.range(from, to) : GardSelection.range(to, from)
 }
 
