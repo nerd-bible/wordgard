@@ -328,8 +328,12 @@ class MenuBar {
 
   setSelection(selection: readonly BarElement[], focus = true) {
     this.updateElts(false, selection)
-    if (selection.length > 1 && this.selection.length <= 1)
+    if (selection.length > 1 && this.selection.length <= 1) {
       this.dom.ownerDocument.addEventListener("mousedown", this.globalClick)
+      this.dom.closest("wg-panels")?.classList.add("wg-panels-raised")
+    } else if (selection.length <= 1 && this.selection.length > 1) {
+      this.dom.closest("wg-panels")?.classList.remove("wg-panels-raised")
+    }
     this.selection = selection
     if (focus && selection.length) selection[selection.length - 1].focusDOM.focus()
   }
@@ -453,7 +457,7 @@ function findNextChild(children: readonly BarElement[], child: BarElement, dir: 
     else if (i >= children.length) i = 0
     if (i == index) return null
     let child = children[i]
-    if (!(child.flags & F.Hidden)) return child
+    if (!(child.flags & (F.Hidden | F.Disabled))) return child
   }
 }
 

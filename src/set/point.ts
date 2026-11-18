@@ -63,7 +63,7 @@ class SetBuilder<T extends PointSet.Value> {
     if (!chunk) this.chunks.push(chunk = new Chunk(pos, [], []))
     chunk.pos.push(pos - chunk.start)
     chunk.value.push(value)
-    if ((pos - this.lastPos || value.side || this.lastSide) >= 0) {
+    if ((pos - this.lastPos || value.side - this.lastSide) >= 0) {
       this.lastPos = pos
       this.lastSide = value.side
     } else {
@@ -233,7 +233,9 @@ export class PointSet<T extends PointSet.Value> implements Set<T> {
       for (;;) {
         let {cur} = cursor
         if (!cur) return
-        if (cursor.i == 0 && cur.end <= pos && !filter) {
+        if (cursor.i == 0 && cur.end <= pos && !filter &&
+            (cur.value.length > (ChunkSize.Max >> 1) ||
+             cursor.chunkI < this.chunks.length - 1 && this.chunks[cursor.chunkI + 1].start <= pos)) {
           build.addChunk(cur)
           cursor.next(true)
         } else if (cursor.from >= pos) {
@@ -325,7 +327,7 @@ class PointCursor<T extends PointSet.Value> implements Set.Cursor<T> {
           this.chunkI = 0
           break
         }
-        if ((pos - this.cur.pos[this.i - 1] || side - this.cur.value[this.i - 1].side) <= 0)
+        if ((pos - (this.cur.pos[this.i - 1] + this.cur.start) || side - this.cur.value[this.i - 1].side) <= 0)
           break
       }
     } else if (diff <= 0) {
